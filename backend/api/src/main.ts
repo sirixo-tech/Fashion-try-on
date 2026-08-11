@@ -8,6 +8,7 @@ import {
 } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import fastifyCookie from "@fastify/cookie";
+import fastifyCors from "@fastify/cors";
 
 import { AppModule } from "./app.module.js";
 import { loadAuthConfig } from "./auth/auth.config.js";
@@ -27,8 +28,7 @@ async function bootstrap() {
   const port = Number(process.env.API_PORT ?? 3001);
 
   await app.register(fastifyCookie);
-
-  app.enableCors({
+  await app.register(fastifyCors, {
     origin: authConfig.corsAllowedOrigins,
     credentials: true,
   });

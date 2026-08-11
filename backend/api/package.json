@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --exclude \"dist/**\"",
     "bootstrap:staff": "tsx src/scripts/bootstrap-staff-user.ts",
-    "bootstrap:platform-admin": "tsx src/scripts/bootstrap-platform-admin.ts"
+    "bootstrap:platform-admin": "tsx src/scripts/bootstrap-platform-admin.ts",
+    "bootstrap:demo-logins": "tsx src/scripts/bootstrap-demo-logins.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

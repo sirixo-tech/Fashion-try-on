@@ -77,6 +77,10 @@ export function loadAuthConfig(env = process.env): AuthConfig {
   const nodeEnv = env.NODE_ENV ?? "development";
   const jwtAccessSecret = requireEnv(env, "JWT_ACCESS_SECRET");
   const refreshTokenPepper = requireEnv(env, "REFRESH_TOKEN_PEPPER");
+  const corsOrigins = env.CORS_ORIGINS ?? env.CORS_ALLOWED_ORIGINS;
+  if (!corsOrigins || corsOrigins.trim() === "") {
+    throw new Error("CORS_ORIGINS or CORS_ALLOWED_ORIGINS is required");
+  }
 
   ensureSecretQuality("JWT_ACCESS_SECRET", jwtAccessSecret, nodeEnv);
   ensureSecretQuality("REFRESH_TOKEN_PEPPER", refreshTokenPepper, nodeEnv);
@@ -106,7 +110,7 @@ export function loadAuthConfig(env = process.env): AuthConfig {
         : undefined,
     cookieSecure,
     cookieSameSite,
-    corsAllowedOrigins: requireEnv(env, "CORS_ALLOWED_ORIGINS")
+    corsAllowedOrigins: corsOrigins
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean),

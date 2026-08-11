@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import {
+  ColorSchemeScript,
+  SelfxUiProvider,
+  mantineHtmlProps,
+} from "@selfx/ui";
+import "@selfx/ui/globals.css";
+
+import { SessionProvider } from "@/lib/session";
+
 export const metadata: Metadata = {
   title: "SelfX Virtual Try-On",
-  description: "SelfX Phase 0 web placeholder",
+  description: "SelfX web administration shell",
 };
 
 export default function RootLayout({
@@ -12,8 +21,15 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" {...mantineHtmlProps}>
+      <head>
+        <ColorSchemeScript defaultColorScheme="light" />
+      </head>
+      <body>
+        <SelfxUiProvider>
+          <SessionProvider>{children}</SessionProvider>
+        </SelfxUiProvider>
+      </body>
     </html>
   );
 }

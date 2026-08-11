@@ -1,0 +1,1602 @@
+## Document Evolution
+
+This is a living document.
+
+The contents represent the currently approved product/design/technical baseline
+and may be updated as implementation, testing, business requirements, provider
+capabilities, or operational requirements evolve.
+
+Material changes must:
+
+1. be intentional;
+2. remain consistent with related project documents;
+3. update affected documentation;
+4. include required database migrations/API changes/tests where applicable;
+5. not silently invalidate already deployed behavior.
+
+# SelfX Virtual Try-On Platform
+
+## Product Requirements Document — PRD v1.0
+
+**Status:** APPROVED BASELINE
+**Product Type:** Multi-Tenant SaaS / AI Virtual Try-On Platform
+**Initial Production Channel:** SelfX Retail Kiosks
+**Future Channels:** Public API, Mobile, Shopify, WooCommerce, Web SDK and partner integrations
+
+---
+
+# 1. Purpose
+
+SelfX Virtual Try-On is an AI-powered SaaS platform that allows customers to visualize themselves wearing garments before purchasing them.
+
+The platform must support physical retail stores as well as future ecommerce and third-party integrations through one centralized SelfX backend.
+
+SelfX must not be designed as only a kiosk application.
+
+The kiosk is the first customer-facing channel of a broader SaaS platform.
+
+---
+
+# 2. Core Product Scenarios
+
+## PRD-TRYON-001 — Catalog Garment Try-On
+
+A customer must be able to:
+
+1. Upload or capture a photograph of themselves.
+2. Select a garment from the permitted retailer catalog.
+3. Start Virtual Try-On.
+4. Receive an AI-generated image showing themselves wearing the selected garment.
+
+---
+
+## PRD-TRYON-002 — Physical Garment Try-On
+
+Where enabled, a customer must be able to:
+
+1. Upload or capture a photograph of themselves.
+2. Capture a photograph of a physical garment.
+3. Confirm the garment image.
+4. Start Virtual Try-On.
+5. Receive an AI-generated image showing themselves wearing the captured garment.
+
+---
+
+# 3. Product Vision
+
+SelfX must act as the central platform for:
+
+- Customer Virtual Try-On
+- Organizations
+- Stores/branches
+- Customers
+- Staff
+- Roles and access
+- Products and garments
+- Kiosks
+- AI generation
+- Usage
+- Subscriptions
+- Trials
+- Analytics
+- Integrations
+- SelfX administration
+- Support
+- Auditability
+
+The long-term channel model is:
+
+SelfX Platform
+→ Retail Kiosks
+→ Public API
+→ Mobile Applications
+→ Shopify
+→ WooCommerce
+→ Web SDK / Widget
+→ Custom Integrations
+
+All channels must share the same SelfX backend.
+
+---
+
+# 4. Mandatory Architecture Principle
+
+Client applications must communicate with SelfX.
+
+The required logical architecture is:
+
+Customer / Client Application
+→ SelfX Platform
+→ AI Provider
+
+Direct client-to-AI-provider integration is prohibited.
+
+Examples of clients include:
+
+- Kiosk
+- Flutter application
+- Shopify application
+- WooCommerce plugin
+- Web widget
+- Public API customer
+
+AI-provider credentials must never be exposed to these clients.
+
+---
+
+# 5. AI Provider Independence
+
+SelfX must not be permanently tied to one AI provider.
+
+The platform may initially use:
+
+- FASHN AI
+
+Future providers may include:
+
+- Google Virtual Try-On
+- Other third-party Virtual Try-On providers
+- SelfX-hosted AI models
+
+Changing AI providers must not require changes to the client-facing SelfX integrations.
+
+SelfX must be capable of recording which provider/model handled a Virtual Try-On.
+
+Detailed routing, retry, fallback, provider limits and provider API implementation belong in the Technical Requirements & System Design document.
+
+---
+
+# 6. Product Goals
+
+SelfX must:
+
+1. Generate Virtual Try-On images quickly.
+2. Produce visually realistic results.
+3. Preserve customer identity as accurately as practical.
+4. Preserve garment appearance as accurately as practical.
+5. Support image upload.
+6. Support camera capture.
+7. Support catalog garments.
+8. Support physical garment capture.
+9. Support organizations with one or multiple stores.
+10. Support independent retailers.
+11. Support staff management.
+12. Support role- and scope-based access.
+13. Support SelfX Super Administration.
+14. Support SelfX customer support.
+15. Support controlled impersonation.
+16. Support managed kiosk devices.
+17. Track AI and customer usage.
+18. Track provider cost where available.
+19. Support subscriptions and trials.
+20. Provide merchant analytics.
+21. Support multiple channels through one backend.
+22. Support future external API customers.
+23. Avoid unnecessary vendor lock-in.
+24. Scale into a commercial SaaS platform.
+
+---
+
+# 7. Non-Goals
+
+The initial product does not guarantee:
+
+- Exact physical fit.
+- Exact garment sizing.
+- Body measurements.
+- Exact size recommendations.
+- Replacement of physical fitting rooms.
+- Replacement of professional fashion photography.
+- Live AR Try-On.
+- Video Try-On.
+- Custom garment generation.
+- Full inventory management.
+- POS functionality.
+
+These may be considered separately in future releases.
+
+---
+
+# 8. Tenant Model
+
+## PRD-ORG-001 — Organization
+
+An Organization represents a SelfX SaaS customer.
+
+Examples:
+
+- Clothing brand
+- Retail chain
+- Independent retailer
+- Franchise
+- Ecommerce business
+- Enterprise customer
+
+Each organization is an independent tenant.
+
+Organization A must never gain unauthorized access to Organization B data.
+
+---
+
+## PRD-STORE-001 — Stores / Branches
+
+An organization may contain one or multiple stores.
+
+Example:
+
+Organization
+→ Hyderabad Store
+→ Tirupati Store
+→ Bengaluru Store
+
+Each store belongs to an organization.
+
+Stores may have their own:
+
+- Staff
+- Managers
+- Kiosks
+- Product availability
+- Usage
+- Analytics
+- Settings
+
+---
+
+## PRD-STORE-002 — Independent Retailer
+
+An independent retailer must use the same architecture.
+
+Example:
+
+Independent Retailer
+→ Organization
+→ One Store
+
+SelfX must not maintain a separate backend architecture for individual store owners.
+
+---
+
+# 9. User Account Model
+
+## PRD-USER-001 — Multi-Organization Membership
+
+A single platform user may belong to multiple organizations.
+
+Example:
+
+User
+→ Organization A — Store Manager
+→ Organization B — Consultant / Staff
+
+A user account must therefore not be permanently restricted to one organization.
+
+---
+
+## PRD-USER-002 — Multi-Store Membership
+
+Authorized staff may have access to multiple stores within an organization.
+
+Example:
+
+Regional Manager
+→ Tirupati
+→ Hyderabad
+→ Chennai
+
+Other staff may only have access to one store.
+
+Access must respect assigned scope.
+
+---
+
+# 10. Major User Types
+
+SelfX must support at least:
+
+### Customer
+
+Uses Virtual Try-On.
+
+### Organization Owner
+
+Highest-level organization-side authority.
+
+### Organization Administrator
+
+Manages permitted organization operations.
+
+### Organization Staff
+
+Performs assigned organization-level functions.
+
+### Store Owner
+
+Manages one or more assigned stores.
+
+### Store Manager
+
+Manages permitted store operations.
+
+### Store Staff
+
+Performs restricted store-level tasks.
+
+### Kiosk Operator
+
+Performs permitted kiosk-related operations.
+
+### SelfX Support Administrator
+
+Provides controlled customer support.
+
+### SelfX Super Administrator
+
+Manages the SelfX SaaS platform.
+
+Exact role/permission mappings belong in Technical Requirements.
+
+---
+
+# 11. Staff Management
+
+## PRD-STAFF-001
+
+Authorized organization administrators must be able to:
+
+- Invite staff.
+- Assign predefined roles.
+- Assign one or multiple stores.
+- Change store assignments.
+- Modify permitted staff access.
+- Suspend staff.
+- Reactivate staff.
+- Disable staff.
+
+---
+
+## PRD-STAFF-002
+
+Authorized Store Owners/Managers may manage staff within their permitted store scope.
+
+They must not manage staff belonging exclusively to stores outside their authorized scope.
+
+---
+
+## PRD-STAFF-003
+
+The initial product will use predefined SelfX roles.
+
+Custom organization-created roles are not required in PRD v1.
+
+---
+
+# 12. Customer Access
+
+## PRD-CUSTOMER-001 — Anonymous Usage
+
+Customers must be able to use basic Virtual Try-On without creating an account.
+
+Account creation must not block the initial kiosk Try-On experience.
+
+---
+
+## PRD-CUSTOMER-002 — Account Requirement
+
+A customer account is required when the customer wants to:
+
+- Save Try-On results.
+- Access saved results later.
+- Access previous Try-On history.
+- Use account-dependent continuation functionality.
+
+---
+
+## PRD-CUSTOMER-003 — Authentication Methods
+
+Customer authentication should support:
+
+- Phone OTP
+- Email OTP
+- Approved social authentication
+
+Social authentication may include providers such as Google and Apple where supported.
+
+Detailed authentication implementation belongs in Technical Requirements.
+
+---
+
+# 13. Global SelfX Customer Account
+
+## PRD-CUSTOMER-004
+
+A customer's SelfX account must be platform-wide rather than retailer-specific.
+
+The same SelfX customer account may be used across participating organizations.
+
+Example:
+
+SelfX Customer Account
+→ Brand A Try-Ons
+→ Brand B Try-Ons
+→ Brand C Try-Ons
+
+Merchant tenant isolation must remain enforced even though the customer identity exists across SelfX.
+
+One merchant must not automatically gain visibility into the customer's interactions with another merchant.
+
+---
+
+# 14. Customer Consent
+
+## PRD-PRIVACY-001
+
+Customer consent must be collected before:
+
+- Camera access.
+- Capturing a customer photograph.
+- Uploading a customer photograph.
+- Processing the photograph through Virtual Try-On.
+
+The experience must clearly communicate that AI processing is involved.
+
+---
+
+# 15. Customer Image Reuse
+
+## PRD-TRYON-010
+
+A customer must be able to upload/capture their photograph once and reuse it for multiple garments during the same Try-On session.
+
+The customer must not be required to retake their photograph for every garment unless:
+
+- They choose to.
+- The current image is invalid.
+- The session expires.
+- A technical requirement requires a new image.
+
+---
+
+# 16. Multiple Garment Behavior
+
+## PRD-TRYON-011
+
+SelfX must support channel-dependent garment selection behavior.
+
+Examples:
+
+### Kiosk
+
+May allow:
+
+Customer Photo
+→ Garment A
+→ Garment B
+→ Garment C
+
+with multiple Try-On results.
+
+### Shopify
+
+May naturally start from:
+
+Current Shopify Product
+→ Try It On
+
+Both channels must use the same underlying SelfX platform.
+
+Exact concurrency/job behavior belongs in Technical Requirements.
+
+---
+
+# 17. Customer Images and Results
+
+## PRD-RESULT-001 — Result
+
+Successful Virtual Try-On must provide a generated result image.
+
+Customers should be able to:
+
+- View result.
+- Try another garment.
+- Retry where permitted.
+- Save result when authenticated.
+- Access permitted history.
+
+---
+
+## PRD-RESULT-002 — Download / Sharing
+
+Organizations must be able to configure whether customers may:
+
+- Download generated results.
+- Share generated results.
+
+SelfX may provide sensible platform defaults.
+
+---
+
+# 18. Saved Try-On History
+
+## PRD-RESULT-010
+
+Registered customers must be able to view saved Try-On history.
+
+History may contain:
+
+- Product/garment information
+- Retail organization
+- Store where applicable
+- Try-On date
+- Generated result while it remains retained
+
+---
+
+# 19. Image and Result Retention
+
+## PRD-PRIVACY-010
+
+Customer original photographs and generated Try-On images will normally be retained for:
+
+**7 days.**
+
+---
+
+## PRD-PRIVACY-011
+
+After seven days:
+
+- Original customer images must be deleted.
+- Generated Try-On images must be deleted.
+
+---
+
+## PRD-PRIVACY-012
+
+Deletion of images does not require deletion of the customer's entire Try-On history entry.
+
+SelfX may retain non-image history information such as:
+
+- Product
+- Organization
+- Store
+- Date/time
+- Channel
+- Generation status
+
+where permitted.
+
+The expired history entry must not continue to expose the deleted customer/generated image.
+
+---
+
+# 20. Merchant Access to Customer Results
+
+## PRD-PRIVACY-020
+
+Authorized Store Managers may view generated customer Try-On results associated with their permitted store.
+
+They must not automatically receive access to the customer's original photograph.
+
+---
+
+## PRD-PRIVACY-021
+
+Per the current product decision, Store Manager access to generated Try-On results does not require a separate per-result customer consent action beyond the general SelfX customer consent/privacy terms.
+
+This permission must:
+
+- Be limited to authorized Store Managers.
+- Be restricted to the appropriate store/organization.
+- Follow the applicable retention period.
+- Be auditable where appropriate.
+
+SelfX must clearly disclose applicable merchant access in the customer privacy/consent experience.
+
+---
+
+# 21. Products and Garments
+
+## PRD-PRODUCT-001
+
+SelfX must manage product information necessary for Virtual Try-On.
+
+SelfX is not intended to become a complete inventory/POS platform.
+
+---
+
+## PRD-PRODUCT-002
+
+Products may originate from:
+
+- SelfX merchant dashboard
+- Shopify
+- WooCommerce
+- Approved external APIs
+- Future integrations
+
+---
+
+## PRD-PRODUCT-003
+
+Products may be configured as:
+
+- Available organization-wide.
+- Available only in selected stores.
+
+SelfX must support both models.
+
+---
+
+## PRD-PRODUCT-004
+
+Externally synchronized products must maintain a relationship between:
+
+External Product
+↔ SelfX Product
+
+Detailed synchronization and ownership rules belong in Technical Requirements.
+
+---
+
+# 22. Physical Garment Capture
+
+## PRD-GARMENT-001
+
+Where enabled, a customer must be able to photograph a physical garment.
+
+SelfX should determine whether the garment image is sufficiently suitable for Virtual Try-On.
+
+The user should be able to:
+
+- Capture.
+- Retake.
+- Confirm.
+
+Detailed image preprocessing belongs in Technical Requirements.
+
+---
+
+# 23. Kiosk Requirements
+
+## PRD-KIOSK-001
+
+Every managed kiosk must be associated with:
+
+Organization
+→ Store
+→ Kiosk
+
+---
+
+## PRD-KIOSK-002
+
+Authorized users must be able to:
+
+- Register/pair kiosks.
+- Assign kiosk to a store.
+- View kiosk status.
+- Identify online/offline state.
+- Suspend kiosk.
+- Reactivate kiosk.
+- Revoke/unpair kiosk.
+- View kiosk usage.
+- View kiosk-related statistics.
+
+---
+
+## PRD-KIOSK-003
+
+Kiosks must authenticate as devices.
+
+Employee passwords must not be used as permanent kiosk credentials.
+
+---
+
+# 24. QR Kiosk-to-Mobile Handoff
+
+## PRD-QR-001
+
+QR handoff is part of the initial MVP.
+
+A kiosk customer must be able to scan a SelfX-generated QR code and continue the permitted customer journey on a personal device.
+
+Possible continuation includes:
+
+- Viewing the current Try-On session.
+- Accessing generated results.
+- Signing into/creating a SelfX customer account.
+- Saving results.
+- Opening product information.
+- Continuing toward purchase.
+
+Detailed token/security/session behavior belongs in Technical Requirements.
+
+---
+
+# 25. SelfX Super Administration
+
+## PRD-ADMIN-001
+
+SelfX Super Admin must provide platform-level management of:
+
+- Organizations
+- Stores
+- Users/staff
+- Kiosks
+- Subscriptions/commercial configurations
+- Trials
+- Usage
+- AI-provider usage
+- AI cost
+- Integrations
+- Platform analytics
+- Support
+- Impersonation
+- Audit information
+
+---
+
+# 26. SelfX Support View
+
+## PRD-SUPPORT-001
+
+Authorized SelfX personnel must be able to inspect a client environment for support without requesting customer passwords.
+
+Support View should be read-only.
+
+Support may inspect permitted:
+
+- Organization
+- Store
+- Products
+- Staff configuration
+- Kiosks
+- Integrations
+- Usage
+- Try-On status/errors
+- Relevant diagnostics
+
+---
+
+# 27. Controlled Impersonation
+
+## PRD-SUPPORT-010
+
+Authorized SelfX administrators must be able to impersonate an organization/store context when support requires operational access.
+
+Example:
+
+SelfX Administrator
+→ Organization A
+→ Tirupati Store
+→ Store Manager Context
+
+---
+
+## PRD-SUPPORT-011
+
+Impersonation must:
+
+- Never expose customer passwords.
+- Never expose provider secrets.
+- Be explicitly visible.
+- Identify active organization/store context.
+- Identify the acting SelfX administrator.
+- Be permission controlled.
+- Be time limited.
+- Support immediate exit.
+- Be auditable.
+
+Detailed security controls belong in Technical Requirements.
+
+---
+
+# 28. Usage Tracking
+
+## PRD-USAGE-001
+
+SelfX must record Virtual Try-On usage.
+
+Usage should be attributable where applicable to:
+
+- Organization
+- Store
+- Kiosk
+- Channel
+- Integration
+- Product
+- Try-On
+- AI provider/model
+- Generation status
+- Provider usage/cost
+- Timestamp
+
+---
+
+# 29. Subscription / Commercial Model
+
+## PRD-COMMERCIAL-001
+
+SelfX must not require every customer to use one identical commercial model.
+
+Organizations may have configurable commercial agreements.
+
+Examples may include:
+
+- Standard SaaS plan
+- Custom subscription
+- Enterprise contract
+- Usage-based pricing
+- Negotiated limits
+- Custom kiosk arrangements
+
+---
+
+## PRD-COMMERCIAL-002
+
+Commercial configuration may control:
+
+- Successful Try-On allowance
+- Stores
+- Kiosks
+- Users
+- API access
+- API limits
+- Integrations
+- Analytics
+- Branding
+- Support level
+- Other entitlements
+
+Exact pricing is outside PRD v1.
+
+---
+
+# 30. Free Trial
+
+## PRD-TRIAL-001
+
+SelfX must support trial plans that may include both:
+
+- Time limit
+- Generation limit
+
+Example concept:
+
+Trial expires when either:
+
+- Trial duration expires, or
+- Allowed Try-On generation quota is exhausted
+
+Exact commercial values will be configured separately.
+
+---
+
+# 31. Non-Payment / Commercial Suspension
+
+## PRD-SUB-001
+
+Organizations must not be immediately deleted when payment/commercial status expires.
+
+The expected lifecycle is conceptually:
+
+Active
+→ Payment/Commercial Issue
+→ Grace Period
+→ Suspended
+
+---
+
+## PRD-SUB-002
+
+During suspension:
+
+- New billable functionality may be restricted.
+- Virtual Try-On generation may be disabled.
+- Existing business data should remain preserved according to platform retention policy.
+- Authorized SelfX personnel must be able to restore access after resolution.
+
+Exact payment handling belongs in Technical Requirements.
+
+---
+
+# 32. White-Label Capability
+
+## PRD-BRAND-001
+
+Higher commercial tiers may support configurable branding.
+
+Possible capabilities include:
+
+- Client logo
+- Brand name
+- Theme/accent customization
+- SelfX branding visibility
+- White-label customer-facing experience
+
+Exact customization options belong in UI/UX and Technical Requirements.
+
+---
+
+# 33. Organization Onboarding
+
+## PRD-ORG-010
+
+SelfX must support both:
+
+### SelfX-Managed Onboarding
+
+SelfX administrator creates/configures an organization.
+
+### Self-Service Onboarding
+
+A new customer may register and create a SelfX organization.
+
+Self-service availability may be controlled during launch.
+
+## PRD-ORG-011 — Registration Is Not Activation
+
+An organization must never become operational immediately simply because a user registers or submits it.
+
+Organization registration and organization activation are separate actions.
+
+Approved lifecycle:
+
+1. User submits organization registration.
+2. Organization/application enters pending onboarding or review.
+3. SelfX reviews required information and documents where applicable.
+4. Commercial, pricing, payment or contract requirements may be evaluated.
+5. Authorized SelfX platform administrator approves activation.
+6. Organization becomes active.
+7. Normal organization, store, product, kiosk and Try-On functionality becomes available.
+
+## PRD-ORG-012 — Onboarding Application Lifecycle
+
+The onboarding/application lifecycle is separate from the operational organization status.
+
+Baseline application states:
+
+- DRAFT
+- SUBMITTED
+- UNDER_REVIEW
+- NEEDS_INFORMATION
+- APPROVED
+- REJECTED
+
+Baseline organization operational states:
+
+- PENDING_ACTIVATION
+- ACTIVE
+- SUSPENDED
+- ARCHIVED
+
+An approved application does not necessarily mean the organization is active.
+
+Example:
+
+```text
+application_status = APPROVED
+organization_status = PENDING_ACTIVATION
+```
+
+This is valid when a commercial, payment, document, verification or contract prerequisite still remains.
+
+## PRD-ORG-013 — Activation Requirements
+
+Activation requirements may depend on organization type, commercial model, launch policy, geography, risk, or SelfX operational requirements.
+
+Possible activation requirements include:
+
+- required business information;
+- required organization documents;
+- identity/business verification;
+- commercial terms;
+- pricing agreement;
+- subscription selection;
+- payment;
+- enterprise contract;
+- other SelfX-defined onboarding requirements.
+
+SelfX must not hard-code one universal requirement set.
+
+Initially, activation eligibility may be confirmed manually by an authorized SelfX platform administrator. Later billing, payment, document or verification automation may supply activation signals without redesigning the organization lifecycle.
+
+## PRD-ORG-014 — Applicant and Initial Owner
+
+The person who submits an organization may be recorded as the intended initial `ORGANIZATION_OWNER`.
+
+Submitting an organization must not grant normal active tenant operation immediately.
+
+Before organization activation, the applicant must not receive normal store management, membership administration, product management, kiosk operation, paid Try-On execution, or normal tenant business API access except explicitly approved onboarding/status functionality.
+
+When the organization becomes `ACTIVE`, the approved initial owner membership becomes usable for normal tenant authorization.
+
+---
+
+# 34. Analytics
+
+## PRD-ANALYTICS-001
+
+SelfX should provide platform, organization and store analytics.
+
+Potential metrics include:
+
+- Total Try-Ons
+- Successful Try-Ons
+- Failed Try-Ons
+- Most tried garments
+- Most active stores
+- Try-Ons by kiosk
+- Try-Ons by channel
+- Usage trends
+- Generation performance
+- AI cost
+- Customer engagement
+- Add-to-cart conversion where available
+- Purchase conversion where available
+
+---
+
+## PRD-ANALYTICS-002
+
+Data visibility must follow access scope.
+
+### SelfX Super Admin
+
+Platform-wide visibility.
+
+### Organization
+
+Organization-level and permitted store data.
+
+### Store
+
+Permitted store data only.
+
+---
+
+# 35. Channel Identification
+
+## PRD-CHANNEL-001
+
+Every Virtual Try-On should identify its originating channel where applicable.
+
+Initial/planned channels:
+
+- KIOSK
+- PUBLIC_API
+- MOBILE
+- SHOPIFY
+- WOOCOMMERCE
+- WEB
+
+This must support usage, analytics and reporting.
+
+---
+
+# 36. Public API
+
+## PRD-API-001
+
+After stabilization of the core kiosk/SaaS system, Public API is the highest-priority external expansion.
+
+SelfX must expose approved capabilities programmatically to external customers/partners.
+
+Potential API capabilities include:
+
+- Authentication
+- Product access
+- Image handling
+- Create Virtual Try-On
+- Retrieve status
+- Retrieve result
+- Usage information
+- Completion notifications where supported
+
+Exact API endpoints and payloads belong in Technical Requirements.
+
+---
+
+# 37. Mobile Application
+
+## PRD-MOBILE-001
+
+The SelfX backend must support a future mobile application, expected initially to be developed using Flutter.
+
+The mobile application may support:
+
+- Customer authentication.
+- Customer account.
+- Product retrieval.
+- Camera capture.
+- Image upload.
+- Virtual Try-On.
+- Saved Try-Ons.
+- QR handoff.
+- Result viewing.
+- Purchase continuation.
+
+The Flutter application must consume SelfX APIs and must not communicate directly with the AI provider.
+
+---
+
+# 38. Shopify
+
+## PRD-SHOPIFY-001
+
+SelfX should support a Shopify application/integration.
+
+It should enable a merchant to:
+
+- Connect Shopify to their SelfX organization.
+- Associate a Shopify store.
+- Synchronize/map relevant products.
+- Enable Virtual Try-On on eligible products.
+- Attribute usage to the correct organization/store/integration.
+- Manage connection status.
+
+Detailed Shopify implementation belongs in Technical Requirements.
+
+---
+
+# 39. WooCommerce
+
+## PRD-WOO-001
+
+SelfX should support a WooCommerce plugin/integration offering equivalent core Virtual Try-On capabilities.
+
+The plugin must communicate with SelfX rather than directly with the AI provider.
+
+Detailed implementation belongs in Technical Requirements.
+
+---
+
+# 40. Security Requirements
+
+At product level, SelfX must:
+
+- Prevent cross-organization access.
+- Prevent unauthorized cross-store access.
+- Protect customer images.
+- Protect authentication credentials.
+- Protect integration/provider credentials.
+- Use secure authentication.
+- Use role/scope-based authorization.
+- Protect administrative functionality.
+- Protect device authentication.
+- Protect impersonation.
+- Maintain appropriate auditability.
+
+Exact technical controls belong in Technical Requirements.
+
+---
+
+# 41. Privacy Requirements
+
+SelfX must:
+
+- Collect appropriate customer consent.
+- Clearly explain AI image processing.
+- Enforce the approved retention period.
+- Protect original customer photos.
+- Protect generated results.
+- Restrict merchant image access according to product rules.
+- Protect customer history across retailers.
+- Prevent one merchant from viewing another merchant's customer interaction data.
+- Maintain privacy-aware analytics.
+
+---
+
+# 42. Reliability Requirements
+
+SelfX must handle gracefully:
+
+- Invalid customer images.
+- Invalid garment images.
+- AI generation failure.
+- AI-provider unavailability.
+- Internet/connectivity failure.
+- Timeouts.
+- Kiosk connectivity problems.
+- Subscription/quota restrictions.
+- Authorization failures.
+
+The user interface must not crash or enter an unsafe state due to these conditions.
+
+---
+
+# 43. Performance Requirements
+
+Core application interactions must remain responsive.
+
+Virtual Try-On generation must be treated as a long-running operation.
+
+The customer-facing interface must:
+
+- Acknowledge requests quickly.
+- Display generation status.
+- Remain responsive during AI processing.
+- Display completed results when available.
+
+Exact timeout, concurrency and queue implementation belongs in Technical Requirements.
+
+---
+
+# 44. Scalability Requirements
+
+The architecture must support growth from:
+
+Initial:
+
+- SelfX-owned retail locations
+- Limited organizations
+- Limited kiosks
+- Hundreds/thousands of Try-Ons
+
+toward:
+
+- Thousands of organizations
+- Thousands of stores
+- Thousands of kiosks
+- Ecommerce traffic
+- Public API customers
+- Mobile traffic
+- Millions of Try-Ons per month
+
+Detailed infrastructure scaling belongs in Technical Requirements.
+
+---
+
+# 45. MVP Scope
+
+PRD v1 MVP consists of:
+
+## Core SaaS
+
+- Authentication
+- Global customer accounts
+- Organization management
+- Store management
+- Staff management
+- Predefined role/scope access
+- Multi-organization membership
+- Multi-store staff access
+- SelfX Super Admin
+- Support View
+- Controlled impersonation
+- Basic auditability
+
+## Customer Experience
+
+- Anonymous basic Try-On
+- Customer registration/login
+- Phone OTP
+- Email OTP
+- Approved social login
+- Saved history
+- Seven-day image/result retention
+- QR kiosk-to-mobile handoff
+
+## Products
+
+- Product/garment management
+- Organization-wide products
+- Store-specific products
+- Garment images
+- Physical garment capture
+- External product mapping foundation
+
+## Virtual Try-On
+
+- Customer image upload
+- Camera capture
+- Customer-image reuse within a session
+- Catalog garment selection
+- Multiple garment support according to channel
+- Image validation
+- AI generation
+- Result status
+- Result display
+- Retry
+- Save result
+- Configurable download/share
+
+## AI
+
+- Provider-independent SelfX interface
+- Initial AI provider integration
+- Provider usage tracking
+- Basic provider cost tracking
+
+## Retail / Kiosk
+
+- Kiosk registration/pairing
+- Store assignment
+- Device authentication
+- Status monitoring
+- Customer Virtual Try-On flow
+- QR mobile handoff
+
+## Commercial
+
+- Organization commercial configuration
+- Subscription/entitlements foundation
+- Trial with time + generation limits
+- Grace period
+- Suspension
+- White-label entitlement foundation
+
+## Analytics
+
+- SelfX platform analytics
+- Organization analytics
+- Store analytics
+- Product/Try-On/usage/channel statistics
+
+---
+
+# 46. Post-MVP Priorities
+
+After the core SelfX SaaS/kiosk system is stable:
+
+1. Public API
+2. Additional API/partner capabilities
+3. Flutter mobile application
+4. SelfX Web Widget / SDK
+5. Shopify integration
+6. WooCommerce integration
+7. Advanced analytics
+8. Conversion attribution
+9. Advanced billing
+10. Additional AI providers
+11. Intelligent provider routing/fallback
+
+The exact sequence after Public API may change according to business priority.
+
+---
+
+# 47. Future Features
+
+Possible future features include:
+
+- Live AR Virtual Try-On
+- Video Try-On
+- Size recommendation
+- Body-measurement-assisted sizing
+- Complete outfit Try-On
+- AI fashion assistant
+- Outfit recommendations
+- Customer wardrobe
+- Personalized recommendations
+- Loyalty integration
+- Advanced conversion attribution
+- Enterprise SSO
+- Custom merchant roles
+- Advanced white labeling
+- SelfX-hosted AI models
+- Additional ecommerce integrations
+
+---
+
+# 48. Product Success Metrics
+
+SelfX should monitor:
+
+## Technical
+
+- Virtual Try-On success rate
+- AI quality
+- Generation duration
+- Platform availability
+- Provider failure rate
+- Kiosk availability
+- API reliability
+
+## Product / Business
+
+- Try-Ons per customer/session
+- Try-Ons per organization
+- Try-Ons per store
+- Try-Ons by channel
+- Most tried products
+- Customer engagement
+- Add-to-cart conversion where measurable
+- Purchase conversion where measurable
+- Active organizations
+- Active kiosks
+
+## Financial
+
+- Provider cost per generation
+- Cost per Try-On
+- AI cost by organization
+- Revenue by organization
+- Subscription/commercial usage
+- Gross margin
+
+Exact target thresholds will be finalized using AI proof-of-concept and production data.
+
+---
+
+# 49. Mandatory Product Boundaries for Implementation
+
+Coding agents and developers must observe the following boundaries.
+
+### Boundary 1
+
+Do not implement client applications that call FASHN, Google or another AI provider directly.
+
+### Boundary 2
+
+Do not make users permanently belong to only one organization.
+
+### Boundary 3
+
+Do not assume staff can access only one store.
+
+### Boundary 4
+
+Do not implement an independent-store backend separate from the normal organization/store model.
+
+### Boundary 5
+
+Do not allow cross-organization data access.
+
+### Boundary 6
+
+Do not allow unauthorized cross-store access.
+
+### Boundary 7
+
+Do not expose AI-provider or integration secrets to customer-facing clients.
+
+### Boundary 8
+
+Do not turn SelfX into a full POS/inventory system as part of PRD v1.
+
+### Boundary 9
+
+Do not make kiosk authentication depend on an employee's permanent credentials.
+
+### Boundary 10
+
+Do not permanently store customer images beyond the approved retention policy.
+
+### Boundary 11
+
+Deleting customer images after seven days must not require deleting non-image Try-On history/analytics that SelfX is permitted to retain.
+
+### Boundary 12
+
+Store Managers may see generated results for their permitted store but must not automatically see original customer photographs.
+
+### Boundary 13
+
+Customer SelfX accounts are global across participating retailers, but merchant data access remains tenant-isolated.
+
+### Boundary 14
+
+AI-provider implementation must remain replaceable.
+
+### Boundary 15
+
+Technical implementation decisions must not silently change these product requirements.
+
+### Boundary 16
+
+Do not make organization registration automatically activate an operational tenant. Review, approval and activation are explicit SelfX platform-controlled lifecycle steps.
+
+---
+
+# 50. Documents Governing Implementation
+
+This PRD defines:
+
+**WHAT SelfX must do and the product rules that implementation must preserve.**
+
+Implementation must additionally follow these project documents:
+
+## Document 2 — Technical Requirements & System Design
+
+Defines:
+
+- Tech stack
+- System architecture
+- APIs
+- Authentication implementation
+- RBAC implementation
+- Kiosk architecture
+- AI integration
+- Queues/jobs
+- Storage
+- Infrastructure
+- Security
+- Shopify/WooCommerce technical integration
+- Scaling
+- Deployment
+
+## Document 3 — User Journey & System Flow
+
+Defines:
+
+- Customer journeys
+- Organization journeys
+- Store journeys
+- Staff journeys
+- SelfX Admin journeys
+- Kiosk journeys
+- QR handoff
+- Support/impersonation flows
+
+## Document 4 — UI/UX Flow & Screen Specification
+
+Defines:
+
+- Screens
+- Navigation
+- Actions
+- Forms
+- Loading states
+- Error states
+- Permission-based UI
+- Responsive behaviour
+- Figma requirements
+
+## Document 5 — Database & Schema Design
+
+Defines:
+
+- Entities
+- Relationships
+- Tables
+- Fields
+- Foreign keys
+- Indexes
+- Tenant scope
+- Membership model
+- Retention fields
+- Audit schema
+- Migrations
+
+## Document 6 — Implementation Plan
+
+Defines:
+
+- Development phases
+- Dependencies
+- Tasks
+- Priorities
+- Acceptance checks
+- Tests
+- Verification
+- Rollout plan
+
+---
+
+# 51. Coding Agent Instruction
+
+Before implementing a feature, the coding agent must:
+
+1. Identify the relevant PRD requirement.
+2. Check the Technical Requirements document for implementation constraints.
+3. Check the User Journey document for expected behavior.
+4. Check the UI/UX document for client behavior where applicable.
+5. Check the Database & Schema document before altering persistence.
+6. Follow the active Implementation Plan phase.
+7. Avoid introducing architecture that conflicts with future Shopify, WooCommerce, mobile or Public API clients.
+8. Preserve multi-tenancy, store scope and provider independence.
+9. Avoid making undocumented product decisions.
+10. Surface contradictions or missing requirements before making irreversible architectural decisions.
+
+---
+
+# 52. PRD Status
+
+All major product questions required for the initial product baseline have been resolved.
+
+**Status: APPROVED — PRD v1.0**
+
+Further implementation detail must be added to the appropriate supporting document rather than unnecessarily expanding this PRD.
+
+A new PRD version should only be required when the product itself materially changes.

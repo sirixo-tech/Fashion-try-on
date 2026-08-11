@@ -29,7 +29,7 @@ const BASE_CONFIG: AuthConfig = {
   refreshCookieName: "selfx_refresh_token",
   cookieSecure: false,
   cookieSameSite: "lax",
-  corsAllowedOrigins: ["http://localhost:3000"],
+  corsAllowedOrigins: ["http://localhost:3002"],
   loginRateLimitMax: 5,
   loginRateLimitWindowMs: 60_000,
   refreshRateLimitMax: 20,
@@ -292,7 +292,7 @@ function requestMetadata() {
   return {
     ipAddress: "127.0.0.1",
     userAgent: "vitest",
-    origin: "http://localhost:3000",
+    origin: "http://localhost:3002",
   };
 }
 

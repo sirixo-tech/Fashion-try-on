@@ -1,0 +1,1183 @@
+## Document Evolution
+
+This is a living document.
+
+The contents represent the currently approved product/design/technical baseline
+and may be updated as implementation, testing, business requirements, provider
+capabilities, or operational requirements evolve.
+
+Material changes must:
+
+1. be intentional;
+2. remain consistent with related project documents;
+3. update affected documentation;
+4. include required database migrations/API changes/tests where applicable;
+5. not silently invalidate already deployed behavior.
+
+SelfX Virtual Try-On
+Technical Requirements & System Design
+Version: 1.0  
+Status: APPROVED BASELINE  
+Document: `02-TECHNICAL-REQUIREMENTS.md`
+
+---
+
+1. Purpose
+   This document defines the approved technical architecture for the SelfX Virtual Try-On platform.
+   `01-PRD.md` defines what the product must do.
+   This document defines how the platform should be built technically.
+   `03-USER-JOURNEYS.md` will define end-to-end actor flows.
+   `04-UI-UX-FLOW.md` will define screens, navigation, states, and interaction behavior.
+   `05-DATABASE-SCHEMA.md` will define tables, fields, relationships, keys, indexes, and detailed retention structures.
+   `06-IMPLEMENTATION-PLAN.md` will define implementation order, phases, tests, and release gates.
+   This document intentionally avoids duplicating detailed database schemas, UI specifications, and implementation task lists.
+
+---
+
+2. Core Architecture
+   SelfX must use one central backend for all client channels.
+   Architecture:
+   Client → SelfX API → SelfX business services → queue/worker → AI provider layer
+   Clients include:
+   Web application
+   SelfX kiosk
+   Flutter mobile application
+   Shopify integration
+   WooCommerce integration
+   Public API clients
+   Future partner integrations
+   Clients must never call FASHN, Google Virtual Try-On, or any future AI provider directly using provider credentials.
+   Core business logic must remain centralized in SelfX rather than being duplicated separately for kiosk, mobile, Shopify, WooCommerce, or Public API.
+
+---
+
+3. Architecture Style
+   The backend must begin as a modular monolith with independently scalable background workers.
+   Initial backend domains may include:
+   Authentication
+   Users and customer identities
+   Organizations
+   Memberships and roles
+   Stores
+   Products and garments
+   Kiosks
+   Try-On
+   AI providers
+   Usage and subscriptions
+   Integrations
+   Analytics
+   Audit and platform administration
+   Microservices must not be introduced without a demonstrated scaling, ownership, or reliability need.
+   The design must preserve clean module boundaries so a domain can be extracted later if justified.
+
+---
+
+4. Approved Technology Stack
+   Web
+   Next.js
+   React
+   TypeScript
+   App Router
+   Mantine as the primary web component system
+   Tailwind CSS
+   shadcn/ui as a secondary component source only when Mantine is unsuitable or an existing retained shadcn primitive is explicitly justified
+   Additional libraries may be added when necessary for charts, tables, image editing, camera handling, animation, accessibility, or another justified requirement.
+   Do not introduce multiple competing design systems without a clear reason.
+   Backend
+   NestJS
+   TypeScript
+   Fastify
+   Database
+   PostgreSQL
+   ORM and migrations
+   Prisma ORM
+   Prisma Migrate
+   Background jobs
+   BullMQ
+   Queue/cache infrastructure
+   Managed Redis
+   Object storage
+   S3-compatible storage abstraction
+   Cloudflare R2 initially
+   Runtime and repository tooling
+   Node.js 24 LTS
+   npm
+   npm workspaces
+   Turborepo
+   Kiosk and mobile
+   Flutter
+   Separate kiosk and customer mobile applications
+
+---
+
+5. Repository Strategy
+   SelfX should use one product monorepo initially.
+   Recommended high-level structure:
+   `frontend/web` — Next.js web application
+   `backend/api` — NestJS API
+   `backend/worker` — background worker
+   `packages/ui` — shared SelfX web design system
+   `packages/api-client` — generated or shared API client tooling
+   `packages/shared` — safe cross-application constants/types
+   `packages/config` — shared engineering configuration
+   `mobile/kiosk` — Flutter kiosk app
+   `mobile/customer-app` — Flutter customer app
+   `integrations/shopify` — Shopify integration
+   `integrations/woocommerce` — WooCommerce plugin
+   `docs` — project documentation
+   Flutter and WooCommerce use their own native package ecosystems even though they remain in the same product repository.
+
+---
+
+6. Deployable Services
+   SelfX should initially have three primary independently deployable services:
+   Web
+   The Next.js application serves:
+   SelfX Super Admin
+   SelfX Support
+   Organization dashboard
+   Store dashboard
+   Customer account
+   QR continuation and related web flows
+   API
+   The NestJS API serves:
+   authentication
+   authorization
+   organizations
+   stores
+   memberships
+   products
+   kiosks
+   customer workflows
+   Try-On creation/status
+   usage
+   integrations
+   platform administration
+   Worker
+   The worker handles asynchronous work such as:
+   AI Try-On processing
+   provider retries
+   provider reconciliation
+   image cleanup
+   retention jobs
+   webhook delivery
+   integration synchronization
+   maintenance and usage aggregation
+   API and worker services must scale independently.
+
+---
+
+7. UI/UX Architecture
+   SelfX must maintain a uniform product experience.
+   The default web design system is:
+   Mantine + centralized SelfX Mantine theme/components in `@selfx/ui`
+   Tailwind CSS remains secondary styling infrastructure for simple layout utilities, existing compatibility and occasional app-specific spacing.
+   shadcn/ui is secondary and may be used only when Mantine does not provide a suitable solution or when retaining an existing shadcn primitive is explicitly justified.
+   A shared `@selfx/ui` package should hold reusable web UI primitives and SelfX components.
+   The design system should standardize:
+   typography
+   spacing
+   color tokens
+   radius
+   form behavior
+   button hierarchy
+   loading states
+   empty states
+   error states
+   permission states
+   table behavior
+   status semantics
+   Flutter cannot reuse React components directly, but kiosk/mobile must follow the same design language and interaction semantics.
+   Merchant-embedded Shopify/WooCommerce experiences may adapt to merchant branding while preserving the core SelfX Try-On UX.
+   White-label support should map through the centralized SelfX Mantine theme/token layer rather than scattered hard-coded styling.
+   Common web UI such as navigation, sidebars, headers, user information, controls, forms, cards, statistics, badges, alerts, loaders, menus, drawers, modals, tabs, tooltips and responsive admin layouts should be Mantine-first. Custom Try-On/image/camera experiences remain SelfX-specific components built on the approved design-system boundary.
+
+---
+
+8. Database and Multi-Tenancy
+   PostgreSQL is the authoritative business database.
+   SelfX must use:
+   Shared PostgreSQL database + shared schema + organization-scoped rows
+   Do not create a separate database/schema for each normal organization.
+   Tenant-owned records must carry appropriate organization ownership, and store-scoped records must also carry store relationships where necessary.
+   Authorization must be enforced server-side.
+   The frontend must never be treated as the security boundary for organization or store isolation.
+   Potential PostgreSQL Row-Level Security may later be evaluated as defense-in-depth, but application authorization remains mandatory.
+
+---
+
+9. Database Migration Tracking
+   All database schema changes must be tracked through Prisma migrations.
+   The repository must preserve:
+   `schema.prisma`
+   complete migration history
+   migration order
+   migration status through deployment logs/checks
+   Development may use the approved development migration workflow.
+   Staging and production must use controlled deployment migrations such as `prisma migrate deploy`.
+   Applied production migrations must not be silently rewritten.
+   Normal production schema changes must not be made manually.
+   If an emergency manual repair is ever required, it must be reconciled back into migration history.
+   Potentially destructive changes should use staged migration patterns such as:
+   Expand → deploy compatible code → backfill/migrate → switch usage → remove obsolete structure later
+   Migration validation must be part of CI/CD.
+
+---
+
+10. API Architecture
+    SelfX uses REST + JSON as the primary API style.
+    APIs must be versioned from the beginning, starting with a structure such as:
+    `/api/v1/...`
+    First-party application APIs and Public API capabilities must remain logically separated even when they share the same business services.
+    Use resource-oriented endpoints such as:
+    `GET /products`
+    `POST /try-ons`
+    `GET /try-ons/{id}`
+    `PATCH /stores/{id}`
+    Avoid action-style naming such as `/getAllProducts`.
+    Public identifiers should be globally unique and non-sequential. Exact identifier format will be finalized in the database schema.
+    SelfX primary business identifiers use UUIDv7 stored as PostgreSQL native `uuid` values.
+    UUIDv7 IDs are generated by the SelfX application layer unless a later approved implementation decision explicitly selects a database-side mechanism.
+    External provider/platform identifiers remain separate from SelfX primary IDs.
+    Security-sensitive tokens are high-entropy secrets, not UUIDs.
+
+---
+
+11. API Contracts and Documentation
+    Every external API boundary must use explicit request and response DTOs.
+    Prisma models are not API contracts and must not be returned blindly.
+    All external input must be validated.
+    SelfX must generate and maintain an OpenAPI specification and Swagger documentation.
+    OpenAPI should document:
+    endpoint purpose
+    authentication method
+    required permission/scope
+    request structure
+    response structure
+    important status codes
+    stable machine-readable error codes
+    OpenAPI should also be used as the contract source for generated clients where useful, including TypeScript and future Dart clients.
+    API changes must follow backward-compatibility discipline.
+    Breaking changes require either a new version or a deliberate migration strategy.
+
+---
+
+12. API Scalability Standards
+    All potentially unbounded collection endpoints must use bounded pagination.
+    Default SelfX pagination policy:
+    default page size: 25
+    standard maximum page size: 100
+    clients may never request unlimited results
+    each endpoint must enforce a server-side maximum
+    cursor pagination is preferred for high-volume or frequently changing datasets
+    page/offset pagination may be used for small stable admin datasets when justified
+    endpoint-specific lower or higher bounded maximums are allowed only when explicitly documented
+    sorting must be deterministic
+    cursor pagination must include a unique tie-breaker such as `id`
+    Filtering, searching, and sorting must be explicitly allowlisted rather than translated into unrestricted database queries.
+    Preferred default cursor response shape:
+    `{ "data": [], "pagination": { "nextCursor": null, "hasMore": false } }`
+    This envelope is the default convention and does not override intentionally documented endpoint-specific contracts.
+    API errors should use a consistent envelope with stable error codes and request IDs.
+    Current API implementation uses shared UUID path-parameter validation for resource IDs. Malformed UUID path params return a stable 400-style API error before reaching Prisma.
+    Current API implementation maps known Prisma errors through a centralized safe exception filter. Public responses must not expose raw Prisma internals, SQL, connection strings, or stack traces.
+    Every request should receive a correlation/request ID.
+    Retry-sensitive mutations such as Try-On creation, usage events, webhook handling, and billing events must support idempotent processing.
+    Idempotency baseline:
+    clients send `Idempotency-Key` where required
+    the key is scoped to the authenticated actor/credential plus operation
+    the server stores a request fingerprint
+    same key + same fingerprint returns or replays the original logical result
+    same key + different fingerprint returns a stable machine-readable idempotency conflict
+    idempotency records have bounded retention
+    exact retention TTL may vary by operation and must not be assumed universal
+    idempotency is required where retries could duplicate expensive or billable work
+    Important examples include Public API Try-On creation, kiosk retry-sensitive Try-On creation, usage events, billing-provider events, and inbound/outbound webhook processing where applicable.
+    Long-running AI generation must never keep a normal HTTP request open while waiting for inference.
+
+---
+
+13. Authentication Domains
+    SelfX has separate authentication domains:
+    Customers
+    Staff and organization administrators
+    SelfX support/platform administrators
+    Kiosk devices
+    Public API clients
+    External platform integrations
+    These identities must not all use the same credential mechanism.
+
+---
+
+14. Staff and Admin Authentication
+    Staff/admin authentication should initially support email + password.
+    Passwords must be hashed using Argon2id.
+    The architecture must support MFA, especially for privileged SelfX and organization administrators.
+    User sessions should use:
+    short-lived JWT access credentials
+    rotating and revocable server-side refresh sessions
+    The system must support:
+    logout
+    logout all sessions
+    session revocation
+    staff suspension
+    password-change invalidation
+    security response
+    Current staff/admin logout behavior revokes refresh sessions. Existing short-lived JWT access credentials may remain usable until their configured expiry unless a later approved design adds immediate access-token revocation.
+    For web applications, secure HttpOnly cookies should be preferred over long-lived authentication credentials stored in localStorage.
+    Native applications must use platform-secure storage.
+
+---
+
+15. Customer Authentication
+    Basic Try-On may be anonymous.
+    Registered customer authentication must support:
+    email OTP
+    phone OTP
+    Google
+    Apple
+    External providers authenticate identity to SelfX; SelfX then creates/uses its own customer identity and session.
+    Customer identity must be separate from login identities.
+    One customer may securely link multiple login methods.
+    SelfX customer accounts are global across participating retailers, while merchant access remains tenant-isolated.
+
+---
+
+16. Authorization and RBAC
+    Authentication answers who the user is.
+    Authorization determines what the user may do in the selected organization/store context.
+    A user may belong to multiple organizations.
+    A user may have access to multiple stores.
+    Organization/store authorization should use:
+    Predefined role + permissions + organization/store scope
+    The backend must validate the active organization context and store scope on every applicable operation.
+    Do not trust organization IDs, store IDs, roles, or permissions provided by clients.
+    Organization/store roles include:
+    ORGANIZATION_OWNER
+    ORGANIZATION_ADMIN
+    ORGANIZATION_STAFF
+    STORE_OWNER
+    STORE_MANAGER
+    STORE_STAFF
+    KIOSK_OPERATOR
+    SelfX platform roles are separate from organization memberships.
+    Platform roles include:
+    SELFX_SUPPORT_ADMIN
+    SELFX_SUPER_ADMIN
+    Do not model SelfX Support Admins or SelfX Super Admins as memberships in a fake/internal merchant organization.
+    Platform authorization and organization/store authorization are separate concerns.
+    SelfX platform privileges should use explicit platform permissions rather than scattered unconditional Super Admin bypasses.
+    Phase 3 starts with predefined roles, but authorization must still be permission-driven. Role names resolve centrally to permissions plus store scope; controllers and services must not scatter checks such as `role === "ADMIN"`.
+    Custom merchant-defined roles are out of scope for the initial RBAC implementation.
+    Permissions may evolve incrementally when later product, kiosk, analytics, integration, billing and support domains are implemented. Phase 3 should not attempt to define every future application permission.
+
+    Initial Phase 3 permission baseline:
+
+    ORGANIZATION_OWNER:
+    read organization
+    update organization
+    create, update and archive stores
+    view memberships
+    invite staff
+    update staff
+    assign organization and store roles
+    change store scopes
+    suspend and reactivate staff
+    perform organization ownership-level actions
+    manage all stores in the organization
+
+    ORGANIZATION_ADMIN:
+    read organization
+    update normal organization settings
+    create, update and archive stores
+    view memberships
+    invite staff
+    update normal staff memberships
+    assign non-owner roles
+    change store scopes
+    suspend and reactivate non-owner staff
+    manage all stores in the organization
+    must not grant ORGANIZATION_OWNER
+    must not remove or demote the final active ORGANIZATION_OWNER
+    must not perform ownership-transfer actions unless explicitly approved later
+
+    ORGANIZATION_STAFF:
+    read permitted organization information
+    read stores permitted by approved scope rules
+    no organization mutation
+    no store creation or deletion
+    no staff or membership administration
+
+    STORE_OWNER:
+    read organization information required for operation
+    read and manage assigned stores
+    read staff relevant to assigned stores
+    no organization-wide administration
+    no creation or management of unrelated stores
+    no ownership-level organization actions
+
+    STORE_MANAGER:
+    read organization information required for operation
+    read and manage assigned stores
+    read staff relevant to assigned stores
+    no organization-wide administration
+    no creation or management of unrelated stores
+    no organization membership administration
+
+    STORE_STAFF:
+    read assigned-store information needed for operation
+    no organization administration
+    no store administration
+    no membership administration
+
+    KIOSK_OPERATOR:
+    only minimal staff-facing access required to operate or manage assigned kiosk/store workflows
+    assigned-store scope only
+    no organization administration
+    no staff administration
+
+    Owner invariants:
+    An organization must never lose its final active ORGANIZATION_OWNER through normal membership mutation.
+    Non-owner administrators cannot grant ORGANIZATION_OWNER.
+    Ownership transfer must use an explicit controlled operation when implemented.
+    Ordinary role-update endpoints must not silently perform ownership transfer.
+
+    Organization context and JWT boundary:
+    Do not place trusted organization or store authorization state in staff JWTs.
+    The staff access JWT remains primarily user/session identity.
+    Organization-scoped APIs should use explicit resource-oriented routes such as:
+    `/api/v1/organizations/:organizationId/...`
+    `/api/v1/organizations/:organizationId/stores/:storeId/...`
+    The server must independently validate:
+    authenticated user
+    active organization membership
+    organization identity
+    required permission
+    store belongs to the organization where applicable
+    store is within the user's authorized scope where applicable
+    A frontend active-organization selector is UI state only and is never a security boundary.
+
+    Store scope:
+    Store authorization must be explicit.
+    A membership may have organization-wide/all-store access when its role and assignment permit it, or explicitly selected store scopes.
+    Empty selected-store scope means no store access and must never be interpreted as all-store access.
+    ALL_STORES and SELECTED_STORES must be represented unambiguously before Phase 3 authorization is implemented.
+
+    Organization onboarding and activation:
+    Organization registration and organization activation are separate actions.
+    A user-submitted organization registration must never immediately create an operational ACTIVE tenant with unrestricted owner access.
+    Registration may create a pending organization shell plus an onboarding application, but ordinary tenant operations remain unavailable until explicit activation.
+    The onboarding/application lifecycle is separate from the operational organization status.
+    Baseline application states:
+    DRAFT
+    SUBMITTED
+    UNDER_REVIEW
+    NEEDS_INFORMATION
+    APPROVED
+    REJECTED
+    Baseline organization operational states:
+    PENDING_ACTIVATION
+    ACTIVE
+    SUSPENDED
+    ARCHIVED
+    An APPROVED application may still be paired with organization status PENDING_ACTIVATION when commercial, payment, document, verification or contract prerequisites remain.
+    Activation requirements must be configurable/evolving rather than one hard-coded universal checklist.
+    Possible activation requirements include business information, organization documents, identity/business verification, commercial terms, pricing agreement, subscription selection, payment, enterprise contract and other SelfX-defined onboarding requirements.
+    Phase 3 must not implement subscription/payment processing or document upload storage, but it must leave activation compatible with later automated billing, payment, document and verification signals.
+
+    Applicant and initial owner handling:
+    The submitting user may be recorded as the intended initial ORGANIZATION_OWNER.
+    The intended owner membership must not provide normal tenant operation before organization activation.
+    The required Phase 3 representation is an organization membership with role ORGANIZATION_OWNER and status PENDING_ACTIVATION until activation.
+    Organization activation transitions the approved initial owner membership to ACTIVE as part of the explicit activation operation.
+    Normal tenant guards must require both ACTIVE membership status and ACTIVE organization status.
+
+    Tenant authorization guard for ordinary tenant operations:
+    authenticated user
+    active organization membership
+    organization status == ACTIVE
+    required permission
+    store belongs to organization where applicable
+    store is within the user's authorized scope where applicable
+    allow
+    Membership in a PENDING_ACTIVATION, SUSPENDED or ARCHIVED organization must not provide ordinary operational access.
+    Explicit onboarding/status endpoints and SelfX platform review endpoints are separate from ordinary tenant business APIs.
+
+    Platform approval domain:
+    Organization review, approval, rejection, activation and suspension belong to the SelfX platform authorization domain.
+    These actions must not be performed through merchant organization roles.
+    Platform permissions should support concepts such as:
+    ORGANIZATION_APPLICATION_REVIEW
+    ORGANIZATION_APPLICATION_APPROVE
+    ORGANIZATION_APPLICATION_REJECT
+    ORGANIZATION_ACTIVATE
+    ORGANIZATION_SUSPEND
+    SELFX_SUPER_ADMIN may receive these permissions.
+    Other SelfX staff/admin roles may receive only the explicit platform permissions granted to them.
+    Approval and activation behavior must use centralized platform permission resolution and must not be hard-coded directly to one role inside controllers.
+
+    Phase 3A implementation note:
+    Centralized platform permission mapping lives in `backend/api/src/platform/platform-permissions.ts`, with enforcement in `backend/api/src/platform/platform-authorization.service.ts`.
+    Applicant onboarding routes are `POST /api/v1/organization-applications`, `GET /api/v1/organization-applications`, `GET /api/v1/organization-applications/:applicationId`, and `POST /api/v1/organization-applications/:applicationId/submit`.
+    Platform review and activation routes are under `/api/v1/platform`, including organization-application review commands and explicit organization activation/suspension commands.
+
+    Phase 3B implementation note:
+    Centralized merchant permission mapping lives in `backend/api/src/organizations/merchant-permissions.ts`, with active tenant enforcement in `backend/api/src/organizations/tenant-authorization.service.ts`.
+    Normal active-tenant routes are `GET/PATCH /api/v1/organizations/:organizationId`, `GET /api/v1/organizations`, nested store routes under `/api/v1/organizations/:organizationId/stores`, and nested membership routes under `/api/v1/organizations/:organizationId/memberships`.
+    These normal tenant routes remain separate from Phase 3A organization-application and platform-review routes.
+
+---
+
+17. Impersonation
+    SelfX support impersonation must use a dedicated short-lived impersonation session.
+    The system must preserve:
+    real SelfX actor
+    assumed organization
+    assumed store when relevant
+    effective role/context
+    reason
+    start/end time
+    Impersonation must be:
+    permission-controlled
+    clearly visible
+    revocable
+    time-limited
+    fully audited
+    Impersonation must never expose passwords, provider credentials, or integration secrets.
+
+---
+
+18. Kiosk Authentication
+    Kiosks authenticate as devices rather than staff users.
+    A new kiosk starts unpaired.
+    An authorized administrator pairs it to:
+    Organization → Store → Kiosk identity
+    The kiosk then receives its own device credential/session.
+    Device credentials must be:
+    revocable
+    rotatable
+    renewable
+    independently expiring
+    invalidated when unpaired or suspended
+
+---
+
+19. Public API Authentication
+    The initial Public API should use scoped API keys.
+    API secrets should be shown only when created and stored hashed server-side.
+    API key records should support:
+    organization ownership
+    scopes
+    environment
+    status
+    creation time
+    last-used time
+    optional expiry
+    rotation/revocation
+    Public API credentials must follow least privilege.
+    Future enterprise authentication such as OAuth client credentials may be added if required.
+
+---
+
+20. AI Provider Architecture
+    SelfX must expose a provider-neutral Try-On domain.
+    Required logical flow:
+    Try-On Service → Queue → Generation Profile → Provider Router → Provider Adapter
+    Provider-specific details must remain inside provider adapters/configuration.
+    Initial provider:
+    FASHN
+    Try-On v1.6
+    initial interactive profile mapped to a balanced real-time configuration
+    Future providers may include:
+    FASHN Try-On Max
+    Google Virtual Try-On
+    additional commercial providers
+    future SelfX-hosted models
+    Clients must never depend directly on provider-specific parameters or status names.
+
+---
+
+21. Provider Routing
+    A normal Try-On uses one active provider attempt at a time.
+    SelfX must not automatically send each customer image to every provider.
+    Initial strategy:
+    Primary provider + policy-controlled fallback/spillover
+    Routing may later consider:
+    generation profile
+    channel
+    provider capability
+    health
+    available capacity
+    cost
+    privacy policy
+    organization entitlement
+    regional requirements
+    Fallback to another provider must only occur when policy permits it.
+    Parallel provider calls are reserved for deliberate benchmarking or another explicitly approved workflow.
+
+---
+
+22. Provider Capacity and Queueing
+    SelfX owns queueing and provider capacity management.
+    Each provider may have:
+    concurrency limits
+    request-rate limits
+    temporary throttling
+    availability constraints
+    When eligible provider capacity is full, the request remains queued instead of being discarded.
+    If another provider is permitted and has capacity, policy may route the job there.
+    SelfX must support tenant fairness and workload priority so one organization cannot consume all available capacity.
+    Interactive kiosk requests may receive higher priority than lower-priority bulk/background workloads.
+
+---
+
+23. Try-On and Provider Attempts
+    A Try-On is the business-level request.
+    A provider attempt is one execution of that Try-On against a provider.
+    One Try-On may therefore have multiple attempts due to retry or approved fallback.
+    Provider attempts should retain operational metadata such as:
+    provider
+    model
+    provider request ID
+    generation profile
+    status
+    timestamps
+    latency
+    normalized error
+    provider usage/cost
+    The customer sees the canonical SelfX Try-On state, not raw provider state.
+    Exact Try-On and provider-attempt tables belong in the database schema document.
+
+---
+
+24. AI State, Retry, and Health
+    SelfX owns the canonical Try-On state machine.
+    Typical states may include:
+    CREATED
+    VALIDATING
+    QUEUED
+    PROCESSING
+    COMPLETED
+    FAILED
+    CANCELLED
+    Exact state definitions will be finalized in workflow/schema design.
+    Retry policy must distinguish temporary failures from unrecoverable input/content errors.
+    Retryable failures use bounded retries, exponential backoff, and jitter.
+    Provider callbacks/webhooks should be preferred where reliable, with polling/reconciliation as recovery.
+    Provider health must be monitored separately from SelfX platform health.
+    Routing should support degraded/circuit-breaker behavior when a provider is failing.
+    Provider/model changes should be benchmarked for quality, latency, failure rate, and cost before becoming defaults.
+
+---
+
+25. Object Storage and Media
+    SelfX should initially use Cloudflare R2 through an S3-compatible storage abstraction.
+    Customer photographs and generated Try-On images must be private by default.
+    Clients should use short-lived signed upload/read URLs where appropriate.
+    Large images should upload directly to object storage instead of always passing through the API server.
+    PostgreSQL stores asset metadata and ownership; object storage stores the binary files.
+    Original assets and derived assets should be modeled separately.
+    Provider-facing normalized images should not destructively replace the only original copy.
+    Assets must have ownership or an explicit linked business resource from which authorization can be derived.
+    Organization-owned assets include product garment images and organization logos.
+    Customer-owned/sensitive assets include customer person images.
+    Try-On generated/derived assets include generated results, derived provider inputs, and physical customer-session garment captures.
+    Arbitrary orphaned assets with both organization/customer ownership unset are not allowed unless the asset type explicitly justifies it.
+    Store Manager access to a generated Try-On result must never imply access to the original customer person image.
+    Large image blobs and secrets must never be placed in queue payloads.
+
+---
+
+26. Image Retention
+    Customer original photographs and generated Try-On images must follow the approved 7-day retention policy.
+    Retention start points:
+    customer person image expires no later than 7 days from successful upload/storage creation
+    physical customer-session garment capture expires no later than 7 days from successful upload/storage creation
+    generated Try-On result expires no later than 7 days from successful result creation/storage
+    derived sensitive provider inputs inherit an equal or shorter retention period
+    Product/garment catalog images follow the product/catalog lifecycle and are not deleted after seven days.
+    If a later legal/product policy requires earlier deletion, earlier deletion wins.
+    Use:
+    SelfX cleanup/retention jobs
+    object-storage lifecycle rules as a safety net
+    After customer image deletion, permitted non-image history may remain according to the PRD and later database/retention design.
+    Customer consent must be recorded durably where required.
+    `tryon_sessions.consent_recorded_at` may exist for workflow convenience, but it is not sufficient as the long-term consent/audit design.
+    Consent records must not store raw customer images or unnecessary sensitive content.
+
+---
+
+27. Redis and BullMQ
+    Redis is ephemeral infrastructure, not the permanent business database.
+    Approved uses include:
+    BullMQ
+    rate limiting
+    short-lived caching
+    provider capacity coordination
+    distributed locks where justified
+    BullMQ handles asynchronous work.
+    Queue jobs should normally carry lightweight IDs such as `tryOnId` and `attemptId`.
+    Logical queue concerns may be separated for:
+    Try-On orchestration
+    provider-specific work
+    webhook delivery
+    maintenance
+    Workers must be idempotent.
+    PostgreSQL remains authoritative for durable workflow state.
+    A reconciliation mechanism must be able to repair inconsistent DB/queue states.
+
+---
+
+28. Kiosk Architecture
+    The kiosk is a dedicated Flutter application.
+    The customer mobile app is a separate Flutter application.
+    They may share safe Dart packages, generated API clients, and design tokens, but should not be one large conditional application.
+    The kiosk must support:
+    device pairing
+    device credential renewal
+    heartbeats
+    remote configuration
+    catalog caching
+    guided customer photo capture
+    guided garment capture for Scenario 2
+    asynchronous Try-On status
+    QR handoff
+    diagnostics
+    remote management
+    session cleanup
+    app-version tracking
+    Actual Android vs Windows deployment will be selected after kiosk hardware is confirmed.
+
+---
+
+29. Kiosk Privacy and Offline Behavior
+    Each customer kiosk session is ephemeral and isolated.
+    When the customer finishes or the session expires, the next customer must not see:
+    previous customer photo
+    previous Try-On result
+    selected garments
+    QR token
+    customer account information
+    Customer images should not accumulate permanently on kiosk storage.
+    Non-sensitive content such as catalog metadata, thumbnails, branding, and configuration may be cached.
+    If internet is unavailable, the kiosk may provide graceful cached browsing, but new AI generation requires live SelfX connectivity.
+
+---
+
+30. Kiosk QR and Commerce Boundary
+    The kiosk does not perform checkout or customer payment in the initial product.
+    The kiosk supports:
+    Try-On
+    product selection
+    product details
+    product price/variants when supplied by merchant catalog
+    QR handoff
+    QR codes should contain an opaque, short-lived SelfX handoff token rather than customer data or raw image URLs.
+    The QR may continue to product details and the organization's approved product destination.
+    The merchant handles checkout/payment.
+
+---
+
+31. Product and Commerce Domain
+    All product sources normalize into the common SelfX product/garment domain.
+    Possible sources include:
+    SelfX dashboard
+    Shopify
+    WooCommerce
+    Public/approved APIs
+    future integrations
+    For imported ecommerce products, the external commerce platform remains authoritative for commerce-related information such as:
+    price
+    sale price
+    SKU
+    variants
+    availability
+    inventory
+    product URL
+    product status
+    SelfX stores the normalized representation required for VTO and mapping.
+    SelfX is not initially a full POS, inventory, checkout, order, tax, or shipping system.
+
+---
+
+32. Shopify Integration
+    SelfX should provide an installable Shopify app.
+    The storefront Try-On experience should use supported Shopify extension mechanisms such as a Theme App Extension.
+    Catalog integration should use:
+    Initial sync + incremental webhooks + periodic reconciliation
+    Products require explicit VTO eligibility/configuration before Try-On is exposed.
+    SelfX adds the Try-On experience.
+    Shopify retains:
+    Add to Cart
+    checkout
+    payment
+    tax
+    shipping
+    orders
+
+---
+
+33. WooCommerce Integration
+    SelfX should provide a dedicated WooCommerce/WordPress plugin connected to the central SelfX backend.
+    Catalog synchronization should use:
+    Initial sync + signed webhook updates + periodic reconciliation
+    The plugin must not independently implement AI/provider business logic.
+    WooCommerce retains its normal cart, checkout, payment gateways, taxes, shipping, and order flow.
+
+---
+
+34. Public API
+    The Public API is the first major commercial expansion after kiosk functionality.
+    Initial Public API capabilities should focus on:
+    upload authorization
+    Try-On creation
+    Try-On status/result
+    product/garment references where required
+    usage
+    webhooks
+    The Public API must be a deliberately governed subset of SelfX rather than exposing internal administration.
+    The architecture must support separate sandbox/test and production credentials.
+    Asynchronous result delivery should support signed webhooks with stable event IDs and retry-safe semantics.
+
+---
+
+35. Customer Mobile Commerce
+    The SelfX mobile app may display:
+    product details
+    product images
+    price
+    variants
+    Try It On
+    generated result
+    merchant purchase link
+    When the customer wants to purchase, the initial flow sends them to the organization's existing commerce destination.
+    Native SelfX customer checkout/payment is intentionally deferred.
+
+---
+
+36. SaaS Billing and Entitlements
+    Organization-to-SelfX SaaS billing is separate from customer-to-merchant garment payment.
+    SelfX owns:
+    subscription state
+    plan/contract terms
+    entitlements
+    usage limits
+    trial rules
+    grace/suspension rules
+    Payment providers such as Stripe or Razorpay are adapters, not the sole authorization source.
+    The architecture must support:
+    fixed subscriptions
+    subscription + included usage
+    overage/usage models
+    manual invoice
+    custom enterprise contracts
+    Application access must be entitlement-based rather than hard-coded solely against plan names.
+
+---
+
+37. Usage Metering
+    SelfX must keep an authoritative usage ledger.
+    Operational provider attempts and customer billable usage are separate concepts.
+    Example:
+    One Try-On may require two provider attempts due to a retry but still count as one customer billable generation.
+    Usage recording must be idempotent.
+    Quotas should be checked/reserved before expensive provider execution.
+    Real paid AI provider execution must not be enabled before at least a minimal entitlement/quota decision point exists.
+    An initial development/internal entitlement implementation is acceptable, but it must preserve the architecture for atomic reservation before paid provider execution.
+    Trials must support both time and generation limits.
+    Usage may be aggregated for dashboards and billing, but detailed usage events remain the authoritative audit trail.
+
+---
+
+38. Infrastructure Strategy
+    Initial hosting should be Railway-first where practical while remaining cloud-portable.
+    Initial production components:
+    Next.js web service
+    NestJS API service
+    worker service
+    managed PostgreSQL
+    managed Redis
+    Cloudflare R2
+    Maintain isolated:
+    local development
+    staging
+    production
+    These environments must not share production databases, secrets, Redis, or sensitive data.
+    API and workers must scale independently.
+    Do not introduce Kubernetes or large-scale microservice infrastructure for MVP without demonstrated need.
+
+---
+
+39. CI/CD and Deployment
+    The deployment pipeline should eventually include:
+    Install → lint → typecheck → unit tests → integration tests → API contract checks → migration validation → build → deploy → Prisma migration deploy → health/readiness verification
+    Database migrations are part of the release lifecycle.
+    Production schema changes must not depend on manual database editing.
+    Application releases should be rollback-capable.
+    Schema migrations should use backward-compatible staged approaches where practical.
+    Early engineering safeguards are not deferred to final production hardening.
+    Relevant early phases must include lint, typecheck, build validation, migration validation when migrations exist, secrets discipline, request/correlation IDs when API work begins, basic structured logging, rate limiting for sensitive endpoints, tenant isolation tests, basic health/readiness, and security-aware error handling.
+
+---
+
+40. Secrets and Environment Configuration
+    Secrets must never be committed to source code or exposed to clients.
+    Server-side secrets include:
+    database credentials
+    JWT/session secrets
+    FASHN/Google credentials
+    R2 credentials
+    Shopify tokens/secrets
+    WooCommerce credentials
+    billing-provider secrets
+    OTP/email service credentials
+    Sensitive recoverable integration credentials must be encrypted at rest.
+
+---
+
+41. Security Requirements
+    SelfX must require HTTPS/TLS outside local development.
+    External inputs must be validated.
+    Uploads must enforce appropriate:
+    file size
+    allowed format
+    actual file type/signature
+    image constraints
+    Authentication/OTP/Public API/Try-On endpoints require suitable rate limiting and abuse controls.
+    Logs must never intentionally contain:
+    passwords
+    OTPs
+    bearer tokens
+    refresh tokens
+    API secrets
+    provider secrets
+    full sensitive customer image contents
+    Security-sensitive operations must generate audit events.
+
+---
+
+42. Observability
+    Production services should use structured logs rather than relying only on unstructured console output.
+    Every request should have a request/correlation ID.
+    Try-On processing should be traceable through identifiers such as:
+    request ID
+    Try-On ID
+    provider attempt ID
+    job ID
+    organization ID
+    store ID
+    channel
+    Operational metrics should include:
+    API latency/error rate
+    queue depth and wait time
+    worker throughput
+    Try-On completion/failure rates
+    provider latency/failures
+    provider capacity
+    PostgreSQL health
+    Redis health
+    storage health
+    Central error monitoring should cover major applications.
+    Alerts should focus on actionable degradation rather than every isolated user error.
+    Audit logs and operational/debug logs are separate concerns.
+    The audit foundation must be introduced incrementally when the first auditable actions appear.
+    It must be available early enough for authentication/security actions, organization/staff changes, role/store-scope changes, kiosk pairing/unpairing, API key lifecycle, impersonation, and sensitive administrative actions.
+    Organization onboarding audit events should include organization registration submitted, review started, information requested, application approved, application rejected, organization activated, organization suspended, and activation requirement override/manual confirmation where applicable.
+    Platform approval audit events must preserve the actual SelfX platform actor, even when the action affects a merchant organization or an intended initial owner.
+    The full support/admin experience may remain a later phase.
+
+---
+
+43. Reliability Standards
+    External dependencies must always be treated as unreliable.
+    External calls require explicit timeouts.
+    Retryable operations use bounded retry policies with exponential backoff and jitter.
+    Permanent validation/content errors must not be retried indefinitely.
+    Workers must support graceful shutdown and idempotent processing.
+    PostgreSQL is the durable source of truth for important workflow state.
+    Provider failure must degrade the Try-On capability rather than crash unrelated SelfX features.
+    Backup and restore procedures must be tested periodically.
+
+---
+
+44. Testing Strategy
+    SelfX requires:
+    unit tests
+    integration tests
+    end-to-end tests
+    API contract tests
+    migration tests
+    targeted load tests
+    Mandatory security testing includes tenant and store isolation.
+    Provider adapters should normally use mocks/stubs in CI so tests do not consume paid AI credits.
+    A small controlled real-provider smoke suite may be run intentionally.
+    Kiosk testing must cover:
+    pairing
+    token/session renewal
+    unpairing
+    customer-session cleanup
+    connectivity failure
+    Try-On recovery
+    QR handoff
+    Usage and billing tests must verify duplicate callbacks/retries cannot double-count usage.
+
+---
+
+45. Performance and Scalability Standards
+    Known scalability problems must be prevented from the beginning:
+    unbounded list endpoints
+    N+1 queries
+    full tenant scans
+    unnecessary large payloads
+    blocking AI requests
+    oversized queue payloads
+    Load testing should separately simulate:
+    API request creation
+    queue throughput
+    provider limits
+    large catalog/tenant datasets
+    large Try-On history
+    usage and audit history
+    The architecture should support future growth toward thousands of organizations/stores/kiosks and millions of Try-Ons per month without requiring a complete rewrite.
+    Scaling must still be based on measured demand rather than speculative infrastructure.
+
+---
+
+46. Engineering Standards
+    Use TypeScript strictness wherever practical.
+    Do not use `any` to bypass important application contracts without justification.
+    Use consistent:
+    linting
+    formatting
+    type checking
+    tests
+    CI validation
+    New dependencies are allowed when they solve a real need.
+    Avoid duplicate libraries for the same concern.
+    Important architecture decisions must not be silently changed by Codex or developers.
+
+---
+
+47. Architecture Guardrails
+    Unless explicitly approved, do not:
+    call AI providers directly from clients
+    expose provider or integration credentials to clients
+    duplicate backend business logic across client platforms
+    rely on frontend-only tenant authorization
+    return unbounded collections
+    store customer images directly in Redis job payloads
+    use Redis as permanent business storage
+    expose Prisma models as public API contracts
+    model users as belonging to exactly one organization
+    model staff as belonging to exactly one store
+    expose unrestricted customer media URLs
+    turn SelfX into a full POS/inventory/checkout system
+    introduce microservices without a demonstrated reason
+    bypass tracked database migrations
+
+---
+
+48. Implementation Change Discipline
+    Before implementing a feature, identify:
+    affected requirement
+    affected modules
+    authorization/tenant impact
+    API impact
+    database impact
+    migration requirement
+    queue/provider impact where applicable
+    privacy/security impact
+    tests required
+    Database changes require explicit tracked migrations.
+    API changes require explicit DTO/OpenAPI compatibility review.
+    AI changes must keep provider-specific behavior inside adapters where possible.
+    UI changes must follow the SelfX design system.
+    If documentation conflicts or a major requirement is unclear, stop and obtain a product/architecture decision rather than silently inventing behavior.
+
+---
+
+49. Intentionally Deferred Decisions
+    The following are intentionally deferred until their implementation phase:
+    Infrastructure
+    exact long-term cloud provider after Railway
+    exact managed Redis provider
+    exact autoscaling thresholds
+    final domain/subdomain structure
+    Kiosk
+    Android vs Windows production hardware
+    OS-specific fleet/update management
+    Real-time
+    polling-only MVP vs SSE/WebSockets
+    Authentication
+    exact access-token TTL
+    exact refresh-session TTL
+    OTP expiration/attempt limits
+    MFA rollout timing
+    Public API
+    final public API hostname
+    exact rate limits
+    full sandbox timing
+    Billing
+    Stripe vs Razorpay vs another processor
+    exact pricing
+    exact trial limits
+    exact plan allowances
+    Storage
+    final bucket/object-key convention
+    exact signed-URL lifetime
+    AI
+    exact provider concurrency values
+    Google fallback activation timing
+    final generation-profile configuration
+    future routing weights
+    These values should be configurable instead of hard-coded as assumptions.
+
+---
+
+50. Approved Technical Baseline
+    The approved baseline is:
+    Repository: single product monorepo
+    Package manager: npm + npm workspaces
+    Task runner: Turborepo
+    Runtime: Node.js 24 LTS
+    Web: Next.js + React + TypeScript + App Router
+    UI: Mantine primary + SelfX design system in `@selfx/ui`; Tailwind utility/layout support; shadcn/ui secondary only when justified
+    Backend: NestJS + Fastify + TypeScript
+    Architecture: modular monolith + independently scalable workers
+    Database: PostgreSQL
+    ORM: Prisma
+    Migrations: tracked Prisma migration history
+    Tenancy: shared DB/shared schema with organization/store scoping
+    API: REST + JSON + `/api/v1` + OpenAPI/Swagger
+    Pagination: default page size 25, standard max 100, bounded server-side maximums
+    Idempotency: scoped keys + request fingerprints for retry-sensitive mutations
+    Authentication: short-lived JWT access + revocable rotating sessions
+    Passwords: Argon2id
+    Customer auth: anonymous + email OTP + phone OTP + Google + Apple
+    Authorization: predefined organization/store roles + scopes, with separate SelfX platform roles
+    Organization onboarding: registration/application review is separate from platform-approved activation
+    Public API: scoped hashed API keys
+    AI: provider-neutral router/adapters
+    Initial AI: FASHN v1.6
+    Provider behavior: one active provider attempt per Try-On; controlled fallback/spillover
+    Queue: BullMQ
+    Redis: managed Redis
+    Storage: S3-compatible abstraction; Cloudflare R2 initially
+    Media: private, signed access, 7-day customer-image/result retention
+    Kiosk: Flutter + pairing + device auth + QR handoff
+    Mobile: separate Flutter customer application
+    Shopify: installable app + storefront extension + catalog sync
+    WooCommerce: dedicated plugin + catalog sync
+    Customer checkout: merchant-owned initially
+    SaaS billing: SelfX-owned subscription/entitlement/usage layer
+    Hosting: Railway-first, cloud-portable
+    Environments: development + staging + production
+    Observability: structured logs + correlation IDs + metrics + audits
+    Testing: unit + integration + E2E + contract + migration + load testing
+
+---
+
+51. Status
+    Technical Requirements & System Design v1.0 — APPROVED BASELINE
+    This document is sufficient to guide the remaining design documents.
+    Application implementation should not begin until the database schema and implementation plan have been completed and approved.

@@ -13,7 +13,3 @@ npm-debug.log*
 
 .turbo/
 .DS_Store
-# Local documentation / AI agent instructions
-/docs/
-/AGENTS.md
-/README.md
