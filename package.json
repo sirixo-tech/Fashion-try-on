@@ -1,0 +1,48 @@
+{
+  "name": "selfx-virtual-tryon",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "npm@11.11.0",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "workspaces": [
+    "frontend/*",
+    "backend/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:web": "npm run dev --workspace @selfx/web",
+    "dev:api": "npm run dev --workspace @selfx/api",
+    "dev:worker": "npm run dev --workspace @selfx/worker",
+    "build": "turbo run build",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:validate": "npm run prisma:validate --workspace @selfx/database",
+    "db:generate": "npm run prisma:generate --workspace @selfx/database",
+    "db:migrate:dev": "npm run prisma:migrate:dev --workspace @selfx/database",
+    "db:migrate:deploy": "npm run prisma:migrate:deploy --workspace @selfx/database",
+    "db:migrate:status": "npm run prisma:migrate:status --workspace @selfx/database",
+    "db:test:uuid": "npm run test:uuid --workspace @selfx/database",
+    "auth:bootstrap": "npm run bootstrap:staff --workspace @selfx/api",
+    "platform:bootstrap": "npm run bootstrap:platform-admin --workspace @selfx/api",
+    "start:web": "npm run start --workspace @selfx/web",
+    "start:api": "npm run start --workspace @selfx/api",
+    "start:worker": "npm run start --workspace @selfx/worker"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@next/eslint-plugin-next": "^15.4.6",
+    "@types/node": "^24.2.0",
+    "eslint": "^9.34.0",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.6",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.0"
+  }
+}

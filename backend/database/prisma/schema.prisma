@@ -1,0 +1,287 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum OrganizationStatus {
+  PENDING_ACTIVATION
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum OrganizationMembershipRole {
+  ORGANIZATION_OWNER
+  ORGANIZATION_ADMIN
+  ORGANIZATION_STAFF
+  STORE_OWNER
+  STORE_MANAGER
+  STORE_STAFF
+  KIOSK_OPERATOR
+}
+
+enum MembershipStatus {
+  INVITED
+  PENDING_ACTIVATION
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum MembershipStoreScopeMode {
+  ALL_STORES
+  SELECTED_STORES
+}
+
+enum StoreStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum PlatformRole {
+  SELFX_SUPPORT_ADMIN
+  SELFX_SUPER_ADMIN
+}
+
+enum PlatformRoleAssignmentStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum OrganizationApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  NEEDS_INFORMATION
+  APPROVED
+  REJECTED
+}
+
+enum ActivationRequirementStatus {
+  PENDING
+  SATISFIED
+  WAIVED
+}
+
+model User {
+  id                      String                   @id @db.Uuid
+  email                   String                   @unique @db.VarChar(320)
+  passwordHash            String                   @map("password_hash")
+  displayName             String?                  @map("display_name") @db.VarChar(160)
+  status                  UserStatus               @default(ACTIVE)
+  emailVerifiedAt         DateTime?                @map("email_verified_at") @db.Timestamptz(3)
+  lastLoginAt             DateTime?                @map("last_login_at") @db.Timestamptz(3)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  auditLogs               AuditLog[]               @relation("AuditActor")
+  applicationsReviewed    OrganizationApplication[] @relation("OrganizationApplicationReviewedBy")
+  applicationsSubmitted   OrganizationApplication[] @relation("OrganizationApplicationSubmittedBy")
+  memberships             OrganizationMembership[]
+  platformRoleAssignments PlatformRoleAssignment[] @relation("PlatformRoleAssignedToUser")
+  platformRolesAssigned   PlatformRoleAssignment[] @relation("PlatformRoleAssignedByUser")
+  requirementsReviewed    OrganizationActivationRequirement[] @relation("ActivationRequirementReviewedBy")
+  sessions                UserSession[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id               String    @id @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @map("refresh_token_hash")
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(3)
+  deviceLabel      String?   @map("device_label") @db.VarChar(160)
+  userAgentJson    Json?     @map("user_agent_json")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model Organization {
+  id                         String                              @id @db.Uuid
+  name                       String                              @db.VarChar(200)
+  slug                       String                              @unique @db.VarChar(120)
+  status                     OrganizationStatus                  @default(PENDING_ACTIVATION)
+  timezone                   String                              @default("UTC") @db.VarChar(64)
+  settings                   Json?
+  createdAt                  DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  activationRequirements     OrganizationActivationRequirement[]
+  applications               OrganizationApplication[]
+  auditLogs                  AuditLog[]
+  memberships                OrganizationMembership[]
+  stores                     Store[]
+
+  @@index([status])
+  @@map("organizations")
+}
+
+model OrganizationMembership {
+  id             String                         @id @db.Uuid
+  userId         String                         @map("user_id") @db.Uuid
+  orgId          String                         @map("organization_id") @db.Uuid
+  role           OrganizationMembershipRole
+  storeScopeMode MembershipStoreScopeMode       @default(SELECTED_STORES) @map("store_scope_mode")
+  status         MembershipStatus               @default(ACTIVE)
+  joinedAt       DateTime?                      @map("joined_at") @db.Timestamptz(3)
+  suspendedAt    DateTime?                      @map("suspended_at") @db.Timestamptz(3)
+  createdAt      DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization   Organization                   @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  storeScopes    MembershipStoreScope[]
+  user           User                           @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([orgId, id])
+  @@unique([orgId, userId])
+  @@index([userId])
+  @@index([orgId, role])
+  @@index([orgId, status])
+  @@index([orgId, storeScopeMode])
+  @@map("organization_memberships")
+}
+
+model OrganizationApplication {
+  id                     String                              @id @db.Uuid
+  organizationId         String                              @map("organization_id") @db.Uuid
+  submittedByUserId      String                              @map("submitted_by_user_id") @db.Uuid
+  status                 OrganizationApplicationStatus        @default(DRAFT)
+  submittedAt            DateTime?                           @map("submitted_at") @db.Timestamptz(3)
+  reviewStartedAt        DateTime?                           @map("review_started_at") @db.Timestamptz(3)
+  reviewedByUserId       String?                             @map("reviewed_by_user_id") @db.Uuid
+  approvedAt             DateTime?                           @map("approved_at") @db.Timestamptz(3)
+  rejectedAt             DateTime?                           @map("rejected_at") @db.Timestamptz(3)
+  reviewNotes            String?                             @map("review_notes") @db.Text
+  requirementsStatusJson Json?                               @map("requirements_status_json")
+  createdAt              DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization           Organization                        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  requirements           OrganizationActivationRequirement[]
+  reviewedBy             User?                               @relation("OrganizationApplicationReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  submittedBy            User                                @relation("OrganizationApplicationSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@unique([id, organizationId])
+  @@index([submittedByUserId])
+  @@index([status, submittedAt])
+  @@index([reviewedByUserId])
+  @@map("organization_applications")
+}
+
+model OrganizationActivationRequirement {
+  id                String                      @id @db.Uuid
+  organizationId    String                      @map("organization_id") @db.Uuid
+  applicationId     String                      @map("application_id") @db.Uuid
+  code              String                      @db.VarChar(120)
+  required          Boolean                     @default(true)
+  status            ActivationRequirementStatus @default(PENDING)
+  metadata          Json?                       @map("metadata_json")
+  satisfiedAt       DateTime?                   @map("satisfied_at") @db.Timestamptz(3)
+  waivedAt          DateTime?                   @map("waived_at") @db.Timestamptz(3)
+  reviewedByUserId  String?                     @map("reviewed_by_user_id") @db.Uuid
+  createdAt         DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  application       OrganizationApplication     @relation(fields: [applicationId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  reviewedBy        User?                       @relation("ActivationRequirementReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([applicationId, code])
+  @@index([organizationId])
+  @@index([applicationId, status])
+  @@index([reviewedByUserId])
+  @@map("organization_activation_requirements")
+}
+
+model Store {
+  id           String                 @id @db.Uuid
+  orgId        String                 @map("organization_id") @db.Uuid
+  name         String                 @db.VarChar(200)
+  code         String?                @db.VarChar(80)
+  status       StoreStatus            @default(ACTIVE)
+  timezone     String                 @default("UTC") @db.VarChar(64)
+  addressJson  Json?                  @map("address_json")
+  settings     Json?
+  createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  auditLogs    AuditLog[]
+  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  storeScopes  MembershipStoreScope[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, code])
+  @@index([orgId])
+  @@index([orgId, status])
+  @@map("stores")
+}
+
+model MembershipStoreScope {
+  id             String                 @id @db.Uuid
+  orgId          String                 @map("organization_id") @db.Uuid
+  membershipId   String                 @map("membership_id") @db.Uuid
+  storeId        String                 @map("store_id") @db.Uuid
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  membership     OrganizationMembership @relation(fields: [orgId, membershipId], references: [orgId, id], onDelete: Cascade)
+  store          Store                  @relation(fields: [orgId, storeId], references: [orgId, id], onDelete: Cascade)
+
+  @@unique([membershipId, storeId])
+  @@index([orgId])
+  @@index([storeId])
+  @@map("membership_store_scopes")
+}
+
+model PlatformRoleAssignment {
+  id               String                       @id @db.Uuid
+  userId           String                       @map("user_id") @db.Uuid
+  role             PlatformRole
+  status           PlatformRoleAssignmentStatus @default(ACTIVE)
+  assignedByUserId String?                      @map("assigned_by_user_id") @db.Uuid
+  assignedAt       DateTime                     @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  revokedAt        DateTime?                    @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  assignedBy       User?                        @relation("PlatformRoleAssignedByUser", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  user             User                         @relation("PlatformRoleAssignedToUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, role])
+  @@index([role, status])
+  @@index([assignedByUserId])
+  @@map("platform_role_assignments")
+}
+
+model AuditLog {
+  id             String        @id @db.Uuid
+  organizationId String?       @map("organization_id") @db.Uuid
+  storeId        String?       @map("store_id") @db.Uuid
+  actorUserId    String?       @map("actor_user_id") @db.Uuid
+  action         String        @db.VarChar(160)
+  resourceType   String        @map("resource_type") @db.VarChar(160)
+  resourceId     String?       @map("resource_id") @db.Uuid
+  requestId      String?       @map("request_id") @db.VarChar(120)
+  metadata       Json?         @map("metadata_json")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  actorUser      User?         @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  store          Store?        @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([requestId])
+  @@map("audit_logs")
+}

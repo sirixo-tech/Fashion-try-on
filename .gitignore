@@ -1,0 +1,19 @@
+node_modules/
+.next/
+dist/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+*.log
+npm-debug.log*
+*.tsbuildinfo
+
+.turbo/
+.DS_Store
+# Local documentation / AI agent instructions
+/docs/
+/AGENTS.md
+/README.md

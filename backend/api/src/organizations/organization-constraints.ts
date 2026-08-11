@@ -1,0 +1,1 @@
+export const MAX_MEMBERSHIP_STORE_IDS = 100;
