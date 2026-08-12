@@ -1,16 +1,21 @@
-import { Center, PageHeader, PendingActivationState } from "@selfx/ui";
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+  PendingActivationState,
+} from "@selfx/ui";
 
 export default function OnboardingPage() {
   return (
-    <>
+    <PageContainer width="medium">
       <PageHeader
         eyebrow="Onboarding"
         title="Organization status"
         description="Applicant and activation status routing is separate from normal tenant operation."
       />
-      <Center mih="calc(100dvh - 11rem)" p="lg">
+      <PageSection>
         <PendingActivationState />
-      </Center>
-    </>
+      </PageSection>
+    </PageContainer>
   );
 }

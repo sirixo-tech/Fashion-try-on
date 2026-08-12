@@ -83,6 +83,21 @@ Phase 4 UI architecture:
 - New common admin UI should import reusable SelfX components from `@selfx/ui`
   and use Mantine-first components by default.
 
+Phase 4 page/layout standards:
+
+- Page anatomy is `PageContainer` → `PageHeader` → `PageSection`/content.
+- Width modes are `wide` for dashboard/list/admin workspaces, `medium` for
+  detail/settings pages and `form` for create/edit forms.
+- Standard card surfaces are `StatCard`, `SectionCard`, `SummaryCard`,
+  `ActionCard` and `TableContainer`.
+- Future list pages should compose `FilterBar` and `TableContainer` with an
+  explicit pagination/footer region rather than creating one-off table chrome.
+- Forms should use `FormPageContainer`, `FormSection` and `FormActions` with
+  one-column layout by default and responsive collapse for compact grouped
+  fields.
+- New pages should not invent arbitrary spacing, card shadows, radii or visual
+  systems outside the shared SelfX Mantine theme and `@selfx/ui` primitives.
+
 Default local ports:
 
 - Web: `http://localhost:3002`

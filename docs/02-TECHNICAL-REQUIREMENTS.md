@@ -192,6 +192,24 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    White-label support should map through the centralized SelfX Mantine theme/token layer rather than scattered hard-coded styling.
    Common web UI such as navigation, sidebars, headers, user information, controls, forms, cards, statistics, badges, alerts, loaders, menus, drawers, modals, tabs, tooltips and responsive admin layouts should be Mantine-first. Custom Try-On/image/camera experiences remain SelfX-specific components built on the approved design-system boundary.
 
+   Phase 4 page and layout standards:
+   SelfX web pages must compose a uniform layout hierarchy:
+   Mantine → SelfX theme → SelfX layout primitives → approved page templates → business pages.
+   Reusable layout primitives live in `@selfx/ui` and include:
+   `PageContainer`, `PageHeader`, `PageSection`, `SectionHeader`, `StatGrid`, `FilterBar`, `FormPageContainer`, `FormSection` and `FormActions`.
+   Approved page width modes:
+   `wide` for dashboard, list and broad admin workspace pages;
+   `medium` for detail and settings pages;
+   `form` for create/edit forms.
+   Approximate spacing conventions:
+   desktop page padding 24–32px, major section gap 24px, card/grid gap 16–20px, card padding 20–24px;
+   tablet page padding 20–24px and major section gap 20px;
+   mobile page padding, major section gap and card padding around 16px.
+   Card standards include `StatCard`, `SectionCard`, `SummaryCard`, `ActionCard` and `TableContainer`.
+   Default cards use centralized surface, radius, border, typography and low/no shadow; hover treatment is reserved for interactive cards.
+   Future list pages should use `FilterBar` and `TableContainer` with bounded pagination/footer regions.
+   Future pages must avoid arbitrary per-page spacing systems, nested cards for page structure and generic fixed-height cards.
+
 ---
 
 8. Database and Multi-Tenancy

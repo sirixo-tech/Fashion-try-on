@@ -70,6 +70,13 @@ export const selfxTheme = createTheme({
     sm: "0 1px 2px rgb(15 23 42 / 0.07), 0 8px 24px rgb(15 23 42 / 0.08)",
     md: "0 10px 30px rgb(15 23 42 / 0.12)",
   },
+  spacing: {
+    xs: "0.5rem",
+    sm: "0.75rem",
+    md: "1rem",
+    lg: "1.5rem",
+    xl: "2rem",
+  },
   defaultRadius: "md",
   focusRing: "auto",
   components: {
@@ -82,6 +89,12 @@ export const selfxTheme = createTheme({
       defaultProps: {
         radius: "md",
         withBorder: true,
+        shadow: "none",
+      },
+    },
+    Paper: {
+      defaultProps: {
+        radius: "md",
       },
     },
     TextInput: {

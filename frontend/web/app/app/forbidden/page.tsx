@@ -1,12 +1,17 @@
-import { Center, PageHeader, PermissionDeniedState } from "@selfx/ui";
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+  PermissionDeniedState,
+} from "@selfx/ui";
 
 export default function ForbiddenPage() {
   return (
-    <>
+    <PageContainer width="medium">
       <PageHeader eyebrow="Access" title="Forbidden" />
-      <Center mih="calc(100dvh - 9rem)" p="lg">
+      <PageSection>
         <PermissionDeniedState />
-      </Center>
-    </>
+      </PageSection>
+    </PageContainer>
   );
 }

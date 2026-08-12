@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { NavLink, Stack } from "@mantine/core";
+import { NavLink, Stack, ThemeIcon } from "@mantine/core";
 
 import { SelfxLogo } from "@selfx/ui/selfx/selfx-logo";
 import type { SelfxNavItem } from "./types.js";
+import classes from "./app-sidebar.module.css";
 
 export function AppSidebar({
   items,
@@ -16,11 +17,18 @@ export function AppSidebar({
   onNavigate?: () => void;
 }) {
   return (
-    <Stack h="100%" gap={0}>
-      <Stack px="md" py="md">
+    <Stack h="100%" gap={0} className={classes.sidebar}>
+      <Stack px="md" py="md" className={classes.brand}>
         <SelfxLogo />
       </Stack>
-      <Stack component="nav" gap={4} px="xs" py="xs" aria-label="Primary">
+      <Stack
+        component="nav"
+        gap={4}
+        px="sm"
+        py="md"
+        aria-label="Primary"
+        className={classes.nav}
+      >
         {items.map((item) => {
           const Icon = item.icon;
           const active =
@@ -32,10 +40,25 @@ export function AppSidebar({
             <NavLink
               key={item.href}
               component="a"
+              className={classes.navItem}
+              classNames={{
+                label: classes.navLabel,
+                section: classes.navSection,
+              }}
               href={item.disabled ? undefined : item.href}
               label={item.label}
               leftSection={
-                Icon ? <Icon size={18} strokeWidth={1.8} /> : undefined
+                Icon ? (
+                  <ThemeIcon
+                    className={classes.navIcon}
+                    color={active ? "selfx" : "gray"}
+                    variant={active ? "filled" : "subtle"}
+                    size={30}
+                    radius="md"
+                  >
+                    <Icon size={17} strokeWidth={1.9} aria-hidden="true" />
+                  </ThemeIcon>
+                ) : undefined
               }
               active={active}
               disabled={item.disabled}

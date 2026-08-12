@@ -6,14 +6,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AppShell,
   Button,
+  FilterBar,
+  FormActions,
+  FormPageContainer,
+  FormSection,
   NoOrganizationState,
   OrganizationSwitcher,
+  PageContainer,
+  PageHeader,
   PendingActivationState,
   PermissionDeniedState,
+  SectionCard,
   SelfxLogo,
   SelfxUiProvider,
+  StatCard,
+  StatGrid,
   StatusBadge,
   SuspendedOrganizationState,
+  TableContainer,
   TextInput,
   PasswordInput,
 } from "@selfx/ui";
@@ -143,6 +153,43 @@ describe("SelfX shared shell", () => {
     expect(screen.getByText("Activation pending")).toBeTruthy();
     expect(screen.getByText("Organization suspended")).toBeTruthy();
     expect(screen.queryByText(/Prisma|DATABASE_URL|stack/i)).toBeNull();
+  });
+
+  it("renders page layout primitives and header actions", () => {
+    renderWithUi(
+      <PageContainer width="form">
+        <PageHeader
+          eyebrow="Standards"
+          title="Layout test"
+          description="Shared page anatomy"
+          primaryAction={{ label: "Create", href: "/app/dashboard" }}
+          secondaryActions={<Button variant="light">Export</Button>}
+        />
+        <StatGrid>
+          <StatCard label="Mode" value="Form" secondaryValue="Constrained" />
+        </StatGrid>
+        <SectionCard title="Section card">Reusable section content</SectionCard>
+        <FilterBar search={<TextInput label="Search" />} />
+        <TableContainer title="Table container" footer="Pagination">
+          Rows belong here
+        </TableContainer>
+        <FormPageContainer>
+          <FormSection title="Form section">
+            <TextInput label="Field" />
+          </FormSection>
+          <FormActions>
+            <Button>Save</Button>
+          </FormActions>
+        </FormPageContainer>
+      </PageContainer>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Layout test" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Create" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Export" })).toBeTruthy();
+    expect(screen.getByText("Reusable section content")).toBeTruthy();
+    expect(screen.getByText("Rows belong here")).toBeTruthy();
+    expect(screen.getByLabelText("Field")).toBeTruthy();
   });
 
   it("keeps staff access tokens in memory and never writes browser storage", async () => {

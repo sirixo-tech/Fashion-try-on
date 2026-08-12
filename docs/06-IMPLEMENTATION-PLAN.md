@@ -571,6 +571,25 @@ organization and forbidden access. These routes do not implement product,
 store, staff, kiosk, analytics, integration, billing, Public API or platform
 review business workflows.
 
+Phase 4 page/layout standards foundation:
+
+- layout primitives are implemented in `packages/ui/src/selfx/page-layout.tsx`;
+- filter composition is implemented in `packages/ui/src/selfx/filter-bar.tsx`;
+- card standards are implemented in `packages/ui/src/selfx/summary-card.tsx`;
+- standard exports are available from `@selfx/ui`;
+- `PageContainer` supports `wide`, `medium` and `form` width modes;
+- standard page anatomy is `PageContainer` → `PageHeader` →
+  `PageSection`/content;
+- approved page archetypes are Dashboard, List, Detail, Form, Settings and
+  Workflow pages;
+- standard card patterns are `StatCard`, `SectionCard`, `SummaryCard`,
+  `ActionCard` and `TableContainer`;
+- future list pages should use `FilterBar` and `TableContainer` with explicit
+  pagination/footer regions;
+- future forms should use `FormPageContainer`, `FormSection` and `FormActions`;
+- arbitrary per-page spacing systems, nested cards for page structure and
+  generic fixed-height cards are not approved.
+
 Frontend session awareness is implemented in `frontend/web/lib/session.tsx`.
 The web app uses the existing Phase 2 staff/admin auth APIs, keeps access
 tokens in React memory only, and relies on the existing HttpOnly refresh-cookie

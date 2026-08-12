@@ -443,6 +443,22 @@ architecture.
 Future organization white-labeling must map through the centralized SelfX
 Mantine theme/token layer rather than scattered hard-coded styles.
 
+SelfX web pages must use the shared Phase 4 page/layout primitives from
+`@selfx/ui` instead of inventing one-off page scaffolds. The approved hierarchy
+is Mantine → SelfX theme → SelfX layout primitives → approved page templates →
+business pages. Standard page primitives include `PageContainer`, `PageHeader`,
+`PageSection`, `SectionHeader`, `StatGrid`, `StatCard`, `SectionCard`,
+`SummaryCard`, `ActionCard`, `TableContainer`, `FilterBar`,
+`FormPageContainer`, `FormSection` and `FormActions`.
+
+Approved page width modes are `wide` for dashboards, list pages and admin
+workspaces, `medium` for detail/settings pages, and `form` for create/edit
+forms. Page padding, section gaps, card padding, card radius, borders and
+shadows should come from the centralized SelfX Mantine theme and these shared
+components. Future pages must avoid arbitrary per-page visual systems, nested
+cards as page structure, unnecessary fixed card heights, and unbounded table or
+list surfaces without a pagination region.
+
 Critical authorization and tenant boundaries must have tests.
 
 SelfX primary business identifiers use UUIDv7 stored as PostgreSQL native

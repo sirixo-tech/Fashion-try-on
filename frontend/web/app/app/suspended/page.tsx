@@ -1,12 +1,17 @@
-import { Center, PageHeader, SuspendedOrganizationState } from "@selfx/ui";
+import {
+  PageContainer,
+  PageHeader,
+  PageSection,
+  SuspendedOrganizationState,
+} from "@selfx/ui";
 
 export default function SuspendedPage() {
   return (
-    <>
+    <PageContainer width="medium">
       <PageHeader eyebrow="Workspace" title="Suspended organization" />
-      <Center mih="calc(100dvh - 9rem)" p="lg">
+      <PageSection>
         <SuspendedOrganizationState />
-      </Center>
-    </>
+      </PageSection>
+    </PageContainer>
   );
 }

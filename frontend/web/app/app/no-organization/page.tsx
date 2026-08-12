@@ -1,14 +1,19 @@
-import { Center, NoOrganizationState, PageHeader } from "@selfx/ui";
+import {
+  NoOrganizationState,
+  PageContainer,
+  PageHeader,
+  PageSection,
+} from "@selfx/ui";
 
 export default function NoOrganizationPage() {
   return (
-    <>
+    <PageContainer width="medium">
       <PageHeader eyebrow="Workspace" title="No active organization" />
-      <Center mih="calc(100dvh - 9rem)" p="lg">
+      <PageSection>
         <NoOrganizationState
           action={{ label: "View onboarding", href: "/app/onboarding" }}
         />
-      </Center>
-    </>
+      </PageSection>
+    </PageContainer>
   );
 }

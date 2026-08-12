@@ -1,4 +1,4 @@
-import { Center, EmptyState, PageHeader } from "@selfx/ui";
+import { EmptyState, PageContainer, PageHeader, PageSection } from "@selfx/ui";
 
 const phaseLabels: Record<string, string> = {
   Stores: "Phase 15",
@@ -18,18 +18,18 @@ export function ModulePlaceholder({ title }: { title: string }) {
   const phase = phaseLabels[title] ?? "later phase";
 
   return (
-    <>
+    <PageContainer width="wide">
       <PageHeader
         eyebrow="Workspace"
         title={title}
         description={`${title} screens are reserved for ${phase}.`}
       />
-      <Center mih="calc(100dvh - 11rem)" p="lg">
+      <PageSection>
         <EmptyState
           title={`${title} module not implemented`}
           description="The Phase 4 shell reserves this route without creating business workflows or fake operational data."
         />
-      </Center>
-    </>
+      </PageSection>
+    </PageContainer>
   );
 }

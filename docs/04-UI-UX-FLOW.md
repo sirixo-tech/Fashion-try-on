@@ -156,6 +156,63 @@ Common patterns should be reused for:
 - pagination;
 - skeleton/loading states.
 
+### Page & Layout Standards
+
+SelfX web pages must use the shared Mantine-first layout primitives from
+`@selfx/ui` rather than local one-off layout systems.
+
+Standard page anatomy:
+
+```text
+PageContainer
+→ PageHeader
+→ optional StatGrid
+→ PageSection / SectionHeader
+→ approved content card or workflow surface
+```
+
+Page width modes:
+
+- `wide` — dashboard, list and broad admin workspace pages;
+- `medium` — detail and settings pages;
+- `form` — create/edit forms.
+
+Spacing conventions:
+
+- desktop: 24–32px page padding, 24px major section gap, 16–20px card/grid gap,
+  20–24px card padding;
+- tablet: 20–24px page padding and about 20px major section gap;
+- mobile: about 16px page padding, section gap and card padding.
+
+Approved page archetypes:
+
+- Dashboard Page: `PageHeader` → `StatGrid` → `PageSection` content;
+- List Page: `PageHeader` → optional `StatGrid` → `FilterBar` →
+  `TableContainer` → pagination/footer;
+- Detail Page: `PageHeader` → summary → tabs/sections → related information;
+- Form Page: `PageHeader` → constrained `FormPageContainer` → `FormSection`
+  → `FormActions`;
+- Settings Page: `PageHeader` → settings navigation/content sections;
+- Workflow Page: specialized flow layout that still follows SelfX typography,
+  spacing, state and control standards.
+
+Approved card patterns:
+
+- `StatCard` for label/value/trend summaries;
+- `SectionCard` for titled content sections;
+- `SummaryCard` for compact summary information;
+- `ActionCard` for icon/title/description/action prompts;
+- `TableContainer` for future table surfaces with explicit footer/pagination
+  space.
+
+Forms use one column by default. Two-column layout is reserved for closely
+related compact fields and must collapse to one column on mobile. Labels appear
+above fields and validation/help text must remain visually predictable.
+
+Cards should normally size to content, use centralized radius/border/shadow
+tokens and avoid hover treatment unless interactive. Do not nest cards simply to
+create page spacing.
+
 ---
 
 ## 4. Global Web Application Structure

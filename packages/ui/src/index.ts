@@ -11,6 +11,7 @@ export {
   Checkbox,
   Container,
   ColorSchemeScript,
+  Divider,
   Drawer,
   Group,
   Loader,
@@ -18,6 +19,7 @@ export {
   Modal,
   NumberInput,
   PasswordInput,
+  Paper,
   Radio,
   Select,
   SimpleGrid,
@@ -37,7 +39,16 @@ export { SelfxUiProvider } from "./theme/selfx-ui-provider";
 export { selfxTheme } from "./theme/selfx-theme";
 export { SelfxLogo } from "./selfx/selfx-logo";
 export { StatusBadge } from "./selfx/status-badge";
-export { PageHeader } from "./selfx/page-header";
+export {
+  FormActions,
+  FormPageContainer,
+  FormSection,
+  PageContainer,
+  PageHeader,
+  PageSection,
+  SectionHeader,
+  StatGrid,
+} from "./selfx/page-layout";
 export {
   EmptyState,
   ErrorState,
@@ -53,7 +64,15 @@ export { AppSidebar } from "./selfx/app-sidebar";
 export { AppHeader } from "./selfx/app-header";
 export { AppShell } from "./selfx/app-shell";
 export { ConfirmDialog } from "./selfx/confirm-dialog";
-export { MetricDisplay, StatCard, SummaryCard } from "./selfx/summary-card";
+export { FilterBar } from "./selfx/filter-bar";
+export {
+  ActionCard,
+  MetricDisplay,
+  SectionCard,
+  StatCard,
+  SummaryCard,
+  TableContainer,
+} from "./selfx/summary-card";
 export type {
   SelfxNavItem,
   SelfxOrganizationOption,
