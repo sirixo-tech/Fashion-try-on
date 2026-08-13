@@ -38,6 +38,20 @@ npm run dev:api
 npm run dev:worker
 ```
 
+Production web builds should use the root Turborepo command so internal
+workspace packages build before Next.js consumes them:
+
+```bash
+npm run build:web
+```
+
+This command builds `@selfx/shared` to `dist` before `@selfx/web`; `@selfx/ui`
+also participates through the workspace dependency graph. Railway `@selfx/web`
+deployments should use `npm run build:web` as the Build Command instead of
+directly running `npm run build --workspace=@selfx/web`. The Railway Start
+Command remains `npm run start --workspace=@selfx/web`. Frontend deployment is
+pending until the Railway clean build succeeds with this command.
+
 For a production-mode local web smoke test on the approved SelfX web port:
 
 ```bash

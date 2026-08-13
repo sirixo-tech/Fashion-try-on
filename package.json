@@ -18,6 +18,7 @@
     "dev:api": "npm run dev --workspace @selfx/api",
     "dev:worker": "npm run dev --workspace @selfx/worker",
     "build": "turbo run build",
+    "build:web": "turbo run build --filter=@selfx/web...",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",

@@ -79,6 +79,8 @@ Create the technical workspace without implementing business features.
 
 - npm workspace root
 - Turborepo
+- root `build:web` script for dependency-aware production web builds through
+  Turborepo
 - Node.js runtime configuration
 - shared lint/format/typecheck configuration
 - initial folder structure:
@@ -1759,6 +1761,14 @@ The API maintains separate operational endpoints:
 - A previous Railway deployment healthcheck failed because the API ignored
   Railway `PORT`, so `/health` could not reach the NestJS process on the port
   Railway expected.
+- Railway `@selfx/web` builds should use the root `npm run build:web` command
+  instead of `npm run build --workspace=@selfx/web`. The root command lets
+  Turborepo build internal workspace dependencies first, including compiling
+  `@selfx/shared` to `dist` before Next.js builds `@selfx/web`; `@selfx/ui`
+  participates through the workspace graph where applicable.
+- The web Railway Start Command remains `npm run start --workspace=@selfx/web`.
+  Frontend deployment remains pending until the Railway clean build succeeds
+  with the dependency-aware command.
 
 ---
 

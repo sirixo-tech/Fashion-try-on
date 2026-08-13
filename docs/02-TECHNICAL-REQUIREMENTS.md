@@ -126,6 +126,12 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    `integrations/woocommerce` — WooCommerce plugin
    `docs` — project documentation
    Flutter and WooCommerce use their own native package ecosystems even though they remain in the same product repository.
+   npm workspace production builds must respect the Turborepo dependency graph.
+   The canonical production web build command is `npm run build:web`, which runs
+   `turbo run build --filter=@selfx/web...` from the repository root so
+   internal dependencies such as `@selfx/shared` compile to `dist` before
+   `@selfx/web` runs `next build`. `@selfx/ui` remains in the workspace graph
+   without requiring a source-export packaging rewrite.
 
 ---
 
@@ -1363,6 +1369,12 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     PostgreSQL instance. The Railway API service must bind to `0.0.0.0` on
     Railway `PORT`; `API_PORT` is only the local SelfX override/fallback before
     the final `3001` development default.
+    Railway `@selfx/web` builds must use `npm run build:web` rather than
+    directly invoking `npm run build --workspace=@selfx/web`, because a direct
+    workspace build bypasses Turborepo's internal-package ordering and can fail
+    to resolve compiled packages such as `@selfx/shared` on a clean checkout.
+    The web Railway Start Command remains `npm run start --workspace=@selfx/web`;
+    frontend deployment remains pending until the Railway clean build succeeds.
     Database migrations are part of the release lifecycle.
     Production schema changes must not depend on manual database editing.
     Application releases should be rollback-capable.
