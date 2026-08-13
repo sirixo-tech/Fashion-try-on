@@ -657,6 +657,72 @@ Detailed image preprocessing belongs in Technical Requirements.
 
 ---
 
+## PRD-GARMENT-002 — CORE VTO-1 Internal Validation
+
+SelfX may use a guarded internal development Try-On Lab to validate person-image
+plus physical-garment-image Virtual Try-On quality before exposing the final
+production customer/kiosk workflow.
+
+This lab must preserve the mandatory product boundaries:
+
+- clients still communicate only with SelfX;
+- AI-provider credentials are never exposed to clients;
+- provider-specific values remain behind SelfX provider adapters;
+- customer-facing consent, durable assets, retention, usage and production
+  Try-On history are not implied by the development lab.
+
+Uploaded-image preflight in the lab must separate technical validation from
+quality analysis:
+
+- technical validation may block generation for non-images, unsupported
+  formats, corrupt/undecodable images, unsafe MIME/signature mismatches, hard
+  upload size limits and invalid or zero dimensions;
+- quality analysis is advisory for uploaded images. Blur, dark lighting,
+  overexposure, low contrast, low but technically valid resolution and
+  suboptimal body/garment framing should be warnings, not normal blockers;
+- if OpenCV quality analysis cannot complete after technical validation
+  succeeds, the user should be allowed to re-upload or proceed anyway;
+- unavailable analysis metrics must not be shown as fake `0x0` dimensions or
+  zero-valued sharpness/brightness/contrast metrics;
+- future production analytics may compare detected warning codes and accepted
+  overrides with generated Try-On quality.
+
+CORE VTO-1.1 further distinguishes internal lab policy from customer consent:
+
+- the internal authenticated Lab shows an authorized-use notice rather than a
+  customer consent checkbox;
+- the notice states that internal testers should upload only images they are
+  authorized to process;
+- this does not weaken PRD-PRIVACY-001. Customer web, mobile and kiosk flows
+  still require consent before camera access, customer photo upload or AI
+  processing;
+- the Lab may expose safe current-run telemetry for development feedback, but
+  it must not store or expose raw person images, garment images, generated
+  Base64 payloads, provider credentials, Authorization headers or provider
+  prediction IDs in normal Lab UI.
+
+CORE VTO-1.2 further defines automatic garment resolution expectations:
+
+- normal customers, kiosk users and public/commerce Try-On consumers should not
+  configure technical garment category, garment photo type or generation
+  profile parameters during normal Try-On;
+- SelfX should resolve those values from trusted catalog/commerce metadata,
+  direct-upload analysis, safe fallback policy or one focused ambiguity answer
+  where truly needed;
+- store/site/catalog products include SelfX-native catalog products, Shopify
+  products synchronized through a future SelfX Shopify integration and
+  WooCommerce products synchronized through a future SelfX WooCommerce
+  integration. CORE VTO-1.2 defines this normalization contract but does not
+  implement Shopify or WooCommerce synchronization;
+- `FULL_OUTFIT` is a provider-neutral customer intent for a multi-garment look
+  and remains distinct from `ONE_PIECE`, such as a dress or jumpsuit;
+- body-coverage analysis may help identify product-like/no-person,
+  upper-body-on-model, lower-body-on-model, full-body-on-model or unknown
+  framing, but it does not identify the exact clothing item and must fall back
+  safely when confidence is low or analysis is unavailable.
+
+---
+
 # 23. Kiosk Requirements
 
 ## PRD-KIOSK-001
@@ -690,6 +756,120 @@ Authorized users must be able to:
 Kiosks must authenticate as devices.
 
 Employee passwords must not be used as permanent kiosk credentials.
+
+---
+
+## PRD-KIOSK-004 — KIOSK-1 Windows Camera Foundation
+
+SelfX may implement an early Windows desktop kiosk camera and capture
+foundation before the full managed kiosk Try-On flow.
+
+This foundation supports local development/operator camera testing only:
+
+- Windows desktop is the initial kiosk platform target.
+- The kiosk hardware may use an integrated camera or an external USB/UVC
+  webcam. SelfX treats both consistently as camera devices.
+- Multiple cameras may be detected and selected. SelfX must not permanently
+  assume camera index `0`.
+- Preferred camera selection in KIOSK-1 is local device configuration, not
+  server-side kiosk configuration.
+- Captured customer/person images remain temporary and local in KIOSK-1.
+- KIOSK-1 does not upload images, create Try-Ons, call FASHN or require provider
+  credentials.
+- OpenCV may analyze the captured still image for quality warnings after
+  capture. Live frame processing and pose/body-landmark validation are deferred.
+- OpenCV analysis failure is not equivalent to an invalid captured image.
+
+The full production kiosk customer flow still requires consent, device
+authentication, SelfX API upload/orchestration, durable assets, retention,
+entitlement/quota and provider execution through the central SelfX backend.
+
+## PRD-KIOSK-005 — KIOSK-1.5 Android Primary Kiosk Platform
+
+Android is the primary commercial SelfX kiosk deployment platform for rented
+SelfX kiosk hardware. Windows remains a fully supported secondary platform for
+Windows kiosks, desktop testing and future Windows capture workflows.
+
+SelfX continues to use one Flutter kiosk application under `mobile/kiosk`.
+Platform-specific camera details must remain behind `CameraService`.
+
+KIOSK-1.5 product rules:
+
+- Android boxes with touch displays are the primary kiosk deployment target.
+- Windows remains supported and must not be described as deprecated.
+- Android initially uses Flutter `camera` through the endorsed CameraX path.
+- Integrated cameras, external/USB cameras and multi-camera hardware are all
+  conceptual `CameraDevice` values.
+- Android USB webcam support depends on what the selected Android box exposes
+  through CameraX; a dedicated UVC stack is deferred until certified hardware
+  testing proves it is necessary.
+- Kiosk capture requires camera permission only. Microphone permission is not
+  required for still-image capture.
+- Preferred camera selection remains local device configuration, not
+  server-side kiosk configuration.
+- Android commercial kiosk UX is portrait-first because SelfX currently
+  deploys/rents primarily 32-inch and 42-inch vertically mounted displays.
+- Windows remains responsive across portrait and landscape desktop/window
+  operation.
+- Kiosk UI must adapt from actual logical viewport dimensions and aspect ratio,
+  not hardcode physical 32-inch/42-inch panel sizes.
+- KIOSK-1.5 keeps the KIOSK-1 still-capture quality flow and does not implement
+  continuous live vision.
+- Whole-frame brightness can miss subject backlighting, so subject-aware
+  exposure/backlight readiness belongs to KIOSK-2.
+- Production kiosk rental rollout will require managed device identity,
+  provisioning, store assignment, device auth, heartbeats, app/version
+  reporting, camera health, remote diagnostics/configuration and
+  dedicated-device management in a later milestone.
+- SelfX should certify known-good kiosk hardware combinations rather than
+  promise support for every Android box/webcam combination.
+
+KIOSK-1.5 does not implement FASHN/provider access, production Try-On upload,
+device provisioning/auth, fleet backend, QR handoff, billing, API Gateway or
+KIOSK-2 live vision.
+
+## PRD-KIOSK-006 — KIOSK-1.6 Assisted Customer Capture Experience
+
+SelfX kiosk customer capture should use an assisted countdown experience before
+still-image capture.
+
+KIOSK-1.6 product rules:
+
+- The normal customer camera screen exposes **Take Photo** and starts a
+  countdown. It does not expose an instant customer **Capture Now** action.
+- Portrait Android kiosk capture prioritizes a large/tall live preview,
+  standing full-body framing, distance-readable countdown/guidance in a panel
+  below the preview and lower-region touch actions. Countdown/customer guidance
+  must not live inside the camera preview.
+- The default countdown is 10 seconds.
+- Operators may configure the local device countdown to 5, 10 or 15 seconds.
+  Customers do not choose this duration during each session.
+- Countdown guidance is scripted and time-based only. It must not imply live
+  detection of person position, body coverage, lighting, pose, distance or
+  readiness.
+- Countdown, shutter and capture-success sounds are allowed, enabled by default
+  and configurable off locally. No microphone permission is required.
+- Operators may select a local capture sound profile: Soft, Classic, Digital or
+  Minimal. The customer does not choose the sound profile during capture.
+- Capture-success audio must occur only after a still photo is actually
+  captured. Capture failure must not play a success cue.
+- Countdown cancellation must safely return to preview and prevent delayed
+  capture.
+- Countdown completion captures exactly one still image, then runs the existing
+  post-capture OpenCV quality analysis.
+- Review continues to show captured image, quality summary, **Retake** and
+  **Use Photo**.
+- Technical invalidity may block use. Quality warnings remain advisory, so the
+  customer may retake or use the photo.
+- **Use Photo** transitions to a Photo Ready state. **Continue** is only a
+  temporary local placeholder until the approved product/catalog/Try-On phase.
+- Captured photos remain local and temporary in KIOSK-1.6. They are not
+  uploaded, sent to FASHN/provider services or persisted server-side.
+
+KIOSK-1.6 does not implement MediaPipe, live OpenCV, person/multiple-person
+detection, body coverage, subject-aware exposure, automatic readiness,
+product/catalog selection, QR handoff, SelfX Try-On API upload, device
+provisioning/auth, fleet backend, API Gateway or provider execution.
 
 ---
 
@@ -1062,14 +1242,19 @@ Permitted store data only.
 
 Every Virtual Try-On should identify its originating channel where applicable.
 
-Initial/planned channels:
+Provider-neutral channel taxonomy:
 
+- WEB_LAB
+- WEB_CUSTOMER
 - KIOSK
-- PUBLIC_API
 - MOBILE
 - SHOPIFY
 - WOOCOMMERCE
-- WEB
+- PUBLIC_API
+
+Only WEB_LAB is used by the CORE VTO-1.1 internal development Lab. Production
+customer and partner channels must use the same SelfX backend and may not call
+AI providers directly.
 
 This must support usage, analytics and reporting.
 

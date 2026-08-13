@@ -501,6 +501,278 @@ Full product/kiosk/analytics modules.
 
 The web application has a stable shared SelfX design system and dashboard shell.
 
+### CORE VTO-1 Roadmap Reprioritization
+
+After Phase 4, SelfX intentionally prioritized an internal development
+Virtual Try-On Lab before Product Catalog implementation.
+
+CORE VTO-1 implements only:
+
+- authenticated route `/app/try-on-lab`;
+- OpenCV.js client-side image-quality preflight;
+- person-image plus garment-image local upload;
+- SelfX automatic garment/category/photo-type/generation-profile resolution
+  after CORE VTO-1.2, with collapsed internal Lab overrides only;
+- versioned API routes under `/api/v1/try-on-lab/runs`;
+- server-side provider-neutral Try-On adapter boundary;
+- FASHN `tryon-v1.6` adapter;
+- temporary validated multipart upload and Base64 data URI provider transport;
+- bounded TTL in-memory lab run registry.
+
+CORE VTO-1 uploaded-image preflight policy:
+
+- technical image validation is blocking and remains authoritative at the API
+  boundary;
+- image quality analysis is advisory for uploaded images;
+- blur, dark/bright exposure, low contrast, low but technically valid
+  resolution, body-region guidance and garment framing concerns are warnings;
+- OpenCV analysis failure after technical validation succeeds is an
+  `IMAGE_QUALITY_ANALYSIS_UNAVAILABLE` warning, not an image-invalid failure;
+- warning confirmation is ephemeral in the lab and lets the tester re-upload or
+  proceed anyway;
+- future production analytics may retain warning codes and accepted overrides
+  when durable TryOnRun persistence is implemented.
+
+CORE VTO-1.1 Lab UX and telemetry foundation checkpoint:
+
+- the internal Lab shows a passive authorized-use notice instead of a
+  customer-style consent checkbox;
+- customer-facing web, mobile and kiosk consent remains mandatory before
+  camera access, customer photo upload or AI processing;
+- the Lab page flow is Images -> Generate Try-On -> Result, using the Phase 4
+  SelfX/Mantine page standards;
+- upload cards are compact, use contained image previews, sit side-by-side on
+  desktop and stack on mobile;
+- Generate Try-On is placed in the main workflow, not as a detached
+  header action;
+- the Result area keeps a responsive Person, Garment and Generated Try-On
+  comparison with a larger preview modal;
+- Try Another Garment preserves person input and clears garment, garment
+  quality and run state; New Try-On clears both images, warning overrides and
+  run state;
+- the current run response exposes safe provider-neutral telemetry fields:
+  SelfX run ID, channel, provider display metadata, model/profile, garment
+  category/photo type, timestamps, elapsed time, status, stable failure code,
+  quality warning codes and quality override accepted;
+- telemetry must not contain raw sensitive images, generated Base64 telemetry
+  fields, face/biometric embeddings, API keys, provider Authorization headers,
+  internal stack traces or normal-UI provider prediction IDs;
+- provider-neutral future telemetry channels are WEB_LAB, WEB_CUSTOMER, KIOSK,
+  MOBILE, SHOPIFY, WOOCOMMERCE and PUBLIC_API. Only WEB_LAB is used here;
+- audit logs remain separate from analytics, and durable TryOnRun,
+  ProviderAttempt and telemetry persistence waits for the production Try-On
+  orchestration/storage phase.
+
+CORE VTO-1.2 automatic garment resolution checkpoint:
+
+- normal Lab use no longer requires visible per-run category, garment photo
+  type or generation profile selection;
+- SelfX resolves direct-upload garment intent and photo type automatically
+  through provider-neutral GenerationPolicyResolver rules;
+- only `DIRECT_UPLOAD` is active now, while source contracts reserve
+  `SELFX_CATALOG`, `SHOPIFY`, `WOOCOMMERCE` and `PUBLIC_API` for later trusted
+  metadata sources;
+- browser-side GarmentInputAnalyzer may lazy-load MediaPipe Tasks Vision Pose
+  Landmarker for on-model body-coverage analysis, separate from OpenCV image
+  quality analysis;
+- product-only/no-person images resolve to AUTO/AUTO, upper-body on-model to
+  TOP/ON_MODEL, lower-body on-model to BOTTOM/ON_MODEL, and full-body on-model
+  triggers one ambiguity question;
+- FULL_OUTFIT is retained as a provider-neutral intent distinct from
+  ONE_PIECE;
+- a collapsed internal Advanced settings area remains for authenticated
+  development overrides only and records INTERNAL_LAB_OVERRIDE telemetry;
+- safe current-run telemetry includes garment source, resolution sources,
+  analysis confidence/body coverage and disambiguation state;
+- no Product Catalog, commerce sync, live camera/kiosk capture, durable
+  TryOnRun/ProviderAttempt persistence, quota/entitlement execution or paid
+  provider automation is added in this checkpoint.
+
+CORE VTO-1 does not implement:
+
+- Product Catalog;
+- live camera/WebRTC/kiosk capture;
+- blocking pose/body landmark validation;
+- durable customer assets/R2;
+- production TryOnRun or ProviderAttempt persistence;
+- durable analytics persistence or production analytics dashboards;
+- Redis/BullMQ;
+- entitlement/quota reservation;
+- usage/billing;
+- customer consent/history;
+- 7-day media cleanup jobs.
+
+Productionization remains in the approved later phases. CORE VTO-2 is reserved
+for body-region/pose validation, and CORE VTO-3 is reserved for durable assets,
+queueing, retention and production Try-On infrastructure.
+
+### KIOSK-1 Reprioritized Implementation Slice
+
+After CORE VTO-1 through CORE VTO-1.2 verified real provider generation,
+SelfX approved a narrow kiosk hardware foundation before the full managed
+kiosk backend and production kiosk Try-On flow.
+
+KIOSK-1 implements only:
+
+- standalone Flutter Windows desktop app in `mobile/kiosk`;
+- `CameraService` abstraction with `CameraDevice`, `CameraCapabilities`,
+  `CameraState`, `CameraCaptureResult` and `CameraFailure`;
+- Windows camera adapter using Flutter `camera` plus `camera_windows`;
+- camera enumeration, preferred camera restoration, operator camera selection,
+  initialization, preview, still capture, rediscovery and recoverable failure
+  states;
+- local `preferredCameraId` persistence only;
+- `KioskHomeScreen`, `CameraCaptureScreen`, `CaptureReviewScreen` and
+  `CameraSettingsScreen`;
+- temporary local capture lifecycle and cleanup on replacement/session reset
+  where practical;
+- still-image-only `opencv_dart` quality analysis after capture with
+  versioned thresholds and SelfX `PASS`/`WARNING`/`BLOCKED` semantics;
+- tests using fake camera and analyzer services so CI/automated checks do not
+  require physical camera hardware.
+
+KIOSK-1 explicitly does not implement:
+
+- FASHN or any direct AI-provider connection;
+- SelfX Try-On API upload/submission;
+- product/catalog flow;
+- customer consent production flow;
+- live frame OpenCV;
+- pose/body-landmark validation;
+- QR handoff;
+- kiosk provisioning/device auth/heartbeat;
+- server-side camera settings;
+- durable assets, R2, TryOnRun/ProviderAttempt, retention jobs, billing or
+  payments.
+
+KIOSK-1 dependency notes:
+
+- Flutter SDK verified from local metadata as `3.44.1`, Dart `3.12.1`.
+- `camera_windows 0.2.6+4` is selected for KIOSK-1 reliability and official
+  Flutter ownership. It does not expose Windows live frame streaming.
+- `opencv_dart 2.2.1+4` is selected for Windows still-image quality analysis
+  and is compatible with Dart `3.12.1`.
+- KIOSK-2 must preserve the camera/application abstraction and may replace the
+  camera adapter to support sampled live frames for OpenCV and body-landmark
+  readiness.
+
+### KIOSK-1.5 Android Primary & Multi-Platform Hardening Slice
+
+After KIOSK-1 verified Windows camera preview/capture with real hardware,
+SelfX approved Android as the primary commercial kiosk deployment platform
+while keeping Windows fully supported.
+
+KIOSK-1.5 implements only:
+
+- Android runner/build foundation in the existing `mobile/kiosk` Flutter app;
+- Android camera permission for still-image capture, without microphone
+  permission;
+- Flutter `camera` Android CameraX path for enumeration, preview and still
+  capture;
+- continued Windows support through `camera_windows`;
+- platform-neutral camera service wiring so Android/Windows camera details do
+  not leak into kiosk screens;
+- platform-scoped local `preferredCameraId` persistence;
+- responsive hardening for Camera Capture, Capture Review and Camera Settings;
+- Android portrait-first commercial kiosk presentation for SelfX's current
+  32-inch and 42-inch vertically mounted rental kiosks, while Windows remains
+  responsive in portrait and landscape windows;
+- Android immersive/fullscreen foundation for kiosk presentation without
+  production lock-task/device-owner provisioning;
+- documentation for Android hardware testing, USB webcam uncertainty,
+  hardware certification and future fleet operations.
+
+KIOSK-1.5 explicitly does not implement:
+
+- KIOSK-2 live frame analysis, MediaPipe pose or subject-aware exposure;
+- direct FASHN/provider calls or SelfX Try-On API upload;
+- product/catalog, QR handoff, kiosk provisioning, device authentication,
+  heartbeat backend, remote fleet control or custom DPC/EMM;
+- API Gateway, Redis/BullMQ, R2, durable TryOnRun, retention jobs, billing or
+  production signing keys.
+
+Future required milestone before broad SelfX kiosk rental rollout:
+
+- kiosk device identity and provisioning;
+- organization/store assignment;
+- device authentication and token renewal;
+- heartbeat/online state;
+- app/version reporting;
+- remote configuration;
+- camera health and diagnostics;
+- controlled dedicated-device/lock-task operations;
+- fleet management and remote support workflows;
+- SelfX Certified Kiosk Profile for known-good Android box/display/camera/APK
+  combinations.
+
+API Gateway remains intentionally deferred. Continue with Clients -> SelfX
+NestJS API until Public API commercialization, major partner/commerce traffic,
+centralized edge policy/rate-limit needs, independently routed backend services
+or significant cross-channel API-management complexity justify adding one.
+Application tenant authorization remains in SelfX even if a gateway is later
+introduced.
+
+### KIOSK-1.6 Assisted Customer Capture Slice
+
+KIOSK-1.6 improves only the shared Flutter kiosk customer capture experience.
+
+Implemented scope:
+
+- explicit client capture workflow states: preview, preparing, countdown,
+  capturing, analyzing, review, photo ready and error;
+- portrait-first Android commercial presentation using shared adaptive layouts
+  based on logical viewport dimensions/aspect ratio rather than physical inch
+  sizes;
+- customer **Take Photo** starts a countdown, with instant customer
+  **Capture Now** removed;
+- countdown duration is a local operator preference with allowed values 5, 10
+  and 15 seconds, defaulting to 10 seconds;
+- countdown/shutter/capture-success sounds are enabled by default, locally
+  configurable off, output-only and non-blocking if playback fails;
+- scripted countdown guidance appears outside the live preview in
+  `CaptureGuidancePanel`, with large countdown number, final-three emphasis,
+  lightweight animation and large **Cancel** action;
+- camera preview remains reserved for the customer image, static framing guide
+  and future camera-specific KIOSK-2 overlays;
+- capture audio uses `CaptureAudioService` with local bundled offline profiles:
+  Soft, Classic, Digital and Minimal. The selected profile is stored locally as
+  `captureAudioProfile`, and customers do not choose it per capture session;
+- capture-success audio plays only after still capture succeeds, and failure to
+  play audio never changes the capture result;
+- portrait capture, review, photo ready and settings screens stack content
+  vertically for 32-inch/42-inch-style mounted displays, while wide Windows
+  windows may retain side-by-side layouts;
+- cancellation stops timers, invalidates the active countdown and prevents
+  delayed capture;
+- countdown completion captures exactly one still image and runs the existing
+  post-capture OpenCV still-image analysis;
+- Review keeps **Retake** and **Use Photo** with advisory quality warnings and
+  blocking technical invalidity;
+- **Use Photo** opens Photo Ready, while **Continue** remains a temporary local
+  placeholder for a later product/catalog/Try-On phase;
+- captures remain local and temporary, with cleanup on retake, replacement and
+  session reset where practical.
+
+KIOSK-1.6 explicitly does not implement:
+
+- MediaPipe, live OpenCV, automatic readiness, person detection,
+  multiple-person detection, body coverage, subject-aware exposure, distance
+  estimation or pose stability;
+- SelfX Try-On API upload, FASHN/provider calls, product/catalog selection,
+  QR handoff, fleet backend, device auth, Redis/BullMQ, R2, durable TryOnRun,
+  billing or API Gateway.
+
+Verification for this slice should be proportional: format/analyze affected
+Flutter source, run targeted kiosk tests for countdown cancellation,
+single-capture behavior and local settings, and manually exercise the Windows
+USB webcam flow when hardware/GUI access is available. Android runtime
+verification must be reported as pending unless real Android hardware is
+actually exercised.
+
+KIOSK-1.6.1 adds only the capture guidance layout/audio correction. It does not
+add KIOSK-2 live vision, provider calls, Try-On upload, product/catalog flow,
+fleet backend or database/server changes.
+
 ### Phase 4 Implementation Notes
 
 Phase 4 was revised after initial completion: Mantine is now the primary SelfX

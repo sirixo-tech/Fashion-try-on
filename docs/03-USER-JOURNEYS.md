@@ -196,6 +196,80 @@ Same retention and session-cleanup rules as the catalog Try-On journey.
 
 ---
 
+## 3.2.1 Internal Development Tester — CORE VTO-1 Try-On Lab
+
+### Primary Actor
+
+Authenticated SelfX staff/developer tester
+
+### Preconditions
+
+- Staff/admin authentication is available.
+- `TRYON_LAB_ENABLED=true` in the controlled development environment.
+- `FASHN_API_KEY` is configured server-side for real provider smoke testing, or
+  the provider is mocked during automated tests.
+
+### Main Flow
+
+1. Tester opens `/app/try-on-lab`.
+2. SelfX shows an internal authorized-use notice: "Internal testing only.
+   Upload only images you are authorized to process."
+3. Tester uploads a local person image and a local garment image in the Images
+   section.
+4. Browser-side OpenCV.js is lazy-loaded for image-quality preflight.
+5. SelfX displays provider-neutral quality metrics, blocking problems and
+   warnings.
+6. Technical validation blocks only invalid, unsupported, corrupt/undecodable,
+   oversized or unsafe uploads.
+7. Quality concerns such as blur, exposure, low contrast, low resolution and
+   body/garment framing are warnings for uploaded images.
+8. If warnings exist, tester may re-upload or choose Proceed anyway. OpenCV
+   analysis failure after technical validation appears as an advisory
+   analysis-unavailable warning, not an image-invalid failure.
+9. SelfX automatically resolves garment intent, garment photo type and the
+   balanced interactive generation profile from direct-upload analysis and
+   platform policy.
+10. If the garment image appears to include multiple clothing areas, SelfX asks
+    one focused question: "We found multiple clothing areas in this image.
+    Which item would you like to try on?" Choices are Upper garment, Lower
+    garment, One-piece and Full outfit.
+11. Tester starts Generate Try-On from the Generate Try-On section.
+12. Web submits validated multipart input and safe warning, resolution and
+    override metadata
+   to the SelfX API.
+13. SelfX API validates file count, size, MIME type, image signatures and
+   decodable dimensions.
+14. SelfX creates an ephemeral UUIDv7 lab run ID and submits through the
+   provider-neutral adapter.
+15. The FASHN adapter maps SelfX values to FASHN `tryon-v1.6`.
+16. Web polls SelfX by lab run ID.
+17. Tester sees safe current-run telemetry details, including automatic
+    resolution source and confidence where available.
+18. Tester sees the person image, garment image and generated result or a
+    provider-neutral failure state in the Result section.
+19. Tester may choose Try Another Garment to retain the person image while
+    clearing garment, garment-quality and run state, or New Try-On to clear all
+    images, warning overrides and run state.
+
+The Lab retains a collapsed internal Advanced settings area for development
+overrides of garment intent, garment photo type and generation profile. This is
+not part of the normal customer, kiosk or public API user journey.
+
+For uploaded images, body-region recommendations are advisory unless a
+downstream provider or later approved production policy defines a real
+technical requirement. Future kiosk/live capture will use OpenCV more strictly
+for guided capture readiness because SelfX controls the camera flow.
+
+### Boundary
+
+This is not the production kiosk/customer/public API Try-On journey. It does
+not create durable Try-On records, customer consent records, assets,
+ProviderAttempt rows, queue jobs, usage ledger entries or 7-day retention jobs.
+The absence of a customer-style consent checkbox in the internal Lab does not
+change customer-facing consent requirements.
+
+---
+
 ## 3.3 Reuse Customer Photo for Multiple Garments
 
 ### Primary Actor
@@ -635,6 +709,165 @@ Authorized Merchant User
 ---
 
 # 6. Kiosk Management Journeys
+
+## 6.0 Internal Operator — KIOSK-1 Camera Foundation
+
+### Primary Actor
+
+SelfX developer or authorized kiosk operator validating kiosk hardware.
+
+### Preconditions
+
+- The Flutter kiosk app is running on Windows desktop.
+- KIOSK-1 is being used for local camera development only.
+- A physical camera may or may not be connected.
+
+### Main Flow
+
+1. Operator opens the SelfX kiosk development home.
+2. Operator starts camera test or opens camera settings.
+3. Kiosk enumerates available Windows camera devices.
+4. Integrated and external USB/UVC cameras are shown through the same device
+   selection model.
+5. If a locally preferred camera exists and is still available, kiosk attempts
+   to initialize it.
+6. If the preferred camera is missing, kiosk rediscovers cameras and lets the
+   operator select another device.
+7. Operator views a large live preview with static framing guidance.
+8. Operator captures one still image.
+9. The original capture remains local and temporary.
+10. OpenCV analyzes a derived/downscaled copy for image quality.
+11. Kiosk shows the captured image, quality summary, **Retake** and
+    **Use Photo**.
+12. **Retake** deletes/replaces the local capture where practical.
+13. **Use Photo** accepts the capture into the local development session only.
+
+### Alternate / Failure Flows
+
+- No camera detected -> show no-camera state and refresh action.
+- Camera permission/access denied -> show recoverable camera error.
+- USB camera is unplugged or preview/capture fails -> dispose safely,
+  rediscover devices and allow retry/selection.
+- OpenCV analysis fails after the image is technically readable -> show an
+  advisory analysis-unavailable warning rather than invalidating the capture.
+- Technical invalidity, corrupt capture or unreadable file -> block **Use
+  Photo** until retake.
+
+### Boundary
+
+KIOSK-1 does not collect production customer consent, upload images, create
+Try-Ons, call SelfX Try-On APIs, call FASHN, perform live OpenCV, run
+pose/body-landmark detection, show product selection, perform QR handoff or
+store server-side camera configuration.
+
+## 6.0.1 Internal Operator — KIOSK-1.5 Android Primary Validation
+
+### Primary Actor
+
+SelfX developer or authorized kiosk operator validating Android kiosk hardware.
+
+### Preconditions
+
+- The Flutter kiosk app is built as an Android APK.
+- Android is the primary kiosk deployment target.
+- Windows remains supported for desktop and Windows kiosk testing.
+- SelfX commercial rental kiosks currently use primarily 32-inch and 42-inch
+  vertically mounted displays.
+- A physical Android box may or may not be attached during development.
+
+### Main Flow
+
+1. Operator installs the SelfX kiosk APK on an Android box.
+2. Operator launches the same `mobile/kiosk` Flutter application.
+3. The app presents portrait-first kiosk screens with immersive presentation.
+4. Operator grants camera permission when Android requests it.
+5. Kiosk enumerates cameras exposed through Android CameraX.
+6. Integrated and externally exposed cameras are shown through the same
+   `CameraDevice` selection model.
+7. Operator selects or restores a locally preferred camera.
+8. Operator verifies preview, still capture, quality review, **Retake** and
+   local-only **Use Photo**.
+9. Operator plugs in a USB webcam where hardware supports it and refreshes
+   detected cameras.
+
+### Alternate / Failure Flows
+
+- Android camera permission denied -> show a recoverable permission/camera
+  error.
+- Camera permission permanently denied -> instruct the operator to enable it in
+  Android settings.
+- USB webcam does not appear through CameraX -> record the hardware limitation;
+  do not add a UVC stack until certified hardware testing proves it is needed.
+- No Android hardware is attached during development -> automated tests and APK
+  builds can still pass, with hardware verification pending.
+
+### Boundary
+
+KIOSK-1.5 does not implement production kiosk pairing, fleet management, live
+OpenCV, pose/body landmarks, subject-aware exposure, SelfX Try-On API upload,
+FASHN/provider calls, catalog/product flow or QR handoff.
+
+## 6.0.2 Customer/Operator — KIOSK-1.6 Assisted Capture Validation
+
+### Primary Actor
+
+Customer or authorized kiosk operator validating customer capture UX.
+
+### Preconditions
+
+- The same Flutter kiosk app is running on Android or Windows.
+- A camera is available and initialized.
+- KIOSK-1.6 is still a local capture foundation; no SelfX Try-On upload or
+  provider execution is connected.
+
+### Main Flow
+
+1. Customer/operator opens the customer camera screen.
+2. The screen shows **Take Photo** and does not show instant **Capture Now**.
+3. Customer/operator presses **Take Photo**.
+4. Kiosk reads the local countdown duration preference, defaulting to 10
+   seconds when unset.
+5. Kiosk shows the live preview with only camera/framing overlays.
+6. Kiosk shows countdown/customer guidance in a separate guidance panel below
+   the preview on portrait kiosk displays.
+7. Kiosk shows scripted guidance such as stepping into position, moving to a
+   comfortable distance, centering and holding still.
+8. If sounds are enabled locally, kiosk plays countdown cues and selected local
+   sound-profile cues. If sound fails or is disabled, capture continues
+   silently.
+9. Customer/operator may press **Cancel** during countdown.
+10. If cancelled, kiosk stops the timer, prevents delayed capture and returns to
+   preview.
+11. If countdown completes, kiosk captures exactly one still photo.
+12. After still capture succeeds, kiosk may play shutter/capture-success audio.
+    If capture fails, no success cue is played.
+13. Kiosk shows **Checking your photo** while existing OpenCV still-image
+    analysis runs.
+14. Kiosk opens Review with captured image, quality summary, **Retake** and
+    **Use Photo**.
+15. **Retake** clears/replaces the local temporary capture and returns to
+    preview.
+16. **Use Photo** accepts non-blocked captures and opens Photo Ready.
+17. Photo Ready shows **Retake** and **Continue**.
+18. **Continue** shows the temporary local-session placeholder until product
+    selection and Try-On submission are approved in a later phase.
+
+### Alternate / Failure Flows
+
+- Countdown preference is missing or unsupported -> kiosk uses 10 seconds.
+- Technical invalidity/corrupt capture -> **Use Photo** remains blocked until
+  retake.
+- Quality warnings, including analysis unavailable, remain advisory -> customer
+  may retake or use the photo.
+- Camera capture fails -> kiosk enters a recoverable error state and allows
+  retry/preview recovery; capture-success audio is not played.
+
+### Boundary
+
+KIOSK-1.6 scripted guidance is not live readiness detection. It does not detect
+person position, multiple people, body coverage, pose, lighting, distance or
+subject exposure. Those capabilities belong to KIOSK-2 live subject-aware
+analysis.
 
 ## 6.1 New Kiosk Pairing
 

@@ -9,6 +9,7 @@ import {
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import fastifyCookie from "@fastify/cookie";
 import fastifyCors from "@fastify/cors";
+import fastifyMultipart from "@fastify/multipart";
 
 import { AppModule } from "./app.module.js";
 import { loadAuthConfig } from "./auth/auth.config.js";
@@ -16,6 +17,7 @@ import { AUTH_ERROR_CODES } from "./auth/auth.constants.js";
 import { ApiErrorException } from "./common/api-error.exception.js";
 import { PrismaExceptionFilter } from "./common/prisma-exception.filter.js";
 import { loadSelfxEnv } from "./config/load-env.js";
+import { TRY_ON_LAB_MULTIPART_LIMITS } from "./try-on-lab/try-on-lab.constants.js";
 
 loadSelfxEnv();
 
@@ -31,6 +33,9 @@ async function bootstrap() {
   await app.register(fastifyCors, {
     origin: authConfig.corsAllowedOrigins,
     credentials: true,
+  });
+  await app.register(fastifyMultipart, {
+    limits: TRY_ON_LAB_MULTIPART_LIMITS,
   });
 
   app.useGlobalPipes(

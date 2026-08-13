@@ -112,10 +112,301 @@ web primitives and SelfX shell/state components live in `packages/ui`.
 The Phase 4 route shell reserves documented navigation areas without
 implementing their business workflows.
 
+### CORE VTO-1 Try-On Lab UI
+
+The internal development route `/app/try-on-lab` is a guarded authenticated
+workflow page for testing the core person-image plus garment-image VTO loop
+before Product Catalog and production VTO infrastructure.
+
+The lab screen uses the shared Phase 4 layout primitives:
+
+```text
+PageContainer
+→ PageHeader
+→ PageSection
+→ SectionCard
+```
+
+Main screen areas:
+
+- subtle Internal Lab badge/notice near the page heading;
+- passive authorized-use notice: "Internal testing only. Upload only images you
+  are authorized to process.";
+- Images section;
+- person-image upload and preview;
+- garment-image upload and preview;
+- OpenCV.js quality preflight results for each image;
+- Generate Try-On section;
+- concise message: "Try-On settings are selected automatically.";
+- automatic garment intent/photo type/profile summary;
+- collapsed Advanced settings area for internal Lab overrides only;
+- optional ambiguity modal when the garment image appears to contain multiple
+  clothing areas;
+- Generate Try-On action at the end of the Generate Try-On section;
+- Result section;
+- generation state and stable SelfX run ID;
+- compact provider-neutral generation details;
+- responsive comparison of original person image, garment image and generated
+  result;
+- Try Another Garment and New Try-On actions.
+
+OpenCV.js must be lazy-loaded only when this lab is used. UI quality messages
+must use normal SelfX language such as resolution, exposure, contrast and blur
+warnings, not raw OpenCV terminology.
+
+Uploaded-image preflight uses three user-facing states:
+
+- `PASS` — technically valid and no significant detected quality concern.
+- `WARNING` — technically valid, but quality may reduce Try-On result quality.
+  The tester may re-upload or proceed anyway.
+- `BLOCKED` — technically invalid, unsafe or unusable. The tester cannot
+  generate until the input is replaced.
+
+Technical validation remains blocking for invalid files, unsupported formats,
+corrupt/undecodable images, unsafe MIME/signature mismatches, hard size limits
+and invalid/zero dimensions. Quality concerns such as blur, low brightness,
+overexposure, low contrast, low resolution, unusual framing, person framing and
+garment framing are advisory for uploaded images.
+
+If OpenCV analysis fails after the upload is technically valid, the UI must show
+an advisory analysis-unavailable warning and unavailable/null metrics rather
+than fake `0x0`, sharpness `0`, brightness `0` or contrast `0` metrics.
+
+When Generate Try-On is pressed with one or more warnings, show a Mantine-first
+confirmation modal titled "Image quality warning". The modal groups issues
+under "Person photo" and "Garment photo" and offers:
+
+- Re-upload — close the modal so the tester can replace inputs.
+- Proceed anyway — continue through the existing SelfX API to provider flow.
+
+Proceed-anyway confirmation applies only to the current unchanged input state.
+Changing either image recalculates warnings and resets the warning override.
+If both images pass, Generate Try-On proceeds without the warning modal.
+
+CORE VTO-1.2 removes default visible garment category, garment photo type and
+generation profile controls from the normal Lab workflow. SelfX resolves those
+settings automatically. Direct-upload garment images may be analyzed with a
+lazy-loaded browser-only pose/body-coverage analyzer to infer no-person,
+upper-body on-model, lower-body on-model, full-body on-model or unknown. The
+analysis is advisory and provider-neutral; it does not identify the exact
+garment, classify fashion attributes or perform biometrics.
+
+If the garment image appears full-body/on-model and therefore ambiguous, show a
+Mantine-first modal titled "We found multiple clothing areas in this image.
+Which item would you like to try on?" The choices are:
+
+- Upper garment — shirts, tops, jackets and similar upper-body items.
+- Lower garment — pants, skirts, shorts and similar lower-body items.
+- One-piece — dresses, jumpsuits and single garments covering both areas.
+- Full outfit — use the complete outfit shown in the reference image.
+
+The selected disambiguation intent is retained for the unchanged garment image.
+Replacing the garment image clears stale analysis, disambiguation and internal
+override state. FULL_OUTFIT is a provider-neutral intent distinct from
+ONE_PIECE.
+
+The internal Lab does not use a customer-style consent checkbox. It uses the
+authorized-use notice above because it is a guarded staff/development tool.
+Customer web, mobile and kiosk experiences still require consent before camera
+access, customer photo upload or AI processing.
+
+Upload cards should stay compact. On desktop, person and garment cards appear
+side-by-side with consistent dimensions and image previews approximately
+260-320px high where practical. Images use `object-fit: contain` and preserve
+aspect ratio. On mobile, upload cards stack vertically.
+
+Completed result comparison keeps three panels on desktop: Person, Garment and
+Generated Try-On. Tablet and mobile layouts may stack responsively. Clicking an
+image opens a larger Mantine Modal preview. No before/after slider is included
+in CORE VTO-1.1.
+
+After a run, the default Lab view shows a compact run summary and prioritizes
+the result comparison. Technical provider/model/resolution telemetry is
+collapsed by default under Run diagnostics. That diagnostic disclosure may show
+status, provider display name, model, profile, garment source, garment intent,
+garment category, garment photo type, resolution sources, analysis body
+coverage/confidence, elapsed time, quality warnings, disambiguation state and
+whether the quality override was accepted. It must not show FASHN API keys,
+provider Authorization headers, Base64 payloads, raw image contents, internal
+stack traces or provider prediction IDs in normal Lab UI.
+
+Try Another Garment preserves the person image and clears garment, garment
+quality, prior result and run state. New Try-On clears person, garment, result,
+warning overrides and run state. Blob URL cleanup must remain correct.
+
+CORE VTO-1.1 exposes only safe current-run telemetry in the Lab UI. It does not
+build a production analytics dashboard or fake aggregate analytics from the
+temporary in-memory registry. Durable telemetry persistence waits for the
+production TryOnRun/ProviderAttempt/storage phase.
+
+OpenCV's primary future production role is live camera/capture quality guidance.
+Kiosk/live capture may use OpenCV more strictly because SelfX can guide the user
+before taking the photo. CORE VTO-1 does not implement live camera, WebRTC,
+pose/body-landmark capture readiness or kiosk functionality.
+
+This screen must not expose FASHN prediction IDs, provider credentials, raw
+provider stack traces or durable production consent claims.
+
 ### Flutter Foundation
 
 - Flutter-native components
 - same SelfX typography, spacing, status semantics, and interaction hierarchy
+
+### KIOSK-1 Windows Camera Foundation UI
+
+The KIOSK-1 Flutter kiosk app uses four local development screens:
+
+- `KioskHomeScreen` — minimal SelfX kiosk development home with **Start Camera
+  Test** and **Camera Settings** actions, clearly marked as KIOSK-1 foundation.
+- `CameraCaptureScreen` — large camera preview, current camera status, static
+  framing guide, large touch-friendly **Capture** action, initialization,
+  unavailable, permission/error and retry states.
+- `CaptureReviewScreen` — captured image, quality summary, **Retake** and
+  **Use Photo**. **Use Photo** only accepts the local capture into the
+  development session and never submits to FASHN or SelfX Try-On APIs.
+- `CameraSettingsScreen` — detected cameras, preferred camera, connection
+  status, preview, basic capabilities, **Refresh Cameras** and **Test Camera**.
+
+KIOSK-1 capture guidance is static:
+
+- `TOP` -> upper/full body guidance.
+- `BOTTOM` -> lower/full body guidance.
+- `ONE_PIECE` -> full body guidance.
+- `AUTO` -> full body recommended.
+
+The UI must not claim live body detection, pose detection, garment
+classification or automatic full/upper/lower detection in KIOSK-1.
+
+Quality UI uses SelfX-friendly language and the same core states as the web
+lab: `PASS`, `WARNING` and `BLOCKED`.
+Warnings such as blur, dark lighting, overexposure, low contrast and low
+resolution are advisory in KIOSK-1 and normally allow **Use Photo**.
+Genuine technical invalidity blocks **Use Photo**.
+OpenCV analysis failure must appear as an advisory unavailable-analysis warning
+with unavailable metrics rather than fake zero metrics.
+
+Temporary captures are local only.
+Retake/session reset should clear old captures where practical.
+The kiosk app must not show product selection, customer consent, AI generation,
+QR handoff, provider identifiers or direct FASHN actions in KIOSK-1.
+
+### KIOSK-1.5 Android Primary Kiosk UI
+
+KIOSK-1.5 keeps the same local development screens and makes them
+multi-platform:
+
+- Android is the primary commercial kiosk display target.
+- Windows remains supported for Windows kiosks and desktop camera testing.
+- The app remains one Flutter application under `mobile/kiosk`.
+- Android commercial kiosk screens are portrait-first for SelfX's current
+  32-inch and 42-inch vertically mounted displays, while Windows remains
+  responsive in both portrait and landscape windows.
+- Screens adapt from logical viewport dimensions and aspect ratio rather than
+  hardcoded physical inch sizes or one Windows resolution.
+- Camera Settings must handle long hardware names without horizontal overflow.
+- Capture, Review and Settings screens should collapse from wide two-column
+  layouts into scrollable stacked layouts on constrained windows or smaller
+  displays.
+- Dropdowns should use expanded/ellipsis behavior for long camera names.
+- Android immersive/fullscreen presentation is appropriate for kiosk
+  foundation testing, while operator/development escape remains available.
+- Production lock-task/device-owner/dedicated-device UX and remote fleet
+  controls are deferred.
+
+Android camera UX:
+
+- Camera access is requested through the platform camera flow.
+- The UI must distinguish camera unavailable, permission denied, permission
+  blocked/permanently denied and recoverable camera errors in SelfX-friendly
+  language.
+- Camera Settings remains common across Android and Windows and may show
+  platform diagnostics such as CameraX or `camera_windows` only in the
+  operator/development context.
+- Integrated and external cameras are displayed as normal camera options when
+  the platform exposes them.
+
+Quality UX remains the KIOSK-1 still-capture flow. Whole-frame brightness is
+only an initial quality signal because bright backgrounds can mask a backlit
+person. Subject-aware exposure/backlight readiness belongs to KIOSK-2.
+
+### KIOSK-1.6 Assisted Capture UI
+
+KIOSK-1.6 replaces instant customer capture with an assisted customer capture
+flow shared by Android and Windows.
+
+Commercial display baseline:
+
+- SelfX currently deploys/rents primarily 32-inch and 42-inch vertically
+  mounted kiosks;
+- Android kiosk UX is portrait-first;
+- Windows desktop/kiosk operation remains responsive across portrait and
+  landscape windows;
+- physical inch size is not hardcoded into layout behavior.
+
+Customer camera screen:
+
+- primary action is **Take Photo**;
+- no instant customer **Capture Now** control is shown;
+- live camera preview remains visible during countdown;
+- portrait composition prioritizes SelfX header/status, a large/tall live
+  preview, standing full-body framing, minimal text and lower-region touch
+  controls;
+- the camera preview is reserved for customer image, static framing and future
+  camera-specific overlays;
+- `CaptureGuidancePanel` renders countdown/customer guidance outside the
+  preview, below it in portrait layouts and beside it in wide layouts;
+- countdown guidance uses a very large number, clear instruction text, final
+  3/2/1 emphasis, lightweight scale/fade animation and a prominent **Cancel**
+  action;
+- guidance text is scripted and instructional only, such as "Step into
+  position", "Move to a comfortable distance from the kiosk", "Face the camera
+  and center yourself" and "Hold still";
+- guidance must not say "ready", "detected", "perfect position", "lighting is
+  good" or similar live-analysis claims.
+
+Local Camera/Operator Settings include a Capture Experience section:
+
+- Countdown: 5 seconds, 10 seconds or 15 seconds; default 10 seconds;
+- Capture sounds: On/Off; default On;
+- Sound profile: Soft, Classic, Digital or Minimal; default Soft;
+- Preview Sound: operator-only local audio preview.
+
+Customers do not choose countdown duration during each capture session.
+Customers do not choose sound profiles during capture. Countdown, shutter and
+capture-success sounds require no microphone permission. Sound failure falls
+back to silent capture without blocking the customer flow. Capture-success audio
+plays only after still capture succeeds.
+
+Capture state UI:
+
+- preparing/countdown keeps the preview visible with guidance outside the
+  preview;
+- capturing shows a brief "Capturing..." state;
+- analyzing shows "Checking your photo..." and refers only to still-image
+  technical/quality processing, not AI body analysis;
+- review shows captured image, quality summary, **Retake** and **Use Photo**;
+- Photo Ready shows "Your photo is ready for this Try-On session" with
+  **Retake** and **Continue**;
+- Continue shows the temporary local-session placeholder until garment
+  selection and production Try-On submission are implemented.
+
+Quality behavior remains SelfX-friendly:
+
+- technical invalidity can block **Use Photo**;
+- warnings such as blur, exposure, contrast, low resolution and analysis
+  unavailable are advisory and allow **Retake** or **Use Photo**;
+- temporary captures remain local and are cleaned on retake/replacement/session
+  reset where practical.
+
+KIOSK-1.6 does not implement MediaPipe, live OpenCV readiness, person or
+multiple-person detection, body coverage, subject-aware exposure, distance
+estimation, product/catalog selection, QR handoff, SelfX API upload or provider
+generation.
+
+The portrait capture canvas should remain suitable for future KIOSK-2 overlays
+such as shoulders/hips/knees/ankles guides, full-body coverage, move-back
+guidance, subject-lighting warnings and multi-person warnings, without claiming
+those capabilities in KIOSK-1.6.
 
 ### Core Design Tokens
 
