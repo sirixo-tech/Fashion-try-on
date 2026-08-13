@@ -869,6 +869,78 @@ person position, multiple people, body coverage, pose, lighting, distance or
 subject exposure. Those capabilities belong to KIOSK-2 live subject-aware
 analysis.
 
+## 6.0.3 Customer/Operator — KIOSK-2A Live Capture Readiness
+
+### Primary Actor
+
+Customer, assisted by an authorized kiosk operator when needed.
+
+### Preconditions
+
+- The same Flutter kiosk app is running on Android or Windows.
+- Android is the primary live-readiness platform.
+- Windows remains supported; if live frames are unavailable, the app falls back
+  to scripted assisted capture.
+- KIOSK-2A does not upload frames, submit Try-On requests or call FASHN/provider
+  services.
+
+### Main Flow
+
+1. Customer opens the kiosk capture flow.
+2. Customer selects CaptureScope: **TOP**, **BOTTOM** or **FULL BODY**.
+3. Kiosk opens the camera screen with the matching subtle framing guide inside
+   the preview.
+4. Customer presses **Take Photo**.
+5. On Android with live frame support, kiosk samples local frames at an adaptive
+   target of about 3 FPS and evaluates readiness on-device.
+6. Customer guidance stays below the preview in `CaptureGuidancePanel`.
+7. Kiosk guides the customer with friendly messages such as **Move back
+   slightly**, **Center yourself**, **More light is needed**, **Hold still**,
+   **Almost ready** or **Ready**.
+8. Kiosk selects one local PrimarySubject: the prominent/target customer who is
+   the intended model for this capture session. This uses visual prominence,
+   not true physical distance or identity recognition.
+9. With the current ML Kit pose path, the kiosk receives only one
+   tracked/prominent pose. It must not claim reliable active multi-person
+   detection, background-bystander classification or competing-person blocking.
+10. The selected PrimarySubject is locked ephemerally across analyzed frames so
+    small movement, confidence jitter or brief background motion does not
+    immediately switch the intended model.
+11. READY must remain stable across several analyzed samples.
+12. Once readiness is stable, kiosk starts the final 3/2/1 countdown without
+    switching to a different subject mid-countdown.
+13. If the locked subject becomes substantially invalid or absent during final
+    countdown, kiosk may return to guidance after stable invalid evidence.
+14. Countdown completion captures one full-resolution still photo.
+15. Kiosk preserves the original still and local normalized TargetSubjectRegion
+    semantics without destructive cropping or upload.
+16. Existing post-capture OpenCV analysis runs and Review opens.
+
+### Alternate / Failure Flows
+
+- Live frame streaming unsupported -> use KIOSK-1.6 scripted assisted capture.
+- Pose/live quality analyzer failure -> degrade guidance, do not invalidate the
+  camera.
+- Readiness timeout -> show **Try Again** and **Capture Anyway**.
+- **Capture Anyway** bypasses readiness/quality warnings only; technical camera,
+  capture, corrupt image and decode failures remain blocking.
+- Android box + USB webcam behavior remains hardware verification pending until
+  SelfX tests the certified hardware.
+
+### Boundary
+
+CaptureScope is customer-facing framing intent, not final garment taxonomy.
+FULL BODY may later resolve to ONE_PIECE, FULL_OUTFIT or another canonical
+garment semantic. BOTTOM emphasizes lower-body readiness but keeps enough
+full-person/face framing for current ML Kit pose continuity. Pose/landmark and
+PrimarySubject lock data are local, ephemeral and must not be persisted as
+biometric identity or raw pose history.
+
+Future KIOSK-3 must target garment generation at the selected PrimarySubject
+only. SelfX must not rely solely on the provider guessing which visible person
+should be dressed; unrelated/background people should remain unchanged through
+future target extraction and compositing.
+
 ## 6.1 New Kiosk Pairing
 
 ### Primary Actors

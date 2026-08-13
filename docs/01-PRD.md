@@ -871,6 +871,73 @@ detection, body coverage, subject-aware exposure, automatic readiness,
 product/catalog selection, QR handoff, SelfX Try-On API upload, device
 provisioning/auth, fleet backend, API Gateway or provider execution.
 
+## PRD-KIOSK-007 — KIOSK-2A Live Capture Intelligence
+
+SelfX kiosk capture should guide the customer with on-device live readiness
+before the final still photo is taken. KIOSK-2A applies first to Android, the
+primary commercial kiosk platform. Windows remains fully supported for the
+KIOSK-1.6.1 preview/still-capture experience, with Windows live frames deferred
+to KIOSK-2B.
+
+KIOSK-2A product rules:
+
+- Live analysis runs locally on the kiosk. Live video frames are not uploaded to
+  SelfX, sent to FASHN/provider services, logged or persisted.
+- Before camera capture, the customer selects a provider-neutral CaptureScope:
+  TOP, BOTTOM or FULL BODY.
+- CaptureScope affects capture framing/readiness and later search/policy space.
+  It is not the final garment category. FULL BODY must not be treated as
+  permanently equivalent to ONE_PIECE; later garment resolution may choose
+  ONE_PIECE, FULL_OUTFIT or another canonical garment semantic.
+- TOP readiness emphasizes appropriate upper-body visibility and does not
+  require ankles. BOTTOM readiness emphasizes lower-body visibility. FULL BODY
+  requires suitable full-body visibility.
+- With the current Android ML Kit pose path, BOTTOM must still preserve enough
+  full-person/face framing for pose continuity. BOTTOM emphasizes lower-body
+  readiness; it does not mean intentionally cropping the live camera to legs
+  only.
+- Capture starts with preparation/guidance, then waits for stable readiness
+  before the final 3/2/1 countdown. Do not blindly capture when the preparation
+  timer expires.
+- READY requires stability/debounce across analyzed samples.
+- If readiness is not achieved within a bounded window, the kiosk shows **Try
+  Again** and **Capture Anyway**.
+- **Capture Anyway** bypasses readiness/quality warnings only. It must not
+  bypass unavailable camera, failed still capture, corrupt image, decode failure
+  or other technical failures.
+- SelfX selects one PrimarySubject per capture session: the prominent/target
+  customer selected as the local Try-On model, not an identity-recognized
+  person. Selection uses visual prominence such as apparent body size,
+  centrality, capture-guide overlap, pose visibility and confidence, not true
+  physical distance.
+- The current ML Kit pose path exposes only one tracked/prominent pose and does
+  not provide reliable active multi-person awareness. Do not claim background
+  bystander classification or meaningful-second-person blocking while using this
+  adapter. Explicit multi-person analysis is deferred until real hardware
+  testing proves it is needed.
+- The PrimarySubject target is locked ephemerally across frames to reduce
+  transient switching and releases after absence or session/scope reset. It is
+  not identity recognition and must not create persistent biometric state.
+- Dynamic customer guidance remains below the camera. The camera preview
+  contains the customer image, subtle scope-aware framing overlay and future
+  camera-specific overlays only.
+- Subject-aware lighting guidance should improve on KIOSK-1 whole-frame
+  brightness limitations where practical, without claiming professional
+  photometric accuracy.
+- Live pose/landmark data is ephemeral capture assistance. SelfX must not
+  persist raw landmarks, pose histories, biometric identifiers or embeddings.
+- KIOSK-2A.1 may prepare a normalized TargetSubjectRegion for the selected
+  PrimarySubject while preserving the full-resolution original still. Future
+  KIOSK-3 generation must target the selected customer only; SelfX must not
+  rely solely on the AI provider guessing which visible person should be dressed.
+  Unrelated/background people should remain unchanged through future target
+  extraction and compositing.
+
+KIOSK-2A does not implement FASHN/provider calls, SelfX Try-On API upload,
+product/catalog selection, QR handoff, device provisioning/auth, fleet backend,
+API Gateway, Redis/BullMQ, R2, billing, production spoken voice/TTS expansion or
+permanent biometric data.
+
 ---
 
 # 24. QR Kiosk-to-Mobile Handoff

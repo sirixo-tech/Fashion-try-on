@@ -137,7 +137,7 @@ class _SelfxMark extends StatelessWidget {
 String captureGuidanceForCategory(String category) {
   return switch (category) {
     'TOP' => 'Upper body or full body framing is recommended.',
-    'BOTTOM' => 'Lower body or full body framing is recommended.',
+    'BOTTOM' => 'Lower body framing with face visible is recommended.',
     'ONE_PIECE' => 'Full body framing is recommended.',
     _ => 'Full body framing is recommended.',
   };

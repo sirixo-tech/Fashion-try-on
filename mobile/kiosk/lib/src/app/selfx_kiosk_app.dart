@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../camera/camera_plugin_service.dart';
 import '../camera/camera_service.dart';
+import '../live/person_analysis.dart';
 import '../quality/image_quality.dart';
 import '../quality/opencv_kiosk_image_quality_analyzer.dart';
 import '../session/capture_session_controller.dart';
@@ -23,6 +26,14 @@ class SelfxKioskApp extends StatelessWidget {
         cameraService: CameraPluginService(),
         settingsStore: settingsStore,
         analyzer: OpenCvKioskImageQualityAnalyzer(),
+        liveFrameAnalyzer: LiveFrameAnalyzer(
+          poseAnalyzer: Platform.isAndroid
+              ? MlKitPersonPoseAnalyzer()
+              : const UnavailablePersonPoseAnalyzer(
+                  'LIVE_FRAMES_UNSUPPORTED_ON_WINDOWS',
+                ),
+          qualityAnalyzer: const LuminanceLiveImageQualityAnalyzer(),
+        ),
         captureStore: TemporaryCaptureStore(),
       ),
     );
@@ -46,11 +57,13 @@ class SelfxKioskDependencies {
     required this.cameraService,
     required this.settingsStore,
     required this.analyzer,
+    required this.liveFrameAnalyzer,
     required this.captureStore,
   });
 
   final CameraService cameraService;
   final CameraSettingsStore settingsStore;
   final KioskImageQualityAnalyzer analyzer;
+  final LiveFrameAnalyzer liveFrameAnalyzer;
   final TemporaryCaptureStore captureStore;
 }

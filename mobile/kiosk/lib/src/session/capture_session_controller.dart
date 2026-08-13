@@ -4,10 +4,15 @@ import 'package:flutter/foundation.dart';
 
 import '../camera/camera_models.dart';
 import '../camera/camera_service.dart';
+import '../live/capture_readiness_engine.dart';
+import '../live/frame_analysis_scheduler.dart';
+import '../live/live_frame.dart';
+import '../live/person_analysis.dart';
 import '../quality/image_quality.dart';
 import '../settings/camera_settings_store.dart';
 import 'capture_audio_service.dart';
 import 'capture_flow.dart';
+import 'capture_scope.dart';
 import 'temporary_capture_store.dart';
 
 class CaptureSessionController extends ChangeNotifier {
@@ -17,8 +22,17 @@ class CaptureSessionController extends ChangeNotifier {
     required this.analyzer,
     required this.captureStore,
     CaptureAudioService? audioService,
+    LiveFrameAnalyzer? liveFrameAnalyzer,
+    this.readinessConfig = const CaptureReadinessConfig(),
+    this.schedulerConfig = const FrameAnalysisSchedulerConfig(),
     Duration? countdownTickDuration,
   }) : audioService = audioService ?? AssetCaptureAudioService(),
+       liveFrameAnalyzer =
+           liveFrameAnalyzer ??
+           LiveFrameAnalyzer(
+             poseAnalyzer: const UnavailablePersonPoseAnalyzer(),
+             qualityAnalyzer: const LuminanceLiveImageQualityAnalyzer(),
+           ),
        countdownTickDuration =
            countdownTickDuration ?? const Duration(seconds: 1);
 
@@ -27,19 +41,35 @@ class CaptureSessionController extends ChangeNotifier {
   final KioskImageQualityAnalyzer analyzer;
   final TemporaryCaptureStore captureStore;
   final CaptureAudioService audioService;
+  final LiveFrameAnalyzer liveFrameAnalyzer;
+  final CaptureReadinessConfig readinessConfig;
+  final FrameAnalysisSchedulerConfig schedulerConfig;
   final Duration countdownTickDuration;
 
   CameraCaptureResult? capture;
   CameraCaptureResult? acceptedCapture;
   ImageQualityResult? qualityResult;
+  CaptureReadinessResult? readinessResult;
+  FrameAnalysisDiagnostics? analysisDiagnostics;
+  PrimarySubject? primarySubject;
+  CaptureTargetMetadata? captureTargetMetadata;
+  CaptureTargetMetadata? acceptedCaptureTargetMetadata;
+  Duration? poseAnalyzerLatency;
+  Duration? imageQualityAnalyzerLatency;
   bool isAnalyzingQuality = false;
   String? preferredCameraId;
+  CaptureScope captureScope = defaultCaptureScope;
   int captureCountdownSeconds = defaultCaptureCountdownSeconds;
   bool captureSoundsEnabled = true;
   CaptureAudioProfile captureAudioProfile = defaultCaptureAudioProfile;
   CaptureFlowState flowState = const CaptureFlowState();
 
   Timer? _countdownTimer;
+  Timer? _readinessTimeoutTimer;
+  VoidCallback? _diagnosticsListener;
+  StreamSubscription<LiveCameraFrame>? _liveFrameSubscription;
+  FrameAnalysisScheduler? _frameScheduler;
+  CaptureReadinessEngine? _readinessEngine;
   int _captureRunId = 0;
   bool _disposed = false;
   bool _captureInProgress = false;
@@ -64,6 +94,16 @@ class CaptureSessionController extends ChangeNotifier {
     preferredCameraId = device.id;
     await settingsStore.savePreferredCameraId(device.id);
     await cameraService.selectCamera(device);
+    notifyListeners();
+  }
+
+  void selectCaptureScope(CaptureScope scope) {
+    captureScope = scope;
+    liveFrameAnalyzer.resetSubjectLock();
+    primarySubject = null;
+    readinessResult = null;
+    captureTargetMetadata = null;
+    acceptedCaptureTargetMetadata = null;
     notifyListeners();
   }
 
@@ -111,19 +151,7 @@ class CaptureSessionController extends ChangeNotifier {
       return;
     }
 
-    _cancelCountdownTimer();
     final runId = ++_captureRunId;
-    _setFlowState(
-      CaptureFlowState(
-        stage: CaptureFlowStage.preparing,
-        countdownSeconds: captureCountdownSeconds,
-        guidance: const CaptureGuidance(
-          message: 'Get ready',
-          emphasizeNumber: false,
-        ),
-      ),
-    );
-
     final seconds = await settingsStore.readCaptureCountdownSeconds();
     final soundsEnabled = await settingsStore.readCaptureSoundsEnabled();
     final profile = await settingsStore.readCaptureAudioProfile();
@@ -137,11 +165,13 @@ class CaptureSessionController extends ChangeNotifier {
     _currentCountdownSoundsEnabled = soundsEnabled;
     _currentAudioProfile = profile;
     _playAudioIfEnabled(() => audioService.playCountdownStart(profile));
-    _setCountdownState(runId, seconds);
 
-    _countdownTimer = Timer.periodic(countdownTickDuration, (_) {
-      _tickCountdown(runId);
-    });
+    if (cameraService.state.value.capabilities.supportsLiveFrames) {
+      await _beginLiveReadinessCapture(runId);
+      return;
+    }
+
+    _beginScriptedCountdown(runId, seconds);
   }
 
   Future<void> cancelCountdown() async {
@@ -149,6 +179,7 @@ class CaptureSessionController extends ChangeNotifier {
         flowState.stage != CaptureFlowStage.preparing) {
       return;
     }
+    await _stopLiveReadiness();
     _cancelCountdownTimer();
     _captureRunId++;
     _setFlowState(
@@ -164,11 +195,23 @@ class CaptureSessionController extends ChangeNotifier {
     await _captureAndAnalyze();
   }
 
+  Future<void> captureAnyway() async {
+    if (!_captureInProgress &&
+        cameraService.state.value.canCapture &&
+        (readinessResult?.canCaptureAnyway ?? false)) {
+      final runId = ++_captureRunId;
+      await _stopLiveReadiness();
+      await _captureAndAnalyze(runId: runId);
+    }
+  }
+
   Future<void> _captureAndAnalyze({int? runId}) async {
     if (_captureInProgress || (runId != null && !_isActiveRun(runId))) {
       return;
     }
     _captureInProgress = true;
+    final targetMetadata = _currentCaptureTargetMetadata();
+    await _stopLiveReadiness();
     _setFlowState(
       flowState.copyWith(
         stage: CaptureFlowStage.capturing,
@@ -190,6 +233,8 @@ class CaptureSessionController extends ChangeNotifier {
       });
       capture = result;
       acceptedCapture = null;
+      captureTargetMetadata = targetMetadata;
+      acceptedCaptureTargetMetadata = null;
       qualityResult = null;
       isAnalyzingQuality = true;
       capturedNewPhoto = true;
@@ -234,11 +279,16 @@ class CaptureSessionController extends ChangeNotifier {
   }
 
   Future<void> retake() async {
+    await _stopLiveReadiness();
     _cancelCountdownTimer();
     _captureRunId++;
     final previous = capture;
     capture = null;
     acceptedCapture = null;
+    captureTargetMetadata = null;
+    acceptedCaptureTargetMetadata = null;
+    primarySubject = null;
+    liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;
     isAnalyzingQuality = false;
     _setFlowState(
@@ -258,6 +308,7 @@ class CaptureSessionController extends ChangeNotifier {
       return false;
     }
     acceptedCapture = current;
+    acceptedCaptureTargetMetadata = captureTargetMetadata;
     _setFlowState(
       flowState.copyWith(
         stage: CaptureFlowStage.photoReady,
@@ -269,10 +320,15 @@ class CaptureSessionController extends ChangeNotifier {
   }
 
   Future<void> resetSession() async {
+    await _stopLiveReadiness();
     _cancelCountdownTimer();
     _captureRunId++;
     capture = null;
     acceptedCapture = null;
+    captureTargetMetadata = null;
+    acceptedCaptureTargetMetadata = null;
+    primarySubject = null;
+    liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;
     isAnalyzingQuality = false;
     _setFlowState(
@@ -305,6 +361,144 @@ class CaptureSessionController extends ChangeNotifier {
       return;
     }
     unawaited(_captureAndAnalyze(runId: runId));
+  }
+
+  Future<void> _beginLiveReadinessCapture(int runId) async {
+    _cancelCountdownTimer();
+    await _stopLiveReadiness();
+    _readinessEngine = CaptureReadinessEngine(
+      scope: captureScope,
+      config: readinessConfig,
+    )..start();
+    liveFrameAnalyzer.resetSubjectLock();
+    primarySubject = null;
+    captureTargetMetadata = null;
+    acceptedCaptureTargetMetadata = null;
+    readinessResult = _readinessEngine?.lastResult;
+    _setFlowState(
+      CaptureFlowState(
+        stage: CaptureFlowStage.preparing,
+        countdownSeconds: captureCountdownSeconds,
+        guidance: CaptureGuidance(
+          message: captureScope.guidance,
+          emphasizeNumber: false,
+        ),
+      ),
+    );
+
+    _frameScheduler = FrameAnalysisScheduler(
+      config: schedulerConfig,
+      analyze: (frame) => _analyzeLiveFrame(runId, frame),
+    );
+    _diagnosticsListener = () {
+      final scheduler = _frameScheduler;
+      if (scheduler == null) {
+        return;
+      }
+      analysisDiagnostics = scheduler.diagnostics.value;
+      notifyListeners();
+    };
+    _frameScheduler!.diagnostics.addListener(_diagnosticsListener!);
+
+    try {
+      await cameraService.startLiveFrames();
+      _liveFrameSubscription = cameraService.liveFrames.listen(
+        (frame) => _frameScheduler?.submit(frame),
+        onError: (_) {
+          if (_isActiveRun(runId)) {
+            _degradeLiveReadiness();
+          }
+        },
+      );
+      _readinessTimeoutTimer = Timer(readinessConfig.readinessTimeout, () {
+        if (_isActiveRun(runId) &&
+            flowState.stage == CaptureFlowStage.preparing) {
+          readinessResult = _readinessEngine?.markLiveAnalysisUnavailable();
+          _setFlowState(
+            flowState.copyWith(
+              guidance: const CaptureGuidance(
+                message: "We're having trouble getting the perfect framing.",
+                emphasizeNumber: false,
+              ),
+              clearError: true,
+            ),
+          );
+        }
+      });
+    } catch (_) {
+      _degradeLiveReadiness();
+      _beginScriptedCountdown(runId, captureCountdownSeconds);
+    }
+  }
+
+  void _beginScriptedCountdown(int runId, int seconds) {
+    _cancelCountdownTimer();
+    readinessResult = null;
+    _setCountdownState(runId, seconds);
+    _countdownTimer = Timer.periodic(countdownTickDuration, (_) {
+      _tickCountdown(runId);
+    });
+  }
+
+  Future<void> _analyzeLiveFrame(int runId, LiveCameraFrame frame) async {
+    if (!_isActiveRun(runId) ||
+        (flowState.stage != CaptureFlowStage.preparing &&
+            flowState.stage != CaptureFlowStage.countdown)) {
+      return;
+    }
+    final analysis = await liveFrameAnalyzer.analyze(
+      frame,
+      captureScope,
+      allowSubjectReselection: flowState.stage != CaptureFlowStage.countdown,
+    );
+    poseAnalyzerLatency = analysis.poseLatency;
+    imageQualityAnalyzerLatency = analysis.qualityLatency;
+    final result = _readinessEngine?.update(analysis);
+    if (result == null || !_isActiveRun(runId)) {
+      return;
+    }
+    readinessResult = result;
+    primarySubject = result.primarySubject;
+    if (flowState.stage == CaptureFlowStage.countdown &&
+        _readinessEngine!.shouldCancelFinalCountdown(result)) {
+      _cancelCountdownTimer();
+      _setFlowState(
+        CaptureFlowState(
+          stage: CaptureFlowStage.preparing,
+          countdownSeconds: captureCountdownSeconds,
+          guidance: CaptureGuidance(
+            message: result.guidanceMessage,
+            emphasizeNumber: false,
+          ),
+        ),
+      );
+      notifyListeners();
+      return;
+    }
+    if (flowState.stage == CaptureFlowStage.preparing) {
+      _setFlowState(
+        flowState.copyWith(
+          guidance: CaptureGuidance(
+            message: result.guidanceMessage,
+            emphasizeNumber:
+                result.status == CaptureReadinessStatus.readyCandidate ||
+                result.status == CaptureReadinessStatus.ready,
+          ),
+          clearError: true,
+        ),
+      );
+      if (result.isReadyForFinalCountdown) {
+        _beginScriptedCountdown(runId, 3);
+      }
+    } else {
+      notifyListeners();
+    }
+  }
+
+  void _degradeLiveReadiness() {
+    readinessResult = _readinessEngine?.markLiveAnalysisUnavailable();
+    primarySubject = null;
+    notifyListeners();
   }
 
   void _setCountdownState(int runId, int secondsRemaining) {
@@ -352,6 +546,44 @@ class CaptureSessionController extends ChangeNotifier {
     _countdownTimer = null;
   }
 
+  Future<void> _stopLiveReadiness() async {
+    _readinessTimeoutTimer?.cancel();
+    _readinessTimeoutTimer = null;
+    await _liveFrameSubscription?.cancel();
+    _liveFrameSubscription = null;
+    final diagnosticsListener = _diagnosticsListener;
+    final frameScheduler = _frameScheduler;
+    if (diagnosticsListener != null && frameScheduler != null) {
+      frameScheduler.diagnostics.removeListener(diagnosticsListener);
+    }
+    _diagnosticsListener = null;
+    _frameScheduler?.dispose();
+    _frameScheduler = null;
+    try {
+      await cameraService.stopLiveFrames();
+    } catch (_) {
+      // Live analysis degradation must never invalidate still capture.
+    }
+  }
+
+  CaptureTargetMetadata? _currentCaptureTargetMetadata() {
+    final subject = primarySubject;
+    if (subject == null || !subject.isCurrentlyObserved) {
+      return null;
+    }
+    return CaptureTargetMetadata(
+      scope: captureScope,
+      targetRegion: subject.targetRegion,
+      lockState: subject.lockState,
+      visualProminenceScore: subject.visualProminenceScore,
+      observedFrameCount: subject.observedFrameCount,
+      analyzerDisplayName: subject.analyzerCapabilities.displayName,
+      supportsMultiplePeople:
+          subject.analyzerCapabilities.supportsMultiplePeople,
+      capturedAt: DateTime.now(),
+    );
+  }
+
   bool _isActiveRun(int runId) => !_disposed && _captureRunId == runId;
 
   void _setFlowState(CaptureFlowState state) {
@@ -366,9 +598,34 @@ class CaptureSessionController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _cancelCountdownTimer();
+    unawaited(_stopLiveReadiness());
     analyzer.dispose();
     cameraService.dispose();
+    unawaited(liveFrameAnalyzer.dispose());
     unawaited(audioService.dispose());
     super.dispose();
   }
+}
+
+@immutable
+class CaptureTargetMetadata {
+  const CaptureTargetMetadata({
+    required this.scope,
+    required this.targetRegion,
+    required this.lockState,
+    required this.visualProminenceScore,
+    required this.observedFrameCount,
+    required this.analyzerDisplayName,
+    required this.supportsMultiplePeople,
+    required this.capturedAt,
+  });
+
+  final CaptureScope scope;
+  final TargetSubjectRegion targetRegion;
+  final PrimarySubjectLockState lockState;
+  final double visualProminenceScore;
+  final int observedFrameCount;
+  final String analyzerDisplayName;
+  final bool supportsMultiplePeople;
+  final DateTime capturedAt;
 }

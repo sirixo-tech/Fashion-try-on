@@ -710,6 +710,71 @@ KIOSK-1.6 rules:
   selection, QR handoff, fleet backend, device auth, Redis/BullMQ, R2, durable
   TryOnRun, billing or API Gateway in KIOSK-1.6.
 
+## KIOSK-2A Live Capture Intelligence Foundation
+
+KIOSK-2A adds on-device live capture intelligence to the existing Android
+primary, Windows-supported Flutter kiosk app.
+
+KIOSK-2A rules:
+
+- Android is the first live-analysis platform. Windows keeps the KIOSK-1.6.1
+  preview, still capture, countdown, post-capture quality review and local
+  temporary capture behavior. Windows live image streaming remains KIOSK-2B.
+- Do not remove or weaken Windows support, and do not replace the Windows camera
+  backend in KIOSK-2A without a separate KIOSK-2B decision.
+- Live camera frames are processed locally on the kiosk. Do not upload live
+  video frames, send continuous frames to FASHN/provider services, log frame
+  bytes/base64 or persist live frames.
+- The customer selects a provider-neutral `CaptureScope` before camera capture:
+  TOP, BOTTOM or FULL BODY. CaptureScope affects capture framing/readiness and
+  later search/policy space, but it is not the final canonical garment taxonomy.
+  FULL BODY must not be collapsed permanently to ONE_PIECE; future resolution may
+  still choose ONE_PIECE, FULL_OUTFIT or another canonical garment semantic.
+- The camera preview remains for the camera image, subtle scope-aware framing
+  overlay and future camera-specific overlays. Dynamic customer guidance remains
+  below the camera in `CaptureGuidancePanel`.
+- Live analysis targets approximately 3 FPS initially, but this cadence is
+  centralized and adaptive for lower-powered Android boxes. Camera preview
+  smoothness has priority over analysis frequency.
+- Local frame processing uses newest-frame-wins backpressure. Do not queue every
+  frame, do not create an unbounded live-frame queue and do not introduce
+  Redis/BullMQ/server queues for local frames.
+- Use provider/plugin-neutral boundaries: `LiveCameraFrame`,
+  `FrameAnalysisScheduler`, semantic pose/image-quality analyzer adapters and
+  `CaptureReadinessEngine`. Do not build one giant CameraAIService.
+- Pose/landmark output is ephemeral semantic capture assistance only. Do not
+  persist raw landmarks, pose histories, biometric identifiers, embeddings or
+  customer identity templates.
+- Readiness is scope-aware: TOP emphasizes upper-body visibility, BOTTOM
+  emphasizes lower-body visibility, and FULL BODY requires suitable shoulders,
+  hips, knees and ankles/feet visibility. Do not require ankles for TOP.
+- Use a primary-person model. Insignificant background people may be tolerated,
+  but a meaningful second person competing in the capture region must block
+  READY and show friendly guidance.
+- READY requires stability/debounce across several analyzed samples. Do not start
+  final 3/2/1 from one lucky frame. If the customer becomes substantially invalid
+  during final countdown, cancel/pause capture only after stable semantic invalid
+  evidence rather than one noisy sample.
+- Use bounded readiness waiting. If readiness is not achieved, show Try Again and
+  Capture Anyway. Capture Anyway bypasses readiness/quality warnings only; it
+  must not bypass unavailable camera, corrupt capture, decode failure or genuine
+  technical failures.
+- Live pose/OpenCV/image-quality failures must degrade capture assistance, not
+  invalidate the camera. If live frames are unsupported, fall back to KIOSK-1.6
+  scripted assisted capture.
+- Improve KIOSK-1 whole-frame brightness limitations with subject-aware lighting
+  where practical, using primary-person/body-region approximations and
+  customer-friendly guidance. Do not display fake physical distance or technical
+  CV metrics in customer UI.
+- Operator diagnostics may show safe local analysis duration, effective FPS,
+  dropped frames, pose latency, image-quality latency and readiness state. Do
+  not show raw landmarks, frame bytes or technical confidence values to
+  customers.
+- Do not add FASHN/provider calls, kiosk SelfX Try-On API upload, product
+  catalog flow, QR handoff, fleet backend/device auth, Redis/BullMQ, R2,
+  billing, runtime TTS expansion, production spoken voice work or API Gateway in
+  KIOSK-2A.
+
 Future organization white-labeling must map through the centralized SelfX
 Mantine theme/token layer rather than scattered hard-coded styles.
 

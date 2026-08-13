@@ -408,6 +408,68 @@ such as shoulders/hips/knees/ankles guides, full-body coverage, move-back
 guidance, subject-lighting warnings and multi-person warnings, without claiming
 those capabilities in KIOSK-1.6.
 
+### KIOSK-2A Live Capture Intelligence UI
+
+KIOSK-2A adds a customer CaptureScope step before camera capture:
+
+- **TOP** — Upper-body clothing;
+- **BOTTOM** — Lower-body clothing;
+- **FULL BODY** — Dresses and complete outfits.
+
+These labels are provider-neutral SelfX capture scopes. They must not expose
+FASHN categories, model names, inference modes or technical CV settings.
+CaptureScope is not the final garment taxonomy; FULL BODY may later resolve to
+ONE_PIECE, FULL_OUTFIT or another canonical garment semantic.
+BOTTOM copy and framing must keep the customer's face/full-person context
+visible for the current ML Kit pose path; it emphasizes lower-body readiness
+without cropping the live camera to legs only.
+
+Camera preview:
+
+- remains large and portrait-first for Android kiosks;
+- contains the customer image and a subtle scope-aware framing overlay;
+- does not show raw MediaPipe skeletons, dozens of landmark dots, confidence
+  values or technical diagnostics;
+- keeps dynamic customer guidance out of the preview.
+
+`CaptureGuidancePanel`:
+
+- remains below the preview in portrait layouts and beside the preview in wide
+  layouts;
+- shows dynamic readiness guidance such as **Move back slightly**, **Move
+  closer**, **Center yourself**, **More light is needed**, **Hold still**,
+  **Almost ready** and **Ready**;
+- starts the final 3/2/1 only after readiness is stable/debounced;
+- may return to guidance if the customer becomes substantially invalid during
+  final countdown;
+- exposes **Try Again** and **Capture Anyway** after bounded readiness timeout.
+
+Capture Anyway bypasses readiness/quality warnings only. It does not bypass
+unavailable camera, still-capture failure, corrupt capture, decode failure or
+other technical invalidity.
+
+Customer UI must not show **Multiple people detected** or **Please keep only one
+person in the capture area** while the active analyzer is ML Kit Pose Detection,
+because that path exposes only one tracked/prominent pose and does not provide
+reliable active multi-person awareness.
+
+Operator/development diagnostics may show safe local performance details such as
+target/effective analysis FPS, dropped frames, analyzer latency,
+PrimarySubject lock state, visual prominence, normalized target region, tracking
+age, analyzer mode and multi-person awareness as unsupported for ML Kit.
+Customer UI must not show raw pose data, live frame bytes/base64, fake physical
+distance, technical confidence or OpenCV metric names.
+
+If live frames or analyzers are unavailable, the UI falls back to KIOSK-1.6
+scripted assisted capture and still allows photo capture whenever the camera is
+technically usable.
+
+KIOSK-2A.1 preserves the original still and only prepares local normalized
+TargetSubjectRegion semantics for future target-only Try-On. Future KIOSK-3
+must dress the selected PrimarySubject only and leave unrelated/background
+people unchanged through target extraction and compositing; no provider
+generation or compositing UI is implemented here.
+
 ### Core Design Tokens
 
 The design system should define:

@@ -259,6 +259,21 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     External provider/platform identifiers remain separate from SelfX primary IDs.
     Security-sensitive tokens are high-entropy secrets, not UUIDs.
 
+    API process health uses two stable unversioned operational endpoints.
+    `/health` is liveness: it indicates that the SelfX API process/application
+    is alive and must remain lightweight and independent of PostgreSQL or
+    provider checks. `/ready` is readiness: it indicates that the API can
+    currently serve core SelfX operations. The current readiness dependency is
+    PostgreSQL connectivity, verified with a minimal database probe. PostgreSQL
+    readiness failure returns HTTP 503 with a sanitized response and must not
+    expose connection strings, credentials, raw Prisma errors or stack traces.
+    FASHN and other external providers are intentionally excluded from core API
+    readiness because authentication, organizations, stores and administration
+    can still operate during provider degradation. Provider health belongs to
+    separate diagnostics/provider-health semantics. Future dependencies should
+    affect `/ready` only when their failure makes the overall API unable to
+    serve core traffic.
+
 ---
 
 11. API Contracts and Documentation
@@ -1046,6 +1061,126 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    API-management complexity makes it necessary. Tenant authorization must
    remain inside SelfX application services even if a gateway is introduced.
 
+   KIOSK-2A adds local live capture intelligence to Android without changing the
+   server/backend path. The camera path is:
+
+   ```text
+   Camera -> LiveCameraFrame -> FrameAnalysisScheduler
+          -> PersonPoseAnalyzer
+          -> PrimarySubjectResolver / LiveImageQualityAnalyzer
+          -> CaptureReadinessEngine -> CaptureGuidancePanel
+   ```
+
+   `LiveCameraFrame`, `FramePixelFormat`, frame dimensions, timestamp, rotation
+   and plane metadata are SelfX-owned semantics. Flutter CameraX and ML/pose
+   plugin classes must stay inside adapters and must not leak into widgets or
+   capture policy.
+
+   Android KIOSK-2A uses the Flutter `camera` image-stream mechanism where the
+   selected Android hardware exposes it. Windows remains KIOSK-2B for live
+   frames because `camera_windows` does not expose image streams. Unsupported
+   live streaming must fall back to KIOSK-1.6 scripted assisted capture without
+   crashing or invalidating the camera.
+
+   The current Android pose adapter uses Google ML Kit Pose Detection in stream
+   mode. This active adapter exposes only one tracked/prominent pose and
+   requires the person's face to be present. Its analyzer capability must be
+   represented as single-primary / `supportsMultiplePeople = false`. The app
+   must not infer that only one human exists in the scene merely because ML Kit
+   returned one pose, and must not claim reliable background-bystander or
+   competing-person detection on this path.
+
+   Windows KIOSK-2B candidate approaches to evaluate separately include a
+   maintained Flutter camera adapter with Windows image streaming, a SelfX native
+   Windows Media Foundation adapter, or another proven frame-capable Windows
+   implementation. KIOSK-2A does not select or replace the Windows backend.
+
+   Live frame analysis is sampled and adaptive. The initial target is about
+   three analyzed frames per second, centralized in scheduler configuration.
+   If analysis latency exceeds the target interval, the scheduler may reduce
+   cadence toward 2 FPS or 1 FPS. Camera preview smoothness has priority over CV
+   analysis throughput.
+
+   The `FrameAnalysisScheduler` enforces newest-frame-wins backpressure: only
+   one analysis runs at a time, stale pending frames are replaced/dropped and no
+   unbounded local frame queue is created. Do not use Redis, BullMQ or server
+   queues for local camera frames.
+
+   `PrimarySubjectResolver` is provider-neutral and converts pose/person
+   observations into a local ephemeral PrimarySubject: the prominent/target
+   customer selected as the model for this capture session. It uses visual
+   prominence signals such as apparent body area, centrality, capture-guide
+   overlap, pose visibility and confidence rather than true physical distance.
+   Widgets and camera adapters must not own subject selection.
+
+   The PrimarySubject lock uses ephemeral spatial/pose continuity such as
+   normalized region overlap, center proximity, size similarity and short time
+   continuity. It must not use face recognition, embeddings, identity
+   recognition or persistent tracking identifiers. Once readiness starts the
+   final 3/2/1 countdown, the selected PrimarySubject must not silently switch to
+   another visible person. If the locked subject becomes absent for stable
+   evidence, final countdown may pause/cancel and return to readiness guidance.
+
+   `TargetSubjectRegion` is a normalized provider-neutral region
+   `(x, y, width, height)` relative to the full live frame/still image. Regions
+   are clamped to image bounds, include safe margins and preserve enough
+   customer/garment context for future preparation. KIOSK-2A.1 does not perform
+   destructive crops or provider-specific crop sizing.
+
+   `CaptureReadinessEngine` consumes PrimarySubject semantics rather than
+   arbitrary pose output. Readiness asks whether the selected model is ready for
+   the selected CaptureScope, considering body coverage, centering/framing,
+   subject lighting, sharpness, stability and analyzer availability. READY
+   requires stable/debounced samples, not one lucky frame.
+
+   CaptureScope values are TOP, BOTTOM and FULL BODY. They are customer-facing
+   framing scopes, not final garment taxonomy. TOP emphasizes upper-body
+   visibility, BOTTOM lower-body visibility and FULL BODY shoulders/hips/knees/
+   ankles. FULL BODY may later resolve to ONE_PIECE, FULL_OUTFIT or other
+   canonical garment semantics. Because current ML Kit pose detection requires
+   face visibility, BOTTOM must retain enough full-person/face framing for pose
+   continuity. BOTTOM emphasizes lower-body readiness; it must not crop the live
+   camera to legs only.
+
+   Explicit multi-person awareness is deferred. Future MediaPipe or person
+   detector work may return multiple observations to `PrimarySubjectResolver`
+   for dominant-person selection and ambiguity handling if hardware testing
+   shows frequent wrong-person targeting, prominent-person switching,
+   bystanders materially reducing generation quality or store requirements for
+   explicit two-person ambiguity detection.
+
+   Live image quality uses downsampled/derived frame data and subject-aware
+   luminance around the PrimarySubject/TargetSubjectRegion where practical to
+   improve on the KIOSK-1 whole-frame brightness limitation. Guidance remains
+   customer-friendly and must not display technical CV metrics, fake distance
+   values or landmark confidence.
+
+   Readiness has a bounded window. Timeout exposes **Try Again** and **Capture
+   Anyway**. Capture Anyway bypasses readiness/quality warnings only and must not
+   bypass unavailable camera, still-capture failure, corrupt images, decode
+   failure or other technical invalidity.
+
+   Local diagnostics may expose safe performance data for operators/developers:
+   target/effective analysis FPS, dropped frames, analysis duration, pose
+   latency, image-quality latency, readiness state, PrimarySubject lock state,
+   visual prominence, normalized target region, tracking age, analyzer mode and
+   multi-person awareness as unsupported for ML Kit. Diagnostics must not log or
+   show frame bytes/base64, raw landmarks, face data, stack traces or provider
+   secrets.
+
+   Future KIOSK-3 target-only preparation must not blindly treat every visible
+   person as the Try-On model. The approved future target flow is:
+   original captured still -> PrimarySubject/TargetSubjectRegion ->
+   TargetSubjectExtractor -> padded target model image -> SelfX API ->
+   VTO provider -> generated target region -> TargetSubjectCompositor -> final
+   image. The selected customer should receive the garment change; unrelated or
+   background people should remain unchanged. KIOSK-2A.1 does not implement
+   FASHN/provider generation, extraction or compositing.
+
+   API Gateway remains deferred for KIOSK-2A. This phase does not introduce
+   provider calls, Try-On upload, product/catalog flow, QR handoff, fleet/device
+   backend, Redis/BullMQ, R2 or billing.
+
 ---
 
 29. Kiosk Privacy and Offline Behavior
@@ -1215,6 +1350,11 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
 39. CI/CD and Deployment
     The deployment pipeline should eventually include:
     Install → lint → typecheck → unit tests → integration tests → API contract checks → migration validation → build → deploy → Prisma migration deploy → health/readiness verification
+    Railway deployment healthchecks may remain pointed at `/health` while a new
+    `/ready` probe is being deployed and production-verified. Switching a
+    platform deployment healthcheck from liveness to readiness is an explicit
+    operational decision after readiness succeeds against the target production
+    PostgreSQL instance.
     Database migrations are part of the release lifecycle.
     Production schema changes must not depend on manual database editing.
     Application releases should be rollback-capable.
@@ -1299,6 +1439,9 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     Permanent validation/content errors must not be retried indefinitely.
     Workers must support graceful shutdown and idempotent processing.
     PostgreSQL is the durable source of truth for important workflow state.
+    PostgreSQL is also the current required core dependency for API readiness.
+    A PostgreSQL outage should make `/ready` unavailable with HTTP 503 while
+    keeping `/health` available if the application process is still alive.
     Provider failure must degrade the Try-On capability rather than crash unrelated SelfX features.
     Backup and restore procedures must be tested periodically.
 

@@ -43,6 +43,7 @@ class CameraDevice {
 @immutable
 class CameraCapabilities {
   const CameraCapabilities({
+    this.supportsPreview = true,
     this.previewWidth,
     this.previewHeight,
     this.supportsStillCapture = true,
@@ -51,6 +52,7 @@ class CameraCapabilities {
     this.notes = const [],
   });
 
+  final bool supportsPreview;
   final double? previewWidth;
   final double? previewHeight;
   final bool supportsStillCapture;
@@ -91,7 +93,8 @@ class CameraState {
   final CameraFailure? failure;
 
   bool get isReady => status == CameraStatus.ready;
-  bool get canCapture => status == CameraStatus.ready;
+  bool get canCapture =>
+      status == CameraStatus.ready && capabilities.supportsStillCapture;
 
   CameraState copyWith({
     CameraStatus? status,

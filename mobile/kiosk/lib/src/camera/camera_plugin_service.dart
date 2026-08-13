@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart' as camera;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../live/live_frame.dart';
 import '../session/temporary_capture_store.dart';
 import 'camera_models.dart';
 import 'camera_service.dart';
@@ -14,11 +16,17 @@ class CameraPluginService implements CameraService {
 
   final TemporaryCaptureStore _captureStore;
   final ValueNotifier<CameraState> _state = ValueNotifier(const CameraState());
+  final StreamController<LiveCameraFrame> _liveFrameController =
+      StreamController<LiveCameraFrame>.broadcast();
   camera.CameraController? _controller;
   List<camera.CameraDescription> _descriptions = [];
+  bool _streamingLiveFrames = false;
 
   @override
   ValueListenable<CameraState> get state => _state;
+
+  @override
+  Stream<LiveCameraFrame> get liveFrames => _liveFrameController.stream;
 
   @override
   Future<List<CameraDevice>> rediscoverDevices() async {
@@ -91,6 +99,7 @@ class CameraPluginService implements CameraService {
 
     _state.value = _state.value.copyWith(status: CameraStatus.capturing);
     try {
+      await stopLiveFrames();
       final file = await controller.takePicture();
       final localPath = await _captureStore.preserveOriginal(File(file.path));
       _state.value = _state.value.copyWith(status: CameraStatus.ready);
@@ -116,6 +125,47 @@ class CameraPluginService implements CameraService {
   }
 
   @override
+  Future<void> startLiveFrames() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      throw const CameraServiceException(
+        CameraFailureCode.disconnected,
+        'Camera is not ready for live frames.',
+      );
+    }
+    if (!_state.value.capabilities.supportsLiveFrames ||
+        !controller.supportsImageStreaming()) {
+      throw const CameraServiceException(
+        CameraFailureCode.unknown,
+        'Live camera frames are not supported by this camera adapter.',
+      );
+    }
+    if (_streamingLiveFrames || controller.value.isStreamingImages) {
+      _streamingLiveFrames = true;
+      return;
+    }
+    await controller.startImageStream((image) {
+      if (!_liveFrameController.isClosed) {
+        _liveFrameController.add(_toLiveFrame(image, controller.description));
+      }
+    });
+    _streamingLiveFrames = true;
+  }
+
+  @override
+  Future<void> stopLiveFrames() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      _streamingLiveFrames = false;
+      return;
+    }
+    if (_streamingLiveFrames || controller.value.isStreamingImages) {
+      await controller.stopImageStream();
+    }
+    _streamingLiveFrames = false;
+  }
+
+  @override
   Widget buildPreview(BuildContext context) {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) {
@@ -136,6 +186,7 @@ class CameraPluginService implements CameraService {
   Future<void> dispose() async {
     await _disposeController();
     _state.value = _state.value.copyWith(status: CameraStatus.disposed);
+    await _liveFrameController.close();
     _state.dispose();
   }
 
@@ -164,7 +215,9 @@ class CameraPluginService implements CameraService {
       description,
       camera.ResolutionPreset.max,
       enableAudio: false,
-      imageFormatGroup: camera.ImageFormatGroup.jpeg,
+      imageFormatGroup: Platform.isAndroid
+          ? camera.ImageFormatGroup.nv21
+          : camera.ImageFormatGroup.jpeg,
     );
 
     try {
@@ -179,7 +232,8 @@ class CameraPluginService implements CameraService {
           previewWidth: previewSize?.width,
           previewHeight: previewSize?.height,
           supportsStillCapture: true,
-          supportsLiveFrames: Platform.isAndroid,
+          supportsLiveFrames:
+              Platform.isAndroid && controller.supportsImageStreaming(),
           nativeBackend: _nativeBackendLabel,
           notes: _capabilityNotes,
         ),
@@ -213,7 +267,56 @@ class CameraPluginService implements CameraService {
     final controller = _controller;
     _controller = null;
     controller?.removeListener(_handleControllerChanged);
+    if (controller != null &&
+        controller.value.isInitialized &&
+        controller.value.isStreamingImages) {
+      await controller.stopImageStream();
+    }
+    _streamingLiveFrames = false;
     await controller?.dispose();
+  }
+
+  LiveCameraFrame _toLiveFrame(
+    camera.CameraImage image,
+    camera.CameraDescription description,
+  ) {
+    return LiveCameraFrame(
+      dimensions: FrameDimensions(width: image.width, height: image.height),
+      format: _pixelFormatFor(image.format.group),
+      timestamp: DateTime.now(),
+      rotationDegrees: _normalizeRotation(description.sensorOrientation),
+      planes: image.planes
+          .map(
+            (plane) => LiveFramePlane(
+              bytes: plane.bytes,
+              bytesPerRow: plane.bytesPerRow,
+              bytesPerPixel: plane.bytesPerPixel,
+              width: plane.width,
+              height: plane.height,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  FramePixelFormat _pixelFormatFor(camera.ImageFormatGroup group) {
+    return switch (group) {
+      camera.ImageFormatGroup.yuv420 => FramePixelFormat.yuv420,
+      camera.ImageFormatGroup.nv21 => FramePixelFormat.nv21,
+      camera.ImageFormatGroup.jpeg => FramePixelFormat.jpeg,
+      camera.ImageFormatGroup.bgra8888 => FramePixelFormat.bgra8888,
+      _ => FramePixelFormat.unknown,
+    };
+  }
+
+  int _normalizeRotation(int value) {
+    final normalized = value % 360;
+    return switch (normalized) {
+      90 => 90,
+      180 => 180,
+      270 => 270,
+      _ => 0,
+    };
   }
 
   void _handleControllerChanged() {
@@ -301,7 +404,7 @@ class CameraPluginService implements CameraService {
       return const [
         'Android uses the endorsed CameraX implementation from Flutter camera.',
         'External USB camera support depends on what the Android box exposes.',
-        'Live quality processing remains deferred to KIOSK-2.',
+        'KIOSK-2A samples Android image streams for local readiness analysis.',
       ];
     }
     if (Platform.isWindows) {

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
+import 'package:selfx_kiosk/src/live/live_frame.dart';
 import 'package:selfx_kiosk/src/quality/image_quality.dart';
 import 'package:selfx_kiosk/src/session/capture_audio_service.dart';
 import 'package:selfx_kiosk/src/session/capture_flow.dart';
@@ -418,12 +421,15 @@ void main() {
 
 CameraDevice testCamera(String id) => CameraDevice(id: id, label: 'Camera $id');
 
-FakeCameraService readyCamera({bool failCapture = false}) {
+FakeCameraService readyCamera({
+  bool failCapture = false,
+  bool supportsLiveFrames = false,
+}) {
   final camera = FakeCameraService(
     devices: [testCamera('camera-a')],
     failCapture: failCapture,
   );
-  camera.setReady();
+  camera.setReady(supportsLiveFrames: supportsLiveFrames);
   return camera;
 }
 
@@ -457,9 +463,15 @@ class FakeCameraService implements CameraService {
   final bool failCapture;
   final ValueNotifier<CameraState> _state;
   int captureCount = 0;
+  final StreamController<LiveCameraFrame> _liveFrames =
+      StreamController<LiveCameraFrame>.broadcast();
+  bool liveFramesStarted = false;
 
   @override
   ValueListenable<CameraState> get state => _state;
+
+  @override
+  Stream<LiveCameraFrame> get liveFrames => _liveFrames.stream;
 
   @override
   Future<CameraCaptureResult> captureStill() async {
@@ -489,6 +501,7 @@ class FakeCameraService implements CameraService {
 
   @override
   Future<void> dispose() async {
+    await _liveFrames.close();
     _state.dispose();
   }
 
@@ -548,6 +561,19 @@ class FakeCameraService implements CameraService {
     );
   }
 
+  @override
+  Future<void> startLiveFrames() async {
+    if (!_state.value.capabilities.supportsLiveFrames) {
+      throw Exception('live frames unsupported');
+    }
+    liveFramesStarted = true;
+  }
+
+  @override
+  Future<void> stopLiveFrames() async {
+    liveFramesStarted = false;
+  }
+
   void disconnect() {
     _state.value = _state.value.copyWith(
       status: CameraStatus.disconnected,
@@ -558,7 +584,7 @@ class FakeCameraService implements CameraService {
     );
   }
 
-  void setReady() {
+  void setReady({bool supportsLiveFrames = false}) {
     _state.value = CameraState(
       status: CameraStatus.ready,
       devices: devices,
@@ -569,6 +595,15 @@ class FakeCameraService implements CameraService {
         supportsLiveFrames: false,
       ),
     );
+    if (supportsLiveFrames) {
+      _state.value = _state.value.copyWith(
+        capabilities: const CameraCapabilities(
+          previewWidth: 1920,
+          previewHeight: 1080,
+          supportsLiveFrames: true,
+        ),
+      );
+    }
   }
 }
 

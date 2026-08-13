@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../session/capture_session_controller.dart';
-import 'camera_capture_screen.dart';
 import 'camera_settings_screen.dart';
+import 'capture_scope_screen.dart';
 import 'kiosk_chrome.dart';
 
 class KioskHomeScreen extends StatelessWidget {
@@ -14,7 +14,7 @@ class KioskHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return KioskScaffold(
       title: 'SelfX Kiosk',
-      subtitle: 'KIOSK-1.6 assisted capture foundation',
+      subtitle: 'KIOSK-2A live capture foundation',
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 880),
@@ -29,7 +29,7 @@ class KioskHomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Local preview, guided countdown capture, review, and quality calibration. No product flow or AI provider connection.',
+                'Local preview, capture-scope guidance, live readiness when supported, review, and quality calibration. No product flow or AI provider connection.',
                 style: Theme.of(context).textTheme.bodyLarge,
                 textAlign: TextAlign.center,
               ),
@@ -45,7 +45,7 @@ class KioskHomeScreen extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) =>
-                              CameraCaptureScreen(controller: controller),
+                              CaptureScopeScreen(controller: controller),
                         ),
                       );
                     },

@@ -195,7 +195,7 @@ TryOnRun/ProviderAttempt, queue/worker, telemetry persistence and retention
 phases. The lab does not create a production analytics dashboard or durable
 analytics table.
 
-## KIOSK-1.6 Assisted Android Primary Kiosk Capture
+## KIOSK-2A Live Android Primary Kiosk Capture
 
 `mobile/kiosk` is now one standalone Flutter kiosk application for the
 SelfX-owned camera and capture foundation. Android is the primary commercial
@@ -203,8 +203,9 @@ kiosk deployment target, while Windows remains a fully supported secondary
 kiosk/desktop platform. The app is kept outside npm workspaces and does not
 reuse React, Mantine or shadcn packages.
 
-KIOSK-1.6 implements local camera testing plus the assisted customer capture
-experience:
+KIOSK-2A implements local camera testing plus the assisted customer capture
+experience with on-device live readiness where Android image streams are
+available:
 
 - Android boxes with touch displays are the primary target.
 - Current commercial SelfX rental kiosks primarily use 32-inch and 42-inch
@@ -221,30 +222,60 @@ experience:
 - The preferred camera ID is local device configuration stored through
   `shared_preferences` with platform scoping; it is not server-side kiosk
   configuration.
-- Customer capture uses **Take Photo** -> scripted countdown -> automatic still
-  capture. The instant customer **Capture Now** flow has been removed.
+- Customer flow is Kiosk Home -> CaptureScope selection -> Camera -> live
+  preparation/readiness -> stable final 3/2/1 -> still capture -> Review ->
+  Photo Ready.
+- Customer-selected `CaptureScope` values are TOP, BOTTOM and FULL BODY. They
+  affect framing/readiness and future search/policy space, but are not final
+  garment taxonomy. FULL BODY may later resolve to ONE_PIECE, FULL_OUTFIT or
+  another canonical garment semantic.
+- Customer capture uses **Take Photo** -> preparation/readiness -> final
+  countdown -> automatic still capture. The instant customer **Capture Now**
+  flow has been removed.
 - Countdown duration is a local operator preference with allowed values 5, 10
   and 15 seconds. Existing installs default to 10 seconds.
 - Capture sounds are enabled by default and can be disabled locally. They use
-  output-only system sounds and require no microphone permission.
-- Countdown guidance is scripted and time-based. It does not indicate live
-  person, lighting, pose, distance, body-coverage or readiness detection.
+  offline output-only sound profiles and require no microphone permission.
+- Android KIOSK-2A samples local camera frames for on-device pose/readiness and
+  subject-aware quality guidance. Live frames are not uploaded, persisted,
+  logged as bytes/base64 or sent to FASHN/provider services.
+- Live analysis targets about 3 FPS initially, uses newest-frame-wins
+  backpressure, drops stale frames and never builds an unbounded local frame
+  queue. Adaptive cadence protects smooth camera preview on lower-powered boxes.
+- Readiness is scope-aware, stable/debounced and PrimarySubject based. The
+  current Android ML Kit pose path exposes only the tracked/prominent pose, so
+  it does not claim reliable active multi-person detection.
+- SelfX selects one prominent customer as the local PrimarySubject for the
+  capture session using visual prominence signals such as apparent body area,
+  centrality, capture-guide overlap, pose visibility and confidence. This is
+  not true physical distance measurement.
+- The PrimarySubject is locked ephemerally across frames to reduce switching
+  from confidence jitter or background movement, and releases after absence or
+  session/scope reset.
 - The client capture workflow uses explicit states for preview, preparing,
   countdown, capturing, analyzing, review, photo ready and error so cancellation
-  and future KIOSK-2 readiness insertion are predictable.
+  and live readiness remain predictable.
 - Screens adapt from actual logical viewport dimensions and aspect ratio.
   Physical 32-inch/42-inch panel size is not hardcoded into layout logic.
 - Portrait capture prioritizes a large/tall camera preview, distance-readable
   countdown/guidance and lower-region touch actions for standing customers.
+- Dynamic customer guidance stays below the camera in `CaptureGuidancePanel`.
+  The preview contains only camera image, subtle scope-aware framing overlay and
+  future camera-specific overlays.
+- Bounded readiness timeout exposes **Try Again** and **Capture Anyway**.
+  Capture Anyway bypasses readiness/quality warnings only, not unavailable
+  camera, capture, corrupt image or decode failures.
 - Android USB webcam support depends on whether the certified Android box
   exposes that camera through CameraX. Dedicated UVC integration is deferred
   until real hardware requires it.
 - `camera_windows` supports Windows camera enumeration, preview and still
-  capture, but does not expose Windows live image streams.
-- KIOSK-2 live OpenCV/body-landmark guidance may replace or add camera
-  adapters without rewriting kiosk screens.
-- Captured images stay temporary and local; KIOSK-1.5 does not upload to SelfX,
+  capture, but does not expose Windows live image streams. Windows live frames
+  are KIOSK-2B and must reuse the same readiness engine.
+- Captured images stay temporary and local; KIOSK-2A does not upload to SelfX,
   call FASHN or require `FASHN_API_KEY`.
+- The original full-resolution still remains preserved. KIOSK-2A.1 records only
+  local ephemeral CaptureScope, PrimarySubject and normalized TargetSubjectRegion
+  semantics for future target-only preparation; it does not crop destructively.
 - `opencv_dart` runs only after still capture for blur, brightness, exposure,
   contrast and resolution quality checks. The original capture is preserved
   while analysis operates on a derived/downscaled copy.
@@ -253,14 +284,15 @@ experience:
   image invalidity.
 - **Use Photo** now opens a Photo Ready state. **Continue** is a temporary
   local placeholder until product/catalog/Try-On submission is implemented.
-- Pose/body landmark validation and live frame processing are deferred to
-  KIOSK-2.
-- Current whole-frame brightness checks are an initial quality signal only;
-  KIOSK-2 must add subject-aware/backlight analysis, intended-customer
-  awareness, multiple-person handling and body-coverage detection.
-- The portrait camera canvas is kept ready for future KIOSK-2 overlays such as
-  full-body framing, body-region guides, subject-lighting warnings and
-  multi-person warnings.
+- Pose/body landmark data is ephemeral capture assistance only, not biometric
+  persistence. Customer UI does not expose raw skeletons, landmark dots,
+  confidence values or technical CV metrics.
+- Subject-aware live lighting improves on the KIOSK-1 whole-frame brightness
+  limitation by checking the PrimarySubject target region where practical.
+- Future KIOSK-3 generation must target the selected customer only. SelfX must
+  not rely solely on an AI provider guessing which visible person should be
+  dressed; unrelated/background people should remain unchanged through future
+  target extraction and compositing.
 - Android fullscreen/immersive presentation is prepared for kiosk use, but
   production lock-task/device-owner management and fleet operations are future
   milestones.
@@ -299,11 +331,20 @@ Default local ports:
 - API: `http://localhost:3001`
 - PostgreSQL: `localhost:5433`
 
-The API placeholder health endpoint is available at:
+The API exposes separate liveness and readiness endpoints:
 
 ```text
 GET /health
+GET /ready
 ```
+
+`/health` is lightweight process liveness and does not query PostgreSQL.
+`/ready` verifies core API readiness by probing PostgreSQL connectivity. A
+database outage returns HTTP 503 with a sanitized readiness response. FASHN and
+other external providers are intentionally excluded from core readiness and
+belong in separate diagnostics/provider-health checks. The deployed Railway API
+currently keeps Railway's healthcheck path on `/health` until `/ready` is
+production-verified against Railway PostgreSQL.
 
 ## Local Bootstrap
 

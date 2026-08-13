@@ -773,6 +773,97 @@ KIOSK-1.6.1 adds only the capture guidance layout/audio correction. It does not
 add KIOSK-2 live vision, provider calls, Try-On upload, product/catalog flow,
 fleet backend or database/server changes.
 
+### KIOSK-2A Live Capture Intelligence Slice
+
+KIOSK-2A introduces on-device live capture readiness for Android while keeping
+Windows fully supported through the KIOSK-1.6.1 scripted/still-capture path.
+
+Implemented scope:
+
+- customer CaptureScope selection before camera capture: TOP, BOTTOM and FULL
+  BODY;
+- CaptureScope remains session/local framing intent, not final garment taxonomy.
+  FULL BODY may later resolve to ONE_PIECE, FULL_OUTFIT or another canonical
+  garment semantic;
+- SelfX-owned live frame abstraction with frame dimensions, timestamp, rotation,
+  pixel format and plane metadata;
+- Android live-frame implementation using Flutter `camera`/CameraX image
+  streams where supported;
+- Windows KIOSK-2B preparation only: `camera_windows` remains unchanged because
+  it does not expose live image streams;
+- `FrameAnalysisScheduler` with centralized target cadence of about 3 FPS,
+  newest-frame-wins backpressure, stale-frame dropping and adaptive slowdown;
+- semantic analyzer boundaries for pose/person observations and live image
+  quality;
+- `PrimarySubjectResolver` with provider-neutral PrimarySubject selection,
+  visual prominence scoring, normalized TargetSubjectRegion construction and
+  ephemeral subject locking;
+- active Android ML Kit pose semantics are single tracked/prominent pose only
+  with no reliable multi-person awareness. Do not claim background-bystander or
+  meaningful-second-person blocking in the ML Kit path;
+- `CaptureReadinessEngine` with scope-aware body coverage, locked
+  PrimarySubject readiness, stability/debounce and bounded timeout;
+- customer guidance stays in `CaptureGuidancePanel` below/beside the preview;
+- preview contains the camera image plus subtle scope-aware framing overlay;
+- subject-aware live lighting guidance improves on whole-frame brightness where
+  practical using the PrimarySubject/TargetSubjectRegion;
+- analyzer/live-frame failures degrade to partial/scripted capture rather than
+  invalidating the camera;
+- timeout exposes **Try Again** and **Capture Anyway**;
+- **Capture Anyway** bypasses readiness/quality warnings only, not camera,
+  capture, corrupt image or decode technical failures;
+- local operator diagnostics for target/effective FPS, dropped frames and
+  analyzer latency, PrimarySubject lock state, visual prominence, normalized
+  target region, tracking age, analyzer mode and unsupported multi-person
+  awareness without raw frame or landmark data;
+- BOTTOM scope keeps enough face/full-person framing for current ML Kit pose
+  continuity; it does not crop the live camera to legs only;
+- full-resolution original stills remain preserved. KIOSK-2A.1 records only
+  local ephemeral CaptureScope, PrimarySubject and normalized TargetSubjectRegion
+  semantics for future target-only preparation.
+
+KIOSK-2A explicitly does not implement:
+
+- FASHN/provider calls, SelfX Try-On API upload, product/catalog selection, QR
+  handoff, fleet backend, device auth, Redis/BullMQ, R2, billing, production
+  spoken voice/TTS expansion or API Gateway;
+- MediaPipe replacement, explicit multi-person detection, face/identity
+  recognition, biometric persistence, target extraction, provider generation or
+  compositing;
+- Windows live-frame backend replacement. Stop before KIOSK-2B.
+
+Future KIOSK-3 target-only contract:
+
+```text
+Original captured still
+        ↓
+PrimarySubject / TargetSubjectRegion
+        ↓
+TargetSubjectExtractor
+        ↓
+padded target model image
+        ↓
+SelfX API
+        ↓
+VTO provider
+        ↓
+generated target region
+        ↓
+TargetSubjectCompositor
+        ↓
+final image
+```
+
+SelfX owns target-subject selection. Future generation must dress the selected
+customer only and leave unrelated/background people unchanged rather than
+relying solely on a provider to guess the intended person.
+
+Verification for this slice should include Dart format, `flutter analyze`,
+targeted tests for scheduler/readiness/fallback/Capture Anyway semantics,
+`flutter build apk --debug`, and Windows build validation when plugin/shared
+configuration changes. Real Android-box + USB-webcam verification remains
+pending until the certified hardware is available.
+
 ### Phase 4 Implementation Notes
 
 Phase 4 was revised after initial completion: Mantine is now the primary SelfX
@@ -1646,6 +1737,21 @@ Production readiness checklist passes and known P0/P1 security/reliability issue
 Final production hardening is not the first time basic safeguards appear.
 Earlier phases must already include the safeguards relevant to their scope, such as lint, typecheck, build validation, migration validation when migrations exist, secrets discipline, request/correlation IDs when API work begins, basic structured logging, sensitive endpoint rate limiting, tenant isolation tests, health/readiness checks, and security-aware error handling.
 This phase focuses on deeper production work such as load/stress testing, backup/restore drills, advanced alerts, capacity planning, rollback validation, query/index tuning at scale, provider failure drills, and full operational readiness review.
+
+### API Readiness Checkpoint
+
+The API maintains separate operational endpoints:
+
+- `/health` is process/application liveness and remains DB-independent.
+- `/ready` is core API readiness and currently probes PostgreSQL with a minimal
+  connectivity query.
+- PostgreSQL readiness failure returns HTTP 503 with sanitized output.
+- FASHN, Redis, Shopify, WooCommerce, email and other external dependencies do
+  not automatically affect `/ready`; provider/integration health belongs to
+  separate diagnostics unless a dependency becomes required for core API
+  traffic.
+- Railway currently keeps deployment healthchecks on `/health` until `/ready`
+  is deployed and verified against production PostgreSQL.
 
 ---
 

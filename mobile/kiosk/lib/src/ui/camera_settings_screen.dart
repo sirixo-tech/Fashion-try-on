@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../camera/camera_models.dart';
+import '../live/frame_analysis_scheduler.dart';
+import '../live/person_analysis.dart';
 import '../session/capture_audio_service.dart';
 import '../session/capture_flow.dart';
 import '../session/capture_session_controller.dart';
@@ -67,6 +69,11 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
                 countdownSeconds: widget.controller.captureCountdownSeconds,
                 captureSoundsEnabled: widget.controller.captureSoundsEnabled,
                 captureAudioProfile: widget.controller.captureAudioProfile,
+                analysisDiagnostics: widget.controller.analysisDiagnostics,
+                primarySubject: widget.controller.primarySubject,
+                poseAnalyzerLatency: widget.controller.poseAnalyzerLatency,
+                imageQualityAnalyzerLatency:
+                    widget.controller.imageQualityAnalyzerLatency,
                 onRefresh: _refresh,
                 onSelectCamera: _selectCamera,
                 onCountdownChanged:
@@ -133,6 +140,10 @@ class _SettingsPanel extends StatelessWidget {
     required this.countdownSeconds,
     required this.captureSoundsEnabled,
     required this.captureAudioProfile,
+    required this.analysisDiagnostics,
+    required this.primarySubject,
+    required this.poseAnalyzerLatency,
+    required this.imageQualityAnalyzerLatency,
     required this.onRefresh,
     required this.onSelectCamera,
     required this.onCountdownChanged,
@@ -147,6 +158,10 @@ class _SettingsPanel extends StatelessWidget {
   final int countdownSeconds;
   final bool captureSoundsEnabled;
   final CaptureAudioProfile captureAudioProfile;
+  final FrameAnalysisDiagnostics? analysisDiagnostics;
+  final PrimarySubject? primarySubject;
+  final Duration? poseAnalyzerLatency;
+  final Duration? imageQualityAnalyzerLatency;
   final VoidCallback onRefresh;
   final ValueChanged<CameraDevice> onSelectCamera;
   final ValueChanged<int> onCountdownChanged;
@@ -289,6 +304,68 @@ class _SettingsPanel extends StatelessWidget {
               label: const Text('Preview Sound'),
             ),
             const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 22),
+            Text(
+              'Live diagnostics',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            if (analysisDiagnostics == null)
+              const Text('Live analysis has not run in this session.')
+            else ...[
+              _InfoRow(
+                label: 'Analysis FPS',
+                value: analysisDiagnostics!.effectiveFps.toStringAsFixed(1),
+              ),
+              _InfoRow(
+                label: 'Target FPS',
+                value: analysisDiagnostics!.targetFps.toStringAsFixed(1),
+              ),
+              _InfoRow(
+                label: 'Dropped frames',
+                value: analysisDiagnostics!.droppedFrameCount.toString(),
+              ),
+              _InfoRow(
+                label: 'Pose latency',
+                value: _durationLabel(poseAnalyzerLatency),
+              ),
+              _InfoRow(
+                label: 'Quality latency',
+                value: _durationLabel(imageQualityAnalyzerLatency),
+              ),
+              _InfoRow(
+                label: 'Primary subject',
+                value: _primarySubjectLabel(primarySubject),
+              ),
+              _InfoRow(
+                label: 'Prominence',
+                value:
+                    primarySubject?.visualProminenceScore.toStringAsFixed(2) ??
+                    'Unavailable',
+              ),
+              _InfoRow(
+                label: 'Target region',
+                value: _targetRegionLabel(primarySubject?.targetRegion),
+              ),
+              _InfoRow(
+                label: 'Tracking age',
+                value: primarySubject == null
+                    ? 'Unavailable'
+                    : '${primarySubject!.observedFrameCount} frames',
+              ),
+              _InfoRow(
+                label: 'Pose analyzer',
+                value:
+                    primarySubject?.analyzerCapabilities.displayName ??
+                    'ML Kit / single-primary',
+              ),
+              const _InfoRow(
+                label: 'Multi-person awareness',
+                value: 'Unsupported',
+              ),
+            ],
+            const SizedBox(height: 24),
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -389,6 +466,36 @@ String _statusLabel(CameraStatus status) {
     CameraStatus.failed => 'Failed',
     CameraStatus.disposed => 'Disposed',
   };
+}
+
+String _durationLabel(Duration? duration) {
+  if (duration == null) {
+    return 'Unavailable';
+  }
+  return '${duration.inMilliseconds} ms';
+}
+
+String _primarySubjectLabel(PrimarySubject? subject) {
+  if (subject == null) {
+    return 'Not locked';
+  }
+  return switch (subject.lockState) {
+    PrimarySubjectLockState.locked => 'Locked',
+    PrimarySubjectLockState.absent => 'Temporarily absent',
+    PrimarySubjectLockState.unlocked => 'Not locked',
+  };
+}
+
+String _targetRegionLabel(TargetSubjectRegion? region) {
+  if (region == null) {
+    return 'Unavailable';
+  }
+  return [
+    region.x,
+    region.y,
+    region.width,
+    region.height,
+  ].map((value) => value.toStringAsFixed(2)).join(', ');
 }
 
 extension _FirstOrNull<T> on Iterable<T> {
