@@ -16,6 +16,7 @@ import { loadAuthConfig } from "./auth/auth.config.js";
 import { AUTH_ERROR_CODES } from "./auth/auth.constants.js";
 import { ApiErrorException } from "./common/api-error.exception.js";
 import { PrismaExceptionFilter } from "./common/prisma-exception.filter.js";
+import { loadApiServerConfig } from "./config/api-server.config.js";
 import { loadSelfxEnv } from "./config/load-env.js";
 import { TRY_ON_LAB_MULTIPART_LIMITS } from "./try-on-lab/try-on-lab.constants.js";
 
@@ -23,11 +24,11 @@ loadSelfxEnv();
 
 async function bootstrap() {
   const authConfig = loadAuthConfig();
+  const serverConfig = loadApiServerConfig();
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
   );
-  const port = Number(process.env.API_PORT ?? 3001);
 
   await app.register(fastifyCookie);
   await app.register(fastifyCors, {
@@ -62,9 +63,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, openApiConfig);
   SwaggerModule.setup("api/docs", app, document);
 
-  await app.listen(port, "0.0.0.0");
+  await app.listen(serverConfig.port, "0.0.0.0");
 
-  console.log(`SelfX API listening on http://localhost:${port}`);
+  console.log(`SelfX API listening on http://localhost:${serverConfig.port}`);
 }
 
 void bootstrap();

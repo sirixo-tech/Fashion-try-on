@@ -274,6 +274,12 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     affect `/ready` only when their failure makes the overall API unable to
     serve core traffic.
 
+    Deployed API web services on Railway must listen on Railway's injected
+    `PORT` environment variable and bind to `0.0.0.0`. `API_PORT` remains a
+    SelfX local-development override/fallback, followed by the local default
+    `3001`. Ignoring Railway `PORT` can cause Railway deployment healthchecks
+    on `/health` to fail even when the NestJS application starts internally.
+
 ---
 
 11. API Contracts and Documentation
@@ -1354,7 +1360,9 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     `/ready` probe is being deployed and production-verified. Switching a
     platform deployment healthcheck from liveness to readiness is an explicit
     operational decision after readiness succeeds against the target production
-    PostgreSQL instance.
+    PostgreSQL instance. The Railway API service must bind to `0.0.0.0` on
+    Railway `PORT`; `API_PORT` is only the local SelfX override/fallback before
+    the final `3001` development default.
     Database migrations are part of the release lifecycle.
     Production schema changes must not depend on manual database editing.
     Application releases should be rollback-capable.

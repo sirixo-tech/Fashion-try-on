@@ -1750,8 +1750,15 @@ The API maintains separate operational endpoints:
   not automatically affect `/ready`; provider/integration health belongs to
   separate diagnostics unless a dependency becomes required for core API
   traffic.
-- Railway currently keeps deployment healthchecks on `/health` until `/ready`
-  is deployed and verified against production PostgreSQL.
+- Railway currently keeps deployment healthchecks on `/health`; `/ready`
+  remains the PostgreSQL readiness probe and is not the Railway deployment
+  healthcheck path for now.
+- Railway production API deployments must listen on Railway's injected `PORT`
+  and bind to `0.0.0.0`. `API_PORT` remains the local SelfX development
+  override/fallback before the final `3001` default.
+- A previous Railway deployment healthcheck failed because the API ignored
+  Railway `PORT`, so `/health` could not reach the NestJS process on the port
+  Railway expected.
 
 ---
 

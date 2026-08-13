@@ -331,6 +331,11 @@ Default local ports:
 - API: `http://localhost:3001`
 - PostgreSQL: `localhost:5433`
 
+In Railway production, the API listens on Railway's injected `PORT` value and
+binds to `0.0.0.0` so public networking and deployment healthchecks can reach
+the NestJS process. `API_PORT` remains the local SelfX development
+override/fallback, with `3001` as the final local default.
+
 The API exposes separate liveness and readiness endpoints:
 
 ```text
@@ -343,8 +348,10 @@ GET /ready
 database outage returns HTTP 503 with a sanitized readiness response. FASHN and
 other external providers are intentionally excluded from core readiness and
 belong in separate diagnostics/provider-health checks. The deployed Railway API
-currently keeps Railway's healthcheck path on `/health` until `/ready` is
-production-verified against Railway PostgreSQL.
+currently keeps Railway's healthcheck path on `/health`; a previous deployment
+healthcheck failed because the API ignored Railway `PORT` and listened only on
+the local `API_PORT` fallback. `/ready` remains available as the PostgreSQL
+readiness probe but is not the Railway deployment healthcheck path for now.
 
 ## Local Bootstrap
 
