@@ -1063,6 +1063,108 @@ fleet/device management, CMS synchronization, Product Catalog, Try-On upload or
 provider execution. Organization/kiosk wallpaper changes from the SaaS dashboard
 remain future work.
 
+## 6.0.4A Customer/Operator — KIOSK-3A Real Kiosk Try-On Generation
+
+### Primary Actors
+
+- Customer
+- Authorized kiosk operator or SelfX developer configuring the temporary bridge
+
+### Preconditions
+
+- Flutter kiosk app is running on Android or Windows.
+- SelfX API is reachable.
+- Backend Try-On Lab generation is enabled and authenticated for development
+  validation.
+- Kiosk runtime defines `SELFX_KIOSK_API_BASE_URL` and an explicit development
+  access token. No provider key is present in Flutter.
+- Customer has selected or entered a local garment image for this milestone.
+
+### Customer Flow
+
+1. Kiosk launches to the customer home.
+2. Customer taps **Start Try-On**.
+3. Customer selects or enters a garment image and its broad garment intent.
+4. Customer selects **Top**, **Bottom** or **Full Body** CaptureScope.
+5. Kiosk runs the existing assisted/live capture flow.
+6. Customer reviews the accepted full-resolution capture.
+7. Customer taps **Use Photo**.
+8. Kiosk prepares the person input from the original capture, using
+   TargetSubjectRegion when available or full-frame fallback when not.
+9. Kiosk submits the run to SelfX and shows generation progress.
+10. Kiosk polls the existing run until success, failure or timeout.
+11. On success, kiosk opens the result screen with the generated image.
+12. Customer may try another garment, retake the photo or finish.
+
+### Alternate / Failure Flows
+
+- Missing API configuration -> show a safe kiosk-not-configured message.
+- Missing/invalid garment image -> ask for another garment image before
+  capture/generation.
+- Network slow or unstable during polling -> continue retrying the existing run
+  within the bounded timeout.
+- Generation timeout -> offer retry polling, retake photo or choose another
+  garment without creating duplicate paid submissions for the existing run.
+- Generation failure -> show customer-safe failure text without provider IDs,
+  raw HTTP details or stack traces.
+- Finish -> clear capture, garment, prepared input, run and result state.
+
+### Boundary
+
+KIOSK-3A uses the existing SelfX backend Try-On path as a development bridge.
+It does not implement managed kiosk device auth, fleet sync, Product Catalog,
+physical garment capture, QR handoff, target compositing, billing, API Gateway,
+new database persistence or provider calls from Flutter.
+
+## 6.0.4B Kiosk/Superadmin — KIOSK-4A Device Provisioning
+
+### Primary Actors
+
+- Physical SelfX kiosk
+- SelfX Superadmin
+
+### Preconditions
+
+- Kiosk app is installed and can reach SelfX API.
+- Kiosk has no active device refresh credential, or the existing credential has
+  been revoked/cleared.
+- Superadmin is authenticated in SelfX SaaS.
+
+### Main Flow
+
+1. Kiosk launches and checks secure storage for device credentials.
+2. If no valid credential exists, kiosk opens **Pair this kiosk**.
+3. Kiosk requests a backend pairing session.
+4. Kiosk displays six numeric digits, an `MM:SS` countdown and timer progress.
+5. Superadmin opens **Kiosks** in SelfX SaaS.
+6. Superadmin chooses **Pair New Kiosk**.
+7. Superadmin enters the displayed code, names the kiosk and selects
+   `PLATFORM`, `ORGANIZATION` or `STORE` assignment.
+8. Backend atomically consumes the code, creates the kiosk device and stores the
+   assignment.
+9. Kiosk polling detects `PAIRED`, exchanges the one-time provisioning grant and
+   stores the device refresh credential in secure storage.
+10. Kiosk calls `session/me` and enters customer home.
+11. On restart, kiosk refreshes/restores device identity without re-pairing.
+
+### Alternate / Failure Flows
+
+- Pairing timer reaches zero -> kiosk requests a new pairing session/code.
+- Invalid/expired code -> Superadmin sees "Pairing code expired or invalid."
+- Missing provisioning secret during kiosk poll -> request is rejected without
+  leaking session details.
+- Cross-organization store assignment -> pairing is rejected.
+- Temporary network failure during startup -> kiosk shows recoverable retry and
+  does not immediately erase a valid identity.
+- Revoked device -> refresh/session/me/heartbeat fails, kiosk clears device
+  credential state and returns to pairing.
+
+### Boundary
+
+KIOSK-4A does not connect device credentials to production Try-On generation.
+KIOSK-4B will replace the KIOSK-3A temporary user-token bridge with
+device-authenticated production kiosk Try-On endpoints.
+
 ## 6.0.5 Operator — Premium Settings Navigation
 
 ### Primary Actor

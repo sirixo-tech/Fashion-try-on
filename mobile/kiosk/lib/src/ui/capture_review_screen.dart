@@ -5,13 +5,19 @@ import 'package:flutter/material.dart';
 
 import '../quality/image_quality.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/kiosk_try_on_session_controller.dart';
 import 'kiosk_chrome.dart';
-import 'photo_ready_screen.dart';
+import 'try_on_generation_screen.dart';
 
 class CaptureReviewScreen extends StatelessWidget {
-  const CaptureReviewScreen({super.key, required this.controller});
+  const CaptureReviewScreen({
+    super.key,
+    required this.controller,
+    required this.tryOnController,
+  });
 
   final CaptureSessionController controller;
+  final KioskTryOnSessionController tryOnController;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +66,7 @@ class CaptureReviewScreen extends StatelessWidget {
               );
               final actions = _ReviewActions(
                 controller: controller,
+                tryOnController: tryOnController,
                 quality: quality,
                 compact: compact,
               );
@@ -105,11 +112,13 @@ class CaptureReviewScreen extends StatelessWidget {
 class _ReviewActions extends StatelessWidget {
   const _ReviewActions({
     required this.controller,
+    required this.tryOnController,
     required this.quality,
     required this.compact,
   });
 
   final CaptureSessionController controller;
+  final KioskTryOnSessionController tryOnController;
   final ImageQualityResult? quality;
   final bool compact;
 
@@ -146,7 +155,10 @@ class _ReviewActions extends StatelessWidget {
                   }
                   await Navigator.of(context).pushReplacement(
                     MaterialPageRoute<void>(
-                      builder: (_) => PhotoReadyScreen(controller: controller),
+                      builder: (_) => TryOnGenerationScreen(
+                        captureController: controller,
+                        tryOnController: tryOnController,
+                      ),
                     ),
                   );
                 }

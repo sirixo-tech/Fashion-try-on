@@ -926,50 +926,92 @@ Authorization rules:
 
 # 11. Kiosks
 
-## 10.1 `kiosks`
+## 10.1 `kiosk_devices`
 
 Important fields:
 
 - `id`
-- `organization_id`
-- `store_id`
-- `name`
-- `status`
-- `pairing_status`
+- `display_name`
+- `status` (`ACTIVE`, `REVOKED`)
+- `assignment_scope` (`PLATFORM`, `ORGANIZATION`, `STORE`)
+- `organization_id` nullable
+- `store_id` nullable
 - `platform`
 - `app_version`
-- `configuration_version`
+- `installation_id`
+- `paired_at`
 - `last_seen_at`
+- `revoked_at`
 - `created_at`
 - `updated_at`
 
 Indexes:
 
+- `status`
+- `assignment_scope`
 - `organization_id`
 - `store_id`
-- `(store_id, status)`
+- `(organization_id, store_id)`
 - `last_seen_at`
+
+Rules:
+
+- kiosk devices belong to the SelfX platform fleet, not to a superadmin user;
+- `PLATFORM` assignment uses no organization/store;
+- `ORGANIZATION` assignment requires `organization_id` and no `store_id`;
+- `STORE` assignment requires both IDs and the store must belong to the selected
+  organization;
+- device access JWT claims are not the source of organization/store truth;
+  authenticated device APIs reload current device status and assignment from the
+  database.
 
 ---
 
-## 10.2 `kiosk_pairing_codes`
+## 10.2 `kiosk_pairing_sessions`
 
-Temporary pairing requests.
+Temporary production provisioning sessions.
 
 Important fields:
 
 - `id`
-- `code_hash`
+- `code_digest`
+- `provisioning_secret_hash`
+- `provisioning_grant_hash`
+- `status` (`PENDING`, `CLAIMED`, `EXPIRED`, `CANCELLED`)
 - `expires_at`
-- `used_at`
-- `requested_device_metadata`
 - `created_at`
+- `claimed_at`
+- `claimed_by_user_id`
+- `kiosk_device_id`
+- `grant_issued_at`
+- `grant_consumed_at`
+- `installation_id`
+- `platform`
+- `app_version`
+
+Indexes:
+
+- `code_digest`
+- `(status, expires_at)`
+- `claimed_by_user_id`
+- `kiosk_device_id`
+- `installation_id`
 
 Rules:
 
-- short-lived;
-- one-time-use;
-- raw code should not be stored unnecessarily.
+- pairing codes are exactly six numerical digits and are treated as strings;
+- backend generates authoritative codes with secure randomness;
+- leading zeroes are valid;
+- code lifetime is exactly 8 minutes;
+- raw code is not stored; store a server-peppered HMAC digest;
+- the provisioning secret is private to the kiosk and stored as a protected
+  digest;
+- superadmin sees/enters only the six-digit code;
+- claim is one-time and transaction-safe;
+- a successful claim creates/activates a `kiosk_devices` row and associates the
+  session to that device;
+- the one-time provisioning grant is consumed by the physical kiosk only and is
+  not returned to the superadmin browser.
 
 ---
 
@@ -987,6 +1029,13 @@ Important fields:
 - `rotated_at`
 - `last_used_at`
 - `created_at`
+
+Rules:
+
+- stores only refresh credential digests, never raw refresh tokens;
+- supports expiry, rotation and revocation;
+- all sessions for a device are revoked when the device is revoked/unpaired;
+- device refresh credentials are device-specific, not a shared fleet secret.
 
 ---
 
@@ -1064,8 +1113,6 @@ Indexes:
 - `customer_id`
 - `kiosk_id`
 - `started_at`
-
-Rules:
 
 - `consent_recorded_at` may be retained as workflow convenience, but it is not sufficient as the long-term durable consent design;
 - durable consent details belong in `consent_records`.

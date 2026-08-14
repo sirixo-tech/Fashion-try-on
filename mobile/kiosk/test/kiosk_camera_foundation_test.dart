@@ -14,6 +14,9 @@ import 'package:selfx_kiosk/src/session/capture_flow.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
 
 void main() {
@@ -399,7 +402,8 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('What are you trying on?'), findsOneWidget);
+      expect(find.text('Select a garment for this Try-On'), findsOneWidget);
+      expect(find.byKey(const Key('garment-image-path')), findsOneWidget);
     });
 
     testWidgets('hidden top-left double tap reveals operator access briefly', (
@@ -494,7 +498,7 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('What are you trying on?'), findsOneWidget);
+      expect(find.text('Select a garment for this Try-On'), findsOneWidget);
     });
   });
 }
@@ -525,6 +529,9 @@ extension _KioskHomeTester on WidgetTester {
       MaterialApp(
         home: KioskHomeScreen(
           controller: controller,
+          tryOnController: KioskTryOnSessionController(
+            gateway: FakeKioskTryOnGateway(),
+          ),
           operatorAccessController:
               operatorAccessController ?? testOperatorAccessController(),
           presentation: testIdlePresentation,
@@ -539,6 +546,18 @@ extension _KioskHomeTester on WidgetTester {
     await pump(const Duration(milliseconds: 50));
     await tap(hotspot);
     await pump();
+  }
+}
+
+class FakeKioskTryOnGateway implements KioskTryOnGateway {
+  @override
+  Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
+    return const KioskTryOnRun(id: 'run-test', status: KioskTryOnStatus.queued);
+  }
+
+  @override
+  Future<KioskTryOnRun> getRun(String runId) async {
+    return KioskTryOnRun(id: runId, status: KioskTryOnStatus.processing);
   }
 }
 

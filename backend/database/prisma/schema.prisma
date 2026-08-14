@@ -59,6 +59,24 @@ enum PlatformRoleAssignmentStatus {
   REVOKED
 }
 
+enum KioskAssignmentScope {
+  PLATFORM
+  ORGANIZATION
+  STORE
+}
+
+enum KioskDeviceStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum KioskPairingSessionStatus {
+  PENDING
+  CLAIMED
+  EXPIRED
+  CANCELLED
+}
+
 enum OrganizationApplicationStatus {
   DRAFT
   SUBMITTED
@@ -92,6 +110,7 @@ model User {
   platformRolesAssigned   PlatformRoleAssignment[] @relation("PlatformRoleAssignedByUser")
   requirementsReviewed    OrganizationActivationRequirement[] @relation("ActivationRequirementReviewedBy")
   sessions                UserSession[]
+  kioskPairingClaims      KioskPairingSession[]    @relation("KioskPairingClaimedBy")
 
   @@map("users")
 }
@@ -127,6 +146,7 @@ model Organization {
   auditLogs                  AuditLog[]
   memberships                OrganizationMembership[]
   stores                     Store[]
+  kioskDevices               KioskDevice[]
 
   @@index([status])
   @@map("organizations")
@@ -219,6 +239,7 @@ model Store {
   createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
   auditLogs    AuditLog[]
+  kioskDevices KioskDevice[]
   organization Organization           @relation(fields: [orgId], references: [id], onDelete: Restrict)
   storeScopes  MembershipStoreScope[]
 
@@ -261,6 +282,80 @@ model PlatformRoleAssignment {
   @@index([role, status])
   @@index([assignedByUserId])
   @@map("platform_role_assignments")
+}
+
+model KioskDevice {
+  id              String                 @id @db.Uuid
+  displayName     String                 @map("display_name") @db.VarChar(160)
+  status          KioskDeviceStatus      @default(ACTIVE)
+  assignmentScope KioskAssignmentScope   @default(PLATFORM) @map("assignment_scope")
+  organizationId  String?                @map("organization_id") @db.Uuid
+  storeId         String?                @map("store_id") @db.Uuid
+  platform        String?                @db.VarChar(80)
+  appVersion      String?                @map("app_version") @db.VarChar(80)
+  installationId  String?                @map("installation_id") @db.VarChar(160)
+  pairedAt        DateTime               @default(now()) @map("paired_at") @db.Timestamptz(3)
+  lastSeenAt      DateTime?              @map("last_seen_at") @db.Timestamptz(3)
+  revokedAt       DateTime?              @map("revoked_at") @db.Timestamptz(3)
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization    Organization?          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store           Store?                 @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  pairingSessions KioskPairingSession[]
+  sessions        KioskDeviceSession[]
+
+  @@index([status])
+  @@index([assignmentScope])
+  @@index([organizationId])
+  @@index([storeId])
+  @@index([organizationId, storeId])
+  @@index([lastSeenAt])
+  @@map("kiosk_devices")
+}
+
+model KioskPairingSession {
+  id                     String                     @id @db.Uuid
+  codeDigest             String                     @map("code_digest")
+  provisioningSecretHash String                     @map("provisioning_secret_hash")
+  provisioningGrantHash  String?                    @map("provisioning_grant_hash")
+  status                 KioskPairingSessionStatus  @default(PENDING)
+  expiresAt              DateTime                   @map("expires_at") @db.Timestamptz(3)
+  createdAt              DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  claimedAt              DateTime?                  @map("claimed_at") @db.Timestamptz(3)
+  claimedByUserId        String?                    @map("claimed_by_user_id") @db.Uuid
+  kioskDeviceId          String?                    @map("kiosk_device_id") @db.Uuid
+  grantIssuedAt          DateTime?                  @map("grant_issued_at") @db.Timestamptz(3)
+  grantConsumedAt        DateTime?                  @map("grant_consumed_at") @db.Timestamptz(3)
+  installationId         String?                    @map("installation_id") @db.VarChar(160)
+  platform               String?                    @db.VarChar(80)
+  appVersion             String?                    @map("app_version") @db.VarChar(80)
+  claimedBy              User?                      @relation("KioskPairingClaimedBy", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  kioskDevice            KioskDevice?               @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([codeDigest])
+  @@index([status, expiresAt])
+  @@index([claimedByUserId])
+  @@index([kioskDeviceId])
+  @@index([installationId])
+  @@map("kiosk_pairing_sessions")
+}
+
+model KioskDeviceSession {
+  id               String       @id @db.Uuid
+  kioskDeviceId    String       @map("kiosk_device_id") @db.Uuid
+  refreshTokenHash String       @map("refresh_token_hash")
+  expiresAt        DateTime     @map("expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  rotatedAt        DateTime?    @map("rotated_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime?    @map("last_used_at") @db.Timestamptz(3)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  kioskDevice      KioskDevice  @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+
+  @@index([kioskDeviceId])
+  @@index([refreshTokenHash])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("kiosk_device_sessions")
 }
 
 model AuditLog {

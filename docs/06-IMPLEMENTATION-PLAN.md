@@ -920,6 +920,114 @@ and responsive settings behavior, Android debug APK build when practical, and
 Windows build/manual camera validation when hardware and GUI access are
 available.
 
+### KIOSK-3A Real End-to-End Kiosk Try-On Generation Slice
+
+KIOSK-3A proves the real kiosk Try-On loop through SelfX without introducing the
+full production kiosk backend.
+
+Implemented scope:
+
+- Kiosk Home **Start Try-On** routes to manual garment image selection before
+  CaptureScope.
+- Provider-neutral kiosk garment input model supports direct local development
+  images now and leaves catalog, captured garment and remote asset sources as
+  future adapters.
+- Existing CaptureScope, assisted/live capture, PrimarySubject lock metadata,
+  Review and Retake behavior are preserved.
+- **Use Photo** prepares the full-resolution accepted capture for Try-On. When
+  TargetSubjectRegion metadata exists, a padded target image is prepared from
+  the original still; unsupported paths use full-frame fallback.
+- `KioskTryOnGateway` posts multipart `personImage` and `garmentImage` to the
+  SelfX API and polls the existing run until success, failure or timeout.
+- The temporary development bridge uses `SELFX_KIOSK_API_BASE_URL` and
+  `SELFX_KIOSK_DEV_ACCESS_TOKEN`; it is disabled when either value is missing.
+- The kiosk never calls FASHN/provider APIs directly and never stores
+  `FASHN_API_KEY`.
+- Generation UI displays safe progress and failure states without provider IDs,
+  raw HTTP errors, image bytes/Base64 telemetry, stack traces or secrets.
+- Result UI displays the generated image directly and supports Try Another
+  Garment, Retake Photo and Finish cleanup paths.
+- Retry polling for an existing run does not create another paid submission.
+
+KIOSK-3A explicitly does not implement:
+
+- Organizations, Stores expansion, Users/RBAC expansion, Product Catalog,
+  physical garment capture, Shopify/WooCommerce source sync, managed kiosk
+  provisioning/device auth, fleet heartbeat/configuration, QR handoff, target
+  compositing, durable TryOnRun persistence, R2 assets, Redis/BullMQ, billing,
+  migrations, API Gateway or backend provider changes.
+
+Verification for this slice should include `flutter pub get`, focused Dart
+formatting where practical, `flutter analyze`, targeted kiosk pipeline tests and
+existing kiosk camera/home tests. Automated tests must use fake gateways and
+must not call real providers. Manual validation should perform at most one paid
+provider generation unless a separate test budget is approved. Platform APK and
+Windows release builds are not required for this Dart/UI integration slice.
+
+### KIOSK-4A Device Provisioning and Platform Fleet Slice
+
+KIOSK-4A replaces the temporary kiosk user-token bridge for commercial device
+identity. It does not connect device auth to production Try-On yet.
+
+Implemented scope:
+
+- `KioskDevice`, `KioskPairingSession` and `KioskDeviceSession` persistence
+  models and migration;
+- backend-generated six-digit numeric pairing codes with leading-zero support;
+- HMAC pairing-code digest using `KIOSK_PAIRING_CODE_PEPPER`;
+- exact `KIOSK_PAIRING_TTL_SECONDS=480` expiry;
+- private provisioning secret for kiosk polling and one-time provisioning
+  grant;
+- anonymous controlled provisioning session create/status endpoints;
+- superadmin `/api/v1/admin/kiosks` fleet list, assignment options, pair and
+  revoke endpoints;
+- `PLATFORM`, `ORGANIZATION` and `STORE` assignment validation;
+- dedicated kiosk-device access token type `kiosk_device_access`;
+- revocable/rotatable kiosk device refresh sessions;
+- `session/me` and heartbeat reload current device state from the database;
+- Flutter secure storage for device refresh credential and stable random
+  installation ID;
+- Flutter startup router: no credential -> pairing, valid credential ->
+  `session/me` -> customer home, revoked/invalid -> clear and pair;
+- pairing screen with six-digit code, backend-time countdown, visual progress
+  and automatic code rotation;
+- minimum SaaS Kiosks page with Pair New Kiosk modal and revoke action.
+
+KIOSK-4A explicitly does not implement:
+
+- production kiosk Try-On endpoint, Product Catalog, full Roles/Permissions,
+  Organizations management UI, CMS wallpaper sync, remote commands, OTA,
+  analytics/deep telemetry, FASHN changes, Shopify, WooCommerce, billing,
+  Redis/BullMQ or API Gateway.
+
+Verification for this slice should include Prisma schema validation, API
+typecheck/build, targeted kiosk provisioning/device-auth tests, web typecheck,
+Flutter analyze and targeted pairing/startup tests. Platform APK/Windows builds
+are not required unless native secure-storage compilation requires separate
+platform validation.
+
+Manual verification:
+
+1. Start completely unpaired kiosk.
+2. Pairing screen appears.
+3. Confirm six numeric digits.
+4. Confirm timer begins near 08:00.
+5. Confirm visual progress decreases.
+6. In Superadmin SaaS open Kiosks.
+7. Choose Pair New Kiosk.
+8. Enter displayed code.
+9. Name kiosk.
+10. Choose PLATFORM or organization/store assignment.
+11. Pair.
+12. Physical kiosk detects approval.
+13. Device credentials established.
+14. Customer home opens.
+15. Restart kiosk.
+16. Confirm it restores device identity without re-pairing.
+17. Revoke kiosk from Superadmin.
+18. Confirm device eventually rejects session and returns to pairing.
+19. Confirm new code appears.
+
 ### SELFX-DESIGN-SYSTEM-2 Premium Cross-Application Design System
 
 Implemented scope:

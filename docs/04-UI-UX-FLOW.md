@@ -1476,6 +1476,54 @@ No checkout button is required.
 - Glass blur must be bounded and modest; do not blur the whole wallpaper or
   large live camera areas.
 
+### KIOSK-3A Real Generation Flow
+
+- **Start Try-On** opens garment selection before CaptureScope.
+- Garment selection supports a temporary manual local image path, broad garment
+  type and photo-style selection. It must remain clearly a development/manual
+  input until Product Catalog or garment capture is implemented.
+- CaptureScope remains **Top**, **Bottom** and **Full Body** and continues into
+  assisted/live capture.
+- Review keeps **Retake** and **Use Photo**. **Use Photo** submits the accepted
+  capture to SelfX instead of stopping at Photo Ready.
+- Generation progress shows friendly states such as preparing, uploading,
+  creating and generating. Do not show provider names, provider run IDs, raw
+  HTTP status, backend stack traces or internal queue names.
+- Failure actions may include retry polling, retake photo and choose another
+  garment. Retry polling for an existing run must not create another paid run.
+- Result screen shows the generated image directly with **Try Another Garment**,
+  **Retake Photo** and **Finish**.
+- **Try Another Garment** clears run/result state but may keep the accepted
+  customer capture for another garment in the same kiosk session.
+- **Retake Photo** clears run/result and prepared target state while preserving
+  selected garment where appropriate.
+- **Finish** clears customer capture, garment, run/result and prepared target
+  state before returning to the home.
+- KIOSK-3A does not add QR handoff, catalog browsing, checkout, target-region
+  compositing or fleet-driven remote content UI.
+
+### KIOSK-4A Pairing and Fleet UI
+
+- Unpaired kiosk startup renders a dedicated **Pair this kiosk** screen instead
+  of customer home.
+- Pairing screen shows SelfX branding, the six-digit code formatted for display,
+  instructions, visible `MM:SS` remaining and a linear timer progress indicator.
+- The screen may show safe platform/app version metadata. It must never display
+  provisioning secret, device refresh token, access token, JWT or hashes.
+- When the pairing expires, the kiosk automatically requests a new session/code.
+- Temporary network failure shows retry without erasing a previously valid
+  device identity.
+- Paired/active device startup routes to customer home after `session/me`.
+- Revoked/unpaired device state clears local credentials and returns to pairing.
+- SaaS **Kiosks** page shows fleet devices with name, ID, platform, status,
+  assignment, organization/store, last seen and paired time.
+- **Pair New Kiosk** modal collects pairing code, device name and assignment
+  scope. `PLATFORM` requires no org/store; `ORGANIZATION` requires org;
+  `STORE` requires org and store.
+- Pairing errors use safe copy such as "Pairing code expired or invalid."
+- Revoke action is visible only through the protected superadmin fleet surface
+  and uses danger/destructive styling.
+
 ---
 
 # 28.1 SelfX Button and Visual System

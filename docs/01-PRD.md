@@ -1010,6 +1010,76 @@ KIOSK-2C does not implement backend fleet sync, kiosk provisioning/device auth,
 remote content management, SelfX Try-On API upload, product/catalog selection,
 FASHN/provider calls, API Gateway, migrations or new database persistence.
 
+## PRD-KIOSK-009 — KIOSK-3A Real Kiosk Try-On Generation
+
+SelfX kiosks must be able to complete a real provider-backed Try-On generation
+through SelfX after the customer selects a garment, captures a photo and accepts
+the review image. This phase proves the end-to-end kiosk product loop while
+keeping production device management and catalog expansion separate.
+
+KIOSK-3A product rules:
+
+- Customer flow is Kiosk Home -> Start Try-On -> garment image selection ->
+  CaptureScope -> assisted/live capture -> Review/Retake -> Try-On generation
+  progress -> generated result.
+- The kiosk must submit to SelfX, not directly to FASHN or another provider.
+  Provider credentials remain backend-only.
+- Manual local garment-image input is acceptable for this milestone. Product
+  Catalog selection, physical garment capture, commerce-synced garments and QR
+  handoff remain future product work.
+- Generation uses the accepted full-resolution customer capture. If local
+  PrimarySubject/TargetSubjectRegion metadata is available, SelfX may prepare a
+  padded target input from the original still; otherwise the full frame is used.
+- The generated provider result is displayed directly in KIOSK-3A. Final
+  target-region compositing and background-person preservation remain future
+  work.
+- The customer must see bounded async progress and safe failure choices such as
+  retry polling, retake photo, choose another garment or finish.
+- Ordinary retry actions must not create duplicate paid provider submissions for
+  the same accepted capture/run.
+- Session finish, retake and try-another-garment actions must clear customer
+  image/result state so the next customer cannot see prior data.
+
+KIOSK-3A does not implement Organizations, Stores expansion, RBAC expansion,
+managed kiosk device auth, fleet management, Product Catalog, physical garment
+capture, QR handoff, billing, API Gateway, provider client code in Flutter,
+database migrations or new persistence semantics.
+
+## PRD-KIOSK-010 — KIOSK-4A Device Provisioning and Platform Fleet
+
+SelfX kiosks must use production device provisioning before commercial device
+Try-On endpoints are connected. A new or unpaired kiosk must show a pairing
+screen and must not enter the normal customer home until it has a valid active
+device identity.
+
+KIOSK-4A product rules:
+
+- Pairing codes are backend-generated, exactly six numeric digits and valid for
+  exactly 8 minutes. Leading zeroes are valid.
+- The kiosk displays the code, an `MM:SS` countdown and a visual timer derived
+  from backend `expiresAt` and `serverTime`.
+- Expired codes automatically rotate to a new backend-generated pairing session.
+- Superadmins use **Kiosks -> Pair New Kiosk**, enter the physical kiosk code,
+  name the kiosk and select `PLATFORM`, `ORGANIZATION` or `STORE` assignment.
+- Kiosk records belong to the SelfX platform fleet. Superadmin users are not
+  modeled as kiosk owners.
+- `PLATFORM` assignment requires no organization/store. `ORGANIZATION` requires
+  an organization. `STORE` requires an organization and a store belonging to it.
+- Pairing is one-time use and atomically creates the active kiosk device.
+- Device credentials belong only to the physical kiosk. Superadmin browsers must
+  never receive device credentials or provisioning secrets.
+- A paired kiosk restores its device session on restart without re-pairing.
+- Revoked/unpaired kiosks clear local device credentials and return to pairing.
+- KIOSK-4A introduces future fleet permission capabilities:
+  `kiosks.view`, `kiosks.pair`, `kiosks.update`, `kiosks.assign`,
+  `kiosks.revoke`, `kiosks.configure`. In this phase, SelfX Superadmin is
+  authorized.
+
+KIOSK-4A does not implement production kiosk Try-On endpoints, Product Catalog,
+full Roles/Permissions, CMS wallpaper sync, remote commands, OTA updates, deep
+telemetry, FASHN changes, Shopify, WooCommerce, billing, Redis/BullMQ or API
+Gateway. Production device-authenticated kiosk Try-On belongs to KIOSK-4B.
+
 ---
 
 # 24. QR Kiosk-to-Mobile Handoff

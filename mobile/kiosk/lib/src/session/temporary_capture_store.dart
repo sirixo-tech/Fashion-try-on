@@ -19,6 +19,18 @@ class TemporaryCaptureStore {
     return target.path;
   }
 
+  Future<String> createTempCapturePath({
+    required String prefix,
+    required String extension,
+  }) async {
+    final directory = await _captureDirectory();
+    final safeExtension = extension.startsWith('.') ? extension : '.$extension';
+    return p.join(
+      directory.path,
+      '$prefix-${DateTime.now().microsecondsSinceEpoch}$safeExtension',
+    );
+  }
+
   Future<void> deleteCapture(String? path) async {
     if (path == null) {
       return;
@@ -58,6 +70,15 @@ class InMemoryTemporaryCaptureStore extends TemporaryCaptureStore {
   Future<String> preserveOriginal(File source) async {
     preservedCount += 1;
     return source.path;
+  }
+
+  @override
+  Future<String> createTempCapturePath({
+    required String prefix,
+    required String extension,
+  }) async {
+    final safeExtension = extension.startsWith('.') ? extension : '.$extension';
+    return '$prefix-$preservedCount$safeExtension';
   }
 
   @override

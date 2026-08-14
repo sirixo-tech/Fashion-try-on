@@ -9,19 +9,22 @@ import '../idle/kiosk_idle_presentation.dart';
 import '../operator/operator_access.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
+import '../tryon/kiosk_try_on_session_controller.dart';
 import 'camera_settings_screen.dart';
-import 'capture_scope_screen.dart';
+import 'garment_selection_screen.dart';
 import 'selfx_glass_button.dart';
 
 class KioskHomeScreen extends StatefulWidget {
   const KioskHomeScreen({
     super.key,
     required this.controller,
+    required this.tryOnController,
     required this.operatorAccessController,
     this.presentation = defaultIdlePresentation,
   });
 
   final CaptureSessionController controller;
+  final KioskTryOnSessionController tryOnController;
   final OperatorAccessController operatorAccessController;
   final KioskIdlePresentation presentation;
 
@@ -109,7 +112,10 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   void _startTryOn() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CaptureScopeScreen(controller: widget.controller),
+        builder: (_) => GarmentSelectionScreen(
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+        ),
       ),
     );
   }

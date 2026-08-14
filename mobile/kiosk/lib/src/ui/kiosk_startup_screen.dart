@@ -1,0 +1,145 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../device/kiosk_device_session_controller.dart';
+import '../operator/operator_access.dart';
+import '../session/capture_session_controller.dart';
+import '../tryon/kiosk_try_on_session_controller.dart';
+import 'kiosk_home_screen.dart';
+import 'kiosk_pairing_screen.dart';
+
+class KioskStartupScreen extends StatefulWidget {
+  const KioskStartupScreen({
+    super.key,
+    required this.deviceController,
+    required this.captureController,
+    required this.tryOnController,
+    required this.operatorAccessController,
+  });
+
+  final KioskDeviceSessionController deviceController;
+  final CaptureSessionController captureController;
+  final KioskTryOnSessionController tryOnController;
+  final OperatorAccessController operatorAccessController;
+
+  @override
+  State<KioskStartupScreen> createState() => _KioskStartupScreenState();
+}
+
+class _KioskStartupScreenState extends State<KioskStartupScreen> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(widget.deviceController.start());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.deviceController,
+      builder: (context, _) {
+        switch (widget.deviceController.state) {
+          case KioskStartupState.active:
+            return KioskHomeScreen(
+              controller: widget.captureController,
+              tryOnController: widget.tryOnController,
+              operatorAccessController: widget.operatorAccessController,
+            );
+          case KioskStartupState.networkUnavailable:
+          case KioskStartupState.error:
+            return _StartupRecoveryScreen(
+              message:
+                  widget.deviceController.message ??
+                  'SelfX kiosk startup could not continue.',
+              onRetry: () {
+                unawaited(widget.deviceController.start());
+              },
+              onPairAgain: () {
+                unawaited(widget.deviceController.clearAndPair());
+              },
+            );
+          case KioskStartupState.checking:
+          case KioskStartupState.restoring:
+            return const _StartupLoadingScreen();
+          case KioskStartupState.pairing:
+          case KioskStartupState.waitingForPairing:
+            return KioskPairingScreen(controller: widget.deviceController);
+        }
+      },
+    );
+  }
+}
+
+class _StartupLoadingScreen extends StatelessWidget {
+  const _StartupLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 18),
+            Text('Restoring kiosk session...'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StartupRecoveryScreen extends StatelessWidget {
+  const _StartupRecoveryScreen({
+    required this.message,
+    required this.onRetry,
+    required this.onPairAgain,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+  final VoidCallback onPairAgain;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.wifi_off_outlined,
+                  size: 72,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Connection needed',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 12),
+                Text(message, textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: onPairAgain,
+                  child: const Text('Pair Again'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

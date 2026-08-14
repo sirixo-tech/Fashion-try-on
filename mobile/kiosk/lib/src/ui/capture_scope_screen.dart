@@ -3,14 +3,20 @@ import 'package:flutter/material.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
+import '../tryon/kiosk_try_on_session_controller.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_glass_button.dart';
 
 class CaptureScopeScreen extends StatelessWidget {
-  const CaptureScopeScreen({super.key, required this.controller});
+  const CaptureScopeScreen({
+    super.key,
+    required this.controller,
+    required this.tryOnController,
+  });
 
   final CaptureSessionController controller;
+  final KioskTryOnSessionController tryOnController;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +59,10 @@ class CaptureScopeScreen extends StatelessWidget {
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) =>
-                                    CameraCaptureScreen(controller: controller),
+                                    CameraCaptureScreen(
+                                      controller: controller,
+                                      tryOnController: tryOnController,
+                                    ),
                               ),
                             );
                           },

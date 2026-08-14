@@ -813,6 +813,88 @@ KIOSK-2C rules:
   Product Catalog, QR handoff, SelfX Try-On API upload, FASHN/provider calls,
   migrations, Redis/BullMQ, R2, billing or API Gateway in KIOSK-2C.
 
+## KIOSK-3A Real Kiosk Try-On Generation
+
+KIOSK-3A connects the existing Flutter kiosk capture foundation to real
+provider-backed Try-On generation through SelfX. It is a narrow end-to-end
+pipeline milestone, not the full managed production kiosk backend.
+
+KIOSK-3A rules:
+
+- Customer flow is Kiosk Home -> Start Try-On -> garment image selection ->
+  CaptureScope -> assisted/live capture -> Review/Retake -> SelfX Try-On
+  submission -> bounded async polling -> generated result.
+- The Flutter kiosk must call only SelfX backend APIs. It must never call FASHN
+  or another AI provider directly and must never store `FASHN_API_KEY`.
+- Until production kiosk device provisioning/auth exists, any kiosk-to-API
+  bridge must be an explicit development bridge, disabled unless configured and
+  free of committed secrets.
+- KIOSK-3A may use manual local garment-image input. Product Catalog, captured
+  garment workflows and commerce-synced garment sources remain future work but
+  must fit the provider-neutral garment-input abstraction.
+- Person input uses the full-resolution accepted still. When
+  PrimarySubject/TargetSubjectRegion metadata is available, prepare a padded
+  target image from the original still; Windows or unsupported live-frame paths
+  may fall back to the full frame.
+- KIOSK-3A displays the generated provider result directly. Target-region
+  compositing and background-person preservation are future work.
+- Generation must be asynchronous with bounded polling, customer-safe progress
+  and failure messages, and no duplicate paid run creation from ordinary retry
+  actions.
+- Finish, retake and try-another-garment actions must clear ephemeral customer
+  session state appropriately. Do not log image bytes, Base64 payloads, provider
+  prediction IDs, provider secrets or raw auth tokens.
+- Do not add Organizations, Stores expansion, RBAC expansion, fleet/device
+  backend, kiosk pairing, migrations, Redis/BullMQ, R2, billing, QR handoff,
+  API Gateway or provider-specific client code in KIOSK-3A.
+
+## KIOSK-4A Device Provisioning & Platform Fleet Foundation
+
+KIOSK-4A introduces production kiosk device provisioning and replaces the
+temporary user-access-token bridge as the commercial kiosk authentication path.
+
+KIOSK-4A rules:
+
+- A brand-new or unpaired kiosk must start on the pairing screen, not the
+  customer home.
+- Pairing codes are backend-generated six-digit numeric strings. Leading zeroes
+  are valid; treat codes as strings and validate with `^\d{6}$`.
+- Pairing sessions live exactly 8 minutes. Backend `expiresAt` and `serverTime`
+  are the source of truth for the kiosk countdown and progress indicator.
+- Expired codes are permanently invalid and kiosks automatically request a new
+  session/code.
+- Store pairing-code digests using dedicated server-only HMAC pepper. Do not
+  store plaintext pairing codes when avoidable.
+- The kiosk receives a private high-entropy provisioning secret; superadmins see
+  or enter only the six-digit code.
+- Pairing is one-time and transaction-safe. Successful claim creates/activates a
+  `KioskDevice` atomically and cannot be replayed.
+- Kiosks belong to the SelfX platform fleet. Assignment scope may be
+  `PLATFORM`, `ORGANIZATION` or `STORE`; superadmin users are actors, not kiosk
+  owners.
+- STORE assignment must validate that the selected store belongs to the selected
+  organization.
+- Superadmin pairing UI uses **Pair New Kiosk** and must not create abandoned
+  placeholder devices.
+- KIOSK-4A authorizes SelfX superadmins for fleet pairing/revoke actions and
+  documents future capabilities: `kiosks.view`, `kiosks.pair`,
+  `kiosks.update`, `kiosks.assign`, `kiosks.revoke`, `kiosks.configure`.
+- Device credentials use dedicated kiosk-device access tokens with
+  `typ: "kiosk_device_access"` and revocable/rotatable refresh sessions.
+- Do not store device refresh credentials in SharedPreferences/plain files.
+  Flutter uses OS-backed secure storage.
+- Device JWT claims are minimal. On device requests, reload current device
+  status/assignment from the database rather than trusting org/store claims.
+- Revoked devices must fail refresh/session/me/heartbeat, clear local device
+  credentials and return to pairing.
+- Superadmin browsers must never receive provisioning secrets, device refresh
+  credentials or permanent device credentials.
+- KIOSK-4A may keep the KIOSK-3A dev Try-On bridge in code temporarily, but
+  production device-authenticated kiosk Try-On endpoints remain KIOSK-4B.
+- Do not add Product Catalog, production kiosk Try-On, CMS wallpaper sync,
+  remote commands, OTA updates, deep telemetry, FASHN changes, Redis/BullMQ,
+  billing or API Gateway in KIOSK-4A.
+
 ## SELFX-DESIGN-SYSTEM-2 Cross-Application Visual Language
 
 The SelfX primary action and selected-control color is `#FF7119` with white

@@ -257,9 +257,10 @@ access and responsive local settings.
 - Customer home uses the reusable SelfX glass-capable primary CTA and no longer
   shows development presentation labels such as static wallpaper or platform
   readiness in normal customer mode.
-- The customer flow is Kiosk Home -> Start Try-On -> CaptureScope selection ->
-  Camera -> live preparation/readiness -> stable final 3/2/1 -> still capture
-  -> Review -> Photo Ready.
+- The current customer flow is Kiosk Home -> Start Try-On -> garment image
+  selection -> CaptureScope selection -> Camera -> live preparation/readiness
+  -> stable final 3/2/1 -> still capture -> Review -> generation progress ->
+  generated result.
 - The home has no visible Camera Settings button. A hidden top-left double-tap
   reveals operator access briefly.
 - Operator access opens a 6-digit PIN challenge before settings. The UI calls
@@ -304,9 +305,10 @@ available:
 - The preferred camera ID is local device configuration stored through
   `shared_preferences` with platform scoping; it is not server-side kiosk
   configuration.
-- Customer flow is Kiosk Home -> CaptureScope selection -> Camera -> live
-  preparation/readiness -> stable final 3/2/1 -> still capture -> Review ->
-  Photo Ready.
+- KIOSK-2A's local capture flow was Kiosk Home -> CaptureScope selection ->
+  Camera -> live preparation/readiness -> stable final 3/2/1 -> still capture
+  -> Review -> Photo Ready; KIOSK-3A now routes the accepted photo onward to
+  generation when the development bridge is configured.
 - Customer-selected `CaptureScope` values are TOP, BOTTOM and FULL BODY. They
   affect framing/readiness and future search/policy space, but are not final
   garment taxonomy. FULL BODY may later resolve to ONE_PIECE, FULL_OUTFIT or
@@ -364,8 +366,9 @@ available:
 - Advisory quality warnings normally still allow **Use Photo**; technical
   invalidity blocks use. OpenCV analysis failure is a warning, not captured
   image invalidity.
-- **Use Photo** now opens a Photo Ready state. **Continue** is a temporary
-  local placeholder until product/catalog/Try-On submission is implemented.
+- **Use Photo** now opens KIOSK-3A generation when the development bridge is
+  configured. Missing bridge configuration produces a safe kiosk-not-configured
+  message rather than a direct provider call.
 - Pose/body landmark data is ephemeral capture assistance only, not biometric
   persistence. Customer UI does not expose raw skeletons, landmark dots,
   confidence values or technical CV metrics.
@@ -382,6 +385,27 @@ available:
   -> SelfX NestJS API until Public API/partner/edge-management scale justifies
   a gateway.
 
+KIOSK-3A adds a real end-to-end kiosk Try-On generation bridge:
+
+- Customer flow is Kiosk Home -> Start Try-On -> garment image selection ->
+  CaptureScope -> assisted/live capture -> Review -> generation progress ->
+  generated result.
+- The kiosk calls the SelfX API only. It never calls FASHN directly and never
+  stores `FASHN_API_KEY`.
+- The current bridge targets the guarded development Try-On Lab API while
+  production kiosk device auth and durable Try-On orchestration remain future
+  milestones.
+- KIOSK-3A uses manual local garment-image input. Product Catalog, physical
+  garment capture, Shopify/WooCommerce sources and QR handoff remain future
+  work.
+- Full-resolution accepted captures are preserved. Android target metadata is
+  used to prepare a padded customer target image where available; Windows and
+  unsupported live-frame paths fall back to the full frame.
+- Generation uses async status polling with bounded timeout and customer-safe
+  messages. Retry polling does not create another paid run.
+- The generated provider result is displayed directly. Final target-region
+  compositing is not implemented in this slice.
+
 Useful kiosk commands:
 
 ```bash
@@ -394,6 +418,56 @@ flutter build apk --debug
 flutter build apk --release
 flutter build windows
 ```
+
+KIOSK-3A development generation requires backend configuration and explicit
+Flutter defines:
+
+```bash
+flutter run \
+  --dart-define=SELFX_KIOSK_API_BASE_URL=http://localhost:3001 \
+  --dart-define=SELFX_KIOSK_DEV_ACCESS_TOKEN=<staff-access-token>
+```
+
+The backend must have `TRYON_LAB_ENABLED=true` and provider credentials such as
+`FASHN_API_KEY` configured server-side only. Perform at most one paid provider
+generation for manual KIOSK-3A smoke verification unless a separate test budget
+is approved.
+
+KIOSK-4A adds production kiosk device provisioning:
+
+- A new/unpaired kiosk starts on **Pair this kiosk**, not customer home.
+- The SelfX API generates exactly six numeric digits and returns
+  `expiresAt/serverTime`; the kiosk derives the countdown and progress from
+  those server values.
+- Pairing codes live for exactly 8 minutes and rotate automatically when
+  expired.
+- Superadmin SaaS uses **Kiosks -> Pair New Kiosk** to enter the displayed code,
+  name the device and assign it to `PLATFORM`, `ORGANIZATION` or `STORE`.
+- Kiosks belong to the SelfX platform fleet. Superadmin users are actors, not
+  device owners.
+- Device credentials are dedicated kiosk-device credentials, not human user
+  tokens. `typ` is `kiosk_device_access`.
+- Flutter stores the device refresh credential in OS-backed secure storage;
+  access tokens live in memory.
+- Revoked kiosks clear local device credentials and return to pairing.
+- KIOSK-4A does not connect device auth to production Try-On; KIOSK-4B will
+  replace the KIOSK-3A temporary dev bridge for generation.
+
+Required server-side `@selfx/api` variables for KIOSK-4A:
+
+```bash
+KIOSK_PAIRING_CODE_PEPPER=<long random server secret>
+KIOSK_PROVISIONING_SECRET_PEPPER=<long random server secret>
+KIOSK_DEVICE_REFRESH_TOKEN_PEPPER=<long random server secret>
+KIOSK_DEVICE_JWT_SECRET=<long random server secret>
+KIOSK_PAIRING_TTL_SECONDS=480
+KIOSK_DEVICE_ACCESS_TOKEN_TTL_SECONDS=900
+KIOSK_DEVICE_REFRESH_SESSION_TTL_SECONDS=2592000
+```
+
+Flutter still needs `SELFX_KIOSK_API_BASE_URL` as a Dart define so the kiosk can
+reach SelfX API provisioning endpoints. It no longer needs
+`SELFX_KIOSK_DEV_ACCESS_TOKEN` for device provisioning.
 
 Android hardware smoke checklist:
 

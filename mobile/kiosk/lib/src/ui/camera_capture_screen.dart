@@ -7,13 +7,19 @@ import '../live/capture_readiness_engine.dart';
 import '../session/capture_flow.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/kiosk_try_on_session_controller.dart';
 import 'capture_review_screen.dart';
 import 'kiosk_chrome.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
-  const CameraCaptureScreen({super.key, required this.controller});
+  const CameraCaptureScreen({
+    super.key,
+    required this.controller,
+    required this.tryOnController,
+  });
 
   final CaptureSessionController controller;
+  final KioskTryOnSessionController tryOnController;
 
   @override
   State<CameraCaptureScreen> createState() => _CameraCaptureScreenState();
@@ -150,7 +156,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         }
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => CaptureReviewScreen(controller: widget.controller),
+            builder: (_) => CaptureReviewScreen(
+              controller: widget.controller,
+              tryOnController: widget.tryOnController,
+            ),
           ),
         );
         if (mounted &&

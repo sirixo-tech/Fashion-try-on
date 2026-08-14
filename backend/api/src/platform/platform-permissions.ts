@@ -6,6 +6,12 @@ export const PLATFORM_PERMISSIONS = {
   organizationApplicationReject: "ORGANIZATION_APPLICATION_REJECT",
   organizationActivate: "ORGANIZATION_ACTIVATE",
   organizationSuspend: "ORGANIZATION_SUSPEND",
+  kiosksView: "KIOSKS_VIEW",
+  kiosksPair: "KIOSKS_PAIR",
+  kiosksUpdate: "KIOSKS_UPDATE",
+  kiosksAssign: "KIOSKS_ASSIGN",
+  kiosksRevoke: "KIOSKS_REVOKE",
+  kiosksConfigure: "KIOSKS_CONFIGURE",
 } as const;
 
 export type PlatformPermission =
