@@ -21,6 +21,7 @@ export function AppShell({
   onSelectOrganization,
   user,
   onLogout,
+  onNavigateTo,
 }: {
   children: ReactNode;
   navItems: SelfxNavItem[];
@@ -30,6 +31,7 @@ export function AppShell({
   onSelectOrganization?: (organizationId: string) => void;
   user?: SelfxUserSummary | null;
   onLogout?: () => void;
+  onNavigateTo?: (href: string) => void;
 }) {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] =
     useDisclosure(false);
@@ -64,6 +66,7 @@ export function AppShell({
             items={navItems}
             activePath={activePath}
             onNavigate={closeMobile}
+            onNavigateTo={onNavigateTo}
           />
         </ScrollArea>
       </MantineAppShell.Navbar>

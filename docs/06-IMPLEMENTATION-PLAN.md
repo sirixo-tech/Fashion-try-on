@@ -975,6 +975,23 @@ architecture. The active organization selector uses `GET /api/v1/organizations`
 for ACTIVE organizations available to the authenticated user and remains UI
 state only.
 
+Production web API traffic uses same-origin `/api/v1/*` requests from the
+browser. `frontend/web/next.config.ts` owns a Next.js rewrite to the deployed
+SelfX API through server-only `SELFX_API_UPSTREAM_URL`; browser code does not
+receive this value. In production, removing `NEXT_PUBLIC_API_URL` and
+`NEXT_PUBLIC_SELFX_API_BASE_URL` makes `frontend/web/lib/api.ts` use relative
+same-origin requests. Local development may keep an explicit public localhost
+API URL. Try-On Lab API helpers use the same routing semantics and preserve
+multipart uploads.
+
+`SessionProvider` still refreshes on mount so reload, direct URL and new-tab
+entry restore sessions through the HttpOnly refresh cookie. The access token
+remains in React memory only. Internal AppShell navigation uses a
+provider-neutral navigation callback from `@selfx/web` into `@selfx/ui`; normal
+left-clicks use Next.js client routing, while anchor hrefs remain available for
+copy link, middle-click and modified-click behavior. This same-origin web proxy
+is not an API Gateway, and tenant authorization remains in SelfX API.
+
 ---
 
 # 9. Phase 5 — Product & Catalog Domain
@@ -1782,6 +1799,16 @@ The API maintains separate operational endpoints:
 - The web Railway Start Command remains `npm run start --workspace=@selfx/web`.
   Frontend deployment remains pending until the Railway clean build succeeds
   with the dependency-aware command.
+- For production web session recovery, Railway `@selfx/web` must add
+  `SELFX_API_UPSTREAM_URL=https://selfxapi-production.up.railway.app` as a
+  server-only variable and remove `NEXT_PUBLIC_API_URL` and
+  `NEXT_PUBLIC_SELFX_API_BASE_URL` when they point at the backend host.
+  Railway `@selfx/api` should keep exact `CORS_ORIGINS` for the web origin,
+  keep `COOKIE_SECURE=true`, return `COOKIE_SAME_SITE=lax` once same-origin
+  proxying is active, and keep `COOKIE_DOMAIN` unset. Production verification
+  must confirm login and refresh requests use the web origin, refresh includes
+  a Cookie header and returns HTTP 200, sidebar navigation does not reload the
+  document, F5/direct URL/new tab restore the session, and logout clears it.
 - First production platform administration is initialized manually with
   `npm run production:bootstrap-admin` after the API build exists in the target
   production environment. Operators must temporarily set the required

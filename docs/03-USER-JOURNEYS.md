@@ -208,6 +208,9 @@ Authenticated SelfX staff/developer tester
 - `TRYON_LAB_ENABLED=true` in the controlled development environment.
 - `FASHN_API_KEY` is configured server-side for real provider smoke testing, or
   the provider is mocked during automated tests.
+- In production web deployments, browser API requests use same-origin
+  `/api/v1/*` paths through the web proxy; the Lab keeps multipart uploads on
+  the same API path shape.
 
 ### Main Flow
 
@@ -437,6 +440,35 @@ Registered Customer
 ### End State
 
 Customer history remains usable without violating the 7-day image-retention policy.
+
+---
+
+## 3.2.2 Staff/Admin Web Session Restoration
+
+### Primary Actor
+
+Authenticated SelfX staff or platform administrator
+
+### Main Flow
+
+1. User signs in through the production web origin.
+2. Browser sends `POST /api/v1/auth/login` to the same web origin.
+3. Next.js proxies the request to SelfX API using the server-only upstream URL.
+4. SelfX API returns the access token response and sets the HttpOnly refresh
+   cookie on the browser-facing `/api/v1/auth` path.
+5. User clicks internal AppShell navigation such as Stores or Dashboard.
+6. The shell uses client-side routing, so the in-memory access token remains
+   available and the document is not reloaded.
+7. User reloads, opens a direct `/app/stores` URL or opens a new tab.
+8. `SessionProvider` mounts, calls `POST /api/v1/auth/refresh` on the same web
+   origin, the browser sends the refresh cookie, and the authenticated session
+   is restored if the refresh session is valid.
+
+### Notes
+
+The refresh token is never exposed to JavaScript or stored in localStorage or
+sessionStorage. The same-origin web proxy does not replace SelfX API tenant
+authorization and is not a general API Gateway.
 
 ---
 

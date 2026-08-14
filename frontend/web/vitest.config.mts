@@ -14,6 +14,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    include: ["components/**/*.test.tsx", "lib/**/*.test.ts"],
+    include: ["components/**/*.test.tsx", "lib/**/*.test.ts", "lib/**/*.test.tsx"],
   },
 });

@@ -1,6 +1,6 @@
 import type { TryOnLabRunResponse } from "@selfx/shared";
 
-import { SafeApiError, type ApiErrorBody, selfxApiBaseUrl } from "@/lib/api";
+import { SafeApiError, type ApiErrorBody, selfxApiUrl } from "@/lib/api";
 
 export async function createTryOnLabRun(
   formData: FormData,
@@ -34,7 +34,7 @@ async function fetchTryOnLab<T>(
   headers.set("Accept", "application/json");
   headers.set("Authorization", `Bearer ${init.accessToken}`);
 
-  const response = await fetch(`${selfxApiBaseUrl()}${path}`, {
+  const response = await fetch(selfxApiUrl(path), {
     ...init,
     headers,
     credentials: "include",

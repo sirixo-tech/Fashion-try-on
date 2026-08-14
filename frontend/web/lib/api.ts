@@ -23,12 +23,33 @@ export class SafeApiError extends Error {
   }
 }
 
-export function selfxApiBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_API_URL ??
-    process.env.NEXT_PUBLIC_SELFX_API_BASE_URL ??
-    "http://localhost:3001"
-  ).replace(/\/$/, "");
+export function selfxApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const explicit =
+    env.NEXT_PUBLIC_API_URL ?? env.NEXT_PUBLIC_SELFX_API_BASE_URL;
+
+  if (explicit?.trim()) {
+    const normalized = explicit.trim().replace(/\/+$/, "");
+    if (env.NODE_ENV === "production" && isLocalhostApiUrl(normalized)) {
+      throw new Error(
+        "Production web API URL must not point to localhost. Remove NEXT_PUBLIC_API_URL to use the same-origin API proxy.",
+      );
+    }
+    return normalized;
+  }
+
+  if (env.NODE_ENV === "production") {
+    return "";
+  }
+
+  return "http://localhost:3001";
+}
+
+export function selfxApiUrl(
+  path: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${selfxApiBaseUrl(env)}${normalizedPath}`;
 }
 
 export async function selfxApi<T>(
@@ -46,7 +67,7 @@ export async function selfxApi<T>(
     headers.set("Authorization", `Bearer ${init.accessToken}`);
   }
 
-  const response = await fetch(`${selfxApiBaseUrl()}${path}`, {
+  const response = await fetch(selfxApiUrl(path), {
     ...init,
     headers,
     credentials: "include",
@@ -68,4 +89,17 @@ export async function selfxApi<T>(
   }
 
   return (await response.json()) as T;
+}
+
+function isLocalhostApiUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
 }

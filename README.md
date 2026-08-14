@@ -350,6 +350,23 @@ binds to `0.0.0.0` so public networking and deployment healthchecks can reach
 the NestJS process. `API_PORT` remains the local SelfX development
 override/fallback, with `3001` as the final local default.
 
+Production SelfX Web sends normal browser API traffic to same-origin
+`/api/v1/*` paths. Next.js rewrites those requests server-side to the deployed
+SelfX API configured by server-only `SELFX_API_UPSTREAM_URL`, for example:
+
+```text
+SELFX_API_UPSTREAM_URL=https://selfxapi-production.up.railway.app
+```
+
+Do not prefix this variable with `NEXT_PUBLIC_`. In production Railway web
+deployments, remove `NEXT_PUBLIC_API_URL` and
+`NEXT_PUBLIC_SELFX_API_BASE_URL` so browser fetches use same-origin relative
+paths instead of cross-site API-host requests. The API refresh cookie remains
+HttpOnly and path-scoped to `/api/v1/auth`; the browser does not need a
+third-party API cookie and no refresh token is exposed to JavaScript. Local
+development may still use `NEXT_PUBLIC_API_URL=http://localhost:3001` for a
+direct local API.
+
 The API exposes separate liveness and readiness endpoints:
 
 ```text
@@ -422,6 +439,24 @@ After a successful production bootstrap, remove or disable
 email/password/confirmation variables from Railway, redeploy/apply the variable
 removal as needed, then test login through the production frontend using the
 standard auth flow.
+
+After deploying the same-origin web API proxy, verify production auth in
+Chrome:
+
+- login request URL is
+  `https://selfxweb-production.up.railway.app/api/v1/auth/login`;
+- refresh request URL is
+  `https://selfxweb-production.up.railway.app/api/v1/auth/refresh`;
+- refresh includes a Cookie header and returns HTTP 200;
+- sidebar navigation does not reload the document;
+- Dashboard and Stores remain authenticated after navigation;
+- F5 reload, direct `/app/stores` and a new tab restore the session through
+  `SessionProvider` refresh;
+- logout clears the session.
+
+Because a production refresh token was exposed during manual debugging, revoke
+or logout all existing production administrator sessions after verification,
+then sign in again and use the newly created clean session.
 
 Create/update temporary local demo logins for each current platform and
 merchant role explicitly:

@@ -372,6 +372,29 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     For web applications, secure HttpOnly cookies should be preferred over long-lived authentication credentials stored in localStorage.
     Native applications must use platform-secure storage.
 
+    Production browser requests from `@selfx/web` should use same-origin
+    `/api/v1/*` URLs. The Next.js web server rewrites those requests to the
+    SelfX API through a server-only `SELFX_API_UPSTREAM_URL`; this variable must
+    not use a `NEXT_PUBLIC_` prefix or be exposed to browser JavaScript. Browser
+    code should use relative API paths in production when no explicit
+    development API URL is configured. Local development may still use
+    `NEXT_PUBLIC_API_URL=http://localhost:3001` or the legacy
+    `NEXT_PUBLIC_SELFX_API_BASE_URL` to call a local API directly.
+
+    The same-origin web proxy preserves `/api/v1/auth/*` browser-facing paths
+    so the existing refresh cookie path remains valid. Refresh tokens remain
+    HttpOnly, Secure in production, and unavailable to JavaScript; access
+    tokens remain in React memory. `SessionProvider` must continue attempting
+    refresh on mount so F5 reload, direct URL open and new tabs can restore a
+    valid session. Same-origin proxying restores first-party cookie semantics
+    for the web app; it must not weaken backend CORS, wildcard origins, remove
+    origin/CSRF checks or store tokens in localStorage/sessionStorage.
+
+    This web proxy is not a general API Gateway. Tenant authorization,
+    platform authorization and business logic remain in the SelfX API. Kiosk,
+    mobile, Shopify, WooCommerce and future Public API clients remain able to
+    call SelfX API directly through their approved client paths.
+
     Production initialization of the first SelfX platform super administrator
     must use a dedicated manual operator command, not a public HTTP endpoint,
     hidden UI route, direct SQL insert, demo account or automatic startup seed.
@@ -1398,6 +1421,14 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     to resolve compiled packages such as `@selfx/shared` on a clean checkout.
     The web Railway Start Command remains `npm run start --workspace=@selfx/web`;
     frontend deployment remains pending until the Railway clean build succeeds.
+    Railway production web deployments must set server-only
+    `SELFX_API_UPSTREAM_URL` to the deployed SelfX API origin and remove
+    browser-public API host overrides such as `NEXT_PUBLIC_API_URL` and
+    `NEXT_PUBLIC_SELFX_API_BASE_URL` so browser requests use same-origin
+    `/api/v1/*` paths. Once the web proxy is active, production auth cookies
+    should use `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=lax` and unset
+    `COOKIE_DOMAIN`, while backend `CORS_ORIGINS` remains the exact trusted web
+    origin.
     Database migrations are part of the release lifecycle.
     Production schema changes must not depend on manual database editing.
     Application releases should be rollback-capable.

@@ -119,6 +119,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       activeOrganizationId={activeOrganizationId}
       onSelectOrganization={setActiveOrganizationId}
       user={session.user}
+      onNavigateTo={(href) => router.push(href)}
       onLogout={() => {
         void session.logout().then(() => router.push("/login"));
       }}

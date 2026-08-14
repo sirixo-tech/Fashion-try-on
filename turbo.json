@@ -1,5 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "SELFX_API_UPSTREAM_URL",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_SELFX_API_BASE_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

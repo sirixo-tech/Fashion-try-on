@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { NavLink, Stack, ThemeIcon } from "@mantine/core";
 
 import { SelfxLogo } from "@selfx/ui/selfx/selfx-logo";
@@ -10,11 +10,13 @@ export function AppSidebar({
   activePath,
   footer,
   onNavigate,
+  onNavigateTo,
 }: {
   items: SelfxNavItem[];
   activePath?: string;
   footer?: ReactNode;
   onNavigate?: () => void;
+  onNavigateTo?: (href: string) => void;
 }) {
   return (
     <Stack h="100%" gap={0} className={classes.sidebar}>
@@ -35,6 +37,17 @@ export function AppSidebar({
             activePath === item.href ||
             (item.href !== "/app/dashboard" &&
               activePath?.startsWith(item.href));
+          const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+            if (item.disabled || !item.href) {
+              return;
+            }
+
+            if (isPlainLeftClick(event) && onNavigateTo) {
+              event.preventDefault();
+              onNavigateTo(item.href);
+              onNavigate?.();
+            }
+          };
 
           return (
             <NavLink
@@ -63,7 +76,7 @@ export function AppSidebar({
               active={active}
               disabled={item.disabled}
               aria-current={active ? "page" : undefined}
-              onClick={onNavigate}
+              onClick={handleClick}
               variant="subtle"
             />
           );
@@ -75,5 +88,15 @@ export function AppSidebar({
         </Stack>
       ) : null}
     </Stack>
+  );
+}
+
+function isPlainLeftClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
   );
 }

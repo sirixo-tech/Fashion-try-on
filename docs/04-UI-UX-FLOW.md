@@ -725,6 +725,18 @@ A store-scoped user may see only the applicable store context.
 
 This portal is the normal operational tenant experience and should only be shown for `ACTIVE` organizations unless a specific onboarding/status route is being shown instead.
 
+Internal AppShell navigation should use client-side routing for normal
+unmodified in-app clicks so the React in-memory access token is not discarded
+by a full document reload. The reusable `@selfx/ui` AppShell/sidebar remains
+framework-neutral and receives a navigation callback from the host app rather
+than importing Next.js routing directly.
+
+Anchor `href` values must remain present for ordinary browser affordances such
+as copy link address, middle-click and modified-click new-tab behavior.
+Disabled navigation items must not navigate. Client-side navigation is only an
+ergonomic fix; reload, direct URL and new-tab session restoration still depend
+on the HttpOnly refresh-cookie flow through `SessionProvider`.
+
 ---
 
 # 8. Organization Dashboard

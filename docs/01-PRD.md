@@ -1055,6 +1055,20 @@ Detailed security controls belong in Technical Requirements.
 
 ---
 
+## PRD-SUPPORT-012
+
+Production web staff/admin authentication must support reliable session
+restoration after reload, direct URL open and normal internal navigation without
+exposing refresh tokens to browser JavaScript.
+
+The SelfX web application may use a same-origin web proxy/BFF boundary for
+browser API traffic so HttpOnly refresh cookies remain first-party to the web
+origin. This web proxy must not become a general API Gateway or move tenant
+authorization out of the SelfX API. Non-web clients may continue to call the
+SelfX API directly through approved client-specific authentication.
+
+---
+
 # 28. Usage Tracking
 
 ## PRD-USAGE-001
