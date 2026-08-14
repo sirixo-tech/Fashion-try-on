@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_scope_screen.dart';
 import 'kiosk_chrome.dart';
 
@@ -13,10 +14,12 @@ class GarmentSelectionScreen extends StatefulWidget {
     super.key,
     required this.captureController,
     required this.tryOnController,
+    required this.uploadController,
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
 
   @override
   State<GarmentSelectionScreen> createState() => _GarmentSelectionScreenState();
@@ -173,6 +176,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
         builder: (_) => CaptureScopeScreen(
           controller: widget.captureController,
           tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
         ),
       ),
     );

@@ -1,15 +1,19 @@
 import {
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from "class-validator";
 
 import {
   KioskAssignmentScope,
+  KioskCustomerUploadSessionStatus,
   KioskDeviceStatus,
   KioskPairingSessionStatus,
 } from "@prisma/client";
@@ -155,4 +159,67 @@ export class KioskPairingSessionRecordDto {
   id!: string;
   status!: KioskPairingSessionStatus;
   expiresAt!: string;
+}
+
+export class KioskCustomerUploadSessionResponseDto {
+  sessionId!: string;
+  status!: KioskCustomerUploadSessionStatus;
+  publicUploadUrl!: string;
+  expiresAt!: string;
+  serverTime!: string;
+  pollIntervalSeconds!: number;
+  photo?: {
+    readUrl: string;
+    contentType: string;
+    sizeBytes: number;
+    width: number;
+    height: number;
+  };
+}
+
+export class KioskCustomerUploadSessionStatusDto {
+  sessionId!: string;
+  status!: KioskCustomerUploadSessionStatus;
+  expiresAt!: string;
+  serverTime!: string;
+  rejectionCode!: string | null;
+  photo?: {
+    readUrl: string;
+    contentType: string;
+    sizeBytes: number;
+    width: number;
+    height: number;
+  };
+}
+
+export class CustomerUploadPublicStatusDto {
+  status!: KioskCustomerUploadSessionStatus;
+  expiresAt!: string;
+  serverTime!: string;
+  maxImageBytes!: number;
+}
+
+export class CustomerUploadIntentDto {
+  @IsString()
+  @MaxLength(80)
+  contentType!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(8 * 1024 * 1024)
+  sizeBytes!: number;
+}
+
+export class CustomerUploadIntentResponseDto {
+  uploadUrl!: string;
+  method!: "PUT";
+  expiresAt!: string;
+  headers!: Record<string, string>;
+  maxImageBytes!: number;
+}
+
+export class CustomerUploadCompleteResponseDto {
+  status!: KioskCustomerUploadSessionStatus;
+  expiresAt!: string;
+  serverTime!: string;
 }

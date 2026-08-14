@@ -48,6 +48,7 @@ class CaptureSessionController extends ChangeNotifier {
 
   CameraCaptureResult? capture;
   CameraCaptureResult? acceptedCapture;
+  CustomerPersonImage? acceptedPersonImage;
   ImageQualityResult? qualityResult;
   CaptureReadinessResult? readinessResult;
   FrameAnalysisDiagnostics? analysisDiagnostics;
@@ -233,6 +234,7 @@ class CaptureSessionController extends ChangeNotifier {
       });
       capture = result;
       acceptedCapture = null;
+      acceptedPersonImage = null;
       captureTargetMetadata = targetMetadata;
       acceptedCaptureTargetMetadata = null;
       qualityResult = null;
@@ -285,6 +287,7 @@ class CaptureSessionController extends ChangeNotifier {
     final previous = capture;
     capture = null;
     acceptedCapture = null;
+    acceptedPersonImage = null;
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
     primarySubject = null;
@@ -308,6 +311,12 @@ class CaptureSessionController extends ChangeNotifier {
       return false;
     }
     acceptedCapture = current;
+    acceptedPersonImage = CustomerPersonImage(
+      originalPath: current.originalPath,
+      source: CustomerPersonImageSource.kioskCamera,
+      captureScope: captureScope,
+      createdAt: current.createdAt,
+    );
     acceptedCaptureTargetMetadata = captureTargetMetadata;
     _setFlowState(
       flowState.copyWith(
@@ -319,12 +328,56 @@ class CaptureSessionController extends ChangeNotifier {
     return true;
   }
 
+  void acceptMobileUpload({
+    required String originalPath,
+    required int width,
+    required int height,
+  }) {
+    final result = CameraCaptureResult(
+      originalPath: originalPath,
+      createdAt: DateTime.now(),
+      deviceId: 'mobile-upload',
+      isTemporary: true,
+    );
+    capture = result;
+    acceptedCapture = result;
+    captureTargetMetadata = null;
+    acceptedCaptureTargetMetadata = null;
+    qualityResult = ImageQualityResult(
+      status: ImageQualityStatus.pass,
+      passed: true,
+      score: 100,
+      metrics: ImageQualityMetrics(
+        width: width,
+        height: height,
+        sharpness: null,
+        brightness: null,
+        contrast: null,
+      ),
+      issues: const [],
+    );
+    acceptedPersonImage = CustomerPersonImage(
+      originalPath: originalPath,
+      source: CustomerPersonImageSource.mobileUpload,
+      captureScope: captureScope,
+      createdAt: result.createdAt,
+    );
+    _setFlowState(
+      flowState.copyWith(
+        stage: CaptureFlowStage.photoReady,
+        clearSecondsRemaining: true,
+        clearError: true,
+      ),
+    );
+  }
+
   Future<void> resetSession() async {
     await _stopLiveReadiness();
     _cancelCountdownTimer();
     _captureRunId++;
     capture = null;
     acceptedCapture = null;
+    acceptedPersonImage = null;
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
     primarySubject = null;
@@ -605,6 +658,23 @@ class CaptureSessionController extends ChangeNotifier {
     unawaited(audioService.dispose());
     super.dispose();
   }
+}
+
+enum CustomerPersonImageSource { kioskCamera, mobileUpload }
+
+@immutable
+class CustomerPersonImage {
+  const CustomerPersonImage({
+    required this.originalPath,
+    required this.source,
+    required this.captureScope,
+    required this.createdAt,
+  });
+
+  final String originalPath;
+  final CustomerPersonImageSource source;
+  final CaptureScope captureScope;
+  final DateTime createdAt;
 }
 
 @immutable

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_scope_screen.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
@@ -14,10 +15,12 @@ class TryOnResultScreen extends StatelessWidget {
     super.key,
     required this.captureController,
     required this.tryOnController,
+    required this.uploadController,
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +89,7 @@ class TryOnResultScreen extends StatelessWidget {
         builder: (_) => GarmentSelectionScreen(
           captureController: captureController,
           tryOnController: tryOnController,
+          uploadController: uploadController,
         ),
       ),
       (route) => route.isFirst,
@@ -102,6 +106,7 @@ class TryOnResultScreen extends StatelessWidget {
         builder: (_) => CaptureScopeScreen(
           controller: captureController,
           tryOnController: tryOnController,
+          uploadController: uploadController,
         ),
       ),
       (route) => route.isFirst,

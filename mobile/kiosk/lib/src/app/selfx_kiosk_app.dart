@@ -19,6 +19,8 @@ import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/kiosk_try_on_gateway.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../ui/kiosk_startup_screen.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
+import '../upload/kiosk_customer_upload_gateway.dart';
 
 class SelfxKioskApp extends StatelessWidget {
   const SelfxKioskApp({
@@ -26,6 +28,7 @@ class SelfxKioskApp extends StatelessWidget {
     required this.controller,
     required this.tryOnController,
     required this.deviceController,
+    required this.uploadController,
     this.operatorAccessController,
   });
 
@@ -33,13 +36,15 @@ class SelfxKioskApp extends StatelessWidget {
     final settingsStore = SharedPreferencesCameraSettingsStore(
       SharedPreferencesAsync(),
     );
-    return SelfxKioskApp(
-      deviceController: KioskDeviceSessionController(
-        gateway: SelfxKioskDeviceGateway(
-          config: KioskDeviceApiConfig.fromEnvironment(),
-        ),
-        store: SecureKioskDeviceCredentialStore(),
+    final deviceController = KioskDeviceSessionController(
+      gateway: SelfxKioskDeviceGateway(
+        config: KioskDeviceApiConfig.fromEnvironment(),
       ),
+      store: SecureKioskDeviceCredentialStore(),
+    );
+    final captureStore = TemporaryCaptureStore();
+    return SelfxKioskApp(
+      deviceController: deviceController,
       controller: CaptureSessionController(
         cameraService: CameraPluginService(),
         settingsStore: settingsStore,
@@ -52,12 +57,19 @@ class SelfxKioskApp extends StatelessWidget {
                 ),
           qualityAnalyzer: const LuminanceLiveImageQualityAnalyzer(),
         ),
-        captureStore: TemporaryCaptureStore(),
+        captureStore: captureStore,
       ),
       tryOnController: KioskTryOnSessionController(
         gateway: SelfxKioskTryOnGateway(
           config: KioskTryOnApiConfig.fromEnvironment(),
         ),
+      ),
+      uploadController: KioskCustomerUploadController(
+        deviceController: deviceController,
+        gateway: SelfxKioskCustomerUploadGateway(
+          config: KioskCustomerUploadApiConfig.fromEnvironment(),
+        ),
+        captureStore: captureStore,
       ),
       operatorAccessController: OperatorAccessController(
         verifier: const Sha256OperatorAccessVerifier(
@@ -70,6 +82,7 @@ class SelfxKioskApp extends StatelessWidget {
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskDeviceSessionController deviceController;
+  final KioskCustomerUploadController uploadController;
   final OperatorAccessController? operatorAccessController;
 
   @override
@@ -82,6 +95,7 @@ class SelfxKioskApp extends StatelessWidget {
         deviceController: deviceController,
         captureController: controller,
         tryOnController: tryOnController,
+        uploadController: uploadController,
         operatorAccessController:
             operatorAccessController ??
             OperatorAccessController(

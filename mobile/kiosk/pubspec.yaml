@@ -47,6 +47,7 @@ dependencies:
   http_parser: ^4.1.2
   image: ^4.8.0
   flutter_secure_storage: ^9.2.4
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

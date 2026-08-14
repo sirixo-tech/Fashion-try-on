@@ -6,6 +6,11 @@ import { DatabaseModule } from "../database/database.module.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { AdminKiosksController } from "./admin-kiosks.controller.js";
 import {
+  CustomerUploadCapabilityController,
+  KioskCustomerUploadDeviceController,
+} from "./kiosk-customer-upload.controller.js";
+import { KioskCustomerUploadService } from "./kiosk-customer-upload.service.js";
+import {
   KioskDeviceSessionController,
   KioskHeartbeatController,
 } from "./kiosk-device.controller.js";
@@ -16,6 +21,7 @@ import {
 import { KIOSK_CONFIG } from "./kiosk.constants.js";
 import { loadKioskConfig } from "./kiosk.config.js";
 import { KioskService } from "./kiosk.service.js";
+import { ObjectStorageService } from "../storage/object-storage.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule, JwtModule.register({})],
@@ -25,9 +31,13 @@ import { KioskService } from "./kiosk.service.js";
     KioskSessionController,
     KioskDeviceSessionController,
     KioskHeartbeatController,
+    KioskCustomerUploadDeviceController,
+    CustomerUploadCapabilityController,
   ],
   providers: [
     KioskService,
+    KioskCustomerUploadService,
+    ObjectStorageService,
     PlatformAuthorizationService,
     { provide: KIOSK_CONFIG, useFactory: () => loadKioskConfig() },
   ],

@@ -10,6 +10,7 @@ import '../operator/operator_access.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_settings_screen.dart';
 import 'garment_selection_screen.dart';
 import 'selfx_glass_button.dart';
@@ -19,12 +20,14 @@ class KioskHomeScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.tryOnController,
+    required this.uploadController,
     required this.operatorAccessController,
     this.presentation = defaultIdlePresentation,
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
   final OperatorAccessController operatorAccessController;
   final KioskIdlePresentation presentation;
 
@@ -115,6 +118,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
         builder: (_) => GarmentSelectionScreen(
           captureController: widget.controller,
           tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
         ),
       ),
     );

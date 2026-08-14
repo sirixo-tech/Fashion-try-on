@@ -4,8 +4,9 @@ import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
-import 'camera_capture_screen.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_chrome.dart';
+import 'photo_source_choice_screen.dart';
 import 'selfx_glass_button.dart';
 
 class CaptureScopeScreen extends StatelessWidget {
@@ -13,10 +14,12 @@ class CaptureScopeScreen extends StatelessWidget {
     super.key,
     required this.controller,
     required this.tryOnController,
+    required this.uploadController,
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
 
   @override
   Widget build(BuildContext context) {
@@ -58,11 +61,11 @@ class CaptureScopeScreen extends StatelessWidget {
                             controller.selectCaptureScope(scope);
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    CameraCaptureScreen(
-                                      controller: controller,
-                                      tryOnController: tryOnController,
-                                    ),
+                                builder: (_) => PhotoSourceChoiceScreen(
+                                  captureController: controller,
+                                  tryOnController: tryOnController,
+                                  uploadController: uploadController,
+                                ),
                               ),
                             );
                           },

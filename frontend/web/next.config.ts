@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return apiRewriteConfig();
   },
+  async headers() {
+    return [
+      {
+        source: "/upload/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+    ];
+  },
   webpack: (config) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,

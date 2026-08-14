@@ -469,6 +469,34 @@ Flutter still needs `SELFX_KIOSK_API_BASE_URL` as a Dart define so the kiosk can
 reach SelfX API provisioning endpoints. It no longer needs
 `SELFX_KIOSK_DEV_ACCESS_TOKEN` for device provisioning.
 
+KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
+
+- The kiosk photo source step offers **Take Photo** or **Use My Phone**.
+- **Use My Phone** creates a five-minute customer upload session and displays a
+  QR code containing only an opaque capability URL.
+- The public web route `/upload/[capability]` lets the customer take or choose a
+  photo, previews it locally and uploads only after explicit confirmation.
+- SelfX signs a short-lived object-storage upload URL, validates the stored
+  image and lets the kiosk select only a validated `READY` upload.
+- The kiosk downloads the ready upload into temporary local capture storage,
+  marks it consumed and continues the existing generation flow.
+- KIOSK-4C does not implement KIOSK-4B production kiosk Try-On endpoints,
+  Product Catalog, QR result continuation, billing, Redis/BullMQ, API Gateway
+  or provider calls from Flutter.
+
+Additional server-side `@selfx/api` variables for KIOSK-4C:
+
+```bash
+KIOSK_CUSTOMER_UPLOAD_TOKEN_PEPPER=<long random server secret>
+KIOSK_CUSTOMER_UPLOAD_TTL_SECONDS=300
+SELFX_PUBLIC_WEB_BASE_URL=https://selfxweb-production.up.railway.app
+OBJECT_STORAGE_ENDPOINT=<s3-compatible endpoint>
+OBJECT_STORAGE_REGION=<region>
+OBJECT_STORAGE_BUCKET=<private bucket>
+OBJECT_STORAGE_ACCESS_KEY_ID=<server-side access key>
+OBJECT_STORAGE_SECRET_ACCESS_KEY=<server-side secret key>
+```
+
 Android hardware smoke checklist:
 
 ```bash

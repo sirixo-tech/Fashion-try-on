@@ -6,6 +6,7 @@ import '../device/kiosk_device_session_controller.dart';
 import '../operator/operator_access.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_home_screen.dart';
 import 'kiosk_pairing_screen.dart';
 
@@ -15,12 +16,14 @@ class KioskStartupScreen extends StatefulWidget {
     required this.deviceController,
     required this.captureController,
     required this.tryOnController,
+    required this.uploadController,
     required this.operatorAccessController,
   });
 
   final KioskDeviceSessionController deviceController;
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
   final OperatorAccessController operatorAccessController;
 
   @override
@@ -44,6 +47,7 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
             return KioskHomeScreen(
               controller: widget.captureController,
               tryOnController: widget.tryOnController,
+              uploadController: widget.uploadController,
               operatorAccessController: widget.operatorAccessController,
             );
           case KioskStartupState.networkUnavailable:

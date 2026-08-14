@@ -33,8 +33,11 @@ const kioskConfig = {
   pairingCodePepper: "test_pairing_code_pepper_32_chars_minimum",
   provisioningSecretPepper: "test_provisioning_secret_pepper_32_chars_minimum",
   deviceRefreshTokenPepper: "test_device_refresh_pepper_32_chars_minimum",
+  customerUploadTokenPepper: "test_customer_upload_pepper_32_chars_minimum",
   deviceJwtSecret: "test_device_jwt_secret_32_chars_minimum",
+  publicWebBaseUrl: "https://try.selfx.test",
   pairingTtlSeconds: 480,
+  customerUploadTtlSeconds: 300,
   deviceAccessTokenTtlSeconds: 900,
   deviceRefreshSessionTtlSeconds: 3600,
 };
@@ -388,6 +391,9 @@ describe("KIOSK-4A device provisioning", () => {
       .map((session) => session.kioskDeviceId)
       .filter((id): id is string => Boolean(id));
     await prisma.kioskDeviceSession.deleteMany({
+      where: { kioskDeviceId: { in: deviceIds } },
+    });
+    await prisma.kioskCustomerUploadSession.deleteMany({
       where: { kioskDeviceId: { in: deviceIds } },
     });
     await prisma.kioskPairingSession.deleteMany({

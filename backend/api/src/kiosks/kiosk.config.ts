@@ -1,11 +1,17 @@
-import { KIOSK_PAIRING_TTL_SECONDS } from "./kiosk.constants.js";
+import {
+  KIOSK_CUSTOMER_UPLOAD_TTL_SECONDS,
+  KIOSK_PAIRING_TTL_SECONDS,
+} from "./kiosk.constants.js";
 
 export interface KioskConfig {
   pairingCodePepper: string;
   provisioningSecretPepper: string;
   deviceRefreshTokenPepper: string;
+  customerUploadTokenPepper: string;
   deviceJwtSecret: string;
+  publicWebBaseUrl: string;
   pairingTtlSeconds: number;
+  customerUploadTtlSeconds: number;
   deviceAccessTokenTtlSeconds: number;
   deviceRefreshSessionTtlSeconds: number;
 }
@@ -47,7 +53,15 @@ export function loadKioskConfig(env = process.env): KioskConfig {
     env,
     "KIOSK_DEVICE_REFRESH_TOKEN_PEPPER",
   );
+  const customerUploadTokenPepper = requireEnv(
+    env,
+    "KIOSK_CUSTOMER_UPLOAD_TOKEN_PEPPER",
+  );
   const deviceJwtSecret = requireEnv(env, "KIOSK_DEVICE_JWT_SECRET");
+  const publicWebBaseUrl = requireEnv(env, "SELFX_PUBLIC_WEB_BASE_URL").replace(
+    /\/+$/,
+    "",
+  );
 
   ensureSecretQuality("KIOSK_PAIRING_CODE_PEPPER", pairingCodePepper);
   ensureSecretQuality(
@@ -58,19 +72,37 @@ export function loadKioskConfig(env = process.env): KioskConfig {
     "KIOSK_DEVICE_REFRESH_TOKEN_PEPPER",
     deviceRefreshTokenPepper,
   );
+  ensureSecretQuality(
+    "KIOSK_CUSTOMER_UPLOAD_TOKEN_PEPPER",
+    customerUploadTokenPepper,
+  );
   ensureSecretQuality("KIOSK_DEVICE_JWT_SECRET", deviceJwtSecret);
+  if (!/^https?:\/\//.test(publicWebBaseUrl)) {
+    throw new Error("SELFX_PUBLIC_WEB_BASE_URL must be an absolute URL");
+  }
 
   const pairingTtlSeconds = readPositiveInt(env, "KIOSK_PAIRING_TTL_SECONDS");
   if (pairingTtlSeconds !== KIOSK_PAIRING_TTL_SECONDS) {
     throw new Error("KIOSK_PAIRING_TTL_SECONDS must be 480");
   }
 
+  const customerUploadTtlSeconds = readPositiveInt(
+    env,
+    "KIOSK_CUSTOMER_UPLOAD_TTL_SECONDS",
+  );
+  if (customerUploadTtlSeconds !== KIOSK_CUSTOMER_UPLOAD_TTL_SECONDS) {
+    throw new Error("KIOSK_CUSTOMER_UPLOAD_TTL_SECONDS must be 300");
+  }
+
   return {
     pairingCodePepper,
     provisioningSecretPepper,
     deviceRefreshTokenPepper,
+    customerUploadTokenPepper,
     deviceJwtSecret,
+    publicWebBaseUrl,
     pairingTtlSeconds,
+    customerUploadTtlSeconds,
     deviceAccessTokenTtlSeconds: readPositiveInt(
       env,
       "KIOSK_DEVICE_ACCESS_TOKEN_TTL_SECONDS",

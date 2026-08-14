@@ -1524,6 +1524,27 @@ No checkout button is required.
 - Revoke action is visible only through the protected superadmin fleet surface
   and uses danger/destructive styling.
 
+### KIOSK-4C Mobile Photo Upload UI
+
+- After CaptureScope selection, the kiosk shows a photo source choice with
+  **Take Photo** and **Use My Phone**.
+- **Use My Phone** opens a QR upload screen with SelfX branding, large QR code,
+  five-minute `MM:SS` countdown, progress indicator, status text and cancel.
+- The QR screen must not show capability internals, object keys, auth tokens,
+  organization/store IDs or storage URLs.
+- The public phone page at `/upload/[capability]` is a mobile-first SelfX page
+  outside authenticated app chrome. It offers **Take Photo**, **Choose From
+  Gallery**, preview, **Choose Another** and explicit **Upload Photo**.
+- Upload progress uses customer-safe text: "Uploading your photo...",
+  "Validating photo..." and "Photo sent to the kiosk".
+- Expired/cancelled/consumed links show a safe terminal state telling the
+  customer to return to the kiosk for a new QR.
+- When the upload is `READY`, the kiosk shows the uploaded photo preview with
+  **Upload Another** and **Use This Photo**. Selecting the photo continues to
+  the existing generation progress screen.
+- KIOSK-4C UI does not add QR result handoff, customer account screens,
+  checkout, catalog browsing or provider diagnostics.
+
 ---
 
 # 28.1 SelfX Button and Visual System

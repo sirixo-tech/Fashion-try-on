@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
+import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
+import 'package:selfx_kiosk/src/device/kiosk_device_models.dart';
+import 'package:selfx_kiosk/src/device/kiosk_device_session_controller.dart';
+import 'package:selfx_kiosk/src/device/kiosk_device_storage.dart';
 import 'package:selfx_kiosk/src/idle/kiosk_idle_presentation.dart';
 import 'package:selfx_kiosk/src/live/live_frame.dart';
 import 'package:selfx_kiosk/src/operator/operator_access.dart';
@@ -18,6 +22,9 @@ import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
+import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
+import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_gateway.dart';
+import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_models.dart';
 
 void main() {
   group('CameraService foundation behavior', () {
@@ -532,6 +539,7 @@ extension _KioskHomeTester on WidgetTester {
           tryOnController: KioskTryOnSessionController(
             gateway: FakeKioskTryOnGateway(),
           ),
+          uploadController: testUploadController(controller.captureStore),
           operatorAccessController:
               operatorAccessController ?? testOperatorAccessController(),
           presentation: testIdlePresentation,
@@ -549,6 +557,20 @@ extension _KioskHomeTester on WidgetTester {
   }
 }
 
+KioskCustomerUploadController testUploadController(
+  TemporaryCaptureStore captureStore,
+) {
+  final deviceController = KioskDeviceSessionController(
+    gateway: FakeKioskDeviceGateway(),
+    store: InMemoryKioskDeviceCredentialStore(),
+  )..accessToken = 'test-device-access-token';
+  return KioskCustomerUploadController(
+    deviceController: deviceController,
+    gateway: FakeKioskCustomerUploadGateway(),
+    captureStore: captureStore,
+  );
+}
+
 class FakeKioskTryOnGateway implements KioskTryOnGateway {
   @override
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
@@ -558,6 +580,136 @@ class FakeKioskTryOnGateway implements KioskTryOnGateway {
   @override
   Future<KioskTryOnRun> getRun(String runId) async {
     return KioskTryOnRun(id: runId, status: KioskTryOnStatus.processing);
+  }
+}
+
+class FakeKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
+  @override
+  Future<KioskCustomerUploadSession> createSession(String accessToken) async {
+    return KioskCustomerUploadSession(
+      sessionId: 'upload-session',
+      status: KioskCustomerUploadStatus.waiting,
+      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      serverTime: DateTime.now(),
+      pollIntervalSeconds: 3,
+      publicUploadUrl: 'https://try.selfx.test/upload/capability',
+    );
+  }
+
+  @override
+  Future<KioskCustomerUploadSession> getSession({
+    required String accessToken,
+    required String sessionId,
+  }) async {
+    return KioskCustomerUploadSession(
+      sessionId: sessionId,
+      status: KioskCustomerUploadStatus.waiting,
+      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      serverTime: DateTime.now(),
+      pollIntervalSeconds: 3,
+      publicUploadUrl: 'https://try.selfx.test/upload/capability',
+    );
+  }
+
+  @override
+  Future<KioskCustomerUploadSession> cancelSession({
+    required String accessToken,
+    required String sessionId,
+  }) async {
+    return KioskCustomerUploadSession(
+      sessionId: sessionId,
+      status: KioskCustomerUploadStatus.cancelled,
+      expiresAt: DateTime.now(),
+      serverTime: DateTime.now(),
+      pollIntervalSeconds: 3,
+    );
+  }
+
+  @override
+  Future<KioskCustomerUploadSession> consumeSession({
+    required String accessToken,
+    required String sessionId,
+  }) async {
+    return KioskCustomerUploadSession(
+      sessionId: sessionId,
+      status: KioskCustomerUploadStatus.consumed,
+      expiresAt: DateTime.now(),
+      serverTime: DateTime.now(),
+      pollIntervalSeconds: 3,
+    );
+  }
+
+  @override
+  Future<void> downloadReadyPhoto({
+    required String readUrl,
+    required String targetPath,
+  }) async {}
+}
+
+class FakeKioskDeviceGateway implements KioskDeviceGateway {
+  @override
+  Future<KioskPairingSession> createPairingSession({
+    required String installationId,
+    required String platform,
+    required String appVersion,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskPairingStatusResult> getPairingStatus({
+    required String sessionId,
+    required String provisioningSecret,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskDeviceCredentials> exchangeProvisioningGrant({
+    required String pairingSessionId,
+    required String provisioningSecret,
+    required String provisioningGrant,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskDeviceCredentials> refreshSession(String refreshToken) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskDeviceIdentity> me(String accessToken) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskDeviceIdentity> heartbeat({
+    required String accessToken,
+    required String platform,
+    required String appVersion,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class InMemoryKioskDeviceCredentialStore implements KioskDeviceCredentialStore {
+  String? refreshToken;
+
+  @override
+  Future<String> installationId() async => 'test-installation';
+
+  @override
+  Future<String?> readRefreshToken() async => refreshToken;
+
+  @override
+  Future<void> writeRefreshToken(String token) async {
+    refreshToken = token;
+  }
+
+  @override
+  Future<void> clearRefreshToken() async {
+    refreshToken = null;
   }
 }
 

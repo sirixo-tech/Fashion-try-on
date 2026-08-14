@@ -8,6 +8,7 @@ import '../session/capture_flow.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'kiosk_chrome.dart';
 
@@ -16,10 +17,12 @@ class CameraCaptureScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.tryOnController,
+    required this.uploadController,
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
 
   @override
   State<CameraCaptureScreen> createState() => _CameraCaptureScreenState();
@@ -159,6 +162,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
             builder: (_) => CaptureReviewScreen(
               controller: widget.controller,
               tryOnController: widget.tryOnController,
+              uploadController: widget.uploadController,
             ),
           ),
         );

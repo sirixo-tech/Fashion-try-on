@@ -1381,6 +1381,34 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    - production kiosk Try-On endpoints remain KIOSK-4B. The KIOSK-3A temporary
      development bridge may remain in code but is not commercial architecture.
 
+   KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
+
+   - device-authenticated kiosks create sessions through
+     `POST /api/v1/kiosk/customer-upload-sessions`;
+   - kiosk status, cancellation and consumption use device-authenticated
+     session routes and must reload current device state before access;
+   - public phone routes are capability-only under
+     `/api/v1/customer-uploads/:capability/*` and never accept kiosk IDs,
+     organization IDs, store IDs or object keys from the browser;
+   - the QR capability is at least 256 bits of entropy, is stored only as an
+     HMAC digest using server-only `KIOSK_CUSTOMER_UPLOAD_TOKEN_PEPPER` and
+     expires after `KIOSK_CUSTOMER_UPLOAD_TTL_SECONDS=300`;
+   - signed upload and read URLs are short-lived, generated server-side and
+     bounded by the remaining session lifetime;
+   - object storage configuration is server-only. Browsers and Flutter must not
+     receive storage credentials;
+   - backend validation checks declared MIME type, file signature, byte size and
+     image dimensions for JPEG, PNG and WebP before setting `READY`;
+   - cancellation, replacement, rejection, expiry and consumption must not leave
+     a valid reusable customer upload capability. Stored objects are deleted
+     best-effort and remain covered by the global customer-image retention
+     policy;
+   - the public Next.js `/upload/[capability]` route stays outside authenticated
+     app layout/session requirements and uses no-referrer handling;
+   - KIOSK-4C does not introduce KIOSK-4B production Try-On endpoints, provider
+     execution changes, Product Catalog, durable TryOnRun orchestration,
+     Redis/BullMQ, billing or API Gateway.
+
 ---
 
 29. Kiosk Privacy and Offline Behavior

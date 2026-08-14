@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../quality/image_quality.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_generation_screen.dart';
 
@@ -14,10 +15,12 @@ class CaptureReviewScreen extends StatelessWidget {
     super.key,
     required this.controller,
     required this.tryOnController,
+    required this.uploadController,
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +70,7 @@ class CaptureReviewScreen extends StatelessWidget {
               final actions = _ReviewActions(
                 controller: controller,
                 tryOnController: tryOnController,
+                uploadController: uploadController,
                 quality: quality,
                 compact: compact,
               );
@@ -113,12 +117,14 @@ class _ReviewActions extends StatelessWidget {
   const _ReviewActions({
     required this.controller,
     required this.tryOnController,
+    required this.uploadController,
     required this.quality,
     required this.compact,
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
   final ImageQualityResult? quality;
   final bool compact;
 
@@ -158,6 +164,7 @@ class _ReviewActions extends StatelessWidget {
                       builder: (_) => TryOnGenerationScreen(
                         captureController: controller,
                         tryOnController: tryOnController,
+                        uploadController: uploadController,
                       ),
                     ),
                   );

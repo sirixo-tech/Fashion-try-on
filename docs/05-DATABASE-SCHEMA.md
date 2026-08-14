@@ -1039,7 +1039,59 @@ Rules:
 
 ---
 
-## 10.4 `kiosk_heartbeats`
+## 10.4 `kiosk_customer_upload_sessions`
+
+Short-lived KIOSK-4C customer phone photo upload sessions owned by an active
+kiosk device.
+
+Important fields:
+
+- `id`
+- `kiosk_device_id`
+- `status` (`WAITING`, `UPLOADING`, `VALIDATING`, `READY`, `REJECTED`,
+  `EXPIRED`, `CONSUMED`, `CANCELLED`)
+- `capability_digest`
+- `expires_at`
+- `created_at`
+- `updated_at`
+- `upload_started_at`
+- `ready_at`
+- `consumed_at`
+- `cancelled_at`
+- `asset_key`
+- `content_type`
+- `size_bytes`
+- `width`
+- `height`
+- `rejection_code`
+
+Indexes:
+
+- unique `capability_digest`
+- `(kiosk_device_id, created_at)`
+- `(kiosk_device_id, status)`
+- `(status, expires_at)`
+- `expires_at`
+
+Rules:
+
+- QR capability plaintext is not stored;
+- `capability_digest` is produced with a dedicated server-only HMAC pepper;
+- sessions expire after five minutes and cannot be reused after expiry,
+  cancellation, replacement, consumption or deletion;
+- browsers never supply object keys; SelfX generates the storage key and signed
+  URL;
+- object bytes are stored in private object storage, not PostgreSQL;
+- backend technical validation must pass before status becomes `READY`;
+- `CONSUMED` means the kiosk selected the ready photo for the current local
+  session;
+- stored objects remain customer-sensitive assets and must be cleaned up through
+  cancellation/rejection/expiry best-effort deletion plus the approved retention
+  lifecycle.
+
+---
+
+## 10.5 `kiosk_heartbeats`
 
 Optional bounded heartbeat history.
 

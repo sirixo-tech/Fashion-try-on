@@ -1080,6 +1080,38 @@ full Roles/Permissions, CMS wallpaper sync, remote commands, OTA updates, deep
 telemetry, FASHN changes, Shopify, WooCommerce, billing, Redis/BullMQ or API
 Gateway. Production device-authenticated kiosk Try-On belongs to KIOSK-4B.
 
+## PRD-KIOSK-011 — KIOSK-4C Secure Customer Mobile Photo Upload
+
+SelfX kiosks may let a customer use their personal phone to provide the person
+photo for the current kiosk Try-On session. This is an alternate photo input
+source for the existing kiosk flow, not a customer account or QR continuation
+feature.
+
+KIOSK-4C product rules:
+
+- After garment selection and CaptureScope selection, the customer may choose
+  **Take Photo** on the kiosk or **Use My Phone**.
+- The kiosk displays a QR code for a short-lived customer upload session owned
+  by the active kiosk device.
+- The QR code contains only an opaque capability URL. It must not expose raw
+  customer data, kiosk assignment data, object-storage keys, image URLs,
+  provider data, access tokens or secrets.
+- Customer upload links expire after five minutes and cannot be reused after
+  expiry, cancellation or consumption.
+- The phone upload page accepts only supported image files and requires an
+  explicit customer upload action after photo selection.
+- SelfX validates the uploaded image before the kiosk can select it.
+- Once ready, the kiosk previews the uploaded photo, lets the customer upload
+  another photo or select the ready photo, then continues the current kiosk
+  Try-On flow.
+- Temporary uploaded customer photos remain subject to the approved customer
+  image privacy and retention rules.
+
+KIOSK-4C does not implement production device-authenticated kiosk Try-On
+orchestration, Product Catalog, persistent customer accounts, QR result
+handoff/continuation, checkout, billing, Redis/BullMQ, API Gateway or provider
+client code in Flutter.
+
 ---
 
 # 24. QR Kiosk-to-Mobile Handoff

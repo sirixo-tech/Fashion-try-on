@@ -77,6 +77,17 @@ enum KioskPairingSessionStatus {
   CANCELLED
 }
 
+enum KioskCustomerUploadSessionStatus {
+  WAITING
+  UPLOADING
+  VALIDATING
+  READY
+  REJECTED
+  EXPIRED
+  CONSUMED
+  CANCELLED
+}
+
 enum OrganizationApplicationStatus {
   DRAFT
   SUBMITTED
@@ -301,6 +312,7 @@ model KioskDevice {
   updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization    Organization?          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   store           Store?                 @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  customerUploadSessions KioskCustomerUploadSession[]
   pairingSessions KioskPairingSession[]
   sessions        KioskDeviceSession[]
 
@@ -356,6 +368,33 @@ model KioskDeviceSession {
   @@index([expiresAt])
   @@index([revokedAt])
   @@map("kiosk_device_sessions")
+}
+
+model KioskCustomerUploadSession {
+  id               String                           @id @db.Uuid
+  kioskDeviceId    String                           @map("kiosk_device_id") @db.Uuid
+  status           KioskCustomerUploadSessionStatus @default(WAITING)
+  capabilityDigest String                           @unique @map("capability_digest")
+  expiresAt        DateTime                         @map("expires_at") @db.Timestamptz(3)
+  createdAt        DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  uploadStartedAt  DateTime?                        @map("upload_started_at") @db.Timestamptz(3)
+  readyAt          DateTime?                        @map("ready_at") @db.Timestamptz(3)
+  consumedAt       DateTime?                        @map("consumed_at") @db.Timestamptz(3)
+  cancelledAt      DateTime?                        @map("cancelled_at") @db.Timestamptz(3)
+  assetKey         String?                          @map("asset_key") @db.VarChar(512)
+  contentType      String?                          @map("content_type") @db.VarChar(80)
+  sizeBytes        Int?                             @map("size_bytes")
+  width            Int?
+  height           Int?
+  rejectionCode    String?                          @map("rejection_code") @db.VarChar(120)
+  kioskDevice      KioskDevice                      @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+
+  @@index([kioskDeviceId, createdAt])
+  @@index([kioskDeviceId, status])
+  @@index([status, expiresAt])
+  @@index([expiresAt])
+  @@map("kiosk_customer_upload_sessions")
 }
 
 model AuditLog {

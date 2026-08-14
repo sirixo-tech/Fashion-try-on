@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_scope_screen.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
@@ -13,10 +14,12 @@ class TryOnGenerationScreen extends StatefulWidget {
     super.key,
     required this.captureController,
     required this.tryOnController,
+    required this.uploadController,
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
 
   @override
   State<TryOnGenerationScreen> createState() => _TryOnGenerationScreenState();
@@ -152,6 +155,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
           builder: (_) => TryOnResultScreen(
             captureController: widget.captureController,
             tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
           ),
         ),
       );
@@ -168,6 +172,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
         builder: (_) => CaptureScopeScreen(
           controller: widget.captureController,
           tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
         ),
       ),
       (route) => route.isFirst,
@@ -184,6 +189,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
         builder: (_) => GarmentSelectionScreen(
           captureController: widget.captureController,
           tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
         ),
       ),
       (route) => route.isFirst,

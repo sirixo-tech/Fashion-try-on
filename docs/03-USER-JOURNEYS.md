@@ -1165,6 +1165,60 @@ KIOSK-4A does not connect device credentials to production Try-On generation.
 KIOSK-4B will replace the KIOSK-3A temporary user-token bridge with
 device-authenticated production kiosk Try-On endpoints.
 
+## 6.0.4C Customer/Kiosk — Secure Mobile Photo Upload
+
+### Primary Actors
+
+- Kiosk customer
+- Active paired SelfX kiosk
+- Customer phone browser
+
+### Preconditions
+
+- Kiosk is paired and online.
+- Customer has selected the garment input and CaptureScope for the current
+  kiosk session.
+- SelfX API object-storage upload configuration is available.
+
+### Main Flow
+
+1. Kiosk opens photo source choice after CaptureScope selection.
+2. Customer chooses **Use My Phone**.
+3. Kiosk creates a customer upload session with its device access token.
+4. Kiosk displays a QR code, five-minute countdown and waiting status.
+5. Customer scans the QR code with their phone.
+6. Phone opens the public SelfX upload page without staff login.
+7. Customer takes a photo or chooses one from the gallery.
+8. Customer confirms **Upload Photo**.
+9. Browser asks SelfX for a signed upload intent and uploads only to the
+   server-generated object key.
+10. Browser calls SelfX to complete validation.
+11. Kiosk polling sees `READY` and shows the uploaded photo preview.
+12. Customer chooses **Use This Photo**.
+13. Kiosk downloads the ready photo into temporary local capture storage, marks
+   the upload session consumed and continues to the existing generation screen.
+
+### Alternate / Failure Flows
+
+- Countdown expires -> upload session becomes `EXPIRED`; customer scans a new QR
+  if they still want phone upload.
+- Customer cancels on kiosk -> upload session becomes `CANCELLED` and any stored
+  object is deleted best-effort.
+- Customer uploads invalid, corrupt, oversized or unsupported image -> backend
+  marks the session `REJECTED`; kiosk stays in upload flow and can create a new
+  QR.
+- Customer wants another phone photo -> kiosk cancels/replaces the old session
+  and creates a fresh capability.
+- Network interruption -> kiosk keeps polling with safe waiting text; cancelled
+  or expired sessions cannot later become ready.
+
+### Boundary
+
+KIOSK-4C only provides a secure customer person-photo input source. It does not
+implement production kiosk Try-On endpoints, Product Catalog, QR result
+handoff, persistent customer accounts, checkout, billing, API Gateway or
+provider calls from Flutter.
+
 ## 6.0.5 Operator — Premium Settings Navigation
 
 ### Primary Actor

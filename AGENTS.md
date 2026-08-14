@@ -895,6 +895,41 @@ KIOSK-4A rules:
   remote commands, OTA updates, deep telemetry, FASHN changes, Redis/BullMQ,
   billing or API Gateway in KIOSK-4A.
 
+## KIOSK-4C Secure Customer Mobile QR Photo Upload
+
+KIOSK-4C adds a secure personal-phone photo upload option to the existing
+paired kiosk capture flow. It is only an alternate customer person-photo input
+source and must not be treated as production kiosk Try-On orchestration.
+
+KIOSK-4C rules:
+
+- Customer flow after CaptureScope selection offers **Take Photo** and
+  **Use My Phone**.
+- **Use My Phone** creates a backend customer upload session for the active
+  kiosk device and renders a QR code.
+- The QR URL contains only a high-entropy opaque capability. It must not contain
+  kiosk IDs, organization/store IDs, raw object keys, customer data, image URLs,
+  provider IDs, auth tokens or secrets.
+- Customer upload sessions expire after exactly five minutes. Backend
+  `expiresAt/serverTime` drives kiosk countdown and progress.
+- Capability plaintext is never stored; store only a digest using a dedicated
+  server-only pepper.
+- Customer browsers request a short-lived signed object-storage upload URL from
+  SelfX, then complete validation through SelfX. Object keys are generated
+  server-side only.
+- The backend validates content type, signature, size and image dimensions
+  before marking an upload `READY`.
+- The kiosk polls the device-authenticated session endpoint, previews only a
+  short-lived read URL for a `READY` photo, downloads the accepted image into
+  temporary local capture storage, marks the session consumed and continues the
+  existing generation flow.
+- Cancel, expiry, rejection and replacement must clean up stored objects
+  best-effort and must not allow a cancelled/expired upload to become ready.
+- The public upload page must not require staff `SessionProvider` auth.
+- KIOSK-4C does not implement KIOSK-4B production Try-On endpoints, Product
+  Catalog, persistent customer accounts, QR result continuation, billing,
+  Redis/BullMQ, API Gateway or provider calls from Flutter.
+
 ## SELFX-DESIGN-SYSTEM-2 Cross-Application Visual Language
 
 The SelfX primary action and selected-control color is `#FF7119` with white
