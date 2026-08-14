@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MonitorIcon,
   PlusIcon,
@@ -51,6 +51,8 @@ const assignmentScopes: KioskAssignmentScope[] = [
 
 export default function KiosksPage() {
   const session = useSession();
+  const accessToken =
+    session.status === "authenticated" ? session.accessToken : null;
   const [devices, setDevices] = useState<KioskDevice[]>([]);
   const [options, setOptions] = useState<KioskAssignmentOptions>({
     organizations: [],
@@ -60,16 +62,16 @@ export default function KiosksPage() {
   const [error, setError] = useState<string | null>(null);
   const [pairOpen, setPairOpen] = useState(false);
 
-  const load = async () => {
-    if (session.status !== "authenticated") {
+  const load = useCallback(async () => {
+    if (!accessToken) {
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const [nextDevices, nextOptions] = await Promise.all([
-        listKioskDevices(session.accessToken),
-        listKioskAssignmentOptions(session.accessToken),
+        listKioskDevices(accessToken),
+        listKioskAssignmentOptions(accessToken),
       ]);
       setDevices(nextDevices);
       setOptions(nextOptions);
@@ -78,12 +80,11 @@ export default function KiosksPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [accessToken]);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.status]);
+  }, [load]);
 
   const activeCount = devices.filter((device) => device.status === "ACTIVE").length;
 
