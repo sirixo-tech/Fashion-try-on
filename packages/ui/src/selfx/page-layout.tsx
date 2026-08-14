@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { Button } from "@selfx/ui/components/button";
 import { cn } from "@selfx/ui/lib/utils";
-import type { StateAction } from "./types.js";
+import type { StateAction } from "./types";
 
 export type PageWidth = "wide" | "medium" | "form";
 

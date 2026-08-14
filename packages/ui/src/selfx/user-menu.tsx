@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@selfx/ui/components/dropdown-menu";
-import type { SelfxUserSummary } from "./types.js";
+import type { SelfxUserSummary } from "./types";
 
 function initialsFor(user: SelfxUserSummary): string {
   const source = user.displayName || user.email;

@@ -3,9 +3,9 @@
 import { MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon } from "lucide-react";
 
 import { Button } from "@selfx/ui/components/button";
-import { OrganizationSwitcher } from "./organization-switcher.js";
-import { UserMenu } from "./user-menu.js";
-import type { SelfxOrganizationOption, SelfxUserSummary } from "./types.js";
+import { OrganizationSwitcher } from "./organization-switcher";
+import { UserMenu } from "./user-menu";
+import type { SelfxOrganizationOption, SelfxUserSummary } from "./types";
 
 export function AppHeader({
   organizations,

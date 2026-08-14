@@ -1,1 +1,1 @@
-export { PageHeader } from "./page-layout.js";
+export { PageHeader } from "./page-layout";

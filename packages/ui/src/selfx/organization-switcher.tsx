@@ -10,8 +10,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@selfx/ui/components/dropdown-menu";
-import { StatusBadge } from "./status-badge.js";
-import type { SelfxOrganizationOption } from "./types.js";
+import { StatusBadge } from "./status-badge";
+import type { SelfxOrganizationOption } from "./types";
 
 export function OrganizationSwitcher({
   organizations,

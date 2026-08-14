@@ -2,8 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 
-import { AppHeader } from "./app-header.js";
-import { AppSidebar } from "./app-sidebar.js";
+import { AppHeader } from "./app-header";
+import { AppSidebar } from "./app-sidebar";
 import {
   Sheet,
   SheetContent,
@@ -13,7 +13,7 @@ import type {
   SelfxNavItem,
   SelfxOrganizationOption,
   SelfxUserSummary,
-} from "./types.js";
+} from "./types";
 
 export function AppShell({
   children,

@@ -1,8 +1,8 @@
 import type { MouseEvent, ReactNode } from "react";
 
-import { SelfxLogo } from "./selfx-logo.js";
+import { SelfxLogo } from "./selfx-logo";
 import { cn } from "@selfx/ui/lib/utils";
-import type { SelfxNavItem } from "./types.js";
+import type { SelfxNavItem } from "./types";
 
 export function AppSidebar({
   items,

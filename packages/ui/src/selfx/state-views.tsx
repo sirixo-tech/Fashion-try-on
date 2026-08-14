@@ -10,7 +10,7 @@ import {
 import { Button } from "@selfx/ui/components/button";
 import { Card, CardContent } from "@selfx/ui/components/card";
 import { Skeleton } from "@selfx/ui/components/skeleton";
-import type { StateAction } from "./types.js";
+import type { StateAction } from "./types";
 
 function StateCard({
   icon: Icon,
