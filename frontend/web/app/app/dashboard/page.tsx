@@ -2,6 +2,8 @@ import {
   ActionCard,
   Button,
   FilterBar,
+  Input,
+  Label,
   NoOrganizationState,
   PageContainer,
   PageHeader,
@@ -11,8 +13,6 @@ import {
   StatGrid,
   StatusBadge,
   TableContainer,
-  Text,
-  TextInput,
 } from "@selfx/ui";
 import { LayoutTemplateIcon, ListFilterIcon } from "lucide-react";
 
@@ -65,37 +65,39 @@ export default function DashboardPage() {
       <PageSection>
         <FilterBar
           search={
-            <TextInput
-              label="Search"
-              placeholder="Future list search"
-              disabled
-              w={{ base: "100%", sm: 280 }}
-            />
+            <div className="w-full space-y-2 sm:w-72">
+              <Label htmlFor="dashboard-search">Search</Label>
+              <Input
+                id="dashboard-search"
+                placeholder="Future list search"
+                disabled
+              />
+            </div>
           }
           filters={
-            <Button
-              variant="light"
-              color="gray"
-              leftSection={<ListFilterIcon size={16} aria-hidden="true" />}
-              disabled
-            >
+            <Button variant="outline" disabled>
+              <ListFilterIcon aria-hidden="true" />
               Filters
             </Button>
           }
-          actions={<Button disabled>Secondary action</Button>}
+          actions={
+            <Button variant="outline" disabled>
+              Secondary action
+            </Button>
+          }
         />
         <TableContainer
           title="Table surface"
           description="Future bounded list pages should use this surface with explicit pagination."
           footer={
-            <Text size="sm" c="dimmed">
+            <p className="text-sm text-muted-foreground">
               Pagination controls will live here.
-            </Text>
+            </p>
           }
         >
-          <Text size="sm" c="dimmed">
+          <p className="text-sm text-muted-foreground">
             No operational table data is implemented in Phase 4.
-          </Text>
+          </p>
         </TableContainer>
       </PageSection>
 

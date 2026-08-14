@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Alert, Button, PasswordInput, Stack, TextInput } from "@selfx/ui";
+import { Alert, AlertDescription, Button, Input, Label } from "@selfx/ui";
 
 import { Signup2 } from "@/components/signup2";
 import { SafeApiError } from "@/lib/api";
@@ -36,13 +36,14 @@ export function LoginForm() {
 
   return (
     <Signup2
-      description="Access the SelfX staff and platform administration shell."
-      footer="Signup is reserved for the approved onboarding flow and is not enabled in this local shell yet."
+      description="Access the SelfX staff and platform administration workspace."
+      footer="New organization access is handled through the approved SelfX onboarding flow."
     >
-      <form onSubmit={onSubmit}>
-        <Stack gap="md">
-          <TextInput
-            label="Email"
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="selfx-login-email">Email</Label>
+          <Input
+            id="selfx-login-email"
             name="email"
             type="email"
             autoComplete="email"
@@ -50,23 +51,27 @@ export function LoginForm() {
             onChange={(event) => setEmail(event.currentTarget.value)}
             required
           />
-          <PasswordInput
-            label="Password"
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="selfx-login-password">Password</Label>
+          <Input
+            id="selfx-login-password"
             name="password"
+            type="password"
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.currentTarget.value)}
             required
           />
-          {errorCode ? (
-            <Alert color="danger" variant="light">
-              Sign in failed: {errorCode}
-            </Alert>
-          ) : null}
-          <Button type="submit" disabled={submitting}>
-            {submitting ? "Signing in" : "Sign in"}
-          </Button>
-        </Stack>
+        </div>
+        {errorCode ? (
+          <Alert variant="destructive">
+            <AlertDescription>Sign in failed: {errorCode}</AlertDescription>
+          </Alert>
+        ) : null}
+        <Button type="submit" disabled={submitting} className="w-full">
+          {submitting ? "Signing in" : "Sign in"}
+        </Button>
       </form>
     </Signup2>
   );

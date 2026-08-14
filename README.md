@@ -6,7 +6,7 @@ This repository is currently implemented through Phase 4 plus the CORE VTO-1
 internal development Try-On Lab. It includes repository foundation,
 PostgreSQL/Prisma, staff authentication, organization
 registration/review/activation, active organization/store/membership RBAC, the
-Mantine-primary SelfX design system, authenticated admin shell, and a guarded
+Shadcn-first SelfX design system, authenticated admin shell, and a guarded
 lab route for proving person-image plus garment-image Virtual Try-On.
 
 The CORE VTO-1 lab intentionally contains no Product Catalog, durable Try-On
@@ -86,17 +86,18 @@ packages/ui/src/selfx
 packages/ui/src/styles/globals.css
 ```
 
-Phase 4 UI architecture:
+Phase 4 / SELFX-UI-MIGRATION-1 UI architecture:
 
-- Mantine is the primary web UI/component framework.
-- `packages/ui` owns the shared SelfX Mantine theme, provider and reusable web
-  components.
-- shadcn/ui remains installed only as a secondary component source; generated
-  shadcn files live in `packages/ui/src/components`.
+- shadcn/ui is the primary web UI/component framework for SelfX web.
+- `packages/ui` owns shared SelfX semantic tokens, shadcn-based primitives and
+  reusable web components.
+- Mantine is retired from current SelfX web runtime usage. Future Mantine or
+  other external UI toolkit use requires an explicit user request.
 - Tailwind remains secondary utility/layout infrastructure and compatibility
   support, not the primary component system.
-- New common admin UI should import reusable SelfX components from `@selfx/ui`
-  and use Mantine-first components by default.
+- New common admin UI should use existing SelfX shadcn-based components first,
+  then small custom Tailwind only where no suitable primitive exists. Another
+  UI library requires an explicit user request.
 
 Phase 4 page/layout standards:
 
@@ -111,7 +112,37 @@ Phase 4 page/layout standards:
   one-column layout by default and responsive collapse for compact grouped
   fields.
 - New pages should not invent arbitrary spacing, card shadows, radii or visual
-  systems outside the shared SelfX Mantine theme and `@selfx/ui` primitives.
+  systems outside the shared SelfX semantic tokens and `@selfx/ui` primitives.
+
+SELFX-DESIGN-SYSTEM-2 establishes the shared SelfX visual language for SaaS web
+and kiosk/mobile applications:
+
+- SelfX primary action and selected-control color is `#FF7119` with white text.
+- Primary, active and selected controls use semantic design tokens rather than
+  page-specific color literals.
+- Secondary/inactive buttons use white/light surfaces, dark text and neutral
+  borders.
+- Danger actions remain semantically red.
+- Default buttons are rounded rectangles, not global pills.
+- shadcn/ui is the preferred SaaS web component system.
+- SaaS web uses a premium clean SaaS direction without mandatory glassmorphism.
+- Windows/mobile/kiosk may use glassmorphism selectively where it improves
+  overlays, controls or operator surfaces.
+- The `#FF7119` and white text product requirement may need an accessible
+  action variant before formal WCAG AA compliance.
+- SELFX-UI-MIGRATION-1 migrates the current shell, auth, state and placeholder
+  pages now to avoid double redesign work before Organizations, Roles,
+  Permissions, Catalog, Kiosks, Reports, Audit and Settings expansion.
+
+Current web migration status:
+
+- Migrated to Shadcn-first SelfX components: `/`, `/login`, authenticated app
+  shell/header/sidebar/account controls, `/app/dashboard`, placeholder module
+  routes, organization/access state routes and `/app/try-on-lab`.
+- Frontend consumers import public SelfX components and types from `@selfx/ui`;
+  do not depend on private `@selfx/ui/selfx/*` source-tree paths.
+- Future SaaS modules must start from the Shadcn-first SelfX primitives and
+  page patterns instead of adding new Mantine screens.
 
 ## CORE VTO-1 Try-On Lab
 
@@ -209,13 +240,50 @@ TryOnRun/ProviderAttempt, queue/worker, telemetry persistence and retention
 phases. The lab does not create a production analytics dashboard or durable
 analytics table.
 
-## KIOSK-2A Live Android Primary Kiosk Capture
+## KIOSK-2C Customer Kiosk Home and Operator Access
 
 `mobile/kiosk` is now one standalone Flutter kiosk application for the
 SelfX-owned camera and capture foundation. Android is the primary commercial
 kiosk deployment target, while Windows remains a fully supported secondary
 kiosk/desktop platform. The app is kept outside npm workspaces and does not
 reuse React, Mantine or shadcn packages.
+
+KIOSK-2C keeps the KIOSK-2A live capture foundation and adds the production
+kiosk shell expected on the floor: a customer-facing idle home, hidden operator
+access and responsive local settings.
+
+- The kiosk starts on a customer home/idle presentation, not camera settings or
+  technical test controls.
+- Customer home uses the reusable SelfX glass-capable primary CTA and no longer
+  shows development presentation labels such as static wallpaper or platform
+  readiness in normal customer mode.
+- The customer flow is Kiosk Home -> Start Try-On -> CaptureScope selection ->
+  Camera -> live preparation/readiness -> stable final 3/2/1 -> still capture
+  -> Review -> Photo Ready.
+- The home has no visible Camera Settings button. A hidden top-left double-tap
+  reveals operator access briefly.
+- Operator access opens a 6-digit PIN challenge before settings. The UI calls
+  the provider-neutral verifier and does not store, log or hardcode plaintext
+  production PINs.
+- Operator reveal and PIN use bounded frosted/glass surfaces. Glass is
+  selective and performance-conscious rather than applied to the full wallpaper
+  or live camera surface.
+- Five failed PIN attempts lock operator access for 60 seconds. Customer
+  Try-On remains available during operator lockout.
+- Settings unlock only for the current visit. Leaving settings re-locks
+  operator access.
+- Local settings are grouped as Camera, Capture, Display, Diagnostics and
+  System, and remain scrollable/responsive in Android portrait and Windows
+  portrait, landscape and narrow windows.
+- SELFX-DESIGN-SYSTEM-2 upgrades operator settings into Camera, Capture,
+  Display, Audio, Diagnostics and System categories with a premium navigation
+  rail/tabs, bounded camera preview, human-readable camera labels and technical
+  IDs tucked under diagnostics.
+- CaptureScope uses premium inactive light/frosted selection cards with icons,
+  descriptions and arrow affordances instead of permanently solid orange slabs.
+- Idle presentation is local/offline with static or slideshow semantics. The
+  bundled SelfX wallpaper is the default fallback until organization/kiosk
+  wallpaper management is added to the SaaS dashboard.
 
 KIOSK-2A implements local camera testing plus the assisted customer capture
 experience with on-device live readiness where Android image streams are

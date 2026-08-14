@@ -1,9 +1,8 @@
 import type { MouseEvent, ReactNode } from "react";
-import { NavLink, Stack, ThemeIcon } from "@mantine/core";
 
-import { SelfxLogo } from "@selfx/ui/selfx/selfx-logo";
+import { SelfxLogo } from "./selfx-logo.js";
+import { cn } from "@selfx/ui/lib/utils";
 import type { SelfxNavItem } from "./types.js";
-import classes from "./app-sidebar.module.css";
 
 export function AppSidebar({
   items,
@@ -19,24 +18,16 @@ export function AppSidebar({
   onNavigateTo?: (href: string) => void;
 }) {
   return (
-    <Stack h="100%" gap={0} className={classes.sidebar}>
-      <Stack px="md" py="md" className={classes.brand}>
+    <div className="flex h-full flex-col bg-card">
+      <div className="border-b px-5 py-4">
         <SelfxLogo />
-      </Stack>
-      <Stack
-        component="nav"
-        gap={4}
-        px="sm"
-        py="md"
-        aria-label="Primary"
-        className={classes.nav}
-      >
+      </div>
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Primary">
         {items.map((item) => {
           const Icon = item.icon;
           const active =
             activePath === item.href ||
-            (item.href !== "/app/dashboard" &&
-              activePath?.startsWith(item.href));
+            (item.href !== "/app/dashboard" && activePath?.startsWith(item.href));
           const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
             if (item.disabled || !item.href) {
               return;
@@ -50,44 +41,38 @@ export function AppSidebar({
           };
 
           return (
-            <NavLink
+            <a
               key={item.href}
-              component="a"
-              className={classes.navItem}
-              classNames={{
-                label: classes.navLabel,
-                section: classes.navSection,
-              }}
               href={item.disabled ? undefined : item.href}
-              label={item.label}
-              leftSection={
-                Icon ? (
-                  <ThemeIcon
-                    className={classes.navIcon}
-                    color={active ? "selfx" : "gray"}
-                    variant={active ? "filled" : "subtle"}
-                    size={30}
-                    radius="md"
-                  >
-                    <Icon size={17} strokeWidth={1.9} aria-hidden="true" />
-                  </ThemeIcon>
-                ) : undefined
-              }
-              active={active}
-              disabled={item.disabled}
               aria-current={active ? "page" : undefined}
+              aria-disabled={item.disabled ? true : undefined}
               onClick={handleClick}
-              variant="subtle"
-            />
+              className={cn(
+                "group relative flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors",
+                "hover:border-border hover:bg-muted/60 hover:text-foreground",
+                active &&
+                  "border-[color-mix(in_srgb,var(--selfx-primary),white_72%)] bg-[color-mix(in_srgb,var(--selfx-primary),white_92%)] text-foreground before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r-full before:bg-primary",
+                item.disabled && "pointer-events-none opacity-50",
+              )}
+            >
+              {Icon ? (
+                <span
+                  className={cn(
+                    "flex size-8 items-center justify-center rounded-md border bg-background text-muted-foreground",
+                    active &&
+                      "border-[color-mix(in_srgb,var(--selfx-primary),white_72%)] bg-white text-primary",
+                  )}
+                >
+                  <Icon size={17} strokeWidth={1.9} aria-hidden="true" />
+                </span>
+              ) : null}
+              <span className="truncate">{item.label}</span>
+            </a>
           );
         })}
-      </Stack>
-      {footer ? (
-        <Stack mt="auto" p="sm">
-          {footer}
-        </Stack>
-      ) : null}
-    </Stack>
+      </nav>
+      {footer ? <div className="border-t p-3">{footer}</div> : null}
+    </div>
   );
 }
 

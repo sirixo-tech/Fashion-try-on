@@ -412,31 +412,34 @@ Use explicit contracts and types.
 
 ## Web UI Architecture
 
-Mantine is the primary SelfX web UI and component framework.
+shadcn/ui is the primary SelfX web UI and component framework.
 
 The approved web UI hierarchy is:
 
 SelfX application UI
 → `@selfx/ui`
-→ Mantine
-→ centralized SelfX Mantine theme/components/wrappers
+→ shadcn/ui primitives
+→ centralized SelfX semantic tokens/components/wrappers
 
 `packages/ui` is the shared SelfX web design-system boundary. Reusable React
 web UI belongs there.
 
-shadcn/ui may remain installed as a secondary component source only when
-Mantine does not provide a suitable component or when retaining an existing
-shadcn primitive is explicitly justified. Do not treat Mantine and shadcn as
-equal default choices, and do not randomly mix them on individual pages.
+Frontend applications must consume public `@selfx/ui` exports for shared
+components and types. Do not import private `@selfx/ui/selfx/*` source-tree
+paths from `frontend/web`.
+
+Mantine or another UI toolkit may be used only when the user explicitly
+requests that library. Do not treat Mantine, MUI, Chakra, Ant Design or
+another toolkit as equal default choices for new SelfX web work.
 
 Tailwind CSS remains secondary styling infrastructure for simple layout
 utilities, existing compatibility and occasional application-specific spacing.
-Do not recreate Mantine components with Tailwind or create a parallel Tailwind
-component system.
+Do not recreate shadcn components with ad hoc Tailwind or create a parallel
+Tailwind component system.
 
 Common web UI such as navigation, app shell, controls, forms, cards, user
 menus, badges, alerts, loaders, modals, drawers, tabs, tooltips and admin
-layouts should be Mantine-first. Custom Try-On, camera and image-processing
+layouts should be shadcn-first. Custom Try-On, camera and image-processing
 experiences remain SelfX-specific components built on the approved UI
 architecture.
 
@@ -465,7 +468,7 @@ Rules for this lab:
   desktop, stacked on mobile, and previews using contained image fitting rather
   than consuming most of the page height;
 - completed lab runs should keep the person, garment and generated-result
-  comparison, with larger previews available through a Mantine modal;
+  comparison, with larger previews available through a SelfX dialog;
 - repeated garment testing may preserve the person photo while clearing garment,
   run and garment-quality state; New Try-On clears both images, run state and
   warning overrides;
@@ -775,12 +778,88 @@ KIOSK-2A rules:
   billing, runtime TTS expansion, production spoken voice work or API Gateway in
   KIOSK-2A.
 
-Future organization white-labeling must map through the centralized SelfX
-Mantine theme/token layer rather than scattered hard-coded styles.
+## KIOSK-2C Customer Home, Operator Access & Responsive Settings
+
+KIOSK-2C adds the customer-facing kiosk shell around the existing Android
+primary, Windows-supported capture foundation.
+
+KIOSK-2C rules:
+
+- `mobile/kiosk` must start on a customer-facing kiosk home/idle presentation,
+  not camera settings, diagnostics or technical test controls.
+- The customer flow is Kiosk Home -> Start Try-On -> CaptureScope selection ->
+  existing capture/readiness/review/photo-ready flow.
+- Camera Settings must not be visible on the home screen.
+- Operator access uses a hidden top-left double-tap hotspot that reveals an
+  operator icon temporarily, then a 6-digit PIN challenge before settings.
+- PIN verification must go through `OperatorAccessVerifier`. Do not hardcode
+  production plaintext PINs in widgets, persist plaintext PINs or log PIN input.
+- A development/demo verifier may use a derived verifier value only.
+- Five failed operator attempts lock operator access for 60 seconds. Customer
+  Try-On must remain available during operator lockout.
+- A successful PIN unlocks settings only for the current settings visit.
+  Leaving settings must re-lock operator access; do not create persistent
+  unlock state.
+- Local operator settings must be grouped as Camera, Capture, Display,
+  Diagnostics and System.
+- Settings must remain vertically scrollable/responsive in Android portrait and
+  Windows portrait, landscape and narrow desktop windows.
+- Idle presentation uses local/offline static or slideshow semantics with an
+  offline fallback and a provider-neutral model suitable for future CMS/fleet
+  content.
+- The bundled SelfX default wallpaper remains the kiosk fallback until
+  organization/kiosk-specific wallpapers are managed from the SaaS dashboard.
+- Do not add backend fleet sync, CMS APIs, kiosk provisioning/device auth,
+  Product Catalog, QR handoff, SelfX Try-On API upload, FASHN/provider calls,
+  migrations, Redis/BullMQ, R2, billing or API Gateway in KIOSK-2C.
+
+## SELFX-DESIGN-SYSTEM-2 Cross-Application Visual Language
+
+The SelfX primary action and selected-control color is `#FF7119` with white
+foreground. Do not scatter this literal through pages or widgets; use the
+SelfX web semantic tokens and Flutter kiosk tokens.
+
+Design-system rules:
+
+- Primary buttons use SelfX orange background, white text and orange border.
+- Active/selected segmented actions use the same SelfX orange treatment.
+- Secondary/inactive and outline buttons use white/light surfaces, dark text
+  and semantic neutral borders.
+- Danger/destructive actions remain semantically red, not orange.
+- Buttons default to premium rounded rectangles around an 8-10px visual radius;
+  do not make all buttons pill-shaped.
+- shadcn/ui is the default SaaS web component/interaction system. Mantine or
+  another web UI toolkit requires an explicit user request or a documented
+  temporary migration-safety exception.
+- SaaS web does not mandate glassmorphism; use modern, premium, clean SaaS
+  surfaces with restrained borders, shadows, spacing and typography.
+- Windows/mobile/kiosk may use glassmorphism selectively for overlays,
+  controls, PIN/operator surfaces or preview-adjacent panels where readability
+  remains strong.
+- Flutter kiosk controls use reusable glass-capable SelfX button semantics
+  where glass improves the premium experience. Primary glass buttons remain
+  SelfX orange with white text; secondary/inactive glass buttons remain
+  light/frosted with dark text and visible borders.
+- Normal customer home must not show implementation labels such as wallpaper
+  mode or platform readiness; technical presentation status belongs in
+  operator settings or diagnostics.
+- Kiosk operator settings use categories Camera, Capture, Display, Audio,
+  Diagnostics and System, with human-readable camera labels in normal UI and
+  raw hardware IDs only under diagnostics/hardware details.
+- Camera previews in operator settings must be bounded, aspect-ratio
+  preserving and must not dominate settings controls.
+- The requested `#FF7119` plus white text is a product requirement but may need
+  an accessible action variant before formal WCAG AA compliance.
+- Future Organizations, Stores, Users, Roles, Permissions, Catalog, Kiosks,
+  Try-On, Reports, Audit and Settings modules must use the shared SelfX design
+  system instead of one-off visual systems.
+
+Future organization white-labeling must map through centralized SelfX semantic
+tokens rather than scattered hard-coded styles.
 
 SelfX web pages must use the shared Phase 4 page/layout primitives from
 `@selfx/ui` instead of inventing one-off page scaffolds. The approved hierarchy
-is Mantine → SelfX theme → SelfX layout primitives → approved page templates →
+is shadcn/ui → SelfX semantic tokens → SelfX layout primitives → approved page templates →
 business pages. Standard page primitives include `PageContainer`, `PageHeader`,
 `PageSection`, `SectionHeader`, `StatGrid`, `StatCard`, `SectionCard`,
 `SummaryCard`, `ActionCard`, `TableContainer`, `FilterBar`,
@@ -789,7 +868,7 @@ business pages. Standard page primitives include `PageContainer`, `PageHeader`,
 Approved page width modes are `wide` for dashboards, list pages and admin
 workspaces, `medium` for detail/settings pages, and `form` for create/edit
 forms. Page padding, section gaps, card padding, card radius, borders and
-shadows should come from the centralized SelfX Mantine theme and these shared
+shadows should come from centralized SelfX semantic tokens and these shared
 components. Future pages must avoid arbitrary per-page visual systems, nested
 cards as page structure, unnecessary fixed card heights, and unbounded table or
 list surfaces without a pagination region.

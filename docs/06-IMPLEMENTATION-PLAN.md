@@ -485,11 +485,11 @@ Create the reusable UI foundation before building many dashboard pages.
 
 ### Implement
 
-- Mantine as the primary SelfX web component system
+- shadcn/ui as the primary SelfX web component system
 - Tailwind CSS as secondary utility/layout infrastructure
-- shadcn/ui as a secondary component source only when justified
+- Mantine only by explicit user request
 - `@selfx/ui`
-- centralized SelfX Mantine theme/design tokens
+- centralized SelfX semantic design tokens
 - typography
 - form conventions
 - buttons
@@ -555,7 +555,7 @@ CORE VTO-1.1 Lab UX and telemetry foundation checkpoint:
 - customer-facing web, mobile and kiosk consent remains mandatory before
   camera access, customer photo upload or AI processing;
 - the Lab page flow is Images -> Generate Try-On -> Result, using the Phase 4
-  SelfX/Mantine page standards;
+  SelfX page standards;
 - upload cards are compact, use contained image previews, sit side-by-side on
   desktop and stack on mobile;
 - Generate Try-On is placed in the main workflow, not as a detached
@@ -879,44 +879,121 @@ targeted tests for scheduler/readiness/fallback/Capture Anyway semantics,
 configuration changes. Real Android-box + USB-webcam verification remains
 pending until the certified hardware is available.
 
-### Phase 4 Implementation Notes
+### KIOSK-2C Customer Home, Operator Access and Settings Responsiveness Slice
 
-Phase 4 was revised after initial completion: Mantine is now the primary SelfX
-web UI/component framework. The approved hierarchy is:
+KIOSK-2C adds the kiosk shell around the existing local capture foundation.
+
+Implemented scope:
+
+- startup/default `mobile/kiosk` UI is the customer-facing home/idle
+  presentation;
+- local provider-neutral idle presentation model supports static/slideshow
+  semantics and an offline fallback;
+- bundled SelfX default wallpaper is used as the local fallback until
+  organization/kiosk-specific wallpapers are managed from the SaaS dashboard;
+- customer **Start Try-On** routes to CaptureScope selection and then the
+  existing KIOSK-2A capture/readiness/review/photo-ready flow;
+- no visible Camera Settings button on the home;
+- hidden top-left double-tap hotspot reveals an operator icon temporarily;
+- operator icon opens a 6-digit PIN challenge before settings;
+- operator PIN verification is isolated behind `OperatorAccessVerifier`;
+- production widgets do not hardcode plaintext PINs, persist PIN input or log
+  PIN values;
+- failed operator attempts lock operator access for 60 seconds after five
+  failures while leaving customer Try-On available;
+- leaving settings re-locks operator access;
+- Camera Settings is grouped into Camera, Capture, Display, Diagnostics and
+  System;
+- settings layout scrolls in narrow/portrait Windows and Android kiosk
+  viewports and keeps Windows support responsive.
+
+KIOSK-2C explicitly does not implement:
+
+- backend fleet sync, CMS APIs, SaaS dashboard wallpaper management, kiosk
+  provisioning/device auth, remote configuration, Product Catalog, QR handoff,
+  SelfX Try-On API upload,
+  FASHN/provider calls, Redis/BullMQ, R2, billing, migrations or API Gateway.
+
+Verification for this slice should include `flutter pub get`, Dart formatting,
+`flutter analyze`, targeted kiosk widget/domain tests for home/operator access
+and responsive settings behavior, Android debug APK build when practical, and
+Windows build/manual camera validation when hardware and GUI access are
+available.
+
+### SELFX-DESIGN-SYSTEM-2 Premium Cross-Application Design System
+
+Implemented scope:
+
+- semantic web design tokens for SelfX primary `#FF7119`, hover, pressed,
+  on-primary, surfaces, borders, text, status, radius and shadows;
+- shadcn-compatible CSS variables map primary controls to SelfX orange;
+- shadcn-compatible CSS variables aligned so `primary` maps to SelfX orange and
+  `primary-foreground` maps to white;
+- secondary/inactive button treatment remains light/white with dark text and
+  neutral border;
+- danger/destructive semantics remain red;
+- Flutter kiosk tokens mirror the shared semantics without sharing CSS;
+- kiosk primary/elevated/filled buttons use SelfX orange and white text;
+- kiosk secondary/outlined buttons use white surface, dark text and neutral
+  border;
+- kiosk operator settings redesigned into Camera, Capture, Display, Audio,
+  Diagnostics and System categories with responsive rail/tabs;
+- normal camera UI prioritizes human-readable labels while raw hardware IDs
+  live under diagnostics/hardware details;
+- camera preview is bounded and aspect-ratio preserving;
+- glass-style panels are used selectively for kiosk operator surfaces only.
+
+Explicitly not implemented:
+
+- Organizations, Stores, Users, Roles, Permission matrix, RBAC backend changes,
+  migrations, kiosk fleet management, device provisioning, CMS wallpaper sync,
+  FASHN/provider changes, API Gateway, billing or premium sound asset
+  generation.
+
+Verification for this slice should include web UI package typecheck where Node
+is available, directly affected web tests if practical, `flutter analyze` and
+directly affected kiosk widget tests. Platform APK/Windows builds are not
+required because this is a UI/theme-only change.
+
+### Phase 4 / SELFX-UI-MIGRATION-1 Implementation Notes
+
+Phase 4 was revised again by SELFX-UI-MIGRATION-1: shadcn/ui is now the primary
+SelfX web UI/component framework. The approved hierarchy is:
 
 ```text
 SelfX application UI
         ↓
 @selfx/ui
         ↓
-Mantine
+shadcn/ui primitives
         ↓
-SelfX Mantine theme/components/wrappers
+SelfX semantic tokens/components/wrappers
 ```
 
-The revised Phase 4 Mantine implementation uses:
+The current Shadcn-first implementation uses:
 
-- Mantine packages: `@mantine/core` and `@mantine/hooks`;
-- official Next.js App Router setup with Mantine styles, `ColorSchemeScript`,
-  `mantineHtmlProps` and `MantineProvider`;
-- shared provider/theme boundary in `packages/ui/src/theme`;
-- `SelfxUiProvider` exported from `@selfx/ui`;
-- Mantine-first reusable shell/components in `packages/ui/src/selfx`.
+- shared shadcn/base UI primitives in `packages/ui/src/components`;
+- SelfX shell, state, layout and card components in `packages/ui/src/selfx`;
+- semantic CSS tokens in `packages/ui/src/styles/globals.css`;
+- `#FF7119` mapped through `--selfx-primary`, with white
+  `--selfx-on-primary` foreground;
+- orange selected/active button semantics, white/dark/border secondary
+  treatment and red destructive semantics.
 
 Tailwind CSS remains installed for simple layout utilities, compatibility and
 occasional application-specific spacing. It is not the primary component
 system.
 
-shadcn/ui remains configured for the current npm-workspace monorepo with:
+shadcn/ui is configured for the current npm-workspace monorepo with:
 
 - app config: `frontend/web/components.json`;
 - shared package config: `packages/ui/components.json`;
 - shared design tokens and Tailwind entrypoint:
   `packages/ui/src/styles/globals.css`;
 - Next PostCSS entrypoint: `frontend/web/postcss.config.mjs`;
-- retained secondary shadcn-derived primitives in `packages/ui/src/components`.
+- primary shadcn-derived primitives in `packages/ui/src/components`.
 
-The retained shadcn primitive set is secondary and currently limited to:
+The current shadcn primitive set includes:
 
 - Button;
 - Input;
@@ -931,11 +1008,29 @@ The retained shadcn primitive set is secondary and currently limited to:
 - Skeleton;
 - Tooltip;
 - Breadcrumb.
+- Alert;
+- Textarea;
+- Table.
 
-New normal admin UI should not use these as the default. Use existing
-`@selfx/ui` SelfX components first, otherwise use/build Mantine-first
-components, and use shadcn only when Mantine is genuinely unsuitable or an
-existing retained primitive is explicitly justified.
+New normal admin UI must use existing SelfX shadcn-based components first.
+Mantine or another UI toolkit requires an explicit user request. Mantine
+runtime usage and dependencies are retired from current SelfX web/UI source
+after the Try-On Lab migration.
+
+SELFX-UI-MIGRATION-1.1 current-screen status:
+
+- `/`, `/login`, authenticated app shell/header/sidebar/account controls,
+  `/app/dashboard`, placeholder module routes and organization/access state
+  routes and `/app/try-on-lab` use Shadcn-first SelfX components and semantic
+  tokens.
+- `@selfx/ui` exposes public components and consumer types, including
+  `SelfxNavItem`, through the package root. Frontend apps must not import
+  private `@selfx/ui/selfx/*` source-tree paths.
+- Kiosk screens continue to use Flutter-native SelfX theme semantics; Shadcn is
+  not used in Flutter.
+- Flutter adds reusable glass-capable SelfX button semantics and applies them
+  to customer home, operator reveal, operator PIN and premium CaptureScope
+  selection surfaces without changing camera/capture business logic.
 
 Initial authenticated shell routes live under:
 

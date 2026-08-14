@@ -6,19 +6,10 @@ import {
   LockKeyholeIcon,
   PauseCircleIcon,
 } from "lucide-react";
-import {
-  Button,
-  Card,
-  Group,
-  Loader,
-  SimpleGrid,
-  Skeleton,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-} from "@mantine/core";
 
+import { Button } from "@selfx/ui/components/button";
+import { Card, CardContent } from "@selfx/ui/components/card";
+import { Skeleton } from "@selfx/ui/components/skeleton";
 import type { StateAction } from "./types.js";
 
 function StateCard({
@@ -28,58 +19,50 @@ function StateCard({
   action,
   children,
 }: {
-  icon: ComponentType<{ size?: number }>;
+  icon: ComponentType<{ size?: number; className?: string }>;
   title: string;
   description: string;
   action?: StateAction;
   children?: ReactNode;
 }) {
   return (
-    <Card maw={640} mx="auto" shadow="sm" p="lg">
-      <Stack gap="md">
-        <ThemeIcon color="gray" variant="light" size={44} radius="md">
-          <Icon size={22} />
-        </ThemeIcon>
-        <Stack gap={4}>
-          <Title order={2} size="h3">
-            {title}
-          </Title>
-          <Text c="dimmed" size="sm">
-            {description}
-          </Text>
-        </Stack>
+    <Card className="mx-auto w-full max-w-2xl">
+      <CardContent className="flex flex-col gap-4 p-6">
+        <div className="flex size-11 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+          <Icon size={22} aria-hidden="true" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
         {(action || children) && (
-          <Group gap="sm">
+          <div className="flex flex-wrap items-center gap-2">
             {children}
             {action?.href ? (
-              <Button component="a" href={action.href}>
-                {action.label}
-              </Button>
+              <Button render={<a href={action.href} />}>{action.label}</Button>
             ) : action ? (
               <Button onClick={action.onClick}>{action.label}</Button>
             ) : null}
-          </Group>
+          </div>
         )}
-      </Stack>
+      </CardContent>
     </Card>
   );
 }
 
 export function LoadingState({ label = "Loading" }: { label?: string }) {
   return (
-    <Stack p="lg" gap="md" role="status" aria-live="polite">
-      <Group gap="xs">
-        <Loader size="sm" />
-        <Text c="dimmed" size="sm">
-          {label}
-        </Text>
-      </Group>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-        <Skeleton height={112} radius="md" />
-        <Skeleton height={112} radius="md" />
-        <Skeleton height={112} radius="md" />
-      </SimpleGrid>
-    </Stack>
+    <div className="flex flex-col gap-4 p-6" role="status" aria-live="polite">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="size-2 animate-pulse rounded-full bg-primary" />
+        {label}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+      </div>
+    </div>
   );
 }
 
@@ -92,9 +75,7 @@ export function EmptyState(props: {
     <StateCard
       icon={InboxIcon}
       title={props.title ?? "Nothing here yet"}
-      description={
-        props.description ?? "This area will show records when they exist."
-      }
+      description={props.description ?? "This area will show records when they exist."}
       action={props.action}
     />
   );
@@ -109,9 +90,7 @@ export function ErrorState(props: {
     <StateCard
       icon={AlertCircleIcon}
       title={props.title ?? "Something went wrong"}
-      description={
-        props.description ?? "The request could not be completed safely."
-      }
+      description={props.description ?? "The request could not be completed safely."}
       action={props.action}
     />
   );
@@ -126,9 +105,7 @@ export function PermissionDeniedState(props: {
     <StateCard
       icon={LockKeyholeIcon}
       title={props.title ?? "Permission required"}
-      description={
-        props.description ?? "Your account is not authorized for this area."
-      }
+      description={props.description ?? "Your account is not authorized for this area."}
       action={props.action}
     />
   );

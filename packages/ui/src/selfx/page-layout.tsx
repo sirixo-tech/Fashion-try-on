@@ -1,35 +1,32 @@
 import type { ReactNode } from "react";
-import {
-  Box,
-  Button,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { ChevronLeftIcon } from "lucide-react";
 
+import { Button } from "@selfx/ui/components/button";
+import { cn } from "@selfx/ui/lib/utils";
 import type { StateAction } from "./types.js";
 
 export type PageWidth = "wide" | "medium" | "form";
 
 const pageWidth: Record<PageWidth, string> = {
-  wide: "92rem",
-  medium: "64rem",
-  form: "46rem",
+  wide: "max-w-[92rem]",
+  medium: "max-w-[64rem]",
+  form: "max-w-[46rem]",
 };
 
 function ActionButton({
   action,
-  variant = "subtle",
+  variant = "ghost",
 }: {
   action: StateAction;
-  variant?: "filled" | "light" | "subtle" | "outline";
+  variant?: "default" | "secondary" | "ghost" | "outline";
 }) {
+  const props = {
+    onClick: action.onClick,
+    className: "w-fit",
+  };
+
   if (action.href) {
     return (
-      <Button component="a" href={action.href} variant={variant}>
+      <Button render={<a href={action.href} />} variant={variant} {...props}>
         {action.label}
       </Button>
     );
@@ -50,15 +47,9 @@ export function PageContainer({
   width?: PageWidth;
 }) {
   return (
-    <Box
-      w="100%"
-      maw={pageWidth[width]}
-      mx="auto"
-      px={{ base: "md", sm: "lg", lg: "xl" }}
-      py={{ base: "md", sm: "lg", lg: "xl" }}
-    >
-      <Stack gap="lg">{children}</Stack>
-    </Box>
+    <main className={cn("mx-auto w-full px-4 py-5 sm:px-6 lg:px-8 lg:py-8", pageWidth[width])}>
+      <div className="flex flex-col gap-6">{children}</div>
+    </main>
   );
 }
 
@@ -73,11 +64,8 @@ export function PageSection({
   children: ReactNode;
   gap?: "sm" | "md" | "lg";
 }) {
-  return (
-    <Stack component="section" gap={gap}>
-      {children}
-    </Stack>
-  );
+  const gapClass = gap === "sm" ? "gap-3" : gap === "lg" ? "gap-6" : "gap-4";
+  return <section className={cn("flex flex-col", gapClass)}>{children}</section>;
 }
 
 export function SectionHeader({
@@ -90,19 +78,15 @@ export function SectionHeader({
   actions?: ReactNode;
 }) {
   return (
-    <Group justify="space-between" align="flex-end" gap="md" wrap="wrap">
-      <Stack gap={3}>
-        <Title order={2} size="h3">
-          {title}
-        </Title>
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0 space-y-1">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
         {description ? (
-          <Text size="sm" c="dimmed" maw={760}>
-            {description}
-          </Text>
+          <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>
         ) : null}
-      </Stack>
-      {actions ? <Group gap="xs">{actions}</Group> : null}
-    </Group>
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </div>
   );
 }
 
@@ -131,68 +115,48 @@ export function PageHeader({
     primaryAction &&
     typeof primaryAction === "object" &&
     "label" in primaryAction ? (
-      <ActionButton action={primaryAction as StateAction} variant="filled" />
+      <ActionButton action={primaryAction as StateAction} variant="default" />
     ) : (
       primaryAction
     );
 
   return (
-    <Stack component="header" gap="sm">
-      {breadcrumbs ? <Box>{breadcrumbs}</Box> : null}
+    <header className="flex flex-col gap-3">
+      {breadcrumbs ? <div>{breadcrumbs}</div> : null}
       {backAction ? (
-        <Box>
-          <Button
-            component={backAction.href ? "a" : "button"}
-            href={backAction.href}
-            onClick={backAction.onClick}
-            leftSection={<ChevronLeftIcon size={16} aria-hidden="true" />}
-            variant="subtle"
-            size="compact-sm"
-          >
-            {backAction.label}
-          </Button>
-        </Box>
+        <ActionButton action={backAction} variant="ghost" />
       ) : null}
-      <Group align="flex-end" justify="space-between" gap="md" wrap="wrap">
-        <Stack gap={5} style={{ flex: "1 1 28rem" }}>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0 flex-1 space-y-2">
           {eyebrow ? (
-            <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
               {eyebrow}
-            </Text>
+            </p>
           ) : null}
-          <Group gap="sm" align="center" wrap="wrap">
-            <Title order={1} size="h2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {title}
-            </Title>
+            </h1>
             {status}
-          </Group>
+          </div>
           {description ? (
-            <Text size="sm" c="dimmed" maw={820}>
-              {description}
-            </Text>
+            <p className="max-w-4xl text-sm leading-6 text-muted-foreground">{description}</p>
           ) : null}
-        </Stack>
+        </div>
         {actions || secondaryActions || renderedPrimaryAction ? (
-          <Group gap="sm" justify="flex-end" wrap="wrap">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {secondaryActions}
             {actions}
             {renderedPrimaryAction}
-          </Group>
+          </div>
         ) : null}
-      </Group>
-    </Stack>
+      </div>
+    </header>
   );
 }
 
 export function StatGrid({ children }: { children: ReactNode }) {
-  return (
-    <SimpleGrid
-      cols={{ base: 1, sm: 2, xl: 4 }}
-      spacing={{ base: "md", lg: "lg" }}
-    >
-      {children}
-    </SimpleGrid>
-  );
+  return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{children}</div>;
 }
 
 export function FormSection({
@@ -205,10 +169,10 @@ export function FormSection({
   children: ReactNode;
 }) {
   return (
-    <Stack gap="md">
+    <div className="flex flex-col gap-4">
       {title ? <SectionHeader title={title} description={description} /> : null}
-      <Stack gap="md">{children}</Stack>
-    </Stack>
+      <div className="flex flex-col gap-4">{children}</div>
+    </div>
   );
 }
 
@@ -221,14 +185,10 @@ export function FormActions({
 }) {
   const justify =
     align === "left"
-      ? "flex-start"
+      ? "justify-start"
       : align === "apart"
-        ? "space-between"
-        : "flex-end";
+        ? "justify-between"
+        : "justify-end";
 
-  return (
-    <Group justify={justify} gap="sm" wrap="wrap">
-      {children}
-    </Group>
-  );
+  return <div className={cn("flex flex-wrap items-center gap-2", justify)}>{children}</div>;
 }

@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { SelfxUiProvider } from "@selfx/ui";
-import { AppSidebar } from "@selfx/ui/selfx/app-sidebar";
+import { AppSidebar, SelfxUiProvider } from "@selfx/ui";
 
 const items = [
   { href: "/app/dashboard", label: "Dashboard" },

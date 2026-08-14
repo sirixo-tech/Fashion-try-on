@@ -78,9 +78,9 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    React
    TypeScript
    App Router
-   Mantine as the primary web component system
+   shadcn/ui as the primary web component system
    Tailwind CSS
-   shadcn/ui as a secondary component source only when Mantine is unsuitable or an existing retained shadcn primitive is explicitly justified
+   Mantine or another UI toolkit only by explicit user request
    Additional libraries may be added when necessary for charts, tables, image editing, camera handling, animation, accessibility, or another justified requirement.
    Do not introduce multiple competing design systems without a clear reason.
    Backend
@@ -176,10 +176,13 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
 7. UI/UX Architecture
    SelfX must maintain a uniform product experience.
    The default web design system is:
-   Mantine + centralized SelfX Mantine theme/components in `@selfx/ui`
+   shadcn/ui + centralized SelfX semantic tokens/components in `@selfx/ui`
    Tailwind CSS remains secondary styling infrastructure for simple layout utilities, existing compatibility and occasional app-specific spacing.
-   shadcn/ui is secondary and may be used only when Mantine does not provide a suitable solution or when retaining an existing shadcn primitive is explicitly justified.
+   Mantine is not the default for new SelfX web work and may be used only by explicit user request.
    A shared `@selfx/ui` package should hold reusable web UI primitives and SelfX components.
+   Frontend web applications must import shared components and public consumer
+   types from the public `@selfx/ui` package API. They must not depend on
+   private `@selfx/ui/selfx/*` source-tree paths.
    The design system should standardize:
    typography
    spacing
@@ -195,12 +198,12 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    status semantics
    Flutter cannot reuse React components directly, but kiosk/mobile must follow the same design language and interaction semantics.
    Merchant-embedded Shopify/WooCommerce experiences may adapt to merchant branding while preserving the core SelfX Try-On UX.
-   White-label support should map through the centralized SelfX Mantine theme/token layer rather than scattered hard-coded styling.
-   Common web UI such as navigation, sidebars, headers, user information, controls, forms, cards, statistics, badges, alerts, loaders, menus, drawers, modals, tabs, tooltips and responsive admin layouts should be Mantine-first. Custom Try-On/image/camera experiences remain SelfX-specific components built on the approved design-system boundary.
+   White-label support should map through centralized SelfX semantic tokens rather than scattered hard-coded styling.
+   Common web UI such as navigation, sidebars, headers, user information, controls, forms, cards, statistics, badges, alerts, loaders, menus, drawers, modals, tabs, tooltips and responsive admin layouts should be Shadcn-first. Custom Try-On/image/camera experiences remain SelfX-specific components built on the approved design-system boundary.
 
    Phase 4 page and layout standards:
    SelfX web pages must compose a uniform layout hierarchy:
-   Mantine → SelfX theme → SelfX layout primitives → approved page templates → business pages.
+   shadcn/ui → SelfX semantic tokens → SelfX layout primitives → approved page templates → business pages.
    Reusable layout primitives live in `@selfx/ui` and include:
    `PageContainer`, `PageHeader`, `PageSection`, `SectionHeader`, `StatGrid`, `FilterBar`, `FormPageContainer`, `FormSection` and `FormActions`.
    Approved page width modes:
@@ -771,7 +774,7 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     desktop and stack on mobile, and Generate Try-On remains placed in the main
     workflow rather than as a detached header action. Completed runs show
     Person, Garment and Generated Try-On comparison panels with larger previews
-    in a Mantine modal. Try Another Garment preserves the person photo while
+    in a SelfX dialog. Try Another Garment preserves the person photo while
     clearing garment, garment-quality and run state. New Try-On clears both
     images, run state and warning overrides.
 
@@ -1033,7 +1036,7 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    Temporary captures are local only, cleaned on replacement/session reset where
    practical, and must not be committed or uploaded during KIOSK-1.
    Flutter kiosk UI mirrors the SelfX design language with Flutter-native
-   components rather than React/Mantine components.
+   components rather than React/shadcn or React/Mantine components.
    KIOSK-1.5 keeps `mobile/kiosk` as one Flutter kiosk app and adds Android as
    the primary build target without removing Windows support.
    The shared kiosk UI/session flow remains independent of platform camera
@@ -1178,6 +1181,68 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    prominence signals such as apparent body area, centrality, capture-guide
    overlap, pose visibility and confidence rather than true physical distance.
    Widgets and camera adapters must not own subject selection.
+
+   KIOSK-2C adds a customer-facing kiosk shell before capture. The shared
+   Flutter app starts on a local/offline idle presentation with static or
+   slideshow semantics, then routes **Start Try-On** to CaptureScope selection
+   and the existing capture pipeline. The presentation model is provider-neutral
+   and local-first so a future CMS/fleet source can supply assets without
+   rewriting the kiosk home. The bundled SelfX wallpaper is the default local
+   asset for all kiosks until organization/kiosk-specific wallpapers are managed
+   from the SaaS dashboard and synced to devices.
+
+   Operator settings are protected by local operator access. The home contains
+   no visible settings button; a hidden top-left double-tap hotspot reveals an
+   operator icon for a short configured duration. The icon opens a 6-digit PIN
+   challenge. UI widgets must call the `OperatorAccessVerifier` boundary and
+   must not hardcode production PINs, persist plaintext PINs or log PIN input.
+   A demo/local verifier may use a derived verifier value for development.
+
+   Operator access lockout is local and bounded: five failed attempts lock
+   operator access for 60 seconds. Lockout does not block the customer
+   **Start Try-On** path. Successful unlock grants settings access only for the
+   current settings visit; returning from settings re-locks operator access.
+
+   Camera Settings remains local device configuration and is grouped into
+   Camera, Capture, Display, Diagnostics and System sections. Settings screens
+   must be vertically scrollable and responsive in Android portrait and Windows
+   portrait, landscape and narrow desktop windows.
+
+   SELFX-DESIGN-SYSTEM-2 refines operator settings into Camera, Capture,
+   Display, Audio, Diagnostics and System categories. Wide layouts may use a
+   premium navigation rail/sidebar; narrow and portrait layouts must adapt with
+   tabs or stacked controls. The normal Camera category must show
+   human-readable camera names first, connection status and resolution. Raw
+   hardware IDs belong under Diagnostics or hardware details. The camera
+   preview is bounded and aspect-ratio preserving so it does not dominate
+   configuration.
+
+10. Cross-Application Design Tokens
+
+    The SelfX primary action and active/selected control color is `#FF7119`
+    with white foreground. Implement this through semantic tokens in the
+    web semantic tokens, shared UI package and Flutter kiosk theme. Do not scatter
+    the literal across pages.
+
+    Required semantics include primary, primary hover, primary pressed,
+    on-primary foreground, secondary/inactive controls, ghost controls, danger,
+    disabled, surfaces, borders, focus, text, status colors, radius, spacing
+    and shadows.
+
+    SaaS web should use a premium modern SaaS visual language and Shadcn-first
+    interaction patterns. Glassmorphism is not mandatory for SaaS web.
+    Windows/mobile/kiosk applications may use glassmorphism selectively for
+    overlays, operator navigation, PIN dialogs, camera controls and guidance
+    panels when readability remains strong.
+    Flutter implementations should use reusable glass-capable SelfX button
+    primitives rather than repeated one-off blur code. Blur regions must be
+    bounded and modest so camera/capture performance remains protected.
+
+    Primary buttons use orange background, white text and orange border.
+    Secondary/inactive and outline buttons use white/light backgrounds, dark
+    text and semantic neutral borders. Danger/destructive actions stay
+    semantically red. The requested orange/white combination may need an
+    accessible action variant before formal WCAG AA compliance.
 
    The PrimarySubject lock uses ephemeral spatial/pose continuity such as
    normalized region overlap, center proximity, size similarity and short time
@@ -1673,7 +1738,7 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     Task runner: Turborepo
     Runtime: Node.js 24 LTS
     Web: Next.js + React + TypeScript + App Router
-    UI: Mantine primary + SelfX design system in `@selfx/ui`; Tailwind utility/layout support; shadcn/ui secondary only when justified
+    UI: shadcn/ui primary + SelfX design system in `@selfx/ui`; Tailwind utility/layout support; Mantine only by explicit request
     Backend: NestJS + Fastify + TypeScript
     Architecture: modular monolith + independently scalable workers
     Database: PostgreSQL

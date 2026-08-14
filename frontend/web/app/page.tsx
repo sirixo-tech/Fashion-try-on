@@ -1,38 +1,33 @@
 import {
   Button,
   Card,
-  Center,
-  Group,
-  Stack,
-  Text,
-  Title,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
   SelfxLogo,
 } from "@selfx/ui";
 
 export default function HomePage() {
   return (
-    <Center component="main" mih="100dvh" p="md">
-      <Card w="100%" maw={560} shadow="sm" p="xl">
-        <Stack gap="md">
+    <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-8">
+      <Card className="w-full max-w-xl">
+        <CardHeader>
           <SelfxLogo />
-          <Stack gap={4}>
-            <Title order={1} size="h2">
-              SelfX Admin
-            </Title>
-            <Text c="dimmed" size="sm">
-              Shared design system and authenticated shell foundation.
-            </Text>
-          </Stack>
-          <Group>
-            <Button component="a" href="/login">
-              Sign in
-            </Button>
-            <Button variant="default" component="a" href="/app/dashboard">
-              Open shell
-            </Button>
-          </Group>
-        </Stack>
+          <CardTitle className="pt-4 text-3xl">SelfX Admin</CardTitle>
+          <CardDescription>
+            Premium SaaS workspace for SelfX staff, stores, kiosks and virtual try-on operations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button render={<a href="/login" />}>
+            Sign in
+          </Button>
+          <Button variant="outline" render={<a href="/app/dashboard" />}>
+            Open shell
+          </Button>
+        </CardContent>
       </Card>
-    </Center>
+    </main>
   );
 }

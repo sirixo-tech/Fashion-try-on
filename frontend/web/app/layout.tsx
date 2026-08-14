@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import {
-  ColorSchemeScript,
-  SelfxUiProvider,
-  mantineHtmlProps,
-} from "@selfx/ui";
+import { SelfxUiProvider } from "@selfx/ui";
 import "@selfx/ui/globals.css";
 
 import { SessionProvider } from "@/lib/session";
@@ -21,10 +17,7 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" {...mantineHtmlProps}>
-      <head>
-        <ColorSchemeScript defaultColorScheme="light" />
-      </head>
+    <html lang="en">
       <body>
         <SelfxUiProvider>
           <SessionProvider>{children}</SessionProvider>

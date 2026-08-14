@@ -42,6 +42,7 @@ dependencies:
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
   google_mlkit_pose_detection: 0.15.0
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +70,7 @@ flutter:
     - assets/audio/capture/classic/
     - assets/audio/capture/digital/
     - assets/audio/capture/minimal/
+    - assets/wallpapers/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

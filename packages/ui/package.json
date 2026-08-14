@@ -16,10 +16,6 @@
     "./lib/*": {
       "types": "./src/lib/*.ts",
       "import": "./src/lib/*.ts"
-    },
-    "./selfx/*": {
-      "types": "./src/selfx/*.tsx",
-      "import": "./src/selfx/*.tsx"
     }
   },
   "types": "./src/index.ts",
@@ -29,8 +25,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0-beta.3",
-    "@mantine/core": "^8.3.18",
-    "@mantine/hooks": "^8.3.18",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.539.0",

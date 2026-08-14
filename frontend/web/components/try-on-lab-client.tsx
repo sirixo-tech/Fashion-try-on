@@ -1,10 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   AlertCircleIcon,
   CheckCircle2Icon,
-  ImageIcon,
   Maximize2Icon,
   RotateCcwIcon,
   SlidersHorizontalIcon,
@@ -13,28 +21,25 @@ import {
 } from "lucide-react";
 
 import {
-  Alert,
-  Badge,
-  Box,
-  Button,
-  FileInput,
+  Alert as ShadcnAlert,
+  AlertDescription,
+  AlertTitle,
+  Badge as ShadcnBadge,
+  Button as ShadcnButton,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   FormActions,
-  Group,
-  Image,
-  List,
-  Modal,
+  Label,
   PageContainer,
   PageHeader,
   PageSection,
-  Progress,
+  Progress as ShadcnProgress,
   SectionCard,
   SectionHeader,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
   StatusBadge,
-  Text,
-  ThemeIcon,
+  cn,
 } from "@selfx/ui";
 import {
   type GarmentInputAnalysisResult,
@@ -112,6 +117,416 @@ const DISAMBIGUATION_OPTIONS: {
     description: "Use the complete outfit shown in the reference image.",
   },
 ];
+
+function Stack({
+  children,
+  gap = "md",
+  align,
+  className,
+}: {
+  children: ReactNode;
+  gap?: "xs" | "sm" | "md" | "lg" | 2;
+  align?: "flex-start";
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col",
+        gap === "xs"
+          ? "gap-1.5"
+          : gap === "sm"
+            ? "gap-2"
+            : gap === "lg"
+              ? "gap-5"
+              : gap === 2
+                ? "gap-0.5"
+                : "gap-4",
+        align === "flex-start" && "items-start",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Group({
+  children,
+  gap = "md",
+  justify,
+  align,
+  wrap,
+  className,
+}: {
+  children: ReactNode;
+  gap?: "xs" | "sm" | "md";
+  justify?: "space-between" | "flex-end";
+  align?: "center";
+  wrap?: "wrap";
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex",
+        gap === "xs" ? "gap-2" : gap === "sm" ? "gap-3" : "gap-4",
+        justify === "space-between" && "justify-between",
+        justify === "flex-end" && "justify-end",
+        align === "center" && "items-center",
+        wrap === "wrap" && "flex-wrap",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SimpleGrid({
+  children,
+  cols,
+  className,
+}: {
+  children: ReactNode;
+  cols: { base?: number; sm?: number; md?: number; lg?: number };
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid gap-4",
+        cols.base === 1 && "grid-cols-1",
+        cols.sm === 2 && "sm:grid-cols-2",
+        cols.md === 3 && "md:grid-cols-3",
+        cols.lg === 2 && "lg:grid-cols-2",
+        cols.lg === 4 && "lg:grid-cols-4",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Text({
+  children,
+  size = "sm",
+  c,
+  fw,
+  tt,
+  className,
+}: {
+  children: ReactNode;
+  size?: "xs" | "sm";
+  c?: "dimmed";
+  fw?: 600 | 700;
+  tt?: "uppercase";
+  className?: string;
+}) {
+  return (
+    <p
+      className={cn(
+        size === "xs" ? "text-xs" : "text-sm",
+        c === "dimmed" && "text-muted-foreground",
+        fw === 600 && "font-semibold",
+        fw === 700 && "font-bold",
+        tt === "uppercase" && "uppercase",
+        className,
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+function Badge({
+  children,
+  color,
+}: {
+  children: ReactNode;
+  color?: "blue" | "gray" | "red" | "yellow" | "green";
+}) {
+  return (
+    <ShadcnBadge
+      variant={
+        color === "red"
+          ? "destructive"
+          : color === "gray" || color === "blue" || color === "yellow" || color === "green"
+            ? "outline"
+            : "default"
+      }
+      className={cn(
+        color === "blue" && "border-blue-200 bg-blue-50 text-blue-700",
+        color === "gray" && "border-border bg-muted text-muted-foreground",
+        color === "yellow" && "border-amber-200 bg-amber-50 text-amber-700",
+        color === "green" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+      )}
+    >
+      {children}
+    </ShadcnBadge>
+  );
+}
+
+function Button({
+  children,
+  variant,
+  color,
+  onClick,
+  disabled,
+  justify,
+  className,
+}: {
+  children: ReactNode;
+  variant?: "light" | "subtle" | "default";
+  color?: "gray";
+  onClick?: () => void;
+  disabled?: boolean;
+  justify?: "flex-start";
+  className?: string;
+}) {
+  const mappedVariant =
+    variant === "light" || variant === "subtle" || color === "gray"
+      ? "outline"
+      : "default";
+
+  return (
+    <ShadcnButton
+      variant={mappedVariant}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        justify === "flex-start" && "h-auto justify-start whitespace-normal p-4 text-left",
+        className,
+      )}
+    >
+      {children}
+    </ShadcnButton>
+  );
+}
+
+function Alert({
+  children,
+  color,
+  title,
+  icon,
+}: {
+  children: ReactNode;
+  color?: "blue" | "red";
+  title?: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <ShadcnAlert variant={color === "red" ? "destructive" : "info"}>
+      <div className="flex gap-3">
+        {icon ? <span className="mt-0.5 shrink-0">{icon}</span> : null}
+        <div>
+          {title ? <AlertTitle>{title}</AlertTitle> : null}
+          <AlertDescription>{children}</AlertDescription>
+        </div>
+      </div>
+    </ShadcnAlert>
+  );
+}
+
+function Progress({
+  value,
+  animated,
+  color,
+}: {
+  value: number;
+  animated?: boolean;
+  color?: "red" | "blue";
+}) {
+  return (
+    <ShadcnProgress
+      value={value}
+      animated={animated}
+      tone={color === "red" ? "danger" : "default"}
+    />
+  );
+}
+
+function FileInput({
+  label,
+  placeholder,
+  accept,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  accept: string;
+  value: File | null;
+  onChange: (file: File | null) => void;
+}) {
+  const inputId = `try-on-lab-${label.toLowerCase().replace(/\s+/g, "-")}`;
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={inputId}>{label}</Label>
+      <label
+        htmlFor={inputId}
+        className="flex min-h-24 cursor-pointer flex-col justify-center rounded-lg border border-dashed bg-muted/30 p-4 text-sm transition-colors hover:border-primary hover:bg-[color-mix(in_srgb,var(--selfx-primary),white_94%)]"
+      >
+        <span className="font-semibold text-foreground">
+          {value?.name ?? placeholder}
+        </span>
+        <span className="mt-1 text-muted-foreground">
+          JPEG, PNG or WebP. Original file is submitted unchanged.
+        </span>
+      </label>
+      <input
+        id={inputId}
+        className="sr-only"
+        type="file"
+        accept={accept}
+        onChange={(event) => onChange(event.currentTarget.files?.[0] ?? null)}
+      />
+    </div>
+  );
+}
+
+function Modal({
+  opened,
+  onClose,
+  title,
+  children,
+  size,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  title?: string;
+  children: ReactNode;
+  centered?: boolean;
+  size?: "xl";
+}) {
+  return (
+    <Dialog open={opened} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={cn(size === "xl" && "sm:max-w-4xl")}>
+        <DialogHeader>
+          {title ? <DialogTitle>{title}</DialogTitle> : null}
+        </DialogHeader>
+        {children}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SegmentedControl({
+  value,
+  onChange,
+  data,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  data: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2" role="radiogroup">
+      {data.map((item) => {
+        const selected = item.value === value;
+        return (
+          <button
+            key={item.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(item.value)}
+            className={cn(
+              "rounded-lg border px-3 py-2 text-sm font-semibold transition-colors",
+              selected
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-foreground hover:border-primary",
+            )}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Image({
+  src,
+  alt,
+  fit = "contain",
+  className,
+}: {
+  src: string;
+  alt: string;
+  fit?: "contain";
+  className?: string;
+}) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={cn(
+        "h-full w-full",
+        fit === "contain" && "object-contain",
+        className,
+      )}
+    />
+  );
+}
+
+function Box({
+  component = "div",
+  children,
+  style,
+  className,
+  ...props
+}: {
+  component?: "button" | "div" | "details" | "summary";
+  children: ReactNode;
+  style?: CSSProperties;
+  className?: string;
+  [key: string]: unknown;
+}) {
+  const Element = component;
+  return createElement(Element, { className, style, ...props }, children);
+}
+
+function ThemeIcon({
+  children,
+  color,
+  style,
+}: {
+  children: ReactNode;
+  color?: "red" | "yellow" | "green" | "dark";
+  variant?: "light";
+  radius?: string;
+  size?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex size-8 items-center justify-center rounded-full border",
+        color === "red" && "border-red-200 bg-red-50 text-red-700",
+        color === "yellow" && "border-amber-200 bg-amber-50 text-amber-700",
+        color === "green" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+        color === "dark" && "border-border bg-background text-foreground",
+      )}
+      style={style}
+    >
+      {children}
+    </span>
+  );
+}
+
+const List = Object.assign(
+  function ListRoot({ children }: { children: ReactNode; size?: string }) {
+    return <ul className="list-disc space-y-1 pl-5 text-sm">{children}</ul>;
+  },
+  {
+    Item({ children }: { children: ReactNode }) {
+      return <li>{children}</li>;
+    },
+  },
+);
 
 export function TryOnLabClient() {
   const session = useSession();
@@ -462,7 +877,7 @@ export function TryOnLabClient() {
         status={
           <Group gap="xs" wrap="wrap">
             <StatusBadge status={uiState} label={stateLabel(uiState)} />
-            <Badge color="gray" variant="light">
+            <Badge color="gray">
               Internal Lab
             </Badge>
           </Group>
@@ -484,7 +899,7 @@ export function TryOnLabClient() {
           title="Images"
           description="Add the person photo and garment photo for this internal lab run."
         />
-        <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
+        <SimpleGrid cols={{ base: 1, lg: 2 }}>
           <ImageInputCard
             title="Person photo"
             target="person"
@@ -523,18 +938,18 @@ export function TryOnLabClient() {
               <Button
                 variant="light"
                 color="gray"
-                leftSection={<RotateCcwIcon size={16} aria-hidden="true" />}
                 onClick={reset}
-                w={{ base: "100%", sm: "auto" }}
+                className="w-full sm:w-auto"
               >
+                <RotateCcwIcon size={16} aria-hidden="true" />
                 New Try-On
               </Button>
               <Button
-                leftSection={<SparklesIcon size={16} aria-hidden="true" />}
                 onClick={handleGenerateClick}
                 disabled={!canGenerate}
-                w={{ base: "100%", sm: "auto" }}
+                className="w-full sm:w-auto"
               >
+                <SparklesIcon size={16} aria-hidden="true" />
                 Generate Try-On
               </Button>
             </FormActions>
@@ -586,7 +1001,7 @@ export function TryOnLabClient() {
             title="Result comparison"
             description="Ephemeral development output. No history or permanent media storage is implemented in this slice."
           >
-            <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+            <SimpleGrid cols={{ base: 1, md: 3 }}>
               <PreviewPanel
                 title="Person"
                 imageUrl={person.previewUrl}
@@ -608,16 +1023,16 @@ export function TryOnLabClient() {
                 variant="light"
                 color="gray"
                 onClick={tryAnotherGarment}
-                w={{ base: "100%", sm: "auto" }}
+                className="w-full sm:w-auto"
               >
                 Try Another Garment
               </Button>
               <Button
                 variant="light"
-                leftSection={<RotateCcwIcon size={16} aria-hidden="true" />}
                 onClick={reset}
-                w={{ base: "100%", sm: "auto" }}
+                className="w-full sm:w-auto"
               >
+                <RotateCcwIcon size={16} aria-hidden="true" />
                 New Try-On
               </Button>
             </FormActions>
@@ -669,15 +1084,13 @@ export function TryOnLabClient() {
         title="We found multiple clothing areas in this image. Which item would you like to try on?"
         centered
       >
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
           {DISAMBIGUATION_OPTIONS.map((option) => (
             <Button
               key={option.value}
               variant="light"
               color="gray"
               justify="flex-start"
-              h="auto"
-              p="md"
               onClick={() => {
                 const selectedPolicy = resolveGenerationPolicy({
                   garmentSource: "DIRECT_UPLOAD",
@@ -717,8 +1130,7 @@ export function TryOnLabClient() {
             src={previewModal.imageUrl}
             alt={`${previewModal.title} enlarged preview`}
             fit="contain"
-            mah="75vh"
-            w="100%"
+            className="max-h-[75vh] w-full"
           />
         ) : null}
       </Modal>
@@ -757,7 +1169,6 @@ function ImageInputCard({
           accept={TRY_ON_LAB_BROWSER_ACCEPTED_IMAGE_TYPES.join(",")}
           value={slot.file}
           onChange={onChange}
-          leftSection={<ImageIcon size={16} aria-hidden="true" />}
         />
         {slot.previewUrl ? (
           <PreviewPanel
@@ -777,13 +1188,13 @@ function PolicySummary({ policy }: { policy: ResolvedGenerationPolicy }) {
   return (
     <Stack gap="sm">
       <Group gap="xs" wrap="wrap">
-        <Badge color="blue" variant="light">
+        <Badge color="blue">
           {labelForIntent(policy.garmentIntent)}
         </Badge>
-        <Badge color="gray" variant="light">
+        <Badge color="gray">
           {labelForPhotoType(policy.garmentPhotoType)}
         </Badge>
-        <Badge color="gray" variant="light">
+        <Badge color="gray">
           {labelForProfile(policy.generationProfile)}
         </Badge>
       </Group>
@@ -827,9 +1238,9 @@ function AdvancedSettings({
         <Button
           variant="subtle"
           color="gray"
-          leftSection={<SlidersHorizontalIcon size={16} aria-hidden="true" />}
           onClick={onToggle}
         >
+          <SlidersHorizontalIcon size={16} aria-hidden="true" />
           {opened ? "Hide" : "Show"}
         </Button>
       </Group>
@@ -913,18 +1324,17 @@ function PreviewPanel({
           display: "block",
           width: "100%",
           aspectRatio: "4 / 5",
-          border: "1px solid var(--mantine-color-gray-3)",
-          borderRadius: "var(--mantine-radius-md)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius)",
           overflow: "hidden",
-          background: "var(--mantine-color-gray-0)",
+          background: "var(--muted)",
           cursor: imageUrl ? "zoom-in" : "default",
           padding: 0,
         }}
-        h={compact ? { base: 220, sm: 260, xl: 300 } : undefined}
-        mah={compact ? 320 : 420}
+        className={compact ? "max-h-80" : "max-h-[420px]"}
       >
         {imageUrl ? (
-          <Image src={imageUrl} alt={title} fit="contain" h="100%" w="100%" />
+          <Image src={imageUrl} alt={title} fit="contain" />
         ) : null}
         {imageUrl ? (
           <ThemeIcon
@@ -976,9 +1386,9 @@ function RunSummary({ run }: { run: TryOnLabRunResponse }) {
         <Box
           component="details"
           style={{
-            border: "1px solid var(--mantine-color-gray-3)",
-            borderRadius: "var(--mantine-radius-md)",
-            padding: "var(--mantine-spacing-sm)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "0.75rem",
           }}
         >
           <Box
@@ -990,11 +1400,11 @@ function RunSummary({ run }: { run: TryOnLabRunResponse }) {
           >
             Run diagnostics
           </Box>
-          <Text size="sm" c="dimmed" mt="xs">
+          <Text size="sm" c="dimmed" className="mt-2">
             Current-run telemetry only. Provider identifiers, credentials, raw
             images and Base64 payloads stay hidden.
           </Text>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md" mt="md">
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} className="mt-4">
             <DetailItem label="Status" value={telemetry.status} />
             <DetailItem
               label="Provider"
@@ -1120,7 +1530,7 @@ function QualitySummary({ result }: { result: ImageQualityResult | null }) {
         </Text>
       </Group>
       {result.issues.length > 0 ? (
-        <List size="sm" spacing={4}>
+        <List size="sm">
           {result.issues.map((issue) => (
             <List.Item key={issue.code}>{issue.message}</List.Item>
           ))}
@@ -1155,7 +1565,7 @@ function WarningGroup({
   return (
     <Stack gap="xs">
       <Text fw={700}>{title}</Text>
-      <List size="sm" spacing={4}>
+      <List size="sm">
         {issues.map((issue) => (
           <List.Item key={`${title}-${issue.code}`}>{issue.message}</List.Item>
         ))}

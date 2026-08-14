@@ -1,16 +1,10 @@
 "use client";
 
-import {
-  ActionIcon,
-  Burger,
-  Divider,
-  Group,
-  useMantineTheme,
-} from "@mantine/core";
-import { PanelLeftCloseIcon, PanelLeftOpenIcon } from "lucide-react";
+import { MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon } from "lucide-react";
 
-import { OrganizationSwitcher } from "@selfx/ui/selfx/organization-switcher";
-import { UserMenu } from "@selfx/ui/selfx/user-menu";
+import { Button } from "@selfx/ui/components/button";
+import { OrganizationSwitcher } from "./organization-switcher.js";
+import { UserMenu } from "./user-menu.js";
 import type { SelfxOrganizationOption, SelfxUserSummary } from "./types.js";
 
 export function AppHeader({
@@ -34,53 +28,48 @@ export function AppHeader({
   onToggleMobile: () => void;
   onToggleDesktop: () => void;
 }) {
-  const theme = useMantineTheme();
-
   return (
-    <Group h="100%" px="md" gap="sm" wrap="nowrap">
-      <Burger
-        opened={mobileOpened}
+    <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden"
         onClick={onToggleMobile}
-        hiddenFrom="md"
-        size="sm"
-        aria-label="Open navigation"
-      />
-      <ActionIcon
-        visibleFrom="md"
-        variant="subtle"
-        color="gray"
-        size="lg"
+        aria-label={mobileOpened ? "Close navigation" : "Open navigation"}
+      >
+        <MenuIcon aria-hidden="true" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="hidden md:inline-flex"
         onClick={onToggleDesktop}
         aria-label={desktopOpened ? "Collapse navigation" : "Expand navigation"}
       >
         {desktopOpened ? (
-          <PanelLeftCloseIcon size={18} aria-hidden="true" />
+          <PanelLeftCloseIcon aria-hidden="true" />
         ) : (
-          <PanelLeftOpenIcon size={18} aria-hidden="true" />
+          <PanelLeftOpenIcon aria-hidden="true" />
         )}
-      </ActionIcon>
-      <Group visibleFrom="sm">
+      </Button>
+      <div className="hidden min-w-0 sm:block">
         <OrganizationSwitcher
           organizations={organizations}
           activeOrganizationId={activeOrganizationId}
           onSelect={onSelectOrganization}
         />
-      </Group>
-      <Group ml="auto" gap="sm" wrap="nowrap">
-        <Group hiddenFrom="sm">
+      </div>
+      <div className="ml-auto flex min-w-0 items-center gap-3">
+        <div className="min-w-0 sm:hidden">
           <OrganizationSwitcher
             organizations={organizations}
             activeOrganizationId={activeOrganizationId}
             onSelect={onSelectOrganization}
           />
-        </Group>
-        <Divider
-          orientation="vertical"
-          visibleFrom="sm"
-          color={theme.colors.gray[3]}
-        />
+        </div>
+        <div className="h-8 w-px bg-border" />
         <UserMenu user={user} onLogout={onLogout} />
-      </Group>
-    </Group>
+      </div>
+    </header>
   );
 }

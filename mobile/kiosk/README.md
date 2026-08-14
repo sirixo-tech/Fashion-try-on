@@ -1,19 +1,22 @@
 # SelfX Kiosk
 
-Flutter kiosk app for the KIOSK-2A live capture intelligence foundation.
+Flutter kiosk app for the KIOSK-2C customer home, operator access and live
+capture intelligence foundation.
 
 Android is the primary commercial kiosk platform. SelfX currently deploys/rents
 primarily 32-inch and 42-inch vertically mounted kiosks, so Android commercial
 UX is portrait-first. Windows remains a fully supported secondary
 kiosk/desktop platform with responsive portrait and landscape window operation.
 
-KIOSK-2A includes local camera discovery, preview, preferred-camera selection,
-customer CaptureScope selection, Android on-device live readiness where image
+KIOSK-2C includes a customer-facing idle home, Start Try-On entry,
+customer CaptureScope selection, local camera discovery, preview,
+preferred-camera selection, Android on-device live readiness where image
 streams are supported, graceful scripted fallback, configurable local audio
 profiles, temporary local capture storage, responsive kiosk screens, Photo
-Ready, and advisory post-capture image quality checks. It intentionally does not
-upload images, call the SelfX API, run paid AI/provider generation, or implement
-the production customer try-on flow.
+Ready, hidden operator PIN access and advisory post-capture image quality
+checks. It intentionally does not upload images, call the SelfX API, run paid
+AI/provider generation, pair devices, sync fleet content, or implement the full
+production customer try-on flow.
 
 ## Local commands
 
@@ -37,6 +40,48 @@ flutter build windows
   and aspect ratio.
 - Windows uses the same screens and remains usable in portrait and landscape
   windows.
+- The app starts on the customer kiosk home/idle presentation. The home shows
+  the SelfX brand, local/offline static or slideshow presentation content and a
+  single **Start Try-On** action.
+- The bundled `assets/wallpapers/selfx-default-kiosk-wallpaper.png` image is
+  the default local wallpaper for all kiosk apps until organization/kiosk
+  wallpaper changes are managed from the SaaS dashboard.
+- Camera Settings is not visible on the home. A hidden top-left double-tap
+  reveals a temporary operator icon, which opens a 6-digit PIN challenge before
+  settings.
+- Operator PIN verification is isolated behind `OperatorAccessVerifier`.
+  Widgets must not hardcode production PINs, persist plaintext PINs or log PIN
+  input.
+- Five failed operator attempts lock operator access for 60 seconds. Customer
+  **Start Try-On** remains available while operator access is locked.
+- Leaving Camera Settings re-locks operator access. Unlock is not persistent
+  across visits.
+- Camera Settings is grouped into Camera, Capture, Display, Diagnostics and
+  System sections and must remain vertically scrollable on narrow Windows and
+  portrait kiosk layouts.
+- SELFX-DESIGN-SYSTEM-2 upgrades this into **Operator Settings** with Camera,
+  Capture, Display, Audio, Diagnostics and System categories, a rail on wide
+  layouts, tabs on compact layouts, bounded preview and technical IDs under
+  hardware details.
+- Kiosk primary actions use SelfX orange `#FF7119` with white text. Secondary
+  actions use white/light surfaces, dark text and neutral borders. Destructive
+  actions remain red.
+- Reusable `SelfxGlassButton` primitives provide primary, secondary, selected,
+  ghost and danger semantics for glass-capable Windows/Android kiosk UI.
+  Primary glass buttons remain visibly SelfX orange with white text; secondary
+  and inactive buttons use light/frosted surfaces, dark text and visible
+  borders.
+- Glass-style panels may be used selectively in kiosk/operator UI, but
+  readability and camera performance take priority. Do not blur large live
+  camera areas unnecessarily.
+- The customer home does not show development presentation labels such as
+  wallpaper mode or platform readiness in normal customer mode. Technical
+  presentation status belongs in operator Display or Diagnostics surfaces.
+- CaptureScope selection uses premium light/frosted cards with icon,
+  description and arrow affordance rather than permanently solid-orange cards.
+- Idle presentation assets are local/offline in this foundation. Future
+  organization dashboard or fleet-driven presentation updates must preserve the
+  same provider-neutral presentation model and offline fallback.
 - Customer capture starts with CaptureScope selection: Top, Bottom or Full Body.
   This is framing/readiness intent, not final garment taxonomy. Full Body may
   later resolve to One Piece, Full Outfit or another canonical garment semantic.
@@ -85,14 +130,21 @@ flutter build windows
   capture, corrupt image or decode failures.
 - Capture sounds are enabled by default, can be disabled locally, require no
   microphone permission and never block capture if playback fails.
-- Sound profile is an operator-only local setting: Soft, Classic, Digital or
-  Minimal. The selected `captureAudioProfile` is scoped to local kiosk settings.
+- Sound profile is an operator-only local setting. Current bundled development
+  profiles are Soft, Classic, Digital and Minimal; the premium UI semantics are
+  prepared for SelfX Signature, Soft, Studio, Minimal and Muted when production
+  sound assets are supplied.
 - Shutter/capture-success audio plays only after still capture succeeds. Capture
   failure must not play a success cue.
 - Current bundled audio is non-verbal and offline. Production spoken cues such
   as "Photo captured" must be supplied or recorded into local assets before use;
   network TTS, random downloaded audio and copyrighted third-party audio are not
   part of this foundation.
+- Shadcn/ui does not apply to Flutter. Kiosk screens use Flutter-native SelfX
+  theme semantics matching web primary, secondary, selected and danger actions.
+- Operator reveal and PIN use the same reusable glass-capable visual language
+  while preserving hidden reveal timing, verifier abstraction, six-digit secure
+  input and lockout behavior.
 - Captures are copied to an OS temporary SelfX kiosk directory and can be
   cleared by the session controller.
 - Original captured images remain unmodified; any quality analysis work uses
@@ -132,20 +184,24 @@ flutter build windows
 Portrait kiosk check, where possible: approximately 1080 x 1920 logical
 viewport.
 
-1. Open camera.
-2. Select **Top**, **Bottom** or **Full Body**.
-3. Confirm the primary action is **Take Photo**.
-4. Press **Take Photo** and verify readiness/countdown guidance appears below the preview
+1. Launch the app and confirm it opens on the customer kiosk home.
+2. Confirm there is no visible Camera Settings action on the home.
+3. Press **Start Try-On**.
+4. Select **Top**, **Bottom** or **Full Body**.
+5. Confirm the primary action is **Take Photo**.
+6. Press **Take Photo** and verify readiness/countdown guidance appears below the preview
    in portrait without covering the camera image.
-5. Press **Cancel** during final countdown and verify no delayed capture occurs.
-6. Start again and verify stable readiness starts final 3/2/1 when live frames
+7. Press **Cancel** during final countdown and verify no delayed capture occurs.
+8. Start again and verify stable readiness starts final 3/2/1 when live frames
    are available, or scripted fallback works when live frames are unavailable.
-7. Preview each Sound profile in Camera Settings.
-8. Toggle Capture sounds off in Camera Settings and verify capture still works
+9. Double-tap the hidden top-left operator hotspot, enter the operator PIN and
+   open Camera Settings.
+10. Preview each Sound profile in Camera Settings.
+11. Toggle Capture sounds off in Camera Settings and verify capture still works
    silently.
-9. Let countdown finish and verify exactly one photo is captured and success
+12. Let countdown finish and verify exactly one photo is captured and success
    audio occurs only after capture.
-10. Confirm **Checking your photo...**, Review, **Retake**, **Use Photo** and
+13. Confirm **Checking your photo...**, Review, **Retake**, **Use Photo** and
    Photo Ready.
 
 ## KIOSK-2A Privacy & Diagnostics

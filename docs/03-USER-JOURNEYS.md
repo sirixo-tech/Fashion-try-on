@@ -1012,6 +1012,97 @@ only. SelfX must not rely solely on the provider guessing which visible person
 should be dressed; unrelated/background people should remain unchanged through
 future target extraction and compositing.
 
+## 6.0.4 Customer/Operator — KIOSK-2C Customer Home and Operator Access
+
+### Primary Actors
+
+- Customer
+- Authorized kiosk operator
+
+### Preconditions
+
+- The same Flutter kiosk app is running on Android or Windows.
+- KIOSK-2C is still local/offline for kiosk presentation and settings access.
+- No backend fleet sync, device pairing or Try-On upload is implemented in this
+  slice.
+
+### Customer Flow
+
+1. Kiosk launches to the customer-facing idle home.
+2. The home shows the bundled SelfX default wallpaper, local/offline
+   presentation content and **Start Try-On**.
+3. Customer taps **Start Try-On**.
+4. Kiosk opens CaptureScope selection.
+5. Customer selects **TOP**, **BOTTOM** or **FULL BODY**.
+6. Kiosk continues into the existing KIOSK-2A capture/readiness/review/photo
+   ready flow.
+
+### Operator Flow
+
+1. Operator double-taps the hidden top-left hotspot on the home.
+2. Kiosk reveals an operator icon for a short configured duration.
+3. Operator taps the icon.
+4. Kiosk prompts for a 6-digit operator PIN.
+5. If the PIN is accepted, kiosk opens local Camera Settings.
+6. When the operator leaves settings, access is re-locked.
+
+### Alternate / Failure Flows
+
+- Incorrect PIN -> show a generic rejection message without logging the PIN.
+- Five failed PIN attempts -> lock operator access for 60 seconds.
+- Operator access locked -> customer **Start Try-On** remains usable.
+- Reveal timer expires -> operator icon hides and the customer home remains
+  unchanged.
+- Narrow or portrait settings viewport -> settings content scrolls instead of
+  overflowing.
+
+### Boundary
+
+KIOSK-2C does not create persistent operator sessions, backend operator auth,
+fleet/device management, CMS synchronization, Product Catalog, Try-On upload or
+provider execution. Organization/kiosk wallpaper changes from the SaaS dashboard
+remain future work.
+
+## 6.0.5 Operator — Premium Settings Navigation
+
+### Primary Actor
+
+Authorized kiosk operator.
+
+### Main Flow
+
+1. Operator unlocks settings through the hidden hotspot and six-digit PIN.
+2. Kiosk opens **Operator Settings**.
+3. On wide layouts, operator uses the settings navigation rail to choose
+   Camera, Capture, Display, Audio, Diagnostics or System.
+4. On narrow/portrait layouts, operator uses the adapted category tabs and
+   scrolls as needed.
+5. Camera shows human-readable camera name, connection state and resolution.
+6. Technical hardware IDs are available only under Diagnostics/hardware details.
+7. Camera preview remains bounded so settings and preview are both visible.
+
+### Boundary
+
+This journey does not include SaaS dashboard wallpaper management, fleet sync,
+device provisioning, RBAC changes or backend configuration APIs.
+
+## 7.0 Design System Consumer Journey
+
+Future SaaS module builders use the shared SelfX design system for primary,
+secondary, selected, ghost and danger actions. The primary action color is
+`#FF7119` with white text; secondary/inactive controls use white/light surfaces,
+dark text and neutral borders; destructive actions remain red. SaaS web uses
+premium clean Shadcn-first patterns without mandatory glassmorphism, while
+Windows/mobile/kiosk can use glass selectively for operator and camera-adjacent
+surfaces. Flutter applications match the same SelfX design semantics through
+Flutter-native components rather than React/shadcn components.
+
+Customer-mode kiosk journeys should look commercial. Implementation labels such
+as wallpaper mode, default wallpaper source or platform readiness belong in
+operator Display/Diagnostics views, not the normal customer home. CaptureScope
+selection uses premium inactive light/frosted cards and preserves TOP, BOTTOM
+and FULL BODY semantics.
+
 ## 6.1 New Kiosk Pairing
 
 ### Primary Actors

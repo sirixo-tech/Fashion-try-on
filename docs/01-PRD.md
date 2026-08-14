@@ -938,6 +938,78 @@ product/catalog selection, QR handoff, device provisioning/auth, fleet backend,
 API Gateway, Redis/BullMQ, R2, billing, production spoken voice/TTS expansion or
 permanent biometric data.
 
+## PRD-DESIGN-002 — Premium Cross-Application Design System
+
+SelfX must present one cohesive premium visual language across SaaS web,
+Windows kiosk/application, Android kiosk and future mobile applications.
+
+Product rules:
+
+- The primary SelfX action and selected-control color is `#FF7119`.
+- Primary buttons use `#FF7119` with white foreground.
+- Secondary/inactive buttons use white/light backgrounds, dark text and neutral
+  borders.
+- Danger/destructive actions remain semantically red and must not use the
+  orange primary simply for brand consistency.
+- Default buttons are rounded rectangles around an 8-10px visual radius, not
+  global pill buttons.
+- The SaaS web application should be modern, premium, professional, clean and
+  information-dense where appropriate.
+- Glassmorphism is not a mandatory SaaS web style. Windows/mobile/kiosk may use
+  it selectively where it improves presentation and readability.
+- shadcn/ui controls are preferred for SaaS buttons, segmented controls, tabs,
+  menus, forms, badges and status indicators.
+- Flutter kiosk/mobile implementations use matching SelfX visual semantics with
+  Flutter-native components. Reusable glass-capable button primitives may be
+  used selectively for premium kiosk controls, while primary actions remain
+  visibly `#FF7119` with white foreground.
+- Normal customer kiosk screens must not expose implementation labels such as
+  wallpaper mode or platform readiness; those belong to operator
+  Display/Diagnostics views.
+- The SelfX design tokens are the source of truth for future Organizations,
+  Stores, Users, Roles, Permissions, Catalog, Kiosks, Try-On, Reports, Audit
+  and Settings modules.
+- The required `#FF7119` plus white text combination may need an accessible
+  action variant before formal WCAG AA compliance.
+
+## PRD-KIOSK-008 — KIOSK-2C Customer Home and Operator Access
+
+SelfX kiosks should open into a customer-facing idle home instead of operator
+settings or technical camera-test controls. KIOSK-2C adds this kiosk shell while
+keeping Android primary and Windows fully supported.
+
+KIOSK-2C product rules:
+
+- Startup/default UI is the customer kiosk home with local/offline static or
+  slideshow presentation content and a clear **Start Try-On** action.
+- Customer flow is Kiosk Home -> Start Try-On -> CaptureScope selection ->
+  existing capture/review/photo-ready flow.
+- Camera Settings must not be visible from the home. Operator access is hidden
+  behind a top-left double-tap hotspot that reveals an operator icon briefly.
+- The operator icon opens a 6-digit PIN challenge before local settings. It must
+  not open settings directly.
+- Operator PIN checking is isolated behind a provider-neutral verifier. Widgets
+  must not hardcode production PINs, persist plaintext PINs or log PIN input.
+- After five failed attempts, operator access locks for 60 seconds. Customer
+  Try-On must remain available during operator lockout.
+- A correct PIN unlocks settings for that visit only. Leaving settings re-locks
+  operator access; no persistent local unlock is created.
+- Operator settings must be grouped as Camera, Capture, Display, Diagnostics and
+  System and remain scrollable/responsive in Android portrait and Windows
+  portrait, landscape and narrow windows.
+- SELFX-DESIGN-SYSTEM-2 refines operator settings into Camera, Capture,
+  Display, Audio, Diagnostics and System categories. Normal operator UI shows
+  human-readable camera labels; raw hardware IDs belong under diagnostics or
+  hardware details.
+- Idle presentation uses a local/offline fallback and a provider-neutral model
+  that can later be backed by CMS or fleet configuration.
+- The bundled SelfX wallpaper is the default kiosk wallpaper until
+  organization/kiosk-specific wallpapers can be managed from the SaaS dashboard.
+
+KIOSK-2C does not implement backend fleet sync, kiosk provisioning/device auth,
+remote content management, SelfX Try-On API upload, product/catalog selection,
+FASHN/provider calls, API Gateway, migrations or new database persistence.
+
 ---
 
 # 24. QR Kiosk-to-Mobile Handoff

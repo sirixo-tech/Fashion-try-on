@@ -70,27 +70,30 @@ All SelfX interfaces should follow these principles:
 ### Web Foundation
 
 - Next.js
-- Mantine as the primary SelfX web UI/component framework
+- shadcn/ui as the primary SelfX web UI/component framework
 - Tailwind CSS
-- shadcn/ui as a secondary component source only when justified
+- Mantine or another UI toolkit only by explicit user request
 - shared SelfX UI package/design tokens
 
 ### Phase 4 Web Implementation
 
-The initial web design-system implementation lives in `packages/ui`.
+The web design-system implementation lives in `packages/ui`.
 
-Mantine is the primary implementation of the SelfX web design language.
+SELFX-UI-MIGRATION-1 makes shadcn/ui the primary implementation of the SelfX
+web design language.
 `packages/ui` owns:
 
 ```text
-packages/ui/src/theme
+packages/ui/src/components
+packages/ui/src/selfx
 packages/ui/src/styles/globals.css
 ```
 
-The centralized SelfX Mantine theme defines common colors, typography, spacing,
-radii, shadows, focus behavior and component defaults. Semantic SelfX tokens
-must map through this centralized theme/token layer so future organization
-white-labeling can override branding safely.
+Centralized SelfX semantic tokens define common colors, typography, spacing,
+radii, shadows, focus behavior and component defaults. The tokens include
+`--selfx-primary`, `--selfx-primary-hover`, `--selfx-primary-pressed` and
+`--selfx-on-primary` so future organization white-labeling can override
+branding safely.
 
 shadcn/ui is configured for the monorepo through:
 
@@ -99,9 +102,9 @@ frontend/web/components.json
 packages/ui/components.json
 ```
 
-shadcn/ui remains available as a secondary component source, but it must not be
-the default choice for app shell, navigation, common controls, forms, cards,
-state views or normal admin UI.
+shadcn/ui is the default choice for app shell, navigation, common controls,
+forms, cards, state views and normal admin UI. Future Mantine or external UI
+toolkit use requires an explicit user request.
 
 Tailwind CSS remains secondary utility/layout infrastructure and compatibility
 support. It must not become a parallel component design system.
@@ -111,6 +114,17 @@ web primitives and SelfX shell/state components live in `packages/ui`.
 
 The Phase 4 route shell reserves documented navigation areas without
 implementing their business workflows.
+
+SELFX-UI-MIGRATION-1.1 current screen status:
+
+- `/`, `/login`, authenticated app shell/header/sidebar/account controls,
+  `/app/dashboard`, placeholder module routes and organization/access state
+  routes and `/app/try-on-lab` use Shadcn-first SelfX components and semantic
+  tokens.
+- Frontend consumers must import public components and types from `@selfx/ui`
+  rather than private `@selfx/ui/selfx/*` source-tree paths.
+- Mantine runtime usage is retired from current web/UI source.
+- Future SaaS modules must start from the Shadcn-first SelfX web patterns.
 
 ### CORE VTO-1 Try-On Lab UI
 
@@ -172,8 +186,8 @@ If OpenCV analysis fails after the upload is technically valid, the UI must show
 an advisory analysis-unavailable warning and unavailable/null metrics rather
 than fake `0x0`, sharpness `0`, brightness `0` or contrast `0` metrics.
 
-When Generate Try-On is pressed with one or more warnings, show a Mantine-first
-confirmation modal titled "Image quality warning". The modal groups issues
+When Generate Try-On is pressed with one or more warnings, show a SelfX
+confirmation dialog titled "Image quality warning". The dialog groups issues
 under "Person photo" and "Garment photo" and offers:
 
 - Re-upload — close the modal so the tester can replace inputs.
@@ -192,7 +206,7 @@ analysis is advisory and provider-neutral; it does not identify the exact
 garment, classify fashion attributes or perform biometrics.
 
 If the garment image appears full-body/on-model and therefore ambiguous, show a
-Mantine-first modal titled "We found multiple clothing areas in this image.
+SelfX dialog titled "We found multiple clothing areas in this image.
 Which item would you like to try on?" The choices are:
 
 - Upper garment — shirts, tops, jackets and similar upper-body items.
@@ -217,7 +231,7 @@ aspect ratio. On mobile, upload cards stack vertically.
 
 Completed result comparison keeps three panels on desktop: Person, Garment and
 Generated Try-On. Tablet and mobile layouts may stack responsively. Clicking an
-image opens a larger Mantine Modal preview. No before/after slider is included
+image opens a larger SelfX dialog preview. No before/after slider is included
 in CORE VTO-1.1.
 
 After a run, the default Lab view shows a compact run summary and prioritizes
@@ -511,7 +525,7 @@ Common patterns should be reused for:
 
 ### Page & Layout Standards
 
-SelfX web pages must use the shared Mantine-first layout primitives from
+SelfX web pages must use the shared Shadcn-first layout primitives from
 `@selfx/ui` rather than local one-off layout systems.
 
 Standard page anatomy:
@@ -1400,6 +1414,85 @@ No checkout button is required.
 ---
 
 # 28. Kiosk Customer Capture
+
+### KIOSK-2C Home
+
+- The kiosk starts on a customer-facing idle home, not settings or technical
+  camera-test UI.
+- The home uses local/offline static or slideshow presentation visuals with an
+  offline fallback.
+- The bundled SelfX wallpaper is the default visual until organization/kiosk
+  wallpaper management is available from the SaaS dashboard.
+- Primary visible action: **Start Try-On**.
+- No visible Camera Settings action appears on the home.
+- A hidden top-left double-tap hotspot reveals a temporary operator icon.
+- The operator icon opens a 6-digit PIN dialog before settings.
+- PIN failure messaging is generic and does not expose entered values.
+- Operator lockout messaging must not block or visually disable **Start
+  Try-On**.
+
+### KIOSK-2C Operator Settings
+
+- Settings sections: Camera, Capture, Display, Diagnostics and System.
+- Settings content scrolls vertically in portrait, landscape and narrow Windows
+  viewports.
+- Camera controls include detected camera selection and refresh/test actions.
+- Capture controls include countdown, capture sounds and sound profile.
+- Display shows local idle mode/presentation source status.
+- Diagnostics show safe local analysis status only.
+- System shows safe local app/platform status only.
+
+### SELFX-DESIGN-SYSTEM-2 Operator Settings
+
+- Wide settings use a category rail/sidebar for Camera, Capture, Display,
+  Audio, Diagnostics and System.
+- Narrow/portrait settings use tabs or stacked controls.
+- Human-readable camera names are primary.
+- Raw camera hardware IDs are hidden under Diagnostics or hardware details.
+- Camera preview is bounded and preserves aspect ratio.
+- Status indicators combine icon, text and tone.
+- Capture countdown selection uses selected-button semantics with SelfX orange.
+- Audio settings prepare for SelfX Signature, Soft, Studio, Minimal and Muted
+  profiles without adding new sound assets.
+
+### SELFX-UI-MIGRATION-1.1 Kiosk Visual Harmonization
+
+- Windows/Android Flutter apps use reusable glass-capable SelfX button
+  primitives for primary, secondary, selected, ghost and danger semantics where
+  glass improves the experience.
+- Primary glass buttons still read as SelfX orange with white text; secondary
+  and inactive glass buttons use light/frosted surfaces, dark text and visible
+  borders.
+- CaptureScope uses premium inactive light/frosted selection cards with icon,
+  description and arrow affordance. Selected/pressed treatment may transition
+  to orange/white semantics, but all three cards are not permanently solid
+  orange.
+- Customer home keeps wallpaper/slideshow and hidden operator reveal, uses a
+  glass primary **Start Try-On** CTA, and removes normal customer-mode
+  implementation labels such as wallpaper mode or platform readiness.
+- Operator reveal uses a compact frosted/glass button while visible.
+- Operator PIN uses a bounded glass dialog, preserves six-digit secure input,
+  cancel, unlock, lockout and verifier abstraction.
+- Glass blur must be bounded and modest; do not blur the whole wallpaper or
+  large live camera areas.
+
+---
+
+# 28.1 SelfX Button and Visual System
+
+- Primary buttons: `#FF7119` background, white text, orange border.
+- Active/selected buttons: same orange selected state.
+- Secondary/inactive buttons: white/light background, dark text and neutral
+  border.
+- Ghost buttons: low-priority borderless treatment.
+- Danger buttons: semantic red, never orange.
+- Default button shape: premium rounded rectangle around 8-10px visual radius.
+- SaaS web uses premium clean Shadcn-first surfaces and does not mandate
+  glassmorphism.
+- Windows/mobile/kiosk may use glassmorphism selectively for overlays, controls
+  and operator surfaces when readability remains strong.
+- The required orange/white combination may need an accessible action variant
+  before formal WCAG AA compliance.
 
 ### Elements
 

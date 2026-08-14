@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 
-import { Box, Card, Center, Stack, Text, Title, SelfxLogo } from "@selfx/ui";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  SelfxLogo,
+} from "@selfx/ui";
 
 interface Signup2Props {
   heading?: string;
@@ -16,35 +23,21 @@ const Signup2 = ({
   footer,
 }: Signup2Props) => {
   return (
-    <Box component="section" mih="100dvh" bg="gray.0">
-      <Center mih="100dvh" p="md">
-        <Stack w="100%" maw={400} align="center" gap="lg">
-          <SelfxLogo />
-          <Card w="100%" shadow="sm" p="xl">
-            <Stack gap="md">
-              <Stack gap={4} ta="center">
-                {heading ? (
-                  <Title order={1} size="h3">
-                    {heading}
-                  </Title>
-                ) : null}
-                {description ? (
-                  <Text size="sm" c="dimmed">
-                    {description}
-                  </Text>
-                ) : null}
-              </Stack>
-              {children}
-            </Stack>
-          </Card>
-          {footer ? (
-            <Text ta="center" size="sm" c="dimmed">
-              {footer}
-            </Text>
-          ) : null}
-        </Stack>
-      </Center>
-    </Box>
+    <main className="min-h-dvh bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--selfx-primary),white_88%),transparent_34%),linear-gradient(180deg,#fff,#f8fafc)] px-4 py-8">
+      <section className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[26rem] flex-col items-center justify-center gap-6">
+        <SelfxLogo />
+        <Card className="w-full">
+          <CardHeader className="items-center text-center">
+            {heading ? <CardTitle className="text-2xl">{heading}</CardTitle> : null}
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </CardHeader>
+          <CardContent>{children}</CardContent>
+        </Card>
+        {footer ? (
+          <p className="max-w-sm text-center text-sm leading-6 text-muted-foreground">{footer}</p>
+        ) : null}
+      </section>
+    </main>
   );
 };
 

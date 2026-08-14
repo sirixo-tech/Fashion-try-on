@@ -10,6 +10,8 @@ import {
   FormActions,
   FormPageContainer,
   FormSection,
+  Input,
+  Label,
   NoOrganizationState,
   OrganizationSwitcher,
   PageContainer,
@@ -24,8 +26,6 @@ import {
   StatusBadge,
   SuspendedOrganizationState,
   TableContainer,
-  TextInput,
-  PasswordInput,
 } from "@selfx/ui";
 
 import { SessionProvider, useSession } from "@/lib/session";
@@ -76,11 +76,13 @@ describe("SelfX shared shell", () => {
     expect(screen.getByText("pending activation")).toBeTruthy();
   });
 
-  it("renders Mantine provider and common control primitives", () => {
+  it("renders SelfX provider and Shadcn-first common control primitives", () => {
     renderWithUi(
       <>
-        <TextInput label="Email" />
-        <PasswordInput label="Password" />
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" />
+        <Label htmlFor="password">Password</Label>
+        <Input id="password" type="password" />
         <Button>Continue</Button>
       </>,
     );
@@ -163,19 +165,27 @@ describe("SelfX shared shell", () => {
           title="Layout test"
           description="Shared page anatomy"
           primaryAction={{ label: "Create", href: "/app/dashboard" }}
-          secondaryActions={<Button variant="light">Export</Button>}
+          secondaryActions={<Button variant="outline">Export</Button>}
         />
         <StatGrid>
           <StatCard label="Mode" value="Form" secondaryValue="Constrained" />
         </StatGrid>
         <SectionCard title="Section card">Reusable section content</SectionCard>
-        <FilterBar search={<TextInput label="Search" />} />
+        <FilterBar
+          search={
+            <div>
+              <Label htmlFor="search">Search</Label>
+              <Input id="search" />
+            </div>
+          }
+        />
         <TableContainer title="Table container" footer="Pagination">
           Rows belong here
         </TableContainer>
         <FormPageContainer>
           <FormSection title="Form section">
-            <TextInput label="Field" />
+            <Label htmlFor="field">Field</Label>
+            <Input id="field" />
           </FormSection>
           <FormActions>
             <Button>Save</Button>

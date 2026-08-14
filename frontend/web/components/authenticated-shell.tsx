@@ -21,7 +21,6 @@ import {
 
 import {
   AppShell,
-  Center,
   ErrorState,
   LoadingState,
   PermissionDeniedState,
@@ -101,13 +100,13 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   if (session.status === "unauthenticated") {
     return (
-      <Center component="main" mih="100dvh" p="md">
+      <main className="flex min-h-dvh items-center justify-center p-4">
         <PermissionDeniedState
           title="Sign in required"
           description="Use your SelfX staff or platform account to open the admin shell."
           action={{ label: "Sign in", href: "/login" }}
         />
-      </Center>
+      </main>
     );
   }
 
@@ -125,13 +124,13 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       }}
     >
       {organizationError ? (
-        <Center mih="calc(100dvh - 3.75rem)" p="md">
+        <div className="flex min-h-[calc(100dvh-3.75rem)] items-center justify-center p-4">
           <ErrorState
             title="Organization context unavailable"
             description="The shell could not load active organizations from SelfX."
             action={{ label: "Retry", onClick: () => void session.refresh() }}
           />
-        </Center>
+        </div>
       ) : (
         children
       )}

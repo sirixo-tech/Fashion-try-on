@@ -1,8 +1,16 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Button, Group, Modal, Stack, Text } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useState, type ReactNode } from "react";
+
+import { Button } from "@selfx/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@selfx/ui/components/dialog";
 
 export function ConfirmDialog({
   trigger,
@@ -21,32 +29,33 @@ export function ConfirmDialog({
   destructive?: boolean;
   onConfirm?: () => void;
 }) {
-  const [opened, { open, close }] = useDisclosure(false);
+  const [open, setOpen] = useState(false);
 
   return (
     <>
-      <span onClick={open}>{trigger}</span>
-      <Modal opened={opened} onClose={close} title={title}>
-        <Stack gap="md">
-          <Text c="dimmed" size="sm">
-            {description}
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
+      <span onClick={() => setOpen(true)}>{trigger}</span>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
               {cancelLabel}
             </Button>
             <Button
-              color={destructive ? "danger" : "selfx"}
+              variant={destructive ? "destructive" : "default"}
               onClick={() => {
                 onConfirm?.();
-                close();
+                setOpen(false);
               }}
             >
               {confirmLabel}
             </Button>
-          </Group>
-        </Stack>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

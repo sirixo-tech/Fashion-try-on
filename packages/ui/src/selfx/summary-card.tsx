@@ -1,15 +1,23 @@
 import type { ReactNode } from "react";
+
 import {
-  Box,
   Card,
-  Divider,
-  Group,
-  Paper,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-} from "@mantine/core";
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@selfx/ui/components/card";
+import { Separator } from "@selfx/ui/components/separator";
+
+function IconFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex size-10 items-center justify-center rounded-lg border border-[color-mix(in_srgb,var(--selfx-primary),white_72%)] bg-[color-mix(in_srgb,var(--selfx-primary),white_92%)] text-primary">
+      {children}
+    </div>
+  );
+}
 
 export function SummaryCard({
   title,
@@ -23,27 +31,13 @@ export function SummaryCard({
   children?: ReactNode;
 }) {
   return (
-    <Card p={{ base: "md", sm: "lg" }}>
-      <Stack gap="md">
-        <Group justify="space-between" align="flex-start">
-          <Stack gap={4}>
-            <Title order={2} size="h4">
-              {title}
-            </Title>
-            {description ? (
-              <Text size="sm" c="dimmed">
-                {description}
-              </Text>
-            ) : null}
-          </Stack>
-          {icon ? (
-            <ThemeIcon color="selfx" variant="light" radius="md">
-              {icon}
-            </ThemeIcon>
-          ) : null}
-        </Group>
-        {children}
-      </Stack>
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
+        {icon ? <CardAction><IconFrame>{icon}</IconFrame></CardAction> : null}
+      </CardHeader>
+      {children ? <CardContent>{children}</CardContent> : null}
     </Card>
   );
 }
@@ -62,28 +56,20 @@ export function StatCard({
   secondaryValue?: string;
 }) {
   return (
-    <Card p={{ base: "md", sm: "lg" }}>
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
-        <Stack gap={6}>
-          <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+    <Card>
+      <CardContent className="flex items-start justify-between gap-4 p-5">
+        <div className="min-w-0 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
             {label}
-          </Text>
-          <Text size="xl" fw={750}>
-            {value}
-          </Text>
+          </p>
+          <p className="text-2xl font-semibold tracking-tight text-foreground">{value}</p>
           {secondaryValue ? (
-            <Text size="sm" c="dimmed">
-              {secondaryValue}
-            </Text>
+            <p className="text-sm text-muted-foreground">{secondaryValue}</p>
           ) : null}
-          {trend ? <Box>{trend}</Box> : null}
-        </Stack>
-        {icon ? (
-          <ThemeIcon color="selfx" variant="light" radius="md" size={40}>
-            {icon}
-          </ThemeIcon>
-        ) : null}
-      </Group>
+          {trend ? <div>{trend}</div> : null}
+        </div>
+        {icon ? <IconFrame>{icon}</IconFrame> : null}
+      </CardContent>
     </Card>
   );
 }
@@ -100,35 +86,18 @@ export function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <Card p={{ base: "md", sm: "lg" }}>
-      <Stack gap="md">
-        {title || description || actions ? (
-          <>
-            <Group
-              justify="space-between"
-              align="flex-start"
-              gap="md"
-              wrap="wrap"
-            >
-              <Stack gap={4}>
-                {title ? (
-                  <Title order={2} size="h4">
-                    {title}
-                  </Title>
-                ) : null}
-                {description ? (
-                  <Text size="sm" c="dimmed">
-                    {description}
-                  </Text>
-                ) : null}
-              </Stack>
-              {actions ? <Group gap="xs">{actions}</Group> : null}
-            </Group>
-            <Divider />
-          </>
-        ) : null}
-        {children}
-      </Stack>
+    <Card>
+      {title || description || actions ? (
+        <>
+          <CardHeader>
+            {title ? <CardTitle>{title}</CardTitle> : null}
+            {description ? <CardDescription>{description}</CardDescription> : null}
+            {actions ? <CardAction className="flex gap-2">{actions}</CardAction> : null}
+          </CardHeader>
+          <Separator />
+        </>
+      ) : null}
+      <CardContent className="p-5">{children}</CardContent>
     </Card>
   );
 }
@@ -145,23 +114,15 @@ export function ActionCard({
   action?: ReactNode;
 }) {
   return (
-    <Card p={{ base: "md", sm: "lg" }}>
-      <Stack gap="md">
-        {icon ? (
-          <ThemeIcon color="selfx" variant="light" radius="md" size={42}>
-            {icon}
-          </ThemeIcon>
-        ) : null}
-        <Stack gap={4}>
-          <Title order={3} size="h4">
-            {title}
-          </Title>
-          <Text size="sm" c="dimmed">
-            {description}
-          </Text>
-        </Stack>
-        {action ? <Box>{action}</Box> : null}
-      </Stack>
+    <Card>
+      <CardContent className="flex flex-col gap-4 p-5">
+        {icon ? <IconFrame>{icon}</IconFrame> : null}
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+        {action ? <div>{action}</div> : null}
+      </CardContent>
     </Card>
   );
 }
@@ -180,45 +141,17 @@ export function TableContainer({
   footer?: ReactNode;
 }) {
   return (
-    <Paper withBorder radius="md" bg="var(--mantine-color-body)">
-      <Stack gap={0}>
-        {title || description || actions ? (
-          <Group
-            justify="space-between"
-            align="flex-start"
-            gap="md"
-            p="lg"
-            wrap="wrap"
-          >
-            <Stack gap={4}>
-              {title ? (
-                <Title order={2} size="h4">
-                  {title}
-                </Title>
-              ) : null}
-              {description ? (
-                <Text size="sm" c="dimmed">
-                  {description}
-                </Text>
-              ) : null}
-            </Stack>
-            {actions ? <Group gap="xs">{actions}</Group> : null}
-          </Group>
-        ) : null}
-        <Box
-          p={{ base: "md", sm: "lg" }}
-          pt={title || description ? 0 : undefined}
-        >
-          {children}
-        </Box>
-        {footer ? (
-          <>
-            <Divider />
-            <Box p="md">{footer}</Box>
-          </>
-        ) : null}
-      </Stack>
-    </Paper>
+    <Card>
+      {title || description || actions ? (
+        <CardHeader>
+          {title ? <CardTitle>{title}</CardTitle> : null}
+          {description ? <CardDescription>{description}</CardDescription> : null}
+          {actions ? <CardAction className="flex gap-2">{actions}</CardAction> : null}
+        </CardHeader>
+      ) : null}
+      <CardContent className="overflow-x-auto p-5 pt-0">{children}</CardContent>
+      {footer ? <CardFooter>{footer}</CardFooter> : null}
+    </Card>
   );
 }
 
@@ -232,18 +165,12 @@ export function MetricDisplay({
   helper?: string;
 }) {
   return (
-    <Stack gap={2}>
-      <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+    <div className="space-y-1">
+      <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
         {label}
-      </Text>
-      <Text size="xl" fw={700}>
-        {value}
-      </Text>
-      {helper ? (
-        <Text size="sm" c="dimmed">
-          {helper}
-        </Text>
-      ) : null}
-    </Stack>
+      </p>
+      <p className="text-xl font-semibold text-foreground">{value}</p>
+      {helper ? <p className="text-sm text-muted-foreground">{helper}</p> : null}
+    </div>
   );
 }

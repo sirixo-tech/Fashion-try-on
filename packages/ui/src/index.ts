@@ -1,47 +1,87 @@
 export { cn } from "./lib/utils";
-export {
-  ActionIcon,
-  Alert,
-  Avatar,
-  Badge,
-  Box,
-  Button,
-  Card,
-  Center,
-  Checkbox,
-  Container,
-  ColorSchemeScript,
-  Divider,
-  Drawer,
-  FileInput,
-  Group,
-  Image,
-  List,
-  Loader,
-  Menu,
-  Modal,
-  NumberInput,
-  PasswordInput,
-  Paper,
-  Progress,
-  Radio,
-  SegmentedControl,
-  Select,
-  SimpleGrid,
-  Skeleton,
-  Stack,
-  Switch,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  ThemeIcon,
-  Title,
-  Tooltip,
-  mantineHtmlProps,
-} from "@mantine/core";
 export { SelfxUiProvider } from "./theme/selfx-ui-provider";
-export { selfxTheme } from "./theme/selfx-theme";
+export { selfxDesignTokens } from "./theme/selfx-design-tokens";
+export { Alert, AlertDescription, AlertTitle } from "./components/alert";
+export { Avatar, AvatarFallback, AvatarImage } from "./components/avatar";
+export { Badge, badgeVariants } from "./components/badge";
+export {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./components/breadcrumb";
+export { Button, buttonVariants } from "./components/button";
+export {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./components/card";
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+} from "./components/dialog";
+export {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "./components/dropdown-menu";
+export { Input } from "./components/input";
+export { Label } from "./components/label";
+export { Progress } from "./components/progress";
+export { Separator } from "./components/separator";
+export {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "./components/sheet";
+export { Skeleton } from "./components/skeleton";
+export {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./components/table";
+export { Textarea } from "./components/textarea";
+export {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./components/tooltip";
 export { SelfxLogo } from "./selfx/selfx-logo";
 export { StatusBadge } from "./selfx/status-badge";
 export {

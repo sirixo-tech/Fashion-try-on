@@ -5,13 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
+import 'package:selfx_kiosk/src/idle/kiosk_idle_presentation.dart';
 import 'package:selfx_kiosk/src/live/live_frame.dart';
+import 'package:selfx_kiosk/src/operator/operator_access.dart';
 import 'package:selfx_kiosk/src/quality/image_quality.dart';
 import 'package:selfx_kiosk/src/session/capture_audio_service.dart';
 import 'package:selfx_kiosk/src/session/capture_flow.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
+import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
 
 void main() {
   group('CameraService foundation behavior', () {
@@ -382,41 +385,161 @@ void main() {
     });
   });
 
-  testWidgets('home exposes KIOSK-1 foundation actions', (tester) async {
-    final controller = testController();
+  group('KIOSK-2C customer home and operator access', () {
+    testWidgets('home starts customer flow without visible settings controls', (
+      tester,
+    ) async {
+      await tester.pumpHome(controller: testController());
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) {
-              return Column(
-                children: [
-                  ElevatedButton(
-                    key: const Key('start-camera-test'),
-                    onPressed: () {},
-                    child: const Text('Start Camera Test'),
-                  ),
-                  OutlinedButton(
-                    key: const Key('camera-settings'),
-                    onPressed: () {},
-                    child: const Text('Camera Settings'),
-                  ),
-                  Text(
-                    controller.acceptedCapture?.originalPath ?? 'local only',
-                  ),
-                ],
-              );
-            },
+      expect(find.byKey(const Key('start-try-on')), findsOneWidget);
+      expect(find.text('Start Try-On'), findsOneWidget);
+      expect(find.byKey(const Key('operator-menu-button')), findsNothing);
+      expect(find.byKey(const Key('camera-settings')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('start-try-on')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('What are you trying on?'), findsOneWidget);
+    });
+
+    testWidgets('hidden top-left double tap reveals operator access briefly', (
+      tester,
+    ) async {
+      await tester.pumpHome(
+        controller: testController(),
+        operatorAccessController: testOperatorAccessController(
+          config: const OperatorAccessConfig(
+            revealDuration: Duration(milliseconds: 120),
           ),
+        ),
+      );
+
+      await tester.revealOperatorAccess();
+
+      expect(find.byKey(const Key('operator-menu-button')), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 140));
+
+      expect(find.byKey(const Key('operator-menu-button')), findsNothing);
+    });
+
+    testWidgets('operator PIN unlocks settings and leaving settings re-locks', (
+      tester,
+    ) async {
+      final access = testOperatorAccessController();
+      await tester.pumpHome(
+        controller: testController(),
+        operatorAccessController: access,
+      );
+
+      await tester.revealOperatorAccess();
+      await tester.tap(find.byKey(const Key('operator-menu-button')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('operator-pin-field')),
+        '123456',
+      );
+      await tester.tap(find.byKey(const Key('operator-pin-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Operator Settings'), findsOneWidget);
+      expect(access.state.unlocked, isTrue);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      expect(access.state.unlocked, isFalse);
+
+      await tester.revealOperatorAccess();
+      await tester.tap(find.byKey(const Key('operator-menu-button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter operator PIN'), findsOneWidget);
+    });
+
+    testWidgets('operator lockout does not block customer Try-On', (
+      tester,
+    ) async {
+      await tester.pumpHome(
+        controller: testController(),
+        operatorAccessController: testOperatorAccessController(
+          config: const OperatorAccessConfig(
+            maxFailedAttempts: 2,
+            lockoutDuration: Duration(seconds: 60),
+          ),
+        ),
+      );
+
+      await tester.revealOperatorAccess();
+      await tester.tap(find.byKey(const Key('operator-menu-button')));
+      await tester.pumpAndSettle();
+
+      for (var attempt = 0; attempt < 2; attempt++) {
+        await tester.enterText(
+          find.byKey(const Key('operator-pin-field')),
+          '000000',
+        );
+        await tester.tap(find.byKey(const Key('operator-pin-submit')));
+        await tester.pumpAndSettle();
+      }
+
+      expect(
+        find.textContaining('Operator access is temporarily locked'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('start-try-on')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('What are you trying on?'), findsOneWidget);
+    });
+  });
+}
+
+const testIdlePresentation = KioskIdlePresentation(
+  mode: KioskIdlePresentationMode.static,
+  slideDuration: Duration(seconds: 30),
+  assets: [fallbackIdleAsset],
+);
+
+OperatorAccessController testOperatorAccessController({
+  OperatorAccessConfig config = const OperatorAccessConfig(),
+}) {
+  return OperatorAccessController(
+    verifier: const Sha256OperatorAccessVerifier(
+      expectedDigest: demoOperatorPinSha256Digest,
+    ),
+    config: config,
+  );
+}
+
+extension _KioskHomeTester on WidgetTester {
+  Future<void> pumpHome({
+    required CaptureSessionController controller,
+    OperatorAccessController? operatorAccessController,
+  }) async {
+    await pumpWidget(
+      MaterialApp(
+        home: KioskHomeScreen(
+          controller: controller,
+          operatorAccessController:
+              operatorAccessController ?? testOperatorAccessController(),
+          presentation: testIdlePresentation,
         ),
       ),
     );
+  }
 
-    expect(find.byKey(const Key('start-camera-test')), findsOneWidget);
-    expect(find.byKey(const Key('camera-settings')), findsOneWidget);
-    expect(find.text('local only'), findsOneWidget);
-  });
+  Future<void> revealOperatorAccess() async {
+    final hotspot = find.byKey(const Key('operator-hotspot'));
+    await tap(hotspot);
+    await pump(const Duration(milliseconds: 50));
+    await tap(hotspot);
+    await pump();
+  }
 }
 
 CameraDevice testCamera(String id) => CameraDevice(id: id, label: 'Camera $id');

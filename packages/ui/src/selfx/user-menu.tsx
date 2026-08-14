@@ -1,8 +1,16 @@
 "use client";
 
-import { Avatar, Menu, Stack, Text, UnstyledButton } from "@mantine/core";
 import { LogOutIcon, UserIcon } from "lucide-react";
 
+import { Avatar, AvatarFallback } from "@selfx/ui/components/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@selfx/ui/components/dropdown-menu";
 import type { SelfxUserSummary } from "./types.js";
 
 function initialsFor(user: SelfxUserSummary): string {
@@ -23,41 +31,34 @@ export function UserMenu({
   onLogout?: () => void;
 }) {
   return (
-    <Menu shadow="md" width={280} position="bottom-end">
-      <Menu.Target>
-        <UnstyledButton aria-label="Open user menu">
-          <Avatar color="selfx" radius="xl">
-            {user ? initialsFor(user) : "SX"}
-          </Avatar>
-        </UnstyledButton>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Label>
-          <Stack gap={2}>
-            <Text fw={600} size="sm">
-              {user?.displayName ?? "SelfX user"}
-            </Text>
-            {user?.email ? (
-              <Text truncate size="xs" c="dimmed">
-                {user.email}
-              </Text>
-            ) : null}
-          </Stack>
-        </Menu.Label>
-        <Menu.Divider />
-        <Menu.Item
-          leftSection={<UserIcon size={16} aria-hidden="true" />}
-          disabled
-        >
+    <DropdownMenu>
+      <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/35">
+        <Avatar>
+          <AvatarFallback>{user ? initialsFor(user) : "SX"}</AvatarFallback>
+        </Avatar>
+        <span className="sr-only">Open user menu</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel>
+          <span className="block truncate text-sm font-semibold text-foreground">
+            {user?.displayName ?? "SelfX user"}
+          </span>
+          {user?.email ? (
+            <span className="block truncate text-xs font-normal text-muted-foreground">
+              {user.email}
+            </span>
+          ) : null}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled>
+          <UserIcon aria-hidden="true" />
           Profile
-        </Menu.Item>
-        <Menu.Item
-          leftSection={<LogOutIcon size={16} aria-hidden="true" />}
-          onClick={onLogout}
-        >
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onLogout}>
+          <LogOutIcon aria-hidden="true" />
           Sign out
-        </Menu.Item>
-      </Menu.Dropdown>
-    </Menu>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import { Button, Group, Paper, Stack } from "@mantine/core";
+
+import { Button } from "@selfx/ui/components/button";
+import { Card, CardContent } from "@selfx/ui/components/card";
 
 export function FilterBar({
   search,
@@ -17,24 +19,18 @@ export function FilterBar({
   clearLabel?: string;
 }) {
   return (
-    <Paper withBorder radius="md" p={{ base: "md", sm: "lg" }}>
-      <Stack gap="md">
-        <Group align="flex-end" gap="sm" wrap="wrap">
-          {search}
-          {filters}
-          {sort}
-          {onClear ? (
-            <Button variant="subtle" color="gray" onClick={onClear}>
-              {clearLabel}
-            </Button>
-          ) : null}
-          {actions ? (
-            <Group ml="auto" gap="sm" wrap="wrap">
-              {actions}
-            </Group>
-          ) : null}
-        </Group>
-      </Stack>
-    </Paper>
+    <Card>
+      <CardContent className="flex flex-wrap items-end gap-3 p-4">
+        {search}
+        {filters}
+        {sort}
+        {onClear ? (
+          <Button variant="ghost" onClick={onClear}>
+            {clearLabel}
+          </Button>
+        ) : null}
+        {actions ? <div className="ml-auto flex flex-wrap gap-2">{actions}</div> : null}
+      </CardContent>
+    </Card>
   );
 }

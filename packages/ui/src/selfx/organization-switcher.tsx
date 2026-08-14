@@ -1,9 +1,16 @@
 "use client";
 
-import { Button, Group, Menu, Stack, Text } from "@mantine/core";
 import { Building2Icon, CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 
-import { StatusBadge } from "@selfx/ui/selfx/status-badge";
+import { Button } from "@selfx/ui/components/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@selfx/ui/components/dropdown-menu";
+import { StatusBadge } from "./status-badge.js";
 import type { SelfxOrganizationOption } from "./types.js";
 
 export function OrganizationSwitcher({
@@ -16,57 +23,50 @@ export function OrganizationSwitcher({
   onSelect?: (organizationId: string) => void;
 }) {
   const activeOrganization =
-    organizations.find(
-      (organization) => organization.id === activeOrganizationId,
-    ) ?? organizations[0];
+    organizations.find((organization) => organization.id === activeOrganizationId) ??
+    organizations[0];
 
   return (
-    <Menu width={320} shadow="md" position="bottom-start">
-      <Menu.Target>
-        <Button
-          variant="default"
-          justify="space-between"
-          leftSection={<Building2Icon size={16} aria-hidden="true" />}
-          rightSection={<ChevronsUpDownIcon size={16} aria-hidden="true" />}
-          maw={320}
-          miw={{ base: 0, sm: 260 }}
-          px="sm"
-          aria-label="Select organization"
-        >
-          <Text truncate size="sm" fw={500}>
-            {activeOrganization?.name ?? "No active organization"}
-          </Text>
-        </Button>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Label>Organization</Menu.Label>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            className="max-w-[18rem] justify-between gap-2"
+            aria-label="Select organization"
+          />
+        }
+      >
+        <Building2Icon aria-hidden="true" />
+        <span className="truncate">
+          {activeOrganization?.name ?? "No active organization"}
+        </span>
+        <ChevronsUpDownIcon aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-80">
+        <DropdownMenuLabel>Organization</DropdownMenuLabel>
         {organizations.length === 0 ? (
-          <Menu.Item disabled>No active organizations</Menu.Item>
+          <DropdownMenuItem disabled>No active organizations</DropdownMenuItem>
         ) : (
           organizations.map((organization) => (
-            <Menu.Item
+            <DropdownMenuItem
               key={organization.id}
               onClick={() => onSelect?.(organization.id)}
-              leftSection={
-                organization.id === activeOrganization?.id ? (
-                  <CheckIcon size={16} aria-hidden="true" />
-                ) : (
-                  <span aria-hidden="true" />
-                )
-              }
+              className="items-start gap-3 py-2"
             >
-              <Stack gap={2}>
-                <Text truncate size="sm">
-                  {organization.name}
-                </Text>
-                <Group>
-                  <StatusBadge status={organization.status} />
-                </Group>
-              </Stack>
-            </Menu.Item>
+              <span className="mt-0.5 flex size-4 items-center justify-center">
+                {organization.id === activeOrganization?.id ? (
+                  <CheckIcon size={16} aria-hidden="true" />
+                ) : null}
+              </span>
+              <span className="min-w-0 space-y-1">
+                <span className="block truncate">{organization.name}</span>
+                <StatusBadge status={organization.status} />
+              </span>
+            </DropdownMenuItem>
           ))
         )}
-      </Menu.Dropdown>
-    </Menu>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../camera/camera_models.dart';
+import '../theme/selfx_kiosk_theme.dart';
 
 class KioskScaffold extends StatelessWidget {
   const KioskScaffold({
@@ -87,7 +88,7 @@ class StatusPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         border: Border.all(color: color.withValues(alpha: 0.35)),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -120,7 +121,7 @@ class _SelfxMark extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
       ),
       child: const Text(
         'SX',
