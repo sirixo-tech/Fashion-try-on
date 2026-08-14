@@ -442,6 +442,45 @@ Customer history remains usable without violating the 7-day image-retention poli
 
 # 4. Organization and Store Journeys
 
+## 4.0 Production Platform Initialization
+
+### Primary Actor
+
+SelfX production operator
+
+### Main Flow
+
+1. Operator deploys the SelfX API and web frontend against the production
+   PostgreSQL database.
+2. Operator confirms production health and readiness are online.
+3. Operator sets the temporary production bootstrap gates and first-admin
+   email/password/display-name variables in the production API environment.
+4. Operator manually runs the one-time production platform admin bootstrap
+   command against the deployed API environment.
+5. SelfX verifies the production user database is empty, locks the bootstrap
+   transaction, creates the first user and assigns active `SELFX_SUPER_ADMIN`
+   atomically.
+6. Operator removes the temporary bootstrap gates and credential variables from
+   Railway and applies the variable removal as needed.
+7. The initialized platform administrator signs in through the standard
+   production frontend login flow.
+
+### Alternate / Refusal Flows
+
+- If `NODE_ENV` is not production or either explicit safety gate is missing,
+  the command refuses without database mutation.
+- If users already exist in any incompatible state, the command refuses without
+  resetting passwords, promoting users or changing email addresses.
+- If the exact first administrator is already active with active
+  `SELFX_SUPER_ADMIN`, a retry reports initialization complete and performs no
+  mutation.
+
+### Boundary
+
+There is no public bootstrap endpoint, setup route, signup shortcut, direct SQL
+procedure or automatic startup seed for creating the first production platform
+administrator.
+
 ## 4.1 Organization Creation — SelfX Admin
 
 ### Primary Actor

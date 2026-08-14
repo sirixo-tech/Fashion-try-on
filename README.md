@@ -385,6 +385,44 @@ npm run platform:bootstrap
 Both commands require their corresponding `SELFX_*_BOOTSTRAP_ENABLED` variables
 and are blocked in `NODE_ENV=production`.
 
+## Production Platform Admin Bootstrap
+
+Local users are not production users. A first Railway production
+`SELFX_SUPER_ADMIN` must be created with the dedicated one-time operator command
+after the API has been built:
+
+```bash
+npm run production:bootstrap-admin
+```
+
+This root command runs `npm run bootstrap:production-admin --workspace
+@selfx/api`, which executes the compiled API script
+`node dist/scripts/bootstrap-production-admin.js`.
+
+The production command runs only with:
+
+```text
+NODE_ENV=production
+SELFX_PRODUCTION_BOOTSTRAP_ENABLED=true
+SELFX_PRODUCTION_BOOTSTRAP_CONFIRM=CREATE_FIRST_SUPER_ADMIN
+SELFX_PRODUCTION_ADMIN_EMAIL=<first production admin email>
+SELFX_PRODUCTION_ADMIN_PASSWORD=<temporary strong password>
+SELFX_PRODUCTION_ADMIN_DISPLAY_NAME=<optional display name>
+```
+
+The command is manual, one-time and operator-only. It requires an empty
+production user database, creates the first `User` and active
+`SELFX_SUPER_ADMIN` assignment atomically, and safely no-ops only when the
+exact requested admin is already initialized. It does not reset passwords,
+promote arbitrary users, create a public signup/setup endpoint or run during
+normal application startup.
+
+After a successful production bootstrap, remove or disable
+`SELFX_PRODUCTION_BOOTSTRAP_ENABLED`, remove the temporary production bootstrap
+email/password/confirmation variables from Railway, redeploy/apply the variable
+removal as needed, then test login through the production frontend using the
+standard auth flow.
+
 Create/update temporary local demo logins for each current platform and
 merchant role explicitly:
 

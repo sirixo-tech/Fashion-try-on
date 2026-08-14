@@ -372,6 +372,29 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     For web applications, secure HttpOnly cookies should be preferred over long-lived authentication credentials stored in localStorage.
     Native applications must use platform-secure storage.
 
+    Production initialization of the first SelfX platform super administrator
+    must use a dedicated manual operator command, not a public HTTP endpoint,
+    hidden UI route, direct SQL insert, demo account or automatic startup seed.
+    Local development users are not production users, and development bootstrap
+    scripts must continue refusing `NODE_ENV=production`.
+
+    The production bootstrap command must run only with `NODE_ENV=production`,
+    `SELFX_PRODUCTION_BOOTSTRAP_ENABLED=true` and
+    `SELFX_PRODUCTION_BOOTSTRAP_CONFIRM=CREATE_FIRST_SUPER_ADMIN`. It uses
+    dedicated input variables for email, password and optional display name,
+    normalizes email through the standard auth normalization path, hashes the
+    password through the existing Argon2id `PasswordService`, and must never log
+    or persist plaintext passwords.
+
+    The command is valid only for an empty production user database. It must
+    create the first `User` and active `SELFX_SUPER_ADMIN`
+    `PlatformRoleAssignment` atomically under a PostgreSQL transaction-scoped
+    advisory lock. A retry is safe only when exactly one active matching user
+    already has an active `SELFX_SUPER_ADMIN` assignment; otherwise existing
+    users cause refusal without password reset, user mutation or role promotion.
+    Operators must remove the temporary production bootstrap variables after
+    successful initialization and then use the normal production login flow.
+
 ---
 
 15. Customer Authentication

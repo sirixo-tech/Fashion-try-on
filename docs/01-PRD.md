@@ -986,6 +986,22 @@ SelfX Super Admin must provide platform-level management of:
 
 # 26. SelfX Support View
 
+## PRD-SUPPORT-000
+
+The first production SelfX platform super administrator must be initialized
+through a controlled one-time operator bootstrap, not through public signup,
+direct SQL inserts, demo accounts or a hidden browser setup route.
+
+The production bootstrap may be used only for an empty production user database
+and must create the first user plus active `SELFX_SUPER_ADMIN` platform role as
+one atomic operation. A safe retry may report that the exact first administrator
+is already initialized, but the bootstrap must not become a general production
+user-creation or password-reset mechanism.
+
+Temporary bootstrap secrets must be removed after successful initialization.
+Normal production login uses the standard staff/admin authentication flow after
+the first platform administrator exists.
+
 ## PRD-SUPPORT-001
 
 Authorized SelfX personnel must be able to inspect a client environment for support without requesting customer passwords.

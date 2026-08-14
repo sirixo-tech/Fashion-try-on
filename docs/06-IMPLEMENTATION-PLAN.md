@@ -339,6 +339,19 @@ SelfX platform roles remain separate:
 
 Platform roles must not be represented as merchant organization memberships.
 
+First production `SELFX_SUPER_ADMIN` initialization uses a dedicated manual
+operator bootstrap command for an empty production user database. Existing
+development bootstrap scripts remain non-production only. The production
+bootstrap requires `NODE_ENV=production`,
+`SELFX_PRODUCTION_BOOTSTRAP_ENABLED=true`,
+`SELFX_PRODUCTION_BOOTSTRAP_CONFIRM=CREATE_FIRST_SUPER_ADMIN`, dedicated admin
+email/password/display-name inputs, standard email normalization and
+`PasswordService` hashing. User creation and active platform role assignment
+must happen atomically under a transaction-scoped advisory lock, with safe retry
+only for the exact already-initialized admin. No public endpoint, signup route,
+direct SQL workaround, schema migration, startup seed or demo production
+account is introduced.
+
 Permission baseline:
 
 - ORGANIZATION_OWNER can read/update the organization, manage all stores, view memberships, invite/update staff, assign organization/store roles, change store scopes, suspend/reactivate staff and perform ownership-level actions.
@@ -1769,6 +1782,14 @@ The API maintains separate operational endpoints:
 - The web Railway Start Command remains `npm run start --workspace=@selfx/web`.
   Frontend deployment remains pending until the Railway clean build succeeds
   with the dependency-aware command.
+- First production platform administration is initialized manually with
+  `npm run production:bootstrap-admin` after the API build exists in the target
+  production environment. Operators must temporarily set the required
+  production bootstrap variables, run the command once, remove the bootstrap
+  gates and temporary credential variables from Railway, apply the variable
+  removal as needed, and verify normal frontend login. The command remains safe
+  on later attempts because the empty-database invariant and exact-admin retry
+  check prevent creating another first admin.
 
 ---
 

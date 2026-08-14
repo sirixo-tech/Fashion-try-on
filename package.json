@@ -31,6 +31,7 @@
     "db:test:uuid": "npm run test:uuid --workspace @selfx/database",
     "auth:bootstrap": "npm run bootstrap:staff --workspace @selfx/api",
     "platform:bootstrap": "npm run bootstrap:platform-admin --workspace @selfx/api",
+    "production:bootstrap-admin": "npm run bootstrap:production-admin --workspace @selfx/api",
     "demo:bootstrap": "npm run bootstrap:demo-logins --workspace @selfx/api",
     "start:web": "npm run start --workspace @selfx/web",
     "start:api": "npm run start --workspace @selfx/api",

@@ -10,6 +10,7 @@
     "test": "vitest run --exclude \"dist/**\"",
     "bootstrap:staff": "tsx src/scripts/bootstrap-staff-user.ts",
     "bootstrap:platform-admin": "tsx src/scripts/bootstrap-platform-admin.ts",
+    "bootstrap:production-admin": "node dist/scripts/bootstrap-production-admin.js",
     "bootstrap:demo-logins": "tsx src/scripts/bootstrap-demo-logins.ts"
   },
   "dependencies": {
