@@ -654,13 +654,22 @@ class _AudioSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SwitchListTile(
-          key: const Key('capture-sounds-toggle'),
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Capture sounds'),
-          subtitle: const Text('Countdown, shutter and success cues'),
-          value: captureSoundsEnabled,
-          onChanged: onCaptureSoundsChanged,
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusSmall),
+          clipBehavior: Clip.antiAlias,
+          child: SwitchListTile(
+            key: const Key('capture-sounds-toggle'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Capture sounds'),
+            subtitle: const Text('Countdown, shutter and success cues'),
+            value: captureSoundsEnabled,
+            activeThumbColor: SelfxKioskTokens.primary,
+            activeTrackColor: SelfxKioskTokens.primary.withValues(alpha: 0.36),
+            hoverColor: SelfxKioskTokens.primary.withValues(alpha: 0.06),
+            selectedTileColor: SelfxKioskTokens.primary.withValues(alpha: 0.08),
+            onChanged: onCaptureSoundsChanged,
+          ),
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<CaptureAudioProfile>(
