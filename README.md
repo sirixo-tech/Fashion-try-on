@@ -367,6 +367,13 @@ third-party API cookie and no refresh token is exposed to JavaScript. Local
 development may still use `NEXT_PUBLIC_API_URL=http://localhost:3001` for a
 direct local API.
 
+Client-side API URL code must reference `process.env.NEXT_PUBLIC_API_URL` and
+`process.env.NEXT_PUBLIC_SELFX_API_BASE_URL` directly so Next.js can inline
+browser environment values correctly. Do not route browser env resolution
+through an indirect `process.env` object. Production must never silently fall
+back to `http://localhost:3001`; if public API URL variables are absent in
+production, browser requests default to same-origin `/api/v1/*`.
+
 The API exposes separate liveness and readiness endpoints:
 
 ```text
@@ -457,6 +464,10 @@ Chrome:
 Because a production refresh token was exposed during manual debugging, revoke
 or logout all existing production administrator sessions after verification,
 then sign in again and use the newly created clean session.
+
+Same-origin proxy production verification remains pending until the deployed
+browser Network tab confirms login and refresh use the web origin rather than
+localhost or the API Railway host.
 
 Create/update temporary local demo logins for each current platform and
 merchant role explicitly:

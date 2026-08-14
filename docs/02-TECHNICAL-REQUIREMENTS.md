@@ -380,6 +380,14 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     development API URL is configured. Local development may still use
     `NEXT_PUBLIC_API_URL=http://localhost:3001` or the legacy
     `NEXT_PUBLIC_SELFX_API_BASE_URL` to call a local API directly.
+    Client-side Next.js code must read `NEXT_PUBLIC_*` variables through direct,
+    statically analyzable `process.env.NEXT_PUBLIC_API_URL` and
+    `process.env.NEXT_PUBLIC_SELFX_API_BASE_URL` property references. Browser
+    API-base resolution must not depend on passing an indirect `process.env`
+    object through helpers, because that can prevent correct Next.js client
+    environment replacement. Production must never silently fall back to
+    `http://localhost:3001`; absent production public API variables mean
+    same-origin relative `/api/v1/*` requests.
 
     The same-origin web proxy preserves `/api/v1/auth/*` browser-facing paths
     so the existing refresh cookie path remains valid. Refresh tokens remain
@@ -1428,7 +1436,10 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     `/api/v1/*` paths. Once the web proxy is active, production auth cookies
     should use `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=lax` and unset
     `COOKIE_DOMAIN`, while backend `CORS_ORIGINS` remains the exact trusted web
-    origin.
+    origin. Operators should not switch cookie SameSite back to lax until
+    deployed browser Network verification proves login and refresh use the web
+    origin and no request falls back to localhost or direct API-host browser
+    traffic.
     Database migrations are part of the release lifecycle.
     Production schema changes must not depend on manual database editing.
     Application releases should be rollback-capable.

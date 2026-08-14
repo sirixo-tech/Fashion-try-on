@@ -981,8 +981,12 @@ SelfX API through server-only `SELFX_API_UPSTREAM_URL`; browser code does not
 receive this value. In production, removing `NEXT_PUBLIC_API_URL` and
 `NEXT_PUBLIC_SELFX_API_BASE_URL` makes `frontend/web/lib/api.ts` use relative
 same-origin requests. Local development may keep an explicit public localhost
-API URL. Try-On Lab API helpers use the same routing semantics and preserve
-multipart uploads.
+API URL. The browser-facing wrapper in `frontend/web/lib/api.ts` must use
+direct statically analyzable `process.env.NEXT_PUBLIC_API_URL`,
+`process.env.NEXT_PUBLIC_SELFX_API_BASE_URL` and `process.env.NODE_ENV`
+references rather than passing an indirect env object, while pure resolution
+logic remains separately testable. Try-On Lab API helpers use the same routing
+semantics and preserve multipart uploads.
 
 `SessionProvider` still refreshes on mount so reload, direct URL and new-tab
 entry restore sessions through the HttpOnly refresh cookie. The access token
@@ -1804,11 +1808,14 @@ The API maintains separate operational endpoints:
   server-only variable and remove `NEXT_PUBLIC_API_URL` and
   `NEXT_PUBLIC_SELFX_API_BASE_URL` when they point at the backend host.
   Railway `@selfx/api` should keep exact `CORS_ORIGINS` for the web origin,
-  keep `COOKIE_SECURE=true`, return `COOKIE_SAME_SITE=lax` once same-origin
-  proxying is active, and keep `COOKIE_DOMAIN` unset. Production verification
-  must confirm login and refresh requests use the web origin, refresh includes
-  a Cookie header and returns HTTP 200, sidebar navigation does not reload the
-  document, F5/direct URL/new tab restore the session, and logout clears it.
+  keep `COOKIE_SECURE=true`, temporarily leave current cookie SameSite config
+  until same-origin proxying is verified, then return `COOKIE_SAME_SITE=lax`
+  once login and refresh are proven to use the web origin. Keep `COOKIE_DOMAIN`
+  unset. Production verification must confirm login and refresh requests use the
+  web origin, no browser request falls back to `http://localhost:3001` or the
+  API Railway host, refresh includes a Cookie header and returns HTTP 200,
+  sidebar navigation does not reload the document, F5/direct URL/new tab restore
+  the session, and logout clears it.
 - First production platform administration is initialized manually with
   `npm run production:bootstrap-admin` after the API build exists in the target
   production environment. Operators must temporarily set the required

@@ -23,13 +23,18 @@ export class SafeApiError extends Error {
   }
 }
 
-export function selfxApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const explicit =
-    env.NEXT_PUBLIC_API_URL ?? env.NEXT_PUBLIC_SELFX_API_BASE_URL;
+export interface BrowserApiBaseInput {
+  publicApiUrl?: string;
+  legacyPublicApiUrl?: string;
+  nodeEnv?: string;
+}
+
+export function resolveBrowserApiBase(input: BrowserApiBaseInput): string {
+  const explicit = input.publicApiUrl ?? input.legacyPublicApiUrl;
 
   if (explicit?.trim()) {
     const normalized = explicit.trim().replace(/\/+$/, "");
-    if (env.NODE_ENV === "production" && isLocalhostApiUrl(normalized)) {
+    if (input.nodeEnv === "production" && isLocalhostApiUrl(normalized)) {
       throw new Error(
         "Production web API URL must not point to localhost. Remove NEXT_PUBLIC_API_URL to use the same-origin API proxy.",
       );
@@ -37,19 +42,24 @@ export function selfxApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
     return normalized;
   }
 
-  if (env.NODE_ENV === "production") {
+  if (input.nodeEnv === "production") {
     return "";
   }
 
   return "http://localhost:3001";
 }
 
-export function selfxApiUrl(
-  path: string,
-  env: NodeJS.ProcessEnv = process.env,
-): string {
+export function selfxApiBaseUrl(): string {
+  return resolveBrowserApiBase({
+    publicApiUrl: process.env.NEXT_PUBLIC_API_URL,
+    legacyPublicApiUrl: process.env.NEXT_PUBLIC_SELFX_API_BASE_URL,
+    nodeEnv: process.env.NODE_ENV,
+  });
+}
+
+export function selfxApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${selfxApiBaseUrl(env)}${normalizedPath}`;
+  return `${selfxApiBaseUrl()}${normalizedPath}`;
 }
 
 export async function selfxApi<T>(
