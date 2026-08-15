@@ -273,7 +273,12 @@ KioskProvisioningStatus _pairingStatus(String value) {
 }
 
 KioskDeviceStatus _deviceStatus(String value) {
-  return value == 'ACTIVE' ? KioskDeviceStatus.active : KioskDeviceStatus.revoked;
+  return switch (value) {
+    'ACTIVE' => KioskDeviceStatus.active,
+    'INACTIVE' => KioskDeviceStatus.inactive,
+    'DELETED' => KioskDeviceStatus.deleted,
+    _ => KioskDeviceStatus.revoked,
+  };
 }
 
 KioskAssignmentScope _assignmentScope(String value) {

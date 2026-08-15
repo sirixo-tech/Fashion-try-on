@@ -372,9 +372,7 @@ export class KioskService {
     ) {
       throwDeviceInvalid();
     }
-    if (session.kioskDevice.status !== KioskDeviceStatus.ACTIVE) {
-      throwDeviceRevoked();
-    }
+    assertDeviceActive(session.kioskDevice.status);
 
     const refreshToken = createRefreshToken(session.id);
     const refreshExpiresAt = new Date(
@@ -447,9 +445,7 @@ export class KioskService {
         "Kiosk device is not paired.",
       );
     }
-    if (device.status !== KioskDeviceStatus.ACTIVE) {
-      throwDeviceRevoked();
-    }
+    assertDeviceActive(device.status);
     return device;
   }
 
@@ -478,6 +474,7 @@ export class KioskService {
 
   async listDevices(): Promise<KioskDeviceListResponseDto> {
     const data = await this.prisma.kioskDevice.findMany({
+      where: { status: { not: KioskDeviceStatus.DELETED } },
       include: assignmentInclude(),
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 100,
@@ -508,6 +505,99 @@ export class KioskService {
     };
   }
 
+  async activateDevice(
+    actorUserId: string,
+    deviceId: string,
+  ): Promise<KioskDeviceResponseDto> {
+    const device = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.kioskDevice.findUnique({
+        where: { id: deviceId },
+      });
+      assertManageableDeviceExists(existing);
+
+      if (existing.status === KioskDeviceStatus.ACTIVE) {
+        return tx.kioskDevice.findUniqueOrThrow({
+          where: { id: deviceId },
+          include: assignmentInclude(),
+        });
+      }
+
+      if (existing.status !== KioskDeviceStatus.INACTIVE) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          KIOSK_ERROR_CODES.deviceRevoked,
+          "Only inactive kiosk devices can be activated.",
+        );
+      }
+
+      const updated = await tx.kioskDevice.update({
+        where: { id: deviceId },
+        data: { status: KioskDeviceStatus.ACTIVE, inactiveAt: null },
+        include: assignmentInclude(),
+      });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          action: KIOSK_AUDIT_ACTIONS.activated,
+          actorUserId,
+          organizationId: updated.organizationId,
+          storeId: updated.storeId,
+          resourceType: "kiosk_device",
+          resourceId: updated.id,
+        },
+      });
+      return updated;
+    });
+    return mapDevice(device);
+  }
+
+  async deactivateDevice(
+    actorUserId: string,
+    deviceId: string,
+  ): Promise<KioskDeviceResponseDto> {
+    const now = new Date();
+    const device = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.kioskDevice.findUnique({
+        where: { id: deviceId },
+      });
+      assertManageableDeviceExists(existing);
+
+      if (existing.status === KioskDeviceStatus.INACTIVE) {
+        return tx.kioskDevice.findUniqueOrThrow({
+          where: { id: deviceId },
+          include: assignmentInclude(),
+        });
+      }
+
+      if (existing.status !== KioskDeviceStatus.ACTIVE) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          KIOSK_ERROR_CODES.deviceRevoked,
+          "Only active kiosk devices can be deactivated.",
+        );
+      }
+
+      const updated = await tx.kioskDevice.update({
+        where: { id: deviceId },
+        data: { status: KioskDeviceStatus.INACTIVE, inactiveAt: now },
+        include: assignmentInclude(),
+      });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          action: KIOSK_AUDIT_ACTIONS.deactivated,
+          actorUserId,
+          organizationId: updated.organizationId,
+          storeId: updated.storeId,
+          resourceType: "kiosk_device",
+          resourceId: updated.id,
+        },
+      });
+      return updated;
+    });
+    return mapDevice(device);
+  }
+
   async revokeDevice(
     actorUserId: string,
     deviceId: string,
@@ -516,13 +606,7 @@ export class KioskService {
       const existing = await tx.kioskDevice.findUnique({
         where: { id: deviceId },
       });
-      if (!existing) {
-        throw new ApiErrorException(
-          HttpStatus.NOT_FOUND,
-          KIOSK_ERROR_CODES.deviceUnpaired,
-          "Kiosk device was not found.",
-        );
-      }
+      assertManageableDeviceExists(existing);
 
       await tx.kioskDeviceSession.updateMany({
         where: { kioskDeviceId: deviceId, revokedAt: null },
@@ -537,6 +621,46 @@ export class KioskService {
         data: {
           id: createSelfxId(),
           action: KIOSK_AUDIT_ACTIONS.revoked,
+          actorUserId,
+          organizationId: updated.organizationId,
+          storeId: updated.storeId,
+          resourceType: "kiosk_device",
+          resourceId: updated.id,
+        },
+      });
+      return updated;
+    });
+    return mapDevice(device);
+  }
+
+  async deleteDevice(
+    actorUserId: string,
+    deviceId: string,
+  ): Promise<KioskDeviceResponseDto> {
+    const now = new Date();
+    const device = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.kioskDevice.findUnique({
+        where: { id: deviceId },
+      });
+      assertManageableDeviceExists(existing);
+
+      await tx.kioskDeviceSession.updateMany({
+        where: { kioskDeviceId: deviceId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      const updated = await tx.kioskDevice.update({
+        where: { id: deviceId },
+        data: {
+          status: KioskDeviceStatus.DELETED,
+          deletedAt: now,
+          revokedAt: existing.revokedAt ?? now,
+        },
+        include: assignmentInclude(),
+      });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          action: KIOSK_AUDIT_ACTIONS.deleted,
           actorUserId,
           organizationId: updated.organizationId,
           storeId: updated.storeId,
@@ -739,7 +863,9 @@ export function mapDevice(device: DeviceWithAssignment): KioskDeviceResponseDto 
     installationId: device.installationId,
     pairedAt: device.pairedAt.toISOString(),
     lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
+    inactiveAt: device.inactiveAt?.toISOString() ?? null,
     revokedAt: device.revokedAt?.toISOString() ?? null,
+    deletedAt: device.deletedAt?.toISOString() ?? null,
     createdAt: device.createdAt.toISOString(),
     updatedAt: device.updatedAt.toISOString(),
   };
@@ -821,4 +947,45 @@ function throwDeviceRevoked(): never {
     KIOSK_ERROR_CODES.deviceRevoked,
     "Kiosk device has been revoked.",
   );
+}
+
+function throwDeviceInactive(): never {
+  throw new ApiErrorException(
+    HttpStatus.FORBIDDEN,
+    KIOSK_ERROR_CODES.deviceInactive,
+    "Kiosk device is inactive.",
+  );
+}
+
+function throwDeviceDeleted(): never {
+  throw new ApiErrorException(
+    HttpStatus.FORBIDDEN,
+    KIOSK_ERROR_CODES.deviceDeleted,
+    "Kiosk device has been deleted.",
+  );
+}
+
+function assertDeviceActive(status: KioskDeviceStatus): void {
+  switch (status) {
+    case KioskDeviceStatus.ACTIVE:
+      return;
+    case KioskDeviceStatus.INACTIVE:
+      throwDeviceInactive();
+    case KioskDeviceStatus.DELETED:
+      throwDeviceDeleted();
+    case KioskDeviceStatus.REVOKED:
+      throwDeviceRevoked();
+  }
+}
+
+function assertManageableDeviceExists<T extends Pick<KioskDevice, "status">>(
+  device: T | null,
+): asserts device is T {
+  if (!device || device.status === KioskDeviceStatus.DELETED) {
+    throw new ApiErrorException(
+      HttpStatus.NOT_FOUND,
+      KIOSK_ERROR_CODES.deviceUnpaired,
+      "Kiosk device was not found.",
+    );
+  }
 }

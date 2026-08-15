@@ -787,8 +787,8 @@ KIOSK-2C rules:
 
 - `mobile/kiosk` must start on a customer-facing kiosk home/idle presentation,
   not camera settings, diagnostics or technical test controls.
-- The customer flow is Kiosk Home -> Start Try-On -> CaptureScope selection ->
-  existing capture/readiness/review/photo-ready flow.
+- The customer flow is Kiosk Home -> Start Try-On -> garment selection/preview
+  -> photo source choice -> existing capture/readiness/review/photo-ready flow.
 - Camera Settings must not be visible on the home screen.
 - Operator access uses a hidden top-left double-tap hotspot that reveals an
   operator icon temporarily, then a 6-digit PIN challenge before settings.
@@ -829,9 +829,18 @@ KIOSK-3A rules:
 - Until production kiosk device provisioning/auth exists, any kiosk-to-API
   bridge must be an explicit development bridge, disabled unless configured and
   free of committed secrets.
-- KIOSK-3A may use manual local garment-image input. Product Catalog, captured
-  garment workflows and commerce-synced garment sources remain future work but
-  must fit the provider-neutral garment-input abstraction.
+- KIOSK-3A may use temporary local garment-image input through a native
+  picker/preview. Product Catalog, captured garment workflows and
+  commerce-synced garment sources remain future work but must fit the
+  provider-neutral garment-input abstraction.
+- Normal customer-facing kiosk garment selection must use a customer-friendly
+  image picker/preview flow for the temporary local garment image. Do not show
+  raw filesystem path fields, milestone labels such as KIOSK-3A, or technical
+  garment intent/photo-type override controls to customers.
+- Until Product Catalog or garment capture is implemented, the temporary
+  garment picker keeps provider-neutral garment semantics internally and maps
+  those semantics to the existing CaptureScope model before photo-source
+  selection.
 - Person input uses the full-resolution accepted still. When
   PrimarySubject/TargetSubjectRegion metadata is available, prepare a padded
   target image from the original still; Windows or unsupported live-frame paths
@@ -876,9 +885,11 @@ KIOSK-4A rules:
   organization.
 - Superadmin pairing UI uses **Pair New Kiosk** and must not create abandoned
   placeholder devices.
-- KIOSK-4A authorizes SelfX superadmins for fleet pairing/revoke actions and
+- KIOSK-4A authorizes SelfX superadmins for fleet pairing, activate,
+  deactivate, revoke and soft-delete actions and
   documents future capabilities: `kiosks.view`, `kiosks.pair`,
-  `kiosks.update`, `kiosks.assign`, `kiosks.revoke`, `kiosks.configure`.
+  `kiosks.update`, `kiosks.assign`, `kiosks.revoke`, `kiosks.delete`,
+  `kiosks.configure`.
 - Device credentials use dedicated kiosk-device access tokens with
   `typ: "kiosk_device_access"` and revocable/rotatable refresh sessions.
 - Do not store device refresh credentials in SharedPreferences/plain files.
@@ -887,6 +898,9 @@ KIOSK-4A rules:
   status/assignment from the database rather than trusting org/store claims.
 - Revoked devices must fail refresh/session/me/heartbeat, clear local device
   credentials and return to pairing.
+- Inactive devices must fail device-authenticated operation until reactivated.
+  Deleted kiosk devices are soft-deleted from the normal fleet list while audit
+  and pairing history remain intact.
 - Superadmin browsers must never receive provisioning secrets, device refresh
   credentials or permanent device credentials.
 - KIOSK-4A may keep the KIOSK-3A dev Try-On bridge in code temporarily, but
@@ -903,8 +917,8 @@ source and must not be treated as production kiosk Try-On orchestration.
 
 KIOSK-4C rules:
 
-- Customer flow after CaptureScope selection offers **Take Photo** and
-  **Use My Phone**.
+- Customer flow after garment selection resolves the existing CaptureScope
+  internally, then offers **Take Photo** and **Use My Phone**.
 - **Use My Phone** creates a backend customer upload session for the active
   kiosk device and renders a QR code.
 - The QR URL contains only a high-entropy opaque capability. It must not contain
@@ -957,6 +971,12 @@ Design-system rules:
   where glass improves the premium experience. Primary glass buttons remain
   SelfX orange with white text; secondary/inactive glass buttons remain
   light/frosted with dark text and visible borders.
+- Kiosk application typography uses Manrope for headings and Inter for body,
+  buttons and labels: H1 44-52px/700, H2 30-36px/650-700, section headings
+  22-26px/600, body 18-20px/400, subtext 16-18px/400, buttons 18-20px/600 and
+  small labels 14-16px/500.
+- SaaS sidebar navigation uses the shared `@selfx/ui` AppShell/sidebar boundary
+  with shadcn sidebar-style composition and Inter-led menu typography.
 - Normal customer home must not show implementation labels such as wallpaper
   mode or platform readiness; technical presentation status belongs in
   operator settings or diagnostics.

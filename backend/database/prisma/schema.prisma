@@ -67,7 +67,9 @@ enum KioskAssignmentScope {
 
 enum KioskDeviceStatus {
   ACTIVE
+  INACTIVE
   REVOKED
+  DELETED
 }
 
 enum KioskPairingSessionStatus {
@@ -307,7 +309,9 @@ model KioskDevice {
   installationId  String?                @map("installation_id") @db.VarChar(160)
   pairedAt        DateTime               @default(now()) @map("paired_at") @db.Timestamptz(3)
   lastSeenAt      DateTime?              @map("last_seen_at") @db.Timestamptz(3)
+  inactiveAt      DateTime?              @map("inactive_at") @db.Timestamptz(3)
   revokedAt       DateTime?              @map("revoked_at") @db.Timestamptz(3)
+  deletedAt       DateTime?              @map("deleted_at") @db.Timestamptz(3)
   createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization    Organization?          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
@@ -322,6 +326,7 @@ model KioskDevice {
   @@index([storeId])
   @@index([organizationId, storeId])
   @@index([lastSeenAt])
+  @@index([deletedAt])
   @@map("kiosk_devices")
 }
 

@@ -1078,23 +1078,26 @@ remain future work.
   validation.
 - Kiosk runtime defines `SELFX_KIOSK_API_BASE_URL` and an explicit development
   access token. No provider key is present in Flutter.
-- Customer has selected or entered a local garment image for this milestone.
+- Customer can choose a supported local garment image through the temporary
+  picker/preview flow for this milestone.
 
 ### Customer Flow
 
 1. Kiosk launches to the customer home.
 2. Customer taps **Start Try-On**.
-3. Customer selects or enters a garment image and its broad garment intent.
-4. Customer selects **Top**, **Bottom** or **Full Body** CaptureScope.
-5. Kiosk runs the existing assisted/live capture flow.
-6. Customer reviews the accepted full-resolution capture.
-7. Customer taps **Use Photo**.
-8. Kiosk prepares the person input from the original capture, using
+3. Customer chooses a supported garment image and previews it.
+4. Kiosk keeps garment semantics internal and resolves the existing
+   CaptureScope behavior without showing garment type or photo-style controls.
+5. Customer chooses **Take Photo**.
+6. Kiosk runs the existing assisted/live capture flow.
+7. Customer reviews the accepted full-resolution capture.
+8. Customer taps **Use Photo**.
+9. Kiosk prepares the person input from the original capture, using
    TargetSubjectRegion when available or full-frame fallback when not.
-9. Kiosk submits the run to SelfX and shows generation progress.
-10. Kiosk polls the existing run until success, failure or timeout.
-11. On success, kiosk opens the result screen with the generated image.
-12. Customer may try another garment, retake the photo or finish.
+10. Kiosk submits the run to SelfX and shows generation progress.
+11. Kiosk polls the existing run until success, failure or timeout.
+12. On success, kiosk opens the result screen with the generated image.
+13. Customer may try another garment, retake the photo or finish.
 
 ### Alternate / Failure Flows
 
@@ -1146,6 +1149,9 @@ new database persistence or provider calls from Flutter.
    stores the device refresh credential in secure storage.
 10. Kiosk calls `session/me` and enters customer home.
 11. On restart, kiosk refreshes/restores device identity without re-pairing.
+12. Superadmin may later deactivate or reactivate the kiosk from the fleet page.
+13. Superadmin may delete the kiosk from the normal fleet list when it should no
+    longer be managed as an active fleet record.
 
 ### Alternate / Failure Flows
 
@@ -1156,8 +1162,12 @@ new database persistence or provider calls from Flutter.
 - Cross-organization store assignment -> pairing is rejected.
 - Temporary network failure during startup -> kiosk shows recoverable retry and
   does not immediately erase a valid identity.
+- Inactive device -> device-authenticated operation is blocked until
+  reactivated.
 - Revoked device -> refresh/session/me/heartbeat fails, kiosk clears device
   credential state and returns to pairing.
+- Deleted device -> device-authenticated operation is blocked and the kiosk is
+  removed from the normal fleet list while audit history remains.
 
 ### Boundary
 
@@ -1176,13 +1186,14 @@ device-authenticated production kiosk Try-On endpoints.
 ### Preconditions
 
 - Kiosk is paired and online.
-- Customer has selected the garment input and CaptureScope for the current
-  kiosk session.
+- Customer has selected and previewed the garment input for the current kiosk
+  session.
 - SelfX API object-storage upload configuration is available.
 
 ### Main Flow
 
-1. Kiosk opens photo source choice after CaptureScope selection.
+1. Kiosk opens photo source choice after garment selection/preview and internal
+   CaptureScope resolution.
 2. Customer chooses **Use My Phone**.
 3. Kiosk creates a customer upload session with its device access token.
 4. Kiosk displays a QR code, five-minute countdown and waiting status.

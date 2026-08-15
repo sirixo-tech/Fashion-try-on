@@ -1478,12 +1478,14 @@ No checkout button is required.
 
 ### KIOSK-3A Real Generation Flow
 
-- **Start Try-On** opens garment selection before CaptureScope.
-- Garment selection supports a temporary manual local image path, broad garment
-  type and photo-style selection. It must remain clearly a development/manual
-  input until Product Catalog or garment capture is implemented.
-- CaptureScope remains **Top**, **Bottom** and **Full Body** and continues into
-  assisted/live capture.
+- **Start Try-On** opens customer-friendly garment selection before photo
+  source choice.
+- Garment selection supports a temporary native image picker for JPEG, PNG and
+  WebP local garment images, then shows a preview with **Choose Another** and
+  **Continue**. It must not show raw filesystem paths, KIOSK milestone labels,
+  garment type controls or photo-style controls in normal customer UI.
+- CaptureScope remains **Top**, **Bottom** and **Full Body** internally and is
+  resolved from provider-neutral garment semantics before assisted/live capture.
 - Review keeps **Retake** and **Use Photo**. **Use Photo** submits the accepted
   capture to SelfX instead of stopping at Photo Ready.
 - Generation progress shows friendly states such as preparing, uploading,
@@ -1517,17 +1519,21 @@ No checkout button is required.
 - Revoked/unpaired device state clears local credentials and returns to pairing.
 - SaaS **Kiosks** page shows fleet devices with name, ID, platform, status,
   assignment, organization/store, last seen and paired time.
+- Fleet device rows expose lifecycle actions appropriate to the current status:
+  **Deactivate** for active devices, **Activate** for inactive devices,
+  **Revoke** for unpairing credentials, and **Delete** for soft-removing a
+  kiosk from the normal list.
 - **Pair New Kiosk** modal collects pairing code, device name and assignment
   scope. `PLATFORM` requires no org/store; `ORGANIZATION` requires org;
   `STORE` requires org and store.
 - Pairing errors use safe copy such as "Pairing code expired or invalid."
-- Revoke action is visible only through the protected superadmin fleet surface
-  and uses danger/destructive styling.
+- Revoke and Delete actions are visible only through the protected superadmin
+  fleet surface, require confirmation and use danger/destructive styling.
 
 ### KIOSK-4C Mobile Photo Upload UI
 
-- After CaptureScope selection, the kiosk shows a photo source choice with
-  **Take Photo** and **Use My Phone**.
+- After garment selection/preview and internal CaptureScope resolution, the
+  kiosk shows a photo source choice with **Take Photo** and **Use My Phone**.
 - **Use My Phone** opens a QR upload screen with SelfX branding, large QR code,
   five-minute `MM:SS` countdown, progress indicator, status text and cancel.
 - The QR screen must not show capability internals, object keys, auth tokens,
@@ -1549,6 +1555,17 @@ No checkout button is required.
 
 # 28.1 SelfX Button and Visual System
 
+- Typography:
+  - kiosk H1/main heading: Manrope 700, 44-52px;
+  - kiosk H2/screen title: Manrope 650/700, 30-36px;
+  - kiosk section heading: Manrope 600, 22-26px;
+  - kiosk body: Inter 400, 18-20px;
+  - kiosk subtext: Inter 400, 16-18px;
+  - kiosk buttons: Inter 600, 18-20px;
+  - kiosk small labels: Inter 500, 14-16px.
+- SaaS sidebar menu items use the same Inter-led SelfX type system through the
+  shared `@selfx/ui` AppShell/sidebar boundary and should follow the shadcn
+  sidebar composition pattern.
 - Primary buttons: `#FF7119` background, white text, orange border.
 - Active/selected buttons: same orange selected state.
 - Secondary/inactive buttons: white/light background, dark text and neutral

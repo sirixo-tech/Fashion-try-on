@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
-import 'capture_scope_screen.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
+import 'photo_source_choice_screen.dart';
 
 class TryOnResultScreen extends StatelessWidget {
   const TryOnResultScreen({
@@ -103,8 +103,8 @@ class TryOnResultScreen extends StatelessWidget {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => CaptureScopeScreen(
-          controller: captureController,
+        builder: (_) => PhotoSourceChoiceScreen(
+          captureController: captureController,
           tryOnController: tryOnController,
           uploadController: uploadController,
         ),

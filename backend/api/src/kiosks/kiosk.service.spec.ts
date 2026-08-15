@@ -282,6 +282,42 @@ describe("KIOSK-4A device provisioning", () => {
     );
   });
 
+  it("supports inactive reactivation and soft deletion without listing deleted devices", async () => {
+    const admin = await createUser("lifecycle-admin");
+    await assignSuperAdmin(admin.id);
+    const credentials = await pairedCredentials(admin.id);
+
+    const inactive = await service.deactivateDevice(
+      admin.id,
+      credentials.device.id,
+    );
+    expect(inactive.status).toBe(KioskDeviceStatus.INACTIVE);
+    expect(inactive.inactiveAt).toBeTruthy();
+    await expectApiCode(
+      service.refreshDeviceSession({ refreshToken: credentials.refreshToken }),
+      KIOSK_ERROR_CODES.deviceInactive,
+    );
+
+    const active = await service.activateDevice(admin.id, credentials.device.id);
+    expect(active.status).toBe(KioskDeviceStatus.ACTIVE);
+    expect(active.inactiveAt).toBeNull();
+
+    const refreshed = await service.refreshDeviceSession({
+      refreshToken: credentials.refreshToken,
+    });
+    expect(refreshed.device.status).toBe(KioskDeviceStatus.ACTIVE);
+
+    const deleted = await service.deleteDevice(admin.id, credentials.device.id);
+    expect(deleted.status).toBe(KioskDeviceStatus.DELETED);
+    expect(deleted.deletedAt).toBeTruthy();
+    await expectApiCode(
+      service.refreshDeviceSession({ refreshToken: refreshed.refreshToken }),
+      KIOSK_ERROR_CODES.deviceTokenInvalid,
+    );
+    const listed = await service.listDevices();
+    expect(listed.data.some((device) => device.id === deleted.id)).toBe(false);
+  });
+
   it("session/me reloads current assignment from the database", async () => {
     const admin = await createUser("me-admin");
     const org = await createOrganization("me-org");

@@ -9,7 +9,9 @@ export const KIOSK_ERROR_CODES = {
   provisioningGrantConsumed: "KIOSK_PROVISIONING_GRANT_CONSUMED",
   deviceTokenInvalid: "DEVICE_TOKEN_INVALID",
   deviceTokenExpired: "DEVICE_TOKEN_EXPIRED",
+  deviceInactive: "DEVICE_INACTIVE",
   deviceRevoked: "DEVICE_REVOKED",
+  deviceDeleted: "DEVICE_DELETED",
   deviceUnpaired: "DEVICE_UNPAIRED",
   assignmentInvalid: "KIOSK_ASSIGNMENT_INVALID",
   customerUploadInvalid: "KIOSK_CUSTOMER_UPLOAD_INVALID",
@@ -21,7 +23,10 @@ export const KIOSK_ERROR_CODES = {
 
 export const KIOSK_AUDIT_ACTIONS = {
   paired: "KIOSK_PAIRED",
+  activated: "KIOSK_ACTIVATED",
+  deactivated: "KIOSK_DEACTIVATED",
   revoked: "KIOSK_REVOKED",
+  deleted: "KIOSK_DELETED",
   heartbeat: "KIOSK_HEARTBEAT",
 } as const;
 

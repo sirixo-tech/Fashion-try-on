@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +23,8 @@ import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
+import 'package:selfx_kiosk/src/tryon/garment_image_picker.dart';
+import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_gateway.dart';
@@ -409,8 +413,9 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Select a garment for this Try-On'), findsOneWidget);
-      expect(find.byKey(const Key('garment-image-path')), findsOneWidget);
+      expect(find.text('Select your garment'), findsOneWidget);
+      expect(find.byKey(const Key('choose-garment-image')), findsOneWidget);
+      expect(find.byKey(const Key('garment-image-path')), findsNothing);
     });
 
     testWidgets('hidden top-left double tap reveals operator access briefly', (
@@ -505,8 +510,73 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Select a garment for this Try-On'), findsOneWidget);
+      expect(find.text('Select your garment'), findsOneWidget);
+      expect(find.byKey(const Key('choose-garment-image')), findsOneWidget);
     });
+  });
+
+  group('KIOSK-4C.1 garment selection', () {
+    testWidgets(
+      'customer garment screen uses picker preview and reaches photo source',
+      (tester) async {
+        final temp = await Directory.systemTemp.createTemp(
+          'selfx-kiosk-garment-picker-',
+        );
+        addTearDown(() async {
+          if (await temp.exists()) {
+            await temp.delete(recursive: true);
+          }
+        });
+        final garment = File('${temp.path}${Platform.pathSeparator}dress.png');
+        await garment.writeAsBytes(tinyPng);
+        final captureController = testController();
+        final tryOnController = KioskTryOnSessionController(
+          gateway: FakeKioskTryOnGateway(),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: GarmentSelectionScreen(
+              captureController: captureController,
+              tryOnController: tryOnController,
+              uploadController: testUploadController(
+                captureController.captureStore,
+              ),
+              garmentPicker: FakeGarmentImagePicker(
+                PickedGarmentImage(path: garment.path, fileName: 'dress.png'),
+              ),
+            ),
+          ),
+        );
+
+        expect(find.byKey(const Key('garment-image-path')), findsNothing);
+        expect(find.textContaining('KIOSK-3A'), findsNothing);
+        expect(find.text('Garment type'), findsNothing);
+        expect(find.text('Photo style'), findsNothing);
+        expect(find.text('Auto photo'), findsNothing);
+        expect(find.text('Flat lay'), findsNothing);
+        expect(find.text('On model'), findsNothing);
+
+        await tester.tap(find.byKey(const Key('choose-garment-image')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(
+          find.byKey(const Key('selected-garment-preview')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('choose-another-garment')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('continue-to-photo-source')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.byKey(const Key('take-photo-source')), findsOneWidget);
+        expect(find.byKey(const Key('use-phone-source')), findsOneWidget);
+
+        captureController.dispose();
+      },
+    );
   });
 }
 
@@ -514,6 +584,10 @@ const testIdlePresentation = KioskIdlePresentation(
   mode: KioskIdlePresentationMode.static,
   slideDuration: Duration(seconds: 30),
   assets: [fallbackIdleAsset],
+);
+
+final tinyPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
 );
 
 OperatorAccessController testOperatorAccessController({
@@ -569,6 +643,15 @@ KioskCustomerUploadController testUploadController(
     gateway: FakeKioskCustomerUploadGateway(),
     captureStore: captureStore,
   );
+}
+
+class FakeGarmentImagePicker implements GarmentImagePicker {
+  const FakeGarmentImagePicker(this.image);
+
+  final PickedGarmentImage? image;
+
+  @override
+  Future<PickedGarmentImage?> pickGarmentImage() async => image;
 }
 
 class FakeKioskTryOnGateway implements KioskTryOnGateway {

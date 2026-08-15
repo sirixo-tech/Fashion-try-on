@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Req } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -105,5 +105,65 @@ export class AdminKiosksController {
       PLATFORM_PERMISSIONS.kiosksRevoke,
     );
     return this.kiosks.revokeDevice(user.id, deviceId);
+  }
+
+  @Post(":deviceId/activate")
+  @ApiOperation({ summary: "Activate an inactive kiosk device" })
+  @ApiOkResponse({ type: KioskDeviceResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async activate(
+    @Req() request: FastifyRequest,
+    @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
+  ): Promise<KioskDeviceResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksUpdate,
+    );
+    return this.kiosks.activateDevice(user.id, deviceId);
+  }
+
+  @Post(":deviceId/deactivate")
+  @ApiOperation({ summary: "Deactivate a kiosk device" })
+  @ApiOkResponse({ type: KioskDeviceResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async deactivate(
+    @Req() request: FastifyRequest,
+    @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
+  ): Promise<KioskDeviceResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksUpdate,
+    );
+    return this.kiosks.deactivateDevice(user.id, deviceId);
+  }
+
+  @Delete(":deviceId")
+  @ApiOperation({ summary: "Soft-delete a kiosk device from the fleet list" })
+  @ApiOkResponse({ type: KioskDeviceResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async delete(
+    @Req() request: FastifyRequest,
+    @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
+  ): Promise<KioskDeviceResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksDelete,
+    );
+    return this.kiosks.deleteDevice(user.id, deviceId);
   }
 }

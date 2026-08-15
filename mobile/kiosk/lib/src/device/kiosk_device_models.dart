@@ -1,6 +1,6 @@
 enum KioskProvisioningStatus { waiting, paired, expired }
 
-enum KioskDeviceStatus { active, revoked }
+enum KioskDeviceStatus { active, inactive, revoked, deleted }
 
 enum KioskAssignmentScope { platform, organization, store }
 
@@ -101,6 +101,7 @@ class KioskDeviceException implements Exception {
 
   bool get isRevoked =>
       code == 'DEVICE_REVOKED' ||
+      code == 'DEVICE_DELETED' ||
       code == 'DEVICE_UNPAIRED' ||
       code == 'DEVICE_TOKEN_INVALID';
 }

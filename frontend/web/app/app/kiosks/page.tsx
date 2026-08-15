@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MonitorIcon,
   PlusIcon,
+  PowerIcon,
+  PowerOffIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 import {
   Button,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -33,6 +37,9 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
+  activateKioskDevice,
+  deactivateKioskDevice,
+  deleteKioskDevice,
   listKioskAssignmentOptions,
   listKioskDevices,
   pairKioskDevice,
@@ -87,6 +94,9 @@ export default function KiosksPage() {
   }, [load]);
 
   const activeCount = devices.filter((device) => device.status === "ACTIVE").length;
+  const inactiveCount = devices.filter(
+    (device) => device.status === "INACTIVE",
+  ).length;
 
   return (
     <PageContainer width="wide">
@@ -112,7 +122,7 @@ export default function KiosksPage() {
       <PageSection>
         <TableContainer
           title="Fleet devices"
-          description="Kiosks belong to the SelfX platform fleet and may be assigned to platform, organization or store scope."
+          description={`Kiosks belong to the SelfX platform fleet and may be assigned to platform, organization or store scope. ${inactiveCount} inactive.`}
         >
           {error ? (
             <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -129,7 +139,7 @@ export default function KiosksPage() {
                 <TableHead>Platform</TableHead>
                 <TableHead>Last Seen</TableHead>
                 <TableHead>Paired</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -166,13 +176,13 @@ export default function KiosksPage() {
                     <TableCell>{formatDate(device.lastSeenAt)}</TableCell>
                     <TableCell>{formatDate(device.pairedAt)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="destructive"
-                        disabled={device.status === "REVOKED"}
-                        onClick={() => void revoke(device.id)}
-                      >
-                        Revoke
-                      </Button>
+                      <KioskLifecycleActions
+                        device={device}
+                        onActivate={() => void activate(device.id)}
+                        onDeactivate={() => void deactivate(device.id)}
+                        onRevoke={() => void revoke(device.id)}
+                        onDelete={() => void remove(device.id)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))
@@ -195,19 +205,103 @@ export default function KiosksPage() {
   );
 
   async function revoke(deviceId: string) {
+    await updateDevice((token) => revokeKioskDevice(token, deviceId));
+  }
+
+  async function activate(deviceId: string) {
+    await updateDevice((token) => activateKioskDevice(token, deviceId));
+  }
+
+  async function deactivate(deviceId: string) {
+    await updateDevice((token) => deactivateKioskDevice(token, deviceId));
+  }
+
+  async function remove(deviceId: string) {
+    await updateDevice(
+      (token) => deleteKioskDevice(token, deviceId),
+      { removeFromList: true },
+    );
+  }
+
+  async function updateDevice(
+    action: (accessToken: string) => Promise<KioskDevice>,
+    options: { removeFromList?: boolean } = {},
+  ) {
     if (session.status !== "authenticated") {
       return;
     }
     setError(null);
     try {
-      const updated = await revokeKioskDevice(session.accessToken, deviceId);
+      const updated = await action(session.accessToken);
       setDevices((current) =>
-        current.map((device) => (device.id === updated.id ? updated : device)),
+        options.removeFromList
+          ? current.filter((device) => device.id !== updated.id)
+          : current.map((device) =>
+              device.id === updated.id ? updated : device,
+            ),
       );
     } catch (caught) {
       setError(messageFor(caught));
     }
   }
+}
+
+function KioskLifecycleActions({
+  device,
+  onActivate,
+  onDeactivate,
+  onRevoke,
+  onDelete,
+}: {
+  device: KioskDevice;
+  onActivate: () => void;
+  onDeactivate: () => void;
+  onRevoke: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      {device.status === "ACTIVE" ? (
+        <Button variant="outline" size="sm" onClick={onDeactivate}>
+          <PowerOffIcon aria-hidden="true" />
+          Deactivate
+        </Button>
+      ) : null}
+      {device.status === "INACTIVE" ? (
+        <Button variant="outline" size="sm" onClick={onActivate}>
+          <PowerIcon aria-hidden="true" />
+          Activate
+        </Button>
+      ) : null}
+      {device.status !== "REVOKED" ? (
+        <ConfirmDialog
+          title="Revoke kiosk?"
+          description="This unpairs the kiosk device and revokes active refresh sessions. The physical display must be paired again before it can run as a kiosk."
+          confirmLabel="Revoke"
+          destructive
+          onConfirm={onRevoke}
+          trigger={
+            <Button variant="destructive" size="sm">
+              Revoke
+            </Button>
+          }
+        />
+      ) : null}
+      <ConfirmDialog
+        title="Delete kiosk?"
+        description="This removes the kiosk from the fleet list and revokes any remaining device sessions. Audit history is retained."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={onDelete}
+        trigger={
+          <Button variant="outline" size="sm">
+            <Trash2Icon aria-hidden="true" />
+            Delete
+          </Button>
+        }
+      />
+    </div>
+  );
 }
 
 function PairKioskDialog({

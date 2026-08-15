@@ -257,10 +257,9 @@ access and responsive local settings.
 - Customer home uses the reusable SelfX glass-capable primary CTA and no longer
   shows development presentation labels such as static wallpaper or platform
   readiness in normal customer mode.
-- The current customer flow is Kiosk Home -> Start Try-On -> garment image
-  selection -> CaptureScope selection -> Camera -> live preparation/readiness
-  -> stable final 3/2/1 -> still capture -> Review -> generation progress ->
-  generated result.
+- The current customer flow is Kiosk Home -> Start Try-On -> customer-friendly
+  garment image selection/preview -> photo source choice -> Take Photo or Use
+  My Phone -> generation progress -> generated result.
 - The home has no visible Camera Settings button. A hidden top-left double-tap
   reveals operator access briefly.
 - Operator access opens a 6-digit PIN challenge before settings. The UI calls
@@ -387,17 +386,20 @@ available:
 
 KIOSK-3A adds a real end-to-end kiosk Try-On generation bridge:
 
-- Customer flow is Kiosk Home -> Start Try-On -> garment image selection ->
-  CaptureScope -> assisted/live capture -> Review -> generation progress ->
-  generated result.
+- Customer flow is Kiosk Home -> Start Try-On -> customer-friendly garment
+  image selection/preview -> photo source choice -> Take Photo or Use My Phone
+  -> generation progress -> generated result.
 - The kiosk calls the SelfX API only. It never calls FASHN directly and never
   stores `FASHN_API_KEY`.
 - The current bridge targets the guarded development Try-On Lab API while
   production kiosk device auth and durable Try-On orchestration remain future
   milestones.
-- KIOSK-3A uses manual local garment-image input. Product Catalog, physical
-  garment capture, Shopify/WooCommerce sources and QR handoff remain future
-  work.
+- KIOSK-3A uses temporary local garment images through a native picker and
+  preview. Product Catalog, physical garment capture, Shopify/WooCommerce
+  sources and QR result handoff remain future work.
+- Normal customer UI does not expose raw garment paths, KIOSK milestone labels,
+  garment type overrides or photo-style controls. Provider-neutral garment
+  semantics remain internal and are mapped to existing CaptureScope behavior.
 - Full-resolution accepted captures are preserved. Android target metadata is
   used to prepare a padded customer target image where available; Windows and
   unsupported live-frame paths fall back to the full frame.
@@ -445,6 +447,8 @@ KIOSK-4A adds production kiosk device provisioning:
   name the device and assign it to `PLATFORM`, `ORGANIZATION` or `STORE`.
 - Kiosks belong to the SelfX platform fleet. Superadmin users are actors, not
   device owners.
+- Superadmins can activate/deactivate kiosk devices, revoke credentials and
+  soft-delete devices from the normal fleet list while retaining audit history.
 - Device credentials are dedicated kiosk-device credentials, not human user
   tokens. `typ` is `kiosk_device_access`.
 - Flutter stores the device refresh credential in OS-backed secure storage;
@@ -452,6 +456,10 @@ KIOSK-4A adds production kiosk device provisioning:
 - Revoked kiosks clear local device credentials and return to pairing.
 - KIOSK-4A does not connect device auth to production Try-On; KIOSK-4B will
   replace the KIOSK-3A temporary dev bridge for generation.
+
+SelfX kiosk typography uses Manrope for headings and Inter for body, buttons
+and labels. SaaS sidebar navigation uses the shared `@selfx/ui` AppShell/sidebar
+boundary with shadcn sidebar-style composition and Inter menu typography.
 
 Required server-side `@selfx/api` variables for KIOSK-4A:
 
@@ -471,6 +479,8 @@ reach SelfX API provisioning endpoints. It no longer needs
 
 KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
 
+- The kiosk reaches the photo source step after garment selection/preview, with
+  the existing CaptureScope resolved internally from the garment semantics.
 - The kiosk photo source step offers **Take Photo** or **Use My Phone**.
 - **Use My Phone** creates a five-minute customer upload session and displays a
   QR code containing only an opaque capability URL.

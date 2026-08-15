@@ -982,8 +982,8 @@ KIOSK-2C product rules:
 
 - Startup/default UI is the customer kiosk home with local/offline static or
   slideshow presentation content and a clear **Start Try-On** action.
-- Customer flow is Kiosk Home -> Start Try-On -> CaptureScope selection ->
-  existing capture/review/photo-ready flow.
+- Customer flow is Kiosk Home -> Start Try-On -> garment selection/preview ->
+  photo source choice -> existing capture/review/photo-ready flow.
 - Camera Settings must not be visible from the home. Operator access is hidden
   behind a top-left double-tap hotspot that reveals an operator icon briefly.
 - The operator icon opens a 6-digit PIN challenge before local settings. It must
@@ -1019,14 +1019,16 @@ keeping production device management and catalog expansion separate.
 
 KIOSK-3A product rules:
 
-- Customer flow is Kiosk Home -> Start Try-On -> garment image selection ->
-  CaptureScope -> assisted/live capture -> Review/Retake -> Try-On generation
-  progress -> generated result.
+- Customer flow is Kiosk Home -> Start Try-On -> customer-friendly garment
+  image selection/preview -> photo source choice -> Take Photo or Use My Phone
+  -> Try-On generation progress -> generated result.
 - The kiosk must submit to SelfX, not directly to FASHN or another provider.
   Provider credentials remain backend-only.
-- Manual local garment-image input is acceptable for this milestone. Product
-  Catalog selection, physical garment capture, commerce-synced garments and QR
-  handoff remain future product work.
+- Temporary local garment-image input is acceptable for this milestone only
+  through customer-friendly picker/preview UI. Normal customer UI must not show
+  raw filesystem paths, KIOSK milestone labels, garment type overrides or
+  photo-style controls. Product Catalog selection, physical garment capture,
+  commerce-synced garments and QR result handoff remain future product work.
 - Generation uses the accepted full-resolution customer capture. If local
   PrimarySubject/TargetSubjectRegion metadata is available, SelfX may prepare a
   padded target input from the original still; otherwise the full frame is used.
@@ -1065,6 +1067,10 @@ KIOSK-4A product rules:
   modeled as kiosk owners.
 - `PLATFORM` assignment requires no organization/store. `ORGANIZATION` requires
   an organization. `STORE` requires an organization and a store belonging to it.
+- Superadmins must be able to deactivate and reactivate kiosk devices without
+  deleting audit/pairing history. Only `ACTIVE` devices may operate.
+- Superadmins must be able to delete kiosks from the normal fleet list using a
+  soft-delete lifecycle state so historical audit records remain intact.
 - Pairing is one-time use and atomically creates the active kiosk device.
 - Device credentials belong only to the physical kiosk. Superadmin browsers must
   never receive device credentials or provisioning secrets.
@@ -1072,8 +1078,8 @@ KIOSK-4A product rules:
 - Revoked/unpaired kiosks clear local device credentials and return to pairing.
 - KIOSK-4A introduces future fleet permission capabilities:
   `kiosks.view`, `kiosks.pair`, `kiosks.update`, `kiosks.assign`,
-  `kiosks.revoke`, `kiosks.configure`. In this phase, SelfX Superadmin is
-  authorized.
+  `kiosks.revoke`, `kiosks.delete`, `kiosks.configure`. In this phase, SelfX
+  Superadmin is authorized.
 
 KIOSK-4A does not implement production kiosk Try-On endpoints, Product Catalog,
 full Roles/Permissions, CMS wallpaper sync, remote commands, OTA updates, deep
@@ -1089,8 +1095,9 @@ feature.
 
 KIOSK-4C product rules:
 
-- After garment selection and CaptureScope selection, the customer may choose
-  **Take Photo** on the kiosk or **Use My Phone**.
+- After garment selection/preview, the kiosk resolves the existing CaptureScope
+  internally and the customer may choose **Take Photo** on the kiosk or **Use
+  My Phone**.
 - The kiosk displays a QR code for a short-lived customer upload session owned
   by the active kiosk device.
 - The QR code contains only an opaque capability URL. It must not expose raw

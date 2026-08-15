@@ -1326,9 +1326,11 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
      `SELFX_KIOSK_DEV_ACCESS_TOKEN` is absent;
    - backend Lab access remains guarded by staff/admin authentication and
      `TRYON_LAB_ENABLED=true`;
-   - KIOSK-3A uses manual local garment image input mapped to provider-neutral
-     garment input metadata. Catalog, physical garment capture and commerce
-     garment sources remain future adapters;
+   - KIOSK-3A uses temporary local garment images through a customer-friendly
+     picker/preview mapped to provider-neutral garment input metadata. Raw path
+     entry, milestone labels and garment intent/photo-type override controls
+     must not appear in normal customer UI. Catalog, physical garment capture
+     and commerce garment sources remain future adapters;
    - the accepted full-resolution still remains the person source. When
      `TargetSubjectRegion` metadata is available, the kiosk prepares a padded
      target image from the original still; otherwise it submits the full frame;
@@ -1370,6 +1372,12 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    - `GET /api/v1/kiosk/session/me` and `POST /api/v1/kiosk/heartbeat` reload
      current device status/assignment from the database so revoked or reassigned
      devices do not rely on stale JWT organization/store claims;
+   - only `ACTIVE` devices may use device-authenticated kiosk APIs. `INACTIVE`
+     blocks operation without deleting the device record, `REVOKED` invalidates
+     refresh sessions, and `DELETED` is a soft-delete state hidden from normal
+     fleet lists;
+   - superadmin lifecycle APIs support activate, deactivate, revoke and delete
+     operations with platform permissions and audit entries;
    - Flutter stores the device refresh credential in OS-backed secure storage.
      The short-lived access token lives in memory;
    - revocation sets the device to `REVOKED`, revokes refresh sessions and makes
@@ -1383,6 +1391,9 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
 
    KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
 
+   - Flutter reaches the KIOSK-4C photo source choice after garment
+     selection/preview, with CaptureScope resolved internally from the existing
+     provider-neutral garment semantics;
    - device-authenticated kiosks create sessions through
      `POST /api/v1/kiosk/customer-upload-sessions`;
    - kiosk status, cancellation and consumption use device-authenticated

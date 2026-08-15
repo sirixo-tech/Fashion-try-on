@@ -4,9 +4,9 @@ import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
-import 'capture_scope_screen.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
+import 'photo_source_choice_screen.dart';
 import 'try_on_result_screen.dart';
 
 class TryOnGenerationScreen extends StatefulWidget {
@@ -169,8 +169,8 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => CaptureScopeScreen(
-          controller: widget.captureController,
+        builder: (_) => PhotoSourceChoiceScreen(
+          captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
         ),

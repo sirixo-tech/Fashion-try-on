@@ -927,11 +927,14 @@ full production kiosk backend.
 
 Implemented scope:
 
-- Kiosk Home **Start Try-On** routes to manual garment image selection before
-  CaptureScope.
+- Kiosk Home **Start Try-On** routes to customer-friendly garment image
+  selection/preview before photo source choice.
 - Provider-neutral kiosk garment input model supports direct local development
   images now and leaves catalog, captured garment and remote asset sources as
   future adapters.
+- Normal customer UI does not expose raw local paths, KIOSK milestone labels,
+  garment type overrides or photo-style controls. The temporary picker accepts
+  supported image files and keeps garment semantics internal.
 - Existing CaptureScope, assisted/live capture, PrimarySubject lock metadata,
   Review and Retake behavior are preserved.
 - **Use Photo** prepares the full-resolution accepted capture for Try-On. When
@@ -979,19 +982,23 @@ Implemented scope:
 - private provisioning secret for kiosk polling and one-time provisioning
   grant;
 - anonymous controlled provisioning session create/status endpoints;
-- superadmin `/api/v1/admin/kiosks` fleet list, assignment options, pair and
-  revoke endpoints;
+- superadmin `/api/v1/admin/kiosks` fleet list, assignment options, pair,
+  activate, deactivate, revoke and soft-delete endpoints;
 - `PLATFORM`, `ORGANIZATION` and `STORE` assignment validation;
 - dedicated kiosk-device access token type `kiosk_device_access`;
 - revocable/rotatable kiosk device refresh sessions;
 - `session/me` and heartbeat reload current device state from the database;
+- kiosk device lifecycle uses `ACTIVE`, `INACTIVE`, `REVOKED` and `DELETED`.
+  Only `ACTIVE` devices can authenticate; `DELETED` devices are hidden from the
+  normal fleet list while audit history remains;
 - Flutter secure storage for device refresh credential and stable random
   installation ID;
 - Flutter startup router: no credential -> pairing, valid credential ->
   `session/me` -> customer home, revoked/invalid -> clear and pair;
 - pairing screen with six-digit code, backend-time countdown, visual progress
   and automatic code rotation;
-- minimum SaaS Kiosks page with Pair New Kiosk modal and revoke action.
+- minimum SaaS Kiosks page with Pair New Kiosk modal plus activate,
+  deactivate, revoke and delete actions.
 
 KIOSK-4A explicitly does not implement:
 
@@ -1049,6 +1056,9 @@ Implemented scope:
   shell/session provider;
 - Flutter kiosk **Use My Phone** flow with QR display, countdown, polling, ready
   preview, upload-another and use-photo actions;
+- Flutter photo source choice follows garment selection/preview, with the
+  existing CaptureScope resolved internally from provider-neutral garment
+  semantics;
 - temporary local storage handoff from ready mobile upload into the existing
   capture/generation flow.
 

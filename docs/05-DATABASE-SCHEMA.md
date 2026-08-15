@@ -932,7 +932,7 @@ Important fields:
 
 - `id`
 - `display_name`
-- `status` (`ACTIVE`, `REVOKED`)
+- `status` (`ACTIVE`, `INACTIVE`, `REVOKED`, `DELETED`)
 - `assignment_scope` (`PLATFORM`, `ORGANIZATION`, `STORE`)
 - `organization_id` nullable
 - `store_id` nullable
@@ -941,7 +941,9 @@ Important fields:
 - `installation_id`
 - `paired_at`
 - `last_seen_at`
+- `inactive_at`
 - `revoked_at`
+- `deleted_at`
 - `created_at`
 - `updated_at`
 
@@ -953,6 +955,7 @@ Indexes:
 - `store_id`
 - `(organization_id, store_id)`
 - `last_seen_at`
+- `deleted_at`
 
 Rules:
 
@@ -963,7 +966,16 @@ Rules:
   organization;
 - device access JWT claims are not the source of organization/store truth;
   authenticated device APIs reload current device status and assignment from the
-  database.
+  database;
+- only `ACTIVE` kiosk devices may authenticate and use device-authenticated
+  kiosk APIs;
+- `INACTIVE` is a reversible administrative pause for a kiosk device;
+- revoking a kiosk device revokes/invalidates active refresh sessions;
+- deleting a kiosk device is a soft delete using `DELETED`/`deleted_at` so audit
+  and pairing history remain intact while the device is removed from normal
+  fleet lists;
+- revoked and deleted devices cannot refresh sessions or call
+  device-authenticated kiosk APIs.
 
 ---
 

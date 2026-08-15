@@ -124,7 +124,9 @@ export class KioskDeviceResponseDto {
   installationId!: string | null;
   pairedAt!: string;
   lastSeenAt!: string | null;
+  inactiveAt!: string | null;
   revokedAt!: string | null;
+  deletedAt!: string | null;
   createdAt!: string;
   updatedAt!: string;
 }

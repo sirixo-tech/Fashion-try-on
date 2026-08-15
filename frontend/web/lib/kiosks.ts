@@ -1,7 +1,7 @@
 import { selfxApi } from "@/lib/api";
 
 export type KioskAssignmentScope = "PLATFORM" | "ORGANIZATION" | "STORE";
-export type KioskDeviceStatus = "ACTIVE" | "REVOKED";
+export type KioskDeviceStatus = "ACTIVE" | "INACTIVE" | "REVOKED" | "DELETED";
 
 export type KioskDevice = {
   id: string;
@@ -19,7 +19,9 @@ export type KioskDevice = {
   installationId: string | null;
   pairedAt: string;
   lastSeenAt: string | null;
+  inactiveAt: string | null;
   revokedAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -80,6 +82,36 @@ export function revokeKioskDevice(
 ): Promise<KioskDevice> {
   return selfxApi<KioskDevice>(`/api/v1/admin/kiosks/${deviceId}/revoke`, {
     method: "POST",
+    accessToken,
+  });
+}
+
+export function activateKioskDevice(
+  accessToken: string,
+  deviceId: string,
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(`/api/v1/admin/kiosks/${deviceId}/activate`, {
+    method: "POST",
+    accessToken,
+  });
+}
+
+export function deactivateKioskDevice(
+  accessToken: string,
+  deviceId: string,
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(`/api/v1/admin/kiosks/${deviceId}/deactivate`, {
+    method: "POST",
+    accessToken,
+  });
+}
+
+export function deleteKioskDevice(
+  accessToken: string,
+  deviceId: string,
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(`/api/v1/admin/kiosks/${deviceId}`, {
+    method: "DELETE",
     accessToken,
   });
 }

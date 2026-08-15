@@ -69,7 +69,7 @@ export function AppShell({
       </Sheet>
       <div className="flex">
         {desktopOpened ? (
-          <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 border-r bg-card md:block">
+          <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 border-r border-sidebar-border bg-sidebar md:block">
             {sidebar}
           </aside>
         ) : null}

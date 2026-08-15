@@ -11,6 +11,7 @@ export const PLATFORM_PERMISSIONS = {
   kiosksUpdate: "KIOSKS_UPDATE",
   kiosksAssign: "KIOSKS_ASSIGN",
   kiosksRevoke: "KIOSKS_REVOKE",
+  kiosksDelete: "KIOSKS_DELETE",
   kiosksConfigure: "KIOSKS_CONFIGURE",
 } as const;
 

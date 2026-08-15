@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 class SelfxKioskTokens {
   const SelfxKioskTokens._();
 
+  static const headingFontFamily = 'Manrope';
+  static const bodyFontFamily = 'Inter';
+
   static const primary = Color(0xFFFF7119);
   static const primaryHover = Color(0xFFE6600F);
   static const primaryPressed = Color(0xFFC84F0A);
@@ -81,33 +84,64 @@ ThemeData buildSelfxKioskTheme() {
     textTheme: const TextTheme(
       displaySmall: TextStyle(
         color: SelfxKioskTokens.textPrimary,
-        fontSize: 36,
-        fontWeight: FontWeight.w800,
+        fontFamily: SelfxKioskTokens.headingFontFamily,
+        fontSize: 48,
+        fontWeight: FontWeight.w700,
+        height: 1.08,
       ),
       headlineMedium: TextStyle(
         color: SelfxKioskTokens.textPrimary,
-        fontSize: 28,
-        fontWeight: FontWeight.w800,
+        fontFamily: SelfxKioskTokens.headingFontFamily,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+        height: 1.12,
+      ),
+      headlineSmall: TextStyle(
+        color: SelfxKioskTokens.textPrimary,
+        fontFamily: SelfxKioskTokens.headingFontFamily,
+        fontSize: 30,
+        fontWeight: FontWeight.w700,
+        height: 1.14,
       ),
       titleLarge: TextStyle(
         color: SelfxKioskTokens.textPrimary,
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
+        fontFamily: SelfxKioskTokens.headingFontFamily,
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        height: 1.18,
       ),
       titleMedium: TextStyle(
         color: SelfxKioskTokens.textPrimary,
-        fontSize: 17,
-        fontWeight: FontWeight.w700,
+        fontFamily: SelfxKioskTokens.headingFontFamily,
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
       ),
       bodyLarge: TextStyle(
         color: SelfxKioskTokens.textPrimary,
-        fontSize: 18,
+        fontFamily: SelfxKioskTokens.bodyFontFamily,
+        fontSize: 19,
         height: 1.35,
       ),
       bodyMedium: TextStyle(
         color: SelfxKioskTokens.textSecondary,
-        fontSize: 15,
+        fontFamily: SelfxKioskTokens.bodyFontFamily,
+        fontSize: 17,
         height: 1.35,
+      ),
+      labelLarge: TextStyle(
+        color: SelfxKioskTokens.textPrimary,
+        fontFamily: SelfxKioskTokens.bodyFontFamily,
+        fontSize: 19,
+        fontWeight: FontWeight.w600,
+        height: 1.2,
+      ),
+      labelMedium: TextStyle(
+        color: SelfxKioskTokens.textSecondary,
+        fontFamily: SelfxKioskTokens.bodyFontFamily,
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        height: 1.2,
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -118,7 +152,11 @@ ThemeData buildSelfxKioskTheme() {
         foregroundColor: SelfxKioskTokens.onPrimary,
         disabledBackgroundColor: const Color(0xFFE5E7EB),
         disabledForegroundColor: SelfxKioskTokens.textMuted,
-        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        textStyle: const TextStyle(
+          fontFamily: SelfxKioskTokens.bodyFontFamily,
+          fontSize: 19,
+          fontWeight: FontWeight.w600,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
         ),
@@ -132,7 +170,11 @@ ThemeData buildSelfxKioskTheme() {
         foregroundColor: SelfxKioskTokens.onPrimary,
         disabledBackgroundColor: const Color(0xFFE5E7EB),
         disabledForegroundColor: SelfxKioskTokens.textMuted,
-        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        textStyle: const TextStyle(
+          fontFamily: SelfxKioskTokens.bodyFontFamily,
+          fontSize: 19,
+          fontWeight: FontWeight.w600,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
         ),
@@ -145,7 +187,11 @@ ThemeData buildSelfxKioskTheme() {
         backgroundColor: SelfxKioskTokens.surface,
         foregroundColor: SelfxKioskTokens.textPrimary,
         side: const BorderSide(color: SelfxKioskTokens.border),
-        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(
+          fontFamily: SelfxKioskTokens.bodyFontFamily,
+          fontSize: 19,
+          fontWeight: FontWeight.w600,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
         ),
@@ -154,7 +200,11 @@ ThemeData buildSelfxKioskTheme() {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: SelfxKioskTokens.textPrimary,
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(
+          fontFamily: SelfxKioskTokens.bodyFontFamily,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
         ),
@@ -181,7 +231,11 @@ ThemeData buildSelfxKioskTheme() {
           return const BorderSide(color: SelfxKioskTokens.border);
         }),
         textStyle: WidgetStateProperty.all(
-          const TextStyle(fontWeight: FontWeight.w800),
+          const TextStyle(
+            fontFamily: SelfxKioskTokens.bodyFontFamily,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(
@@ -208,7 +262,12 @@ ThemeData buildSelfxKioskTheme() {
           width: 1.4,
         ),
       ),
-      labelStyle: const TextStyle(color: SelfxKioskTokens.textSecondary),
+      labelStyle: const TextStyle(
+        color: SelfxKioskTokens.textSecondary,
+        fontFamily: SelfxKioskTokens.bodyFontFamily,
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+      ),
     ),
     cardTheme: CardThemeData(
       color: SelfxKioskTokens.surface,

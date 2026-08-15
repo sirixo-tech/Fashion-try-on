@@ -80,7 +80,9 @@ export function SectionHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0 space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+        <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
+          {title}
+        </h2>
         {description ? (
           <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>
         ) : null}
@@ -134,7 +136,7 @@ export function PageHeader({
             </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {title}
             </h1>
             {status}
