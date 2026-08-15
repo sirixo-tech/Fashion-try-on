@@ -2,14 +2,17 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../acquisition/photo_acquisition.dart';
 import '../camera/camera_models.dart';
 import '../live/capture_readiness_engine.dart';
 import '../session/capture_flow.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
+import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -18,11 +21,15 @@ class CameraCaptureScreen extends StatefulWidget {
     required this.controller,
     required this.tryOnController,
     required this.uploadController,
+    this.purpose = PhotoAcquisitionPurpose.model,
+    this.garmentIntent,
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final PhotoAcquisitionPurpose purpose;
+  final KioskGarmentIntent? garmentIntent;
 
   @override
   State<CameraCaptureScreen> createState() => _CameraCaptureScreenState();
@@ -35,6 +42,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   @override
   void initState() {
     super.initState();
+    widget.controller.selectCapturePurpose(widget.purpose);
     widget.controller.addListener(_handleControllerChanged);
     _start();
   }
@@ -60,8 +68,12 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return KioskScaffold(
-      title: 'Camera Test',
-      subtitle: '${widget.controller.captureScope.label} capture guidance',
+      title: widget.purpose == PhotoAcquisitionPurpose.garment
+          ? 'Garment Photo'
+          : 'Camera Test',
+      subtitle: widget.purpose == PhotoAcquisitionPurpose.garment
+          ? '${widget.garmentIntent?.label ?? 'Garment'} reference'
+          : '${widget.controller.captureScope.label} capture guidance',
       leading: IconButton(
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.arrow_back),
@@ -97,6 +109,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                 onCancelCountdown: widget.controller.cancelCountdown,
                 onCaptureAnyway: widget.controller.captureAnyway,
                 compact: compact || portrait,
+                purpose: widget.purpose,
+                garmentIntent: widget.garmentIntent,
               );
 
               if (portrait) {
@@ -157,15 +171,29 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         if (!mounted) {
           return;
         }
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => CaptureReviewScreen(
-              controller: widget.controller,
-              tryOnController: widget.tryOnController,
-              uploadController: widget.uploadController,
-            ),
-          ),
-        );
+        final route = widget.purpose == PhotoAcquisitionPurpose.garment
+            ? MaterialPageRoute<void>(
+                builder: (_) => GarmentReviewScreen(
+                  captureController: widget.controller,
+                  tryOnController: widget.tryOnController,
+                  uploadController: widget.uploadController,
+                  garmentInput: KioskGarmentInput(
+                    source: KioskGarmentInputSource.capturedGarment,
+                    localPath: capturePath,
+                    intent: widget.garmentIntent ?? KioskGarmentIntent.fullOutfit,
+                    photoType: KioskGarmentPhotoType.onModel,
+                  ),
+                  pendingCameraCapture: true,
+                ),
+              )
+            : MaterialPageRoute<void>(
+                builder: (_) => CaptureReviewScreen(
+                  controller: widget.controller,
+                  tryOnController: widget.tryOnController,
+                  uploadController: widget.uploadController,
+                ),
+              );
+        await Navigator.of(context).push(route);
         if (mounted &&
             widget.controller.flowState.stage == CaptureFlowStage.preview) {
           _reviewCapturePath = null;
@@ -236,6 +264,8 @@ class CaptureGuidancePanel extends StatelessWidget {
     required this.onCancelCountdown,
     required this.onCaptureAnyway,
     required this.compact,
+    required this.purpose,
+    this.garmentIntent,
   });
 
   final CameraState state;
@@ -247,6 +277,8 @@ class CaptureGuidancePanel extends StatelessWidget {
   final VoidCallback onCancelCountdown;
   final VoidCallback onCaptureAnyway;
   final bool compact;
+  final PhotoAcquisitionPurpose purpose;
+  final KioskGarmentIntent? garmentIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +303,8 @@ class CaptureGuidancePanel extends StatelessWidget {
             scope: scope,
             onCapture: onCapture,
             onRetry: onRetry,
+            purpose: purpose,
+            garmentIntent: garmentIntent,
           ),
         if (compact) const SizedBox(height: 20) else const Spacer(),
       ],
@@ -292,6 +326,8 @@ class _PreviewGuidanceCard extends StatelessWidget {
     required this.scope,
     required this.onCapture,
     required this.onRetry,
+    required this.purpose,
+    this.garmentIntent,
   });
 
   final CameraState state;
@@ -299,6 +335,8 @@ class _PreviewGuidanceCard extends StatelessWidget {
   final CaptureScope scope;
   final VoidCallback onCapture;
   final VoidCallback onRetry;
+  final PhotoAcquisitionPurpose purpose;
+  final KioskGarmentIntent? garmentIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -309,17 +347,27 @@ class _PreviewGuidanceCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '${scope.label} framing',
+              purpose == PhotoAcquisitionPurpose.garment
+                  ? '${garmentIntent?.label ?? 'Garment'} garment photo'
+                  : '${scope.label} framing',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
-            Text(scope.guidance, style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 16),
             Text(
-              state.capabilities.supportsLiveFrames
-                  ? 'Live readiness will guide you before the final countdown.'
-                  : 'Live readiness is unavailable on this camera, so SelfX will use timed guidance.',
+              purpose == PhotoAcquisitionPurpose.garment
+                  ? _garmentGuidanceFor(garmentIntent)
+                  : scope.guidance,
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
+            const SizedBox(height: 16),
+            if (purpose == PhotoAcquisitionPurpose.model)
+              Text(
+                state.capabilities.supportsLiveFrames
+                    ? 'Live readiness will guide you before the final countdown.'
+                    : 'Live readiness is unavailable on this camera, so SelfX will use timed guidance.',
+              )
+            else
+              const Text('Keep the outfit clear and avoid cropping useful context.'),
             if (flowState.errorMessage != null) ...[
               const SizedBox(height: 18),
               Text(
@@ -741,5 +789,18 @@ String _statusLabel(CameraStatus status) {
     CameraStatus.disconnected => 'Disconnected',
     CameraStatus.failed => 'Camera error',
     CameraStatus.disposed => 'Closed',
+  };
+}
+
+String _garmentGuidanceFor(KioskGarmentIntent? intent) {
+  return switch (intent) {
+    KioskGarmentIntent.top =>
+      'Frame the upper outfit clearly on one person, including shoulders and torso.',
+    KioskGarmentIntent.bottom =>
+      'Frame the lower outfit clearly on one person, including waist through legs.',
+    KioskGarmentIntent.fullOutfit ||
+    KioskGarmentIntent.onePiece =>
+      'Frame the complete outfit clearly on one person from top to bottom.',
+    _ => 'Frame the outfit clearly on one person.',
   };
 }

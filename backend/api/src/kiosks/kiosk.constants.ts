@@ -17,6 +17,7 @@ export const KIOSK_ERROR_CODES = {
   customerUploadInvalid: "KIOSK_CUSTOMER_UPLOAD_INVALID",
   customerUploadExpired: "KIOSK_CUSTOMER_UPLOAD_EXPIRED",
   customerUploadNotReady: "KIOSK_CUSTOMER_UPLOAD_NOT_READY",
+  customerUploadPurposeMismatch: "KIOSK_CUSTOMER_UPLOAD_PURPOSE_MISMATCH",
   customerUploadRejected: "KIOSK_CUSTOMER_UPLOAD_REJECTED",
   rateLimited: "KIOSK_RATE_LIMITED",
 } as const;

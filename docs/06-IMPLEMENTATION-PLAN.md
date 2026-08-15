@@ -1121,7 +1121,7 @@ Implemented scope:
   and dimensions before `READY`;
 - public Next.js `/upload/[capability]` page outside the authenticated app
   shell/session provider;
-- Flutter kiosk **Use My Phone** flow with QR display, countdown, polling, ready
+- Flutter kiosk **Use Your Phone** flow with QR display, countdown, polling, ready
   preview, upload-another and use-photo actions;
 - Flutter QR reliability behavior: preparation state before valid session,
   countdown only from backend `expiresAt/serverTime`, viewport-derived QR size,
@@ -1144,6 +1144,36 @@ public upload page tests, `flutter analyze` and targeted kiosk tests around the
 photo-source/mobile-upload flow, including compact viewport layout and failure
 state tests. APK and Windows builds are not required unless native dependency
 behavior specifically requires platform compilation.
+
+### KIOSK-5A Dual Photo Acquisition Slice
+
+KIOSK-5A extends the paired kiosk flow so both garment and model/person photos
+can be acquired through either kiosk camera or phone QR upload before one
+production Try-On submission.
+
+Implemented scope:
+
+- customer garment scope choice: **Top**, **Bottom** and **Full Outfit**;
+- garment acquisition source choice: kiosk camera or phone QR upload;
+- garment review with **Choose Another** and **Continue**;
+- model/person acquisition source choice: kiosk camera or phone QR upload;
+- purpose-bound customer-upload sessions using `MODEL` or `GARMENT`, persisted
+  in `kiosk_customer_upload_sessions.purpose`;
+- backend consume guard so `GARMENT` sessions cannot be consumed as `MODEL`
+  sessions and vice versa;
+- customer-acquired garment references map internally to provider-neutral
+  on-model garment photo semantics without exposing provider terms in customer
+  UI;
+- Finish clears garment, model/person capture, run and result while preserving
+  valid paired device identity.
+
+Verification for this slice should include Prisma generation/validation,
+customer-upload purpose mismatch tests, API typecheck/build, web public upload
+page tests/typecheck/build, `flutter analyze`, targeted kiosk acquisition and
+mobile-upload tests, and manual acquisition checks for garment kiosk + model
+kiosk, garment phone + model kiosk, garment kiosk + model phone and garment
+phone + model phone. Do not run multiple paid provider generations; use at most
+one controlled paid smoke generation after acquisition is verified.
 
 ### SELFX-DESIGN-SYSTEM-2 Premium Cross-Application Design System
 

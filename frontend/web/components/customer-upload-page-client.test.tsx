@@ -30,6 +30,7 @@ describe("CustomerUploadPageClient", () => {
     });
     statusMock.mockResolvedValue({
       status: "WAITING",
+      purpose: "MODEL",
       expiresAt: new Date(Date.now() + 300_000).toISOString(),
       serverTime: new Date().toISOString(),
       maxImageBytes: 8 * 1024 * 1024,
@@ -44,6 +45,7 @@ describe("CustomerUploadPageClient", () => {
     uploadMock.mockResolvedValue(undefined);
     completeMock.mockResolvedValue({
       status: "READY",
+      purpose: "MODEL",
       expiresAt: new Date(Date.now() + 300_000).toISOString(),
       serverTime: new Date().toISOString(),
     });
@@ -57,7 +59,7 @@ describe("CustomerUploadPageClient", () => {
     render(<CustomerUploadPageClient capability="capability-token" />);
 
     expect(await screen.findByText("Take Photo")).toBeTruthy();
-    expect(screen.getByText("Choose From Gallery")).toBeTruthy();
+    expect(screen.getByText("Choose from Phone")).toBeTruthy();
   });
 
   it("previews a selected file before upload", async () => {
@@ -78,6 +80,7 @@ describe("CustomerUploadPageClient", () => {
   it("shows expired state safely", async () => {
     statusMock.mockResolvedValueOnce({
       status: "EXPIRED",
+      purpose: "MODEL",
       expiresAt: new Date().toISOString(),
       serverTime: new Date().toISOString(),
       maxImageBytes: 8 * 1024 * 1024,

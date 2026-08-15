@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../acquisition/photo_acquisition.dart';
 import '../device/kiosk_device_session_controller.dart';
 import '../device/kiosk_device_models.dart';
 import '../session/capture_session_controller.dart';
 import '../session/temporary_capture_store.dart';
+import '../tryon/kiosk_garment_input.dart';
 import 'kiosk_customer_upload_gateway.dart';
 import 'kiosk_customer_upload_models.dart';
 
@@ -33,12 +35,16 @@ class KioskCustomerUploadController extends ChangeNotifier {
   Timer? _pollTimer;
   bool _isPolling = false;
   bool _disposed = false;
+  PhotoAcquisitionPurpose _activePurpose = PhotoAcquisitionPurpose.model;
 
   @visibleForTesting
   bool get hasActivePoller => _pollTimer?.isActive ?? false;
 
-  Future<void> createSession() async {
+  Future<void> createSession({
+    PhotoAcquisitionPurpose purpose = PhotoAcquisitionPurpose.model,
+  }) async {
     final startedAt = DateTime.now();
+    _activePurpose = purpose;
     _pollTimer?.cancel();
     _pollTimer = null;
     isBusy = true;
@@ -51,11 +57,11 @@ class KioskCustomerUploadController extends ChangeNotifier {
       'MOBILE_UPLOAD_CREATE_START path=/api/v1/kiosk/customer-upload-sessions',
     );
     try {
-      final created = await _createSessionWithDeviceAuth();
+      final created = await _createSessionWithDeviceAuth(purpose);
       session = created;
       serverClockOffset = created.serverTime.difference(DateTime.now());
       flowState = KioskCustomerUploadFlowState.waiting;
-      message = 'Waiting for your photo...';
+      message = purpose.waitingMessage;
       isBusy = false;
       _logCreateSuccess(startedAt);
       notifyListeners();
@@ -105,7 +111,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
   Future<void> pollNow() async {
     final current = session;
     if (current == null) {
-      await createSession();
+      await createSession(purpose: _activePurpose);
       return;
     }
     await _poll(current);
@@ -113,7 +119,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
 
   Future<void> uploadAnother() async {
     await cancel();
-    await createSession();
+    await createSession(purpose: _activePurpose);
   }
 
   Future<void> cancel() async {
@@ -143,6 +149,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
     final photo = current?.photo;
     if (current == null ||
         current.status != KioskCustomerUploadStatus.ready ||
+        current.purpose != PhotoAcquisitionPurpose.model ||
         photo == null) {
       return false;
     }
@@ -164,6 +171,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
         (token) => gateway.consumeSession(
           accessToken: token,
           sessionId: current.sessionId,
+          purpose: PhotoAcquisitionPurpose.model,
         ),
       );
       isBusy = false;
@@ -172,6 +180,47 @@ class KioskCustomerUploadController extends ChangeNotifier {
     } catch (_) {
       _fail('Uploaded photo could not be opened.');
       return false;
+    }
+  }
+
+  Future<KioskGarmentInput?> useReadyGarment({
+    required KioskGarmentIntent intent,
+  }) async {
+    final current = session;
+    final photo = current?.photo;
+    if (current == null ||
+        current.status != KioskCustomerUploadStatus.ready ||
+        current.purpose != PhotoAcquisitionPurpose.garment ||
+        photo == null) {
+      return null;
+    }
+    isBusy = true;
+    message = 'Opening garment photo...';
+    notifyListeners();
+    try {
+      final path = await captureStore.createTempCapturePath(
+        prefix: 'mobile-garment-upload',
+        extension: extensionForContentType(photo.contentType),
+      );
+      await gateway.downloadReadyPhoto(readUrl: photo.readUrl, targetPath: path);
+      session = await _withDeviceAuth(
+        (token) => gateway.consumeSession(
+          accessToken: token,
+          sessionId: current.sessionId,
+          purpose: PhotoAcquisitionPurpose.garment,
+        ),
+      );
+      isBusy = false;
+      notifyListeners();
+      return KioskGarmentInput(
+        source: KioskGarmentInputSource.phoneUpload,
+        localPath: path,
+        intent: intent,
+        photoType: KioskGarmentPhotoType.onModel,
+      );
+    } catch (_) {
+      _fail('Uploaded garment photo could not be opened.');
+      return null;
     }
   }
 
@@ -204,7 +253,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
     if (remainingFor(current) <= Duration.zero) {
       _pollTimer?.cancel();
       _pollTimer = null;
-      await createSession();
+      await createSession(purpose: _activePurpose);
       return;
     }
     _isPolling = true;
@@ -258,9 +307,11 @@ class KioskCustomerUploadController extends ChangeNotifier {
     }
   }
 
-  Future<KioskCustomerUploadSession> _createSessionWithDeviceAuth() async {
+  Future<KioskCustomerUploadSession> _createSessionWithDeviceAuth(
+    PhotoAcquisitionPurpose purpose,
+  ) async {
     return _withDeviceAuth(
-      (token) => gateway.createSession(token),
+      (token) => gateway.createSession(token, purpose: purpose),
     );
   }
 

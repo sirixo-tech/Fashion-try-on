@@ -165,23 +165,24 @@ Customer
 1. Customer starts a new kiosk session.
 2. Customer accepts the required consent.
 3. Customer selects the physical-garment Try-On option.
-4. Customer captures their own photo.
-5. Customer confirms or retakes the photo.
-6. Kiosk starts the garment-capture flow.
-7. Customer or store operator positions the garment using capture guidance.
-8. Garment photo is captured.
-9. Customer confirms or retakes the garment photo.
-10. Person and garment images are uploaded through authorized SelfX upload flows.
-11. SelfX creates the Try-On.
-12. Request is validated and queued.
-13. Provider Router selects the provider.
-14. Worker processes the generation.
-15. Result is stored privately.
-16. Customer views the completed Try-On.
-17. Customer may retry with another garment/photo.
-18. Customer may continue through QR handoff if an associated product/destination exists.
-19. Customer finishes.
-20. Kiosk clears the session.
+4. Customer chooses intended garment scope: Top, Bottom or Full Outfit.
+5. Customer adds the garment photo using either the kiosk camera or a phone QR
+   upload.
+6. Customer confirms or retakes/chooses another garment photo.
+7. Customer adds their own model/person photo using either the kiosk camera or a
+   phone QR upload.
+8. Customer confirms or retakes/chooses another model/person photo.
+9. Person and garment images are uploaded through authorized SelfX upload flows.
+10. SelfX creates the Try-On.
+11. Request is validated and queued.
+12. Provider Router selects the provider.
+13. Worker processes the generation.
+14. Result is stored privately.
+15. Customer views the completed Try-On.
+16. Customer may retry with another garment/photo.
+17. Customer may continue through QR handoff if an associated product/destination exists.
+18. Customer finishes.
+19. Kiosk clears the session.
 
 ### Alternate / Failure Flows
 
@@ -1196,7 +1197,7 @@ that device identity to production Try-On generation.
 1. Kiosk restores or refreshes its device session and opens customer home.
 2. Customer taps **Start Try-On**.
 3. Customer selects and previews a garment input.
-4. Customer chooses **Take Photo** or **Use My Phone**.
+4. Customer chooses **Take Photo** or **Use Your Phone**.
 5. Kiosk obtains the accepted person photo and prepared target input.
 6. Kiosk submits multipart `personImage`, `garmentImage` and one
    `clientRequestId` to `POST /api/v1/kiosk/try-on/runs` with its device access
@@ -1243,31 +1244,30 @@ target compositing, Shopify, WooCommerce or provider client code in Flutter.
 ### Preconditions
 
 - Kiosk is paired and online.
-- Customer has selected and previewed the garment input for the current kiosk
-  session.
+- Customer is in either the garment-photo or model/person-photo acquisition step.
 - SelfX API object-storage upload configuration is available.
 
 ### Main Flow
 
-1. Kiosk opens photo source choice after garment selection/preview and internal
-   CaptureScope resolution.
-2. Customer chooses **Use My Phone**.
+1. Kiosk opens a purpose-specific phone upload choice for either garment photo
+   or model/person photo acquisition.
+2. Customer chooses **Use Your Phone**.
 3. Kiosk shows a preparing state while it creates a customer upload session
    with its device access token.
 4. After session creation succeeds, the kiosk displays a QR code, five-minute
    countdown and waiting status derived from backend `expiresAt/serverTime`.
 5. Customer scans the QR code with their phone.
 6. Phone opens the public SelfX upload page without staff login.
-7. Customer takes a photo or chooses one from the gallery.
+7. Customer takes a photo or chooses one from the phone.
 8. Customer confirms **Upload Photo**.
 9. Browser asks SelfX for a signed upload intent and uploads only to the
    server-generated object key.
 10. Browser calls SelfX to complete validation.
 11. Kiosk polling sees `READY` and shows the uploaded photo preview.
 12. Customer chooses **Use This Photo**.
-13. Kiosk downloads the ready photo into temporary local capture storage, marks
-   the upload session consumed and continues to the production generation
-   screen.
+13. Kiosk downloads the ready photo into temporary local storage, marks the
+   upload session consumed with the expected purpose and continues to garment
+   review or generation as appropriate.
 
 ### Alternate / Failure Flows
 
@@ -1293,13 +1293,16 @@ target compositing, Shopify, WooCommerce or provider client code in Flutter.
   and creates a fresh capability.
 - Network interruption -> kiosk keeps polling with safe waiting text; cancelled
   or expired sessions cannot later become ready.
+- Purpose mismatch -> backend rejects consume. A garment upload cannot silently
+  become the model/person photo and a model/person upload cannot silently become
+  the garment reference.
 
 ### Boundary
 
-KIOSK-4C only provides a secure customer person-photo input source. It does not
-implement production kiosk Try-On endpoints, Product Catalog, QR result
-handoff, persistent customer accounts, checkout, billing, API Gateway or
-provider calls from Flutter.
+KIOSK-4C introduced the secure phone-upload source and KIOSK-5A reuses it for
+both garment and model/person inputs. This does not implement Product Catalog,
+QR result handoff, persistent customer accounts, checkout, billing, API Gateway
+or provider calls from Flutter.
 
 ## 6.0.5 Operator — Premium Settings Navigation
 

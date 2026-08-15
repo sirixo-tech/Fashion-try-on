@@ -2,10 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../acquisition/photo_acquisition.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_models.dart';
+import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_generation_screen.dart';
 
@@ -15,11 +18,15 @@ class MobileUploadScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.purpose = PhotoAcquisitionPurpose.model,
+    this.garmentIntent,
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final PhotoAcquisitionPurpose purpose;
+  final KioskGarmentIntent? garmentIntent;
 
   @override
   State<MobileUploadScreen> createState() => _MobileUploadScreenState();
@@ -31,7 +38,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(widget.uploadController.createSession());
+    unawaited(widget.uploadController.createSession(purpose: widget.purpose));
     _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
         setState(() {});
@@ -71,6 +78,8 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
               controller: widget.uploadController,
               captureController: widget.captureController,
               tryOnController: widget.tryOnController,
+              purpose: widget.purpose,
+              garmentIntent: widget.garmentIntent,
               session: session!,
             );
           }
@@ -78,7 +87,9 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
               KioskCustomerUploadFlowState.failed) {
             return _UploadFailurePanel(
               controller: widget.uploadController,
-              onRetry: () => widget.uploadController.createSession(),
+              onRetry: () => widget.uploadController.createSession(
+                purpose: widget.purpose,
+              ),
               onCancel: () async {
                 await widget.uploadController.cancel();
                 if (context.mounted) {
@@ -91,6 +102,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
             controller: widget.uploadController,
             session: session,
             message: message,
+            purpose: widget.purpose,
             onCancel: () async {
               await widget.uploadController.cancel();
               if (context.mounted) {
@@ -109,12 +121,14 @@ class _QrPanel extends StatelessWidget {
     required this.controller,
     required this.session,
     required this.message,
+    required this.purpose,
     required this.onCancel,
   });
 
   final KioskCustomerUploadController controller;
   final KioskCustomerUploadSession? session;
   final String message;
+  final PhotoAcquisitionPurpose purpose;
   final Future<void> Function() onCancel;
 
   @override
@@ -147,7 +161,7 @@ class _QrPanel extends StatelessWidget {
                       children: [
                         Text(
                           hasValidSession
-                              ? 'Scan to add your photo'
+                              ? purpose.uploadTitle
                               : 'Preparing secure upload...',
                           textAlign: TextAlign.center,
                           style: compact
@@ -303,12 +317,16 @@ class _ReadyPhotoPanel extends StatelessWidget {
     required this.controller,
     required this.captureController,
     required this.tryOnController,
+    required this.purpose,
+    this.garmentIntent,
     required this.session,
   });
 
   final KioskCustomerUploadController controller;
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
+  final PhotoAcquisitionPurpose purpose;
+  final KioskGarmentIntent? garmentIntent;
   final KioskCustomerUploadSession session;
 
   @override
@@ -339,7 +357,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Photo received',
+                      purpose.readyTitle,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
@@ -367,9 +385,28 @@ class _ReadyPhotoPanel extends StatelessWidget {
               onPressed: controller.isBusy
                   ? null
                   : () async {
-                      final accepted = await controller.useReadyPhoto(
-                        captureController,
-                      );
+                      if (purpose == PhotoAcquisitionPurpose.garment) {
+                        final input = await controller.useReadyGarment(
+                          intent:
+                              garmentIntent ?? KioskGarmentIntent.fullOutfit,
+                        );
+                        if (input == null || !context.mounted) {
+                          return;
+                        }
+                        await Navigator.of(context).pushReplacement(
+                          MaterialPageRoute<void>(
+                            builder: (_) => GarmentReviewScreen(
+                              captureController: captureController,
+                              tryOnController: tryOnController,
+                              uploadController: controller,
+                              garmentInput: input,
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      final accepted =
+                          await controller.useReadyPhoto(captureController);
                       if (!accepted || !context.mounted) {
                         return;
                       }

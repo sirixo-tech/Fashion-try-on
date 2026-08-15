@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Headers, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -38,9 +47,10 @@ export class KioskCustomerUploadDeviceController {
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
   async create(
     @Headers("authorization") authorization: string | undefined,
+    @Query("purpose") purpose?: string,
   ): Promise<KioskCustomerUploadSessionResponseDto> {
     const device = await this.kiosks.requireDevice(authorization);
-    return this.uploads.createForDevice(device);
+    return this.uploads.createForDevice(device, purpose);
   }
 
   @Get(":sessionId")
@@ -77,9 +87,10 @@ export class KioskCustomerUploadDeviceController {
   async consume(
     @Headers("authorization") authorization: string | undefined,
     @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
+    @Query("purpose") purpose?: string,
   ): Promise<KioskCustomerUploadSessionStatusDto> {
     const device = await this.kiosks.requireDevice(authorization);
-    return this.uploads.consumeForDevice(device, sessionId);
+    return this.uploads.consumeForDevice(device, sessionId, purpose);
   }
 }
 

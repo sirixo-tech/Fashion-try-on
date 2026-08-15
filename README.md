@@ -259,9 +259,9 @@ access and responsive local settings.
 - Customer home uses the reusable SelfX solid primary CTA and no longer
   shows development presentation labels such as static wallpaper or platform
   readiness in normal customer mode.
-- The current customer flow is Kiosk Home -> Start Try-On -> customer-friendly
-  garment image selection/preview -> photo source choice -> Take Photo or Use
-  My Phone -> generation progress -> generated result.
+- The current customer flow is Kiosk Home -> Start Try-On -> intended garment
+  scope -> garment photo by kiosk camera or phone QR -> garment review -> model
+  photo by kiosk camera or phone QR -> generation progress -> generated result.
 - The home has no visible Camera Settings button. A hidden top-left double-tap
   reveals operator access briefly.
 - Operator access opens a 6-digit PIN challenge before settings. The UI calls
@@ -388,16 +388,17 @@ available:
 
 KIOSK-3A added the first real end-to-end kiosk Try-On generation bridge:
 
-- Customer flow is Kiosk Home -> Start Try-On -> customer-friendly garment
-  image selection/preview -> photo source choice -> Take Photo or Use My Phone
-  -> generation progress -> generated result.
+- Customer flow is Kiosk Home -> Start Try-On -> intended garment scope ->
+  garment photo source -> garment review -> model/person photo source ->
+  generation progress -> generated result.
 - The kiosk calls the SelfX API only. It never calls FASHN directly and never
   stores `FASHN_API_KEY`.
 - The original bridge targeted the guarded development Try-On Lab API. Normal
   paired kiosks now use the KIOSK-4B production device-authenticated endpoint.
-- KIOSK-3A uses temporary local garment images through a native picker and
-  preview. Product Catalog, physical garment capture, Shopify/WooCommerce
-  sources and QR result handoff remain future work.
+- KIOSK-5A replaces the customer-facing temporary local garment picker with
+  physical garment photo acquisition. Garment and model/person photos can each
+  come from the kiosk camera or phone QR upload. Product Catalog,
+  Shopify/WooCommerce sources and QR result handoff remain future work.
 - Normal customer UI does not expose raw garment paths, KIOSK milestone labels,
   garment type overrides or photo-style controls. Provider-neutral garment
   semantics remain internal and are mapped to existing CaptureScope behavior.
@@ -501,13 +502,15 @@ Flutter still needs `SELFX_KIOSK_API_BASE_URL` as a Dart define so the kiosk can
 reach SelfX API provisioning and production Try-On endpoints. It no longer
 needs `SELFX_KIOSK_DEV_ACCESS_TOKEN` for paired commercial kiosk operation.
 
-KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
+KIOSK-4C/KIOSK-5A add secure customer mobile photo upload for paired kiosks:
 
-- The kiosk reaches the photo source step after garment selection/preview, with
-  the existing CaptureScope resolved internally from the garment semantics.
-- The kiosk photo source step offers **Take Photo** or **Use My Phone**.
-- **Use My Phone** creates a five-minute customer upload session and displays a
-  QR code containing only an opaque capability URL.
+- The kiosk uses purpose-bound phone upload sessions for both garment and
+  model/person photos.
+- The garment source step offers **Take a Photo** or **Use Your Phone** after
+  the customer chooses Top, Bottom or Full Outfit.
+- The model/person photo source step offers **Take Photo** or **Use Your Phone**.
+- **Use Your Phone** creates a five-minute customer upload session and displays
+  a QR code containing only an opaque capability URL.
 - Bodyless customer-upload create/status/cancel/consume requests send
   `Accept: application/json` and device bearer auth, but no JSON
   `Content-Type` unless a JSON request body is actually present.
@@ -527,8 +530,9 @@ KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
   photo, previews it locally and uploads only after explicit confirmation.
 - SelfX signs a short-lived object-storage upload URL, validates the stored
   image and lets the kiosk select only a validated `READY` upload.
-- The kiosk downloads the ready upload into temporary local capture storage,
-  marks it consumed and continues the existing generation flow.
+- The kiosk downloads the ready upload into temporary local storage, marks it
+  consumed with the expected purpose and continues to garment review or
+  generation as appropriate.
 - Expired QR sessions stop polling and are replaced with a fresh backend
   customer upload session before the customer uses the QR again.
 - KIOSK-4C does not implement Product Catalog, QR result continuation, billing,

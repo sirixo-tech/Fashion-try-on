@@ -10,8 +10,11 @@ export type CustomerUploadStatus =
   | "CONSUMED"
   | "CANCELLED";
 
+export type CustomerUploadPurpose = "MODEL" | "GARMENT";
+
 export interface CustomerUploadPublicStatus {
   status: CustomerUploadStatus;
+  purpose: CustomerUploadPurpose;
   expiresAt: string;
   serverTime: string;
   maxImageBytes: number;
@@ -67,6 +70,7 @@ export function completeCustomerUpload(
   capability: string,
 ): Promise<{
   status: CustomerUploadStatus;
+  purpose: CustomerUploadPurpose;
   expiresAt: string;
   serverTime: string;
 }> {

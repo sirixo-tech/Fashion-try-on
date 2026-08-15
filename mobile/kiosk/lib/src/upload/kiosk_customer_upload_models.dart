@@ -1,3 +1,5 @@
+import '../acquisition/photo_acquisition.dart';
+
 enum KioskCustomerUploadStatus {
   waiting,
   uploading,
@@ -31,6 +33,7 @@ class KioskCustomerUploadSession {
   const KioskCustomerUploadSession({
     required this.sessionId,
     required this.status,
+    required this.purpose,
     required this.expiresAt,
     required this.serverTime,
     required this.pollIntervalSeconds,
@@ -41,6 +44,7 @@ class KioskCustomerUploadSession {
 
   final String sessionId;
   final KioskCustomerUploadStatus status;
+  final PhotoAcquisitionPurpose purpose;
   final DateTime expiresAt;
   final DateTime serverTime;
   final int pollIntervalSeconds;
@@ -57,6 +61,7 @@ class KioskCustomerUploadSession {
 
   KioskCustomerUploadSession copyWith({
     KioskCustomerUploadStatus? status,
+    PhotoAcquisitionPurpose? purpose,
     DateTime? expiresAt,
     DateTime? serverTime,
     int? pollIntervalSeconds,
@@ -67,6 +72,7 @@ class KioskCustomerUploadSession {
     return KioskCustomerUploadSession(
       sessionId: sessionId,
       status: status ?? this.status,
+      purpose: purpose ?? this.purpose,
       expiresAt: expiresAt ?? this.expiresAt,
       serverTime: serverTime ?? this.serverTime,
       pollIntervalSeconds: pollIntervalSeconds ?? this.pollIntervalSeconds,

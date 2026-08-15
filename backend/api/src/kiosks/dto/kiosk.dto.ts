@@ -13,6 +13,7 @@ import {
 
 import {
   KioskAssignmentScope,
+  KioskCustomerUploadPurpose,
   KioskCustomerUploadSessionStatus,
   KioskDeviceStatus,
   KioskPairingSessionStatus,
@@ -166,6 +167,7 @@ export class KioskPairingSessionRecordDto {
 export class KioskCustomerUploadSessionResponseDto {
   sessionId!: string;
   status!: KioskCustomerUploadSessionStatus;
+  purpose!: KioskCustomerUploadPurpose;
   publicUploadUrl!: string;
   expiresAt!: string;
   serverTime!: string;
@@ -182,6 +184,7 @@ export class KioskCustomerUploadSessionResponseDto {
 export class KioskCustomerUploadSessionStatusDto {
   sessionId!: string;
   status!: KioskCustomerUploadSessionStatus;
+  purpose!: KioskCustomerUploadPurpose;
   expiresAt!: string;
   serverTime!: string;
   rejectionCode!: string | null;
@@ -196,6 +199,7 @@ export class KioskCustomerUploadSessionStatusDto {
 
 export class CustomerUploadPublicStatusDto {
   status!: KioskCustomerUploadSessionStatus;
+  purpose!: KioskCustomerUploadPurpose;
   expiresAt!: string;
   serverTime!: string;
   maxImageBytes!: number;
@@ -222,6 +226,7 @@ export class CustomerUploadIntentResponseDto {
 
 export class CustomerUploadCompleteResponseDto {
   status!: KioskCustomerUploadSessionStatus;
+  purpose!: KioskCustomerUploadPurpose;
   expiresAt!: string;
   serverTime!: string;
 }

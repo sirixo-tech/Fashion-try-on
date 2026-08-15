@@ -90,6 +90,11 @@ enum KioskCustomerUploadSessionStatus {
   CANCELLED
 }
 
+enum KioskCustomerUploadPurpose {
+  MODEL
+  GARMENT
+}
+
 enum OrganizationApplicationStatus {
   DRAFT
   SUBMITTED
@@ -380,6 +385,7 @@ model KioskCustomerUploadSession {
   id               String                           @id @db.Uuid
   kioskDeviceId    String                           @map("kiosk_device_id") @db.Uuid
   status           KioskCustomerUploadSessionStatus @default(WAITING)
+  purpose          KioskCustomerUploadPurpose        @default(MODEL)
   capabilityDigest String                           @unique @map("capability_digest")
   expiresAt        DateTime                         @map("expires_at") @db.Timestamptz(3)
   createdAt        DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -398,6 +404,7 @@ model KioskCustomerUploadSession {
 
   @@index([kioskDeviceId, createdAt])
   @@index([kioskDeviceId, status])
+  @@index([kioskDeviceId, purpose, status])
   @@index([status, expiresAt])
   @@index([expiresAt])
   @@map("kiosk_customer_upload_sessions")

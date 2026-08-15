@@ -1,16 +1,15 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
+import '../acquisition/photo_acquisition.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
-import '../tryon/garment_image_picker.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
-import '../theme/selfx_kiosk_theme.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
-import 'photo_source_choice_screen.dart';
+import 'mobile_upload_screen.dart';
+import 'selfx_kiosk_button.dart';
 
 class GarmentSelectionScreen extends StatefulWidget {
   const GarmentSelectionScreen({
@@ -18,311 +17,221 @@ class GarmentSelectionScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
-    this.garmentPicker = const FileSelectorGarmentImagePicker(),
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
-  final GarmentImagePicker garmentPicker;
 
   @override
   State<GarmentSelectionScreen> createState() => _GarmentSelectionScreenState();
 }
 
 class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
-  PickedGarmentImage? _selectedImage;
-  String? _error;
-  bool _busy = false;
+  KioskGarmentIntent? _intent;
 
   @override
   void initState() {
     super.initState();
-    final existing = widget.tryOnController.garmentInput;
-    if (existing != null) {
-      _selectedImage = PickedGarmentImage(
-        path: existing.localPath,
-        fileName: existing.displayName,
-      );
+    final existing = widget.tryOnController.garmentInput?.intent;
+    if (existing != null && existing != KioskGarmentIntent.auto) {
+      _intent = existing;
+      widget.captureController.selectCaptureScope(captureScopeForIntent(existing));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedImage = _selectedImage;
     return KioskScaffold(
       title: 'SelfX Kiosk',
-      subtitle: 'Select garment',
+      subtitle: 'Garment photo',
       leading: IconButton(
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.arrow_back),
       ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Select your garment',
-                          style: Theme.of(context).textTheme.displaySmall,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          'Choose a clear photo of the clothing you want to try on.',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 28),
-                        if (selectedImage == null)
-                          _EmptyGarmentPicker(
-                            busy: _busy,
-                            onChoose: _chooseGarment,
-                          )
-                        else
-                          _SelectedGarmentPreview(
-                            image: selectedImage,
-                            busy: _busy,
-                            onChooseAnother: _chooseGarment,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 980),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'What are you trying on?',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.displaySmall,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Choose the closest option, then add a clear outfit photo.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      const SizedBox(height: 28),
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 14,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          _IntentChip(
+                            key: const Key('garment-intent-top'),
+                            label: 'Top',
+                            icon: Icons.checkroom_outlined,
+                            selected: _intent == KioskGarmentIntent.top,
+                            onPressed: () => _selectIntent(KioskGarmentIntent.top),
                           ),
-                        if (_error != null) ...[
-                          const SizedBox(height: 18),
-                          _GarmentError(message: _error!),
+                          _IntentChip(
+                            key: const Key('garment-intent-bottom'),
+                            label: 'Bottom',
+                            icon: Icons.accessibility_new_outlined,
+                            selected: _intent == KioskGarmentIntent.bottom,
+                            onPressed: () =>
+                                _selectIntent(KioskGarmentIntent.bottom),
+                          ),
+                          _IntentChip(
+                            key: const Key('garment-intent-full-outfit'),
+                            label: 'Full Outfit',
+                            icon: Icons.person_outline,
+                            selected: _intent == KioskGarmentIntent.fullOutfit,
+                            onPressed: () =>
+                                _selectIntent(KioskGarmentIntent.fullOutfit),
+                          ),
                         ],
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 34),
+                      Text(
+                        'Add garment photo',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'The outfit should be clearly visible on one person.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      const SizedBox(height: 26),
+                      SelfxKioskButton(
+                        key: const Key('take-garment-photo-source'),
+                        label: 'Take a Photo',
+                        subtitle: 'Use the kiosk camera',
+                        icon: Icons.camera_alt_outlined,
+                        trailing: const Icon(Icons.arrow_forward),
+                        variant: SelfxKioskButtonVariant.secondary,
+                        minHeight: 112,
+                        expanded: true,
+                        textAlign: TextAlign.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 26,
+                          vertical: 24,
+                        ),
+                        onPressed: _intent == null ? null : _openCamera,
+                      ),
+                      const SizedBox(height: 18),
+                      SelfxKioskButton(
+                        key: const Key('use-phone-garment-source'),
+                        label: 'Use Your Phone',
+                        subtitle: 'Scan a QR code from your phone browser',
+                        icon: Icons.qr_code_2,
+                        trailing: const Icon(Icons.arrow_forward),
+                        variant: SelfxKioskButtonVariant.secondary,
+                        minHeight: 112,
+                        expanded: true,
+                        textAlign: TextAlign.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 26,
+                          vertical: 24,
+                        ),
+                        onPressed: _intent == null ? null : _openPhoneUpload,
+                      ),
+                    ],
                   ),
                 ),
-                if (selectedImage != null) ...[
-                  const SizedBox(height: 22),
-                  ElevatedButton.icon(
-                    key: const Key('continue-to-photo-source'),
-                    onPressed: _busy ? null : _continue,
-                    icon: const Icon(Icons.arrow_forward),
-                    label: const Text('Continue'),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _selectIntent(KioskGarmentIntent intent) {
+    setState(() => _intent = intent);
+    widget.captureController.selectCaptureScope(captureScopeForIntent(intent));
+  }
+
+  void _openCamera() {
+    final intent = _intent;
+    if (intent == null) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CameraCaptureScreen(
+          controller: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          purpose: PhotoAcquisitionPurpose.garment,
+          garmentIntent: intent,
         ),
       ),
     );
   }
 
-  Future<void> _chooseGarment() async {
-    if (_busy) {
+  void _openPhoneUpload() {
+    final intent = _intent;
+    if (intent == null) {
       return;
     }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final picked = await widget.garmentPicker.pickGarmentImage();
-      if (!mounted) {
-        return;
-      }
-      if (picked == null) {
-        setState(() => _busy = false);
-        return;
-      }
-      final validation = await validateGarmentImagePath(picked.path);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _busy = false;
-        if (validation.valid) {
-          _selectedImage = picked;
-          _error = null;
-        } else {
-          _error = validation.message;
-        }
-      });
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = 'Garment image could not be opened. Choose another image.';
-        });
-      }
-    }
-  }
-
-  Future<void> _continue() async {
-    final selectedImage = _selectedImage;
-    if (selectedImage == null) {
-      setState(() => _error = 'Choose a garment image to continue.');
-      return;
-    }
-    final validation = await validateGarmentImagePath(selectedImage.path);
-    if (!mounted) {
-      return;
-    }
-    if (!validation.valid) {
-      setState(() => _error = validation.message);
-      return;
-    }
-
-    const intent = KioskGarmentIntent.auto;
-    widget.tryOnController.selectGarment(
-      KioskGarmentInput(
-        source: KioskGarmentInputSource.developmentLocalFile,
-        localPath: selectedImage.path,
-        intent: intent,
-        photoType: KioskGarmentPhotoType.auto,
-      ),
-    );
-    widget.captureController.selectCaptureScope(captureScopeForIntent(intent));
-
-    await Navigator.of(context).push(
+    Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PhotoSourceChoiceScreen(
+        builder: (_) => MobileUploadScreen(
           captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          purpose: PhotoAcquisitionPurpose.garment,
+          garmentIntent: intent,
         ),
       ),
     );
   }
 }
 
-class _EmptyGarmentPicker extends StatelessWidget {
-  const _EmptyGarmentPicker({required this.busy, required this.onChoose});
-
-  final bool busy;
-  final VoidCallback onChoose;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: SelfxKioskTokens.background,
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          children: [
-            Icon(
-              Icons.checkroom_outlined,
-              size: 72,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Add a garment image',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'JPEG, PNG and WebP images are supported.',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              key: const Key('choose-garment-image'),
-              onPressed: busy ? null : onChoose,
-              icon: const Icon(Icons.image_search_outlined),
-              label: Text(busy ? 'Opening' : 'Choose Garment Image'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SelectedGarmentPreview extends StatelessWidget {
-  const _SelectedGarmentPreview({
-    required this.image,
-    required this.busy,
-    required this.onChooseAnother,
+class _IntentChip extends StatelessWidget {
+  const _IntentChip({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onPressed,
   });
 
-  final PickedGarmentImage image;
-  final bool busy;
-  final VoidCallback onChooseAnother;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: SelfxKioskTokens.background,
-              border: Border.all(color: Theme.of(context).colorScheme.outline),
-            ),
-            child: SizedBox(
-              height: 420,
-              child: Image.file(
-                File(image.path),
-                key: const Key('selected-garment-preview'),
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) {
-                  return const Center(
-                    child: Text('Garment image could not be previewed.'),
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          image.fileName,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 18),
-        OutlinedButton.icon(
-          key: const Key('choose-another-garment'),
-          onPressed: busy ? null : onChooseAnother,
-          icon: const Icon(Icons.image_search_outlined),
-          label: const Text('Choose Another'),
-        ),
-      ],
-    );
-  }
-}
-
-class _GarmentError extends StatelessWidget {
-  const _GarmentError({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onErrorContainer,
-          ),
-        ),
+    return SizedBox(
+      width: 250,
+      child: SelfxKioskButton(
+        label: label,
+        icon: icon,
+        variant: selected
+            ? SelfxKioskButtonVariant.selected
+            : SelfxKioskButtonVariant.secondary,
+        minHeight: 86,
+        textAlign: TextAlign.center,
+        onPressed: onPressed,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       ),
     );
   }

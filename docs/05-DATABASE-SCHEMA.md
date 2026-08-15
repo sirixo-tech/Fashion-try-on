@@ -1054,7 +1054,8 @@ Rules:
 ## 10.4 `kiosk_customer_upload_sessions`
 
 Short-lived KIOSK-4C customer phone photo upload sessions owned by an active
-kiosk device.
+kiosk device. KIOSK-5A uses the same session table for purpose-bound model and
+garment phone uploads.
 
 Important fields:
 
@@ -1062,6 +1063,7 @@ Important fields:
 - `kiosk_device_id`
 - `status` (`WAITING`, `UPLOADING`, `VALIDATING`, `READY`, `REJECTED`,
   `EXPIRED`, `CONSUMED`, `CANCELLED`)
+- `purpose` (`MODEL`, `GARMENT`)
 - `capability_digest`
 - `expires_at`
 - `created_at`
@@ -1082,6 +1084,7 @@ Indexes:
 - unique `capability_digest`
 - `(kiosk_device_id, created_at)`
 - `(kiosk_device_id, status)`
+- `(kiosk_device_id, purpose, status)`
 - `(status, expires_at)`
 - `expires_at`
 
@@ -1091,6 +1094,9 @@ Rules:
 - `capability_digest` is produced with a dedicated server-only HMAC pepper;
 - sessions expire after five minutes and cannot be reused after expiry,
   cancellation, replacement, consumption or deletion;
+- `purpose` binds the capability to the kiosk action that created it. A
+  `GARMENT` upload must not be consumed as a `MODEL` upload, and a `MODEL`
+  upload must not be consumed as a `GARMENT` upload;
 - browsers never supply object keys; SelfX generates the storage key and signed
   URL;
 - object bytes are stored in private object storage, not PostgreSQL;

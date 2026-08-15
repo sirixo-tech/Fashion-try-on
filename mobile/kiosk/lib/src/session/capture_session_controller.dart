@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../acquisition/photo_acquisition.dart';
 import '../camera/camera_models.dart';
 import '../camera/camera_service.dart';
 import '../live/capture_readiness_engine.dart';
@@ -59,6 +60,7 @@ class CaptureSessionController extends ChangeNotifier {
   Duration? imageQualityAnalyzerLatency;
   bool isAnalyzingQuality = false;
   String? preferredCameraId;
+  PhotoAcquisitionPurpose capturePurpose = PhotoAcquisitionPurpose.model;
   CaptureScope captureScope = defaultCaptureScope;
   int captureCountdownSeconds = defaultCaptureCountdownSeconds;
   bool captureSoundsEnabled = true;
@@ -105,6 +107,11 @@ class CaptureSessionController extends ChangeNotifier {
     readinessResult = null;
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
+    notifyListeners();
+  }
+
+  void selectCapturePurpose(PhotoAcquisitionPurpose purpose) {
+    capturePurpose = purpose;
     notifyListeners();
   }
 
@@ -212,6 +219,8 @@ class CaptureSessionController extends ChangeNotifier {
     }
     _captureInProgress = true;
     final targetMetadata = _currentCaptureTargetMetadata();
+    final purpose = capturePurpose;
+    final isModelCapture = purpose == PhotoAcquisitionPurpose.model;
     await _stopLiveReadiness();
     _setFlowState(
       flowState.copyWith(
@@ -232,22 +241,27 @@ class CaptureSessionController extends ChangeNotifier {
         await audioService.playShutter(_currentAudioProfile);
         await audioService.playCaptureSuccess(_currentAudioProfile);
       });
+      final previousAcceptedPath = acceptedCapture?.originalPath;
       capture = result;
-      acceptedCapture = null;
-      acceptedPersonImage = null;
+      if (isModelCapture) {
+        acceptedCapture = null;
+        acceptedPersonImage = null;
+        acceptedCaptureTargetMetadata = null;
+      }
       captureTargetMetadata = targetMetadata;
-      acceptedCaptureTargetMetadata = null;
       qualityResult = null;
       isAnalyzingQuality = true;
       capturedNewPhoto = true;
       _setFlowState(
         flowState.copyWith(stage: CaptureFlowStage.analyzing, clearError: true),
       );
-      await captureStore.deleteCapture(previous?.originalPath);
+      if (previous?.originalPath != previousAcceptedPath) {
+        await captureStore.deleteCapture(previous?.originalPath);
+      }
 
       qualityResult = await analyzer.analyzeStillImage(
         result.originalPath,
-        ImageQualityTarget.person,
+        isModelCapture ? ImageQualityTarget.person : ImageQualityTarget.garment,
       );
     } catch (_) {
       if (capturedNewPhoto) {
@@ -304,7 +318,45 @@ class CaptureSessionController extends ChangeNotifier {
     await captureStore.deleteCapture(previous?.originalPath);
   }
 
+  Future<void> discardPendingCapture() async {
+    await _stopLiveReadiness();
+    _cancelCountdownTimer();
+    _captureRunId++;
+    final previous = capture;
+    capture = null;
+    captureTargetMetadata = null;
+    qualityResult = null;
+    isAnalyzingQuality = false;
+    _setFlowState(
+      flowState.copyWith(
+        stage: CaptureFlowStage.preview,
+        clearSecondsRemaining: true,
+        clearError: true,
+      ),
+    );
+    if (previous?.originalPath != acceptedCapture?.originalPath) {
+      await captureStore.deleteCapture(previous?.originalPath);
+    }
+  }
+
+  void preservePendingCaptureAsExternalInput() {
+    capture = null;
+    captureTargetMetadata = null;
+    qualityResult = null;
+    isAnalyzingQuality = false;
+    _setFlowState(
+      flowState.copyWith(
+        stage: CaptureFlowStage.preview,
+        clearSecondsRemaining: true,
+        clearError: true,
+      ),
+    );
+  }
+
   bool usePhoto() {
+    if (capturePurpose != PhotoAcquisitionPurpose.model) {
+      return false;
+    }
     final current = capture;
     final quality = qualityResult;
     if (current == null || quality == null || quality.isBlocked) {

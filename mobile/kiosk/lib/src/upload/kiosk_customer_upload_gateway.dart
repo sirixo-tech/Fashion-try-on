@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import '../acquisition/photo_acquisition.dart';
 import 'kiosk_customer_upload_models.dart';
 
 class KioskCustomerUploadApiConfig {
@@ -19,7 +20,10 @@ class KioskCustomerUploadApiConfig {
 }
 
 abstract class KioskCustomerUploadGateway {
-  Future<KioskCustomerUploadSession> createSession(String accessToken);
+  Future<KioskCustomerUploadSession> createSession(
+    String accessToken, {
+    required PhotoAcquisitionPurpose purpose,
+  });
 
   Future<KioskCustomerUploadSession> getSession({
     required String accessToken,
@@ -34,6 +38,7 @@ abstract class KioskCustomerUploadGateway {
   Future<KioskCustomerUploadSession> consumeSession({
     required String accessToken,
     required String sessionId,
+    required PhotoAcquisitionPurpose purpose,
   });
 
   Future<void> downloadReadyPhoto({
@@ -54,11 +59,17 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
   final Duration timeout;
 
   @override
-  Future<KioskCustomerUploadSession> createSession(String accessToken) async {
+  Future<KioskCustomerUploadSession> createSession(
+    String accessToken, {
+    required PhotoAcquisitionPurpose purpose,
+  }) async {
     _assertConfigured();
     final response = await _send(
       client.post(
-        _uri('/api/v1/kiosk/customer-upload-sessions'),
+        _uri(
+          '/api/v1/kiosk/customer-upload-sessions',
+          queryParameters: {'purpose': purpose.apiValue},
+        ),
         headers: _authHeaders(accessToken),
       ),
     );
@@ -99,11 +110,15 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
   Future<KioskCustomerUploadSession> consumeSession({
     required String accessToken,
     required String sessionId,
+    required PhotoAcquisitionPurpose purpose,
   }) async {
     _assertConfigured();
     final response = await _send(
       client.post(
-        _uri('/api/v1/kiosk/customer-upload-sessions/$sessionId/consume'),
+        _uri(
+          '/api/v1/kiosk/customer-upload-sessions/$sessionId/consume',
+          queryParameters: {'purpose': purpose.apiValue},
+        ),
         headers: _authHeaders(accessToken),
       ),
     );
@@ -125,9 +140,12 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
     await File(targetPath).writeAsBytes(response.bodyBytes, flush: true);
   }
 
-  Uri _uri(String path) {
+  Uri _uri(String path, {Map<String, String>? queryParameters}) {
     final base = Uri.parse(config.apiBaseUrl.trim());
-    return base.replace(path: _joinPaths(base.path, path));
+    return base.replace(
+      path: _joinPaths(base.path, path),
+      queryParameters: queryParameters,
+    );
   }
 
   String _joinPaths(String basePath, String childPath) {
@@ -203,6 +221,9 @@ KioskCustomerUploadSession _session(
   return KioskCustomerUploadSession(
     sessionId: _string(json, 'sessionId'),
     status: _status(_string(json, 'status')),
+    purpose: photoAcquisitionPurposeFromApi(
+      json['purpose'] is String ? json['purpose'] as String : 'MODEL',
+    ),
     expiresAt: DateTime.parse(_string(json, 'expiresAt')),
     serverTime: DateTime.parse(_string(json, 'serverTime')),
     pollIntervalSeconds: json['pollIntervalSeconds'] is int

@@ -1,6 +1,7 @@
 import { JwtService } from "@nestjs/jwt";
 import {
   KioskAssignmentScope,
+  KioskCustomerUploadPurpose,
   KioskCustomerUploadSessionStatus,
   PlatformRole,
   PlatformRoleAssignmentStatus,
@@ -115,6 +116,55 @@ describe("KIOSK-4C customer mobile upload sessions", () => {
     expect(
       Date.parse(created.expiresAt) - Date.parse(created.serverTime),
     ).toBe(300_000);
+  });
+
+  it("persists and returns the purpose for garment upload sessions", async () => {
+    const credentials = await pairedCredentials("garment-purpose-upload");
+    const created = await controller.create(
+      `Bearer ${credentials.accessToken}`,
+      "GARMENT",
+    );
+
+    expect(created.purpose).toBe(KioskCustomerUploadPurpose.GARMENT);
+
+    const stored = await prisma.kioskCustomerUploadSession.findUniqueOrThrow({
+      where: { id: created.sessionId },
+    });
+    expect(stored.purpose).toBe(KioskCustomerUploadPurpose.GARMENT);
+
+    const publicStatus = await uploads.publicStatus(
+      created.publicUploadUrl.split("/").pop()!,
+      "127.0.4.30",
+    );
+    expect(publicStatus.purpose).toBe(KioskCustomerUploadPurpose.GARMENT);
+  });
+
+  it("does not consume a ready garment upload as a model upload", async () => {
+    const { sessionId, device } = await createUploadSession(
+      "purpose-mismatch",
+      KioskCustomerUploadPurpose.GARMENT,
+    );
+    await prisma.kioskCustomerUploadSession.update({
+      where: { id: sessionId },
+      data: {
+        status: KioskCustomerUploadSessionStatus.READY,
+        assetKey: `customer-uploads/${sessionId}/garment-original.png`,
+        contentType: "image/png",
+        sizeBytes: tinyPng.length,
+        width: 1,
+        height: 1,
+        readyAt: new Date(),
+      },
+    });
+
+    await expectApiCode(
+      uploads.consumeForDevice(
+        device,
+        sessionId,
+        KioskCustomerUploadPurpose.MODEL,
+      ),
+      KIOSK_ERROR_CODES.customerUploadPurposeMismatch,
+    );
   });
 
   it("rejects expired capabilities for upload intent", async () => {
@@ -237,9 +287,15 @@ describe("KIOSK-4C customer mobile upload sessions", () => {
     );
   });
 
-  async function createUploadSession(label: string) {
+  async function createUploadSession(
+    label: string,
+    purpose: KioskCustomerUploadPurpose = KioskCustomerUploadPurpose.MODEL,
+  ) {
     const credentials = await pairedCredentials(label);
-    const created = await controller.create(`Bearer ${credentials.accessToken}`);
+    const created = await controller.create(
+      `Bearer ${credentials.accessToken}`,
+      purpose,
+    );
     const capability = created.publicUploadUrl.split("/").pop()!;
     return {
       capability,

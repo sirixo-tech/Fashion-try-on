@@ -17,6 +17,7 @@ import {
   createCustomerUploadIntent,
   getCustomerUploadStatus,
   uploadCustomerPhotoToStorage,
+  type CustomerUploadPurpose,
   type CustomerUploadStatus,
 } from "@/lib/customer-upload-api";
 
@@ -33,6 +34,7 @@ export function CustomerUploadPageClient({
     "LOADING",
   );
   const [maxImageBytes, setMaxImageBytes] = useState(8 * 1024 * 1024);
+  const [purpose, setPurpose] = useState<CustomerUploadPurpose>("MODEL");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,6 +48,7 @@ export function CustomerUploadPageClient({
           return;
         }
         setStatus(next.status);
+        setPurpose(next.purpose);
         setMaxImageBytes(next.maxImageBytes);
       })
       .catch(() => {
@@ -118,6 +121,7 @@ export function CustomerUploadPageClient({
     status === "CANCELLED" ||
     status === "CONSUMED";
   const sent = status === "READY";
+  const copy = uploadCopyFor(purpose);
 
   return (
     <main className="min-h-screen bg-background px-5 py-8">
@@ -131,11 +135,8 @@ export function CustomerUploadPageClient({
 
         <Card>
           <CardHeader>
-            <CardTitle>Add your photo for Try-On</CardTitle>
-            <CardDescription>
-              Use a clear photo with your face and body visible, good lighting
-              and minimal blur.
-            </CardDescription>
+            <CardTitle>{copy.title}</CardTitle>
+            <CardDescription>{copy.description}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             {expired ? (
@@ -155,7 +156,7 @@ export function CustomerUploadPageClient({
                   className="hidden"
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  capture="user"
+                  capture={purpose === "MODEL" ? "user" : "environment"}
                   onChange={(event) => selectFile(event.target.files?.[0])}
                 />
                 <input
@@ -210,7 +211,7 @@ export function CustomerUploadPageClient({
                         variant="outline"
                         onClick={() => galleryInput.current?.click()}
                       >
-                        Choose From Gallery
+                        Choose from Phone
                       </Button>
                     </>
                   )}
@@ -222,6 +223,24 @@ export function CustomerUploadPageClient({
       </div>
     </main>
   );
+}
+
+function uploadCopyFor(purpose: CustomerUploadPurpose): {
+  title: string;
+  description: string;
+} {
+  if (purpose === "GARMENT") {
+    return {
+      title: "Add garment photo",
+      description:
+        "Take or choose a clear photo of the outfit you want to try. The outfit should be clearly visible on one person.",
+    };
+  }
+  return {
+    title: "Add your photo",
+    description:
+      "Take a clear photo of yourself or choose one from your phone.",
+  };
 }
 
 function UploadState({ title, body }: { title: string; body: string }) {

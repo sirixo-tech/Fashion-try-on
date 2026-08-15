@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
+import 'package:selfx_kiosk/src/acquisition/photo_acquisition.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_models.dart';
@@ -21,6 +22,7 @@ import 'package:selfx_kiosk/src/session/capture_scope.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
@@ -38,6 +40,7 @@ void main() {
       client: MockClient((http.Request request) async {
         expect(request.method, 'POST');
         expect(request.url.path, '/api/v1/kiosk/customer-upload-sessions');
+        expect(request.url.queryParameters['purpose'], 'MODEL');
         expect(request.bodyBytes, isEmpty);
         expect(
           request.headers[HttpHeaders.acceptHeader],
@@ -52,7 +55,10 @@ void main() {
       }),
     );
 
-    final session = await gateway.createSession('device-token');
+    final session = await gateway.createSession(
+      'device-token',
+      purpose: PhotoAcquisitionPurpose.model,
+    );
 
     expect(session.sessionId, 'upload-session');
   });
@@ -80,6 +86,7 @@ void main() {
     await gateway.consumeSession(
       accessToken: 'device-token',
       sessionId: 'upload-session',
+      purpose: PhotoAcquisitionPurpose.model,
     );
 
     for (final request in seen.values) {
@@ -137,7 +144,42 @@ void main() {
     expect(controller.message, 'Waiting for your photo...');
     expect(controller.flowState, KioskCustomerUploadFlowState.waiting);
     expect(gateway.createdAccessToken, 'device-token');
+    expect(gateway.createdPurpose, PhotoAcquisitionPurpose.model);
     controller.dispose();
+  });
+
+  test('garment upload session carries purpose through create and consume', () async {
+    final gateway = FakeUploadGateway()
+      ..nextSession = readyUploadSession(
+        'garment-upload-session',
+        purpose: PhotoAcquisitionPurpose.garment,
+      );
+    final uploadController = KioskCustomerUploadController(
+      deviceController: testDeviceController(),
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    )..session = readyUploadSession(
+        'garment-upload-session',
+        purpose: PhotoAcquisitionPurpose.garment,
+      );
+
+    await uploadController.createSession(
+      purpose: PhotoAcquisitionPurpose.garment,
+    );
+    uploadController.session = readyUploadSession(
+      'garment-upload-session',
+      purpose: PhotoAcquisitionPurpose.garment,
+    );
+    final input = await uploadController.useReadyGarment(
+      intent: KioskGarmentIntent.top,
+    );
+
+    expect(gateway.createdPurpose, PhotoAcquisitionPurpose.garment);
+    expect(gateway.consumedPurpose, PhotoAcquisitionPurpose.garment);
+    expect(input?.source, KioskGarmentInputSource.phoneUpload);
+    expect(input?.intent, KioskGarmentIntent.top);
+    expect(input?.photoType, KioskGarmentPhotoType.onModel);
+    uploadController.dispose();
   });
 
   test('cancel stops active mobile upload polling', () async {
@@ -556,10 +598,14 @@ KioskDeviceSessionController testDeviceController() {
   )..accessToken = 'device-token';
 }
 
-KioskCustomerUploadSession readyUploadSession(String sessionId) {
+KioskCustomerUploadSession readyUploadSession(
+  String sessionId, {
+  PhotoAcquisitionPurpose purpose = PhotoAcquisitionPurpose.model,
+}) {
   return KioskCustomerUploadSession(
     sessionId: sessionId,
     status: KioskCustomerUploadStatus.ready,
+    purpose: purpose,
     expiresAt: DateTime.now().add(const Duration(minutes: 5)),
     serverTime: DateTime.now(),
     pollIntervalSeconds: 3,
@@ -578,11 +624,13 @@ KioskCustomerUploadSession waitingUploadSession(
   String sessionId, {
   String publicUploadUrl = 'https://try.selfx.test/upload/capability',
   DateTime? expiresAt,
+  PhotoAcquisitionPurpose purpose = PhotoAcquisitionPurpose.model,
 }) {
   final now = DateTime.now();
   return KioskCustomerUploadSession(
     sessionId: sessionId,
     status: KioskCustomerUploadStatus.waiting,
+    purpose: purpose,
     expiresAt: expiresAt ?? now.add(const Duration(minutes: 5)),
     serverTime: now,
     pollIntervalSeconds: 3,
@@ -595,6 +643,7 @@ Map<String, dynamic> uploadSessionJson(String sessionId) {
   return {
     'sessionId': sessionId,
     'status': 'WAITING',
+    'purpose': 'MODEL',
     'expiresAt': now.add(const Duration(minutes: 5)).toIso8601String(),
     'serverTime': now.toIso8601String(),
     'pollIntervalSeconds': 3,
@@ -727,12 +776,18 @@ class FakeUploadGateway implements KioskCustomerUploadGateway {
   final List<String> createAccessTokens = [];
   String? createdAccessToken;
   String? consumedSessionId;
+  PhotoAcquisitionPurpose? createdPurpose;
+  PhotoAcquisitionPurpose? consumedPurpose;
   int createCalls = 0;
 
   @override
-  Future<KioskCustomerUploadSession> createSession(String accessToken) async {
+  Future<KioskCustomerUploadSession> createSession(
+    String accessToken, {
+    required PhotoAcquisitionPurpose purpose,
+  }) async {
     createCalls += 1;
     createdAccessToken = accessToken;
+    createdPurpose = purpose;
     createAccessTokens.add(accessToken);
     if (createOutcomes.isNotEmpty) {
       final outcome = createOutcomes.removeAt(0);
@@ -765,6 +820,7 @@ class FakeUploadGateway implements KioskCustomerUploadGateway {
     return KioskCustomerUploadSession(
       sessionId: sessionId,
       status: KioskCustomerUploadStatus.cancelled,
+      purpose: PhotoAcquisitionPurpose.model,
       expiresAt: DateTime.now(),
       serverTime: DateTime.now(),
       pollIntervalSeconds: 3,
@@ -775,11 +831,14 @@ class FakeUploadGateway implements KioskCustomerUploadGateway {
   Future<KioskCustomerUploadSession> consumeSession({
     required String accessToken,
     required String sessionId,
+    required PhotoAcquisitionPurpose purpose,
   }) async {
     consumedSessionId = sessionId;
+    consumedPurpose = purpose;
     return KioskCustomerUploadSession(
       sessionId: sessionId,
       status: KioskCustomerUploadStatus.consumed,
+      purpose: purpose,
       expiresAt: DateTime.now(),
       serverTime: DateTime.now(),
       pollIntervalSeconds: 3,

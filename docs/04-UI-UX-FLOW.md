@@ -1478,10 +1478,14 @@ No checkout button is required.
 
 - **Start Try-On** opens customer-friendly garment selection before photo
   source choice.
-- Garment selection supports a temporary native image picker for JPEG, PNG and
-  WebP local garment images, then shows a preview with **Choose Another** and
-  **Continue**. It must not show raw filesystem paths, KIOSK milestone labels,
-  garment type controls or photo-style controls in normal customer UI.
+- Garment selection asks for customer-facing intended scope: **Top**,
+  **Bottom** or **Full Outfit**.
+- Garment acquisition offers **Take a Photo** and **Use Your Phone** before the
+  model/person photo step. Customer-acquired garment references are
+  customer-facing on-person outfit photos, but the UI must not expose technical
+  garment photo type, flat-lay/segmentation, provider or FASHN terminology.
+- Garment review shows the selected garment image with **Choose Another** and
+  **Continue**.
 - CaptureScope remains **Top**, **Bottom** and **Full Body** internally and is
   resolved from provider-neutral garment semantics before assisted/live capture.
 - Review keeps **Retake** and **Use Photo**. **Use Photo** submits the accepted
@@ -1550,12 +1554,13 @@ No checkout button is required.
 
 ### KIOSK-4C Mobile Photo Upload UI
 
-- After garment selection/preview and internal CaptureScope resolution, the
-  kiosk shows a photo source choice with **Take Photo** and **Use My Phone**.
-- **Use My Phone** opens a QR upload screen with SelfX branding. Before a valid
-  session exists it shows a preparation state and no countdown. After session
-  creation succeeds, it shows a large QR code, five-minute `MM:SS` countdown,
-  progress indicator, status text and cancel.
+- After garment review and internal CaptureScope resolution, the kiosk shows a
+  model/person photo source choice with **Take Photo** and **Use Your Phone**.
+- **Use Your Phone** opens a purpose-specific QR upload screen with SelfX
+  branding. It is used for both garment and model/person acquisition. Before a
+  valid session exists it shows a preparation state and no countdown. After
+  session creation succeeds, it shows a large QR code, five-minute `MM:SS`
+  countdown, progress indicator, status text and cancel.
 - The QR size is derived from available viewport space so Windows landscape,
   Windows portrait, shorter/narrow Windows windows and Android portrait keep
   the countdown, status and actions reachable.
@@ -1570,17 +1575,22 @@ No checkout button is required.
   one device-session refresh and retry once. Unpaired, revoked, deleted or
   inactive device states clear invalid auth and route to pairing.
 - The public phone page at `/upload/[capability]` is a mobile-first SelfX page
-  outside authenticated app chrome. It offers **Take Photo**, **Choose From
-  Gallery**, preview, **Choose Another** and explicit **Upload Photo**.
+  outside authenticated app chrome. For model/person uploads it says **Add your
+  photo** and "Take a clear photo of yourself or choose one from your phone."
+  For garment uploads it says **Add garment photo** and "Take or choose a clear
+  photo of the outfit you want to try. The outfit should be clearly visible on
+  one person." It offers **Take Photo**, **Choose from Phone**, preview,
+  **Choose Another** and explicit **Upload Photo**.
 - Upload progress uses customer-safe text: "Uploading your photo...",
   "Validating photo..." and "Photo sent to the kiosk".
 - Expired/cancelled/consumed links show a safe terminal state telling the
   customer to return to the kiosk for a new QR.
 - Expired kiosk QR sessions stop being displayed as usable; the kiosk refreshes
   to a new backend upload session before showing a scannable QR again.
-- When the upload is `READY`, the kiosk shows the uploaded photo preview with
-  **Upload Another** and **Use This Photo**. Selecting the photo continues to
-  the production generation progress screen.
+- When a model/person upload is `READY`, the kiosk shows the uploaded photo
+  preview with **Upload Another** and **Use This Photo**. Selecting it continues
+  to production generation. When a garment upload is `READY`, selecting it opens
+  garment review before the model/person photo step.
 - KIOSK-4C UI does not add QR result handoff, customer account screens,
   checkout, catalog browsing or provider diagnostics.
 
@@ -1642,7 +1652,7 @@ Do not display technical camera/provider errors to the customer.
 ### Preview
 
 - garment photo
-- Retake
+- Retake / Choose Another
 - Continue
 
 If input validation fails, explain the correction in customer-friendly language.

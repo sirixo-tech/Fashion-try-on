@@ -4,6 +4,7 @@ enum KioskGarmentInputSource {
   developmentLocalFile,
   catalogProduct,
   capturedGarment,
+  phoneUpload,
   remoteAsset,
 }
 

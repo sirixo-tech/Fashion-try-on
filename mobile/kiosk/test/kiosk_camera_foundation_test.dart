@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:selfx_kiosk/src/acquisition/photo_acquisition.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
@@ -23,7 +23,6 @@ import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
-import 'package:selfx_kiosk/src/tryon/garment_image_picker.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
@@ -413,8 +412,8 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Select your garment'), findsOneWidget);
-      expect(find.byKey(const Key('choose-garment-image')), findsOneWidget);
+      expect(find.text('What are you trying on?'), findsOneWidget);
+      expect(find.byKey(const Key('garment-intent-top')), findsOneWidget);
       expect(find.byKey(const Key('garment-image-path')), findsNothing);
     });
 
@@ -510,8 +509,8 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Select your garment'), findsOneWidget);
-      expect(find.byKey(const Key('choose-garment-image')), findsOneWidget);
+      expect(find.text('What are you trying on?'), findsOneWidget);
+      expect(find.byKey(const Key('garment-intent-top')), findsOneWidget);
     });
   });
 
@@ -519,16 +518,6 @@ void main() {
     testWidgets(
       'customer garment screen uses picker preview and reaches photo source',
       (tester) async {
-        final temp = await Directory.systemTemp.createTemp(
-          'selfx-kiosk-garment-picker-',
-        );
-        addTearDown(() async {
-          if (await temp.exists()) {
-            await temp.delete(recursive: true);
-          }
-        });
-        final garment = File('${temp.path}${Platform.pathSeparator}dress.png');
-        await garment.writeAsBytes(tinyPng);
         final captureController = testController();
         final tryOnController = KioskTryOnSessionController(
           gateway: FakeKioskTryOnGateway(),
@@ -542,37 +531,26 @@ void main() {
               uploadController: testUploadController(
                 captureController.captureStore,
               ),
-              garmentPicker: FakeGarmentImagePicker(
-                PickedGarmentImage(path: garment.path, fileName: 'dress.png'),
-              ),
             ),
           ),
         );
 
         expect(find.byKey(const Key('garment-image-path')), findsNothing);
         expect(find.textContaining('KIOSK-3A'), findsNothing);
-        expect(find.text('Garment type'), findsNothing);
-        expect(find.text('Photo style'), findsNothing);
+        expect(find.text('What are you trying on?'), findsOneWidget);
+        expect(find.text('Top'), findsOneWidget);
+        expect(find.text('Bottom'), findsOneWidget);
+        expect(find.text('Full Outfit'), findsOneWidget);
         expect(find.text('Auto photo'), findsNothing);
         expect(find.text('Flat lay'), findsNothing);
         expect(find.text('On model'), findsNothing);
 
-        await tester.tap(find.byKey(const Key('choose-garment-image')));
+        await tester.tap(find.byKey(const Key('garment-intent-top')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        expect(
-          find.byKey(const Key('selected-garment-preview')),
-          findsOneWidget,
-        );
-        expect(find.byKey(const Key('choose-another-garment')), findsOneWidget);
-
-        await tester.tap(find.byKey(const Key('continue-to-photo-source')));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
-
-        expect(find.byKey(const Key('take-photo-source')), findsOneWidget);
-        expect(find.byKey(const Key('use-phone-source')), findsOneWidget);
+        expect(find.byKey(const Key('take-garment-photo-source')), findsOneWidget);
+        expect(find.byKey(const Key('use-phone-garment-source')), findsOneWidget);
 
         captureController.dispose();
       },
@@ -645,15 +623,6 @@ KioskCustomerUploadController testUploadController(
   );
 }
 
-class FakeGarmentImagePicker implements GarmentImagePicker {
-  const FakeGarmentImagePicker(this.image);
-
-  final PickedGarmentImage? image;
-
-  @override
-  Future<PickedGarmentImage?> pickGarmentImage() async => image;
-}
-
 class FakeKioskTryOnGateway implements KioskTryOnGateway {
   @override
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
@@ -668,10 +637,14 @@ class FakeKioskTryOnGateway implements KioskTryOnGateway {
 
 class FakeKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
   @override
-  Future<KioskCustomerUploadSession> createSession(String accessToken) async {
+  Future<KioskCustomerUploadSession> createSession(
+    String accessToken, {
+    required PhotoAcquisitionPurpose purpose,
+  }) async {
     return KioskCustomerUploadSession(
       sessionId: 'upload-session',
       status: KioskCustomerUploadStatus.waiting,
+      purpose: purpose,
       expiresAt: DateTime.now().add(const Duration(minutes: 5)),
       serverTime: DateTime.now(),
       pollIntervalSeconds: 3,
@@ -687,6 +660,7 @@ class FakeKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
     return KioskCustomerUploadSession(
       sessionId: sessionId,
       status: KioskCustomerUploadStatus.waiting,
+      purpose: PhotoAcquisitionPurpose.model,
       expiresAt: DateTime.now().add(const Duration(minutes: 5)),
       serverTime: DateTime.now(),
       pollIntervalSeconds: 3,
@@ -702,6 +676,7 @@ class FakeKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
     return KioskCustomerUploadSession(
       sessionId: sessionId,
       status: KioskCustomerUploadStatus.cancelled,
+      purpose: PhotoAcquisitionPurpose.model,
       expiresAt: DateTime.now(),
       serverTime: DateTime.now(),
       pollIntervalSeconds: 3,
@@ -712,10 +687,12 @@ class FakeKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
   Future<KioskCustomerUploadSession> consumeSession({
     required String accessToken,
     required String sessionId,
+    required PhotoAcquisitionPurpose purpose,
   }) async {
     return KioskCustomerUploadSession(
       sessionId: sessionId,
       status: KioskCustomerUploadStatus.consumed,
+      purpose: purpose,
       expiresAt: DateTime.now(),
       serverTime: DateTime.now(),
       pollIntervalSeconds: 3,

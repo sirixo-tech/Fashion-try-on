@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import {
+  KioskCustomerUploadPurpose,
   KioskCustomerUploadSessionStatus,
   type KioskCustomerUploadSession,
   type KioskDevice,
@@ -66,9 +67,11 @@ export class KioskCustomerUploadService {
 
   async createForDevice(
     device: Pick<KioskDevice, "id">,
+    purposeInput?: string | KioskCustomerUploadPurpose,
   ): Promise<KioskCustomerUploadSessionResponseDto> {
+    const purpose = normalizePurpose(purposeInput);
     await this.expireStaleSessions();
-    await this.cancelActiveDeviceSessions(device.id);
+    await this.cancelActiveDeviceSessions(device.id, purpose);
     const now = new Date();
     const capability = randomBytes(KIOSK_CUSTOMER_UPLOAD_TOKEN_BYTES).toString(
       "base64url",
@@ -78,6 +81,7 @@ export class KioskCustomerUploadService {
         id: createSelfxId(),
         kioskDeviceId: device.id,
         status: KioskCustomerUploadSessionStatus.WAITING,
+        purpose,
         capabilityDigest: this.digestCapability(capability),
         expiresAt: new Date(
           now.getTime() + this.config.customerUploadTtlSeconds * 1000,
@@ -119,9 +123,18 @@ export class KioskCustomerUploadService {
   async consumeForDevice(
     device: Pick<KioskDevice, "id">,
     sessionId: string,
+    purposeInput?: string | KioskCustomerUploadPurpose,
   ): Promise<KioskCustomerUploadSessionStatusDto> {
+    const expectedPurpose = normalizePurpose(purposeInput);
     const session = await this.requireDeviceSession(device.id, sessionId);
     const current = await this.expireIfNeeded(session, new Date());
+    if (current.purpose !== expectedPurpose) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        KIOSK_ERROR_CODES.customerUploadPurposeMismatch,
+        "Customer upload purpose does not match this kiosk action.",
+      );
+    }
     if (current.status !== KioskCustomerUploadSessionStatus.READY) {
       throw new ApiErrorException(
         HttpStatus.CONFLICT,
@@ -188,7 +201,7 @@ export class KioskCustomerUploadService {
       remainingSeconds,
       KIOSK_CUSTOMER_UPLOAD_SIGNED_URL_MAX_TTL_SECONDS,
     );
-    const key = objectKeyFor(current.id, contentType);
+    const key = objectKeyFor(current.id, contentType, current.purpose);
     await this.deleteAssetBestEffort(current.assetKey);
     await this.prisma.kioskCustomerUploadSession.update({
       where: { id: current.id },
@@ -369,10 +382,13 @@ export class KioskCustomerUploadService {
     });
   }
 
-  private async cancelActiveDeviceSessions(kioskDeviceId: string): Promise<void> {
+  private async cancelActiveDeviceSessions(
+    kioskDeviceId: string,
+    purpose: KioskCustomerUploadPurpose,
+  ): Promise<void> {
     const activeSessions =
       await this.prisma.kioskCustomerUploadSession.findMany({
-        where: { kioskDeviceId, status: { in: activeStatuses } },
+        where: { kioskDeviceId, purpose, status: { in: activeStatuses } },
         select: { id: true, assetKey: true },
       });
     if (activeSessions.length === 0) {
@@ -399,6 +415,7 @@ export class KioskCustomerUploadService {
     return {
       sessionId: session.id,
       status: session.status,
+      purpose: session.purpose,
       expiresAt: session.expiresAt.toISOString(),
       serverTime: now.toISOString(),
       pollIntervalSeconds: KIOSK_CUSTOMER_UPLOAD_POLL_INTERVAL_SECONDS,
@@ -413,6 +430,7 @@ export class KioskCustomerUploadService {
     return {
       sessionId: session.id,
       status: session.status,
+      purpose: session.purpose,
       expiresAt: session.expiresAt.toISOString(),
       serverTime: now.toISOString(),
       rejectionCode: session.rejectionCode,
@@ -426,6 +444,7 @@ export class KioskCustomerUploadService {
   ): CustomerUploadPublicStatusDto {
     return {
       status: session.status,
+      purpose: session.purpose,
       expiresAt: session.expiresAt.toISOString(),
       serverTime: now.toISOString(),
       maxImageBytes: KIOSK_CUSTOMER_UPLOAD_MAX_IMAGE_BYTES,
@@ -438,6 +457,7 @@ export class KioskCustomerUploadService {
   ): CustomerUploadCompleteResponseDto {
     return {
       status: session.status,
+      purpose: session.purpose,
       expiresAt: session.expiresAt.toISOString(),
       serverTime: now.toISOString(),
     };
@@ -519,6 +539,7 @@ function normalizeContentType(value: string): SupportedImageMimeType | null {
 function objectKeyFor(
   sessionId: string,
   contentType: SupportedImageMimeType,
+  purpose: KioskCustomerUploadPurpose,
 ): string {
   const extension =
     contentType === "image/png"
@@ -526,7 +547,31 @@ function objectKeyFor(
       : contentType === "image/webp"
         ? "webp"
         : "jpg";
-  return `customer-uploads/${sessionId}/person-original.${extension}`;
+  const basename =
+    purpose === KioskCustomerUploadPurpose.GARMENT
+      ? "garment-original"
+      : "person-original";
+  return `customer-uploads/${sessionId}/${basename}.${extension}`;
+}
+
+function normalizePurpose(
+  value?: string | KioskCustomerUploadPurpose,
+): KioskCustomerUploadPurpose {
+  if (!value) {
+    return KioskCustomerUploadPurpose.MODEL;
+  }
+  const upper = value.toString().trim().toUpperCase();
+  if (upper === KioskCustomerUploadPurpose.MODEL) {
+    return KioskCustomerUploadPurpose.MODEL;
+  }
+  if (upper === KioskCustomerUploadPurpose.GARMENT) {
+    return KioskCustomerUploadPurpose.GARMENT;
+  }
+  throw new ApiErrorException(
+    HttpStatus.BAD_REQUEST,
+    KIOSK_ERROR_CODES.customerUploadInvalid,
+    "Invalid customer upload purpose.",
+  );
 }
 
 function constantTimeEqual(left: string, right: string): boolean {

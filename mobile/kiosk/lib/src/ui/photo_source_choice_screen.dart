@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../acquisition/photo_acquisition.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
@@ -70,6 +71,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                         controller: captureController,
                         tryOnController: tryOnController,
                         uploadController: uploadController,
+                        purpose: PhotoAcquisitionPurpose.model,
                       ),
                     ),
                   );
@@ -78,7 +80,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
               const SizedBox(height: 18),
               SelfxKioskButton(
                 key: const Key('use-phone-source'),
-                label: 'Use My Phone',
+                label: 'Use Your Phone',
                 subtitle: 'Scan a QR code from your phone browser',
                 icon: Icons.qr_code_2,
                 trailing: const Icon(Icons.arrow_forward),
@@ -98,6 +100,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                         captureController: captureController,
                         tryOnController: tryOnController,
                         uploadController: uploadController,
+                        purpose: PhotoAcquisitionPurpose.model,
                       ),
                     ),
                   );
