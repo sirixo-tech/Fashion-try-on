@@ -903,17 +903,65 @@ KIOSK-4A rules:
   and pairing history remain intact.
 - Superadmin browsers must never receive provisioning secrets, device refresh
   credentials or permanent device credentials.
-- KIOSK-4A may keep the KIOSK-3A dev Try-On bridge in code temporarily, but
-  production device-authenticated kiosk Try-On endpoints remain KIOSK-4B.
-- Do not add Product Catalog, production kiosk Try-On, CMS wallpaper sync,
+- KIOSK-4A established device identity only. Production device-authenticated
+  kiosk Try-On is implemented separately in KIOSK-4B.
+- Do not add Product Catalog, CMS wallpaper sync,
   remote commands, OTA updates, deep telemetry, FASHN changes, Redis/BullMQ,
   billing or API Gateway in KIOSK-4A.
+
+## KIOSK-4B Device-Authenticated Production Kiosk Try-On
+
+KIOSK-4B replaces the KIOSK-3A development generation bridge with a commercial
+device-authenticated production Try-On path for paired kiosks.
+
+KIOSK-4B rules:
+
+- Normal paired kiosks call `POST /api/v1/kiosk/try-on/runs` and
+  `GET /api/v1/kiosk/try-on/runs/:runId` with a device access token.
+- Production kiosk Try-On must require `typ: "kiosk_device_access"` and must
+  reject human `typ: "access"` tokens.
+- Every kiosk Try-On request reloads current `KioskDevice` status and
+  assignment from the database. Do not trust organization/store context from
+  Flutter or JWT claims.
+- Only `ACTIVE` devices may create/read kiosk Try-On runs. `INACTIVE`,
+  `REVOKED`, `DELETED` and unpaired devices must fail and the kiosk must return
+  to pairing where appropriate.
+- `PLATFORM`, `ORGANIZATION` and `STORE` devices are valid. Run context is
+  derived server-side from the current device record.
+- Internal Try-On Lab and production kiosk Try-On are separate API surfaces.
+  `TRYON_LAB_ENABLED` gates only `/api/v1/try-on-lab/runs`; it must not be
+  required for `/api/v1/kiosk/try-on/runs`.
+- Both Lab and kiosk production runs must use the shared provider-neutral SelfX
+  Try-On execution service and centralized provider adapters. Do not duplicate
+  FASHN request construction or place provider logic in Flutter.
+- `FASHN_API_KEY` remains server-side on `@selfx/api` only. Flutter must never
+  receive provider credentials, provider auth headers or provider prediction
+  IDs.
+- Kiosk production run creation must include a `clientRequestId`. The same
+  device plus the same `clientRequestId` returns the same SelfX run and must
+  not submit a second paid provider generation.
+- `KioskTryOnRun` persistence stores device ownership, current assignment
+  context, idempotency key, safe provider metadata, status/result/error fields
+  and expiry. It must not store raw person or garment input bytes.
+- A kiosk may read only runs owned by its device context unless a later
+  approved administrative result-access surface defines broader semantics.
+- Flutter generation uses the existing KIOSK-4A device session controller and
+  refresh flow. `SELFX_KIOSK_DEV_ACCESS_TOKEN` is not part of the normal paired
+  kiosk generation path.
+- Device auth rejection during generation stops polling, clears device auth and
+  routes the kiosk back to pairing. Heartbeat remains independent.
+- Finish, Retake and Try Another Garment continue to clear customer capture,
+  prepared input, run/result and garment state as appropriate without clearing
+  the paired device identity.
+- Do not add Product Catalog, Organizations management, full RBAC, CMS
+  wallpaper sync, checkout, billing, Redis/BullMQ, API Gateway, Shopify,
+  WooCommerce, target compositing or fleet telemetry in KIOSK-4B.
 
 ## KIOSK-4C Secure Customer Mobile QR Photo Upload
 
 KIOSK-4C adds a secure personal-phone photo upload option to the existing
 paired kiosk capture flow. It is only an alternate customer person-photo input
-source and must not be treated as production kiosk Try-On orchestration.
+source. Production kiosk Try-On orchestration is KIOSK-4B.
 
 KIOSK-4C rules:
 
@@ -940,9 +988,9 @@ KIOSK-4C rules:
 - Cancel, expiry, rejection and replacement must clean up stored objects
   best-effort and must not allow a cancelled/expired upload to become ready.
 - The public upload page must not require staff `SessionProvider` auth.
-- KIOSK-4C does not implement KIOSK-4B production Try-On endpoints, Product
-  Catalog, persistent customer accounts, QR result continuation, billing,
-  Redis/BullMQ, API Gateway or provider calls from Flutter.
+- KIOSK-4C does not implement Product Catalog, persistent customer accounts, QR
+  result continuation, billing, Redis/BullMQ, API Gateway or provider calls
+  from Flutter.
 
 ## SELFX-DESIGN-SYSTEM-2 Cross-Application Visual Language
 

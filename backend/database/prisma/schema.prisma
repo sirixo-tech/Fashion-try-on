@@ -317,6 +317,7 @@ model KioskDevice {
   organization    Organization?          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   store           Store?                 @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
   customerUploadSessions KioskCustomerUploadSession[]
+  tryOnRuns       KioskTryOnRun[]
   pairingSessions KioskPairingSession[]
   sessions        KioskDeviceSession[]
 
@@ -400,6 +401,44 @@ model KioskCustomerUploadSession {
   @@index([status, expiresAt])
   @@index([expiresAt])
   @@map("kiosk_customer_upload_sessions")
+}
+
+model KioskTryOnRun {
+  id                   String               @id @db.Uuid
+  kioskDeviceId        String               @map("kiosk_device_id") @db.Uuid
+  clientRequestId      String               @map("client_request_id") @db.VarChar(160)
+  status               String               @default("QUEUED") @db.VarChar(24)
+  assignmentScope      KioskAssignmentScope @map("assignment_scope")
+  organizationId       String?              @map("organization_id") @db.Uuid
+  storeId              String?              @map("store_id") @db.Uuid
+  provider             String               @db.VarChar(80)
+  providerDisplayName  String               @map("provider_display_name") @db.VarChar(120)
+  providerModel        String               @map("provider_model") @db.VarChar(120)
+  providerPredictionId String?              @map("provider_prediction_id") @db.VarChar(160)
+  garmentSource        String               @map("garment_source") @db.VarChar(40)
+  garmentIntent        String               @map("garment_intent") @db.VarChar(40)
+  garmentCategory      String               @map("garment_category") @db.VarChar(40)
+  garmentPhotoType     String               @map("garment_photo_type") @db.VarChar(40)
+  generationProfile    String               @map("generation_profile") @db.VarChar(40)
+  resultImage          String?              @map("result_image")
+  errorCode            String?              @map("error_code") @db.VarChar(120)
+  errorMessage         String?              @map("error_message")
+  startedAt            DateTime?            @map("started_at") @db.Timestamptz(3)
+  submittedAt          DateTime?            @map("submitted_at") @db.Timestamptz(3)
+  completedAt          DateTime?            @map("completed_at") @db.Timestamptz(3)
+  expiresAt            DateTime             @map("expires_at") @db.Timestamptz(3)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  kioskDevice          KioskDevice          @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+
+  @@unique([kioskDeviceId, clientRequestId])
+  @@index([kioskDeviceId, createdAt])
+  @@index([kioskDeviceId, status])
+  @@index([organizationId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([status, expiresAt])
+  @@index([expiresAt])
+  @@map("kiosk_try_on_runs")
 }
 
 model AuditLog {

@@ -1,4 +1,4 @@
-import { HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable } from "@nestjs/common";
 
 import { createSelfxId } from "@selfx/database";
 import {
@@ -7,20 +7,15 @@ import {
 } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
-import {
-  TRY_ON_LAB_POLL_INTERVAL_MS,
-  TRY_ON_LAB_PROVIDER,
-  TRY_ON_LAB_PROVIDER_TIMEOUT_MS,
-} from "./try-on-lab.constants.js";
+import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import type { CreateTryOnLabRunPayload } from "./try-on-lab-multipart.js";
 import { TryOnLabRunRegistryService } from "./try-on-lab-run-registry.service.js";
-import type { TryOnProvider } from "./providers/try-on-provider.js";
 
 @Injectable()
 export class TryOnLabService {
   constructor(
     private readonly registry: TryOnLabRunRegistryService,
-    @Inject(TRY_ON_LAB_PROVIDER) private readonly provider: TryOnProvider,
+    private readonly execution: TryOnExecutionService,
   ) {}
 
   createRun(
@@ -28,7 +23,7 @@ export class TryOnLabService {
     payload: CreateTryOnLabRunPayload,
   ): TryOnLabRunResponse {
     this.assertLabEnabled();
-    this.provider.assertConfigured();
+    this.execution.assertConfigured();
 
     const run = this.registry.create({
       id: createSelfxId(),
@@ -46,7 +41,7 @@ export class TryOnLabService {
       disambiguationResolved: payload.disambiguationResolved,
       garmentAnalysisBodyCoverage: payload.garmentAnalysisBodyCoverage,
       garmentAnalysisReasonCodes: payload.garmentAnalysisReasonCodes,
-      providerMetadata: this.provider.metadata(),
+      providerMetadata: this.execution.metadata(),
       qualityWarningCodes: payload.qualityWarningCodes,
       qualityOverrideAccepted: payload.qualityOverrideAccepted,
     });
@@ -73,48 +68,34 @@ export class TryOnLabService {
     runId: string,
     payload: CreateTryOnLabRunPayload,
   ): Promise<void> {
-    const startedAt = new Date();
-    this.registry.update(runId, { startedAt });
-
-    try {
-      const submitted = await this.provider.submit({
-        personImageDataUri: payload.personImage.dataUri,
-        garmentImageDataUri: payload.garmentImage.dataUri,
-        category: payload.category,
-        garmentPhotoType: payload.garmentPhotoType,
-        generationProfile: payload.generationProfile,
-      });
-      this.registry.update(runId, {
-        status: "PROCESSING",
-        providerPredictionId: submitted.providerPredictionId,
-      });
-
-      while (
-        Date.now() - startedAt.getTime() <
-        TRY_ON_LAB_PROVIDER_TIMEOUT_MS
-      ) {
-        const status = await this.provider.poll(submitted.providerPredictionId);
-        this.registry.update(runId, terminalPatch(status));
-
-        if (status.status === "COMPLETED" || status.status === "FAILED") {
-          return;
-        }
-
-        await wait(TRY_ON_LAB_POLL_INTERVAL_MS);
-      }
-
-      this.registry.update(runId, {
-        status: "FAILED",
-        errorCode: TRY_ON_LAB_ERROR_CODES.timedOut,
-        errorMessage: "Try-On generation timed out.",
-        completedAt: new Date(),
-      });
-    } catch (error) {
-      this.registry.update(runId, {
-        ...normalizeProcessError(error),
-        completedAt: new Date(),
-      });
-    }
+    await this.execution.process(payload, {
+      onStarted: (startedAt) => {
+        this.registry.update(runId, { startedAt });
+      },
+      onSubmitted: (providerPredictionId) => {
+        this.registry.update(runId, {
+          status: "PROCESSING",
+          providerPredictionId,
+        });
+      },
+      onStatus: (status) => {
+        this.registry.update(runId, status);
+      },
+      onTimedOut: (completedAt) => {
+        this.registry.update(runId, {
+          status: "FAILED",
+          errorCode: TRY_ON_LAB_ERROR_CODES.timedOut,
+          errorMessage: "Try-On generation timed out.",
+          completedAt,
+        });
+      },
+      onError: (error, completedAt) => {
+        this.registry.update(runId, {
+          ...error,
+          completedAt,
+        });
+      },
+    });
   }
 
   private assertLabEnabled(): void {
@@ -126,56 +107,4 @@ export class TryOnLabService {
       );
     }
   }
-}
-
-function terminalPatch(
-  status: Awaited<ReturnType<TryOnProvider["poll"]>>,
-): Awaited<ReturnType<TryOnProvider["poll"]>> & { completedAt?: Date } {
-  if (status.status === "COMPLETED" || status.status === "FAILED") {
-    return { ...status, completedAt: new Date() };
-  }
-
-  return status;
-}
-
-function normalizeProcessError(error: unknown): {
-  status: "FAILED";
-  errorCode: (typeof TRY_ON_LAB_ERROR_CODES)[keyof typeof TRY_ON_LAB_ERROR_CODES];
-  errorMessage: string;
-} {
-  if (error instanceof ApiErrorException) {
-    const response = error.getResponse();
-    if (
-      response &&
-      typeof response === "object" &&
-      "error" in response &&
-      response.error &&
-      typeof response.error === "object" &&
-      "code" in response.error
-    ) {
-      return {
-        status: "FAILED",
-        errorCode: String(
-          response.error.code,
-        ) as (typeof TRY_ON_LAB_ERROR_CODES)[keyof typeof TRY_ON_LAB_ERROR_CODES],
-        errorMessage:
-          "message" in response.error &&
-          typeof response.error.message === "string"
-            ? response.error.message
-            : "Try-On generation failed.",
-      };
-    }
-  }
-
-  return {
-    status: "FAILED",
-    errorCode: TRY_ON_LAB_ERROR_CODES.failed,
-    errorMessage: "Try-On generation failed.",
-  };
-}
-
-function wait(durationMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, durationMs);
-  });
 }

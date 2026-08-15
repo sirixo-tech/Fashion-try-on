@@ -1,0 +1,5 @@
+export const TRY_ON_PROVIDER = Symbol("TRY_ON_PROVIDER");
+
+export const TRY_ON_PROVIDER_POLL_INTERVAL_MS = 2_000;
+export const TRY_ON_PROVIDER_TIMEOUT_MS = 90_000;
+export const TRY_ON_RESULT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;

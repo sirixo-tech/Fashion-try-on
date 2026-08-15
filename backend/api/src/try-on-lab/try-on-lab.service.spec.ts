@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TRY_ON_LAB_ERROR_CODES } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import {
   detectImageMimeType,
   parseTryOnLabMultipartRequest,
@@ -346,7 +347,10 @@ describe("TryOnLabService", () => {
 });
 
 function createService(provider: TryOnProvider): TryOnLabService {
-  return new TryOnLabService(new TryOnLabRunRegistryService(), provider);
+  return new TryOnLabService(
+    new TryOnLabRunRegistryService(),
+    new TryOnExecutionService(provider),
+  );
 }
 
 function payload() {

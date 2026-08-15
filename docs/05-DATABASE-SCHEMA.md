@@ -1103,7 +1103,69 @@ Rules:
 
 ---
 
-## 10.5 `kiosk_heartbeats`
+## 10.5 `kiosk_try_on_runs`
+
+KIOSK-4B production Try-On run state owned by a paired kiosk device.
+
+Important fields:
+
+- `id`
+- `kiosk_device_id`
+- `client_request_id`
+- `status` (`QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`)
+- `assignment_scope` (`PLATFORM`, `ORGANIZATION`, `STORE`)
+- `organization_id` nullable
+- `store_id` nullable
+- `provider`
+- `provider_display_name`
+- `provider_model`
+- `provider_prediction_id`
+- `garment_source`
+- `garment_intent`
+- `garment_category`
+- `garment_photo_type`
+- `generation_profile`
+- `result_image`
+- `error_code`
+- `error_message`
+- `started_at`
+- `submitted_at`
+- `completed_at`
+- `expires_at`
+- `created_at`
+- `updated_at`
+
+Indexes:
+
+- unique `(kiosk_device_id, client_request_id)`
+- `(kiosk_device_id, created_at)`
+- `(kiosk_device_id, status)`
+- `(organization_id, created_at)`
+- `(store_id, created_at)`
+- `(status, expires_at)`
+- `expires_at`
+
+Rules:
+
+- production kiosk Try-On runs are owned by the creating `kiosk_devices` row;
+- create uses `client_request_id` as the paid-run idempotency key scoped to the
+  kiosk device. The same device plus key returns the same run;
+- status/result reads must be scoped to the owning device unless a later
+  approved administrative surface defines broader access;
+- `assignment_scope`, `organization_id` and `store_id` are copied from the
+  current device record at run creation and are not accepted from Flutter;
+- the table stores safe provider metadata and provider execution state but does
+  not expose provider prediction IDs to Flutter customer UI;
+- raw person and garment input bytes are not stored in PostgreSQL by this
+  model;
+- generated results are customer-sensitive and expire no later than seven days
+  through `expires_at` and service cleanup;
+- `TRYON_LAB_ENABLED` is unrelated to this production table. The internal
+  Try-On Lab may keep its separate development run registry.
+
+---
+
+## 10.6 `kiosk_heartbeats`
 
 Optional bounded heartbeat history.
 
@@ -1123,7 +1185,7 @@ Heartbeat retention must be bounded or aggregated.
 
 ---
 
-## 10.5 `kiosk_remote_commands`
+## 10.7 `kiosk_remote_commands`
 
 Important fields:
 

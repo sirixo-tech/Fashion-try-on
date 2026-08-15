@@ -1528,6 +1528,26 @@ No checkout button is required.
 - Revoke and Delete actions are visible only through the protected superadmin
   fleet surface, require confirmation and use danger/destructive styling.
 
+### KIOSK-4B Production Device Try-On UI
+
+- Normal paired kiosks use production device-authenticated generation after
+  photo review. The customer UI remains the same flow: garment preview, photo
+  source, capture/review, generation progress and generated result.
+- Generation progress may show preparing, uploading, creating and generating
+  states. It must not show provider names, provider prediction IDs, device
+  tokens, organization/store IDs, raw HTTP status or backend stack traces.
+- The kiosk uses the existing device session controller for generation auth and
+  refresh. It must not ask the customer/operator for a staff/admin token.
+- If the backend reports the device is inactive, revoked, deleted, unpaired or
+  has an invalid device token, generation stops safely, local device auth is
+  cleared and the startup shell routes to the pairing screen.
+- Retry polling for an existing run does not create another paid run. Retrying
+  create with the same device `clientRequestId` returns the same run.
+- Result screen continues to show the generated image with **Try Another
+  Garment**, **Retake Photo** and **Finish**.
+- **Finish** clears customer capture, garment, prepared input, active run and
+  result state but preserves a valid paired device identity.
+
 ### KIOSK-4C Mobile Photo Upload UI
 
 - After garment selection/preview and internal CaptureScope resolution, the
@@ -1545,7 +1565,7 @@ No checkout button is required.
   customer to return to the kiosk for a new QR.
 - When the upload is `READY`, the kiosk shows the uploaded photo preview with
   **Upload Another** and **Use This Photo**. Selecting the photo continues to
-  the existing generation progress screen.
+  the production generation progress screen.
 - KIOSK-4C UI does not add QR result handoff, customer account screens,
   checkout, catalog browsing or provider diagnostics.
 

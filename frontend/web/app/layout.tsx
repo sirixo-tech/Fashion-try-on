@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { SelfxUiProvider } from "@selfx/ui";
 import "@selfx/ui/globals.css";
+
+import { Providers } from "@/app/providers";
 
 export const metadata: Metadata = {
   title: "SelfX Virtual Try-On",
@@ -17,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <SelfxUiProvider>{children}</SelfxUiProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

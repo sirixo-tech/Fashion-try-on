@@ -1386,8 +1386,40 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
      provisioning creation. One-time grant verification is database-backed via
      `grantConsumedAt`; Redis remains deferred until the approved queue/fleet
      scale phase;
-   - production kiosk Try-On endpoints remain KIOSK-4B. The KIOSK-3A temporary
-     development bridge may remain in code but is not commercial architecture.
+   - production kiosk Try-On is implemented in KIOSK-4B. The KIOSK-3A
+     development bridge remains historical/internal-lab architecture only and
+     is not used by normal paired kiosks.
+
+   KIOSK-4B connects paired kiosk device identity to production Try-On:
+
+   - production routes are `POST /api/v1/kiosk/try-on/runs` and
+     `GET /api/v1/kiosk/try-on/runs/:runId`;
+   - routes require `Authorization: Bearer <device-access-token>` with
+     `typ: "kiosk_device_access"` and must reject human access tokens;
+   - every request reloads the current `KioskDevice` from the database and
+     requires `ACTIVE` status. `INACTIVE`, `REVOKED`, `DELETED` and unpaired
+     devices are rejected;
+   - `PLATFORM`, `ORGANIZATION` and `STORE` execution context is derived
+     server-side from the current device record, not from Flutter fields or JWT
+     organization/store claims;
+   - production kiosk Try-On does not depend on `TRYON_LAB_ENABLED`; that flag
+     gates only `/api/v1/try-on-lab/runs`;
+   - the Lab and production kiosk endpoints use the same provider-neutral Try-On
+     execution service and centralized FASHN adapter;
+   - `FASHN_API_KEY` remains server-side only on `@selfx/api`;
+   - create-run requires `clientRequestId`. `(kiosk_device_id,
+     client_request_id)` is unique so retries return the same SelfX run and do
+     not submit duplicate paid provider generations;
+   - `KioskTryOnRun` stores run ownership, assignment context, safe provider
+     metadata, execution status, result/error and expiry. It does not store raw
+     person or garment input bytes;
+   - status/result reads are scoped to the creating kiosk device;
+   - Flutter generation uses the existing device session controller and refresh
+     flow. It no longer requires `SELFX_KIOSK_DEV_ACCESS_TOKEN` for the normal
+     paired path;
+   - if device authorization is rejected during generation, Flutter clears
+     device credentials and routes back to pairing. Heartbeat remains
+     independent of generation traffic.
 
    KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
 
@@ -1416,8 +1448,7 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
      policy;
    - the public Next.js `/upload/[capability]` route stays outside authenticated
      app layout/session requirements and uses no-referrer handling;
-   - KIOSK-4C does not introduce KIOSK-4B production Try-On endpoints, provider
-     execution changes, Product Catalog, durable TryOnRun orchestration,
+   - KIOSK-4C does not introduce Product Catalog, QR result continuation,
      Redis/BullMQ, billing or API Gateway.
 
 ---

@@ -279,6 +279,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
         'SelfX Try-On is not configured on this kiosk yet.',
       KioskTryOnFailureCode.authenticationMissing =>
         'SelfX Try-On access is not configured for this kiosk.',
+      KioskTryOnFailureCode.deviceAuthenticationRejected =>
+        'This kiosk needs to be paired again before Try-On can continue.',
       KioskTryOnFailureCode.garmentMissing =>
         'Choose a garment image before generating.',
       KioskTryOnFailureCode.personMissing =>

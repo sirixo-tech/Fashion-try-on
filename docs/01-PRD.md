@@ -1090,6 +1090,42 @@ full Roles/Permissions, CMS wallpaper sync, remote commands, OTA updates, deep
 telemetry, FASHN changes, Shopify, WooCommerce, billing, Redis/BullMQ or API
 Gateway. Production device-authenticated kiosk Try-On belongs to KIOSK-4B.
 
+## PRD-KIOSK-010B — KIOSK-4B Device-Authenticated Production Kiosk Try-On
+
+SelfX paired kiosks must be able to complete customer Try-On generation through
+a production device-authenticated API without a human/staff access token.
+
+KIOSK-4B product rules:
+
+- Customer flow is unpaired kiosk -> pairing -> device authentication ->
+  customer home -> garment -> photo source -> capture/review -> production
+  kiosk Try-On -> generated result.
+- A properly paired kiosk uses its device session for generation and must not
+  require `SELFX_KIOSK_DEV_ACCESS_TOKEN`.
+- Production kiosk Try-On must not require `TRYON_LAB_ENABLED=true`; that flag
+  remains only for the internal Web Try-On Lab.
+- Kiosks submit only to SelfX. Flutter must never call FASHN or store provider
+  credentials.
+- The production kiosk endpoint must accept only active kiosk-device
+  credentials and must reject human user tokens plus inactive, revoked, deleted
+  or unpaired devices.
+- The backend derives run organization/store context from the current
+  `KioskDevice` record. Flutter must not be able to spoof assignment context.
+- `PLATFORM`, `ORGANIZATION` and `STORE` kiosk assignments are valid.
+- A kiosk may read only its own generated run/status/result.
+- Run creation requires a customer-attempt `clientRequestId`; retrying the same
+  device and `clientRequestId` must return the same SelfX run and must not
+  create duplicate paid provider work.
+- If a device is revoked during generation, the kiosk stops polling, clears
+  device authentication and returns to pairing.
+- Customer **Finish** clears capture, garment, prepared input and result state
+  without clearing a valid paired device identity.
+
+KIOSK-4B does not implement Product Catalog, Organizations management, full
+RBAC, QR result continuation, checkout, billing, API Gateway, Shopify,
+WooCommerce, Redis/BullMQ, target compositing or provider client code in
+Flutter.
+
 ## PRD-KIOSK-011 — KIOSK-4C Secure Customer Mobile Photo Upload
 
 SelfX kiosks may let a customer use their personal phone to provide the person
@@ -1118,10 +1154,9 @@ KIOSK-4C product rules:
 - Temporary uploaded customer photos remain subject to the approved customer
   image privacy and retention rules.
 
-KIOSK-4C does not implement production device-authenticated kiosk Try-On
-orchestration, Product Catalog, persistent customer accounts, QR result
-handoff/continuation, checkout, billing, Redis/BullMQ, API Gateway or provider
-client code in Flutter.
+KIOSK-4C does not implement Product Catalog, persistent customer accounts, QR
+result handoff/continuation, checkout, billing, Redis/BullMQ, API Gateway or
+provider client code in Flutter.
 
 ---
 

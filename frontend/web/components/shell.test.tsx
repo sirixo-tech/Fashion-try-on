@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LayoutDashboardIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -119,6 +119,42 @@ describe("SelfX shared shell", () => {
       screen.getByRole("button", { name: "Collapse navigation" }),
     ).toBeTruthy();
     expect(screen.getByText("Dashboard content")).toBeTruthy();
+  });
+
+  it("opens the user menu without Base UI group errors", async () => {
+    const onNavigateTo = vi.fn();
+    const onLogout = vi.fn();
+    renderWithUi(
+      <AppShell
+        navItems={[
+          {
+            href: "/app/dashboard",
+            label: "Dashboard",
+            icon: LayoutDashboardIcon,
+          },
+        ]}
+        activePath="/app/dashboard"
+        organizations={[{ id: "org-1", name: "Retail Co", status: "ACTIVE" }]}
+        activeOrganizationId="org-1"
+        user={{ email: "owner@example.test", displayName: "Owner" }}
+        onNavigateTo={onNavigateTo}
+        onLogout={onLogout}
+      >
+        <h1>Dashboard content</h1>
+      </AppShell>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open user menu" }));
+
+    expect(await screen.findByText("owner@example.test")).toBeTruthy();
+    expect(screen.getByText("Profile").closest("[data-disabled]")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Settings"));
+    expect(onNavigateTo).toHaveBeenCalledWith("/app/settings");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open user menu" }));
+    fireEvent.click(await screen.findByText("Sign out"));
+    expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
   it("handles organization switcher available and empty states", () => {

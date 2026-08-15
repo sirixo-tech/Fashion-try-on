@@ -1171,9 +1171,66 @@ new database persistence or provider calls from Flutter.
 
 ### Boundary
 
-KIOSK-4A does not connect device credentials to production Try-On generation.
-KIOSK-4B will replace the KIOSK-3A temporary user-token bridge with
-device-authenticated production kiosk Try-On endpoints.
+KIOSK-4A establishes device identity and fleet lifecycle. KIOSK-4B connects
+that device identity to production Try-On generation.
+
+## 6.0.4B.1 Customer/Kiosk — KIOSK-4B Production Device Try-On
+
+### Primary Actors
+
+- Kiosk customer
+- Active paired SelfX kiosk
+- SelfX API
+
+### Preconditions
+
+- Kiosk has an active paired device session.
+- SelfX API is reachable.
+- Backend provider configuration such as `FASHN_API_KEY` is present
+  server-side.
+- `TRYON_LAB_ENABLED` may be false; the production kiosk endpoint does not use
+  the internal Lab flag.
+
+### Main Flow
+
+1. Kiosk restores or refreshes its device session and opens customer home.
+2. Customer taps **Start Try-On**.
+3. Customer selects and previews a garment input.
+4. Customer chooses **Take Photo** or **Use My Phone**.
+5. Kiosk obtains the accepted person photo and prepared target input.
+6. Kiosk submits multipart `personImage`, `garmentImage` and one
+   `clientRequestId` to `POST /api/v1/kiosk/try-on/runs` with its device access
+   token.
+7. Backend validates `typ: "kiosk_device_access"`, reloads the current device
+   record, requires `ACTIVE`, derives assignment context and creates or returns
+   the idempotent device-owned run.
+8. The shared provider-neutral Try-On execution service submits to the server
+   FASHN adapter.
+9. Kiosk polls `GET /api/v1/kiosk/try-on/runs/:runId` using the same device
+   session and refresh flow.
+10. On success, kiosk opens the result screen with the generated image.
+11. Customer may try another garment, retake the photo or finish.
+12. Finish clears customer capture, prepared input, garment, run and result
+    state but keeps the paired device identity.
+
+### Alternate / Failure Flows
+
+- Missing API base URL -> kiosk shows a safe configuration message.
+- Expired access token -> kiosk refreshes through the existing device session
+  flow and retries the current status/create request safely.
+- Same device retries the same `clientRequestId` -> backend returns the same run
+  and does not submit a second paid provider generation.
+- Device A requests Device B's run -> backend returns not found.
+- Inactive/revoked/deleted/unpaired device -> backend rejects the request; kiosk
+  stops polling, clears device auth and returns to pairing where appropriate.
+- Provider failure -> kiosk shows customer-safe failure text without provider
+  IDs, auth details, stack traces or raw HTTP payloads.
+
+### Boundary
+
+KIOSK-4B does not implement Product Catalog, Organizations management, full
+RBAC, QR result continuation, checkout, billing, Redis/BullMQ, API Gateway,
+target compositing, Shopify, WooCommerce or provider client code in Flutter.
 
 ## 6.0.4C Customer/Kiosk — Secure Mobile Photo Upload
 
@@ -1207,7 +1264,8 @@ device-authenticated production kiosk Try-On endpoints.
 11. Kiosk polling sees `READY` and shows the uploaded photo preview.
 12. Customer chooses **Use This Photo**.
 13. Kiosk downloads the ready photo into temporary local capture storage, marks
-   the upload session consumed and continues to the existing generation screen.
+   the upload session consumed and continues to the production generation
+   screen.
 
 ### Alternate / Failure Flows
 

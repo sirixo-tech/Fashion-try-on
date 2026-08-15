@@ -34,6 +34,7 @@ class KioskDeviceSessionController extends ChangeNotifier {
   KioskPairingSession? pairingSession;
   KioskDeviceIdentity? device;
   String? accessToken;
+  DateTime? accessTokenExpiresAt;
   String? message;
   Duration? serverClockOffset;
 
@@ -133,9 +134,46 @@ class KioskDeviceSessionController extends ChangeNotifier {
     }
   }
 
+  Future<String> requireAccessToken({bool forceRefresh = false}) async {
+    final token = accessToken;
+    if (!forceRefresh && token != null && token.trim().isNotEmpty) {
+      final expiresAt = accessTokenExpiresAt;
+      if (expiresAt == null ||
+          expiresAt.difference(DateTime.now()) > const Duration(minutes: 1)) {
+        return token;
+      }
+    }
+
+    final refreshToken = await store.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      await clearAndPair();
+      throw const KioskDeviceException(
+        'DEVICE_UNPAIRED',
+        'Kiosk device is not paired.',
+      );
+    }
+
+    await restore(refreshToken);
+    final refreshed = accessToken;
+    if (state == KioskStartupState.active &&
+        refreshed != null &&
+        refreshed.trim().isNotEmpty) {
+      return refreshed;
+    }
+    throw KioskDeviceException(
+      'DEVICE_SESSION_UNAVAILABLE',
+      message ?? 'SelfX kiosk session is not active.',
+    );
+  }
+
+  Future<void> handleDeviceAuthRejected() async {
+    await clearAndPair();
+  }
+
   Future<void> clearAndPair() async {
     await store.clearRefreshToken();
     accessToken = null;
+    accessTokenExpiresAt = null;
     device = null;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
@@ -205,6 +243,7 @@ class KioskDeviceSessionController extends ChangeNotifier {
   Future<void> _applyCredentials(KioskDeviceCredentials credentials) async {
     await store.writeRefreshToken(credentials.refreshToken);
     accessToken = credentials.accessToken;
+    accessTokenExpiresAt = credentials.accessTokenExpiresAt;
     device = credentials.device;
     pairingSession = null;
     state = KioskStartupState.active;

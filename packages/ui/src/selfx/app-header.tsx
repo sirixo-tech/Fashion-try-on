@@ -17,6 +17,7 @@ export function AppHeader({
   desktopOpened,
   onToggleMobile,
   onToggleDesktop,
+  onNavigateTo,
 }: {
   organizations: SelfxOrganizationOption[];
   activeOrganizationId?: string | null;
@@ -27,6 +28,7 @@ export function AppHeader({
   desktopOpened: boolean;
   onToggleMobile: () => void;
   onToggleDesktop: () => void;
+  onNavigateTo?: (href: string) => void;
 }) {
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -68,7 +70,7 @@ export function AppHeader({
           />
         </div>
         <div className="h-8 w-px bg-border" />
-        <UserMenu user={user} onLogout={onLogout} />
+        <UserMenu user={user} onLogout={onLogout} onNavigateTo={onNavigateTo} />
       </div>
     </header>
   );

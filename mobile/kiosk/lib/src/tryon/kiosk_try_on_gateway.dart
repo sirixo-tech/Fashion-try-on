@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import '../device/kiosk_device_models.dart';
+import '../device/kiosk_device_session_controller.dart';
 import 'kiosk_garment_input.dart';
 import 'kiosk_try_on_models.dart';
 
@@ -17,33 +19,31 @@ abstract class KioskTryOnGateway {
 class KioskTryOnApiConfig {
   const KioskTryOnApiConfig({
     required this.apiBaseUrl,
-    required this.accessToken,
-    this.runsPath = '/api/v1/try-on-lab/runs',
+    this.runsPath = '/api/v1/kiosk/try-on/runs',
   });
 
   factory KioskTryOnApiConfig.fromEnvironment() {
     return const KioskTryOnApiConfig(
       apiBaseUrl: String.fromEnvironment('SELFX_KIOSK_API_BASE_URL'),
-      accessToken: String.fromEnvironment('SELFX_KIOSK_DEV_ACCESS_TOKEN'),
     );
   }
 
   final String apiBaseUrl;
-  final String accessToken;
   final String runsPath;
 
-  bool get isConfigured =>
-      apiBaseUrl.trim().isNotEmpty && accessToken.trim().isNotEmpty;
+  bool get isConfigured => apiBaseUrl.trim().isNotEmpty;
 }
 
 class SelfxKioskTryOnGateway implements KioskTryOnGateway {
   SelfxKioskTryOnGateway({
     required this.config,
+    required this.deviceController,
     http.Client? client,
     this.timeout = const Duration(seconds: 45),
   }) : client = client ?? http.Client();
 
   final KioskTryOnApiConfig config;
+  final KioskDeviceSessionController deviceController;
   final http.Client client;
   final Duration timeout;
 
@@ -63,42 +63,37 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
       );
     }
 
-    final multipart = http.MultipartRequest('POST', _runsUri());
-    multipart.headers[HttpHeaders.authorizationHeader] =
-        'Bearer ${config.accessToken.trim()}';
-    multipart.fields.addAll(_fieldsFor(request));
-    multipart.files.add(
-      await http.MultipartFile.fromPath(
-        'personImage',
-        request.personImage.path,
-        contentType: _contentTypeFor(request.personImage.path),
-      ),
+    final response = await _sendWithDeviceAuth(
+      forceRefresh: false,
+      requestFactory: (accessToken) async {
+        final multipart = http.MultipartRequest('POST', _runsUri());
+        multipart.headers[HttpHeaders.authorizationHeader] =
+            'Bearer ${accessToken.trim()}';
+        multipart.fields.addAll(_fieldsFor(request));
+        multipart.files.add(
+          await http.MultipartFile.fromPath(
+            'personImage',
+            request.personImage.path,
+            contentType: _contentTypeFor(request.personImage.path),
+          ),
+        );
+        multipart.files.add(
+          await http.MultipartFile.fromPath(
+            'garmentImage',
+            request.garmentInput.localPath,
+            contentType: _contentTypeFor(request.garmentInput.localPath),
+          ),
+        );
+        return multipart;
+      },
     );
-    multipart.files.add(
-      await http.MultipartFile.fromPath(
-        'garmentImage',
-        request.garmentInput.localPath,
-        contentType: _contentTypeFor(request.garmentInput.localPath),
-      ),
-    );
-
-    final streamed = await client.send(multipart).timeout(timeout);
-    final response = await http.Response.fromStream(streamed);
     return _decodeRun(response);
   }
 
   @override
   Future<KioskTryOnRun> getRun(String runId) async {
     _assertConfigured();
-    final response = await client
-        .get(
-          _runsUri(runId),
-          headers: {
-            HttpHeaders.authorizationHeader:
-                'Bearer ${config.accessToken.trim()}',
-          },
-        )
-        .timeout(timeout);
+    final response = await _getWithDeviceAuth(runId, forceRefresh: false);
     return _decodeRun(response);
   }
 
@@ -132,9 +127,12 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
 
   KioskTryOnRun _decodeRun(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (_isDeviceAuthRejected(response)) {
+        unawaited(deviceController.handleDeviceAuthRejected());
+      }
       throw KioskTryOnException(
         response.statusCode == 401 || response.statusCode == 403
-            ? KioskTryOnFailureCode.authenticationMissing
+            ? KioskTryOnFailureCode.deviceAuthenticationRejected
             : KioskTryOnFailureCode.uploadFailed,
         _safeErrorMessage(response.body),
       );
@@ -177,9 +175,63 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
       'QUEUED' => KioskTryOnStatus.queued,
       'PROCESSING' => KioskTryOnStatus.processing,
       'COMPLETED' => KioskTryOnStatus.succeeded,
+      'SUCCEEDED' => KioskTryOnStatus.succeeded,
       'FAILED' => KioskTryOnStatus.failed,
       _ => KioskTryOnStatus.failed,
     };
+  }
+
+  Future<http.Response> _sendWithDeviceAuth({
+    required bool forceRefresh,
+    required Future<http.BaseRequest> Function(String accessToken)
+    requestFactory,
+  }) async {
+    final accessToken = await _deviceAccessToken(forceRefresh: forceRefresh);
+    final request = await requestFactory(accessToken);
+    final streamed = await client.send(request).timeout(timeout);
+    final response = await http.Response.fromStream(streamed);
+    if (!forceRefresh && _isTokenRefreshable(response)) {
+      return _sendWithDeviceAuth(
+        forceRefresh: true,
+        requestFactory: requestFactory,
+      );
+    }
+    return response;
+  }
+
+  Future<http.Response> _getWithDeviceAuth(
+    String runId, {
+    required bool forceRefresh,
+  }) async {
+    final accessToken = await _deviceAccessToken(forceRefresh: forceRefresh);
+    final response = await client
+        .get(
+          _runsUri(runId),
+          headers: {
+            HttpHeaders.authorizationHeader: 'Bearer ${accessToken.trim()}',
+          },
+        )
+        .timeout(timeout);
+    if (!forceRefresh && _isTokenRefreshable(response)) {
+      return _getWithDeviceAuth(runId, forceRefresh: true);
+    }
+    return response;
+  }
+
+  Future<String> _deviceAccessToken({required bool forceRefresh}) async {
+    try {
+      return await deviceController.requireAccessToken(
+        forceRefresh: forceRefresh,
+      );
+    } on KioskDeviceException catch (error) {
+      if (error.isRevoked) {
+        await deviceController.handleDeviceAuthRejected();
+      }
+      throw KioskTryOnException(
+        KioskTryOnFailureCode.deviceAuthenticationRejected,
+        error.message,
+      );
+    }
   }
 
   Uri _runsUri([String? runId]) {
@@ -203,12 +255,6 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
         'SelfX API is not configured on this kiosk.',
       );
     }
-    if (config.accessToken.trim().isEmpty) {
-      throw const KioskTryOnException(
-        KioskTryOnFailureCode.authenticationMissing,
-        'Development kiosk Try-On access token is not configured.',
-      );
-    }
   }
 
   String _safeErrorMessage(String body) {
@@ -225,6 +271,40 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
     }
     return 'SelfX could not create the Try-On run.';
   }
+}
+
+bool _isTokenRefreshable(http.Response response) {
+  if (response.statusCode != 401) {
+    return false;
+  }
+  final code = _errorCode(response.body);
+  return code == 'DEVICE_TOKEN_INVALID' || code == 'DEVICE_TOKEN_EXPIRED';
+}
+
+bool _isDeviceAuthRejected(http.Response response) {
+  if (response.statusCode != 401 && response.statusCode != 403) {
+    return false;
+  }
+  final code = _errorCode(response.body);
+  return code == 'DEVICE_TOKEN_INVALID' ||
+      code == 'DEVICE_TOKEN_EXPIRED' ||
+      code == 'DEVICE_UNPAIRED' ||
+      code == 'DEVICE_INACTIVE' ||
+      code == 'DEVICE_REVOKED' ||
+      code == 'DEVICE_DELETED';
+}
+
+String? _errorCode(String body) {
+  try {
+    final json = jsonDecode(body);
+    if (json is Map<String, dynamic>) {
+      final error = json['error'];
+      if (error is Map<String, dynamic> && error['code'] is String) {
+        return error['code'] as String;
+      }
+    }
+  } catch (_) {}
+  return null;
 }
 
 MediaType _contentTypeFor(String path) {

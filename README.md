@@ -386,16 +386,15 @@ available:
   -> SelfX NestJS API until Public API/partner/edge-management scale justifies
   a gateway.
 
-KIOSK-3A adds a real end-to-end kiosk Try-On generation bridge:
+KIOSK-3A added the first real end-to-end kiosk Try-On generation bridge:
 
 - Customer flow is Kiosk Home -> Start Try-On -> customer-friendly garment
   image selection/preview -> photo source choice -> Take Photo or Use My Phone
   -> generation progress -> generated result.
 - The kiosk calls the SelfX API only. It never calls FASHN directly and never
   stores `FASHN_API_KEY`.
-- The current bridge targets the guarded development Try-On Lab API while
-  production kiosk device auth and durable Try-On orchestration remain future
-  milestones.
+- The original bridge targeted the guarded development Try-On Lab API. Normal
+  paired kiosks now use the KIOSK-4B production device-authenticated endpoint.
 - KIOSK-3A uses temporary local garment images through a native picker and
   preview. Product Catalog, physical garment capture, Shopify/WooCommerce
   sources and QR result handoff remain future work.
@@ -423,19 +422,24 @@ flutter build apk --release
 flutter build windows
 ```
 
-KIOSK-3A development generation requires backend configuration and explicit
-Flutter defines:
+KIOSK-4B production generation for a paired kiosk requires only the SelfX API
+base URL in Flutter:
 
 ```bash
 flutter run \
-  --dart-define=SELFX_KIOSK_API_BASE_URL=http://localhost:3001 \
-  --dart-define=SELFX_KIOSK_DEV_ACCESS_TOKEN=<staff-access-token>
+  --dart-define=SELFX_KIOSK_API_BASE_URL=http://localhost:3001
 ```
 
-The backend must have `TRYON_LAB_ENABLED=true` and provider credentials such as
-`FASHN_API_KEY` configured server-side only. Perform at most one paid provider
-generation for manual KIOSK-3A smoke verification unless a separate test budget
-is approved.
+The kiosk uses its paired device session for `/api/v1/kiosk/try-on/runs`.
+`SELFX_KIOSK_DEV_ACCESS_TOKEN` is not required for normal paired generation,
+and `TRYON_LAB_ENABLED=true` is not required for the production kiosk endpoint.
+The API still needs provider credentials such as `FASHN_API_KEY` configured
+server-side only. Perform at most one paid provider generation for manual smoke
+verification unless a separate test budget is approved.
+
+The internal Web Try-On Lab remains separate at `/app/try-on-lab` and
+`/api/v1/try-on-lab/runs`; it is still guarded by staff/admin auth and
+`TRYON_LAB_ENABLED=true`.
 
 KIOSK-4A adds production kiosk device provisioning:
 
@@ -456,8 +460,26 @@ KIOSK-4A adds production kiosk device provisioning:
 - Flutter stores the device refresh credential in OS-backed secure storage;
   access tokens live in memory.
 - Revoked kiosks clear local device credentials and return to pairing.
-- KIOSK-4A does not connect device auth to production Try-On; KIOSK-4B will
-  replace the KIOSK-3A temporary dev bridge for generation.
+
+KIOSK-4B connects paired device auth to production Try-On:
+
+- `POST /api/v1/kiosk/try-on/runs` creates a device-owned production run from
+  multipart `personImage`, `garmentImage` and a required `clientRequestId`.
+- `GET /api/v1/kiosk/try-on/runs/:runId` returns status only to the device that
+  owns the run.
+- The backend reloads live device status and assignment for every create/status
+  request and accepts only `ACTIVE` device tokens with
+  `typ: "kiosk_device_access"`.
+- The same device plus the same `clientRequestId` returns the same run and does
+  not submit a duplicate paid provider job.
+- Production kiosk Try-On and the internal Try-On Lab share the provider-neutral
+  SelfX Try-On execution service and FASHN adapter.
+- Run persistence records ownership, assignment context, idempotency key,
+  provider execution state, result/error and expiry without storing raw person
+  or garment input bytes.
+- If a device is revoked during generation, polling stops, local device auth is
+  cleared and the kiosk returns to pairing. Customer **Finish** still clears
+  only customer session state and keeps a valid paired device identity.
 
 SelfX kiosk typography uses Manrope for headings and Inter for body, buttons
 and labels. SaaS sidebar navigation uses the shared `@selfx/ui` AppShell/sidebar
@@ -476,8 +498,8 @@ KIOSK_DEVICE_REFRESH_SESSION_TTL_SECONDS=2592000
 ```
 
 Flutter still needs `SELFX_KIOSK_API_BASE_URL` as a Dart define so the kiosk can
-reach SelfX API provisioning endpoints. It no longer needs
-`SELFX_KIOSK_DEV_ACCESS_TOKEN` for device provisioning.
+reach SelfX API provisioning and production Try-On endpoints. It no longer
+needs `SELFX_KIOSK_DEV_ACCESS_TOKEN` for paired commercial kiosk operation.
 
 KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
 
@@ -492,9 +514,8 @@ KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
   image and lets the kiosk select only a validated `READY` upload.
 - The kiosk downloads the ready upload into temporary local capture storage,
   marks it consumed and continues the existing generation flow.
-- KIOSK-4C does not implement KIOSK-4B production kiosk Try-On endpoints,
-  Product Catalog, QR result continuation, billing, Redis/BullMQ, API Gateway
-  or provider calls from Flutter.
+- KIOSK-4C does not implement Product Catalog, QR result continuation, billing,
+  Redis/BullMQ, API Gateway or provider calls from Flutter.
 
 Additional server-side `@selfx/api` variables for KIOSK-4C:
 

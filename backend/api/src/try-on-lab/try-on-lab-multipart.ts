@@ -52,6 +52,7 @@ export interface TryOnLabUploadedImage {
 }
 
 export interface CreateTryOnLabRunPayload {
+  clientRequestId?: string;
   personImage: TryOnLabUploadedImage;
   garmentImage: TryOnLabUploadedImage;
   garmentSource: SelfxGarmentSource;
@@ -144,6 +145,7 @@ export async function parseTryOnLabMultipartRequest(
   }
 
   return {
+    clientRequestId: parseOptionalClientRequestId(fields.get("clientRequestId")),
     personImage,
     garmentImage,
     garmentSource: parseEnum(
@@ -204,6 +206,17 @@ export async function parseTryOnLabMultipartRequest(
     ),
     qualityOverrideAccepted: fields.get("qualityOverrideAccepted") === "true",
   };
+}
+
+function parseOptionalClientRequestId(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 160) {
+    throwResolutionMetadataInvalid("Invalid client request ID.");
+  }
+  return trimmed;
 }
 
 function validateUploadedImage(

@@ -60,6 +60,7 @@ export function AppShell({
         desktopOpened={desktopOpened}
         onToggleMobile={() => setMobileOpened((opened) => !opened)}
         onToggleDesktop={() => setDesktopOpened((opened) => !opened)}
+        onNavigateTo={onNavigateTo}
       />
       <Sheet open={mobileOpened} onOpenChange={setMobileOpened}>
         <SheetContent side="left" className="w-72 p-0" showCloseButton={false}>

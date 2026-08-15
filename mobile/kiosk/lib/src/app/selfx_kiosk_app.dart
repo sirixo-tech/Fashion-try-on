@@ -62,6 +62,7 @@ class SelfxKioskApp extends StatelessWidget {
       tryOnController: KioskTryOnSessionController(
         gateway: SelfxKioskTryOnGateway(
           config: KioskTryOnApiConfig.fromEnvironment(),
+          deviceController: deviceController,
         ),
       ),
       uploadController: KioskCustomerUploadController(

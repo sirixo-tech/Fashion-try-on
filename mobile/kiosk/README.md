@@ -1,7 +1,8 @@
 # SelfX Kiosk
 
 Flutter kiosk app for the KIOSK-3A customer home, capture intelligence and real
-SelfX Try-On generation foundation.
+SelfX Try-On generation foundation plus KIOSK-4A/KIOSK-4B paired device
+operation.
 
 Android is the primary commercial kiosk platform. SelfX currently deploys/rents
 primarily 32-inch and 42-inch vertically mounted kiosks, so Android commercial
@@ -22,12 +23,16 @@ KIOSK-4A adds production device provisioning. A new or revoked kiosk now starts
 on **Pair this kiosk** and reaches customer home only after SelfX establishes an
 active device identity.
 
+KIOSK-4B adds production device-authenticated Try-On. Normal paired kiosks use
+the existing device session to call `/api/v1/kiosk/try-on/runs`, so customer
+generation no longer requires `SELFX_KIOSK_DEV_ACCESS_TOKEN` or
+`TRYON_LAB_ENABLED=true`.
+
 KIOSK-4C adds **Use My Phone** as a secure customer photo source for paired
 kiosks. The kiosk displays a five-minute QR upload session, polls SelfX for a
 validated ready photo, downloads the selected photo into temporary local capture
 storage, marks the session consumed and continues the existing generation flow.
-It does not add provider calls, Product Catalog or production KIOSK-4B Try-On
-orchestration.
+It does not add provider calls, Product Catalog or QR result continuation.
 
 ## Local commands
 
@@ -41,18 +46,17 @@ flutter build apk --release
 flutter build windows
 ```
 
-For KIOSK-3A development generation, launch with explicit API configuration:
+For paired production generation, launch with the SelfX API base URL:
 
 ```powershell
 flutter run `
-  --dart-define=SELFX_KIOSK_API_BASE_URL=http://localhost:3001 `
-  --dart-define=SELFX_KIOSK_DEV_ACCESS_TOKEN=<staff-access-token>
+  --dart-define=SELFX_KIOSK_API_BASE_URL=http://localhost:3001
 ```
 
-The SelfX API must have `TRYON_LAB_ENABLED=true` and server-side provider
-credentials such as `FASHN_API_KEY`. Do not put `FASHN_API_KEY` or any provider
-secret in Flutter defines, kiosk assets or committed files. The development
-bridge is disabled when the API base URL or development access token is absent.
+The SelfX API must have server-side provider credentials such as
+`FASHN_API_KEY`. Do not put `FASHN_API_KEY` or any provider secret in Flutter
+defines, kiosk assets or committed files. `TRYON_LAB_ENABLED` is only for the
+internal Web Try-On Lab and is not required for paired production kiosks.
 
 For KIOSK-4A device provisioning, launch with the SelfX API base URL:
 
@@ -64,6 +68,11 @@ flutter run `
 Device provisioning does not use `SELFX_KIOSK_DEV_ACCESS_TOKEN`. The backend
 must provide the KIOSK-4A server-side peppers/secrets and
 `KIOSK_PAIRING_TTL_SECONDS=480`.
+
+Production Try-On also does not use `SELFX_KIOSK_DEV_ACCESS_TOKEN`. It uses the
+same paired device session, refreshes access credentials through the KIOSK-4A
+session controller and returns to pairing if the backend reports the device as
+revoked, deleted, inactive or unpaired.
 
 For KIOSK-4C mobile photo upload, the kiosk still uses only
 `SELFX_KIOSK_API_BASE_URL`. The backend must provide customer-upload session
@@ -335,28 +344,29 @@ viewport.
 13. Let countdown finish and verify exactly one photo is captured and success
    audio occurs only after capture.
 14. Confirm **Checking your photo...**, Review, **Retake** and **Use Photo**.
-15. With KIOSK-3A API defines configured, confirm **Use Photo** opens generation
+15. With `SELFX_KIOSK_API_BASE_URL` configured and the kiosk paired, confirm
+   **Use Photo** opens generation
    progress and then the generated result.
-16. Without KIOSK-3A API defines configured, confirm **Use Photo** shows a safe
+16. Without API base URL configured, confirm **Use Photo** shows a safe
    kiosk-not-configured message.
 
-## KIOSK-3A Paid Generation Checklist
+## KIOSK-4B Paid Generation Checklist
 
 Perform this checklist only when a real provider smoke test is intentionally
 approved. Limit the smoke test to one paid generation.
 
-1. Start the SelfX API with `TRYON_LAB_ENABLED=true` and backend-only
-   `FASHN_API_KEY`.
-2. Obtain a valid staff/admin access token through the existing authenticated
-   development flow.
-3. Launch the kiosk with `SELFX_KIOSK_API_BASE_URL` and
-   `SELFX_KIOSK_DEV_ACCESS_TOKEN`.
-4. Select one local garment image, capture one customer test photo and tap
+1. Start the SelfX API with backend-only `FASHN_API_KEY`.
+2. Launch a fresh kiosk with `SELFX_KIOSK_API_BASE_URL`.
+3. Pair the kiosk through Superadmin **Kiosks -> Pair New Kiosk**.
+4. Select one garment image, capture one customer test photo and tap
    **Use Photo** once.
-5. Confirm progress reaches the result screen and the generated image renders.
-6. Confirm **Try Another Garment**, **Retake Photo** and **Finish** clear the
+5. Confirm the kiosk creates one `/api/v1/kiosk/try-on/runs` run with its
+   device token and progress reaches the result screen.
+6. Confirm the generated image renders.
+7. Confirm **Try Another Garment**, **Retake Photo** and **Finish** clear the
    expected state without showing previous customer data.
-7. Do not repeat paid generations unless a separate test budget is approved.
+8. Confirm **Finish** does not clear the paired device identity.
+9. Do not repeat paid generations unless a separate test budget is approved.
 
 ## KIOSK-2A Privacy & Diagnostics
 

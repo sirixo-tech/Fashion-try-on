@@ -92,7 +92,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session.accessToken, session.status]);
 
   if (session.status === "loading") {
     return <LoadingState label="Checking session" />;

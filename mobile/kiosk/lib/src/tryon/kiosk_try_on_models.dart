@@ -18,6 +18,7 @@ enum KioskTryOnStatus {
 enum KioskTryOnFailureCode {
   configurationMissing,
   authenticationMissing,
+  deviceAuthenticationRejected,
   garmentMissing,
   personMissing,
   imagePreparationFailed,

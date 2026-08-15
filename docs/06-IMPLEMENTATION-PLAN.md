@@ -970,7 +970,7 @@ Windows release builds are not required for this Dart/UI integration slice.
 ### KIOSK-4A Device Provisioning and Platform Fleet Slice
 
 KIOSK-4A replaces the temporary kiosk user-token bridge for commercial device
-identity. It does not connect device auth to production Try-On yet.
+identity. Production Try-On generation is connected by KIOSK-4B.
 
 Implemented scope:
 
@@ -1002,10 +1002,9 @@ Implemented scope:
 
 KIOSK-4A explicitly does not implement:
 
-- production kiosk Try-On endpoint, Product Catalog, full Roles/Permissions,
-  Organizations management UI, CMS wallpaper sync, remote commands, OTA,
-  analytics/deep telemetry, FASHN changes, Shopify, WooCommerce, billing,
-  Redis/BullMQ or API Gateway.
+- Product Catalog, full Roles/Permissions, Organizations management UI, CMS
+  wallpaper sync, remote commands, OTA, analytics/deep telemetry, FASHN changes,
+  Shopify, WooCommerce, billing, Redis/BullMQ or API Gateway.
 
 Verification for this slice should include Prisma schema validation, API
 typecheck/build, targeted kiosk provisioning/device-auth tests, web typecheck,
@@ -1035,11 +1034,71 @@ Manual verification:
 18. Confirm device eventually rejects session and returns to pairing.
 19. Confirm new code appears.
 
+### KIOSK-4B Device-Authenticated Production Kiosk Try-On Slice
+
+KIOSK-4B replaces the KIOSK-3A temporary development generation bridge with a
+production commercial path for active paired kiosk devices.
+
+Implemented scope:
+
+- production device-authenticated routes:
+  `POST /api/v1/kiosk/try-on/runs` and
+  `GET /api/v1/kiosk/try-on/runs/:runId`;
+- route authentication requires the KIOSK-4A access-token type
+  `kiosk_device_access` and rejects human/staff tokens;
+- every create/status request reloads current `KioskDevice` status and
+  assignment from the database and requires `ACTIVE`;
+- `PLATFORM`, `ORGANIZATION` and `STORE` execution context is copied from the
+  current device record into the run;
+- `KioskTryOnRun` persistence model and migration with device ownership,
+  assignment context, required `clientRequestId`, execution status,
+  result/error fields and seven-day expiry;
+- unique `(kiosk_device_id, client_request_id)` idempotency so retrying the
+  same customer generation attempt returns the same SelfX run and does not
+  submit another paid provider job;
+- production kiosk endpoint works independently of `TRYON_LAB_ENABLED`;
+- internal Try-On Lab remains guarded by `TRYON_LAB_ENABLED=true`;
+- both Lab and kiosk production paths use the shared provider-neutral
+  `TryOnExecutionService` and centralized FASHN adapter;
+- Flutter `KioskTryOnGateway` uses `SELFX_KIOSK_API_BASE_URL`, the existing
+  `KioskDeviceSessionController` and the device refresh flow instead of
+  `SELFX_KIOSK_DEV_ACCESS_TOKEN`;
+- revoked/inactive/deleted/unpaired device errors stop generation, clear local
+  device auth and route back to pairing;
+- customer **Finish** continues to clear customer state while retaining valid
+  paired device identity.
+
+KIOSK-4B explicitly does not implement:
+
+- Product Catalog, Organizations management, full RBAC, QR result continuation,
+  checkout, billing, Redis/BullMQ, API Gateway, Shopify, WooCommerce, target
+  compositing, provider client code in Flutter or broad fleet telemetry.
+
+Verification for this slice should include Prisma schema validation/generation,
+API typecheck/build, targeted kiosk production Try-On/idempotency tests,
+existing lab gating tests, Flutter analyze and targeted gateway/session tests.
+Platform APK and Windows builds are not required because no native platform
+configuration changed.
+
+Manual verification:
+
+1. Start a fresh/unpaired kiosk with `SELFX_KIOSK_API_BASE_URL`.
+2. Pair it through Superadmin **Kiosks -> Pair New Kiosk**.
+3. Confirm customer home opens without a human/staff token.
+4. Select one garment.
+5. Capture or upload one customer photo.
+6. Tap **Use Photo** once.
+7. Confirm one `/api/v1/kiosk/try-on/runs` run is created with the device token.
+8. Confirm polling reaches generated result through the server-side FASHN
+   adapter.
+9. Tap **Finish**.
+10. Confirm customer capture/result/garment state is cleared and the kiosk
+    remains paired.
+
 ### KIOSK-4C Secure Customer Mobile QR Photo Upload Slice
 
 KIOSK-4C adds a secure phone-upload person-photo source to the existing paired
-kiosk flow. It intentionally does not implement KIOSK-4B production kiosk
-Try-On orchestration.
+kiosk flow. Production kiosk Try-On orchestration is KIOSK-4B.
 
 Implemented scope:
 
@@ -1064,9 +1123,8 @@ Implemented scope:
 
 KIOSK-4C explicitly does not implement:
 
-- production device-authenticated Try-On endpoints, Product Catalog, customer
-  accounts/history, QR result continuation, checkout, billing, Redis/BullMQ,
-  API Gateway, provider execution changes or provider calls from Flutter.
+- Product Catalog, customer accounts/history, QR result continuation, checkout,
+  billing, Redis/BullMQ, API Gateway or provider calls from Flutter.
 
 Verification for this slice should include Prisma validation/generation, API
 typecheck/build plus customer-upload service tests, web typecheck/build plus
