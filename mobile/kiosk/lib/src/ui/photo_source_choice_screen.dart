@@ -6,7 +6,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
 import 'mobile_upload_screen.dart';
-import 'selfx_glass_button.dart';
+import 'selfx_kiosk_button.dart';
 
 class PhotoSourceChoiceScreen extends StatelessWidget {
   const PhotoSourceChoiceScreen({
@@ -48,13 +48,13 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 30),
-              SelfxGlassButton(
+              SelfxKioskButton(
                 key: const Key('take-photo-source'),
                 label: 'Take Photo',
                 subtitle: 'Use the kiosk camera',
                 icon: Icons.camera_alt_outlined,
                 trailing: const Icon(Icons.arrow_forward),
-                variant: SelfxGlassButtonVariant.secondary,
+                variant: SelfxKioskButtonVariant.secondary,
                 minHeight: 112,
                 expanded: true,
                 textAlign: TextAlign.start,
@@ -76,13 +76,13 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 18),
-              SelfxGlassButton(
+              SelfxKioskButton(
                 key: const Key('use-phone-source'),
                 label: 'Use My Phone',
                 subtitle: 'Scan a QR code from your phone browser',
                 icon: Icons.qr_code_2,
                 trailing: const Icon(Icons.arrow_forward),
-                variant: SelfxGlassButtonVariant.secondary,
+                variant: SelfxKioskButtonVariant.secondary,
                 minHeight: 112,
                 expanded: true,
                 textAlign: TextAlign.start,

@@ -955,14 +955,18 @@ Product rules:
   global pill buttons.
 - The SaaS web application should be modern, premium, professional, clean and
   information-dense where appropriate.
-- Glassmorphism is not a mandatory SaaS web style. Windows/mobile/kiosk may use
-  it selectively where it improves presentation and readability.
+- Glassmorphism is no longer the kiosk/Windows visual direction. SelfX kiosk
+  and mobile application UI should use solid premium cards/buttons, clear
+  borders, restrained shadows and readable hierarchy.
 - shadcn/ui controls are preferred for SaaS buttons, segmented controls, tabs,
   menus, forms, badges and status indicators.
 - Flutter kiosk/mobile implementations use matching SelfX visual semantics with
-  Flutter-native components. Reusable glass-capable button primitives may be
-  used selectively for premium kiosk controls, while primary actions remain
-  visibly `#FF7119` with white foreground.
+  Flutter-native components. Primary actions remain visibly `#FF7119` with
+  white foreground and orange border; inactive choices use white/light surfaces,
+  dark text and neutral borders; selected grouped controls use orange/white.
+- Customer wallpaper/slideshow imagery remains supported, but controls over
+  imagery must prioritize readability with solid surfaces or simple scrims
+  rather than blur.
 - Normal customer kiosk screens must not expose implementation labels such as
   wallpaper mode or platform readiness; those belong to operator
   Display/Diagnostics views.

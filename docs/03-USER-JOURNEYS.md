@@ -1259,16 +1259,16 @@ Future SaaS module builders use the shared SelfX design system for primary,
 secondary, selected, ghost and danger actions. The primary action color is
 `#FF7119` with white text; secondary/inactive controls use white/light surfaces,
 dark text and neutral borders; destructive actions remain red. SaaS web uses
-premium clean Shadcn-first patterns without mandatory glassmorphism, while
-Windows/mobile/kiosk can use glass selectively for operator and camera-adjacent
-surfaces. Flutter applications match the same SelfX design semantics through
-Flutter-native components rather than React/shadcn components.
+premium clean Shadcn-first patterns, while Windows/mobile/kiosk use solid
+premium cards/buttons rather than glassmorphism. Flutter applications match the
+same SelfX design semantics through Flutter-native components rather than
+React/shadcn components.
 
 Customer-mode kiosk journeys should look commercial. Implementation labels such
 as wallpaper mode, default wallpaper source or platform readiness belong in
 operator Display/Diagnostics views, not the normal customer home. CaptureScope
-selection uses premium inactive light/frosted cards and preserves TOP, BOTTOM
-and FULL BODY semantics.
+selection uses the standardized selected/inactive solid-button treatment and
+preserves TOP, BOTTOM and FULL BODY semantics.
 
 ## 6.1 New Kiosk Pairing
 

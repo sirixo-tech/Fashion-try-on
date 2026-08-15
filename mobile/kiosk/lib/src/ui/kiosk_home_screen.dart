@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,7 +12,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_settings_screen.dart';
 import 'garment_selection_screen.dart';
-import 'selfx_glass_button.dart';
+import 'selfx_kiosk_button.dart';
 
 class KioskHomeScreen extends StatefulWidget {
   const KioskHomeScreen({
@@ -197,11 +196,11 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                       ),
                                 ),
                                 const SizedBox(height: 36),
-                                SelfxGlassButton(
+                                SelfxKioskButton(
                                   key: const Key('start-try-on'),
                                   label: widget.presentation.ctaLabel,
                                   icon: Icons.auto_awesome_outlined,
-                                  variant: SelfxGlassButtonVariant.primary,
+                                  variant: SelfxKioskButtonVariant.primary,
                                   minHeight: compact ? 70 : 78,
                                   textAlign: TextAlign.center,
                                   onPressed: _startTryOn,
@@ -235,11 +234,11 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                   Positioned(
                     left: 20,
                     top: 20,
-                    child: SelfxGlassButton(
+                    child: SelfxKioskButton(
                       key: const Key('operator-menu-button'),
                       label: 'Operator',
                       icon: Icons.menu,
-                      variant: SelfxGlassButtonVariant.secondary,
+                      variant: SelfxKioskButtonVariant.secondary,
                       minHeight: 52,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -315,101 +314,92 @@ class _OperatorPinDialogState extends State<OperatorPinDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: Colors.transparent,
+      backgroundColor: SelfxKioskTokens.surfaceElevated,
+      surfaceTintColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusLarge),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: SelfxKioskTokens.strongGlassSurface,
-              borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusLarge),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.68)),
-              boxShadow: SelfxKioskTokens.softShadow,
-              gradient: SelfxKioskTokens.neutralGlassHighlight,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(28),
-              child: SizedBox(
-                width: 400,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Enter operator PIN',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: SelfxKioskTokens.textPrimary,
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Unlock local kiosk settings for this visit.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      key: const Key('operator-pin-field'),
-                      controller: _pinController,
-                      autofocus: true,
-                      obscureText: true,
-                      maxLength: 6,
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.done,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(6),
-                      ],
-                      decoration: InputDecoration(
-                        labelText: '6-digit PIN',
-                        errorText: _error,
-                        counterText: '',
-                      ),
-                      onSubmitted: (_) => _submit(),
-                    ),
-                    const SizedBox(height: 22),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SelfxGlassButton(
-                            label: 'Cancel',
-                            variant: SelfxGlassButtonVariant.secondary,
-                            minHeight: 54,
-                            expanded: true,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 13,
-                            ),
-                            onPressed: _verifying
-                                ? null
-                                : () => Navigator.of(context).pop(false),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SelfxGlassButton(
-                            key: const Key('operator-pin-submit'),
-                            label: _verifying ? 'Unlocking' : 'Unlock',
-                            icon: _verifying ? null : Icons.lock_open_outlined,
-                            variant: SelfxGlassButtonVariant.primary,
-                            minHeight: 54,
-                            expanded: true,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 13,
-                            ),
-                            onPressed: _verifying ? null : _submit,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(SelfxKioskTokens.cardRadius),
+        side: const BorderSide(color: SelfxKioskTokens.border),
+      ),
+      elevation: 10,
+      shadowColor: const Color(0x1A0F172A),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Enter operator PIN',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: SelfxKioskTokens.textPrimary,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                'Unlock local kiosk settings for this visit.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                key: const Key('operator-pin-field'),
+                controller: _pinController,
+                autofocus: true,
+                obscureText: true,
+                maxLength: 6,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: InputDecoration(
+                  labelText: '6-digit PIN',
+                  errorText: _error,
+                  counterText: '',
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: SelfxKioskButton(
+                      label: 'Cancel',
+                      variant: SelfxKioskButtonVariant.secondary,
+                      minHeight: 54,
+                      expanded: true,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 13,
+                      ),
+                      onPressed: _verifying
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SelfxKioskButton(
+                      key: const Key('operator-pin-submit'),
+                      label: _verifying ? 'Unlocking' : 'Unlock',
+                      icon: _verifying ? null : Icons.lock_open_outlined,
+                      variant: SelfxKioskButtonVariant.primary,
+                      minHeight: 54,
+                      expanded: true,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 13,
+                      ),
+                      onPressed: _verifying ? null : _submit,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

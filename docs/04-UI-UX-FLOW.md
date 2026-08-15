@@ -1457,24 +1457,22 @@ No checkout button is required.
 
 ### SELFX-UI-MIGRATION-1.1 Kiosk Visual Harmonization
 
-- Windows/Android Flutter apps use reusable glass-capable SelfX button
-  primitives for primary, secondary, selected, ghost and danger semantics where
-  glass improves the experience.
-- Primary glass buttons still read as SelfX orange with white text; secondary
-  and inactive glass buttons use light/frosted surfaces, dark text and visible
-  borders.
-- CaptureScope uses premium inactive light/frosted selection cards with icon,
-  description and arrow affordance. Selected/pressed treatment may transition
-  to orange/white semantics, but all three cards are not permanently solid
-  orange.
+- Windows/Android Flutter apps use reusable solid SelfX button primitives for
+  primary, secondary, selected, ghost and danger semantics.
+- Primary buttons read as SelfX orange with white text and orange border;
+  secondary and inactive buttons use white/light surfaces, dark text and visible
+  neutral borders.
+- CaptureScope uses solid selection cards with icon, description and arrow
+  affordance. Selected choices use orange/white semantics; inactive choices use
+  white/dark/border semantics.
 - Customer home keeps wallpaper/slideshow and hidden operator reveal, uses a
-  glass primary **Start Try-On** CTA, and removes normal customer-mode
+  solid primary **Start Try-On** CTA, and removes normal customer-mode
   implementation labels such as wallpaper mode or platform readiness.
-- Operator reveal uses a compact frosted/glass button while visible.
-- Operator PIN uses a bounded glass dialog, preserves six-digit secure input,
+- Operator reveal uses a compact solid secondary button while visible.
+- Operator PIN uses a bounded solid dialog, preserves six-digit secure input,
   cancel, unlock, lockout and verifier abstraction.
-- Glass blur must be bounded and modest; do not blur the whole wallpaper or
-  large live camera areas.
+- Controls over wallpaper imagery must stay readable through solid surfaces or
+  a simple scrim; do not blur the wallpaper or large live camera areas.
 
 ### KIOSK-3A Real Generation Flow
 
@@ -1573,10 +1571,9 @@ No checkout button is required.
 - Ghost buttons: low-priority borderless treatment.
 - Danger buttons: semantic red, never orange.
 - Default button shape: premium rounded rectangle around 8-10px visual radius.
-- SaaS web uses premium clean Shadcn-first surfaces and does not mandate
-  glassmorphism.
-- Windows/mobile/kiosk may use glassmorphism selectively for overlays, controls
-  and operator surfaces when readability remains strong.
+- SaaS web uses premium clean Shadcn-first surfaces.
+- Windows/mobile/kiosk use solid premium cards/buttons rather than
+  glassmorphism; readability takes priority over transparency.
 - The required orange/white combination may need an accessible action variant
   before formal WCAG AA compliance.
 

@@ -7,7 +7,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_chrome.dart';
 import 'photo_source_choice_screen.dart';
-import 'selfx_glass_button.dart';
+import 'selfx_kiosk_button.dart';
 
 class CaptureScopeScreen extends StatelessWidget {
   const CaptureScopeScreen({
@@ -57,6 +57,7 @@ class CaptureScopeScreen extends StatelessWidget {
                       for (final scope in CaptureScope.values) ...[
                         _CaptureScopeButton(
                           scope: scope,
+                          selected: scope == controller.captureScope,
                           onPressed: () {
                             controller.selectCaptureScope(scope);
                             Navigator.of(context).push(
@@ -85,9 +86,14 @@ class CaptureScopeScreen extends StatelessWidget {
 }
 
 class _CaptureScopeButton extends StatelessWidget {
-  const _CaptureScopeButton({required this.scope, required this.onPressed});
+  const _CaptureScopeButton({
+    required this.scope,
+    required this.selected,
+    required this.onPressed,
+  });
 
   final CaptureScope scope;
+  final bool selected;
   final VoidCallback onPressed;
 
   @override
@@ -97,12 +103,14 @@ class _CaptureScopeButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusLarge),
         boxShadow: SelfxKioskTokens.softShadow,
       ),
-      child: SelfxGlassButton(
+      child: SelfxKioskButton(
         label: scope.label.toUpperCase(),
         subtitle: scope.description,
         icon: _iconFor(scope),
         trailing: const Icon(Icons.arrow_forward),
-        variant: SelfxGlassButtonVariant.secondary,
+        variant: selected
+            ? SelfxKioskButtonVariant.selected
+            : SelfxKioskButtonVariant.secondary,
         minHeight: 112,
         expanded: true,
         textAlign: TextAlign.start,

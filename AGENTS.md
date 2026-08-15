@@ -962,15 +962,18 @@ Design-system rules:
 - shadcn/ui is the default SaaS web component/interaction system. Mantine or
   another web UI toolkit requires an explicit user request or a documented
   temporary migration-safety exception.
-- SaaS web does not mandate glassmorphism; use modern, premium, clean SaaS
-  surfaces with restrained borders, shadows, spacing and typography.
-- Windows/mobile/kiosk may use glassmorphism selectively for overlays,
-  controls, PIN/operator surfaces or preview-adjacent panels where readability
-  remains strong.
-- Flutter kiosk controls use reusable glass-capable SelfX button semantics
-  where glass improves the premium experience. Primary glass buttons remain
-  SelfX orange with white text; secondary/inactive glass buttons remain
-  light/frosted with dark text and visible borders.
+- SaaS web uses modern, premium, clean surfaces with restrained borders,
+  shadows, spacing and typography.
+- Windows/mobile/kiosk no longer use glassmorphism as a SelfX visual direction.
+  Prefer solid surfaces, clear neutral borders, restrained shadows and strong
+  hierarchy. Wallpaper/slideshow imagery may remain on customer home, but
+  controls over imagery must use readable solid surfaces or simple scrims rather
+  than blur.
+- Flutter kiosk controls use reusable solid SelfX button semantics. Primary
+  buttons remain SelfX orange with white text and orange border;
+  secondary/inactive buttons remain white/light with dark text and visible
+  neutral borders; selected grouped controls use the primary orange/white
+  treatment; danger remains red.
 - Kiosk application typography uses Manrope for headings and Inter for body,
   buttons and labels: H1 44-52px/700, H2 30-36px/650-700, section headings
   22-26px/600, body 18-20px/400, subtext 16-18px/400, buttons 18-20px/600 and

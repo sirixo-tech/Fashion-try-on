@@ -107,23 +107,26 @@ configuration, public web base URL and private object-storage configuration.
 - Kiosk primary actions use SelfX orange `#FF7119` with white text. Secondary
   actions use white/light surfaces, dark text and neutral borders. Destructive
   actions remain red.
-- Reusable `SelfxGlassButton` primitives provide primary, secondary, selected,
-  ghost and danger semantics for glass-capable Windows/Android kiosk UI.
-  Primary glass buttons remain visibly SelfX orange with white text; secondary
-  and inactive buttons use light/frosted surfaces, dark text and visible
-  borders.
+- Reusable `SelfxKioskButton` primitives provide primary, secondary, selected,
+  ghost and danger semantics for solid Windows/Android kiosk UI. Primary
+  buttons remain visibly SelfX orange with white text and orange border;
+  secondary and inactive buttons use white/light surfaces, dark text and visible
+  neutral borders.
 - Kiosk typography uses Manrope for headings and Inter for body, buttons and
   labels: H1 44-52px/700, H2 30-36px/650-700, section headings 22-26px/600,
   body 18-20px/400, subtext 16-18px/400, buttons 18-20px/600 and small labels
   14-16px/500.
-- Glass-style panels may be used selectively in kiosk/operator UI, but
-  readability and camera performance take priority. Do not blur large live
-  camera areas unnecessarily.
+- Kiosk/Windows glassmorphism is no longer a SelfX visual direction. Use solid
+  premium cards/buttons, clear borders, restrained shadows and strong hierarchy.
+  Wallpaper/slideshow remains supported, but controls over imagery must stay
+  readable through solid surfaces or simple scrims rather than blur.
 - The customer home does not show development presentation labels such as
   wallpaper mode or platform readiness in normal customer mode. Technical
   presentation status belongs in operator Display or Diagnostics surfaces.
-- CaptureScope selection uses premium light/frosted cards with icon,
-  description and arrow affordance rather than permanently solid-orange cards.
+- CaptureScope selection uses solid selection cards with icon, description and
+  arrow affordance. Selected choices use SelfX orange with white text and orange
+  border; inactive choices use white/light surfaces, dark text and neutral
+  borders.
 - Idle presentation assets are local/offline in this foundation. Future
   organization dashboard or fleet-driven presentation updates must preserve the
   same provider-neutral presentation model and offline fallback.
@@ -218,9 +221,9 @@ configuration, public web base URL and private object-storage configuration.
   part of this foundation.
 - Shadcn/ui does not apply to Flutter. Kiosk screens use Flutter-native SelfX
   theme semantics matching web primary, secondary, selected and danger actions.
-- Operator reveal and PIN use the same reusable glass-capable visual language
-  while preserving hidden reveal timing, verifier abstraction, six-digit secure
-  input and lockout behavior.
+- Operator reveal and PIN use the same reusable solid visual language while
+  preserving hidden reveal timing, verifier abstraction, six-digit secure input
+  and lockout behavior.
 - Captures are copied to an OS temporary SelfX kiosk directory and can be
   cleared by the session controller.
 - Original captured images remain unmodified; any quality analysis work uses

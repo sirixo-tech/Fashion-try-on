@@ -125,9 +125,11 @@ and kiosk/mobile applications:
 - Danger actions remain semantically red.
 - Default buttons are rounded rectangles, not global pills.
 - shadcn/ui is the preferred SaaS web component system.
-- SaaS web uses a premium clean SaaS direction without mandatory glassmorphism.
-- Windows/mobile/kiosk may use glassmorphism selectively where it improves
-  overlays, controls or operator surfaces.
+- SaaS web uses a premium clean SaaS direction with restrained solid surfaces.
+- Windows/mobile/kiosk no longer use glassmorphism as a SelfX visual direction.
+  Use solid cards/buttons, clear neutral borders, restrained shadows and strong
+  hierarchy. Customer wallpaper/slideshow remains supported, but controls over
+  imagery should be solid/readable or backed by simple scrims rather than blur.
 - The `#FF7119` and white text product requirement may need an accessible
   action variant before formal WCAG AA compliance.
 - SELFX-UI-MIGRATION-1 migrates the current shell, auth, state and placeholder
@@ -254,7 +256,7 @@ access and responsive local settings.
 
 - The kiosk starts on a customer home/idle presentation, not camera settings or
   technical test controls.
-- Customer home uses the reusable SelfX glass-capable primary CTA and no longer
+- Customer home uses the reusable SelfX solid primary CTA and no longer
   shows development presentation labels such as static wallpaper or platform
   readiness in normal customer mode.
 - The current customer flow is Kiosk Home -> Start Try-On -> customer-friendly
@@ -265,9 +267,8 @@ access and responsive local settings.
 - Operator access opens a 6-digit PIN challenge before settings. The UI calls
   the provider-neutral verifier and does not store, log or hardcode plaintext
   production PINs.
-- Operator reveal and PIN use bounded frosted/glass surfaces. Glass is
-  selective and performance-conscious rather than applied to the full wallpaper
-  or live camera surface.
+- Operator reveal and PIN use solid premium surfaces with clear borders and
+  restrained shadows rather than frosted/glass treatments.
 - Five failed PIN attempts lock operator access for 60 seconds. Customer
   Try-On remains available during operator lockout.
 - Settings unlock only for the current visit. Leaving settings re-locks
@@ -279,8 +280,9 @@ access and responsive local settings.
   Display, Audio, Diagnostics and System categories with a premium navigation
   rail/tabs, bounded camera preview, human-readable camera labels and technical
   IDs tucked under diagnostics.
-- CaptureScope uses premium inactive light/frosted selection cards with icons,
-  descriptions and arrow affordances instead of permanently solid orange slabs.
+- CaptureScope uses the standardized selectable-button pattern: selected is
+  SelfX orange with white text and orange border; inactive choices are white
+  with dark text and neutral borders.
 - Idle presentation is local/offline with static or slideshow semantics. The
   bundled SelfX wallpaper is the default fallback until organization/kiosk
   wallpaper management is added to the SaaS dashboard.

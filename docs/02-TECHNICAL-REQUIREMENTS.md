@@ -1230,13 +1230,13 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     and shadows.
 
     SaaS web should use a premium modern SaaS visual language and Shadcn-first
-    interaction patterns. Glassmorphism is not mandatory for SaaS web.
-    Windows/mobile/kiosk applications may use glassmorphism selectively for
-    overlays, operator navigation, PIN dialogs, camera controls and guidance
-    panels when readability remains strong.
-    Flutter implementations should use reusable glass-capable SelfX button
-    primitives rather than repeated one-off blur code. Blur regions must be
-    bounded and modest so camera/capture performance remains protected.
+    interaction patterns. Windows/mobile/kiosk applications should use solid
+    premium surfaces rather than glassmorphism: solid white/light cards, clear
+    neutral borders, restrained shadows and readable hierarchy.
+    Flutter implementations should use reusable solid SelfX button primitives
+    rather than one-off blur/translucent controls. Customer wallpaper/slideshow
+    imagery remains supported, but controls over imagery must stay readable
+    through solid surfaces or simple scrims rather than blurred glass.
 
     Primary buttons use orange background, white text and orange border.
     Secondary/inactive and outline buttons use white/light backgrounds, dark

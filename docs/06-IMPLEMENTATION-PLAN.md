@@ -1090,12 +1090,15 @@ Implemented scope:
 - kiosk primary/elevated/filled buttons use SelfX orange and white text;
 - kiosk secondary/outlined buttons use white surface, dark text and neutral
   border;
+- kiosk selected grouped controls use the same orange/white selected treatment;
 - kiosk operator settings redesigned into Camera, Capture, Display, Audio,
   Diagnostics and System categories with responsive rail/tabs;
 - normal camera UI prioritizes human-readable labels while raw hardware IDs
   live under diagnostics/hardware details;
 - camera preview is bounded and aspect-ratio preserving;
-- glass-style panels are used selectively for kiosk operator surfaces only.
+- SELFX-DESIGN-CLEANUP-1 removes kiosk/Windows glassmorphism in favor of solid
+  premium cards/buttons, neutral borders, restrained shadows and readable
+  controls over wallpaper/slideshow imagery.
 
 Explicitly not implemented:
 
@@ -1182,8 +1185,8 @@ SELFX-UI-MIGRATION-1.1 current-screen status:
   private `@selfx/ui/selfx/*` source-tree paths.
 - Kiosk screens continue to use Flutter-native SelfX theme semantics; Shadcn is
   not used in Flutter.
-- Flutter adds reusable glass-capable SelfX button semantics and applies them
-  to customer home, operator reveal, operator PIN and premium CaptureScope
+- Flutter adds reusable solid SelfX button semantics and applies them to
+  customer home, operator reveal, operator PIN and premium CaptureScope
   selection surfaces without changing camera/capture business logic.
 
 Initial authenticated shell routes live under:

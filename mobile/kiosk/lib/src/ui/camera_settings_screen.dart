@@ -246,7 +246,7 @@ class _SettingsNavigationRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
+    return _SolidPanel(
       child: ListView.separated(
         padding: const EdgeInsets.all(10),
         itemCount: _OperatorSettingsCategory.values.length,
@@ -887,7 +887,7 @@ class _PreviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = controller.cameraService.state.value;
-    return _GlassPanel(
+    return _SolidPanel(
       padding: EdgeInsets.zero,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -945,7 +945,7 @@ class _CameraSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
+    return _SolidPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -985,7 +985,7 @@ class _SettingsSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
+    return _SolidPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1000,8 +1000,8 @@ class _SettingsSurface extends StatelessWidget {
   }
 }
 
-class _GlassPanel extends StatelessWidget {
-  const _GlassPanel({
+class _SolidPanel extends StatelessWidget {
+  const _SolidPanel({
     required this.child,
     this.padding = const EdgeInsets.all(22),
   });
@@ -1013,10 +1013,10 @@ class _GlassPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: SelfxKioskTokens.strongGlassSurface,
+        color: SelfxKioskTokens.surfaceElevated,
         border: Border.all(color: SelfxKioskTokens.border),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: SelfxKioskTokens.softShadow,
+        borderRadius: BorderRadius.circular(SelfxKioskTokens.cardRadius),
+        boxShadow: SelfxKioskTokens.cardShadow,
       ),
       child: Padding(padding: padding, child: child),
     );

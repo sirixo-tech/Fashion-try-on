@@ -13,12 +13,10 @@ class SelfxKioskTokens {
 
   static const background = Color(0xFFF7F8FB);
   static const surface = Color(0xFFFFFFFF);
-  static const elevatedSurface = Color(0xFFFFFFFF);
-  static const glassSurface = Color(0xCCFFFFFF);
-  static const strongGlassSurface = Color(0xEFFFFFFF);
+  static const surfaceElevated = Color(0xFFFFFFFF);
 
   static const border = Color(0xFFDDE3EA);
-  static const strongBorder = Color(0xFFB9C4D0);
+  static const borderStrong = Color(0xFFB9C4D0);
   static const focusBorder = primary;
 
   static const textPrimary = Color(0xFF141821);
@@ -30,13 +28,27 @@ class SelfxKioskTokens {
   static const danger = Color(0xFFD92D20);
   static const info = Color(0xFF2563EB);
 
+  static const buttonPrimary = primary;
+  static const buttonSecondary = surface;
+  static const buttonDanger = danger;
+  static const buttonGhost = Color(0x00FFFFFF);
+
   static const radiusSmall = 8.0;
   static const radiusMedium = 10.0;
   static const radiusLarge = 14.0;
+  static const cardRadius = radiusMedium;
+  static const buttonRadius = radiusMedium;
   static const spacingSmall = 8.0;
   static const spacingMedium = 16.0;
   static const spacingLarge = 24.0;
 
+  static const cardShadow = [
+    BoxShadow(
+      color: Color(0x140F172A),
+      blurRadius: 22,
+      offset: Offset(0, 10),
+    ),
+  ];
   static const softShadow = [
     BoxShadow(
       color: Color(0x1A0F172A),
@@ -44,23 +56,13 @@ class SelfxKioskTokens {
       offset: Offset(0, 12),
     ),
   ];
-  static const primaryGlassShadow = [
+  static const primaryActionShadow = [
     BoxShadow(
-      color: Color(0x45FF7119),
-      blurRadius: 26,
-      offset: Offset(0, 12),
+      color: Color(0x30FF7119),
+      blurRadius: 20,
+      offset: Offset(0, 8),
     ),
   ];
-  static const primaryGlassHighlight = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [Color(0x24FFFFFF), Color(0x00FFFFFF)],
-  );
-  static const neutralGlassHighlight = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [Color(0x8AFFFFFF), Color(0x18FFFFFF)],
-  );
 }
 
 ThemeData buildSelfxKioskTheme() {
@@ -150,6 +152,7 @@ ThemeData buildSelfxKioskTheme() {
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
         backgroundColor: SelfxKioskTokens.primary,
         foregroundColor: SelfxKioskTokens.onPrimary,
+        side: const BorderSide(color: SelfxKioskTokens.primary),
         disabledBackgroundColor: const Color(0xFFE5E7EB),
         disabledForegroundColor: SelfxKioskTokens.textMuted,
         textStyle: const TextStyle(
@@ -158,7 +161,7 @@ ThemeData buildSelfxKioskTheme() {
           fontWeight: FontWeight.w600,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
+          borderRadius: BorderRadius.circular(SelfxKioskTokens.buttonRadius),
         ),
       ),
     ),
@@ -168,15 +171,18 @@ ThemeData buildSelfxKioskTheme() {
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
         backgroundColor: SelfxKioskTokens.primary,
         foregroundColor: SelfxKioskTokens.onPrimary,
+        side: const BorderSide(color: SelfxKioskTokens.primary),
         disabledBackgroundColor: const Color(0xFFE5E7EB),
         disabledForegroundColor: SelfxKioskTokens.textMuted,
+        elevation: 0,
+        shadowColor: Colors.transparent,
         textStyle: const TextStyle(
           fontFamily: SelfxKioskTokens.bodyFontFamily,
           fontSize: 19,
           fontWeight: FontWeight.w600,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
+          borderRadius: BorderRadius.circular(SelfxKioskTokens.buttonRadius),
         ),
       ),
     ),
@@ -193,7 +199,7 @@ ThemeData buildSelfxKioskTheme() {
           fontWeight: FontWeight.w600,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
+          borderRadius: BorderRadius.circular(SelfxKioskTokens.buttonRadius),
         ),
       ),
     ),
@@ -206,7 +212,7 @@ ThemeData buildSelfxKioskTheme() {
           fontWeight: FontWeight.w600,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
+          borderRadius: BorderRadius.circular(SelfxKioskTokens.buttonRadius),
         ),
       ),
     ),
@@ -239,7 +245,7 @@ ThemeData buildSelfxKioskTheme() {
         ),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
+            borderRadius: BorderRadius.circular(SelfxKioskTokens.buttonRadius),
           ),
         ),
       ),
@@ -271,9 +277,11 @@ ThemeData buildSelfxKioskTheme() {
     ),
     cardTheme: CardThemeData(
       color: SelfxKioskTokens.surface,
-      elevation: 0,
+      elevation: 1,
+      shadowColor: const Color(0x1A0F172A),
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
+        borderRadius: BorderRadius.circular(SelfxKioskTokens.cardRadius),
         side: const BorderSide(color: SelfxKioskTokens.border),
       ),
     ),
