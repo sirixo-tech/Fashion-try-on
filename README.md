@@ -508,12 +508,29 @@ KIOSK-4C adds secure customer mobile photo upload for paired kiosks:
 - The kiosk photo source step offers **Take Photo** or **Use My Phone**.
 - **Use My Phone** creates a five-minute customer upload session and displays a
   QR code containing only an opaque capability URL.
+- Bodyless customer-upload create/status/cancel/consume requests send
+  `Accept: application/json` and device bearer auth, but no JSON
+  `Content-Type` unless a JSON request body is actually present.
+- The kiosk shows a preparation state until session creation succeeds. It does
+  not show `00:00` before a valid `expiresAt/serverTime` pair exists.
+- The QR screen sizes the QR from available viewport space so Windows resize,
+  Windows portrait/landscape and Android portrait keep the countdown, status
+  and cancel action reachable.
+- Creation failures show a safe retry/cancel state and log only safe diagnostics
+  such as endpoint path, HTTP status, canonical code and duration.
+- `DEVICE_TOKEN_INVALID` and `DEVICE_TOKEN_EXPIRED` during customer-upload
+  device requests trigger one forced KIOSK-4A device refresh and retry once.
+  `DEVICE_UNPAIRED`, `DEVICE_REVOKED`, `DEVICE_DELETED` and `DEVICE_INACTIVE`
+  return the kiosk to pairing. Non-auth upload failures stay in the upload
+  retry/cancel state and do not clear a healthy kiosk pairing.
 - The public web route `/upload/[capability]` lets the customer take or choose a
   photo, previews it locally and uploads only after explicit confirmation.
 - SelfX signs a short-lived object-storage upload URL, validates the stored
   image and lets the kiosk select only a validated `READY` upload.
 - The kiosk downloads the ready upload into temporary local capture storage,
   marks it consumed and continues the existing generation flow.
+- Expired QR sessions stop polling and are replaced with a fresh backend
+  customer upload session before the customer uses the QR again.
 - KIOSK-4C does not implement Product Catalog, QR result continuation, billing,
   Redis/BullMQ, API Gateway or provider calls from Flutter.
 

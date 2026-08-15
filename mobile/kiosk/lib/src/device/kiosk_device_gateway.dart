@@ -167,7 +167,7 @@ class SelfxKioskDeviceGateway implements KioskDeviceGateway {
     final response = await client
         .post(
           _uri('/api/v1/kiosk/heartbeat'),
-          headers: _authHeaders(accessToken),
+          headers: _jsonAuthHeaders(accessToken),
           body: jsonEncode({'platform': platform, 'appVersion': appVersion}),
         )
         .timeout(timeout);
@@ -193,6 +193,11 @@ class SelfxKioskDeviceGateway implements KioskDeviceGateway {
   };
 
   Map<String, String> _authHeaders(String accessToken) => {
+    HttpHeaders.acceptHeader: 'application/json',
+    HttpHeaders.authorizationHeader: 'Bearer ${accessToken.trim()}',
+  };
+
+  Map<String, String> _jsonAuthHeaders(String accessToken) => {
     ..._jsonHeaders(),
     HttpHeaders.authorizationHeader: 'Bearer ${accessToken.trim()}',
   };

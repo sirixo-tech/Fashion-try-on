@@ -103,5 +103,6 @@ class KioskDeviceException implements Exception {
       code == 'DEVICE_REVOKED' ||
       code == 'DEVICE_DELETED' ||
       code == 'DEVICE_UNPAIRED' ||
+      code == 'DEVICE_INACTIVE' ||
       code == 'DEVICE_TOKEN_INVALID';
 }

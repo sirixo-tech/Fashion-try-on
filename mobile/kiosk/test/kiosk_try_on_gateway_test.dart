@@ -29,6 +29,10 @@ void main() {
       client: MockClient((http.Request request) async {
         expect(request.url.path, '/api/v1/kiosk/try-on/runs');
         expect(request.headers[HttpHeaders.authorizationHeader], 'Bearer device-token');
+        expect(
+          request.headers[HttpHeaders.contentTypeHeader],
+          startsWith('multipart/form-data; boundary='),
+        );
         return jsonResponse({'id': 'run-1', 'status': 'QUEUED'});
       }),
     );

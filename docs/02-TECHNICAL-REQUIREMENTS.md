@@ -1428,8 +1428,19 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
      provider-neutral garment semantics;
    - device-authenticated kiosks create sessions through
      `POST /api/v1/kiosk/customer-upload-sessions`;
+   - bodyless device requests, including customer-upload create/status/cancel
+     and consume, must not send `Content-Type: application/json`. JSON
+     `Content-Type` is reserved for requests with an actual JSON body, and
+     multipart uploads must let the HTTP client set its boundary;
    - kiosk status, cancellation and consumption use device-authenticated
      session routes and must reload current device state before access;
+   - Flutter mobile-upload session creation uses the existing kiosk device
+     session controller. `DEVICE_TOKEN_INVALID` and `DEVICE_TOKEN_EXPIRED`
+     use one forced device-token refresh and retry the original request once.
+     `DEVICE_UNPAIRED`, `DEVICE_REVOKED`, `DEVICE_DELETED` and
+     `DEVICE_INACTIVE` return to pairing. Non-auth upload failures, including
+     HTTP 400 validation, 409 conflict, 429, 5xx, timeout and connection
+     failures, must not clear a healthy kiosk pairing;
    - public phone routes are capability-only under
      `/api/v1/customer-uploads/:capability/*` and never accept kiosk IDs,
      organization IDs, store IDs or object keys from the browser;
@@ -1448,6 +1459,15 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
      policy;
    - the public Next.js `/upload/[capability]` route stays outside authenticated
      app layout/session requirements and uses no-referrer handling;
+   - the Flutter QR screen must use backend `expiresAt/serverTime` for countdown,
+     show no timer before a valid session exists, derive QR size from available
+     viewport space and surface safe retry/cancel UI for create failures;
+   - mobile-upload diagnostics may include endpoint path, HTTP status, safe
+     canonical error code, state transition and duration only. They must not log
+     authorization headers, device access/refresh tokens, capability values,
+     full QR URLs, signed storage URLs or image bytes. Device-session
+     diagnostics may report only safe state such as refresh credential
+     availability and restoration success/failure codes;
    - KIOSK-4C does not introduce Product Catalog, QR result continuation,
      Redis/BullMQ, billing or API Gateway.
 

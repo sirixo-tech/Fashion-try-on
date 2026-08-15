@@ -33,6 +33,10 @@ kiosks. The kiosk displays a five-minute QR upload session, polls SelfX for a
 validated ready photo, downloads the selected photo into temporary local capture
 storage, marks the session consumed and continues the existing generation flow.
 It does not add provider calls, Product Catalog or QR result continuation.
+The upload QR screen stays responsive across Windows resize/portrait/landscape
+and Android portrait, shows preparation before a valid session exists, shows the
+countdown only from backend `expiresAt/serverTime`, and replaces indefinite
+loading with safe retry/cancel failure UI.
 
 ## Local commands
 
@@ -77,6 +81,9 @@ revoked, deleted, inactive or unpaired.
 For KIOSK-4C mobile photo upload, the kiosk still uses only
 `SELFX_KIOSK_API_BASE_URL`. The backend must provide customer-upload session
 configuration, public web base URL and private object-storage configuration.
+Bodyless customer-upload device requests send no JSON `Content-Type`; JSON
+`Content-Type` is used only with real JSON bodies, and multipart requests keep
+their client-generated boundaries.
 
 ## Boundaries
 
@@ -155,6 +162,25 @@ configuration, public web base URL and private object-storage configuration.
 - Customer upload sessions expire after five minutes, use backend
   `expiresAt/serverTime` for countdown and cannot be reused after cancellation,
   expiry, rejection replacement, consumption or deletion.
+- The phone-upload QR screen must not show `00:00` before a valid session
+  exists. QR size is derived from available viewport height so status and
+  actions remain reachable on shorter/narrow Windows windows and Android
+  portrait.
+- Session creation failures show safe **Try Again** and **Cancel** actions and
+  may log only endpoint path, HTTP status, canonical code and duration. Never
+  log authorization headers, device tokens, capability URLs, QR secrets, signed
+  storage URLs or image bytes.
+- Customer-upload `DEVICE_TOKEN_INVALID` and `DEVICE_TOKEN_EXPIRED` responses
+  trigger one forced device-session refresh and one retry. `DEVICE_UNPAIRED`,
+  `DEVICE_REVOKED`, `DEVICE_DELETED` and `DEVICE_INACTIVE` clear invalid device
+  auth and return to pairing. Normal upload failures such as HTTP 400
+  validation, conflict, rate limit, server errors, timeouts and connection
+  failures stay in the upload retry/cancel flow and do not clear a healthy
+  pairing.
+- Device-session diagnostics may report only safe state such as refresh
+  credential availability and restoration success/failure code. Never log
+  access tokens, refresh tokens, secure-storage values or authorization
+  headers.
 - The kiosk preview for a phone upload appears only after backend validation
   marks the upload `READY`.
 - **Use This Photo** downloads the ready upload to temporary local capture

@@ -1252,8 +1252,10 @@ target compositing, Shopify, WooCommerce or provider client code in Flutter.
 1. Kiosk opens photo source choice after garment selection/preview and internal
    CaptureScope resolution.
 2. Customer chooses **Use My Phone**.
-3. Kiosk creates a customer upload session with its device access token.
-4. Kiosk displays a QR code, five-minute countdown and waiting status.
+3. Kiosk shows a preparing state while it creates a customer upload session
+   with its device access token.
+4. After session creation succeeds, the kiosk displays a QR code, five-minute
+   countdown and waiting status derived from backend `expiresAt/serverTime`.
 5. Customer scans the QR code with their phone.
 6. Phone opens the public SelfX upload page without staff login.
 7. Customer takes a photo or chooses one from the gallery.
@@ -1271,6 +1273,17 @@ target compositing, Shopify, WooCommerce or provider client code in Flutter.
 
 - Countdown expires -> upload session becomes `EXPIRED`; customer scans a new QR
   if they still want phone upload.
+- Session creation fails -> kiosk shows safe **Try Again** and **Cancel**
+  actions instead of an indefinite spinner. Safe diagnostics may show only a
+  canonical code/status, never tokens or capability values.
+- Expired or invalid device access token during customer-upload create/status
+  -> kiosk attempts one device-session refresh, retries the upload request once
+  if refresh succeeds, and does not loop.
+- Unpaired, revoked, deleted or inactive device state during customer upload ->
+  kiosk clears invalid device auth and returns to pairing.
+- Non-auth upload failures such as normal HTTP 400 validation failures, 409,
+  429, 5xx, timeout or connection errors -> kiosk stays in the upload
+  retry/cancel flow and does not clear a healthy pairing.
 - Customer cancels on kiosk -> upload session becomes `CANCELLED` and any stored
   object is deleted best-effort.
 - Customer uploads invalid, corrupt, oversized or unsupported image -> backend

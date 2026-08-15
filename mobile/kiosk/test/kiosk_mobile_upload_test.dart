@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
@@ -17,13 +21,110 @@ import 'package:selfx_kiosk/src/session/capture_scope.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_gateway.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_models.dart';
+import 'package:selfx_kiosk/src/ui/mobile_upload_screen.dart';
 
 void main() {
+  test('createSession sends bodyless POST without JSON content type', () async {
+    final gateway = SelfxKioskCustomerUploadGateway(
+      config: const KioskCustomerUploadApiConfig(
+        apiBaseUrl: 'https://api.selfx.test',
+      ),
+      client: MockClient((http.Request request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/v1/kiosk/customer-upload-sessions');
+        expect(request.bodyBytes, isEmpty);
+        expect(
+          request.headers[HttpHeaders.acceptHeader],
+          'application/json',
+        );
+        expect(
+          request.headers[HttpHeaders.authorizationHeader],
+          'Bearer device-token',
+        );
+        expect(request.headers, isNot(contains(HttpHeaders.contentTypeHeader)));
+        return uploadSessionJsonResponse(uploadSessionJson('upload-session'));
+      }),
+    );
+
+    final session = await gateway.createSession('device-token');
+
+    expect(session.sessionId, 'upload-session');
+  });
+
+  test('bodyless customer upload device requests omit JSON content type', () async {
+    final seen = <String, http.Request>{};
+    final gateway = SelfxKioskCustomerUploadGateway(
+      config: const KioskCustomerUploadApiConfig(
+        apiBaseUrl: 'https://api.selfx.test',
+      ),
+      client: MockClient((http.Request request) async {
+        seen[request.url.path] = request;
+        return uploadSessionJsonResponse(uploadSessionJson('upload-session'));
+      }),
+    );
+
+    await gateway.getSession(
+      accessToken: 'device-token',
+      sessionId: 'upload-session',
+    );
+    await gateway.cancelSession(
+      accessToken: 'device-token',
+      sessionId: 'upload-session',
+    );
+    await gateway.consumeSession(
+      accessToken: 'device-token',
+      sessionId: 'upload-session',
+    );
+
+    for (final request in seen.values) {
+      expect(request.bodyBytes, isEmpty);
+      expect(request.headers[HttpHeaders.acceptHeader], 'application/json');
+      expect(
+        request.headers[HttpHeaders.authorizationHeader],
+        'Bearer device-token',
+      );
+      expect(request.headers, isNot(contains(HttpHeaders.contentTypeHeader)));
+    }
+  });
+
+  test('customer upload download uses binary GET headers', () async {
+    final seen = <http.Request>[];
+    final gateway = SelfxKioskCustomerUploadGateway(
+      config: const KioskCustomerUploadApiConfig(
+        apiBaseUrl: 'https://api.selfx.test',
+      ),
+      client: MockClient((http.Request request) async {
+        seen.add(request);
+        return http.Response.bytes([1, 2, 3], 200);
+      }),
+    );
+    final target = File(
+      '${Directory.systemTemp.path}${Platform.pathSeparator}selfx-upload-test.jpg',
+    );
+    addTearDown(() async {
+      if (await target.exists()) {
+        await target.delete();
+      }
+    });
+
+    await gateway.downloadReadyPhoto(
+      readUrl: 'https://storage.selfx.test/photo.jpg',
+      targetPath: target.path,
+    );
+
+    expect(seen.single.headers, isNot(contains(HttpHeaders.contentTypeHeader)));
+    expect(await target.readAsBytes(), [1, 2, 3]);
+  });
+
   test('mobile upload session creates QR state from active device token', () async {
-    final gateway = FakeUploadGateway();
+    final gateway = FakeUploadGateway()
+      ..nextStatusSession = waitingUploadSession('upload-session');
     final controller = KioskCustomerUploadController(
       deviceController: testDeviceController(),
       gateway: gateway,
@@ -34,8 +135,279 @@ void main() {
 
     expect(controller.session?.publicUploadUrl, contains('/upload/capability'));
     expect(controller.message, 'Waiting for your photo...');
+    expect(controller.flowState, KioskCustomerUploadFlowState.waiting);
     expect(gateway.createdAccessToken, 'device-token');
     controller.dispose();
+  });
+
+  test('cancel stops active mobile upload polling', () async {
+    final gateway = FakeUploadGateway()
+      ..nextStatusSession = waitingUploadSession('upload-session');
+    final controller = KioskCustomerUploadController(
+      deviceController: testDeviceController(),
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    );
+
+    await controller.createSession();
+    expect(controller.hasActivePoller, isTrue);
+
+    await controller.cancel();
+
+    expect(controller.hasActivePoller, isFalse);
+    controller.dispose();
+  });
+
+  test('expired session requests a replacement and stops using old QR', () async {
+    final expired = waitingUploadSession(
+      'old-session',
+      publicUploadUrl: 'https://try.selfx.test/upload/old-secret',
+      expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
+    );
+    final fresh = waitingUploadSession(
+      'new-session',
+      publicUploadUrl: 'https://try.selfx.test/upload/new-secret',
+    );
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.addAll([expired, fresh])
+      ..nextStatusSession = waitingUploadSession('new-session');
+    final controller = KioskCustomerUploadController(
+      deviceController: testDeviceController(),
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    );
+
+    await controller.createSession();
+    await testerPumpEventQueue();
+
+    expect(gateway.createCalls, greaterThanOrEqualTo(2));
+    expect(controller.session?.sessionId, 'new-session');
+    expect(controller.session?.publicUploadUrl, contains('new-secret'));
+    controller.dispose();
+  });
+
+  test('revoked device upload failure clears auth and returns to pairing', () async {
+    final deviceGateway = FakeDeviceGateway();
+    final store = InMemoryDeviceStore()..refreshToken = 'refresh-token';
+    final deviceController = KioskDeviceSessionController(
+      gateway: deviceGateway,
+      store: store,
+    )
+      ..accessToken = 'device-token'
+      ..state = KioskStartupState.active;
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.add(
+        const KioskCustomerUploadException(
+          'DEVICE_REVOKED',
+          'Device revoked.',
+          statusCode: 403,
+        ),
+      );
+    final controller = KioskCustomerUploadController(
+      deviceController: deviceController,
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    );
+
+    await controller.createSession();
+
+    expect(store.refreshToken, isNull);
+    expect(deviceController.state, KioskStartupState.waitingForPairing);
+    expect(controller.errorCode, 'DEVICE_REVOKED');
+    controller.dispose();
+    deviceController.dispose();
+  });
+
+  test('normal customer upload request failure does not clear pairing', () async {
+    final deviceGateway = FakeDeviceGateway();
+    final store = InMemoryDeviceStore()..refreshToken = 'refresh-token';
+    final deviceController = KioskDeviceSessionController(
+      gateway: deviceGateway,
+      store: store,
+    )
+      ..accessToken = 'device-token'
+      ..accessTokenExpiresAt = DateTime.now().add(const Duration(minutes: 5))
+      ..state = KioskStartupState.active;
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.add(
+        const KioskCustomerUploadException(
+          'CUSTOMER_UPLOAD_REQUEST_FAILED',
+          'Request failed.',
+          statusCode: 400,
+        ),
+      );
+    final controller = KioskCustomerUploadController(
+      deviceController: deviceController,
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    );
+
+    await controller.createSession();
+
+    expect(await store.readRefreshToken(), 'refresh-token');
+    expect(deviceController.state, KioskStartupState.active);
+    expect(deviceGateway.pairingRequests, 0);
+    expect(controller.errorCode, 'CUSTOMER_UPLOAD_REQUEST_FAILED');
+    controller.dispose();
+    deviceController.dispose();
+  });
+
+  for (final code in ['DEVICE_TOKEN_INVALID', 'DEVICE_TOKEN_EXPIRED']) {
+    test('$code refreshes once and retries createSession', () async {
+      final deviceGateway = FakeDeviceGateway(
+        refreshedCredentials: testDeviceCredentials('fresh-device-token'),
+      );
+      final store = InMemoryDeviceStore()..refreshToken = 'refresh-token';
+      final deviceController = KioskDeviceSessionController(
+        gateway: deviceGateway,
+        store: store,
+      )
+        ..accessToken = 'stale-device-token'
+        ..accessTokenExpiresAt = DateTime.now().add(const Duration(minutes: 5))
+        ..state = KioskStartupState.active;
+      final gateway = FakeUploadGateway()
+        ..createOutcomes.add(
+          KioskCustomerUploadException(
+            code,
+            'Access token rejected.',
+            statusCode: 401,
+          ),
+        )
+        ..createOutcomes.add(waitingUploadSession('upload-session'))
+        ..nextStatusSession = waitingUploadSession('upload-session');
+      final controller = KioskCustomerUploadController(
+        deviceController: deviceController,
+        gateway: gateway,
+        captureStore: InMemoryTemporaryCaptureStore(),
+      );
+
+      await controller.createSession();
+
+      expect(gateway.createCalls, 2);
+      expect(gateway.createAccessTokens, [
+        'stale-device-token',
+        'fresh-device-token',
+      ]);
+      expect(deviceGateway.refreshCalls, 1);
+      expect(controller.flowState, KioskCustomerUploadFlowState.waiting);
+      controller.dispose();
+      deviceController.dispose();
+    });
+  }
+
+  test('refreshable token response does not retry indefinitely', () async {
+    final deviceGateway = FakeDeviceGateway(
+      refreshedCredentials: testDeviceCredentials('fresh-device-token'),
+    );
+    final store = InMemoryDeviceStore()..refreshToken = 'refresh-token';
+    final deviceController = KioskDeviceSessionController(
+      gateway: deviceGateway,
+      store: store,
+    )
+      ..accessToken = 'stale-device-token'
+      ..accessTokenExpiresAt = DateTime.now().add(const Duration(minutes: 5))
+      ..state = KioskStartupState.active;
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.add(
+        const KioskCustomerUploadException(
+          'DEVICE_TOKEN_INVALID',
+          'Access token rejected.',
+          statusCode: 401,
+        ),
+      )
+      ..createOutcomes.add(
+        const KioskCustomerUploadException(
+          'DEVICE_TOKEN_INVALID',
+          'Access token rejected.',
+          statusCode: 401,
+        ),
+      );
+    final controller = KioskCustomerUploadController(
+      deviceController: deviceController,
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    );
+
+    await controller.createSession();
+
+    expect(gateway.createCalls, 2);
+    expect(deviceGateway.refreshCalls, 1);
+    expect(controller.errorCode, 'DEVICE_TOKEN_INVALID');
+    expect(await store.readRefreshToken(), 'next-refresh-token');
+    controller.dispose();
+    deviceController.dispose();
+  });
+
+  test('terminal forced refresh failure does not retry upload again', () async {
+    final deviceGateway = FakeDeviceGateway(
+      refreshException: const KioskDeviceException(
+        'DEVICE_UNPAIRED',
+        'Kiosk device is not paired.',
+      ),
+    );
+    final store = InMemoryDeviceStore()..refreshToken = 'refresh-token';
+    final deviceController = KioskDeviceSessionController(
+      gateway: deviceGateway,
+      store: store,
+    )
+      ..accessToken = 'stale-device-token'
+      ..accessTokenExpiresAt = DateTime.now().add(const Duration(minutes: 5))
+      ..state = KioskStartupState.active;
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.add(
+        const KioskCustomerUploadException(
+          'DEVICE_TOKEN_EXPIRED',
+          'Access token expired.',
+          statusCode: 401,
+        ),
+      );
+    final controller = KioskCustomerUploadController(
+      deviceController: deviceController,
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    );
+
+    await controller.createSession();
+
+    expect(gateway.createCalls, 1);
+    expect(deviceGateway.refreshCalls, 1);
+    expect(deviceController.state, KioskStartupState.waitingForPairing);
+    expect(controller.errorCode, 'DEVICE_SESSION_UNAVAILABLE');
+    controller.dispose();
+    deviceController.dispose();
+  });
+
+  test('terminal unpaired upload failure clears auth and returns to pairing', () async {
+    final deviceGateway = FakeDeviceGateway();
+    final store = InMemoryDeviceStore()..refreshToken = 'refresh-token';
+    final deviceController = KioskDeviceSessionController(
+      gateway: deviceGateway,
+      store: store,
+    )
+      ..accessToken = 'device-token'
+      ..accessTokenExpiresAt = DateTime.now().add(const Duration(minutes: 5))
+      ..state = KioskStartupState.active;
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.add(
+        const KioskCustomerUploadException(
+          'DEVICE_UNPAIRED',
+          'Device is not paired.',
+          statusCode: 401,
+        ),
+      );
+    final controller = KioskCustomerUploadController(
+      deviceController: deviceController,
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    );
+
+    await controller.createSession();
+
+    expect(await store.readRefreshToken(), isNull);
+    expect(deviceController.state, KioskStartupState.waitingForPairing);
+    expect(controller.errorCode, 'DEVICE_UNPAIRED');
+    controller.dispose();
+    deviceController.dispose();
   });
 
   test('ready mobile upload is accepted as temporary person photo', () async {
@@ -64,6 +436,117 @@ void main() {
     uploadController.dispose();
     captureController.dispose();
   });
+
+  testWidgets('loading state does not show 00:00 before session exists', (
+    tester,
+  ) async {
+    final pendingSession = Completer<KioskCustomerUploadSession>();
+    final harness = await pumpMobileUploadScreen(
+      tester,
+      gateway: FakeUploadGateway()..createOutcomes.add(pendingSession),
+    );
+
+    expect(find.text('Preparing secure upload...'), findsWidgets);
+    expect(find.byKey(const Key('mobile-upload-countdown')), findsNothing);
+    expect(find.text('00:00'), findsNothing);
+    harness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('successful session renders QR and countdown without secrets', (
+    tester,
+  ) async {
+    final harness = await pumpMobileUploadScreen(
+      tester,
+      gateway: FakeUploadGateway()
+        ..createOutcomes.add(
+          waitingUploadSession(
+            'upload-session',
+            publicUploadUrl:
+                'https://try.selfx.test/upload/super-secret-capability',
+          ),
+        )
+        ..nextStatusSession = waitingUploadSession('upload-session'),
+    );
+
+    await pumpMobileUploadState(tester);
+
+    expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
+    expect(find.byKey(const Key('mobile-upload-countdown')), findsOneWidget);
+    expect(find.textContaining('super-secret-capability'), findsNothing);
+    expect(tester.takeException(), isNull);
+    harness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('session creation failure renders retry instead of spinner', (
+    tester,
+  ) async {
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.add(
+        const KioskCustomerUploadException(
+          'CUSTOMER_UPLOAD_SERVER_ERROR',
+          'Server unavailable.',
+          statusCode: 500,
+        ),
+      )
+      ..createOutcomes.add(waitingUploadSession('retry-session'));
+    final harness = await pumpMobileUploadScreen(tester, gateway: gateway);
+
+    await pumpMobileUploadState(tester);
+
+    expect(find.text('Unable to start phone upload'), findsOneWidget);
+    expect(find.byKey(const Key('retry-mobile-upload')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    await tester.tap(find.byKey(const Key('retry-mobile-upload')));
+    await pumpMobileUploadState(tester);
+
+    expect(gateway.createCalls, 2);
+    expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
+    harness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('compact viewport does not overflow and shrinks QR frame', (
+    tester,
+  ) async {
+    final gateway = FakeUploadGateway()
+      ..createOutcomes.add(waitingUploadSession('large-session'))
+      ..nextStatusSession = waitingUploadSession('large-session');
+    final largeHarness = await pumpMobileUploadScreen(
+      tester,
+      gateway: gateway,
+      size: const Size(1000, 760),
+    );
+    await pumpMobileUploadState(tester);
+    final largeQrSize = tester.getSize(
+      find.byKey(const Key('mobile-upload-qr-frame')),
+    );
+
+    largeHarness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    final compactGateway = FakeUploadGateway()
+      ..createOutcomes.add(waitingUploadSession('compact-session'))
+      ..nextStatusSession = waitingUploadSession('compact-session');
+    final compactHarness = await pumpMobileUploadScreen(
+      tester,
+      gateway: compactGateway,
+      size: const Size(520, 430),
+    );
+    await pumpMobileUploadState(tester);
+
+    final compactQrSize = tester.getSize(
+      find.byKey(const Key('mobile-upload-qr-frame')),
+    );
+
+    expect(compactQrSize.height, lessThan(largeQrSize.height));
+    expect(compactQrSize.height, greaterThanOrEqualTo(176));
+    expect(tester.takeException(), isNull);
+    compactHarness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 
 KioskDeviceSessionController testDeviceController() {
@@ -91,6 +574,42 @@ KioskCustomerUploadSession readyUploadSession(String sessionId) {
   );
 }
 
+KioskCustomerUploadSession waitingUploadSession(
+  String sessionId, {
+  String publicUploadUrl = 'https://try.selfx.test/upload/capability',
+  DateTime? expiresAt,
+}) {
+  final now = DateTime.now();
+  return KioskCustomerUploadSession(
+    sessionId: sessionId,
+    status: KioskCustomerUploadStatus.waiting,
+    expiresAt: expiresAt ?? now.add(const Duration(minutes: 5)),
+    serverTime: now,
+    pollIntervalSeconds: 3,
+    publicUploadUrl: publicUploadUrl,
+  );
+}
+
+Map<String, dynamic> uploadSessionJson(String sessionId) {
+  final now = DateTime.now();
+  return {
+    'sessionId': sessionId,
+    'status': 'WAITING',
+    'expiresAt': now.add(const Duration(minutes: 5)).toIso8601String(),
+    'serverTime': now.toIso8601String(),
+    'pollIntervalSeconds': 3,
+    'publicUploadUrl': 'https://try.selfx.test/upload/capability',
+  };
+}
+
+http.Response uploadSessionJsonResponse(Map<String, dynamic> body) {
+  return http.Response(
+    jsonEncode(body),
+    201,
+    headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+  );
+}
+
 CaptureSessionController testCaptureController() {
   return CaptureSessionController(
     cameraService: FakeCameraService(),
@@ -101,22 +620,133 @@ CaptureSessionController testCaptureController() {
   )..selectCaptureScope(CaptureScope.fullBody);
 }
 
+KioskDeviceCredentials testDeviceCredentials(String accessToken) {
+  return KioskDeviceCredentials(
+    accessToken: accessToken,
+    accessTokenExpiresAt: DateTime.now().add(const Duration(minutes: 15)),
+    refreshToken: 'next-refresh-token',
+    refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 30)),
+    device: const KioskDeviceIdentity(
+      id: 'device-1',
+      displayName: 'Test kiosk',
+      status: KioskDeviceStatus.active,
+      assignment: KioskDeviceAssignment(
+        scope: KioskAssignmentScope.platform,
+        organizationId: null,
+        organizationName: null,
+        storeId: null,
+        storeName: null,
+      ),
+      platform: 'windows',
+      appVersion: '1.0.0',
+      lastSeenAt: null,
+    ),
+  );
+}
+
+KioskTryOnSessionController testTryOnController() {
+  return KioskTryOnSessionController(gateway: FakeTryOnGateway());
+}
+
+Future<MobileUploadHarness> pumpMobileUploadScreen(
+  WidgetTester tester, {
+  required FakeUploadGateway gateway,
+  Size size = const Size(900, 700),
+}) async {
+  await tester.binding.setSurfaceSize(size);
+  addTearDown(() async {
+    await tester.binding.setSurfaceSize(null);
+  });
+  final deviceController = testDeviceController();
+  final captureController = testCaptureController();
+  final tryOnController = testTryOnController();
+  final uploadController = KioskCustomerUploadController(
+    deviceController: deviceController,
+    gateway: gateway,
+    captureStore: InMemoryTemporaryCaptureStore(),
+  );
+
+  await tester.pumpWidget(
+    MaterialApp(
+      home: MobileUploadScreen(
+        captureController: captureController,
+        tryOnController: tryOnController,
+        uploadController: uploadController,
+      ),
+    ),
+  );
+
+  return MobileUploadHarness(
+    deviceController: deviceController,
+    captureController: captureController,
+    tryOnController: tryOnController,
+    uploadController: uploadController,
+  );
+}
+
+Future<void> pumpMobileUploadState(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
+}
+
+class MobileUploadHarness {
+  MobileUploadHarness({
+    required this.deviceController,
+    required this.captureController,
+    required this.tryOnController,
+    required this.uploadController,
+  });
+
+  final KioskDeviceSessionController deviceController;
+  final CaptureSessionController captureController;
+  final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
+  bool _disposed = false;
+
+  void dispose() {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    uploadController.dispose();
+    tryOnController.dispose();
+    captureController.dispose();
+    deviceController.dispose();
+  }
+}
+
+Future<void> testerPumpEventQueue() async {
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
+}
+
 class FakeUploadGateway implements KioskCustomerUploadGateway {
   KioskCustomerUploadSession? nextSession;
+  KioskCustomerUploadSession? nextStatusSession;
+  final List<Object> createOutcomes = [];
+  final List<String> createAccessTokens = [];
   String? createdAccessToken;
   String? consumedSessionId;
+  int createCalls = 0;
 
   @override
   Future<KioskCustomerUploadSession> createSession(String accessToken) async {
+    createCalls += 1;
     createdAccessToken = accessToken;
-    return KioskCustomerUploadSession(
-      sessionId: 'upload-session',
-      status: KioskCustomerUploadStatus.waiting,
-      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-      serverTime: DateTime.now(),
-      pollIntervalSeconds: 3,
-      publicUploadUrl: 'https://try.selfx.test/upload/capability',
-    );
+    createAccessTokens.add(accessToken);
+    if (createOutcomes.isNotEmpty) {
+      final outcome = createOutcomes.removeAt(0);
+      if (outcome is KioskCustomerUploadSession) {
+        return outcome;
+      }
+      if (outcome is KioskCustomerUploadException) {
+        throw outcome;
+      }
+      if (outcome is Completer<KioskCustomerUploadSession>) {
+        return outcome.future;
+      }
+    }
+    return nextSession ?? waitingUploadSession('upload-session');
   }
 
   @override
@@ -124,7 +754,7 @@ class FakeUploadGateway implements KioskCustomerUploadGateway {
     required String accessToken,
     required String sessionId,
   }) async {
-    return nextSession ?? readyUploadSession(sessionId);
+    return nextStatusSession ?? nextSession ?? waitingUploadSession(sessionId);
   }
 
   @override
@@ -164,21 +794,47 @@ class FakeUploadGateway implements KioskCustomerUploadGateway {
 }
 
 class FakeDeviceGateway implements KioskDeviceGateway {
+  FakeDeviceGateway({
+    KioskDeviceCredentials? refreshedCredentials,
+    this.refreshException,
+  }) : refreshedCredentials =
+           refreshedCredentials ?? testDeviceCredentials('refreshed-token');
+
+  final KioskDeviceCredentials refreshedCredentials;
+  final KioskDeviceException? refreshException;
+  int pairingRequests = 0;
+  int refreshCalls = 0;
+
   @override
   Future<KioskPairingSession> createPairingSession({
     required String installationId,
     required String platform,
     required String appVersion,
-  }) {
-    throw UnimplementedError();
+  }) async {
+    pairingRequests += 1;
+    final now = DateTime.now();
+    return KioskPairingSession(
+      pairingSessionId: 'pairing-session',
+      pairingCode: '123456',
+      provisioningSecret: 'provisioning-secret',
+      expiresAt: now.add(const Duration(minutes: 8)),
+      serverTime: now,
+      ttlSeconds: 480,
+      pollIntervalSeconds: 3,
+    );
   }
 
   @override
   Future<KioskPairingStatusResult> getPairingStatus({
     required String sessionId,
     required String provisioningSecret,
-  }) {
-    throw UnimplementedError();
+  }) async {
+    final now = DateTime.now();
+    return KioskPairingStatusResult(
+      status: KioskProvisioningStatus.waiting,
+      serverTime: now,
+      expiresAt: now.add(const Duration(minutes: 8)),
+    );
   }
 
   @override
@@ -191,8 +847,13 @@ class FakeDeviceGateway implements KioskDeviceGateway {
   }
 
   @override
-  Future<KioskDeviceCredentials> refreshSession(String refreshToken) {
-    throw UnimplementedError();
+  Future<KioskDeviceCredentials> refreshSession(String refreshToken) async {
+    refreshCalls += 1;
+    final exception = refreshException;
+    if (exception != null) {
+      throw exception;
+    }
+    return refreshedCredentials;
   }
 
   @override
@@ -206,6 +867,18 @@ class FakeDeviceGateway implements KioskDeviceGateway {
     required String platform,
     required String appVersion,
   }) {
+    throw UnimplementedError();
+  }
+}
+
+class FakeTryOnGateway implements KioskTryOnGateway {
+  @override
+  Future<KioskTryOnRun> createRun(KioskTryOnRequest request) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskTryOnRun> getRun(String runId) {
     throw UnimplementedError();
   }
 }

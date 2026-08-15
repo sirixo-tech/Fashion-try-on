@@ -1552,10 +1552,23 @@ No checkout button is required.
 
 - After garment selection/preview and internal CaptureScope resolution, the
   kiosk shows a photo source choice with **Take Photo** and **Use My Phone**.
-- **Use My Phone** opens a QR upload screen with SelfX branding, large QR code,
-  five-minute `MM:SS` countdown, progress indicator, status text and cancel.
+- **Use My Phone** opens a QR upload screen with SelfX branding. Before a valid
+  session exists it shows a preparation state and no countdown. After session
+  creation succeeds, it shows a large QR code, five-minute `MM:SS` countdown,
+  progress indicator, status text and cancel.
+- The QR size is derived from available viewport space so Windows landscape,
+  Windows portrait, shorter/narrow Windows windows and Android portrait keep
+  the countdown, status and actions reachable.
 - The QR screen must not show capability internals, object keys, auth tokens,
   organization/store IDs or storage URLs.
+- If session creation fails, the QR screen shows **Unable to start phone
+  upload** with **Try Again** and **Cancel** instead of an indefinite spinner.
+- Normal upload request failures, including validation, conflict, rate limit,
+  server and network failures, keep the customer on the mobile-upload
+  retry/cancel UI and do not clear a healthy kiosk pairing.
+- `DEVICE_TOKEN_INVALID` and `DEVICE_TOKEN_EXPIRED` during upload requests use
+  one device-session refresh and retry once. Unpaired, revoked, deleted or
+  inactive device states clear invalid auth and route to pairing.
 - The public phone page at `/upload/[capability]` is a mobile-first SelfX page
   outside authenticated app chrome. It offers **Take Photo**, **Choose From
   Gallery**, preview, **Choose Another** and explicit **Upload Photo**.
@@ -1563,6 +1576,8 @@ No checkout button is required.
   "Validating photo..." and "Photo sent to the kiosk".
 - Expired/cancelled/consumed links show a safe terminal state telling the
   customer to return to the kiosk for a new QR.
+- Expired kiosk QR sessions stop being displayed as usable; the kiosk refreshes
+  to a new backend upload session before showing a scannable QR again.
 - When the upload is `READY`, the kiosk shows the uploaded photo preview with
   **Upload Another** and **Use This Photo**. Selecting the photo continues to
   the production generation progress screen.

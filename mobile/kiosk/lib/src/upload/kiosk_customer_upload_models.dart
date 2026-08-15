@@ -9,6 +9,8 @@ enum KioskCustomerUploadStatus {
   cancelled,
 }
 
+enum KioskCustomerUploadFlowState { idle, creating, waiting, failed }
+
 class KioskCustomerUploadPhoto {
   const KioskCustomerUploadPhoto({
     required this.readUrl,
@@ -76,10 +78,31 @@ class KioskCustomerUploadSession {
 }
 
 class KioskCustomerUploadException implements Exception {
-  const KioskCustomerUploadException(this.code, this.message);
+  const KioskCustomerUploadException(
+    this.code,
+    this.message, {
+    this.statusCode,
+  });
 
   final String code;
   final String message;
+  final int? statusCode;
+
+  bool get isDeviceAuthRejected =>
+      code == 'DEVICE_AUTH_REJECTED' ||
+      isRefreshableDeviceAuth ||
+      isTerminalDeviceState;
+
+  bool get isRefreshableDeviceAuth =>
+      code == 'DEVICE_TOKEN_INVALID' || code == 'DEVICE_TOKEN_EXPIRED';
+
+  bool get isTerminalDeviceState =>
+      code == 'DEVICE_REVOKED' ||
+      code == 'DEVICE_DELETED' ||
+      code == 'DEVICE_UNPAIRED' ||
+      code == 'DEVICE_INACTIVE';
+
+  bool get isDeviceRevoked => isTerminalDeviceState;
 
   @override
   String toString() => message;

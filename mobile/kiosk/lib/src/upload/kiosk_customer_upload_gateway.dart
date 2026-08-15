@@ -56,12 +56,12 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
   @override
   Future<KioskCustomerUploadSession> createSession(String accessToken) async {
     _assertConfigured();
-    final response = await client
-        .post(
-          _uri('/api/v1/kiosk/customer-upload-sessions'),
-          headers: _authHeaders(accessToken),
-        )
-        .timeout(timeout);
+    final response = await _send(
+      client.post(
+        _uri('/api/v1/kiosk/customer-upload-sessions'),
+        headers: _authHeaders(accessToken),
+      ),
+    );
     return _session(_decode(response), requirePublicUrl: true);
   }
 
@@ -71,12 +71,12 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
     required String sessionId,
   }) async {
     _assertConfigured();
-    final response = await client
-        .get(
-          _uri('/api/v1/kiosk/customer-upload-sessions/$sessionId'),
-          headers: _authHeaders(accessToken),
-        )
-        .timeout(timeout);
+    final response = await _send(
+      client.get(
+        _uri('/api/v1/kiosk/customer-upload-sessions/$sessionId'),
+        headers: _authHeaders(accessToken),
+      ),
+    );
     return _session(_decode(response));
   }
 
@@ -86,12 +86,12 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
     required String sessionId,
   }) async {
     _assertConfigured();
-    final response = await client
-        .post(
-          _uri('/api/v1/kiosk/customer-upload-sessions/$sessionId/cancel'),
-          headers: _authHeaders(accessToken),
-        )
-        .timeout(timeout);
+    final response = await _send(
+      client.post(
+        _uri('/api/v1/kiosk/customer-upload-sessions/$sessionId/cancel'),
+        headers: _authHeaders(accessToken),
+      ),
+    );
     return _session(_decode(response));
   }
 
@@ -101,12 +101,12 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
     required String sessionId,
   }) async {
     _assertConfigured();
-    final response = await client
-        .post(
-          _uri('/api/v1/kiosk/customer-upload-sessions/$sessionId/consume'),
-          headers: _authHeaders(accessToken),
-        )
-        .timeout(timeout);
+    final response = await _send(
+      client.post(
+        _uri('/api/v1/kiosk/customer-upload-sessions/$sessionId/consume'),
+        headers: _authHeaders(accessToken),
+      ),
+    );
     return _session(_decode(response));
   }
 
@@ -140,7 +140,6 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
 
   Map<String, String> _authHeaders(String accessToken) => {
     HttpHeaders.acceptHeader: 'application/json',
-    HttpHeaders.contentTypeHeader: 'application/json',
     HttpHeaders.authorizationHeader: 'Bearer ${accessToken.trim()}',
   };
 
@@ -152,6 +151,22 @@ class SelfxKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
       );
     }
   }
+
+  Future<http.Response> _send(Future<http.Response> request) async {
+    try {
+      return await request.timeout(timeout);
+    } on TimeoutException {
+      throw const KioskCustomerUploadException(
+        'CUSTOMER_UPLOAD_TIMEOUT',
+        'SelfX upload request timed out.',
+      );
+    } on SocketException {
+      throw const KioskCustomerUploadException(
+        'CUSTOMER_UPLOAD_CONNECTION_FAILED',
+        'SelfX upload service is unreachable.',
+      );
+    }
+  }
 }
 
 Map<String, dynamic> _decode(http.Response response) {
@@ -159,6 +174,7 @@ Map<String, dynamic> _decode(http.Response response) {
     throw KioskCustomerUploadException(
       _errorCode(response),
       _safeMessage(response),
+      statusCode: response.statusCode,
     );
   }
   final json = jsonDecode(response.body);
@@ -257,6 +273,25 @@ String _errorCode(http.Response response) {
       }
     }
   } catch (_) {}
+  return _fallbackCodeForStatus(response.statusCode);
+}
+
+String _fallbackCodeForStatus(int statusCode) {
+  if (statusCode == 401 || statusCode == 403) {
+    return 'DEVICE_AUTH_REJECTED';
+  }
+  if (statusCode == 404) {
+    return 'CUSTOMER_UPLOAD_NOT_FOUND';
+  }
+  if (statusCode == 409) {
+    return 'CUSTOMER_UPLOAD_CONFLICT';
+  }
+  if (statusCode == 429) {
+    return 'KIOSK_RATE_LIMITED';
+  }
+  if (statusCode >= 500) {
+    return 'CUSTOMER_UPLOAD_SERVER_ERROR';
+  }
   return 'CUSTOMER_UPLOAD_REQUEST_FAILED';
 }
 

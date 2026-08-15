@@ -64,7 +64,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
         builder: (context, _) {
           final session = widget.uploadController.session;
           final message =
-              widget.uploadController.message ?? 'Creating upload QR...';
+              widget.uploadController.message ?? 'Preparing secure upload...';
           if (session?.status == KioskCustomerUploadStatus.ready &&
               session?.photo != null) {
             return _ReadyPhotoPanel(
@@ -72,6 +72,19 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
               captureController: widget.captureController,
               tryOnController: widget.tryOnController,
               session: session!,
+            );
+          }
+          if (widget.uploadController.flowState ==
+              KioskCustomerUploadFlowState.failed) {
+            return _UploadFailurePanel(
+              controller: widget.uploadController,
+              onRetry: () => widget.uploadController.createSession(),
+              onCancel: () async {
+                await widget.uploadController.cancel();
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
             );
           }
           return _QrPanel(
@@ -108,65 +121,179 @@ class _QrPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = this.session;
     final publicUploadUrl = session?.publicUploadUrl;
-    final remaining = session == null ? Duration.zero : controller.remainingFor(session);
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 820),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(30),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Scan to add your photo',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.displaySmall,
-                ),
-                const SizedBox(height: 18),
-                Center(
-                  child: Container(
-                    width: 360,
-                    height: 360,
-                    padding: const EdgeInsets.all(18),
-                    color: Colors.white,
-                    child: publicUploadUrl == null
-                        ? const Center(child: CircularProgressIndicator())
-                        : QrImageView(
-                            key: const Key('mobile-upload-qr'),
-                            data: publicUploadUrl,
-                            version: QrVersions.auto,
-                            gapless: false,
-                            backgroundColor: Colors.white,
+    final hasValidSession = session != null && publicUploadUrl != null;
+    final remaining = session == null ? null : controller.remainingFor(session);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 0.0;
+        final compact = constraints.maxWidth < 640 || constraints.maxHeight < 560;
+        final padding = compact ? 18.0 : 30.0;
+        final qrDimension = _qrDimensionFor(constraints, hasValidSession);
+
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 820),
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(padding),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          hasValidSession
+                              ? 'Scan to add your photo'
+                              : 'Preparing secure upload...',
+                          textAlign: TextAlign.center,
+                          style: compact
+                              ? Theme.of(context).textTheme.headlineMedium
+                              : Theme.of(context).textTheme.displaySmall,
+                        ),
+                        SizedBox(height: compact ? 14 : 18),
+                        Center(
+                          child: Container(
+                            key: const Key('mobile-upload-qr-frame'),
+                            width: qrDimension,
+                            height: qrDimension,
+                            padding: EdgeInsets.all(compact ? 12 : 18),
+                            color: Colors.white,
+                            child: hasValidSession
+                                ? QrImageView(
+                                    key: const Key('mobile-upload-qr'),
+                                    data: publicUploadUrl,
+                                    version: QrVersions.auto,
+                                    gapless: false,
+                                    backgroundColor: Colors.white,
+                                  )
+                                : const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
                           ),
+                        ),
+                        if (hasValidSession && remaining != null) ...[
+                          SizedBox(height: compact ? 16 : 22),
+                          Text(
+                            _mmss(remaining),
+                            key: const Key('mobile-upload-countdown'),
+                            textAlign: TextAlign.center,
+                            style: compact
+                                ? Theme.of(context).textTheme.headlineMedium
+                                : Theme.of(context).textTheme.displaySmall,
+                          ),
+                          const SizedBox(height: 12),
+                          LinearProgressIndicator(
+                            value: controller.progressFor(session),
+                          ),
+                        ],
+                        SizedBox(height: compact ? 14 : 18),
+                        Text(message, textAlign: TextAlign.center),
+                        SizedBox(height: compact ? 18 : 24),
+                        OutlinedButton.icon(
+                          key: const Key('cancel-mobile-upload'),
+                          onPressed: onCancel,
+                          icon: const Icon(Icons.close),
+                          label: const Text('Cancel'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 22),
-                Text(
-                  _mmss(remaining),
-                  key: const Key('mobile-upload-countdown'),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.displaySmall,
-                ),
-                const SizedBox(height: 12),
-                LinearProgressIndicator(
-                  value: session == null ? null : controller.progressFor(session),
-                ),
-                const SizedBox(height: 18),
-                Text(message, textAlign: TextAlign.center),
-                const SizedBox(height: 24),
-                OutlinedButton.icon(
-                  key: const Key('cancel-mobile-upload'),
-                  onPressed: onCancel,
-                  icon: const Icon(Icons.close),
-                  label: const Text('Cancel'),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
+    );
+  }
+}
+
+class _UploadFailurePanel extends StatelessWidget {
+  const _UploadFailurePanel({
+    required this.controller,
+    required this.onRetry,
+    required this.onCancel,
+  });
+
+  final KioskCustomerUploadController controller;
+  final Future<void> Function() onRetry;
+  final Future<void> Function() onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 0.0;
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Icon(
+                          Icons.wifi_off_outlined,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Unable to start phone upload',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          controller.message ??
+                              'SelfX could not prepare a secure upload link.',
+                          textAlign: TextAlign.center,
+                        ),
+                        if (controller.errorCode != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            'Code: ${controller.errorCode}',
+                            key: const Key('mobile-upload-error-code'),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          key: const Key('retry-mobile-upload'),
+                          onPressed: controller.isBusy
+                              ? null
+                              : () => unawaited(onRetry()),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Try Again'),
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          key: const Key('cancel-mobile-upload'),
+                          onPressed: () => unawaited(onCancel()),
+                          icon: const Icon(Icons.close),
+                          label: const Text('Cancel'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -292,4 +419,17 @@ String _mmss(Duration duration) {
   final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
   final rest = (seconds % 60).toString().padLeft(2, '0');
   return '$minutes:$rest';
+}
+
+double _qrDimensionFor(BoxConstraints constraints, bool hasValidSession) {
+  final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 820.0;
+  final maxHeight = constraints.maxHeight.isFinite
+      ? constraints.maxHeight
+      : 760.0;
+  final reservedHeight = hasValidSession ? 310.0 : 220.0;
+  final widthBound = maxWidth - 96.0;
+  final heightBound = maxHeight - reservedHeight;
+  final maxQr = hasValidSession ? 360.0 : 300.0;
+  final candidate = widthBound < heightBound ? widthBound : heightBound;
+  return candidate.clamp(176.0, maxQr).toDouble();
 }

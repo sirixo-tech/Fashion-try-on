@@ -1143,8 +1143,26 @@ KIOSK-4C product rules:
 - The QR code contains only an opaque capability URL. It must not expose raw
   customer data, kiosk assignment data, object-storage keys, image URLs,
   provider data, access tokens or secrets.
+- Customer-upload request failures such as validation, conflict, rate limit,
+  server or network errors must not clear a healthy kiosk pairing. They remain
+  in the upload retry/cancel flow.
+- Expired or invalid kiosk device access tokens may trigger one device-session
+  refresh and one retry. Unpaired, revoked, deleted or inactive device states
+  return the kiosk to pairing.
+- The kiosk must show a clear preparing state until a valid upload session
+  exists. It must not display a countdown such as `00:00` before backend
+  `expiresAt/serverTime` is available.
+- The QR screen must adapt to Windows portrait/landscape, shorter or narrow
+  Windows windows and Android portrait without hiding the QR, countdown, status
+  or actions.
+- If session creation fails, the kiosk must stop loading indefinitely and show
+  safe retry/cancel actions without exposing tokens, capability values, stack
+  traces or internal secrets.
 - Customer upload links expire after five minutes and cannot be reused after
   expiry, cancellation or consumption.
+- Expired QR sessions must no longer be displayed as usable; the kiosk either
+  replaces them with a fresh backend session or requires the customer to refresh
+  the QR.
 - The phone upload page accepts only supported image files and requires an
   explicit customer upload action after photo selection.
 - SelfX validates the uploaded image before the kiosk can select it.

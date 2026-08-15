@@ -969,11 +969,28 @@ KIOSK-4C rules:
   internally, then offers **Take Photo** and **Use My Phone**.
 - **Use My Phone** creates a backend customer upload session for the active
   kiosk device and renders a QR code.
+- Bodyless kiosk requests, including customer-upload create/status/cancel and
+  consume, must not send `Content-Type: application/json`. Use JSON
+  `Content-Type` only when a JSON request body is actually sent.
 - The QR URL contains only a high-entropy opaque capability. It must not contain
   kiosk IDs, organization/store IDs, raw object keys, customer data, image URLs,
   provider IDs, auth tokens or secrets.
 - Customer upload sessions expire after exactly five minutes. Backend
   `expiresAt/serverTime` drives kiosk countdown and progress.
+- The kiosk QR screen must remain responsive in Windows landscape/portrait,
+  shorter or narrow Windows windows and Android portrait. QR size is derived
+  from available viewport space, and controls must remain reachable.
+- Before a valid upload session exists, the kiosk shows a preparation state and
+  must not show a fake `00:00` countdown. The countdown appears only after
+  backend `expiresAt/serverTime` is available.
+- Session creation failures must stop indefinite loading and show a safe retry
+  and cancel state. Diagnostics may log endpoint path, HTTP status, safe code
+  and duration, but never tokens, capability URLs, QR secrets or image bytes.
+- `DEVICE_TOKEN_INVALID` and `DEVICE_TOKEN_EXPIRED` during customer-upload
+  device requests use one forced device-session refresh and retry once.
+  `DEVICE_UNPAIRED`, `DEVICE_REVOKED`, `DEVICE_DELETED` and `DEVICE_INACTIVE`
+  clear invalid device authentication and return to pairing. Non-auth customer
+  upload failures must not clear a healthy kiosk pairing.
 - Capability plaintext is never stored; store only a digest using a dedicated
   server-only pepper.
 - Customer browsers request a short-lived signed object-storage upload URL from
@@ -987,7 +1004,13 @@ KIOSK-4C rules:
   existing generation flow.
 - Cancel, expiry, rejection and replacement must clean up stored objects
   best-effort and must not allow a cancelled/expired upload to become ready.
+- Expired kiosk QR sessions must stop polling and rotate to a fresh backend
+  upload session before displaying a usable QR again.
 - The public upload page must not require staff `SessionProvider` auth.
+- Device-session diagnostics may report only safe state such as refresh
+  credential availability, restoration success/failure code and upload request
+  status. They must not log access tokens, refresh tokens, authorization
+  headers, capability URLs, signed URLs or image bytes.
 - KIOSK-4C does not implement Product Catalog, persistent customer accounts, QR
   result continuation, billing, Redis/BullMQ, API Gateway or provider calls
   from Flutter.

@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_models.dart';
@@ -107,6 +112,81 @@ void main() {
       expect(find.textContaining('super-secret'), findsNothing);
       controller.dispose();
     });
+
+    test('JSON device requests keep JSON content type', () async {
+      final gateway = SelfxKioskDeviceGateway(
+        config: const KioskDeviceApiConfig(
+          apiBaseUrl: 'https://api.selfx.test',
+        ),
+        client: MockClient((http.Request request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/api/v1/kiosk/provisioning/sessions');
+          expect(request.headers[HttpHeaders.acceptHeader], 'application/json');
+          expect(
+            request.headers[HttpHeaders.contentTypeHeader],
+            'application/json',
+          );
+          expect(jsonDecode(request.body), {
+            'installationId': 'install-test',
+            'platform': 'windows',
+            'appVersion': '1.0.0',
+          });
+          return http.Response(
+            jsonEncode({
+              'pairingSessionId': 'pairing-session',
+              'pairingCode': '123456',
+              'provisioningSecret': 'secret',
+              'expiresAt': DateTime.now()
+                  .add(const Duration(minutes: 8))
+                  .toIso8601String(),
+              'serverTime': DateTime.now().toIso8601String(),
+              'ttlSeconds': 480,
+              'pollIntervalSeconds': 3,
+            }),
+            201,
+            headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+          );
+        }),
+      );
+
+      final session = await gateway.createPairingSession(
+        installationId: 'install-test',
+        platform: 'windows',
+        appVersion: '1.0.0',
+      );
+
+      expect(session.pairingCode, '123456');
+    });
+
+    test('bodyless device identity request omits JSON content type', () async {
+      final gateway = SelfxKioskDeviceGateway(
+        config: const KioskDeviceApiConfig(
+          apiBaseUrl: 'https://api.selfx.test',
+        ),
+        client: MockClient((http.Request request) async {
+          expect(request.method, 'GET');
+          expect(request.url.path, '/api/v1/kiosk/session/me');
+          expect(request.headers[HttpHeaders.acceptHeader], 'application/json');
+          expect(
+            request.headers[HttpHeaders.authorizationHeader],
+            'Bearer device-token',
+          );
+          expect(
+            request.headers,
+            isNot(contains(HttpHeaders.contentTypeHeader)),
+          );
+          return http.Response(
+            jsonEncode(deviceJson()),
+            200,
+            headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+          );
+        }),
+      );
+
+      final device = await gateway.me('device-token');
+
+      expect(device.id, 'device-1');
+    });
   });
 }
 
@@ -150,6 +230,31 @@ KioskDeviceCredentials credentials({String refreshToken = 'refresh-b'}) {
       lastSeenAt: null,
     ),
   );
+}
+
+Map<String, dynamic> deviceJson() {
+  return {
+    'id': 'device-1',
+    'displayName': 'Paired Kiosk',
+    'status': 'ACTIVE',
+    'assignment': {
+      'scope': 'PLATFORM',
+      'organizationId': null,
+      'organizationName': null,
+      'storeId': null,
+      'storeName': null,
+    },
+    'platform': 'windows',
+    'appVersion': '1.0.0',
+    'installationId': 'install-test',
+    'pairedAt': DateTime.now().toIso8601String(),
+    'lastSeenAt': null,
+    'inactiveAt': null,
+    'revokedAt': null,
+    'deletedAt': null,
+    'createdAt': DateTime.now().toIso8601String(),
+    'updatedAt': DateTime.now().toIso8601String(),
+  };
 }
 
 class FakeKioskDeviceGateway implements KioskDeviceGateway {

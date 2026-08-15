@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../device/kiosk_device_session_controller.dart';
+import '../device/kiosk_device_models.dart';
 import '../session/capture_session_controller.dart';
 import '../session/temporary_capture_store.dart';
 import 'kiosk_customer_upload_gateway.dart';
@@ -23,32 +25,80 @@ class KioskCustomerUploadController extends ChangeNotifier {
 
   KioskCustomerUploadSession? session;
   String? message;
+  String? errorCode;
   Duration? serverClockOffset;
+  KioskCustomerUploadFlowState flowState = KioskCustomerUploadFlowState.idle;
   bool isBusy = false;
 
   Timer? _pollTimer;
+  bool _isPolling = false;
   bool _disposed = false;
 
+  @visibleForTesting
+  bool get hasActivePoller => _pollTimer?.isActive ?? false;
+
   Future<void> createSession() async {
-    final token = deviceController.accessToken;
-    if (token == null || token.isEmpty) {
-      _fail('Kiosk is not paired.');
-      return;
-    }
+    final startedAt = DateTime.now();
     _pollTimer?.cancel();
+    _pollTimer = null;
     isBusy = true;
-    message = 'Creating mobile upload QR...';
+    flowState = KioskCustomerUploadFlowState.creating;
+    session = null;
+    errorCode = null;
+    message = 'Preparing secure upload...';
     notifyListeners();
+    debugPrint(
+      'MOBILE_UPLOAD_CREATE_START path=/api/v1/kiosk/customer-upload-sessions',
+    );
     try {
-      final created = await gateway.createSession(token);
+      final created = await _createSessionWithDeviceAuth();
       session = created;
       serverClockOffset = created.serverTime.difference(DateTime.now());
+      flowState = KioskCustomerUploadFlowState.waiting;
       message = 'Waiting for your photo...';
       isBusy = false;
+      _logCreateSuccess(startedAt);
       notifyListeners();
       _startPolling(created);
+    } on KioskCustomerUploadException catch (error) {
+      _logCreateFailure(error.code, startedAt, statusCode: error.statusCode);
+      if (error.isDeviceRevoked) {
+        _fail(
+          'Kiosk pairing is no longer valid.',
+          code: error.code,
+          stopForPairing: true,
+        );
+        await deviceController.handleDeviceAuthRejected();
+        return;
+      }
+      _fail('Unable to start phone upload.', code: error.code);
+    } on TimeoutException {
+      _logCreateFailure('CUSTOMER_UPLOAD_TIMEOUT', startedAt);
+      _fail('Unable to start phone upload.', code: 'CUSTOMER_UPLOAD_TIMEOUT');
+    } on SocketException {
+      _logCreateFailure('CUSTOMER_UPLOAD_CONNECTION_FAILED', startedAt);
+      _fail(
+        'Unable to start phone upload.',
+        code: 'CUSTOMER_UPLOAD_CONNECTION_FAILED',
+      );
+    } on KioskDeviceException catch (error) {
+      _logCreateFailure(error.code, startedAt);
+      if (error.isRevoked) {
+        _fail(
+          'Kiosk pairing is no longer valid.',
+          code: error.code,
+          stopForPairing: true,
+        );
+        await deviceController.handleDeviceAuthRejected();
+        return;
+      }
+      _fail('Unable to start phone upload.', code: error.code);
     } catch (_) {
-      _fail('SelfX could not create a phone upload link.');
+      _logCreateFailure('CUSTOMER_UPLOAD_CREATE_FAILED', startedAt);
+      _fail(
+        'Unable to start phone upload.',
+        code: 'CUSTOMER_UPLOAD_CREATE_FAILED',
+      );
     }
   }
 
@@ -68,9 +118,13 @@ class KioskCustomerUploadController extends ChangeNotifier {
 
   Future<void> cancel() async {
     _pollTimer?.cancel();
+    _pollTimer = null;
     final current = session;
     final token = deviceController.accessToken;
     if (current == null || token == null) {
+      flowState = KioskCustomerUploadFlowState.idle;
+      isBusy = false;
+      notifyListeners();
       return;
     }
     try {
@@ -86,10 +140,8 @@ class KioskCustomerUploadController extends ChangeNotifier {
 
   Future<bool> useReadyPhoto(CaptureSessionController captureController) async {
     final current = session;
-    final token = deviceController.accessToken;
     final photo = current?.photo;
     if (current == null ||
-        token == null ||
         current.status != KioskCustomerUploadStatus.ready ||
         photo == null) {
       return false;
@@ -108,9 +160,11 @@ class KioskCustomerUploadController extends ChangeNotifier {
         width: photo.width,
         height: photo.height,
       );
-      session = await gateway.consumeSession(
-        accessToken: token,
-        sessionId: current.sessionId,
+      session = await _withDeviceAuth(
+        (token) => gateway.consumeSession(
+          accessToken: token,
+          sessionId: current.sessionId,
+        ),
       );
       isBusy = false;
       notifyListeners();
@@ -144,40 +198,121 @@ class KioskCustomerUploadController extends ChangeNotifier {
   }
 
   Future<void> _poll(KioskCustomerUploadSession current) async {
-    final token = deviceController.accessToken;
-    if (token == null) {
-      _fail('Kiosk is not paired.');
+    if (_isPolling) {
       return;
     }
     if (remainingFor(current) <= Duration.zero) {
+      _pollTimer?.cancel();
+      _pollTimer = null;
       await createSession();
       return;
     }
+    _isPolling = true;
     try {
-      final latest = await gateway.getSession(
-        accessToken: token,
-        sessionId: current.sessionId,
+      final latest = await _withDeviceAuth(
+        (token) => gateway.getSession(
+          accessToken: token,
+          sessionId: current.sessionId,
+        ),
       );
       session = latest.copyWith(publicUploadUrl: current.publicUploadUrl);
       serverClockOffset = latest.serverTime.difference(DateTime.now());
+      flowState = KioskCustomerUploadFlowState.waiting;
       message = messageFor(latest.status);
       if (latest.isTerminal) {
         _pollTimer?.cancel();
         _pollTimer = null;
       }
       notifyListeners();
+    } on KioskCustomerUploadException catch (error) {
+      if (error.isDeviceRevoked) {
+        _fail(
+          'Kiosk pairing is no longer valid.',
+          code: error.code,
+          stopForPairing: true,
+        );
+        await deviceController.handleDeviceAuthRejected();
+        return;
+      }
+      message = 'Waiting for SelfX connection...';
+      errorCode = error.code;
+      notifyListeners();
+    } on KioskDeviceException catch (error) {
+      if (error.isRevoked) {
+        _fail(
+          'Kiosk pairing is no longer valid.',
+          code: error.code,
+          stopForPairing: true,
+        );
+        await deviceController.handleDeviceAuthRejected();
+        return;
+      }
+      message = 'Waiting for SelfX connection...';
+      errorCode = error.code;
+      notifyListeners();
     } catch (_) {
       message = 'Waiting for SelfX connection...';
       notifyListeners();
+    } finally {
+      _isPolling = false;
     }
   }
 
-  void _fail(String nextMessage) {
+  Future<KioskCustomerUploadSession> _createSessionWithDeviceAuth() async {
+    return _withDeviceAuth(
+      (token) => gateway.createSession(token),
+    );
+  }
+
+  Future<T> _withDeviceAuth<T>(
+    Future<T> Function(String accessToken) request,
+  ) async {
+    final token = await deviceController.requireAccessToken();
+    try {
+      return await request(token);
+    } on KioskCustomerUploadException catch (error) {
+      if (!error.isRefreshableDeviceAuth) {
+        rethrow;
+      }
+      final refreshedToken = await deviceController.requireAccessToken(
+        forceRefresh: true,
+      );
+      return request(refreshedToken);
+    }
+  }
+
+  void _fail(
+    String nextMessage, {
+    String? code,
+    bool stopForPairing = false,
+  }) {
     _pollTimer?.cancel();
     _pollTimer = null;
     isBusy = false;
+    flowState = KioskCustomerUploadFlowState.failed;
     message = nextMessage;
+    errorCode = code;
+    if (stopForPairing) {
+      session = null;
+    }
     notifyListeners();
+  }
+
+  void _logCreateSuccess(DateTime startedAt) {
+    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+    debugPrint('MOBILE_UPLOAD_CREATE_OK durationMs=$durationMs');
+  }
+
+  void _logCreateFailure(
+    String code,
+    DateTime startedAt, {
+    int? statusCode,
+  }) {
+    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
+    final status = statusCode == null ? '' : ' status=$statusCode';
+    debugPrint(
+      'MOBILE_UPLOAD_CREATE_FAILED$status code=$code durationMs=$durationMs',
+    );
   }
 
   @override

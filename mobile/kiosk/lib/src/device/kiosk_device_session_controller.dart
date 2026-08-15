@@ -146,6 +146,8 @@ class KioskDeviceSessionController extends ChangeNotifier {
 
     final refreshToken = await store.readRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) {
+      debugPrint('DEVICE_ACCESS_TOKEN_MISSING');
+      debugPrint('DEVICE_REFRESH_AVAILABLE=false');
       await clearAndPair();
       throw const KioskDeviceException(
         'DEVICE_UNPAIRED',
@@ -153,13 +155,16 @@ class KioskDeviceSessionController extends ChangeNotifier {
       );
     }
 
+    debugPrint('DEVICE_REFRESH_AVAILABLE=true');
     await restore(refreshToken);
     final refreshed = accessToken;
     if (state == KioskStartupState.active &&
         refreshed != null &&
         refreshed.trim().isNotEmpty) {
+      debugPrint('DEVICE_SESSION_RESTORED');
       return refreshed;
     }
+    debugPrint('DEVICE_REFRESH_FAILED code=DEVICE_SESSION_UNAVAILABLE');
     throw KioskDeviceException(
       'DEVICE_SESSION_UNAVAILABLE',
       message ?? 'SelfX kiosk session is not active.',
