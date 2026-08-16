@@ -63,6 +63,9 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
           final failed =
               status == KioskTryOnStatus.failed ||
               status == KioskTryOnStatus.timedOut;
+          final compatibilityFailure =
+              widget.tryOnController.failureCode ==
+              KioskTryOnFailureCode.modelImageIncompatibleWithGarment;
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 720),
@@ -84,7 +87,10 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
                       ),
                       const SizedBox(height: 22),
                       Text(
-                        failed ? 'Try-On needs attention' : _titleFor(status),
+                        failed
+                            ? widget.tryOnController.customerTitle ??
+                                  'Try-On needs attention'
+                            : _titleFor(status),
                         style: Theme.of(context).textTheme.displaySmall,
                         textAlign: TextAlign.center,
                       ),
@@ -102,6 +108,20 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
                         Text(
                           _stepLabelFor(status),
                           textAlign: TextAlign.center,
+                        ),
+                      ] else if (compatibilityFailure) ...[
+                        ElevatedButton.icon(
+                          key: const Key('try-on-update-photo'),
+                          onPressed: () => _retakePhoto(context),
+                          icon: const Icon(Icons.photo_camera_outlined),
+                          label: const Text('Update My Photo'),
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          key: const Key('try-on-choose-category'),
+                          onPressed: () => _chooseAnotherGarment(context),
+                          icon: const Icon(Icons.checkroom_outlined),
+                          label: const Text('Choose Another Category'),
                         ),
                       ] else ...[
                         ElevatedButton.icon(

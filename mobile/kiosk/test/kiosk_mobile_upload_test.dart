@@ -178,7 +178,7 @@ void main() {
     expect(gateway.consumedPurpose, PhotoAcquisitionPurpose.garment);
     expect(input?.source, KioskGarmentInputSource.phoneUpload);
     expect(input?.intent, KioskGarmentIntent.top);
-    expect(input?.photoType, KioskGarmentPhotoType.onModel);
+    expect(input?.photoType, KioskGarmentPhotoType.auto);
     uploadController.dispose();
   });
 

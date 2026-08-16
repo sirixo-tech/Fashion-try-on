@@ -7,10 +7,13 @@ import '../quality/image_quality.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
+import 'model_compatibility_guidance_screen.dart';
 import 'photo_source_choice_screen.dart';
+import 'try_on_generation_screen.dart';
 
 class GarmentReviewScreen extends StatelessWidget {
   const GarmentReviewScreen({
@@ -129,6 +132,36 @@ class GarmentReviewScreen extends StatelessWidget {
       captureController.preservePendingCaptureAsExternalInput();
     }
     if (!context.mounted) {
+      return;
+    }
+    final coverage = captureController.acceptedModelCoverage;
+    if (captureController.acceptedCapture != null && coverage != null) {
+      final compatibility = const ModelGarmentCompatibilityService().check(
+        coverage: coverage,
+        intent: garmentInput.intent,
+      );
+      if (!compatibility.supported) {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => ModelCompatibilityGuidanceScreen(
+              intent: garmentInput.intent,
+              captureController: captureController,
+              tryOnController: tryOnController,
+              uploadController: uploadController,
+            ),
+          ),
+        );
+        return;
+      }
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => TryOnGenerationScreen(
+            captureController: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+          ),
+        ),
+      );
       return;
     }
     await Navigator.of(context).pushReplacement(

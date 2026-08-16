@@ -1304,6 +1304,39 @@ both garment and model/person inputs. This does not implement Product Catalog,
 QR result handoff, persistent customer accounts, checkout, billing, API Gateway
 or provider calls from Flutter.
 
+## 6.0.4D Customer/Kiosk — KIOSK-5B Fidelity and Compatibility
+
+### Main Flow
+
+1. Customer completes a Try-On and reaches the generated result.
+2. Customer chooses **Try Another Garment**.
+3. Kiosk retains the accepted model/person photo, its internal ModelCoverage and
+   paired device identity.
+4. Kiosk clears the previous garment, garment reference metadata, run, result
+   and client request ID.
+5. Customer chooses **Top**, **Bottom** or **Full Outfit** again.
+6. If the retained model photo is compatible with the selected category, the
+   kiosk skips model acquisition and continues to garment acquisition/review.
+7. If the retained model photo is not compatible, the kiosk asks for an updated
+   photo before generation.
+
+### Customer Guidance
+
+- Bottom incompatibility shows **Update your photo to try bottoms** and "We
+  need to see more of your lower body for this item."
+- Full Outfit incompatibility shows **Update your photo to try a full outfit**
+  and "We need a full-body photo for this item."
+- The customer never sees `UPPER_BODY`, `LOWER_BODY`, `FULL_BODY`,
+  ModelCoverage, provider requirements or a compatibility matrix.
+
+### Boundary
+
+SelfX internally resolves garment reference semantics. Product/hanger/unknown
+garment references use safe AUTO provider photo-type behavior, while verified
+person-worn references may map to ON_MODEL internally. KIOSK-5B does not add
+Product Catalog, Try-On Max, another provider, billing, RBAC or Windows live
+pose analysis.
+
 ## 6.0.5 Operator — Premium Settings Navigation
 
 ### Primary Actor

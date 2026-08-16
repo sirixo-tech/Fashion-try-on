@@ -2,7 +2,11 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import { KioskAssignmentScope, type KioskDevice } from "@prisma/client";
 
 import { createSelfxId } from "@selfx/database";
-import { TRY_ON_LAB_ERROR_CODES, type SelfxTryOnRunStatus } from "@selfx/shared";
+import {
+  TRY_ON_LAB_ERROR_CODES,
+  isModelCoverageCompatibleWithGarment,
+  type SelfxTryOnRunStatus,
+} from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -40,6 +44,8 @@ export class KioskTryOnService {
     if (existing) {
       return toResponse(existing);
     }
+
+    enforceModelGarmentCompatibility(payload);
 
     this.execution.assertConfigured();
     const providerMetadata = this.execution.metadata();
@@ -190,6 +196,27 @@ export class KioskTryOnService {
       where: { expiresAt: { lte: new Date() } },
     });
   }
+}
+
+function enforceModelGarmentCompatibility(
+  payload: CreateTryOnLabRunPayload,
+): void {
+  if (!payload.modelCoverage) {
+    return;
+  }
+  if (
+    isModelCoverageCompatibleWithGarment(
+      payload.modelCoverage,
+      payload.garmentIntent,
+    )
+  ) {
+    return;
+  }
+  throw new ApiErrorException(
+    HttpStatus.CONFLICT,
+    TRY_ON_LAB_ERROR_CODES.modelImageIncompatibleWithGarment,
+    "Model image is not compatible with the selected garment.",
+  );
 }
 
 function requireClientRequestId(value: string | undefined): string {

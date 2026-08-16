@@ -402,6 +402,13 @@ KIOSK-3A added the first real end-to-end kiosk Try-On generation bridge:
 - Normal customer UI does not expose raw garment paths, KIOSK milestone labels,
   garment type overrides or photo-style controls. Provider-neutral garment
   semantics remain internal and are mapped to existing CaptureScope behavior.
+- KIOSK-5B resolves garment reference semantics internally: verified
+  person-worn references may use ON_MODEL, while product/hanger/unknown
+  references use safe AUTO behavior. Customers never choose garment photo type.
+- Try Another Garment preserves a compatible model/person photo and internal
+  ModelCoverage, clears garment/run/result/clientRequestId state and shows the
+  category selector again. Incompatible choices ask for an updated photo with
+  simple guidance before any paid generation.
 - Full-resolution accepted captures are preserved. Android target metadata is
   used to prepare a padded customer target image where available; Windows and
   unsupported live-frame paths fall back to the full frame.
@@ -478,6 +485,12 @@ KIOSK-4B connects paired device auth to production Try-On:
 - Run persistence records ownership, assignment context, idempotency key,
   provider execution state, result/error and expiry without storing raw person
   or garment input bytes.
+- KIOSK-5B request metadata includes internal ModelCoverage when available. The
+  backend refuses known incompatible model/category combinations before provider
+  execution with `MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT`.
+- Try-On Max remains a future A/B-test candidate for difficult layered or
+  fit-sensitive references; KIOSK-5B does not switch the configured provider or
+  model automatically.
 - If a device is revoked during generation, polling stops, local device auth is
   cleared and the kiosk returns to pairing. Customer **Finish** still clears
   only customer session state and keeps a valid paired device identity.

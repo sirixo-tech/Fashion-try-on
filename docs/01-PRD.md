@@ -720,6 +720,11 @@ CORE VTO-1.2 further defines automatic garment resolution expectations:
   upper-body-on-model, lower-body-on-model, full-body-on-model or unknown
   framing, but it does not identify the exact clothing item and must fall back
   safely when confidence is low or analysis is unavailable.
+- Customer kiosk users must never choose technical garment photo type,
+  model-coverage or provider parameters. SelfX resolves garment reference
+  semantics internally and converts model/category compatibility failures into
+  simple guidance such as "Update your photo to try bottoms" or "Update your
+  photo to try a full outfit."
 
 ---
 

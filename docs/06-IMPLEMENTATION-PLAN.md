@@ -1162,8 +1162,7 @@ Implemented scope:
 - backend consume guard so `GARMENT` sessions cannot be consumed as `MODEL`
   sessions and vice versa;
 - customer-acquired garment references map internally to provider-neutral
-  on-model garment photo semantics without exposing provider terms in customer
-  UI;
+  garment reference semantics without exposing provider terms in customer UI;
 - Finish clears garment, model/person capture, run and result while preserving
   valid paired device identity.
 
@@ -1174,6 +1173,34 @@ mobile-upload tests, and manual acquisition checks for garment kiosk + model
 kiosk, garment phone + model kiosk, garment kiosk + model phone and garment
 phone + model phone. Do not run multiple paid provider generations; use at most
 one controlled paid smoke generation after acquisition is verified.
+
+### KIOSK-5B Fidelity and Compatibility Slice
+
+Implemented scope:
+
+- garment reference profile resolution so verified person-worn references may
+  use ON_MODEL internally, while product/hanger/unknown references use AUTO;
+- internal ModelCoverage for accepted model/person photos;
+- centralized model/category compatibility: UPPER_BODY supports TOP only,
+  LOWER_BODY supports BOTTOM only, FULL_BODY supports TOP, BOTTOM, FULL_OUTFIT
+  and ONE_PIECE, and UNKNOWN does not silently assume support;
+- Try Another Garment retains compatible model/photo coverage and clears
+  garment/run/result/clientRequestId state;
+- incompatible retained model/category choices request an updated model photo
+  with simple customer guidance before generation;
+- backend kiosk Try-On creation refuses known incompatible model/category
+  metadata before provider execution;
+- category selector selected/inactive visual rules are atomic and centered so
+  selected text never becomes invisible.
+
+KIOSK-5B does not implement Product Catalog, Try-On Max migration, another AI
+provider, billing, API Gateway, RBAC, Organizations or Windows live pose
+pipeline. Try-On Max may later be A/B tested for difficult layered or
+fit-sensitive references, but it is not selected automatically in this phase.
+
+Verification should include `flutter analyze`, targeted kiosk compatibility,
+acquisition and Try-On tests, targeted backend kiosk Try-On tests, API
+typecheck/build and shared package build. No APK or Windows build is required.
 
 ### SELFX-DESIGN-SYSTEM-2 Premium Cross-Application Design System
 

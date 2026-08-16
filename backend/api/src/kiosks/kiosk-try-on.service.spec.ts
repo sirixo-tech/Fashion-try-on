@@ -55,6 +55,36 @@ describe("KIOSK-4B production Try-On service", () => {
       service.getRun(platformDevice("device-2"), created.id),
     ).rejects.toBeInstanceOf(ApiErrorException);
   });
+
+  it("refuses known incompatible model coverage before provider submission", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const service = new KioskTryOnService(prisma as never, execution as never);
+
+    let thrown: unknown;
+    try {
+      await service.createRun(
+        platformDevice("device-1"),
+        payload({
+          garmentIntent: "BOTTOM",
+          category: "BOTTOM",
+          modelCoverage: "UPPER_BODY",
+        }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(ApiErrorException);
+    expect((thrown as ApiErrorException).getResponse()).toMatchObject({
+      error: {
+        code: "MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT",
+      },
+    });
+
+    expect(execution.submissions).toBe(0);
+    expect(prisma.createdRuns).toHaveLength(0);
+  });
 });
 
 function payload(

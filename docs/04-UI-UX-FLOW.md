@@ -1481,11 +1481,17 @@ No checkout button is required.
 - Garment selection asks for customer-facing intended scope: **Top**,
   **Bottom** or **Full Outfit**.
 - Garment acquisition offers **Take a Photo** and **Use Your Phone** before the
-  model/person photo step. Customer-acquired garment references are
-  customer-facing on-person outfit photos, but the UI must not expose technical
-  garment photo type, flat-lay/segmentation, provider or FASHN terminology.
+  model/person photo step. SelfX resolves garment reference semantics
+  internally. Customer UI must not expose technical garment photo type,
+  flat-lay/segmentation, provider or FASHN terminology.
+- Product/hanger/unknown garment references should use safe internal AUTO
+  photo-type behavior. Verified person-worn garment references may map to
+  ON_MODEL internally.
 - Garment review shows the selected garment image with **Choose Another** and
   **Continue**.
+- Garment review may show simple advisory copy such as "For best results, use a
+  photo where the item you want to try is clearly visible." It must not block
+  all layered references by default or expose provider/category terminology.
 - CaptureScope remains **Top**, **Bottom** and **Full Body** internally and is
   resolved from provider-neutral garment semantics before assisted/live capture.
 - Review keeps **Retake** and **Use Photo**. **Use Photo** submits the accepted
@@ -1498,7 +1504,14 @@ No checkout button is required.
 - Result screen shows the generated image directly with **Try Another Garment**,
   **Retake Photo** and **Finish**.
 - **Try Another Garment** clears run/result state but may keep the accepted
-  customer capture for another garment in the same kiosk session.
+  customer capture and internal ModelCoverage for another garment in the same
+  kiosk session. The category screen is still shown before the next garment.
+- If the retained customer photo is incompatible with the selected category,
+  show a plain update-photo screen before any paid generation. Bottoms copy:
+  **Update your photo to try bottoms** / "We need to see more of your lower
+  body for this item." Full Outfit copy: **Update your photo to try a full
+  outfit** / "We need a full-body photo for this item." Actions are **Update My
+  Photo** and **Choose Another Category**.
 - **Retake Photo** clears run/result and prepared target state while preserving
   selected garment where appropriate.
 - **Finish** clears customer capture, garment, run/result and prepared target
@@ -1551,6 +1564,11 @@ No checkout button is required.
   Garment**, **Retake Photo** and **Finish**.
 - **Finish** clears customer capture, garment, prepared input, active run and
   result state but preserves a valid paired device identity.
+- Category selector selected state must update atomically: selected background
+  SelfX orange `#FF7119`, selected foreground white and selected border
+  `#FF7119`; inactive controls use white/light background, dark foreground and
+  neutral border. Text/icon content must be horizontally and vertically
+  centered and never briefly render white text on a white surface.
 
 ### KIOSK-4C Mobile Photo Upload UI
 

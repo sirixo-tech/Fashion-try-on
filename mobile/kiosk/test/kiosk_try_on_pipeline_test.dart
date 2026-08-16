@@ -19,6 +19,7 @@ import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
+import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 import 'package:selfx_kiosk/src/tryon/try_on_target_preparer.dart';
 
 void main() {
@@ -136,6 +137,7 @@ void main() {
       expect(harness.session.status, KioskTryOnStatus.succeeded);
       expect(harness.session.result?.generatedImage, contains('data:image'));
       expect(harness.gateway.lastRequest?.garmentInput.intent.apiValue, 'TOP');
+      expect(harness.gateway.lastRequest?.modelCoverage, ModelCoverage.upperBody);
       expect(harness.gateway.lastRequest?.targetMetadata.usedTargetRegion, isTrue);
     });
 
@@ -185,6 +187,7 @@ void main() {
       expect(harness.session.garmentInput, isNull);
       expect(harness.session.run, isNull);
       expect(harness.capture.acceptedCapture, isNull);
+      expect(harness.capture.acceptedModelCoverage, isNull);
       expect(harness.capture.acceptedCaptureTargetMetadata, isNull);
     });
 
@@ -196,7 +199,49 @@ void main() {
 
       expect(harness.session.garmentInput, isNotNull);
       expect(harness.capture.acceptedCapture, isNull);
+      expect(harness.capture.acceptedModelCoverage, isNull);
       expect(harness.capture.acceptedCaptureTargetMetadata, isNull);
+    });
+
+    test('blocks incompatible model coverage before provider submission', () async {
+      final harness = await _sessionHarness(
+        garmentIntent: KioskGarmentIntent.bottom,
+        captureScope: CaptureScope.top,
+      );
+      addTearDown(harness.dispose);
+
+      await harness.session.submitFromCapture(harness.capture);
+
+      expect(harness.gateway.createCount, 0);
+      expect(
+        harness.session.failureCode,
+        KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+      );
+      expect(harness.session.customerTitle, 'Update your photo to try bottoms');
+      expect(
+        harness.session.customerMessage,
+        'We need to see more of your lower body for this item.',
+      );
+    });
+
+    test('try another garment retains model coverage and clears run state', () async {
+      final harness = await _sessionHarness(
+        createRun: const KioskTryOnRun(
+          id: 'run-done',
+          status: KioskTryOnStatus.succeeded,
+          resultImage: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+        ),
+      );
+      addTearDown(harness.dispose);
+
+      await harness.session.submitFromCapture(harness.capture);
+      harness.session.tryAnotherGarment();
+
+      expect(harness.capture.acceptedCapture, isNotNull);
+      expect(harness.capture.acceptedModelCoverage, ModelCoverage.upperBody);
+      expect(harness.session.garmentInput, isNull);
+      expect(harness.session.run, isNull);
+      expect(harness.session.result, isNull);
     });
 
     test('does not leak provider-specific details into kiosk request domain', () async {
@@ -220,6 +265,8 @@ Future<_SessionHarness> _sessionHarness({
     status: KioskTryOnStatus.queued,
   ),
   List<KioskTryOnRun> statuses = const [],
+  KioskGarmentIntent garmentIntent = KioskGarmentIntent.top,
+  CaptureScope captureScope = CaptureScope.top,
 }) async {
   final temp = await Directory.systemTemp.createTemp('selfx-kiosk-3a-');
   final person = await _writeImage(temp, 'person.jpg', 800, 1200);
@@ -239,7 +286,7 @@ Future<_SessionHarness> _sessionHarness({
       KioskGarmentInput(
         source: KioskGarmentInputSource.developmentLocalFile,
         localPath: garment.path,
-        intent: KioskGarmentIntent.top,
+        intent: garmentIntent,
       ),
     );
   final capture = CaptureSessionController(
@@ -249,7 +296,8 @@ Future<_SessionHarness> _sessionHarness({
     captureStore: TestTemporaryCaptureStore(temp),
     audioService: const SilentCaptureAudioService(),
   )
-    ..captureScope = CaptureScope.top
+    ..captureScope = captureScope
+    ..acceptedModelCoverage = modelCoverageForCaptureScope(captureScope)
     ..acceptedCapture = CameraCaptureResult(
       originalPath: person.path,
       createdAt: DateTime.now(),
@@ -257,7 +305,7 @@ Future<_SessionHarness> _sessionHarness({
       isTemporary: true,
     )
     ..acceptedCaptureTargetMetadata = CaptureTargetMetadata(
-      scope: CaptureScope.top,
+      scope: captureScope,
       targetRegion: const TargetSubjectRegion(
         x: 0.22,
         y: 0.08,

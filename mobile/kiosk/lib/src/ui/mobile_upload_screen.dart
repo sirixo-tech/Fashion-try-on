@@ -9,6 +9,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_models.dart';
 import 'garment_review_screen.dart';
+import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_generation_screen.dart';
 
@@ -408,6 +409,19 @@ class _ReadyPhotoPanel extends StatelessWidget {
                       final accepted =
                           await controller.useReadyPhoto(captureController);
                       if (!accepted || !context.mounted) {
+                        return;
+                      }
+                      if (tryOnController.garmentInput == null &&
+                          tryOnController.pendingGarmentIntent != null) {
+                        await Navigator.of(context).pushReplacement(
+                          MaterialPageRoute<void>(
+                            builder: (_) => GarmentSelectionScreen(
+                              captureController: captureController,
+                              tryOnController: tryOnController,
+                              uploadController: controller,
+                            ),
+                          ),
+                        );
                         return;
                       }
                       await Navigator.of(context).pushReplacement(

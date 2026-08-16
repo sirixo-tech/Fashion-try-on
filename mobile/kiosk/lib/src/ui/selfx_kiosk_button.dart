@@ -17,6 +17,7 @@ class SelfxKioskButton extends StatefulWidget {
     this.minHeight = 56,
     this.textAlign = TextAlign.center,
     this.crossAxisAlignment = CrossAxisAlignment.center,
+    this.mainAxisAlignment = MainAxisAlignment.start,
     this.expanded = false,
   });
 
@@ -30,6 +31,7 @@ class SelfxKioskButton extends StatefulWidget {
   final double minHeight;
   final TextAlign textAlign;
   final CrossAxisAlignment crossAxisAlignment;
+  final MainAxisAlignment mainAxisAlignment;
   final bool expanded;
 
   @override
@@ -78,56 +80,62 @@ class _SelfxKioskButtonState extends State<SelfxKioskButton> {
                 padding:
                     widget.padding ??
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Row(
-                  mainAxisSize: widget.expanded
-                      ? MainAxisSize.max
-                      : MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (widget.icon != null) ...[
-                      Icon(widget.icon, color: foreground, size: 24),
-                      const SizedBox(width: 12),
-                    ],
-                    Flexible(
-                      fit: widget.expanded ? FlexFit.tight : FlexFit.loose,
-                      child: Column(
-                        crossAxisAlignment: widget.crossAxisAlignment,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            widget.label,
-                            textAlign: widget.textAlign,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: foreground,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                          if (widget.subtitle != null) ...[
-                            const SizedBox(height: 6),
+                child: Align(
+                  alignment: widget.textAlign == TextAlign.center
+                      ? Alignment.center
+                      : Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: widget.expanded
+                        ? MainAxisSize.max
+                        : MainAxisSize.min,
+                    mainAxisAlignment: widget.mainAxisAlignment,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (widget.icon != null) ...[
+                        Icon(widget.icon, color: foreground, size: 24),
+                        const SizedBox(width: 12),
+                      ],
+                      Flexible(
+                        fit: widget.expanded ? FlexFit.tight : FlexFit.loose,
+                        child: Column(
+                          crossAxisAlignment: widget.crossAxisAlignment,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
-                              widget.subtitle!,
+                              widget.label,
                               textAlign: widget.textAlign,
-                              style: Theme.of(context).textTheme.bodyMedium
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
-                                    color: _subtitleColor(
-                                      foreground,
-                                      widget.variant,
-                                    ),
+                                    color: foreground,
+                                    fontWeight: FontWeight.w800,
                                   ),
                             ),
+                            if (widget.subtitle != null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                widget.subtitle!,
+                                textAlign: widget.textAlign,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: _subtitleColor(
+                                        foreground,
+                                        widget.variant,
+                                      ),
+                                    ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (widget.trailing != null) ...[
-                      const SizedBox(width: 12),
-                      IconTheme(
-                        data: IconThemeData(color: foreground),
-                        child: widget.trailing!,
-                      ),
+                      if (widget.trailing != null) ...[
+                        const SizedBox(width: 12),
+                        IconTheme(
+                          data: IconThemeData(color: foreground),
+                          child: widget.trailing!,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

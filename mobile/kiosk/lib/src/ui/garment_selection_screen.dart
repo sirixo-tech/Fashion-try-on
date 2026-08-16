@@ -5,10 +5,12 @@ import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
 import 'mobile_upload_screen.dart';
+import 'model_compatibility_guidance_screen.dart';
 import 'selfx_kiosk_button.dart';
 
 class GarmentSelectionScreen extends StatefulWidget {
@@ -33,7 +35,9 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    final existing = widget.tryOnController.garmentInput?.intent;
+    final existing =
+        widget.tryOnController.garmentInput?.intent ??
+        widget.tryOnController.pendingGarmentIntent;
     if (existing != null && existing != KioskGarmentIntent.auto) {
       _intent = existing;
       widget.captureController.selectCaptureScope(captureScopeForIntent(existing));
@@ -164,7 +168,28 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
 
   void _selectIntent(KioskGarmentIntent intent) {
     setState(() => _intent = intent);
+    widget.tryOnController.selectPendingGarmentIntent(intent);
     widget.captureController.selectCaptureScope(captureScopeForIntent(intent));
+    final coverage = widget.captureController.acceptedModelCoverage;
+    if (widget.captureController.acceptedCapture == null || coverage == null) {
+      return;
+    }
+    final compatibility = const ModelGarmentCompatibilityService().check(
+      coverage: coverage,
+      intent: intent,
+    );
+    if (!compatibility.supported) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ModelCompatibilityGuidanceScreen(
+            intent: intent,
+            captureController: widget.captureController,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+          ),
+        ),
+      );
+    }
   }
 
   void _openCamera() {
@@ -230,6 +255,7 @@ class _IntentChip extends StatelessWidget {
             : SelfxKioskButtonVariant.secondary,
         minHeight: 86,
         textAlign: TextAlign.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         onPressed: onPressed,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       ),

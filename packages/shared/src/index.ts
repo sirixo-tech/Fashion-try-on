@@ -25,6 +25,15 @@ export const SELFX_GARMENT_PHOTO_TYPES = [
 
 export type SelfxGarmentPhotoType = (typeof SELFX_GARMENT_PHOTO_TYPES)[number];
 
+export const SELFX_MODEL_COVERAGES = [
+  "UPPER_BODY",
+  "LOWER_BODY",
+  "FULL_BODY",
+  "UNKNOWN",
+] as const;
+
+export type SelfxModelCoverage = (typeof SELFX_MODEL_COVERAGES)[number];
+
 export const SELFX_GENERATION_PROFILES = [
   "PERFORMANCE",
   "BALANCED",
@@ -173,6 +182,7 @@ export const TRY_ON_LAB_ERROR_CODES = {
   providerUnavailable: "TRYON_PROVIDER_UNAVAILABLE",
   providerRateLimited: "TRYON_PROVIDER_RATE_LIMITED",
   poseNotDetected: "TRYON_POSE_NOT_DETECTED",
+  modelImageIncompatibleWithGarment: "MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT",
   moderationRejected: "TRYON_MODERATION_REJECTED",
   failed: "TRYON_FAILED",
   timedOut: "TRYON_TIMED_OUT",
@@ -648,6 +658,27 @@ export function categoryFromGarmentIntent(
     case "AUTO":
     case "FULL_OUTFIT":
       return "AUTO";
+  }
+}
+
+export function isModelCoverageCompatibleWithGarment(
+  coverage: SelfxModelCoverage,
+  intent: SelfxGarmentIntent,
+): boolean {
+  switch (coverage) {
+    case "UPPER_BODY":
+      return intent === "TOP";
+    case "LOWER_BODY":
+      return intent === "BOTTOM";
+    case "FULL_BODY":
+      return (
+        intent === "TOP" ||
+        intent === "BOTTOM" ||
+        intent === "FULL_OUTFIT" ||
+        intent === "ONE_PIECE"
+      );
+    case "UNKNOWN":
+      return false;
   }
 }
 

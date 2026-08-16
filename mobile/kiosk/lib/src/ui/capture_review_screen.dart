@@ -7,6 +7,7 @@ import '../quality/image_quality.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_generation_screen.dart';
 
@@ -157,6 +158,19 @@ class _ReviewActions extends StatelessWidget {
               ? () async {
                   final accepted = controller.usePhoto();
                   if (!accepted || !context.mounted) {
+                    return;
+                  }
+                  if (tryOnController.garmentInput == null &&
+                      tryOnController.pendingGarmentIntent != null) {
+                    await Navigator.of(context).pushReplacement(
+                      MaterialPageRoute<void>(
+                        builder: (_) => GarmentSelectionScreen(
+                          captureController: controller,
+                          tryOnController: tryOnController,
+                          uploadController: uploadController,
+                        ),
+                      ),
+                    );
                     return;
                   }
                   await Navigator.of(context).pushReplacement(

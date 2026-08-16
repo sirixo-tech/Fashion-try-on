@@ -8,6 +8,7 @@ import '../live/capture_readiness_engine.dart';
 import '../session/capture_flow.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_reference_profile.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
@@ -181,7 +182,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                     source: KioskGarmentInputSource.capturedGarment,
                     localPath: capturePath,
                     intent: widget.garmentIntent ?? KioskGarmentIntent.fullOutfit,
-                    photoType: KioskGarmentPhotoType.onModel,
+                    photoType: resolveGarmentReferenceProfile(
+                      bodyContext: widget.controller.captureTargetMetadata,
+                    ).photoType,
                   ),
                   pendingCameraCapture: true,
                 ),

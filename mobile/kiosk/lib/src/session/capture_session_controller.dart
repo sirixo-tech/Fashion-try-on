@@ -11,6 +11,7 @@ import '../live/live_frame.dart';
 import '../live/person_analysis.dart';
 import '../quality/image_quality.dart';
 import '../settings/camera_settings_store.dart';
+import '../tryon/model_garment_compatibility.dart';
 import 'capture_audio_service.dart';
 import 'capture_flow.dart';
 import 'capture_scope.dart';
@@ -56,6 +57,7 @@ class CaptureSessionController extends ChangeNotifier {
   PrimarySubject? primarySubject;
   CaptureTargetMetadata? captureTargetMetadata;
   CaptureTargetMetadata? acceptedCaptureTargetMetadata;
+  ModelCoverage? acceptedModelCoverage;
   Duration? poseAnalyzerLatency;
   Duration? imageQualityAnalyzerLatency;
   bool isAnalyzingQuality = false;
@@ -304,6 +306,7 @@ class CaptureSessionController extends ChangeNotifier {
     acceptedPersonImage = null;
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
+    acceptedModelCoverage = null;
     primarySubject = null;
     liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;
@@ -363,6 +366,7 @@ class CaptureSessionController extends ChangeNotifier {
       return false;
     }
     acceptedCapture = current;
+    acceptedModelCoverage = modelCoverageForCaptureScope(captureScope);
     acceptedPersonImage = CustomerPersonImage(
       originalPath: current.originalPath,
       source: CustomerPersonImageSource.kioskCamera,
@@ -395,6 +399,7 @@ class CaptureSessionController extends ChangeNotifier {
     acceptedCapture = result;
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
+    acceptedModelCoverage = ModelCoverage.unknown;
     qualityResult = ImageQualityResult(
       status: ImageQualityStatus.pass,
       passed: true,
@@ -432,6 +437,7 @@ class CaptureSessionController extends ChangeNotifier {
     acceptedPersonImage = null;
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
+    acceptedModelCoverage = null;
     primarySubject = null;
     liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;

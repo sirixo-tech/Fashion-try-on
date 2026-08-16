@@ -8,6 +8,7 @@ import '../session/capture_session_controller.dart';
 import 'kiosk_garment_input.dart';
 import 'kiosk_try_on_gateway.dart';
 import 'kiosk_try_on_models.dart';
+import 'model_garment_compatibility.dart';
 import 'try_on_target_preparer.dart';
 
 class KioskTryOnSessionController extends ChangeNotifier {
@@ -24,10 +25,12 @@ class KioskTryOnSessionController extends ChangeNotifier {
   final Duration pollTimeout;
 
   KioskGarmentInput? garmentInput;
+  KioskGarmentIntent? pendingGarmentIntent;
   KioskTryOnStatus status = KioskTryOnStatus.idle;
   KioskTryOnRun? run;
   KioskTryOnResult? result;
   KioskTryOnFailureCode? failureCode;
+  String? customerTitle;
   String? customerMessage;
   TryOnTargetPreparationMetadata? targetMetadata;
 
@@ -40,7 +43,13 @@ class KioskTryOnSessionController extends ChangeNotifier {
 
   void selectGarment(KioskGarmentInput input) {
     garmentInput = input;
+    pendingGarmentIntent = input.intent;
     _clearRunState(keepGarment: true);
+    notifyListeners();
+  }
+
+  void selectPendingGarmentIntent(KioskGarmentIntent intent) {
+    pendingGarmentIntent = intent;
     notifyListeners();
   }
 
@@ -61,6 +70,20 @@ class KioskTryOnSessionController extends ChangeNotifier {
       _fail(
         KioskTryOnFailureCode.personMissing,
         'Retake your photo before generating.',
+      );
+      return;
+    }
+    final modelCoverage = capture.acceptedModelCoverage ?? ModelCoverage.unknown;
+    final compatibility = const ModelGarmentCompatibilityService().check(
+      coverage: modelCoverage,
+      intent: garment.intent,
+    );
+    if (!compatibility.supported) {
+      final guidance = compatibility.guidance!;
+      _fail(
+        KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+        guidance.message,
+        title: guidance.title,
       );
       return;
     }
@@ -86,6 +109,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
           personImage: prepared.file,
           garmentInput: garment,
           captureScope: capture.captureScope,
+          modelCoverage: modelCoverage,
           targetMetadata: prepared.metadata,
         ),
       );
@@ -97,7 +121,11 @@ class KioskTryOnSessionController extends ChangeNotifier {
         _beginPolling(created.id);
       }
     } on KioskTryOnException catch (error) {
-      _fail(error.code, _customerSafeMessage(error.code, error.message));
+      _fail(
+        error.code,
+        _customerSafeMessage(error.code, error.message, garment.intent),
+        title: _customerSafeTitle(error.code, garment.intent),
+      );
     } on TimeoutException {
       _fail(
         KioskTryOnFailureCode.networkUnavailable,
@@ -149,6 +177,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     if (run != null && !run!.isTerminal) {
       status = KioskTryOnStatus.cancelled;
       failureCode = KioskTryOnFailureCode.cancelled;
+      customerTitle = null;
       customerMessage = 'Try-On generation was cancelled.';
       notifyListeners();
     }
@@ -195,7 +224,11 @@ class KioskTryOnSessionController extends ChangeNotifier {
       }
       _pollTimer?.cancel();
       _pollTimer = null;
-      _fail(error.code, _customerSafeMessage(error.code, error.message));
+      _fail(
+        error.code,
+        _customerSafeMessage(error.code, error.message, garmentInput?.intent),
+        title: _customerSafeTitle(error.code, garmentInput?.intent),
+      );
     } on TimeoutException {
       _setStatus(status, 'Still generating. Connection is slow, retrying.');
     } on SocketException {
@@ -224,16 +257,19 @@ class KioskTryOnSessionController extends ChangeNotifier {
   void _fail(
     KioskTryOnFailureCode code,
     String message, {
+    String? title,
     KioskTryOnStatus statusOverride = KioskTryOnStatus.failed,
   }) {
     failureCode = code;
     status = statusOverride;
-    customerMessage = _customerSafeMessage(code, message);
+    customerTitle = title ?? _customerSafeTitle(code, garmentInput?.intent);
+    customerMessage = _customerSafeMessage(code, message, garmentInput?.intent);
     notifyListeners();
   }
 
   void _setStatus(KioskTryOnStatus next, String message) {
     status = next;
+    customerTitle = null;
     customerMessage = message;
     notifyListeners();
   }
@@ -246,6 +282,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     result = null;
     status = KioskTryOnStatus.idle;
     failureCode = null;
+    customerTitle = null;
     customerMessage = null;
     targetMetadata = null;
     _activeClientRequestId = null;
@@ -253,6 +290,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     _preparedPersonFile = null;
     if (!keepGarment) {
       garmentInput = null;
+      pendingGarmentIntent = null;
     }
     if (preparedPath != null) {
       unawaited(_deleteIfPresent(preparedPath));
@@ -273,7 +311,11 @@ class KioskTryOnSessionController extends ChangeNotifier {
     };
   }
 
-  String _customerSafeMessage(KioskTryOnFailureCode code, String fallback) {
+  String _customerSafeMessage(
+    KioskTryOnFailureCode code,
+    String fallback,
+    KioskGarmentIntent? intent,
+  ) {
     return switch (code) {
       KioskTryOnFailureCode.configurationMissing =>
         'SelfX Try-On is not configured on this kiosk yet.',
@@ -291,9 +333,22 @@ class KioskTryOnSessionController extends ChangeNotifier {
         'SelfX could not be reached. Check the connection and try again.',
       KioskTryOnFailureCode.generationTimedOut =>
         'Try-On generation is taking too long. Please try again.',
+      KioskTryOnFailureCode.modelImageIncompatibleWithGarment =>
+        guidanceFor(intent ?? KioskGarmentIntent.auto).message,
       KioskTryOnFailureCode.cancelled => 'Try-On generation was cancelled.',
       KioskTryOnFailureCode.uploadFailed ||
       KioskTryOnFailureCode.generationFailed => fallback,
+    };
+  }
+
+  String? _customerSafeTitle(
+    KioskTryOnFailureCode code,
+    KioskGarmentIntent? intent,
+  ) {
+    return switch (code) {
+      KioskTryOnFailureCode.modelImageIncompatibleWithGarment =>
+        guidanceFor(intent ?? KioskGarmentIntent.auto).title,
+      _ => null,
     };
   }
 

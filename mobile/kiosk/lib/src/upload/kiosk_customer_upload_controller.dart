@@ -8,6 +8,7 @@ import '../device/kiosk_device_session_controller.dart';
 import '../device/kiosk_device_models.dart';
 import '../session/capture_session_controller.dart';
 import '../session/temporary_capture_store.dart';
+import '../tryon/garment_reference_profile.dart';
 import '../tryon/kiosk_garment_input.dart';
 import 'kiosk_customer_upload_gateway.dart';
 import 'kiosk_customer_upload_models.dart';
@@ -216,7 +217,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
         source: KioskGarmentInputSource.phoneUpload,
         localPath: path,
         intent: intent,
-        photoType: KioskGarmentPhotoType.onModel,
+        photoType: resolveGarmentReferenceProfile().photoType,
       );
     } catch (_) {
       _fail('Uploaded garment photo could not be opened.');

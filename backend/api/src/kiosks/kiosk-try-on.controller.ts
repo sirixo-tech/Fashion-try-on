@@ -55,6 +55,10 @@ export class KioskTryOnController {
           type: "string",
           enum: ["AUTO", "FLAT_LAY", "ON_MODEL"],
         },
+        modelCoverage: {
+          type: "string",
+          enum: ["UPPER_BODY", "LOWER_BODY", "FULL_BODY", "UNKNOWN"],
+        },
         generationProfile: {
           type: "string",
           enum: ["PERFORMANCE", "BALANCED", "QUALITY"],

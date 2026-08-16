@@ -12,6 +12,7 @@ import 'package:selfx_kiosk/src/session/capture_scope.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
+import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 
 void main() {
   test('uses production kiosk endpoint with device session token', () async {
@@ -139,6 +140,7 @@ Future<KioskTryOnRequest> tryOnRequest(Directory tempDir) async {
       photoType: KioskGarmentPhotoType.flatLay,
     ),
     captureScope: CaptureScope.fullBody,
+    modelCoverage: ModelCoverage.fullBody,
     targetMetadata: TryOnTargetPreparationMetadata(
       originalPath: person.path,
       preparedPath: person.path,

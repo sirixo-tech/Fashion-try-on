@@ -11,6 +11,7 @@ import {
   SELFX_GARMENT_SOURCES,
   SELFX_GENERATION_PROFILES,
   SELFX_GENERATION_POLICY_RESOLUTION_SOURCES,
+  SELFX_MODEL_COVERAGES,
   TRY_ON_LAB_ERROR_CODES,
   type SelfxGarmentAnalysisReasonCode,
   type SelfxGarmentBodyCoverage,
@@ -21,6 +22,7 @@ import {
   type SelfxGarmentSource,
   type SelfxGenerationProfile,
   type SelfxGenerationPolicyResolutionSource,
+  type SelfxModelCoverage,
 } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
@@ -59,6 +61,7 @@ export interface CreateTryOnLabRunPayload {
   garmentIntent: SelfxGarmentIntent;
   category: SelfxGarmentCategory;
   garmentPhotoType: SelfxGarmentPhotoType;
+  modelCoverage?: SelfxModelCoverage;
   generationProfile: SelfxGenerationProfile;
   categoryResolutionSource: SelfxGenerationPolicyResolutionSource;
   photoTypeResolutionSource: SelfxGenerationPolicyResolutionSource;
@@ -167,6 +170,11 @@ export async function parseTryOnLabMultipartRequest(
       fields.get("garmentPhotoType") ?? "AUTO",
       SELFX_GARMENT_PHOTO_TYPES,
       "Invalid garment photo type.",
+    ),
+    modelCoverage: parseOptionalEnum(
+      fields.get("modelCoverage"),
+      SELFX_MODEL_COVERAGES,
+      "Invalid model coverage.",
     ),
     generationProfile: parseEnum(
       fields.get("generationProfile") ?? "BALANCED",

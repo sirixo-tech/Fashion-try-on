@@ -9,6 +9,7 @@ import '../device/kiosk_device_models.dart';
 import '../device/kiosk_device_session_controller.dart';
 import 'kiosk_garment_input.dart';
 import 'kiosk_try_on_models.dart';
+import 'model_garment_compatibility.dart';
 
 abstract class KioskTryOnGateway {
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request);
@@ -104,6 +105,7 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
       'garmentIntent': request.garmentInput.intent.apiValue,
       'category': request.garmentInput.intent.categoryApiValue,
       'garmentPhotoType': request.garmentInput.photoType.apiValue,
+      'modelCoverage': request.modelCoverage.apiValue,
       'generationProfile': 'BALANCED',
       'categoryResolutionSource':
           request.garmentInput.intent == KioskGarmentIntent.auto
@@ -131,9 +133,7 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
         unawaited(deviceController.handleDeviceAuthRejected());
       }
       throw KioskTryOnException(
-        response.statusCode == 401 || response.statusCode == 403
-            ? KioskTryOnFailureCode.deviceAuthenticationRejected
-            : KioskTryOnFailureCode.uploadFailed,
+        _failureCodeForErrorResponse(response),
         _safeErrorMessage(response.body),
       );
     }
@@ -162,7 +162,7 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
           ? json['resultImage'] as String
           : null,
       failureCode: json['errorCode'] is String
-          ? KioskTryOnFailureCode.generationFailed
+          ? _failureCodeForRunCode(json['errorCode'] as String)
           : null,
       failureMessage: json['errorMessage'] is String
           ? json['errorMessage'] as String
@@ -271,6 +271,29 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
     }
     return 'SelfX could not create the Try-On run.';
   }
+}
+
+KioskTryOnFailureCode _failureCodeForErrorResponse(http.Response response) {
+  if (response.statusCode == 401 || response.statusCode == 403) {
+    return KioskTryOnFailureCode.deviceAuthenticationRejected;
+  }
+  return _failureCodeForApiCode(_errorCode(response.body));
+}
+
+KioskTryOnFailureCode _failureCodeForApiCode(String? code) {
+  return switch (code) {
+    'MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT' =>
+      KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+    _ => KioskTryOnFailureCode.uploadFailed,
+  };
+}
+
+KioskTryOnFailureCode _failureCodeForRunCode(String code) {
+  return switch (code) {
+    'MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT' =>
+      KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+    _ => KioskTryOnFailureCode.generationFailed,
+  };
 }
 
 bool _isTokenRefreshable(http.Response response) {

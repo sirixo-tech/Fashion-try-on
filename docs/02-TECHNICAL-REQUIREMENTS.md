@@ -838,6 +838,16 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     confidence and analysis-unavailable cases fall back to AUTO where safe and
     record resolution confidence/source telemetry.
 
+    KIOSK-5B applies the same provider-neutral principle to kiosk acquisition:
+    customer-acquired garment photos are not blindly treated as ON_MODEL.
+    Credible person/body context may resolve to ON_MODEL; product, hanger,
+    isolated or unknown references use AUTO unless a stronger trusted signal is
+    available. Kiosk ModelCoverage is internal-only session/request metadata
+    (`UPPER_BODY`, `LOWER_BODY`, `FULL_BODY`, `UNKNOWN`) used to prevent known
+    incompatible paid submissions before provider execution. Customer UI must
+    translate incompatibility into plain guidance and never render coverage
+    enum values, provider requirements or compatibility matrices.
+
     FULL_OUTFIT is represented as a provider-neutral garment intent distinct
     from ONE_PIECE. FASHN-specific handling remains inside the adapter boundary;
     CORE VTO-1.2 does not add product catalog, commerce sync, durable

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../session/capture_scope.dart';
 import 'kiosk_garment_input.dart';
+import 'model_garment_compatibility.dart';
 
 enum KioskTryOnStatus {
   idle,
@@ -26,6 +27,7 @@ enum KioskTryOnFailureCode {
   networkUnavailable,
   generationFailed,
   generationTimedOut,
+  modelImageIncompatibleWithGarment,
   cancelled,
 }
 
@@ -35,6 +37,7 @@ class KioskTryOnRequest {
     required this.personImage,
     required this.garmentInput,
     required this.captureScope,
+    required this.modelCoverage,
     required this.targetMetadata,
   });
 
@@ -42,6 +45,7 @@ class KioskTryOnRequest {
   final File personImage;
   final KioskGarmentInput garmentInput;
   final CaptureScope captureScope;
+  final ModelCoverage modelCoverage;
   final TryOnTargetPreparationMetadata targetMetadata;
 }
 
