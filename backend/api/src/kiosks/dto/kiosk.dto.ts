@@ -1,5 +1,10 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsEnum,
+  IsIn,
+  IsArray,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -9,13 +14,19 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 
 import {
+  KioskConfigurationAssetType,
+  KioskConfigurationGarmentIntent,
+  KioskConfigurationSoundProfile,
   KioskAssignmentScope,
   KioskCustomerUploadPurpose,
   KioskCustomerUploadSessionStatus,
   KioskDeviceStatus,
+  KioskIdleMode,
   KioskPairingSessionStatus,
 } from "@prisma/client";
 
@@ -107,6 +118,135 @@ export class KioskHeartbeatDto {
   appVersion?: string;
 }
 
+export class KioskConfigurationAssetDto {
+  id!: string;
+  type!: KioskConfigurationAssetType;
+  label!: string;
+  url!: string | null;
+  bundledAssetKey!: string | null;
+  sortOrder!: number;
+}
+
+export class KioskConfigurationDto {
+  version!: number;
+  display!: {
+    idleMode: KioskIdleMode;
+    slideDurationSeconds: number;
+    title: string | null;
+    subtitle: string | null;
+    ctaLabel: string;
+    assets: KioskConfigurationAssetDto[];
+  };
+  capture!: {
+    countdownSeconds: number;
+    soundEnabled: boolean;
+    soundProfile: KioskConfigurationSoundProfile;
+    guidanceAudioEnabled: boolean;
+  };
+  experience!: {
+    enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+    sessionIdleTimeoutSeconds: number;
+  };
+  assetUpload!: {
+    supported: false;
+    reason: "DURABLE_OBJECT_STORAGE_REQUIRED";
+  };
+  updatedAt!: string;
+}
+
+export class KioskConfigurationAssetInputDto {
+  @IsEnum(KioskConfigurationAssetType)
+  type!: KioskConfigurationAssetType;
+
+  @IsString()
+  @Length(1, 120)
+  label!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  url?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  bundledAssetKey?: string;
+}
+
+export class KioskConfigurationDisplayInputDto {
+  @IsEnum(KioskIdleMode)
+  idleMode!: KioskIdleMode;
+
+  @IsInt()
+  @Min(3)
+  @Max(60)
+  slideDurationSeconds!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  title?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  subtitle?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 40)
+  ctaLabel?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(12)
+  @ValidateNested({ each: true })
+  @Type(() => KioskConfigurationAssetInputDto)
+  assets!: KioskConfigurationAssetInputDto[];
+}
+
+export class KioskConfigurationCaptureInputDto {
+  @IsInt()
+  @IsIn([5, 10, 15])
+  countdownSeconds!: number;
+
+  @IsBoolean()
+  soundEnabled!: boolean;
+
+  @IsEnum(KioskConfigurationSoundProfile)
+  soundProfile!: KioskConfigurationSoundProfile;
+
+  @IsBoolean()
+  guidanceAudioEnabled!: boolean;
+}
+
+export class KioskConfigurationExperienceInputDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  @IsEnum(KioskConfigurationGarmentIntent, { each: true })
+  enabledGarmentIntents!: KioskConfigurationGarmentIntent[];
+
+  @IsInt()
+  @Min(30)
+  @Max(900)
+  sessionIdleTimeoutSeconds!: number;
+}
+
+export class UpdateKioskConfigurationDto {
+  @ValidateNested()
+  @Type(() => KioskConfigurationDisplayInputDto)
+  display!: KioskConfigurationDisplayInputDto;
+
+  @ValidateNested()
+  @Type(() => KioskConfigurationCaptureInputDto)
+  capture!: KioskConfigurationCaptureInputDto;
+
+  @ValidateNested()
+  @Type(() => KioskConfigurationExperienceInputDto)
+  experience!: KioskConfigurationExperienceInputDto;
+}
+
 export class KioskAssignmentDto {
   scope!: KioskAssignmentScope;
   organizationId!: string | null;
@@ -130,6 +270,7 @@ export class KioskDeviceResponseDto {
   deletedAt!: string | null;
   createdAt!: string;
   updatedAt!: string;
+  latestConfigurationVersion!: number;
 }
 
 export class KioskDeviceListResponseDto {

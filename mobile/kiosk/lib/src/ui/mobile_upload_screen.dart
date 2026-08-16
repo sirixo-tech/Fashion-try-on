@@ -208,7 +208,7 @@ class _QrPanel extends StatelessWidget {
                         SizedBox(height: compact ? 14 : 18),
                         Text(message, textAlign: TextAlign.center),
                         SizedBox(height: compact ? 18 : 24),
-                        OutlinedButton.icon(
+                        ElevatedButton.icon(
                           key: const Key('cancel-mobile-upload'),
                           onPressed: onCancel,
                           icon: const Icon(Icons.close),

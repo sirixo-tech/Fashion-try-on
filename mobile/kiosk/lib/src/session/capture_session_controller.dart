@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../acquisition/photo_acquisition.dart';
 import '../camera/camera_models.dart';
 import '../camera/camera_service.dart';
+import '../config/kiosk_runtime_configuration.dart';
 import '../live/capture_readiness_engine.dart';
 import '../live/frame_analysis_scheduler.dart';
 import '../live/live_frame.dart';
@@ -142,6 +143,23 @@ class CaptureSessionController extends ChangeNotifier {
   Future<void> updateCaptureAudioProfile(CaptureAudioProfile profile) async {
     captureAudioProfile = profile;
     await settingsStore.saveCaptureAudioProfile(profile);
+    notifyListeners();
+  }
+
+  Future<void> applyRuntimeConfiguration(
+    KioskRuntimeConfiguration configuration,
+  ) async {
+    captureCountdownSeconds = normalizeCaptureCountdownSeconds(
+      configuration.countdownSeconds,
+    );
+    captureSoundsEnabled = configuration.effectiveSoundEnabled;
+    captureAudioProfile = configuration.captureAudioProfile;
+    await settingsStore.saveCaptureCountdownSeconds(captureCountdownSeconds);
+    await settingsStore.saveCaptureSoundsEnabled(captureSoundsEnabled);
+    await settingsStore.saveCaptureAudioProfile(captureAudioProfile);
+    if (!captureSoundsEnabled) {
+      await _ignoreAudioFailure(audioService.stop);
+    }
     notifyListeners();
   }
 

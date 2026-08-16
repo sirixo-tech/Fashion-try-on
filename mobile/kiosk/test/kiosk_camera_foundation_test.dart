@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_kiosk/src/acquisition/photo_acquisition.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
+import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_models.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_session_controller.dart';
@@ -750,6 +751,11 @@ class FakeKioskDeviceGateway implements KioskDeviceGateway {
     required String appVersion,
   }) {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskRuntimeConfiguration> configuration(String accessToken) async {
+    return defaultRuntimeConfiguration;
   }
 }
 

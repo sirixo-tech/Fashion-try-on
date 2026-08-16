@@ -1109,7 +1109,87 @@ Rules:
 
 ---
 
-## 10.5 `kiosk_try_on_runs`
+## 10.5 `kiosk_device_configurations`
+
+KIOSK-6A stores the active SaaS-controlled runtime configuration for one
+paired kiosk device.
+
+Important fields:
+
+- `id`
+- `kiosk_device_id`
+- `version`
+- `idle_mode` (`STATIC`, `SLIDESHOW`)
+- `slide_duration_seconds`
+- `title`
+- `subtitle`
+- `cta_label`
+- `countdown_seconds`
+- `sound_enabled`
+- `sound_profile` (`SELFX_SIGNATURE`, `SOFT`, `STUDIO`, `MINIMAL`, `MUTED`)
+- `guidance_audio_enabled`
+- `enabled_garment_intents` (`TOP`, `BOTTOM`, `FULL_OUTFIT`)
+- `session_idle_timeout_seconds`
+- `updated_by_user_id`
+- `created_at`
+- `updated_at`
+
+Indexes:
+
+- unique `kiosk_device_id`
+- `(kiosk_device_id, version)`
+- `updated_by_user_id`
+
+Rules:
+
+- one active configuration row belongs to exactly one `kiosk_devices` row;
+- configuration `version` is a monotonic per-device integer and starts from the
+  implicit bundled default version `1`;
+- every SaaS configuration update increments the version so kiosks can discover
+  changes through lightweight heartbeat/session responses;
+- device-authenticated configuration reads reload current kiosk device status
+  and are allowed only for active/current devices;
+- enabled garment intents control only customer-facing kiosk category choices;
+  they do not rewrite provider taxonomy or Product Catalog semantics;
+- camera preference remains local device configuration until SelfX has a stable
+  certified camera identifier contract.
+
+## 10.6 `kiosk_device_configuration_assets`
+
+Ordered presentation assets referenced by `kiosk_device_configurations`.
+
+Important fields:
+
+- `id`
+- `configuration_id`
+- `sort_order`
+- `type` (`BUNDLED_IMAGE`, `REMOTE_IMAGE`)
+- `label`
+- `url`
+- `bundled_asset_key`
+- `created_at`
+
+Indexes:
+
+- unique `(configuration_id, sort_order)`
+- `configuration_id`
+
+Rules:
+
+- assets are ordered by `sort_order`;
+- bundled assets refer to a kiosk app asset key such as
+  `selfx-default-kiosk-wallpaper`;
+- remote image assets must use validated HTTPS URLs and must not use `file:`,
+  `javascript:`, `data:`, localhost or internal network hosts;
+- KIOSK-6A does not add admin presentation-image upload persistence. Uploads
+  remain deferred until a durable object-storage asset ownership model exists;
+- kiosks download remote assets before activating a new configuration and
+  continue offline with the last valid local cache, or bundled defaults if no
+  cache exists.
+
+---
+
+## 10.7 `kiosk_try_on_runs`
 
 KIOSK-4B production Try-On run state owned by a paired kiosk device.
 
@@ -1171,7 +1251,7 @@ Rules:
 
 ---
 
-## 10.6 `kiosk_heartbeats`
+## 10.8 `kiosk_heartbeats`
 
 Optional bounded heartbeat history.
 

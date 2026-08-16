@@ -19,11 +19,13 @@ class GarmentSelectionScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.enabledGarmentIntents,
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final List<KioskGarmentIntent>? enabledGarmentIntents;
 
   @override
   State<GarmentSelectionScreen> createState() => _GarmentSelectionScreenState();
@@ -38,11 +40,17 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
     final existing =
         widget.tryOnController.garmentInput?.intent ??
         widget.tryOnController.pendingGarmentIntent;
-    if (existing != null && existing != KioskGarmentIntent.auto) {
+    if (existing != null &&
+        existing != KioskGarmentIntent.auto &&
+        _enabledIntents.contains(existing)) {
       _intent = existing;
       widget.captureController.selectCaptureScope(captureScopeForIntent(existing));
     }
   }
+
+  List<KioskGarmentIntent> get _enabledIntents =>
+      widget.enabledGarmentIntents ??
+      widget.tryOnController.enabledGarmentIntents;
 
   @override
   Widget build(BuildContext context) {
@@ -81,31 +89,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                         spacing: 14,
                         runSpacing: 14,
                         alignment: WrapAlignment.center,
-                        children: [
-                          _IntentChip(
-                            key: const Key('garment-intent-top'),
-                            label: 'Top',
-                            icon: Icons.checkroom_outlined,
-                            selected: _intent == KioskGarmentIntent.top,
-                            onPressed: () => _selectIntent(KioskGarmentIntent.top),
-                          ),
-                          _IntentChip(
-                            key: const Key('garment-intent-bottom'),
-                            label: 'Bottom',
-                            icon: Icons.accessibility_new_outlined,
-                            selected: _intent == KioskGarmentIntent.bottom,
-                            onPressed: () =>
-                                _selectIntent(KioskGarmentIntent.bottom),
-                          ),
-                          _IntentChip(
-                            key: const Key('garment-intent-full-outfit'),
-                            label: 'Full Outfit',
-                            icon: Icons.person_outline,
-                            selected: _intent == KioskGarmentIntent.fullOutfit,
-                            onPressed: () =>
-                                _selectIntent(KioskGarmentIntent.fullOutfit),
-                          ),
-                        ],
+                        children: _enabledIntents.map(_intentChip).toList(),
                       ),
                       const SizedBox(height: 34),
                       Text(
@@ -167,6 +151,9 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
   }
 
   void _selectIntent(KioskGarmentIntent intent) {
+    if (!_enabledIntents.contains(intent)) {
+      return;
+    }
     setState(() => _intent = intent);
     widget.tryOnController.selectPendingGarmentIntent(intent);
     widget.captureController.selectCaptureScope(captureScopeForIntent(intent));
@@ -190,6 +177,21 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
         ),
       );
     }
+  }
+
+  Widget _intentChip(KioskGarmentIntent intent) {
+    return _IntentChip(
+      key: Key('garment-intent-${intent.apiValue.toLowerCase().replaceAll('_', '-')}'),
+      label: intent == KioskGarmentIntent.fullOutfit ? 'Full Outfit' : intent.label,
+      icon: switch (intent) {
+        KioskGarmentIntent.top => Icons.checkroom_outlined,
+        KioskGarmentIntent.bottom => Icons.accessibility_new_outlined,
+        KioskGarmentIntent.fullOutfit => Icons.person_outline,
+        _ => Icons.checkroom_outlined,
+      },
+      selected: _intent == intent,
+      onPressed: () => _selectIntent(intent),
+    );
   }
 
   void _openCamera() {
@@ -256,6 +258,7 @@ class _IntentChip extends StatelessWidget {
         minHeight: 86,
         textAlign: TextAlign.center,
         mainAxisAlignment: MainAxisAlignment.center,
+        animateSurface: false,
         onPressed: onPressed,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       ),

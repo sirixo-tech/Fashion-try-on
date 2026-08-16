@@ -24,6 +24,51 @@ export type KioskDevice = {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  latestConfigurationVersion: number;
+};
+
+export type KioskIdleMode = "STATIC" | "SLIDESHOW";
+export type KioskConfigurationAssetType = "BUNDLED_IMAGE" | "REMOTE_IMAGE";
+export type KioskConfigurationSoundProfile =
+  | "SELFX_SIGNATURE"
+  | "SOFT"
+  | "STUDIO"
+  | "MINIMAL"
+  | "MUTED";
+export type KioskConfigurationGarmentIntent = "TOP" | "BOTTOM" | "FULL_OUTFIT";
+
+export type KioskConfiguration = {
+  version: number;
+  display: {
+    idleMode: KioskIdleMode;
+    slideDurationSeconds: number;
+    title: string | null;
+    subtitle: string | null;
+    ctaLabel: string;
+    assets: Array<{
+      id: string;
+      type: KioskConfigurationAssetType;
+      label: string;
+      url: string | null;
+      bundledAssetKey: string | null;
+      sortOrder: number;
+    }>;
+  };
+  capture: {
+    countdownSeconds: number;
+    soundEnabled: boolean;
+    soundProfile: KioskConfigurationSoundProfile;
+    guidanceAudioEnabled: boolean;
+  };
+  experience: {
+    enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+    sessionIdleTimeoutSeconds: number;
+  };
+  assetUpload: {
+    supported: false;
+    reason: "DURABLE_OBJECT_STORAGE_REQUIRED";
+  };
+  updatedAt: string;
 };
 
 export type KioskAssignmentOptions = {
@@ -114,4 +159,53 @@ export function deleteKioskDevice(
     method: "DELETE",
     accessToken,
   });
+}
+
+export function getKioskConfiguration(
+  accessToken: string,
+  deviceId: string,
+): Promise<KioskConfiguration> {
+  return selfxApi<KioskConfiguration>(
+    `/api/v1/admin/kiosks/${deviceId}/configuration`,
+    { accessToken },
+  );
+}
+
+export function updateKioskConfiguration(
+  accessToken: string,
+  deviceId: string,
+  input: {
+    display: {
+      idleMode: KioskIdleMode;
+      slideDurationSeconds: number;
+      title?: string | null;
+      subtitle?: string | null;
+      ctaLabel?: string;
+      assets: Array<{
+        type: KioskConfigurationAssetType;
+        label: string;
+        url?: string;
+        bundledAssetKey?: string;
+      }>;
+    };
+    capture: {
+      countdownSeconds: number;
+      soundEnabled: boolean;
+      soundProfile: KioskConfigurationSoundProfile;
+      guidanceAudioEnabled: boolean;
+    };
+    experience: {
+      enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+      sessionIdleTimeoutSeconds: number;
+    };
+  },
+): Promise<KioskConfiguration> {
+  return selfxApi<KioskConfiguration>(
+    `/api/v1/admin/kiosks/${deviceId}/configuration`,
+    {
+      method: "PUT",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
 }

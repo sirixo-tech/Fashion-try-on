@@ -1457,15 +1457,34 @@ Authorized Admin
 
 ### Primary Actor
 
-Authorized Admin
+SelfX Superadmin
 
 ### Main Flow
 
-1. Admin changes kiosk/store configuration.
-2. New configuration version is saved.
-3. Kiosk receives change on next configuration sync/heartbeat or explicit refresh.
-4. Kiosk validates and applies configuration.
-5. Safe configuration is cached locally.
+1. Superadmin opens **Kiosks** in the SaaS application.
+2. Superadmin selects an individual paired kiosk and opens **Configuration**.
+3. Superadmin updates customer-home presentation, capture settings, enabled
+   garment intent categories or session idle timeout.
+4. SelfX validates the configuration and saves a new per-device configuration
+   version.
+5. The physical kiosk sees `latestConfigurationVersion` during
+   `session/me`/heartbeat discovery.
+6. If the version is newer than the active local configuration, the kiosk calls
+   `/api/v1/kiosk/configuration` with its device access token.
+7. The kiosk validates/downloads presentation assets and activates the new
+   configuration only after local preparation succeeds.
+8. The kiosk caches the safe configuration locally and continues customer
+   operation.
+
+### Alternate / Failure Flows
+
+- If the kiosk is offline, it continues with the last valid cached
+  configuration.
+- If no cached configuration exists, the kiosk uses bundled SelfX defaults.
+- If a presentation asset fails validation/download, the kiosk keeps the last
+  valid active configuration.
+- Remote camera preference remains out of scope until a stable certified device
+  identifier exists.
 
 ---
 

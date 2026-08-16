@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_session_controller.dart';
 import '../operator/operator_access.dart';
 import '../session/capture_session_controller.dart';
@@ -17,6 +18,7 @@ class KioskStartupScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    required this.configurationController,
     required this.operatorAccessController,
   });
 
@@ -24,6 +26,7 @@ class KioskStartupScreen extends StatefulWidget {
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskRuntimeConfigurationController configurationController;
   final OperatorAccessController operatorAccessController;
 
   @override
@@ -31,9 +34,12 @@ class KioskStartupScreen extends StatefulWidget {
 }
 
 class _KioskStartupScreenState extends State<KioskStartupScreen> {
+  int? _lastRequestedConfigurationVersion;
+
   @override
   void initState() {
     super.initState();
+    unawaited(widget.configurationController.loadCachedOrDefault());
     unawaited(widget.deviceController.start());
   }
 
@@ -44,10 +50,12 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
       builder: (context, _) {
         switch (widget.deviceController.state) {
           case KioskStartupState.active:
+            _syncConfigurationIfNeeded();
             return KioskHomeScreen(
               controller: widget.captureController,
               tryOnController: widget.tryOnController,
               uploadController: widget.uploadController,
+              configurationController: widget.configurationController,
               operatorAccessController: widget.operatorAccessController,
             );
           case KioskStartupState.networkUnavailable:
@@ -72,6 +80,41 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
         }
       },
     );
+  }
+
+  void _syncConfigurationIfNeeded() {
+    final latest =
+        widget.deviceController.device?.latestConfigurationVersion ?? 1;
+    if (_lastRequestedConfigurationVersion == latest &&
+        widget.configurationController.configuration.version >= latest) {
+      return;
+    }
+    if (widget.configurationController.syncing) {
+      return;
+    }
+    _lastRequestedConfigurationVersion = latest;
+    unawaited(() async {
+      try {
+        await widget.configurationController.syncIfNeeded(
+          activateImmediately:
+              widget.tryOnController.canActivateRuntimeConfiguration,
+        );
+        if (!mounted) {
+          return;
+        }
+        if (widget.configurationController.pendingConfiguration != null) {
+          return;
+        }
+        await widget.captureController.applyRuntimeConfiguration(
+          widget.configurationController.configuration,
+        );
+        widget.tryOnController.applyEnabledGarmentIntents(
+          widget.configurationController.configuration.enabledGarmentIntents,
+        );
+      } catch (_) {
+        unawaited(widget.deviceController.handleDeviceAuthRejected());
+      }
+    }());
   }
 }
 

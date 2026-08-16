@@ -39,6 +39,12 @@ and Android portrait, shows preparation before a valid session exists, shows the
 countdown only from backend `expiresAt/serverTime`, and replaces indefinite
 loading with safe retry/cancel failure UI.
 
+KIOSK-6A adds SaaS-controlled runtime configuration for paired kiosks. The
+kiosk discovers the latest configuration version through device session/heartbeat
+responses, fetches full configuration through `/api/v1/kiosk/configuration`,
+downloads presentation images before activation, caches the last valid
+configuration locally and falls back to bundled defaults when no cache exists.
+
 ## Local commands
 
 ```powershell
@@ -102,8 +108,9 @@ their client-generated boundaries.
 - If no active device refresh credential exists, startup routes to the pairing
   screen instead of this customer home.
 - The bundled `assets/wallpapers/selfx-default-kiosk-wallpaper.png` image is
-  the default local wallpaper for all kiosk apps until organization/kiosk
-  wallpaper changes are managed from the SaaS dashboard.
+  the default local wallpaper when no valid remote configuration/cache exists.
+  KIOSK-6A may replace it with SaaS-configured bundled or HTTPS presentation
+  image references after local validation/download succeeds.
 - Camera Settings is not visible on the home. A hidden top-left double-tap
   reveals a temporary operator icon, which opens a 6-digit PIN challenge before
   settings.
@@ -144,9 +151,10 @@ their client-generated boundaries.
   arrow affordance. Selected choices use SelfX orange with white text and orange
   border; inactive choices use white/light surfaces, dark text and neutral
   borders.
-- Idle presentation assets are local/offline in this foundation. Future
-  organization dashboard or fleet-driven presentation updates must preserve the
-  same provider-neutral presentation model and offline fallback.
+- Idle presentation assets use the same provider-neutral presentation model
+  whether they come from bundled assets, a valid local cache or KIOSK-6A
+  fleet-driven HTTPS image references. The kiosk must keep the last valid cache
+  active when offline or when a newer asset cannot be prepared.
 - Customer capture still uses CaptureScope internally: Top, Bottom or Full Body.
   This is framing/readiness intent, not final garment taxonomy. Full Body may
   later resolve to One Piece, Full Outfit or another canonical garment semantic.

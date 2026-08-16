@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../camera/camera_models.dart';
+import '../config/kiosk_runtime_configuration_controller.dart';
 import '../live/frame_analysis_scheduler.dart';
 import '../live/person_analysis.dart';
 import '../session/capture_audio_service.dart';
@@ -13,9 +14,14 @@ import '../theme/selfx_kiosk_theme.dart';
 import 'kiosk_chrome.dart';
 
 class CameraSettingsScreen extends StatefulWidget {
-  const CameraSettingsScreen({super.key, required this.controller});
+  const CameraSettingsScreen({
+    super.key,
+    required this.controller,
+    this.configurationController,
+  });
 
   final CaptureSessionController controller;
+  final KioskRuntimeConfigurationController? configurationController;
 
   @override
   State<CameraSettingsScreen> createState() => _CameraSettingsScreenState();
@@ -59,6 +65,8 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
         animation: Listenable.merge([
           widget.controller,
           widget.controller.cameraService.state,
+          if (widget.configurationController != null)
+            widget.configurationController!,
         ]),
         builder: (context, _) {
           final state = widget.controller.cameraService.state.value;
@@ -85,6 +93,10 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
             onAudioProfileChanged: widget.controller.updateCaptureAudioProfile,
             onPreviewSound: widget.controller.previewCaptureAudioProfile,
             onTestCamera: () => Navigator.of(context).pop(),
+            configurationStatus:
+                widget.configurationController?.statusLabel ?? 'Bundled defaults',
+            configurationErrorCode:
+                widget.configurationController?.lastErrorCode,
           );
         },
       ),
@@ -121,6 +133,8 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
     required this.onAudioProfileChanged,
     required this.onPreviewSound,
     required this.onTestCamera,
+    required this.configurationStatus,
+    required this.configurationErrorCode,
   });
 
   final CameraState state;
@@ -142,6 +156,8 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
   final VoidCallback onPreviewSound;
   final VoidCallback onTestCamera;
+  final String configurationStatus;
+  final String? configurationErrorCode;
 
   @override
   Widget build(BuildContext context) {
@@ -167,6 +183,8 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
           onAudioProfileChanged: onAudioProfileChanged,
           onPreviewSound: onPreviewSound,
           onTestCamera: onTestCamera,
+          configurationStatus: configurationStatus,
+          configurationErrorCode: configurationErrorCode,
         );
 
         if (compact) {
@@ -406,6 +424,8 @@ class _SettingsCategoryContent extends StatelessWidget {
     required this.onAudioProfileChanged,
     required this.onPreviewSound,
     required this.onTestCamera,
+    required this.configurationStatus,
+    required this.configurationErrorCode,
   });
 
   final _OperatorSettingsCategory category;
@@ -425,6 +445,8 @@ class _SettingsCategoryContent extends StatelessWidget {
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
   final VoidCallback onPreviewSound;
   final VoidCallback onTestCamera;
+  final String configurationStatus;
+  final String? configurationErrorCode;
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +464,10 @@ class _SettingsCategoryContent extends StatelessWidget {
             countdownSeconds: countdownSeconds,
             onCountdownChanged: onCountdownChanged,
           ),
-        _OperatorSettingsCategory.display => const _DisplaySection(),
+        _OperatorSettingsCategory.display => _DisplaySection(
+            configurationStatus: configurationStatus,
+            configurationErrorCode: configurationErrorCode,
+          ),
         _OperatorSettingsCategory.audio => _AudioSection(
             captureSoundsEnabled: captureSoundsEnabled,
             captureAudioProfile: captureAudioProfile,
@@ -602,31 +627,43 @@ class _CaptureSection extends StatelessWidget {
 }
 
 class _DisplaySection extends StatelessWidget {
-  const _DisplaySection();
+  const _DisplaySection({
+    required this.configurationStatus,
+    required this.configurationErrorCode,
+  });
+
+  final String configurationStatus;
+  final String? configurationErrorCode;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _InfoGrid(
           rows: [
-            _InfoItem(label: 'Idle mode', value: 'Local default wallpaper'),
-            _InfoItem(
+            const _InfoItem(label: 'Idle mode', value: 'Remote controlled'),
+            const _InfoItem(
               label: 'Wallpaper source',
-              value: 'Bundled SelfX asset / local cache ready',
+              value: 'Bundled SelfX asset or local cache',
             ),
-            _InfoItem(label: 'Presentation', value: 'Static or slideshow ready'),
-            _InfoItem(label: 'SaaS sync', value: 'Future organization feature'),
+            const _InfoItem(
+              label: 'Presentation',
+              value: 'Static or slideshow ready',
+            ),
+            _InfoItem(label: 'SaaS sync', value: configurationStatus),
           ],
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
         _StatusBanner(
           icon: Icons.wallpaper_outlined,
           label: 'Offline fallback ready',
-          tone: _StatusTone.success,
-          description:
-              'The bundled wallpaper remains available until organization kiosk wallpapers are synced later.',
+          tone: configurationErrorCode == null
+              ? _StatusTone.success
+              : _StatusTone.warning,
+          description: configurationErrorCode == null
+              ? 'The kiosk uses the last valid remote configuration and falls back to the bundled wallpaper when no cache exists.'
+              : 'Last sync issue: $configurationErrorCode. The kiosk is using the last valid local configuration.',
         ),
       ],
     );

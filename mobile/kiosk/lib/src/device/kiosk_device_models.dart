@@ -66,6 +66,7 @@ class KioskDeviceIdentity {
     required this.platform,
     required this.appVersion,
     required this.lastSeenAt,
+    required this.latestConfigurationVersion,
   });
 
   final String id;
@@ -75,6 +76,7 @@ class KioskDeviceIdentity {
   final String? platform;
   final String? appVersion;
   final DateTime? lastSeenAt;
+  final int latestConfigurationVersion;
 }
 
 class KioskDeviceCredentials {

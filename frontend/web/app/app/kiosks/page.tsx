@@ -7,6 +7,7 @@ import {
   PowerIcon,
   PowerOffIcon,
   RefreshCwIcon,
+  SettingsIcon,
   ShieldAlertIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -40,13 +41,19 @@ import {
   activateKioskDevice,
   deactivateKioskDevice,
   deleteKioskDevice,
+  getKioskConfiguration,
   listKioskAssignmentOptions,
   listKioskDevices,
   pairKioskDevice,
   revokeKioskDevice,
+  updateKioskConfiguration,
+  type KioskConfiguration,
+  type KioskConfigurationGarmentIntent,
+  type KioskConfigurationSoundProfile,
   type KioskAssignmentOptions,
   type KioskAssignmentScope,
   type KioskDevice,
+  type KioskIdleMode,
 } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
 
@@ -54,6 +61,18 @@ const assignmentScopes: KioskAssignmentScope[] = [
   "PLATFORM",
   "ORGANIZATION",
   "STORE",
+];
+const soundProfiles: KioskConfigurationSoundProfile[] = [
+  "SELFX_SIGNATURE",
+  "SOFT",
+  "STUDIO",
+  "MINIMAL",
+  "MUTED",
+];
+const garmentIntents: KioskConfigurationGarmentIntent[] = [
+  "TOP",
+  "BOTTOM",
+  "FULL_OUTFIT",
 ];
 
 export default function KiosksPage() {
@@ -68,6 +87,8 @@ export default function KiosksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pairOpen, setPairOpen] = useState(false);
+  const [configurationDevice, setConfigurationDevice] =
+    useState<KioskDevice | null>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -182,6 +203,7 @@ export default function KiosksPage() {
                         onDeactivate={() => void deactivate(device.id)}
                         onRevoke={() => void revoke(device.id)}
                         onDelete={() => void remove(device.id)}
+                        onConfigure={() => setConfigurationDevice(device)}
                       />
                     </TableCell>
                   </TableRow>
@@ -199,6 +221,26 @@ export default function KiosksPage() {
         onPaired={(device) => {
           setDevices((current) => [device, ...current]);
           setPairOpen(false);
+        }}
+      />
+      <KioskConfigurationDialog
+        device={configurationDevice}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfigurationDevice(null);
+          }
+        }}
+        onSaved={(configuration) => {
+          setDevices((current) =>
+            current.map((device) =>
+              device.id === configurationDevice?.id
+                ? {
+                    ...device,
+                    latestConfigurationVersion: configuration.version,
+                  }
+                : device,
+            ),
+          );
         }}
       />
     </PageContainer>
@@ -252,15 +294,21 @@ function KioskLifecycleActions({
   onDeactivate,
   onRevoke,
   onDelete,
+  onConfigure,
 }: {
   device: KioskDevice;
   onActivate: () => void;
   onDeactivate: () => void;
   onRevoke: () => void;
   onDelete: () => void;
+  onConfigure: () => void;
 }) {
   return (
     <div className="flex flex-wrap justify-end gap-2">
+      <Button variant="outline" size="sm" onClick={onConfigure}>
+        <SettingsIcon aria-hidden="true" />
+        Configure
+      </Button>
       {device.status === "ACTIVE" ? (
         <Button variant="outline" size="sm" onClick={onDeactivate}>
           <PowerOffIcon aria-hidden="true" />
@@ -470,6 +518,373 @@ function PairKioskDialog({
   );
 }
 
+type KioskConfigurationForm = {
+  idleMode: KioskIdleMode;
+  slideDurationSeconds: number;
+  title: string;
+  subtitle: string;
+  ctaLabel: string;
+  countdownSeconds: number;
+  soundEnabled: boolean;
+  soundProfile: KioskConfigurationSoundProfile;
+  guidanceAudioEnabled: boolean;
+  enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+  sessionIdleTimeoutSeconds: number;
+  assetLabel: string;
+  remoteAssetUrl: string;
+};
+
+function KioskConfigurationDialog({
+  device,
+  onOpenChange,
+  onSaved,
+}: {
+  device: KioskDevice | null;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (configuration: KioskConfiguration) => void;
+}) {
+  const session = useSession();
+  const accessToken =
+    session.status === "authenticated" ? session.accessToken : null;
+  const open = device !== null;
+  const [form, setForm] = useState<KioskConfigurationForm>(defaultConfigForm());
+  const [version, setVersion] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadConfiguration = useCallback(async () => {
+    if (!device || !accessToken) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const configuration = await getKioskConfiguration(
+        accessToken,
+        device.id,
+      );
+      setVersion(configuration.version);
+      setForm(formFromConfiguration(configuration));
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken, device]);
+
+  useEffect(() => {
+    if (open) {
+      void loadConfiguration();
+    }
+  }, [loadConfiguration, open]);
+
+  async function save() {
+    if (!device || !accessToken) {
+      return;
+    }
+    const validationError = validateConfigurationForm(form);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const configuration = await updateKioskConfiguration(
+        accessToken,
+        device.id,
+        {
+          display: {
+            idleMode: form.idleMode,
+            slideDurationSeconds: form.slideDurationSeconds,
+            title: form.title || null,
+            subtitle: form.subtitle || null,
+            ctaLabel: form.ctaLabel || "Start Try-On",
+            assets: form.remoteAssetUrl.trim()
+              ? [
+                  {
+                    type: "REMOTE_IMAGE",
+                    label: form.assetLabel || "Kiosk presentation image",
+                    url: form.remoteAssetUrl.trim(),
+                  },
+                ]
+              : [
+                  {
+                    type: "BUNDLED_IMAGE",
+                    label: "SelfX default wallpaper",
+                    bundledAssetKey: "selfx-default-kiosk-wallpaper",
+                  },
+                ],
+          },
+          capture: {
+            countdownSeconds: form.countdownSeconds,
+            soundEnabled: form.soundEnabled,
+            soundProfile: form.soundProfile,
+            guidanceAudioEnabled: form.guidanceAudioEnabled,
+          },
+          experience: {
+            enabledGarmentIntents: form.enabledGarmentIntents,
+            sessionIdleTimeoutSeconds: form.sessionIdleTimeoutSeconds,
+          },
+        },
+      );
+      setVersion(configuration.version);
+      setForm(formFromConfiguration(configuration));
+      onSaved(configuration);
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Configure Kiosk</DialogTitle>
+          <DialogDescription>
+            {device
+              ? `${device.displayName} runtime configuration. Current version ${version}.`
+              : "Runtime configuration."}
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+        {loading ? (
+          <div className="py-8 text-sm text-muted-foreground">
+            Loading configuration...
+          </div>
+        ) : (
+          <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1">
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-semibold">Display</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2 text-sm">
+                  <span>Idle Mode</span>
+                  <select
+                    className="h-10 w-full rounded-md border bg-background px-3"
+                    value={form.idleMode}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        idleMode: event.target.value as KioskIdleMode,
+                      }))
+                    }
+                  >
+                    <option value="STATIC">Static</option>
+                    <option value="SLIDESHOW">Slideshow</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span>Slide Duration</span>
+                  <Input
+                    type="number"
+                    min={3}
+                    max={60}
+                    value={form.slideDurationSeconds}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        slideDurationSeconds: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2 text-sm">
+                  <span>Title</span>
+                  <Input
+                    value={form.title}
+                    maxLength={120}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span>CTA Label</span>
+                  <Input
+                    value={form.ctaLabel}
+                    maxLength={40}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        ctaLabel: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <label className="space-y-2 text-sm">
+                <span>Subtitle</span>
+                <Input
+                  value={form.subtitle}
+                  maxLength={180}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      subtitle: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span>HTTPS Presentation Image URL</span>
+                <Input
+                  value={form.remoteAssetUrl}
+                  placeholder="Leave blank to use bundled SelfX wallpaper"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      remoteAssetUrl: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </fieldset>
+
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-semibold">Capture</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2 text-sm">
+                  <span>Countdown</span>
+                  <select
+                    className="h-10 w-full rounded-md border bg-background px-3"
+                    value={form.countdownSeconds}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        countdownSeconds: Number(event.target.value),
+                      }))
+                    }
+                  >
+                    <option value={5}>5 seconds</option>
+                    <option value={10}>10 seconds</option>
+                    <option value={15}>15 seconds</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span>Sound Profile</span>
+                  <select
+                    className="h-10 w-full rounded-md border bg-background px-3"
+                    value={form.soundProfile}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        soundProfile: event.target
+                          .value as KioskConfigurationSoundProfile,
+                      }))
+                    }
+                  >
+                    {soundProfiles.map((profile) => (
+                      <option key={profile} value={profile}>
+                        {profileLabel(profile)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.soundEnabled}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      soundEnabled: event.target.checked,
+                    }))
+                  }
+                />
+                Capture sounds enabled
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.guidanceAudioEnabled}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      guidanceAudioEnabled: event.target.checked,
+                    }))
+                  }
+                />
+                Guidance audio enabled
+              </label>
+            </fieldset>
+
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-semibold">Experience</legend>
+              <div className="flex flex-wrap gap-3">
+                {garmentIntents.map((intent) => (
+                  <label key={intent} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form.enabledGarmentIntents.includes(intent)}
+                      onChange={() => toggleIntent(intent)}
+                    />
+                    {intentLabel(intent)}
+                  </label>
+                ))}
+              </div>
+              <label className="space-y-2 text-sm">
+                <span>Session Idle Timeout</span>
+                <Input
+                  type="number"
+                  min={30}
+                  max={900}
+                  value={form.sessionIdleTimeoutSeconds}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      sessionIdleTimeoutSeconds: Number(event.target.value),
+                    }))
+                  }
+                />
+              </label>
+            </fieldset>
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              Presentation asset upload is deferred until durable object storage
+              ownership metadata exists. Use HTTPS image URLs or the bundled
+              SelfX wallpaper.
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button disabled={saving || loading} onClick={() => void save()}>
+            Save Configuration
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  function toggleIntent(intent: KioskConfigurationGarmentIntent) {
+    setForm((current) => {
+      const hasIntent = current.enabledGarmentIntents.includes(intent);
+      const next = hasIntent
+        ? current.enabledGarmentIntents.filter((value) => value !== intent)
+        : [...current.enabledGarmentIntents, intent];
+      return {
+        ...current,
+        enabledGarmentIntents: next.length > 0 ? next : [intent],
+      };
+    });
+  }
+}
+
 function assignmentLabel(device: KioskDevice): string {
   if (device.assignment.scope === "PLATFORM") {
     return "Platform";
@@ -481,6 +896,77 @@ function assignmentLabel(device: KioskDevice): string {
     device.assignment.organizationName ?? "Organization",
     device.assignment.storeName ?? "Store",
   ].join(" / ");
+}
+
+function defaultConfigForm(): KioskConfigurationForm {
+  return {
+    idleMode: "STATIC",
+    slideDurationSeconds: 6,
+    title: "SelfX Virtual Try-On",
+    subtitle: "Find your perfect fit in seconds.",
+    ctaLabel: "Start Try-On",
+    countdownSeconds: 10,
+    soundEnabled: true,
+    soundProfile: "SELFX_SIGNATURE",
+    guidanceAudioEnabled: false,
+    enabledGarmentIntents: ["TOP", "BOTTOM", "FULL_OUTFIT"],
+    sessionIdleTimeoutSeconds: 120,
+    assetLabel: "SelfX default wallpaper",
+    remoteAssetUrl: "",
+  };
+}
+
+function formFromConfiguration(
+  configuration: KioskConfiguration,
+): KioskConfigurationForm {
+  const remoteAsset = configuration.display.assets.find(
+    (asset) => asset.type === "REMOTE_IMAGE",
+  );
+  return {
+    idleMode: configuration.display.idleMode,
+    slideDurationSeconds: configuration.display.slideDurationSeconds,
+    title: configuration.display.title ?? "",
+    subtitle: configuration.display.subtitle ?? "",
+    ctaLabel: configuration.display.ctaLabel,
+    countdownSeconds: configuration.capture.countdownSeconds,
+    soundEnabled: configuration.capture.soundEnabled,
+    soundProfile: configuration.capture.soundProfile,
+    guidanceAudioEnabled: configuration.capture.guidanceAudioEnabled,
+    enabledGarmentIntents: configuration.experience.enabledGarmentIntents,
+    sessionIdleTimeoutSeconds:
+      configuration.experience.sessionIdleTimeoutSeconds,
+    assetLabel: remoteAsset?.label ?? "SelfX default wallpaper",
+    remoteAssetUrl: remoteAsset?.url ?? "",
+  };
+}
+
+function validateConfigurationForm(form: KioskConfigurationForm): string | null {
+  if (
+    !Number.isInteger(form.slideDurationSeconds) ||
+    form.slideDurationSeconds < 3 ||
+    form.slideDurationSeconds > 60
+  ) {
+    return "Slide duration must be between 3 and 60 seconds.";
+  }
+  const remoteAssetUrl = form.remoteAssetUrl.trim();
+  if (remoteAssetUrl && !remoteAssetUrl.startsWith("https://")) {
+    return "Presentation image URL must use HTTPS.";
+  }
+  return null;
+}
+
+function profileLabel(profile: KioskConfigurationSoundProfile): string {
+  return profile
+    .toLowerCase()
+    .split("_")
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function intentLabel(intent: KioskConfigurationGarmentIntent): string {
+  return intent === "FULL_OUTFIT"
+    ? "Full Outfit"
+    : intent[0] + intent.slice(1).toLowerCase();
 }
 
 function formatDate(value: string | null): string {

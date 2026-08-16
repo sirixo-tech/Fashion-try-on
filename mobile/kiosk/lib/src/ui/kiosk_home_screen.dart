@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../config/kiosk_runtime_configuration_controller.dart';
 import '../idle/kiosk_idle_presentation.dart';
 import '../operator/operator_access.dart';
 import '../session/capture_session_controller.dart';
@@ -21,6 +22,7 @@ class KioskHomeScreen extends StatefulWidget {
     required this.tryOnController,
     required this.uploadController,
     required this.operatorAccessController,
+    this.configurationController,
     this.presentation = defaultIdlePresentation,
   });
 
@@ -28,6 +30,7 @@ class KioskHomeScreen extends StatefulWidget {
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
   final OperatorAccessController operatorAccessController;
+  final KioskRuntimeConfigurationController? configurationController;
   final KioskIdlePresentation presentation;
 
   @override
@@ -46,13 +49,19 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   @override
   void initState() {
     super.initState();
+    widget.configurationController?.addListener(_configurationChanged);
     _startSlideshowIfNeeded();
   }
 
   @override
   void didUpdateWidget(covariant KioskHomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.presentation != widget.presentation) {
+    if (oldWidget.configurationController != widget.configurationController) {
+      oldWidget.configurationController?.removeListener(_configurationChanged);
+      widget.configurationController?.addListener(_configurationChanged);
+    }
+    if (oldWidget.presentation != widget.presentation ||
+        oldWidget.configurationController != widget.configurationController) {
       _slideIndex = 0;
       _startSlideshowIfNeeded();
     }
@@ -62,20 +71,36 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   void dispose() {
     _operatorRevealTimer?.cancel();
     _slideshowTimer?.cancel();
+    widget.configurationController?.removeListener(_configurationChanged);
     super.dispose();
+  }
+
+  KioskIdlePresentation get _presentation =>
+      widget.configurationController?.configuration.toIdlePresentation() ??
+      widget.presentation;
+
+  void _configurationChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _slideIndex = 0;
+      _startSlideshowIfNeeded();
+    });
   }
 
   void _startSlideshowIfNeeded() {
     _slideshowTimer?.cancel();
-    if (!widget.presentation.isSlideshow) {
+    final presentation = _presentation;
+    if (!presentation.isSlideshow) {
       return;
     }
-    _slideshowTimer = Timer.periodic(widget.presentation.slideDuration, (_) {
+    _slideshowTimer = Timer.periodic(presentation.slideDuration, (_) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _slideIndex = (_slideIndex + 1) % widget.presentation.assets.length;
+        _slideIndex = (_slideIndex + 1) % _presentation.assets.length;
       });
     });
   }
@@ -105,21 +130,44 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     setState(() => _operatorHintVisible = false);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CameraSettingsScreen(controller: widget.controller),
+        builder: (_) => CameraSettingsScreen(
+          controller: widget.controller,
+          configurationController: widget.configurationController,
+        ),
       ),
     );
     widget.operatorAccessController.relock();
   }
 
-  void _startTryOn() {
-    Navigator.of(context).push(
+  Future<void> _startTryOn() async {
+    widget.tryOnController.beginCustomerSession();
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => GarmentSelectionScreen(
           captureController: widget.controller,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          enabledGarmentIntents:
+              widget.configurationController?.configuration.enabledGarmentIntents,
         ),
       ),
+    );
+    widget.tryOnController.endCustomerSession();
+    await _activatePendingConfigurationIfSafe();
+  }
+
+  Future<void> _activatePendingConfigurationIfSafe() async {
+    if (!widget.tryOnController.canActivateRuntimeConfiguration) {
+      return;
+    }
+    final activated =
+        widget.configurationController?.activatePendingConfiguration();
+    if (activated == null) {
+      return;
+    }
+    await widget.controller.applyRuntimeConfiguration(activated);
+    widget.tryOnController.applyEnabledGarmentIntents(
+      activated.enabledGarmentIntents,
     );
   }
 
@@ -129,7 +177,8 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final asset = widget.presentation.assetAt(_slideIndex);
+            final presentation = _presentation;
+            final asset = presentation.assetAt(_slideIndex);
             final portrait = constraints.maxHeight >= constraints.maxWidth;
             final compact = constraints.maxWidth < 720;
             final horizontalPadding = compact ? 22.0 : 52.0;
@@ -160,7 +209,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _HomeBrand(label: widget.presentation.brandLabel),
+                      _HomeBrand(label: presentation.brandLabel),
                       Expanded(
                         child: Center(
                           child: ConstrainedBox(
@@ -172,7 +221,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Text(
-                                  widget.presentation.title,
+                                  presentation.title,
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context)
                                       .textTheme
@@ -185,7 +234,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                 ),
                                 const SizedBox(height: 18),
                                 Text(
-                                  widget.presentation.subtitle,
+                                  presentation.subtitle,
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.titleLarge
                                       ?.copyWith(
@@ -198,7 +247,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                 const SizedBox(height: 36),
                                 SelfxKioskButton(
                                   key: const Key('start-try-on'),
-                                  label: widget.presentation.ctaLabel,
+                                  label: presentation.ctaLabel,
                                   icon: Icons.auto_awesome_outlined,
                                   variant: SelfxKioskButtonVariant.primary,
                                   minHeight: compact ? 70 : 78,

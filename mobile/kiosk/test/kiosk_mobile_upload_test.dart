@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/acquisition/photo_acquisition.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
@@ -689,6 +690,7 @@ KioskDeviceCredentials testDeviceCredentials(String accessToken) {
       platform: 'windows',
       appVersion: '1.0.0',
       lastSeenAt: null,
+      latestConfigurationVersion: 1,
     ),
   );
 }
@@ -927,6 +929,11 @@ class FakeDeviceGateway implements KioskDeviceGateway {
     required String appVersion,
   }) {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<KioskRuntimeConfiguration> configuration(String accessToken) async {
+    return defaultRuntimeConfiguration;
   }
 }
 

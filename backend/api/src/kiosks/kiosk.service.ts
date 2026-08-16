@@ -8,6 +8,7 @@ import {
   KioskPairingSessionStatus,
   OrganizationStatus,
   type KioskDevice,
+  type KioskDeviceConfiguration,
   type Organization,
   type Store,
 } from "@prisma/client";
@@ -47,6 +48,7 @@ interface DeviceAccessTokenPayload {
 type DeviceWithAssignment = KioskDevice & {
   organization: Pick<Organization, "id" | "name"> | null;
   store: Pick<Store, "id" | "name"> | null;
+  configuration?: Pick<KioskDeviceConfiguration, "version"> | null;
 };
 
 interface RefreshTokenParts {
@@ -868,6 +870,7 @@ export function mapDevice(device: DeviceWithAssignment): KioskDeviceResponseDto 
     deletedAt: device.deletedAt?.toISOString() ?? null,
     createdAt: device.createdAt.toISOString(),
     updatedAt: device.updatedAt.toISOString(),
+    latestConfigurationVersion: device.configuration?.version ?? 1,
   };
 }
 
@@ -875,6 +878,7 @@ function assignmentInclude() {
   return {
     organization: { select: { id: true, name: true } },
     store: { select: { id: true, name: true } },
+    configuration: { select: { version: true } },
   } as const;
 }
 

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../camera/camera_plugin_service.dart';
 import '../camera/camera_service.dart';
+import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_gateway.dart';
 import '../device/kiosk_device_session_controller.dart';
 import '../device/kiosk_device_storage.dart';
@@ -29,22 +30,31 @@ class SelfxKioskApp extends StatelessWidget {
     required this.tryOnController,
     required this.deviceController,
     required this.uploadController,
+    required this.configurationController,
     this.operatorAccessController,
   });
 
   factory SelfxKioskApp.production() {
+    final preferences = SharedPreferencesAsync();
     final settingsStore = SharedPreferencesCameraSettingsStore(
-      SharedPreferencesAsync(),
+      preferences,
+    );
+    final deviceGateway = SelfxKioskDeviceGateway(
+      config: KioskDeviceApiConfig.fromEnvironment(),
     );
     final deviceController = KioskDeviceSessionController(
-      gateway: SelfxKioskDeviceGateway(
-        config: KioskDeviceApiConfig.fromEnvironment(),
-      ),
+      gateway: deviceGateway,
       store: SecureKioskDeviceCredentialStore(),
+    );
+    final configurationController = KioskRuntimeConfigurationController(
+      gateway: deviceGateway,
+      deviceController: deviceController,
+      preferences: preferences,
     );
     final captureStore = TemporaryCaptureStore();
     return SelfxKioskApp(
       deviceController: deviceController,
+      configurationController: configurationController,
       controller: CaptureSessionController(
         cameraService: CameraPluginService(),
         settingsStore: settingsStore,
@@ -84,6 +94,7 @@ class SelfxKioskApp extends StatelessWidget {
   final KioskTryOnSessionController tryOnController;
   final KioskDeviceSessionController deviceController;
   final KioskCustomerUploadController uploadController;
+  final KioskRuntimeConfigurationController configurationController;
   final OperatorAccessController? operatorAccessController;
 
   @override
@@ -97,6 +108,7 @@ class SelfxKioskApp extends StatelessWidget {
         captureController: controller,
         tryOnController: tryOnController,
         uploadController: uploadController,
+        configurationController: configurationController,
         operatorAccessController:
             operatorAccessController ??
             OperatorAccessController(
@@ -119,6 +131,7 @@ class SelfxKioskDependencies {
     required this.tryOnGateway,
     required this.deviceGateway,
     required this.deviceCredentialStore,
+    required this.configurationController,
   });
 
   final CameraService cameraService;
@@ -129,4 +142,5 @@ class SelfxKioskDependencies {
   final KioskTryOnGateway tryOnGateway;
   final KioskDeviceGateway deviceGateway;
   final KioskDeviceCredentialStore deviceCredentialStore;
+  final KioskRuntimeConfigurationController configurationController;
 }

@@ -95,6 +95,30 @@ enum KioskCustomerUploadPurpose {
   GARMENT
 }
 
+enum KioskIdleMode {
+  STATIC
+  SLIDESHOW
+}
+
+enum KioskConfigurationAssetType {
+  BUNDLED_IMAGE
+  REMOTE_IMAGE
+}
+
+enum KioskConfigurationSoundProfile {
+  SELFX_SIGNATURE
+  SOFT
+  STUDIO
+  MINIMAL
+  MUTED
+}
+
+enum KioskConfigurationGarmentIntent {
+  TOP
+  BOTTOM
+  FULL_OUTFIT
+}
+
 enum OrganizationApplicationStatus {
   DRAFT
   SUBMITTED
@@ -129,6 +153,7 @@ model User {
   requirementsReviewed    OrganizationActivationRequirement[] @relation("ActivationRequirementReviewedBy")
   sessions                UserSession[]
   kioskPairingClaims      KioskPairingSession[]    @relation("KioskPairingClaimedBy")
+  kioskConfigurationsUpdated KioskDeviceConfiguration[] @relation("KioskConfigurationUpdatedBy")
 
   @@map("users")
 }
@@ -325,6 +350,7 @@ model KioskDevice {
   tryOnRuns       KioskTryOnRun[]
   pairingSessions KioskPairingSession[]
   sessions        KioskDeviceSession[]
+  configuration   KioskDeviceConfiguration?
 
   @@index([status])
   @@index([assignmentScope])
@@ -334,6 +360,49 @@ model KioskDevice {
   @@index([lastSeenAt])
   @@index([deletedAt])
   @@map("kiosk_devices")
+}
+
+model KioskDeviceConfiguration {
+  id                        String                            @id @db.Uuid
+  kioskDeviceId             String                            @unique @map("kiosk_device_id") @db.Uuid
+  version                   Int                               @default(1)
+  idleMode                  KioskIdleMode                     @default(STATIC) @map("idle_mode")
+  slideDurationSeconds      Int                               @default(6) @map("slide_duration_seconds")
+  title                     String?                           @db.VarChar(120)
+  subtitle                  String?                           @db.VarChar(180)
+  ctaLabel                  String                            @default("Start Try-On") @map("cta_label") @db.VarChar(40)
+  countdownSeconds          Int                               @default(10) @map("countdown_seconds")
+  soundEnabled              Boolean                           @default(true) @map("sound_enabled")
+  soundProfile              KioskConfigurationSoundProfile    @default(SELFX_SIGNATURE) @map("sound_profile")
+  guidanceAudioEnabled      Boolean                           @default(false) @map("guidance_audio_enabled")
+  enabledGarmentIntents     KioskConfigurationGarmentIntent[] @default([TOP, BOTTOM, FULL_OUTFIT]) @map("enabled_garment_intents")
+  sessionIdleTimeoutSeconds Int                               @default(120) @map("session_idle_timeout_seconds")
+  updatedByUserId           String?                           @map("updated_by_user_id") @db.Uuid
+  createdAt                 DateTime                          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  kioskDevice               KioskDevice                       @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+  updatedBy                 User?                             @relation("KioskConfigurationUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  assets                    KioskDeviceConfigurationAsset[]
+
+  @@index([kioskDeviceId, version])
+  @@index([updatedByUserId])
+  @@map("kiosk_device_configurations")
+}
+
+model KioskDeviceConfigurationAsset {
+  id              String                       @id @db.Uuid
+  configurationId String                       @map("configuration_id") @db.Uuid
+  sortOrder       Int                          @map("sort_order")
+  type            KioskConfigurationAssetType
+  label           String                       @db.VarChar(120)
+  url             String?                      @db.Text
+  bundledAssetKey String?                      @map("bundled_asset_key") @db.VarChar(120)
+  createdAt       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  configuration   KioskDeviceConfiguration     @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@unique([configurationId, sortOrder])
+  @@index([configurationId])
+  @@map("kiosk_device_configuration_assets")
 }
 
 model KioskPairingSession {

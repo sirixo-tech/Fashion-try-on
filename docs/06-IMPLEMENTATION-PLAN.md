@@ -1202,6 +1202,42 @@ Verification should include `flutter analyze`, targeted kiosk compatibility,
 acquisition and Try-On tests, targeted backend kiosk Try-On tests, API
 typecheck/build and shared package build. No APK or Windows build is required.
 
+### KIOSK-6A SaaS-Controlled Kiosk Configuration
+
+Implemented scope:
+
+- per-device `KioskDeviceConfiguration` persistence with ordered
+  `KioskDeviceConfigurationAsset` records and tracked Prisma migration;
+- monotonic per-device configuration versions starting from bundled default
+  version `1`;
+- superadmin `GET`/`PUT`
+  `/api/v1/admin/kiosks/:deviceId/configuration` protected by
+  `KIOSKS_CONFIGURE`;
+- device-authenticated `GET /api/v1/kiosk/configuration`;
+- `session/me` and heartbeat version discovery through
+  `latestConfigurationVersion` without returning the full configuration body;
+- validated display, capture and experience configuration fields;
+- validated HTTPS or bundled presentation image references;
+- Flutter runtime configuration parsing, non-secret local cache, asset download
+  before activation and offline fallback to the last valid cache or bundled
+  defaults;
+- customer home presentation, capture countdown/sound settings and enabled
+  garment intent category buttons use the active runtime configuration;
+- operator Display settings show safe remote/cache/fallback sync status.
+
+Explicitly not implemented:
+
+- SaaS presentation asset upload, pending a durable object-storage ownership
+  model;
+- remote camera preference, pending stable certified hardware identifiers;
+- Product Catalog, Shopify/WooCommerce sync, remote reboot/commands, OTA,
+  premium audio asset distribution, deep telemetry, billing, Redis/BullMQ,
+  API Gateway or provider changes.
+
+Verification should include Prisma validation/generation, targeted backend
+configuration tests, web typecheck/build, `flutter analyze` and targeted kiosk
+runtime-configuration tests. APK and Windows builds are not required.
+
 ### SELFX-DESIGN-SYSTEM-2 Premium Cross-Application Design System
 
 Implemented scope:

@@ -25,6 +25,11 @@ import { KioskTryOnController } from "./kiosk-try-on.controller.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import {
+  AdminKioskConfigurationController,
+  KioskConfigurationController,
+} from "./kiosk-configuration.controller.js";
+import { KioskConfigurationService } from "./kiosk-configuration.service.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule, JwtModule.register({}), TryOnModule],
@@ -37,11 +42,14 @@ import { ObjectStorageService } from "../storage/object-storage.js";
     KioskTryOnController,
     KioskCustomerUploadDeviceController,
     CustomerUploadCapabilityController,
+    AdminKioskConfigurationController,
+    KioskConfigurationController,
   ],
   providers: [
     KioskService,
     KioskCustomerUploadService,
     KioskTryOnService,
+    KioskConfigurationService,
     ObjectStorageService,
     PlatformAuthorizationService,
     { provide: KIOSK_CONFIG, useFactory: () => loadKioskConfig() },

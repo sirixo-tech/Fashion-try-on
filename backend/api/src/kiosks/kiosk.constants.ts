@@ -19,6 +19,7 @@ export const KIOSK_ERROR_CODES = {
   customerUploadNotReady: "KIOSK_CUSTOMER_UPLOAD_NOT_READY",
   customerUploadPurposeMismatch: "KIOSK_CUSTOMER_UPLOAD_PURPOSE_MISMATCH",
   customerUploadRejected: "KIOSK_CUSTOMER_UPLOAD_REJECTED",
+  configurationInvalid: "KIOSK_CONFIGURATION_INVALID",
   rateLimited: "KIOSK_RATE_LIMITED",
 } as const;
 
@@ -29,6 +30,7 @@ export const KIOSK_AUDIT_ACTIONS = {
   revoked: "KIOSK_REVOKED",
   deleted: "KIOSK_DELETED",
   heartbeat: "KIOSK_HEARTBEAT",
+  configured: "KIOSK_CONFIGURED",
 } as const;
 
 export const KIOSK_PAIRING_CODE_PATTERN = /^\d{6}$/;

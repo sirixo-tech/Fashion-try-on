@@ -1181,6 +1181,36 @@ KIOSK-4C does not implement Product Catalog, persistent customer accounts, QR
 result handoff/continuation, checkout, billing, Redis/BullMQ, API Gateway or
 provider client code in Flutter.
 
+## PRD-KIOSK-012 — KIOSK-6A Remote Kiosk Configuration
+
+SelfX superadmins must be able to configure individual paired kiosks from the
+SaaS fleet surface without changing physical kiosk credentials.
+
+KIOSK-6A includes:
+
+- one active runtime configuration per kiosk device;
+- monotonic per-device configuration versioning;
+- heartbeat/session discovery of the latest configuration version without
+  sending the full configuration body;
+- a device-authenticated configuration endpoint available only to active
+  current kiosk devices;
+- configurable idle presentation mode, slide duration, title, subtitle,
+  **Start Try-On** CTA label and ordered presentation image references;
+- configurable capture countdown, capture sound enablement, sound profile and
+  guidance-audio flag;
+- configurable customer-facing garment intent availability for `TOP`, `BOTTOM`
+  and `FULL_OUTFIT`;
+- local kiosk cache and offline fallback to the last valid configuration, or
+  bundled defaults if no cache exists;
+- remote configuration activation only after presentation assets are validated
+  and locally available.
+
+KIOSK-6A does not implement remote camera selection, remote reboot/commands,
+OTA updates, Product Catalog, Shopify/WooCommerce sync, premium audio asset
+distribution, deep telemetry, billing, API Gateway or provider changes.
+Presentation asset upload from the SaaS UI remains deferred until durable
+object-storage asset ownership is approved.
+
 ---
 
 # 24. QR Kiosk-to-Mobile Handoff

@@ -26,6 +26,11 @@ class KioskTryOnSessionController extends ChangeNotifier {
 
   KioskGarmentInput? garmentInput;
   KioskGarmentIntent? pendingGarmentIntent;
+  List<KioskGarmentIntent> enabledGarmentIntents = const [
+    KioskGarmentIntent.top,
+    KioskGarmentIntent.bottom,
+    KioskGarmentIntent.fullOutfit,
+  ];
   KioskTryOnStatus status = KioskTryOnStatus.idle;
   KioskTryOnRun? run;
   KioskTryOnResult? result;
@@ -33,6 +38,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   String? customerTitle;
   String? customerMessage;
   TryOnTargetPreparationMetadata? targetMetadata;
+  bool customerSessionActive = false;
 
   Timer? _pollTimer;
   DateTime? _pollStartedAt;
@@ -40,6 +46,30 @@ class KioskTryOnSessionController extends ChangeNotifier {
   bool _disposed = false;
   String? _activeClientRequestId;
   File? _preparedPersonFile;
+
+  bool get canActivateRuntimeConfiguration =>
+      !customerSessionActive &&
+      garmentInput == null &&
+      pendingGarmentIntent == null &&
+      run == null &&
+      result == null &&
+      status == KioskTryOnStatus.idle;
+
+  void beginCustomerSession() {
+    if (customerSessionActive) {
+      return;
+    }
+    customerSessionActive = true;
+    notifyListeners();
+  }
+
+  void endCustomerSession() {
+    if (!customerSessionActive) {
+      return;
+    }
+    customerSessionActive = false;
+    notifyListeners();
+  }
 
   void selectGarment(KioskGarmentInput input) {
     garmentInput = input;
@@ -50,6 +80,19 @@ class KioskTryOnSessionController extends ChangeNotifier {
 
   void selectPendingGarmentIntent(KioskGarmentIntent intent) {
     pendingGarmentIntent = intent;
+    notifyListeners();
+  }
+
+  void applyEnabledGarmentIntents(List<KioskGarmentIntent> intents) {
+    enabledGarmentIntents = intents;
+    if (pendingGarmentIntent != null &&
+        !enabledGarmentIntents.contains(pendingGarmentIntent)) {
+      pendingGarmentIntent = null;
+    }
+    if (garmentInput != null &&
+        !enabledGarmentIntents.contains(garmentInput!.intent)) {
+      garmentInput = null;
+    }
     notifyListeners();
   }
 

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import '../config/kiosk_runtime_configuration.dart';
 import 'kiosk_device_models.dart';
 
 class KioskDeviceApiConfig {
@@ -45,6 +46,8 @@ abstract class KioskDeviceGateway {
     required String platform,
     required String appVersion,
   });
+
+  Future<KioskRuntimeConfiguration> configuration(String accessToken);
 }
 
 class SelfxKioskDeviceGateway implements KioskDeviceGateway {
@@ -174,6 +177,18 @@ class SelfxKioskDeviceGateway implements KioskDeviceGateway {
     return _device(_decode(response));
   }
 
+  @override
+  Future<KioskRuntimeConfiguration> configuration(String accessToken) async {
+    _assertConfigured();
+    final response = await client
+        .get(
+          _uri('/api/v1/kiosk/configuration'),
+          headers: _authHeaders(accessToken),
+        )
+        .timeout(timeout);
+    return KioskRuntimeConfiguration.fromJson(_decode(response));
+  }
+
   Uri _uri(String path) {
     final base = Uri.parse(config.apiBaseUrl.trim());
     return base.replace(path: _joinPaths(base.path, path));
@@ -251,6 +266,9 @@ KioskDeviceIdentity _device(Map<String, dynamic> json) {
     lastSeenAt: json['lastSeenAt'] is String
         ? DateTime.parse(json['lastSeenAt'] as String)
         : null,
+    latestConfigurationVersion: json['latestConfigurationVersion'] is int
+        ? json['latestConfigurationVersion'] as int
+        : 1,
   );
 }
 

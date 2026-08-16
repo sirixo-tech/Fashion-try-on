@@ -958,6 +958,7 @@ Provider-specific technical settings should not be exposed to normal merchant us
 - app version
 - last heartbeat
 - pairing state
+- latest configuration version
 - health badge
 
 ### Filters
@@ -1009,6 +1010,37 @@ Recommended tabs/sections:
 - unpair
 
 Sensitive actions require confirmation.
+
+### Configuration
+
+KIOSK-6A configuration UI may appear as a detail tab, drawer or focused dialog
+from the fleet row while the broader kiosk-detail surface matures.
+
+Editable fields:
+
+- idle mode: static or slideshow;
+- slide duration, 3-60 seconds;
+- presentation title, subtitle and CTA label;
+- ordered presentation image references using bundled asset keys or validated
+  HTTPS image URLs;
+- capture countdown: 5, 10 or 15 seconds;
+- capture sounds enabled and sound profile;
+- guidance audio enabled;
+- enabled customer garment intent categories: Top, Bottom, Full Outfit;
+- session idle timeout.
+
+States:
+
+- loading existing configuration;
+- validation error with safe field-level or dialog-level copy;
+- saving;
+- saved version visible after success;
+- presentation asset upload unavailable until durable object-storage ownership
+  exists.
+
+Customer kiosk screens must not show configuration/debug labels. Operator
+Display/Diagnostics may show safe status such as active remote version, cached
+version, bundled default fallback and safe sync failure codes.
 
 ---
 

@@ -1481,6 +1481,38 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    - KIOSK-4C does not introduce Product Catalog, QR result continuation,
      Redis/BullMQ, billing or API Gateway.
 
+   KIOSK-6A adds SaaS-controlled runtime configuration for paired kiosks:
+
+   - superadmin configuration APIs are
+     `GET /api/v1/admin/kiosks/:deviceId/configuration` and
+     `PUT /api/v1/admin/kiosks/:deviceId/configuration`;
+   - admin configuration routes require platform `kiosks.configure`
+     permission, which is currently granted only to `SELFX_SUPER_ADMIN`;
+   - device configuration reads use `GET /api/v1/kiosk/configuration` and
+     require an active kiosk device access token;
+   - `GET /api/v1/kiosk/session/me` and `POST /api/v1/kiosk/heartbeat`
+     include only `latestConfigurationVersion` for discovery. They do not send
+     the full configuration body;
+   - configuration is persisted per kiosk device and every admin update
+     increments a monotonic per-device version. The bundled default
+     configuration is version `1`;
+   - configuration includes idle presentation mode, slide duration, text/CTA,
+     ordered presentation image references, capture countdown, capture sound
+     settings, guidance-audio flag, enabled garment intents and session idle
+     timeout;
+   - Flutter loads the last valid non-secret cached configuration before remote
+     sync and atomically activates a newer configuration only after presentation
+     assets are valid and locally available;
+   - if offline, Flutter continues with the last valid cache, or the bundled
+     SelfX defaults if no cache exists;
+   - remote presentation image references must be HTTPS and must not target
+     local/internal hosts or unsafe URL schemes;
+   - presentation image upload remains deferred until a durable object-storage
+     asset ownership model exists. KIOSK-6A supports bundled asset keys and
+     validated HTTPS image references only;
+   - camera preference remains local device configuration until certified kiosk
+     hardware provides stable cross-platform camera identifiers.
+
 ---
 
 29. Kiosk Privacy and Offline Behavior
