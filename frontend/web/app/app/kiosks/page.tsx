@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CheckIcon,
+  ChevronDownIcon,
+  ImageIcon,
   MonitorIcon,
   PlusIcon,
   PowerIcon,
@@ -10,6 +13,9 @@ import {
   SettingsIcon,
   ShieldAlertIcon,
   Trash2Icon,
+  UploadIcon,
+  Volume2Icon,
+  XIcon,
 } from "lucide-react";
 
 import {
@@ -21,6 +27,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input,
   Label,
   PageContainer,
@@ -41,6 +51,7 @@ import {
   activateKioskDevice,
   deactivateKioskDevice,
   deleteKioskDevice,
+  createKioskConfigurationAssetUploadIntent,
   getKioskConfiguration,
   listKioskAssignmentOptions,
   listKioskDevices,
@@ -48,6 +59,7 @@ import {
   revokeKioskDevice,
   updateKioskConfiguration,
   type KioskConfiguration,
+  type KioskConfigurationAssetType,
   type KioskConfigurationGarmentIntent,
   type KioskConfigurationSoundProfile,
   type KioskAssignmentOptions,
@@ -74,6 +86,8 @@ const garmentIntents: KioskConfigurationGarmentIntent[] = [
   "BOTTOM",
   "FULL_OUTFIT",
 ];
+const presentationImageTypes = ["image/jpeg", "image/png", "image/webp"];
+const maxPresentationImageBytes = 12 * 1024 * 1024;
 
 export default function KiosksPage() {
   const session = useSession();
@@ -339,7 +353,6 @@ function KioskLifecycleActions({
         title="Delete kiosk?"
         description="This removes the kiosk from the fleet list and revokes any remaining device sessions. Audit history is retained."
         confirmLabel="Delete"
-        destructive
         onConfirm={onDelete}
         trigger={
           <Button variant="outline" size="sm">
@@ -530,8 +543,19 @@ type KioskConfigurationForm = {
   guidanceAudioEnabled: boolean;
   enabledGarmentIntents: KioskConfigurationGarmentIntent[];
   sessionIdleTimeoutSeconds: number;
-  assetLabel: string;
-  remoteAssetUrl: string;
+  presentationAssets: PresentationAssetFormItem[];
+};
+
+type PresentationAssetFormItem = {
+  id: string;
+  type: KioskConfigurationAssetType;
+  label: string;
+  url?: string | null;
+  bundledAssetKey?: string | null;
+  assetRef?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  previewUrl?: string;
 };
 
 function KioskConfigurationDialog({
@@ -551,6 +575,7 @@ function KioskConfigurationDialog({
   const [version, setVersion] = useState(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadConfiguration = useCallback(async () => {
@@ -591,6 +616,26 @@ function KioskConfigurationDialog({
     setSaving(true);
     setError(null);
     try {
+      const assets =
+        form.presentationAssets.length > 0
+          ? form.presentationAssets.map((asset) => ({
+              type: asset.type,
+              label: asset.label,
+              ...(asset.url ? { url: asset.url } : {}),
+              ...(asset.bundledAssetKey
+                ? { bundledAssetKey: asset.bundledAssetKey }
+                : {}),
+              ...(asset.assetRef ? { assetRef: asset.assetRef } : {}),
+              ...(asset.contentType ? { contentType: asset.contentType } : {}),
+              ...(asset.sizeBytes ? { sizeBytes: asset.sizeBytes } : {}),
+            }))
+          : [
+              {
+                type: "BUNDLED_IMAGE" as const,
+                label: "SelfX default wallpaper",
+                bundledAssetKey: "selfx-default-kiosk-wallpaper",
+              },
+            ];
       const configuration = await updateKioskConfiguration(
         accessToken,
         device.id,
@@ -601,21 +646,7 @@ function KioskConfigurationDialog({
             title: form.title || null,
             subtitle: form.subtitle || null,
             ctaLabel: form.ctaLabel || "Start Try-On",
-            assets: form.remoteAssetUrl.trim()
-              ? [
-                  {
-                    type: "REMOTE_IMAGE",
-                    label: form.assetLabel || "Kiosk presentation image",
-                    url: form.remoteAssetUrl.trim(),
-                  },
-                ]
-              : [
-                  {
-                    type: "BUNDLED_IMAGE",
-                    label: "SelfX default wallpaper",
-                    bundledAssetKey: "selfx-default-kiosk-wallpaper",
-                  },
-                ],
+            assets,
           },
           capture: {
             countdownSeconds: form.countdownSeconds,
@@ -639,9 +670,82 @@ function KioskConfigurationDialog({
     }
   }
 
+  async function uploadPresentationAssets(fileList: FileList | File[]) {
+    if (!device || !accessToken) {
+      return;
+    }
+    const selectedFiles = Array.from(fileList);
+    if (selectedFiles.length === 0) {
+      return;
+    }
+    const files =
+      form.idleMode === "STATIC" ? selectedFiles.slice(0, 1) : selectedFiles;
+    const remainingSlots =
+      form.idleMode === "STATIC" ? 1 : 12 - form.presentationAssets.length;
+    const uploadableFiles = files.slice(0, Math.max(0, remainingSlots));
+    if (uploadableFiles.length === 0) {
+      setError("Presentation assets are limited to 12 images.");
+      return;
+    }
+    const invalid = uploadableFiles.find(
+      (file) =>
+        !presentationImageTypes.includes(file.type) ||
+        file.size > maxPresentationImageBytes,
+    );
+    if (invalid) {
+      setError("Upload JPG, PNG or WebP images up to 12 MB.");
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    try {
+      const uploadedAssets: PresentationAssetFormItem[] = [];
+      for (const file of uploadableFiles) {
+        const intent = await createKioskConfigurationAssetUploadIntent(
+          accessToken,
+          device.id,
+          {
+            contentType: file.type,
+            sizeBytes: file.size,
+            fileName: file.name,
+          },
+        );
+        const response = await fetch(intent.uploadUrl, {
+          method: intent.method,
+          headers: intent.headers,
+          body: file,
+        });
+        if (!response.ok) {
+          throw new Error("upload failed");
+        }
+        uploadedAssets.push({
+          id: localPresentationAssetId(),
+          type: intent.type,
+          label: intent.label,
+          url: URL.createObjectURL(file),
+          assetRef: intent.assetRef,
+          contentType: file.type,
+          sizeBytes: file.size,
+        });
+      }
+      setForm((current) => ({
+        ...current,
+        presentationAssets:
+          current.idleMode === "STATIC"
+            ? uploadedAssets.slice(0, 1)
+            : [...current.presentationAssets, ...uploadedAssets].slice(0, 12),
+      }));
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Configure Kiosk</DialogTitle>
           <DialogDescription>
@@ -660,26 +764,27 @@ function KioskConfigurationDialog({
             Loading configuration...
           </div>
         ) : (
-          <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1">
+          <div className="grid max-h-[72vh] gap-5 overflow-y-auto pr-1 lg:grid-cols-[1.1fr_0.9fr]">
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold">Display</legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-2 text-sm">
-                  <span>Idle Mode</span>
-                  <select
-                    className="h-10 w-full rounded-md border bg-background px-3"
+                <div className="space-y-2 text-sm">
+                  <Label>Idle Mode</Label>
+                  <SelectMenu
+                    ariaLabel="Idle mode"
                     value={form.idleMode}
-                    onChange={(event) =>
+                    options={[
+                      { value: "STATIC", label: "Static" },
+                      { value: "SLIDESHOW", label: "Slideshow" },
+                    ]}
+                    onChange={(value) =>
                       setForm((current) => ({
                         ...current,
-                        idleMode: event.target.value as KioskIdleMode,
+                        idleMode: value,
                       }))
                     }
-                  >
-                    <option value="STATIC">Static</option>
-                    <option value="SLIDESHOW">Slideshow</option>
-                  </select>
-                </label>
+                  />
+                </div>
                 <label className="space-y-2 text-sm">
                   <span>Slide Duration</span>
                   <Input
@@ -737,66 +842,83 @@ function KioskConfigurationDialog({
                   }
                 />
               </label>
-              <label className="space-y-2 text-sm">
-                <span>HTTPS Presentation Image URL</span>
-                <Input
-                  value={form.remoteAssetUrl}
-                  placeholder="Leave blank to use bundled SelfX wallpaper"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      remoteAssetUrl: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+              <PresentationAssetUploader
+                assets={form.presentationAssets}
+                idleMode={form.idleMode}
+                uploading={uploading}
+                onUpload={(files) => void uploadPresentationAssets(files)}
+                onRemove={(assetId) =>
+                  setForm((current) => ({
+                    ...current,
+                    presentationAssets: current.presentationAssets.filter(
+                      (asset) => asset.id !== assetId,
+                    ),
+                  }))
+                }
+              />
             </fieldset>
 
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold">Capture</legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-2 text-sm">
-                  <span>Countdown</span>
-                  <select
-                    className="h-10 w-full rounded-md border bg-background px-3"
-                    value={form.countdownSeconds}
-                    onChange={(event) =>
+                <div className="space-y-2 text-sm">
+                  <Label>Countdown</Label>
+                  <SelectMenu
+                    ariaLabel="Countdown"
+                    value={String(form.countdownSeconds)}
+                    options={[
+                      { value: "5", label: "5 seconds" },
+                      { value: "10", label: "10 seconds" },
+                      { value: "15", label: "15 seconds" },
+                    ]}
+                    onChange={(value) =>
                       setForm((current) => ({
                         ...current,
-                        countdownSeconds: Number(event.target.value),
+                        countdownSeconds: Number(value),
                       }))
                     }
-                  >
-                    <option value={5}>5 seconds</option>
-                    <option value={10}>10 seconds</option>
-                    <option value={15}>15 seconds</option>
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm">
-                  <span>Sound Profile</span>
-                  <select
-                    className="h-10 w-full rounded-md border bg-background px-3"
-                    value={form.soundProfile}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        soundProfile: event.target
-                          .value as KioskConfigurationSoundProfile,
-                      }))
-                    }
-                  >
-                    {soundProfiles.map((profile) => (
-                      <option key={profile} value={profile}>
-                        {profileLabel(profile)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  />
+                </div>
+                <div className="space-y-2 text-sm">
+                  <Label>Sound Profile</Label>
+                  <div className="flex gap-2">
+                    <SelectMenu
+                      ariaLabel="Sound profile"
+                      value={form.soundProfile}
+                      options={soundProfiles.map((profile) => ({
+                        value: profile,
+                        label: profileLabel(profile),
+                      }))}
+                      onChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          soundProfile: value,
+                          soundEnabled: value === "MUTED" ? false : current.soundEnabled,
+                        }))
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Sound preview unavailable"
+                      title="Sound preview is unavailable until web-served kiosk sound assets are added."
+                      disabled
+                    >
+                      <Volume2Icon aria-hidden="true" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Preview unavailable until web-served kiosk sound assets are
+                    added.
+                  </p>
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={form.soundEnabled}
+                  disabled={form.soundProfile === "MUTED"}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
@@ -821,7 +943,7 @@ function KioskConfigurationDialog({
               </label>
             </fieldset>
 
-            <fieldset className="space-y-3">
+            <fieldset className="space-y-3 lg:col-start-2 lg:row-start-2">
               <legend className="text-sm font-semibold">Experience</legend>
               <div className="flex flex-wrap gap-3">
                 {garmentIntents.map((intent) => (
@@ -852,10 +974,10 @@ function KioskConfigurationDialog({
               </label>
             </fieldset>
 
-            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              Presentation asset upload is deferred until durable object storage
-              ownership metadata exists. Use HTTPS image URLs or the bundled
-              SelfX wallpaper.
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground lg:col-span-2">
+              Uploaded presentation images are stored through SelfX object
+              storage and delivered to the paired kiosk as signed runtime
+              configuration media URLs.
             </div>
           </div>
         )}
@@ -863,7 +985,7 @@ function KioskConfigurationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button disabled={saving || loading} onClick={() => void save()}>
+          <Button disabled={saving || loading || uploading} onClick={() => void save()}>
             Save Configuration
           </Button>
         </DialogFooter>
@@ -883,6 +1005,149 @@ function KioskConfigurationDialog({
       };
     });
   }
+}
+
+function PresentationAssetUploader({
+  assets,
+  idleMode,
+  uploading,
+  onUpload,
+  onRemove,
+}: {
+  assets: PresentationAssetFormItem[];
+  idleMode: KioskIdleMode;
+  uploading: boolean;
+  onUpload: (files: FileList) => void;
+  onRemove: (assetId: string) => void;
+}) {
+  const inputId = "presentation-asset-upload";
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label htmlFor={inputId}>Presentation Image</Label>
+        <label
+          htmlFor={inputId}
+          className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
+        >
+          <UploadIcon size={16} aria-hidden="true" />
+          {uploading ? "Uploading" : "Upload Image"}
+        </label>
+        <input
+          id={inputId}
+          className="sr-only"
+          type="file"
+          accept={presentationImageTypes.join(",")}
+          multiple={idleMode === "SLIDESHOW"}
+          disabled={uploading}
+          onChange={(event) => {
+            const files = event.currentTarget.files;
+            if (files) {
+              onUpload(files);
+            }
+            event.currentTarget.value = "";
+          }}
+        />
+      </div>
+      <div className="grid gap-2">
+        {assets.length === 0 ? (
+          <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="grid size-10 place-items-center rounded-md bg-background text-muted-foreground">
+              <ImageIcon size={18} aria-hidden="true" />
+            </div>
+            <div>
+              <div className="font-medium">SelfX default wallpaper</div>
+              <div className="text-xs text-muted-foreground">
+                Bundled kiosk image
+              </div>
+            </div>
+          </div>
+        ) : (
+          assets.map((asset) => (
+            <div
+              key={asset.id}
+              className="flex items-center gap-3 rounded-md border bg-background p-2"
+            >
+              <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-md bg-muted">
+                {asset.previewUrl || asset.url ? (
+                  <img
+                    src={asset.previewUrl ?? asset.url ?? ""}
+                    alt=""
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon size={18} aria-hidden="true" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{asset.label}</div>
+                <div className="text-xs text-muted-foreground">
+                  {asset.type === "REMOTE_IMAGE"
+                    ? "Hosted image"
+                    : formatFileSize(asset.sizeBytes)}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove ${asset.label}`}
+                onClick={() => onRemove(asset.id)}
+              >
+                <XIcon aria-hidden="true" />
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SelectMenu<T extends string>({
+  ariaLabel,
+  value,
+  options,
+  onChange,
+}: {
+  ariaLabel: string;
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  onChange: (value: T) => void;
+}) {
+  const selected = options.find((option) => option.value === value);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-between bg-background font-normal"
+            aria-label={ariaLabel}
+          />
+        }
+      >
+        <span className="truncate">{selected?.label ?? value}</span>
+        <ChevronDownIcon aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="rounded-xl p-1">
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            className="gap-2 rounded-lg px-3 py-2"
+            onClick={() => onChange(option.value)}
+          >
+            <span className="grid size-4 place-items-center">
+              {option.value === value ? (
+                <CheckIcon size={14} aria-hidden="true" />
+              ) : null}
+            </span>
+            {option.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function assignmentLabel(device: KioskDevice): string {
@@ -911,17 +1176,25 @@ function defaultConfigForm(): KioskConfigurationForm {
     guidanceAudioEnabled: false,
     enabledGarmentIntents: ["TOP", "BOTTOM", "FULL_OUTFIT"],
     sessionIdleTimeoutSeconds: 120,
-    assetLabel: "SelfX default wallpaper",
-    remoteAssetUrl: "",
+    presentationAssets: [],
   };
 }
 
 function formFromConfiguration(
   configuration: KioskConfiguration,
 ): KioskConfigurationForm {
-  const remoteAsset = configuration.display.assets.find(
-    (asset) => asset.type === "REMOTE_IMAGE",
-  );
+  const presentationAssets = configuration.display.assets
+    .filter((asset) => asset.type !== "BUNDLED_IMAGE")
+    .map((asset) => ({
+      id: asset.id,
+      type: asset.type,
+      label: asset.label,
+      url: asset.url,
+      bundledAssetKey: asset.bundledAssetKey,
+      assetRef: asset.assetRef,
+      contentType: asset.contentType,
+      sizeBytes: asset.sizeBytes,
+    }));
   return {
     idleMode: configuration.display.idleMode,
     slideDurationSeconds: configuration.display.slideDurationSeconds,
@@ -935,8 +1208,7 @@ function formFromConfiguration(
     enabledGarmentIntents: configuration.experience.enabledGarmentIntents,
     sessionIdleTimeoutSeconds:
       configuration.experience.sessionIdleTimeoutSeconds,
-    assetLabel: remoteAsset?.label ?? "SelfX default wallpaper",
-    remoteAssetUrl: remoteAsset?.url ?? "",
+    presentationAssets,
   };
 }
 
@@ -948,11 +1220,27 @@ function validateConfigurationForm(form: KioskConfigurationForm): string | null 
   ) {
     return "Slide duration must be between 3 and 60 seconds.";
   }
-  const remoteAssetUrl = form.remoteAssetUrl.trim();
-  if (remoteAssetUrl && !remoteAssetUrl.startsWith("https://")) {
-    return "Presentation image URL must use HTTPS.";
+  if (form.presentationAssets.length > 12) {
+    return "Presentation assets are limited to 12 images.";
+  }
+  if (form.idleMode === "SLIDESHOW" && form.presentationAssets.length < 2) {
+    return "Slideshow mode requires at least two uploaded images.";
   }
   return null;
+}
+
+function formatFileSize(sizeBytes?: number | null): string {
+  if (!sizeBytes) {
+    return "Uploaded image";
+  }
+  if (sizeBytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
+  }
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function localPresentationAssetId(): string {
+  return `asset-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`;
 }
 
 function profileLabel(profile: KioskConfigurationSoundProfile): string {

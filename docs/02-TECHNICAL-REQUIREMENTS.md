@@ -1507,9 +1507,9 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
      SelfX defaults if no cache exists;
    - remote presentation image references must be HTTPS and must not target
      local/internal hosts or unsafe URL schemes;
-   - presentation image upload remains deferred until a durable object-storage
-     asset ownership model exists. KIOSK-6A supports bundled asset keys and
-     validated HTTPS image references only;
+   - SaaS presentation image uploads use the SelfX object-storage presign
+     flow, persist an object key on the kiosk configuration asset and expose
+     short-lived signed read URLs through the kiosk runtime configuration;
    - camera preference remains local device configuration until certified kiosk
      hardware provides stable cross-platform camera identifiers.
 

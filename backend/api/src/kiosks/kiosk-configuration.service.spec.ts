@@ -239,6 +239,10 @@ class ConfigurationHarness {
   readonly auditLogs: Array<{ action: string }> = [];
   authenticatedDeviceId = this.deviceId;
   deviceAuthError: ApiErrorException | null = null;
+  readonly storage = {
+    createUploadUrl: vi.fn(({ key }: { key: string }) => `https://storage.test/${key}`),
+    createReadUrl: vi.fn(({ key }: { key: string }) => `https://storage.test/${key}`),
+  };
   private readonly assetsByConfigurationId = new Map<string, Array<Record<string, unknown>>>();
   private readonly configurationsByDeviceId = new Map<string, Record<string, unknown>>();
 
@@ -343,6 +347,7 @@ class ConfigurationHarness {
         return { id: this.authenticatedDeviceId };
       },
     } as never,
+    this.storage as never,
   );
 
   private device(id: string): Record<string, unknown> | null {

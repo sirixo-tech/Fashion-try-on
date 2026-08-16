@@ -109,8 +109,8 @@ their client-generated boundaries.
   screen instead of this customer home.
 - The bundled `assets/wallpapers/selfx-default-kiosk-wallpaper.png` image is
   the default local wallpaper when no valid remote configuration/cache exists.
-  KIOSK-6A may replace it with SaaS-configured bundled or HTTPS presentation
-  image references after local validation/download succeeds.
+  KIOSK-6A may replace it with SaaS-configured bundled, uploaded or HTTPS
+  presentation image references after local validation/download succeeds.
 - Camera Settings is not visible on the home. A hidden top-left double-tap
   reveals a temporary operator icon, which opens a 6-digit PIN challenge before
   settings.

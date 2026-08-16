@@ -1207,9 +1207,9 @@ KIOSK-6A includes:
 
 KIOSK-6A does not implement remote camera selection, remote reboot/commands,
 OTA updates, Product Catalog, Shopify/WooCommerce sync, premium audio asset
-distribution, deep telemetry, billing, API Gateway or provider changes.
-Presentation asset upload from the SaaS UI remains deferred until durable
-object-storage asset ownership is approved.
+distribution, deep telemetry, billing, API Gateway or provider changes. SaaS
+presentation image upload is supported through SelfX object storage and remains
+scoped to the target kiosk configuration.
 
 ---
 

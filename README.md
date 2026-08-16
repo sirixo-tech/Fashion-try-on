@@ -284,8 +284,8 @@ access and responsive local settings.
   SelfX orange with white text and orange border; inactive choices are white
   with dark text and neutral borders.
 - Idle presentation is local/offline with static or slideshow semantics. The
-  bundled SelfX wallpaper is the default fallback until organization/kiosk
-  wallpaper management is added to the SaaS dashboard.
+  bundled SelfX wallpaper is the default fallback; the SaaS kiosk configuration
+  surface can replace it with validated uploaded or hosted presentation images.
 
 KIOSK-2A implements local camera testing plus the assisted customer capture
 experience with on-device live readiness where Android image streams are

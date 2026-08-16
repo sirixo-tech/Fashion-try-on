@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Headers, Param, Put, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Put,
+  Req,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -14,7 +23,9 @@ import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import {
+  CreateKioskConfigurationAssetUploadDto,
   KioskConfigurationDto,
+  KioskConfigurationAssetUploadIntentDto,
   UpdateKioskConfigurationDto,
 } from "./dto/kiosk.dto.js";
 import { KioskConfigurationService } from "./kiosk-configuration.service.js";
@@ -70,6 +81,30 @@ export class AdminKioskConfigurationController {
     );
     return this.configurations.updateAdminConfiguration(user.id, deviceId, dto);
   }
+
+  @Post(":deviceId/configuration/assets/upload-intent")
+  @ApiOperation({
+    summary: "Create a signed kiosk presentation asset upload URL",
+  })
+  @ApiOkResponse({ type: KioskConfigurationAssetUploadIntentDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async createAssetUploadIntent(
+    @Req() request: FastifyRequest,
+    @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
+    @Body() dto: CreateKioskConfigurationAssetUploadDto,
+  ): Promise<KioskConfigurationAssetUploadIntentDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksConfigure,
+    );
+    return this.configurations.createAdminAssetUploadIntent(deviceId, dto);
+  }
 }
 
 @ApiTags("Kiosk Configuration")
@@ -79,7 +114,9 @@ export class KioskConfigurationController {
 
   @Get("configuration")
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Return current device-authenticated kiosk configuration" })
+  @ApiOperation({
+    summary: "Return current device-authenticated kiosk configuration",
+  })
   @ApiOkResponse({ type: KioskConfigurationDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })

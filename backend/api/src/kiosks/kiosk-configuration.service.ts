@@ -15,14 +15,17 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { ObjectStorageService } from "../storage/object-storage.js";
+import {
+  type CreateKioskConfigurationAssetUploadDto,
+  type KioskConfigurationAssetUploadIntentDto,
+  type KioskConfigurationDto,
+  type UpdateKioskConfigurationDto,
+} from "./dto/kiosk.dto.js";
 import {
   KIOSK_AUDIT_ACTIONS,
   KIOSK_ERROR_CODES,
 } from "./kiosk.constants.js";
-import {
-  type KioskConfigurationDto,
-  type UpdateKioskConfigurationDto,
-} from "./dto/kiosk.dto.js";
 import { KioskService } from "./kiosk.service.js";
 
 const fallbackBundledAssetKey = "selfx-default-kiosk-wallpaper";
@@ -38,6 +41,17 @@ const defaultIntents = [
   KioskConfigurationGarmentIntent.BOTTOM,
   KioskConfigurationGarmentIntent.FULL_OUTFIT,
 ];
+const supportedUploadContentTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+const supportedUploadContentTypeSet = new Set<string>(
+  supportedUploadContentTypes,
+);
+const maxPresentationImageBytes = 12 * 1024 * 1024;
+const uploadIntentTtlSeconds = 300;
+const readUrlTtlSeconds = 900;
 
 type ConfigurationWithAssets = KioskDeviceConfiguration & {
   assets: KioskDeviceConfigurationAsset[];
@@ -48,6 +62,7 @@ export class KioskConfigurationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly kiosks: KioskService,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   async getAdminConfiguration(
@@ -58,7 +73,37 @@ export class KioskConfigurationService {
       where: { kioskDeviceId: deviceId },
       include: { assets: { orderBy: { sortOrder: "asc" } } },
     });
-    return mapConfiguration(configuration);
+    return this.mapConfiguration(configuration);
+  }
+
+  async createAdminAssetUploadIntent(
+    deviceId: string,
+    input: CreateKioskConfigurationAssetUploadDto,
+  ): Promise<KioskConfigurationAssetUploadIntentDto> {
+    await this.requireManageableDevice(deviceId);
+    const contentType = normalizeUploadedImageContentType(input.contentType);
+    if (!contentType || input.sizeBytes > maxPresentationImageBytes) {
+      throwConfigurationInvalid("Presentation image upload is invalid.");
+    }
+    const objectKey = kioskConfigurationAssetObjectKeyFor(deviceId, contentType);
+    const now = new Date();
+    return {
+      assetRef: encodeAssetRef(objectKey),
+      type: KioskConfigurationAssetType.UPLOADED_IMAGE,
+      label: presentationAssetLabel(input.fileName),
+      uploadUrl: this.storage.createUploadUrl({
+        key: objectKey,
+        contentType,
+        expiresInSeconds: uploadIntentTtlSeconds,
+      }),
+      method: "PUT",
+      expiresAt: new Date(
+        now.getTime() + uploadIntentTtlSeconds * 1000,
+      ).toISOString(),
+      headers: { "Content-Type": contentType },
+      maxImageBytes: maxPresentationImageBytes,
+      supportedContentTypes: [...supportedUploadContentTypes],
+    };
   }
 
   async updateAdminConfiguration(
@@ -67,7 +112,7 @@ export class KioskConfigurationService {
     input: UpdateKioskConfigurationDto,
   ): Promise<KioskConfigurationDto> {
     await this.requireManageableDevice(deviceId);
-    const normalized = normalizeConfigurationInput(input);
+    const normalized = normalizeConfigurationInput(input, deviceId);
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.kioskDeviceConfiguration.findUnique({
         where: { kioskDeviceId: deviceId },
@@ -109,6 +154,9 @@ export class KioskConfigurationService {
           label: asset.label,
           url: asset.url,
           bundledAssetKey: asset.bundledAssetKey,
+          objectKey: asset.objectKey,
+          contentType: asset.contentType,
+          sizeBytes: asset.sizeBytes,
         })),
       });
       const device = await tx.kioskDevice.findUniqueOrThrow({
@@ -132,7 +180,7 @@ export class KioskConfigurationService {
         include: { assets: { orderBy: { sortOrder: "asc" } } },
       });
     });
-    return mapConfiguration(updated);
+    return this.mapConfiguration(updated);
   }
 
   async getDeviceConfiguration(
@@ -143,7 +191,7 @@ export class KioskConfigurationService {
       where: { kioskDeviceId: device.id },
       include: { assets: { orderBy: { sortOrder: "asc" } } },
     });
-    return mapConfiguration(configuration);
+    return this.mapConfiguration(configuration);
   }
 
   private async requireManageableDevice(deviceId: string): Promise<void> {
@@ -159,46 +207,63 @@ export class KioskConfigurationService {
       );
     }
   }
-}
 
-function mapConfiguration(
-  configuration: ConfigurationWithAssets | null,
-): KioskConfigurationDto {
-  const source = configuration ?? defaultConfiguration();
-  const assets = source.assets.length > 0 ? source.assets : defaultAssets();
-  return {
-    version: source.version,
-    display: {
-      idleMode: source.idleMode,
-      slideDurationSeconds: source.slideDurationSeconds,
-      title: source.title,
-      subtitle: source.subtitle,
-      ctaLabel: source.ctaLabel,
-      assets: assets.map((asset) => ({
-        id: asset.id,
-        type: asset.type,
-        label: asset.label,
-        url: asset.url,
-        bundledAssetKey: asset.bundledAssetKey,
-        sortOrder: asset.sortOrder,
-      })),
-    },
-    capture: {
-      countdownSeconds: source.countdownSeconds,
-      soundEnabled: source.soundEnabled,
-      soundProfile: source.soundProfile,
-      guidanceAudioEnabled: source.guidanceAudioEnabled,
-    },
-    experience: {
-      enabledGarmentIntents: [...source.enabledGarmentIntents],
-      sessionIdleTimeoutSeconds: source.sessionIdleTimeoutSeconds,
-    },
-    assetUpload: {
-      supported: false,
-      reason: "DURABLE_OBJECT_STORAGE_REQUIRED",
-    },
-    updatedAt: source.updatedAt.toISOString(),
-  };
+  private mapConfiguration(
+    configuration: ConfigurationWithAssets | null,
+  ): KioskConfigurationDto {
+    const source = configuration ?? defaultConfiguration();
+    const assets = source.assets.length > 0 ? source.assets : defaultAssets();
+    return {
+      version: source.version,
+      display: {
+        idleMode: source.idleMode,
+        slideDurationSeconds: source.slideDurationSeconds,
+        title: source.title,
+        subtitle: source.subtitle,
+        ctaLabel: source.ctaLabel,
+        assets: assets.map((asset) => ({
+          id: asset.id,
+          type: asset.type,
+          label: asset.label,
+          url: this.assetUrl(asset),
+          bundledAssetKey: asset.bundledAssetKey,
+          assetRef: asset.objectKey ? encodeAssetRef(asset.objectKey) : null,
+          contentType: asset.contentType,
+          sizeBytes: asset.sizeBytes,
+          sortOrder: asset.sortOrder,
+        })),
+      },
+      capture: {
+        countdownSeconds: source.countdownSeconds,
+        soundEnabled: source.soundEnabled,
+        soundProfile: source.soundProfile,
+        guidanceAudioEnabled: source.guidanceAudioEnabled,
+      },
+      experience: {
+        enabledGarmentIntents: [...source.enabledGarmentIntents],
+        sessionIdleTimeoutSeconds: source.sessionIdleTimeoutSeconds,
+      },
+      assetUpload: {
+        supported: true,
+        maxImageBytes: maxPresentationImageBytes,
+        supportedContentTypes: [...supportedUploadContentTypes],
+      },
+      updatedAt: source.updatedAt.toISOString(),
+    };
+  }
+
+  private assetUrl(asset: KioskDeviceConfigurationAsset): string | null {
+    if (
+      asset.type === KioskConfigurationAssetType.UPLOADED_IMAGE &&
+      asset.objectKey
+    ) {
+      return this.storage.createReadUrl({
+        key: asset.objectKey,
+        expiresInSeconds: readUrlTtlSeconds,
+      });
+    }
+    return asset.url;
+  }
 }
 
 function defaultConfiguration(): ConfigurationWithAssets {
@@ -234,12 +299,18 @@ function defaultAssets(): KioskDeviceConfigurationAsset[] {
       label: "SelfX default wallpaper",
       url: null,
       bundledAssetKey: fallbackBundledAssetKey,
+      objectKey: null,
+      contentType: null,
+      sizeBytes: null,
       createdAt: new Date(0),
     },
   ];
 }
 
-function normalizeConfigurationInput(input: UpdateKioskConfigurationDto) {
+function normalizeConfigurationInput(
+  input: UpdateKioskConfigurationDto,
+  deviceId: string,
+) {
   assertEnumValue(allowedIdleModes, input.display.idleMode, "Idle mode is invalid.");
   assertIntegerRange(
     input.display.slideDurationSeconds,
@@ -272,14 +343,20 @@ function normalizeConfigurationInput(input: UpdateKioskConfigurationDto) {
   }
   const intents = unique(requestedIntents);
   if (intents.length === 0 || intents.length !== requestedIntents.length) {
-    throwConfigurationInvalid("Enabled garment intents must be unique and non-empty.");
+    throwConfigurationInvalid(
+      "Enabled garment intents must be unique and non-empty.",
+    );
   }
   if (input.display.assets.length < 1 || input.display.assets.length > 12) {
     throwConfigurationInvalid("Presentation assets must include 1 to 12 items.");
   }
-  const assets = input.display.assets.map(normalizeAsset);
+  const assets = input.display.assets.map((asset) =>
+    normalizeAsset(asset, deviceId),
+  );
   if (input.display.idleMode === KioskIdleMode.SLIDESHOW && assets.length < 2) {
-    throwConfigurationInvalid("Slideshow mode requires at least two presentation assets.");
+    throwConfigurationInvalid(
+      "Slideshow mode requires at least two presentation assets.",
+    );
   }
   return {
     data: {
@@ -302,13 +379,23 @@ function normalizeConfigurationInput(input: UpdateKioskConfigurationDto) {
   };
 }
 
-function normalizeAsset(input: {
-  type: KioskConfigurationAssetType;
-  label: string;
-  url?: string;
-  bundledAssetKey?: string;
-}) {
-  assertEnumValue(allowedAssetTypes, input.type, "Presentation asset type is invalid.");
+function normalizeAsset(
+  input: {
+    type: KioskConfigurationAssetType;
+    label: string;
+    url?: string;
+    bundledAssetKey?: string;
+    assetRef?: string;
+    contentType?: string;
+    sizeBytes?: number;
+  },
+  deviceId: string,
+) {
+  assertEnumValue(
+    allowedAssetTypes,
+    input.type,
+    "Presentation asset type is invalid.",
+  );
   const label = input.label.trim();
   if (!label) {
     throwConfigurationInvalid("Presentation asset label is required.");
@@ -323,6 +410,34 @@ function normalizeAsset(input: {
       label,
       url: null,
       bundledAssetKey,
+      objectKey: null,
+      contentType: null,
+      sizeBytes: null,
+    };
+  }
+  if (input.type === KioskConfigurationAssetType.UPLOADED_IMAGE) {
+    const contentType = normalizeUploadedImageContentType(input.contentType);
+    if (
+      !contentType ||
+      !input.sizeBytes ||
+      input.sizeBytes > maxPresentationImageBytes
+    ) {
+      throwConfigurationInvalid("Uploaded presentation image is invalid.");
+    }
+    const objectKey = decodeAssetRef(input.assetRef);
+    if (!objectKey.startsWith(`kiosk-config/${deviceId}/`)) {
+      throwConfigurationInvalid(
+        "Uploaded presentation image does not belong to this kiosk.",
+      );
+    }
+    return {
+      type: input.type,
+      label,
+      url: null,
+      bundledAssetKey: null,
+      objectKey,
+      contentType,
+      sizeBytes: input.sizeBytes,
     };
   }
   const url = input.url?.trim() || "";
@@ -332,6 +447,9 @@ function normalizeAsset(input: {
     label,
     url,
     bundledAssetKey: null,
+    objectKey: null,
+    contentType: null,
+    sizeBytes: null,
   };
 }
 
@@ -432,6 +550,59 @@ function assertIntegerSet(
 function nullableTrim(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function normalizeUploadedImageContentType(value?: string): string | null {
+  const contentType = value?.toLowerCase().split(";")[0]?.trim();
+  if (!contentType || !supportedUploadContentTypeSet.has(contentType)) {
+    return null;
+  }
+  return contentType;
+}
+
+function kioskConfigurationAssetObjectKeyFor(
+  deviceId: string,
+  contentType: string,
+): string {
+  return `kiosk-config/${deviceId}/${createSelfxId()}/presentation-image.${extensionForContentType(
+    contentType,
+  )}`;
+}
+
+function extensionForContentType(contentType: string): string {
+  if (contentType === "image/png") {
+    return "png";
+  }
+  if (contentType === "image/webp") {
+    return "webp";
+  }
+  return "jpg";
+}
+
+function encodeAssetRef(objectKey: string): string {
+  return Buffer.from(objectKey, "utf8").toString("base64url");
+}
+
+function decodeAssetRef(assetRef?: string): string {
+  if (!assetRef) {
+    throwConfigurationInvalid(
+      "Uploaded presentation image reference is required.",
+    );
+  }
+  try {
+    const objectKey = Buffer.from(assetRef, "base64url").toString("utf8");
+    if (!objectKey.startsWith("kiosk-config/")) {
+      throw new Error("invalid key");
+    }
+    return objectKey;
+  } catch {
+    throwConfigurationInvalid("Uploaded presentation image reference is invalid.");
+  }
+}
+
+function presentationAssetLabel(fileName?: string): string {
+  const label = fileName?.replace(/\.[^.]+$/, "").trim();
+  return label ? label.slice(0, 120) : "Kiosk presentation image";
 }
 
 function throwConfigurationInvalid(message: string): never {

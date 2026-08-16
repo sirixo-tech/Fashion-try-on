@@ -1217,7 +1217,10 @@ Implemented scope:
 - `session/me` and heartbeat version discovery through
   `latestConfigurationVersion` without returning the full configuration body;
 - validated display, capture and experience configuration fields;
-- validated HTTPS or bundled presentation image references;
+- validated HTTPS, uploaded object-storage or bundled presentation image
+  references;
+- SaaS presentation image upload intent API and web upload control for static
+  and slideshow kiosk presentation imagery;
 - Flutter runtime configuration parsing, non-secret local cache, asset download
   before activation and offline fallback to the last valid cache or bundled
   defaults;
@@ -1227,8 +1230,6 @@ Implemented scope:
 
 Explicitly not implemented:
 
-- SaaS presentation asset upload, pending a durable object-storage ownership
-  model;
 - remote camera preference, pending stable certified hardware identifiers;
 - Product Catalog, Shopify/WooCommerce sync, remote reboot/commands, OTA,
   premium audio asset distribution, deep telemetry, billing, Redis/BullMQ,

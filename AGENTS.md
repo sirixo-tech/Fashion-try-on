@@ -807,8 +807,9 @@ KIOSK-2C rules:
 - Idle presentation uses local/offline static or slideshow semantics with an
   offline fallback and a provider-neutral model suitable for future CMS/fleet
   content.
-- The bundled SelfX default wallpaper remains the kiosk fallback until
-  organization/kiosk-specific wallpapers are managed from the SaaS dashboard.
+- The bundled SelfX default wallpaper remains the kiosk fallback; SaaS kiosk
+  configuration may replace it with validated uploaded or hosted presentation
+  images.
 - Do not add backend fleet sync, CMS APIs, kiosk provisioning/device auth,
   Product Catalog, QR handoff, SelfX Try-On API upload, FASHN/provider calls,
   migrations, Redis/BullMQ, R2, billing or API Gateway in KIOSK-2C.

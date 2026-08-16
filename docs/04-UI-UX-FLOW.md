@@ -1021,8 +1021,8 @@ Editable fields:
 - idle mode: static or slideshow;
 - slide duration, 3-60 seconds;
 - presentation title, subtitle and CTA label;
-- ordered presentation image references using bundled asset keys or validated
-  HTTPS image URLs;
+- ordered presentation images using bundled asset keys, uploaded SelfX
+  object-storage images or validated HTTPS image URLs;
 - capture countdown: 5, 10 or 15 seconds;
 - capture sounds enabled and sound profile;
 - guidance audio enabled;

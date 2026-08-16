@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import KiosksPage from "../app/app/kiosks/page";
 import {
+  createKioskConfigurationAssetUploadIntent,
   getKioskConfiguration,
   listKioskAssignmentOptions,
   listKioskDevices,
@@ -16,6 +17,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("@/lib/kiosks", () => ({
   activateKioskDevice: vi.fn(),
+  createKioskConfigurationAssetUploadIntent: vi.fn(),
   deactivateKioskDevice: vi.fn(),
   deleteKioskDevice: vi.fn(),
   getKioskConfiguration: vi.fn(),
@@ -65,6 +67,9 @@ const configuration = {
         label: "SelfX default wallpaper",
         url: null,
         bundledAssetKey: "selfx-default-kiosk-wallpaper",
+        assetRef: null,
+        contentType: null,
+        sizeBytes: null,
         sortOrder: 0,
       },
     ],
@@ -80,8 +85,9 @@ const configuration = {
     sessionIdleTimeoutSeconds: 120,
   },
   assetUpload: {
-    supported: false,
-    reason: "DURABLE_OBJECT_STORAGE_REQUIRED",
+    supported: true,
+    maxImageBytes: 12 * 1024 * 1024,
+    supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
   },
   updatedAt: "2026-08-16T00:00:00.000Z",
 } as const;
@@ -103,6 +109,17 @@ describe("Kiosks configuration UI", () => {
       ...configuration,
       version: 5,
     } as never);
+    vi.mocked(createKioskConfigurationAssetUploadIntent).mockResolvedValue({
+      assetRef: "asset-ref",
+      type: "UPLOADED_IMAGE",
+      label: "hero",
+      uploadUrl: "https://storage.selfx.test/upload",
+      method: "PUT",
+      expiresAt: "2026-08-16T00:05:00.000Z",
+      headers: { "Content-Type": "image/png" },
+      maxImageBytes: 12 * 1024 * 1024,
+      supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
+    });
   });
 
   it("loads and displays the selected kiosk configuration", async () => {
@@ -115,17 +132,17 @@ describe("Kiosks configuration UI", () => {
     expect(screen.getByDisplayValue("Start Try-On")).toBeTruthy();
   });
 
-  it("shows validation feedback and does not submit unsafe asset URLs", async () => {
+  it("shows validation feedback and does not submit invalid slide durations", async () => {
     render(<KiosksPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
-    const urlInput = await screen.findByPlaceholderText(
-      "Leave blank to use bundled SelfX wallpaper",
-    );
-    fireEvent.change(urlInput, { target: { value: "file:///tmp/hero.png" } });
+    const durationInput = await screen.findByDisplayValue("6");
+    fireEvent.change(durationInput, { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: /Save Configuration/i }));
 
-    expect(await screen.findByText("Presentation image URL must use HTTPS.")).toBeTruthy();
+    expect(
+      await screen.findByText("Slide duration must be between 3 and 60 seconds."),
+    ).toBeTruthy();
     expect(updateKioskConfiguration).not.toHaveBeenCalled();
   });
 
@@ -133,12 +150,6 @@ describe("Kiosks configuration UI", () => {
     render(<KiosksPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
-    const urlInput = await screen.findByPlaceholderText(
-      "Leave blank to use bundled SelfX wallpaper",
-    );
-    fireEvent.change(urlInput, {
-      target: { value: "https://cdn.selfx.test/kiosk/hero.png" },
-    });
     fireEvent.click(screen.getByRole("checkbox", { name: "Guidance audio enabled" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Full Outfit" }));
     fireEvent.click(screen.getByRole("button", { name: /Save Configuration/i }));
@@ -151,9 +162,9 @@ describe("Kiosks configuration UI", () => {
         display: expect.objectContaining({
           assets: [
             {
-              type: "REMOTE_IMAGE",
+              type: "BUNDLED_IMAGE",
               label: "SelfX default wallpaper",
-              url: "https://cdn.selfx.test/kiosk/hero.png",
+              bundledAssetKey: "selfx-default-kiosk-wallpaper",
             },
           ],
         }),

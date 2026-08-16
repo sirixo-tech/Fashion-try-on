@@ -28,7 +28,10 @@ export type KioskDevice = {
 };
 
 export type KioskIdleMode = "STATIC" | "SLIDESHOW";
-export type KioskConfigurationAssetType = "BUNDLED_IMAGE" | "REMOTE_IMAGE";
+export type KioskConfigurationAssetType =
+  | "BUNDLED_IMAGE"
+  | "REMOTE_IMAGE"
+  | "UPLOADED_IMAGE";
 export type KioskConfigurationSoundProfile =
   | "SELFX_SIGNATURE"
   | "SOFT"
@@ -51,6 +54,9 @@ export type KioskConfiguration = {
       label: string;
       url: string | null;
       bundledAssetKey: string | null;
+      assetRef: string | null;
+      contentType: string | null;
+      sizeBytes: number | null;
       sortOrder: number;
     }>;
   };
@@ -65,8 +71,9 @@ export type KioskConfiguration = {
     sessionIdleTimeoutSeconds: number;
   };
   assetUpload: {
-    supported: false;
-    reason: "DURABLE_OBJECT_STORAGE_REQUIRED";
+    supported: boolean;
+    maxImageBytes: number;
+    supportedContentTypes: string[];
   };
   updatedAt: string;
 };
@@ -186,6 +193,9 @@ export function updateKioskConfiguration(
         label: string;
         url?: string;
         bundledAssetKey?: string;
+        assetRef?: string;
+        contentType?: string;
+        sizeBytes?: number;
       }>;
     };
     capture: {
@@ -204,6 +214,37 @@ export function updateKioskConfiguration(
     `/api/v1/admin/kiosks/${deviceId}/configuration`,
     {
       method: "PUT",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export type KioskConfigurationAssetUploadIntent = {
+  assetRef: string;
+  type: "UPLOADED_IMAGE";
+  label: string;
+  uploadUrl: string;
+  method: "PUT";
+  expiresAt: string;
+  headers: Record<string, string>;
+  maxImageBytes: number;
+  supportedContentTypes: string[];
+};
+
+export function createKioskConfigurationAssetUploadIntent(
+  accessToken: string,
+  deviceId: string,
+  input: {
+    contentType: string;
+    sizeBytes: number;
+    fileName?: string;
+  },
+): Promise<KioskConfigurationAssetUploadIntent> {
+  return selfxApi<KioskConfigurationAssetUploadIntent>(
+    `/api/v1/admin/kiosks/${deviceId}/configuration/assets/upload-intent`,
+    {
+      method: "POST",
       accessToken,
       body: JSON.stringify(input),
     },

@@ -1163,10 +1163,13 @@ Important fields:
 - `id`
 - `configuration_id`
 - `sort_order`
-- `type` (`BUNDLED_IMAGE`, `REMOTE_IMAGE`)
+- `type` (`BUNDLED_IMAGE`, `REMOTE_IMAGE`, `UPLOADED_IMAGE`)
 - `label`
 - `url`
 - `bundled_asset_key`
+- `object_key`
+- `content_type`
+- `size_bytes`
 - `created_at`
 
 Indexes:
@@ -1181,8 +1184,9 @@ Rules:
   `selfx-default-kiosk-wallpaper`;
 - remote image assets must use validated HTTPS URLs and must not use `file:`,
   `javascript:`, `data:`, localhost or internal network hosts;
-- KIOSK-6A does not add admin presentation-image upload persistence. Uploads
-  remain deferred until a durable object-storage asset ownership model exists;
+- uploaded image assets store a SelfX object-storage key and content metadata;
+  runtime configuration responses expose a short-lived signed read URL rather
+  than a permanent public URL;
 - kiosks download remote assets before activating a new configuration and
   continue offline with the last valid local cache, or bundled defaults if no
   cache exists.

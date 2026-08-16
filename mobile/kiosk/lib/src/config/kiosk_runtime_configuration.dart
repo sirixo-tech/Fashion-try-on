@@ -175,9 +175,10 @@ class KioskRuntimeAsset {
   factory KioskRuntimeAsset.fromJson(Map<String, dynamic> json) {
     final bundledAssetKey = _nullableString(json['bundledAssetKey']);
     final localImagePath = _nullableString(json['localImagePath']);
+    final assetType = json['type'] as String?;
     return KioskRuntimeAsset(
       id: _string(json, 'id', bundledAssetKey ?? 'presentation-asset'),
-      type: (json['type'] as String?) == 'REMOTE_IMAGE'
+      type: assetType == 'REMOTE_IMAGE' || assetType == 'UPLOADED_IMAGE'
           ? RuntimeKioskAssetType.remoteImage
           : RuntimeKioskAssetType.bundledImage,
       label: _string(json, 'label', 'Kiosk presentation image'),

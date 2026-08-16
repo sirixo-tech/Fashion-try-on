@@ -103,6 +103,7 @@ enum KioskIdleMode {
 enum KioskConfigurationAssetType {
   BUNDLED_IMAGE
   REMOTE_IMAGE
+  UPLOADED_IMAGE
 }
 
 enum KioskConfigurationSoundProfile {
@@ -397,6 +398,9 @@ model KioskDeviceConfigurationAsset {
   label           String                       @db.VarChar(120)
   url             String?                      @db.Text
   bundledAssetKey String?                      @map("bundled_asset_key") @db.VarChar(120)
+  objectKey       String?                      @map("object_key") @db.VarChar(512)
+  contentType     String?                      @map("content_type") @db.VarChar(80)
+  sizeBytes       Int?                         @map("size_bytes")
   createdAt       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
   configuration   KioskDeviceConfiguration     @relation(fields: [configurationId], references: [id], onDelete: Cascade)
 

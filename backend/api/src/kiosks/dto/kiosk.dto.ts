@@ -124,6 +124,9 @@ export class KioskConfigurationAssetDto {
   label!: string;
   url!: string | null;
   bundledAssetKey!: string | null;
+  assetRef!: string | null;
+  contentType!: string | null;
+  sizeBytes!: number | null;
   sortOrder!: number;
 }
 
@@ -148,8 +151,9 @@ export class KioskConfigurationDto {
     sessionIdleTimeoutSeconds: number;
   };
   assetUpload!: {
-    supported: false;
-    reason: "DURABLE_OBJECT_STORAGE_REQUIRED";
+    supported: boolean;
+    maxImageBytes: number;
+    supportedContentTypes: string[];
   };
   updatedAt!: string;
 }
@@ -171,6 +175,50 @@ export class KioskConfigurationAssetInputDto {
   @IsString()
   @MaxLength(120)
   bundledAssetKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(700)
+  assetRef?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  contentType?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12 * 1024 * 1024)
+  sizeBytes?: number;
+}
+
+export class CreateKioskConfigurationAssetUploadDto {
+  @IsString()
+  @MaxLength(80)
+  contentType!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(12 * 1024 * 1024)
+  sizeBytes!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  fileName?: string;
+}
+
+export class KioskConfigurationAssetUploadIntentDto {
+  assetRef!: string;
+  type!: KioskConfigurationAssetType;
+  label!: string;
+  uploadUrl!: string;
+  method!: "PUT";
+  expiresAt!: string;
+  headers!: Record<string, string>;
+  maxImageBytes!: number;
+  supportedContentTypes!: string[];
 }
 
 export class KioskConfigurationDisplayInputDto {
