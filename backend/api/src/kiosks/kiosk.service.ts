@@ -1,4 +1,9 @@
-import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import {
+  createHmac,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from "node:crypto";
 
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
@@ -7,6 +12,7 @@ import {
   KioskDeviceStatus,
   KioskPairingSessionStatus,
   OrganizationStatus,
+  StoreStatus,
   type KioskDevice,
   type KioskDeviceConfiguration,
   type Organization,
@@ -58,7 +64,10 @@ interface RefreshTokenParts {
 
 @Injectable()
 export class KioskService {
-  private readonly createBuckets = new Map<string, { count: number; resetAt: number }>();
+  private readonly createBuckets = new Map<
+    string,
+    { count: number; resetAt: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -84,9 +93,8 @@ export class KioskService {
       data: {
         id: createSelfxId(),
         codeDigest: this.digestPairingCode(pairingCode),
-        provisioningSecretHash: this.digestProvisioningSecret(
-          provisioningSecret,
-        ),
+        provisioningSecretHash:
+          this.digestProvisioningSecret(provisioningSecret),
         status: KioskPairingSessionStatus.PENDING,
         expiresAt,
         installationId: input.installationId?.trim() || undefined,
@@ -252,9 +260,8 @@ export class KioskService {
         where: { id: session.id },
         data: {
           kioskDeviceId: created.id,
-          provisioningGrantHash: this.digestProvisioningSecret(
-            provisioningGrant,
-          ),
+          provisioningGrantHash:
+            this.digestProvisioningSecret(provisioningGrant),
           grantIssuedAt: now,
         },
       });
@@ -701,7 +708,10 @@ export class KioskService {
     refreshExpiresAt: Date,
   ): Promise<KioskDeviceAuthResponseDto> {
     const accessToken = await this.jwt.signAsync(
-      { sub: device.id, typ: "kiosk_device_access" } satisfies DeviceAccessTokenPayload,
+      {
+        sub: device.id,
+        typ: "kiosk_device_access",
+      } satisfies DeviceAccessTokenPayload,
       {
         secret: this.config.deviceJwtSecret,
         expiresIn: this.config.deviceAccessTokenTtlSeconds,
@@ -766,9 +776,9 @@ export class KioskService {
     }
     const organization = await this.prisma.organization.findUnique({
       where: { id: input.organizationId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
-    if (!organization) {
+    if (!organization || organization.status !== OrganizationStatus.ACTIVE) {
       throwAssignmentInvalid();
     }
 
@@ -786,9 +796,9 @@ export class KioskService {
       where: {
         orgId_id: { orgId: input.organizationId, id: input.storeId },
       },
-      select: { id: true },
+      select: { id: true, status: true },
     });
-    if (!store) {
+    if (!store || store.status !== StoreStatus.ACTIVE) {
       throwAssignmentInvalid();
     }
     return { organizationId: input.organizationId, storeId: input.storeId };
@@ -848,7 +858,9 @@ export function canonicalPairingCode(value: string): string {
   return code;
 }
 
-export function mapDevice(device: DeviceWithAssignment): KioskDeviceResponseDto {
+export function mapDevice(
+  device: DeviceWithAssignment,
+): KioskDeviceResponseDto {
   return {
     id: device.id,
     displayName: device.displayName,
@@ -918,7 +930,9 @@ function parseRefreshToken(token: string): RefreshTokenParts | null {
   return { sessionId, secret };
 }
 
-function extractBearerToken(headerValue: string | undefined): string | undefined {
+function extractBearerToken(
+  headerValue: string | undefined,
+): string | undefined {
   if (!headerValue) {
     return undefined;
   }

@@ -67,6 +67,61 @@ Completed production migrations should not be rewritten simply because the imple
 
 ---
 
+## STORE-1 — Single-Tenant Store Management
+
+**Status:** UPDATED
+
+Goal:
+
+Implement the customer/admin-facing Store management slice using the product
+hierarchy:
+
+```text
+SelfX Platform
+→ Store
+→ Kiosks
+```
+
+Implementation scope:
+
+- audit the existing Organization/Store schema and select the compatibility
+  strategy before coding;
+- expose internal tenant rows as product Stores through
+  `/api/v1/admin/stores`;
+- implement Store list/create/detail/update/activate/deactivate APIs;
+- implement Store Dashboard with Store profile, kiosk metrics and Store-owned
+  kiosk list;
+- allow pairing a kiosk directly from the Store route;
+- validate nested Store kiosk ownership before kiosk detail/configuration
+  access;
+- reuse existing KIOSK-6A/KIOSK-6B kiosk configuration services and data;
+- update visible web copy to Store terminology for affected admin flows;
+- add targeted backend and web tests.
+
+Database approach:
+
+- no new migration in STORE-1;
+- `organizations` remains the internal tenant table for product Stores;
+- legacy child `stores` is not used for STORE-1 Store management.
+
+Do not implement in STORE-1:
+
+- new RBAC/membership rewrite;
+- Product Catalog;
+- billing/quotas;
+- Public API commercialization;
+- API Gateway;
+- kiosk Flutter app build or client protocol changes.
+
+Verification:
+
+- backend Store service/controller tests;
+- affected kiosk pairing/configuration tests;
+- web Store page tests;
+- API/web typecheck/build where proportionate.
+
+---
+
 # 4. Phase 0 — Repository & Engineering Foundation
 
 **Status:** PLANNED

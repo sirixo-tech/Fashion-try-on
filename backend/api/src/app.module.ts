@@ -5,6 +5,7 @@ import { DatabaseModule } from "./database/database.module.js";
 import { HealthController } from "./health.controller.js";
 import { KioskModule } from "./kiosks/kiosk.module.js";
 import { OrganizationsModule } from "./organizations/organizations.module.js";
+import { StoresModule } from "./stores/stores.module.js";
 import { TryOnLabModule } from "./try-on-lab/try-on-lab.module.js";
 
 @Module({
@@ -12,6 +13,7 @@ import { TryOnLabModule } from "./try-on-lab/try-on-lab.module.js";
     DatabaseModule,
     AuthModule,
     OrganizationsModule,
+    StoresModule,
     TryOnLabModule,
     KioskModule,
   ],

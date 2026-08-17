@@ -157,7 +157,7 @@ describe("SelfX shared shell", () => {
     expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
-  it("handles organization switcher available and empty states", () => {
+  it("handles Store switcher available and empty states", () => {
     const { rerender } = renderWithUi(
       <OrganizationSwitcher
         organizations={[{ id: "org-1", name: "Retail Co", status: "ACTIVE" }]}
@@ -173,7 +173,7 @@ describe("SelfX shared shell", () => {
       </SelfxUiProvider>,
     );
 
-    expect(screen.getByText("No active organization")).toBeTruthy();
+    expect(screen.getByText("No active Store")).toBeTruthy();
   });
 
   it("renders tenant and permission states without raw internal errors", () => {
@@ -187,9 +187,9 @@ describe("SelfX shared shell", () => {
     );
 
     expect(screen.getByText("Permission required")).toBeTruthy();
-    expect(screen.getByText("No active organization")).toBeTruthy();
+    expect(screen.getByText("No active Store")).toBeTruthy();
     expect(screen.getByText("Activation pending")).toBeTruthy();
-    expect(screen.getByText("Organization suspended")).toBeTruthy();
+    expect(screen.getByText("Store suspended")).toBeTruthy();
     expect(screen.queryByText(/Prisma|DATABASE_URL|stack/i)).toBeNull();
   });
 

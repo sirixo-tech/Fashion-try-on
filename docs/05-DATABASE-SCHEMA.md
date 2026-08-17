@@ -127,6 +127,49 @@ Redis/BullMQ is execution infrastructure only.
 
 ---
 
+## 3.1 STORE-1 Store Tenant Compatibility
+
+**Status:** UPDATED
+
+STORE-1 does not introduce a new physical tenant table or rewrite deployed
+migrations. The existing `organizations` table is used as the internal tenant
+row for product Stores in this slice.
+
+Canonical product model:
+
+```text
+SelfX Platform
+→ Store
+→ Kiosks
+```
+
+Current persistence mapping:
+
+- Product Store id = `organizations.id`.
+- Product Store status `ACTIVE` = `OrganizationStatus.ACTIVE`.
+- Product Store status `INACTIVE` = any non-active operationally unavailable
+  tenant state used by the Store API, currently `OrganizationStatus.SUSPENDED`
+  for explicit Store deactivation.
+- Product Store profile fields that do not yet have first-class columns are
+  stored under `organizations.settings.storeProfile`.
+- Store-owned kiosks are stored as `kiosk_devices.assignment_scope =
+  ORGANIZATION`, `kiosk_devices.organization_id = product Store id` and
+  `kiosk_devices.store_id = null`.
+- `kiosk_device_configurations` remains device-owned and is not duplicated per
+  Store.
+
+The existing child `stores` table remains a legacy/location-scoped structure
+from the earlier Organization -> Store design. STORE-1 Store CRUD, Store
+Dashboard and Store Kiosk assignment must not depend on that table. A later
+approved migration may rename tables/enums or introduce explicit location
+entities, but that is outside STORE-1.
+
+No Prisma migration is required for STORE-1 because the feature is implemented
+through existing tenant, kiosk and configuration tables with Store-facing API
+and UI contracts.
+
+---
+
 ## 4. Identifier Strategy
 
 SelfX primary business entities must use **UUIDv7** identifiers.

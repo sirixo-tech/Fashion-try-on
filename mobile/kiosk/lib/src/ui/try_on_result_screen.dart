@@ -137,7 +137,7 @@ class _GeneratedTryOnImage extends StatelessWidget {
         bytes,
         fit: BoxFit.contain,
         errorBuilder: (_, _, _) =>
-          const Center(child: Text('Generated image unavailable')),
+            const Center(child: Text('Generated image unavailable')),
       );
     }
     if (!src.startsWith('http://') && !src.startsWith('https://')) {
@@ -197,51 +197,113 @@ class _ResultActions extends StatelessWidget {
       children: [
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Icon(
                   Icons.check_circle,
                   color: Theme.of(context).colorScheme.primary,
-                  size: 72,
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Try-On Ready',
-                  style: Theme.of(context).textTheme.displaySmall,
+                  size: 52,
                 ),
                 const SizedBox(height: 14),
                 Text(
+                  'Try-On Ready',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
                   'Your generated look is ready for this kiosk session.',
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
             ),
           ),
         ),
         if (compact) const SizedBox(height: 22) else const Spacer(),
-        ElevatedButton.icon(
-          key: const Key('try-another-garment'),
-          onPressed: onTryAnotherGarment,
-          icon: const Icon(Icons.checkroom_outlined),
-          label: const Text('Try Another Garment'),
+        Row(
+          children: [
+            Expanded(
+              child: _SecondaryResultButton(
+                key: const Key('result-retake-photo'),
+                label: 'Retake Photo',
+                onPressed: onRetakePhoto,
+                icon: Icons.replay,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _SecondaryResultButton(
+                key: const Key('finish-try-on'),
+                label: 'Finish',
+                onPressed: onFinish,
+                icon: Icons.home_outlined,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 14),
-        OutlinedButton.icon(
-          key: const Key('result-retake-photo'),
-          onPressed: onRetakePhoto,
-          icon: const Icon(Icons.replay),
-          label: const Text('Retake Photo'),
-        ),
-        const SizedBox(height: 14),
-        OutlinedButton.icon(
-          key: const Key('finish-try-on'),
-          onPressed: onFinish,
-          icon: const Icon(Icons.home_outlined),
-          label: const Text('Finish'),
+        SizedBox(
+          height: 62,
+          child: ElevatedButton.icon(
+            key: const Key('try-another-garment'),
+            onPressed: onTryAnotherGarment,
+            icon: const Icon(Icons.checkroom_outlined),
+            label: const Text('Try Another Garment'),
+            style: ElevatedButton.styleFrom(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+            ),
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _SecondaryResultButton extends StatelessWidget {
+  const _SecondaryResultButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 66,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

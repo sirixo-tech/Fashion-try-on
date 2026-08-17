@@ -8,7 +8,7 @@ import {
 export default function NoOrganizationPage() {
   return (
     <PageContainer width="medium">
-      <PageHeader eyebrow="Workspace" title="No active organization" />
+      <PageHeader eyebrow="Workspace" title="No active Store" />
       <PageSection>
         <NoOrganizationState
           action={{ label: "View onboarding", href: "/app/onboarding" }}

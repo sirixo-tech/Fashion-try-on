@@ -140,11 +140,34 @@ Current web migration status:
 
 - Migrated to Shadcn-first SelfX components: `/`, `/login`, authenticated app
   shell/header/sidebar/account controls, `/app/dashboard`, placeholder module
-  routes, organization/access state routes and `/app/try-on-lab`.
+  routes, Store/access state routes, `/app/stores` and `/app/try-on-lab`.
 - Frontend consumers import public SelfX components and types from `@selfx/ui`;
   do not depend on private `@selfx/ui/selfx/*` source-tree paths.
 - Future SaaS modules must start from the Shadcn-first SelfX primitives and
   page patterns instead of adding new Mantine screens.
+
+## STORE-1 Store Management
+
+STORE-1 makes **Store** the customer/admin-facing merchant tenant in the SaaS
+product hierarchy:
+
+```text
+SelfX Platform
+→ Store
+→ Kiosks
+```
+
+The current database keeps the historic `organizations` table as the internal
+tenant row for compatibility with existing memberships, audit logs and kiosk
+assignment contracts. STORE-1 exposes those rows as product Stores through
+`/api/v1/admin/stores` and the `/app/stores` web UI. The older child `stores`
+table remains a legacy/location-scoped structure and is not the basis for new
+STORE-1 Store management flows.
+
+Store-owned kiosks use the existing kiosk configuration system from KIOSK-6A/
+KIOSK-6B. Configuration stays attached to the kiosk device; the Store dashboard
+only scopes access and validates kiosk ownership before configuration read,
+update or asset upload intent creation.
 
 ## CORE VTO-1 Try-On Lab
 

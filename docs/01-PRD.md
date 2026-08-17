@@ -25,6 +25,45 @@ Material changes must:
 
 ---
 
+## STORE-1 Product Hierarchy Update
+
+**Status:** UPDATED
+
+STORE-1 defines the customer/admin-facing merchant hierarchy as:
+
+```text
+SelfX Platform
+→ Store
+→ Kiosks
+```
+
+For new Store management, kiosk assignment, Store dashboard and kiosk
+configuration experiences, **Store** is the merchant tenant shown to SelfX
+platform administrators and merchant users. New product copy must not introduce
+Organization as a customer-facing business layer.
+
+The existing internal database tenant row may continue to be named
+`Organization` while STORE-1 is implemented, but that name is a compatibility
+detail rather than the product model. The legacy child Store/location model is
+not the basis for STORE-1 merchant Store management.
+
+Product requirements affected by this update:
+
+1. SelfX Super Administrators can create, view, update, activate and deactivate
+   Stores.
+2. A Store dashboard shows Store details, kiosk counts and Store-owned kiosks.
+3. Kiosks can be paired or assigned directly under a Store.
+4. Store-owned kiosk configuration reuses the existing kiosk configuration
+   system and must validate Store ownership before read/update/upload intent.
+5. Deactivating a Store must not delete Store data, kiosks or kiosk
+   configuration, but inactive Stores cannot receive new kiosk assignments.
+
+Historic Organization terminology elsewhere in this baseline remains
+documentation history until the related membership/RBAC/onboarding phases are
+renamed. New customer/admin product surfaces should use Store terminology.
+
+---
+
 # 1. Purpose
 
 SelfX Virtual Try-On is an AI-powered SaaS platform that allows customers to visualize themselves wearing garments before purchasing them.

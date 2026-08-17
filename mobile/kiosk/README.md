@@ -45,6 +45,13 @@ responses, fetches full configuration through `/api/v1/kiosk/configuration`,
 downloads presentation images before activation, caches the last valid
 configuration locally and falls back to bundled defaults when no cache exists.
 
+STORE-1 changes the admin/product hierarchy around kiosks to
+SelfX Platform -> Store -> Kiosks. This Flutter app requires no STORE-1 code
+change: paired devices still use the same SelfX device session, heartbeat and
+configuration endpoints. Store ownership is enforced by the SelfX API/admin
+routes, and kiosk runtime configuration remains device-owned through the
+existing KIOSK-6A/KIOSK-6B configuration model.
+
 ## Local commands
 
 ```powershell
@@ -435,20 +442,20 @@ viewport.
    in portrait without covering the camera image.
 9. Press **Cancel** during final countdown and verify no delayed capture occurs.
 10. Start again and verify stable readiness starts final 3/2/1 when live frames
-   are available, or scripted fallback works when live frames are unavailable.
+    are available, or scripted fallback works when live frames are unavailable.
 11. Double-tap the hidden top-left operator hotspot, enter the operator PIN and
-   open Camera Settings.
+    open Camera Settings.
 12. Preview each Sound profile in Camera Settings.
 13. Toggle Capture sounds off in Camera Settings and verify capture still works
-   silently.
+    silently.
 14. Let countdown finish and verify exactly one photo is captured and success
-   audio occurs only after capture.
+    audio occurs only after capture.
 15. Confirm **Checking your photo...**, Review, **Retake** and **Use Photo**.
 16. With `SELFX_KIOSK_API_BASE_URL` configured and the kiosk paired, confirm
-   **Use Photo** opens generation
-   progress and then the generated result.
+    **Use Photo** opens generation
+    progress and then the generated result.
 17. Without API base URL configured, confirm **Use Photo** shows a safe
-   kiosk-not-configured message.
+    kiosk-not-configured message.
 
 ## KIOSK-4B Paid Generation Checklist
 

@@ -10,7 +10,7 @@ export default function OnboardingPage() {
     <PageContainer width="medium">
       <PageHeader
         eyebrow="Onboarding"
-        title="Organization status"
+        title="Store status"
         description="Applicant and activation status routing is separate from normal tenant operation."
       />
       <PageSection>

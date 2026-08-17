@@ -8,7 +8,7 @@ import {
 export default function SuspendedPage() {
   return (
     <PageContainer width="medium">
-      <PageHeader eyebrow="Workspace" title="Suspended organization" />
+      <PageHeader eyebrow="Workspace" title="Suspended Store" />
       <PageSection>
         <SuspendedOrganizationState />
       </PageSection>

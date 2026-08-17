@@ -29,15 +29,9 @@ export type KioskDevice = {
 
 export type KioskIdleMode = "STATIC" | "SLIDESHOW";
 export type KioskConfigurationAssetType =
-  | "BUNDLED_IMAGE"
-  | "REMOTE_IMAGE"
-  | "UPLOADED_IMAGE";
+  "BUNDLED_IMAGE" | "REMOTE_IMAGE" | "UPLOADED_IMAGE";
 export type KioskConfigurationSoundProfile =
-  | "SELFX_SIGNATURE"
-  | "SOFT"
-  | "STUDIO"
-  | "MINIMAL"
-  | "MUTED";
+  "SELFX_SIGNATURE" | "SOFT" | "STUDIO" | "MINIMAL" | "MUTED";
 export type KioskConfigurationGarmentIntent = "TOP" | "BOTTOM" | "FULL_OUTFIT";
 
 export type KioskConfiguration = {
@@ -76,6 +70,35 @@ export type KioskConfiguration = {
     supportedContentTypes: string[];
   };
   updatedAt: string;
+};
+
+export type KioskConfigurationUpdateInput = {
+  display: {
+    idleMode: KioskIdleMode;
+    slideDurationSeconds: number;
+    title?: string | null;
+    subtitle?: string | null;
+    ctaLabel?: string;
+    assets: Array<{
+      type: KioskConfigurationAssetType;
+      label: string;
+      url?: string;
+      bundledAssetKey?: string;
+      assetRef?: string;
+      contentType?: string;
+      sizeBytes?: number;
+    }>;
+  };
+  capture: {
+    countdownSeconds: number;
+    soundEnabled: boolean;
+    soundProfile: KioskConfigurationSoundProfile;
+    guidanceAudioEnabled: boolean;
+  };
+  experience: {
+    enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+    sessionIdleTimeoutSeconds: number;
+  };
 };
 
 export type KioskAssignmentOptions = {
@@ -181,34 +204,7 @@ export function getKioskConfiguration(
 export function updateKioskConfiguration(
   accessToken: string,
   deviceId: string,
-  input: {
-    display: {
-      idleMode: KioskIdleMode;
-      slideDurationSeconds: number;
-      title?: string | null;
-      subtitle?: string | null;
-      ctaLabel?: string;
-      assets: Array<{
-        type: KioskConfigurationAssetType;
-        label: string;
-        url?: string;
-        bundledAssetKey?: string;
-        assetRef?: string;
-        contentType?: string;
-        sizeBytes?: number;
-      }>;
-    };
-    capture: {
-      countdownSeconds: number;
-      soundEnabled: boolean;
-      soundProfile: KioskConfigurationSoundProfile;
-      guidanceAudioEnabled: boolean;
-    };
-    experience: {
-      enabledGarmentIntents: KioskConfigurationGarmentIntent[];
-      sessionIdleTimeoutSeconds: number;
-    };
-  },
+  input: KioskConfigurationUpdateInput,
 ): Promise<KioskConfiguration> {
   return selfxApi<KioskConfiguration>(
     `/api/v1/admin/kiosks/${deviceId}/configuration`,

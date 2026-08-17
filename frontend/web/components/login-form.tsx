@@ -37,7 +37,7 @@ export function LoginForm() {
   return (
     <Signup2
       description="Access the SelfX staff and platform administration workspace."
-      footer="New organization access is handled through the approved SelfX onboarding flow."
+      footer="New Store access is handled through the approved SelfX onboarding flow."
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2">

@@ -191,9 +191,10 @@ Do not spread FASHN-specific logic throughout the application.
 
 ## 3. Multi-Tenancy
 
-Organizations are independent tenants.
+Stores are the customer/admin-facing merchant tenants for STORE-1 and later
+Store management work.
 
-Never allow unauthorized access between organizations.
+Never allow unauthorized access between Stores.
 
 All tenant-owned resources must be protected server-side.
 
@@ -201,29 +202,36 @@ Do not rely only on frontend filtering for tenant isolation.
 
 ---
 
-## 4. Organization and Store Model
+## 4. Store Model
 
-An organization may contain one or multiple stores.
+The current product hierarchy is:
 
-An independent retailer must use:
+SelfX Platform
+→ Store
+→ Kiosks
 
-Organization
-→ One Store
+Store is the merchant/customer tenant in customer/admin product language. Do
+not expose Organization as a customer-facing business layer in new Store,
+kiosk, dashboard or configuration flows.
 
-Do not create a completely separate backend model for individual stores.
+The current database still uses the historic `organizations` table as the
+internal tenant row for compatibility with existing memberships, audit logs and
+kiosk assignment contracts. Treat this as an implementation detail named
+`ORGANIZATION_AS_STORE` in STORE-1 APIs. The older child `stores` table is a
+legacy/location-scoped model and must not be used as the basis for new STORE-1
+Store management.
 
-Organization registration and organization activation are separate actions.
+Store registration and Store activation are separate actions.
 
-An organization must never become operational immediately simply because a user
+A Store must never become operational immediately simply because a user
 registers or submits it. Registration creates or updates an onboarding
-application and may create a pending organization shell. Normal organization,
-store, product, kiosk, membership and paid Try-On functionality is available
-only after an authorized SelfX platform administrator activates the
-organization.
+application and may create a pending tenant shell. Normal Store, product,
+kiosk, membership and paid Try-On functionality is available only after an
+authorized SelfX platform administrator activates the Store.
 
-Organization review, approval, activation and suspension belong to the SelfX
-platform authorization domain, not merchant organization roles. Use centralized
-platform permission resolution for platform approval actions.
+Store review, approval, activation and suspension belong to the SelfX platform
+authorization domain, not merchant roles. Use centralized platform permission
+resolution for platform approval actions.
 
 ---
 
@@ -288,7 +296,7 @@ operation.
 
 ## 6. Staff
 
-Organizations and stores may manage staff according to their authorized scope.
+Stores may manage staff according to their authorized scope.
 
 Store administrators must not automatically access other stores.
 
@@ -340,7 +348,10 @@ Kiosks authenticate as devices.
 
 Do not use employee credentials as permanent kiosk authentication.
 
-Every managed kiosk belongs to an organization and store.
+Every managed kiosk belongs to a Store. In the current database compatibility
+layer, Store-owned kiosks are assigned with internal
+`KioskAssignmentScope.ORGANIZATION`, `organizationId = product Store id` and
+`storeId = null`.
 
 ---
 

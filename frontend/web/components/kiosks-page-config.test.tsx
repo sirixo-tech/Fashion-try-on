@@ -138,10 +138,14 @@ describe("Kiosks configuration UI", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
     const durationInput = await screen.findByDisplayValue("6");
     fireEvent.change(durationInput, { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: /Save Configuration/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Save Configuration/i }),
+    );
 
     expect(
-      await screen.findByText("Slide duration must be between 3 and 60 seconds."),
+      await screen.findByText(
+        "Slide duration must be between 3 and 60 seconds.",
+      ),
     ).toBeTruthy();
     expect(updateKioskConfiguration).not.toHaveBeenCalled();
   });
@@ -150,9 +154,14 @@ describe("Kiosks configuration UI", () => {
     render(<KiosksPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Guidance audio enabled" }));
+    await screen.findByText(/Current version 4/i);
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Guidance audio enabled" }),
+    );
     fireEvent.click(screen.getByRole("checkbox", { name: "Full Outfit" }));
-    fireEvent.click(screen.getByRole("button", { name: /Save Configuration/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Save Configuration/i }),
+    );
 
     await waitFor(() => expect(updateKioskConfiguration).toHaveBeenCalled());
     expect(updateKioskConfiguration).toHaveBeenCalledWith(

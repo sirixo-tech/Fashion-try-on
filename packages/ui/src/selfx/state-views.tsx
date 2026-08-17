@@ -33,7 +33,9 @@ function StateCard({
         </div>
         <div className="space-y-1">
           <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
         </div>
         {(action || children) && (
           <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +77,9 @@ export function EmptyState(props: {
     <StateCard
       icon={InboxIcon}
       title={props.title ?? "Nothing here yet"}
-      description={props.description ?? "This area will show records when they exist."}
+      description={
+        props.description ?? "This area will show records when they exist."
+      }
       action={props.action}
     />
   );
@@ -90,7 +94,9 @@ export function ErrorState(props: {
     <StateCard
       icon={AlertCircleIcon}
       title={props.title ?? "Something went wrong"}
-      description={props.description ?? "The request could not be completed safely."}
+      description={
+        props.description ?? "The request could not be completed safely."
+      }
       action={props.action}
     />
   );
@@ -105,7 +111,9 @@ export function PermissionDeniedState(props: {
     <StateCard
       icon={LockKeyholeIcon}
       title={props.title ?? "Permission required"}
-      description={props.description ?? "Your account is not authorized for this area."}
+      description={
+        props.description ?? "Your account is not authorized for this area."
+      }
       action={props.action}
     />
   );
@@ -115,8 +123,8 @@ export function NoOrganizationState(props: { action?: StateAction }) {
   return (
     <StateCard
       icon={BanIcon}
-      title="No active organization"
-      description="Active organization workspaces appear here after SelfX activation."
+      title="No active Store"
+      description="Active Store workspaces appear here after SelfX activation."
       action={props.action}
     />
   );
@@ -127,7 +135,7 @@ export function PendingActivationState(props: { action?: StateAction }) {
     <StateCard
       icon={PauseCircleIcon}
       title="Activation pending"
-      description="This organization is not an operational workspace until SelfX explicitly activates it."
+      description="This Store is not an operational workspace until SelfX explicitly activates it."
       action={props.action}
     />
   );
@@ -137,8 +145,8 @@ export function SuspendedOrganizationState(props: { action?: StateAction }) {
   return (
     <StateCard
       icon={PauseCircleIcon}
-      title="Organization suspended"
-      description="Operational access is restricted while this organization is suspended."
+      title="Store suspended"
+      description="Operational access is restricted while this Store is suspended."
       action={props.action}
     />
   );

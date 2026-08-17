@@ -24,6 +24,49 @@ Material changes must:
 
 ---
 
+## STORE-1 UI Addendum
+
+**Status:** UPDATED
+
+New admin product surfaces must present:
+
+```text
+SelfX Platform
+→ Store
+→ Kiosks
+```
+
+### `/app/stores` — Store Directory
+
+- Page title: Stores.
+- Primary action: Add Store.
+- Table columns: Store, Status, Kiosks, Last Activity, Created, Actions.
+- Search covers Store name and slug.
+- Status filter supports All Stores, Active and Inactive.
+- Empty state explains that a Store is required before pairing/managing SelfX
+  kiosks.
+
+### `/app/stores/[storeId]` — Store Dashboard
+
+- Page title is the Store name.
+- Header actions include Stores, Refresh and Pair Kiosk.
+- Summary metrics show total kiosks, active kiosks, last activity and
+  configurable kiosk count.
+- Store Kiosks table lists device, status, platform/app version, latest
+  configuration version, last seen and Manage action.
+- Store Settings shows profile details plus Edit Store and Activate/
+  Deactivate actions.
+- Pair Kiosk from this page assigns the kiosk to the current Store without
+  asking for a legacy Organization or child Store.
+- Manage configuration opens the existing KIOSK-6A/KIOSK-6B kiosk
+  configuration dialog through nested Store routes.
+
+Visible product copy on these screens should say Store/Stores/Store Dashboard/
+Store Kiosks. Organization terminology is allowed only as an internal
+diagnostic or implementation detail outside normal product copy.
+
+---
+
 ## 1. Purpose
 
 This document defines the screen-level UI/UX flow for the SelfX Virtual Try-On platform.

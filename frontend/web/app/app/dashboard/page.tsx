@@ -53,8 +53,8 @@ export default function DashboardPage() {
 
       <PageSection>
         <SectionCard
-          title="Organization workspace"
-          description="Active organization context is UI state only."
+          title="Store workspace"
+          description="Active Store context is UI state only."
         >
           <NoOrganizationState
             action={{ label: "View onboarding", href: "/app/onboarding" }}

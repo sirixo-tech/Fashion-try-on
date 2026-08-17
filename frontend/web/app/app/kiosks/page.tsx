@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -69,11 +69,7 @@ import {
 } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
 
-const assignmentScopes: KioskAssignmentScope[] = [
-  "PLATFORM",
-  "ORGANIZATION",
-  "STORE",
-];
+const assignmentScopes: KioskAssignmentScope[] = ["PLATFORM", "ORGANIZATION"];
 const soundProfiles: KioskConfigurationSoundProfile[] = [
   "SELFX_SIGNATURE",
   "SOFT",
@@ -128,7 +124,9 @@ export default function KiosksPage() {
     void load();
   }, [load]);
 
-  const activeCount = devices.filter((device) => device.status === "ACTIVE").length;
+  const activeCount = devices.filter(
+    (device) => device.status === "ACTIVE",
+  ).length;
   const inactiveCount = devices.filter(
     (device) => device.status === "INACTIVE",
   ).length;
@@ -157,7 +155,7 @@ export default function KiosksPage() {
       <PageSection>
         <TableContainer
           title="Fleet devices"
-          description={`Kiosks belong to the SelfX platform fleet and may be assigned to platform, organization or store scope. ${inactiveCount} inactive.`}
+          description={`Kiosks belong to the SelfX platform fleet and may be assigned to platform or Store scope. ${inactiveCount} inactive.`}
         >
           {error ? (
             <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -201,7 +199,10 @@ export default function KiosksPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={device.status} label={device.status} />
+                      <StatusBadge
+                        status={device.status}
+                        label={device.status}
+                      />
                     </TableCell>
                     <TableCell>{assignmentLabel(device)}</TableCell>
                     <TableCell>
@@ -273,10 +274,9 @@ export default function KiosksPage() {
   }
 
   async function remove(deviceId: string) {
-    await updateDevice(
-      (token) => deleteKioskDevice(token, deviceId),
-      { removeFromList: true },
-    );
+    await updateDevice((token) => deleteKioskDevice(token, deviceId), {
+      removeFromList: true,
+    });
   }
 
   async function updateDevice(
@@ -382,15 +382,10 @@ function PairKioskDialog({
   const [assignmentScope, setAssignmentScope] =
     useState<KioskAssignmentScope>("PLATFORM");
   const [organizationId, setOrganizationId] = useState("");
-  const [storeId, setStoreId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const stores = useMemo(
-    () =>
-      options.stores.filter((store) => store.organizationId === organizationId),
-    [options.stores, organizationId],
-  );
+  const stores = options.organizations;
 
   async function submit() {
     if (session.status !== "authenticated") {
@@ -409,14 +404,12 @@ function PairKioskDialog({
         displayName,
         assignmentScope,
         ...(assignmentScope !== "PLATFORM" ? { organizationId } : {}),
-        ...(assignmentScope === "STORE" ? { storeId } : {}),
       });
       onPaired(device);
       setPairingCode("");
       setDisplayName("");
       setAssignmentScope("PLATFORM");
       setOrganizationId("");
-      setStoreId("");
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -468,47 +461,25 @@ function PairKioskDialog({
               onChange={(event) => {
                 setAssignmentScope(event.target.value as KioskAssignmentScope);
                 setOrganizationId("");
-                setStoreId("");
               }}
             >
               {assignmentScopes.map((scope) => (
                 <option key={scope} value={scope}>
-                  {scope}
+                  {scope === "ORGANIZATION" ? "STORE" : scope}
                 </option>
               ))}
             </select>
           </div>
           {assignmentScope !== "PLATFORM" ? (
             <div className="space-y-2">
-              <Label htmlFor="organization">Organization</Label>
+              <Label htmlFor="organization">Store</Label>
               <select
                 id="organization"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                 value={organizationId}
-                onChange={(event) => {
-                  setOrganizationId(event.target.value);
-                  setStoreId("");
-                }}
+                onChange={(event) => setOrganizationId(event.target.value)}
               >
-                <option value="">Select organization</option>
-                {options.organizations.map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organization.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          {assignmentScope === "STORE" ? (
-            <div className="space-y-2">
-              <Label htmlFor="store">Store</Label>
-              <select
-                id="store"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                value={storeId}
-                onChange={(event) => setStoreId(event.target.value)}
-              >
-                <option value="">Select store</option>
+                <option value="">Select Store</option>
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>
                     {store.name}
@@ -558,14 +529,39 @@ type PresentationAssetFormItem = {
   previewUrl?: string;
 };
 
+type KioskConfigurationDialogApi = {
+  getConfiguration: (
+    accessToken: string,
+    deviceId: string,
+  ) => Promise<KioskConfiguration>;
+  updateConfiguration: (
+    accessToken: string,
+    deviceId: string,
+    input: Parameters<typeof updateKioskConfiguration>[2],
+  ) => Promise<KioskConfiguration>;
+  createAssetUploadIntent: (
+    accessToken: string,
+    deviceId: string,
+    input: Parameters<typeof createKioskConfigurationAssetUploadIntent>[2],
+  ) => ReturnType<typeof createKioskConfigurationAssetUploadIntent>;
+};
+
+const defaultKioskConfigurationDialogApi: KioskConfigurationDialogApi = {
+  getConfiguration: getKioskConfiguration,
+  updateConfiguration: updateKioskConfiguration,
+  createAssetUploadIntent: createKioskConfigurationAssetUploadIntent,
+};
+
 function KioskConfigurationDialog({
   device,
   onOpenChange,
   onSaved,
+  api = defaultKioskConfigurationDialogApi,
 }: {
   device: KioskDevice | null;
   onOpenChange: (open: boolean) => void;
   onSaved: (configuration: KioskConfiguration) => void;
+  api?: KioskConfigurationDialogApi;
 }) {
   const session = useSession();
   const accessToken =
@@ -585,10 +581,7 @@ function KioskConfigurationDialog({
     setLoading(true);
     setError(null);
     try {
-      const configuration = await getKioskConfiguration(
-        accessToken,
-        device.id,
-      );
+      const configuration = await api.getConfiguration(accessToken, device.id);
       setVersion(configuration.version);
       setForm(formFromConfiguration(configuration));
     } catch (caught) {
@@ -596,7 +589,7 @@ function KioskConfigurationDialog({
     } finally {
       setLoading(false);
     }
-  }, [accessToken, device]);
+  }, [accessToken, api, device]);
 
   useEffect(() => {
     if (open) {
@@ -636,7 +629,7 @@ function KioskConfigurationDialog({
                 bundledAssetKey: "selfx-default-kiosk-wallpaper",
               },
             ];
-      const configuration = await updateKioskConfiguration(
+      const configuration = await api.updateConfiguration(
         accessToken,
         device.id,
         {
@@ -702,7 +695,7 @@ function KioskConfigurationDialog({
     try {
       const uploadedAssets: PresentationAssetFormItem[] = [];
       for (const file of uploadableFiles) {
-        const intent = await createKioskConfigurationAssetUploadIntent(
+        const intent = await api.createAssetUploadIntent(
           accessToken,
           device.id,
           {
@@ -893,7 +886,8 @@ function KioskConfigurationDialog({
                         setForm((current) => ({
                           ...current,
                           soundProfile: value,
-                          soundEnabled: value === "MUTED" ? false : current.soundEnabled,
+                          soundEnabled:
+                            value === "MUTED" ? false : current.soundEnabled,
                         }))
                       }
                     />
@@ -947,7 +941,10 @@ function KioskConfigurationDialog({
               <legend className="text-sm font-semibold">Experience</legend>
               <div className="flex flex-wrap gap-3">
                 {garmentIntents.map((intent) => (
-                  <label key={intent} className="flex items-center gap-2 text-sm">
+                  <label
+                    key={intent}
+                    className="flex items-center gap-2 text-sm"
+                  >
                     <input
                       type="checkbox"
                       checked={form.enabledGarmentIntents.includes(intent)}
@@ -985,7 +982,10 @@ function KioskConfigurationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button disabled={saving || loading || uploading} onClick={() => void save()}>
+          <Button
+            disabled={saving || loading || uploading}
+            onClick={() => void save()}
+          >
             Save Configuration
           </Button>
         </DialogFooter>
@@ -1079,7 +1079,9 @@ function PresentationAssetUploader({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{asset.label}</div>
+                <div className="truncate text-sm font-medium">
+                  {asset.label}
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {asset.type === "REMOTE_IMAGE"
                     ? "Hosted image"
@@ -1155,10 +1157,10 @@ function assignmentLabel(device: KioskDevice): string {
     return "Platform";
   }
   if (device.assignment.scope === "ORGANIZATION") {
-    return device.assignment.organizationName ?? "Organization";
+    return device.assignment.organizationName ?? "Store";
   }
   return [
-    device.assignment.organizationName ?? "Organization",
+    device.assignment.organizationName ?? "Store",
     device.assignment.storeName ?? "Store",
   ].join(" / ");
 }
@@ -1212,7 +1214,9 @@ function formFromConfiguration(
   };
 }
 
-function validateConfigurationForm(form: KioskConfigurationForm): string | null {
+function validateConfigurationForm(
+  form: KioskConfigurationForm,
+): string | null {
   if (
     !Number.isInteger(form.slideDurationSeconds) ||
     form.slideDurationSeconds < 3 ||

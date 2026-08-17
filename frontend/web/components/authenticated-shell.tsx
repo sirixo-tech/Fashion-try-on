@@ -126,8 +126,8 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       {organizationError ? (
         <div className="flex min-h-[calc(100dvh-3.75rem)] items-center justify-center p-4">
           <ErrorState
-            title="Organization context unavailable"
-            description="The shell could not load active organizations from SelfX."
+            title="Store context unavailable"
+            description="The shell could not load active Stores from SelfX."
             action={{ label: "Retry", onClick: () => void session.refresh() }}
           />
         </div>

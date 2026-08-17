@@ -54,5 +54,6 @@ import { KioskConfigurationService } from "./kiosk-configuration.service.js";
     PlatformAuthorizationService,
     { provide: KIOSK_CONFIG, useFactory: () => loadKioskConfig() },
   ],
+  exports: [KioskService, KioskConfigurationService],
 })
 export class KioskModule {}

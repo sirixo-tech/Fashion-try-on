@@ -24,6 +24,53 @@ Material changes must:
 
 ---
 
+## STORE-1 Journey Addendum
+
+**Status:** UPDATED
+
+New Store management journeys use the hierarchy:
+
+```text
+SelfX Platform
+→ Store
+→ Kiosks
+```
+
+### SelfX Super Administrator — Store Management
+
+Preconditions:
+
+- The user is authenticated as an authorized SelfX platform administrator.
+
+Main flow:
+
+1. Administrator opens Stores.
+2. Administrator creates a Store with name, slug and optional contact/location
+   profile.
+3. SelfX stores the merchant tenant internally and returns it as a product
+   Store.
+4. Administrator opens the Store Dashboard.
+5. Administrator reviews Store status, kiosk counts and Store-owned kiosks.
+6. Administrator may edit Store profile details, deactivate/reactivate the
+   Store, pair a kiosk or configure a Store-owned kiosk.
+
+Alternate flows:
+
+- Duplicate Store slug returns a conflict.
+- Unauthorized platform user is denied before Store mutation.
+- Inactive Store remains visible but cannot receive new kiosk pairing or
+  assignment.
+- A kiosk from another Store is not accessible through nested Store kiosk
+  routes.
+
+End state:
+
+- Store details remain durable.
+- Store-owned kiosk assignment and configuration remain intact.
+- Product UI uses Store terminology.
+
+---
+
 ## 1. Purpose
 
 This document defines the major end-to-end user and system journeys for the SelfX Virtual Try-On platform.

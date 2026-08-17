@@ -22,6 +22,42 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
 
 ---
 
+## STORE-1 Technical Addendum
+
+**Status:** UPDATED
+
+STORE-1 standardizes the product tenant hierarchy for new admin and kiosk work:
+
+```text
+SelfX Platform
+→ Store
+→ Kiosks
+```
+
+Implementation compatibility:
+
+- The existing `organizations` table remains the internal tenant table for this
+  slice because it is already connected to memberships, audit logs, onboarding
+  state and kiosk assignments.
+- The STORE-1 API exposes those internal tenant rows as product Stores and may
+  include internal diagnostics such as `ORGANIZATION_AS_STORE` only where useful
+  for operators/developers.
+- The legacy child `stores` table remains available for historical/location
+  data but must not drive new STORE-1 Store dashboard, Store CRUD or Store
+  kiosk management flows.
+- Store-owned kiosks use internal `KioskAssignmentScope.ORGANIZATION` with
+  `organizationId` equal to the product Store id and `storeId = null`.
+- Kiosk runtime configuration remains device-owned and reuses the KIOSK-6A/
+  KIOSK-6B configuration services. Store routes must validate nested kiosk
+  ownership before configuration read/update or asset upload intent creation.
+- Store activation/deactivation maps to the existing tenant status model.
+  Inactive Stores cannot receive new kiosk assignments.
+
+No API Gateway, billing, catalog, public API commercialization, new RBAC model
+or kiosk app build is introduced by STORE-1.
+
+---
+
 1. Purpose
    This document defines the approved technical architecture for the SelfX Virtual Try-On platform.
    `01-PRD.md` defines what the product must do.

@@ -23,8 +23,9 @@ export function OrganizationSwitcher({
   onSelect?: (organizationId: string) => void;
 }) {
   const activeOrganization =
-    organizations.find((organization) => organization.id === activeOrganizationId) ??
-    organizations[0];
+    organizations.find(
+      (organization) => organization.id === activeOrganizationId,
+    ) ?? organizations[0];
 
   return (
     <DropdownMenu>
@@ -33,20 +34,20 @@ export function OrganizationSwitcher({
           <Button
             variant="outline"
             className="max-w-[18rem] justify-between gap-2"
-            aria-label="Select organization"
+            aria-label="Select Store"
           />
         }
       >
         <Building2Icon aria-hidden="true" />
         <span className="truncate">
-          {activeOrganization?.name ?? "No active organization"}
+          {activeOrganization?.name ?? "No active Store"}
         </span>
         <ChevronsUpDownIcon aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80">
-        <DropdownMenuLabel>Organization</DropdownMenuLabel>
+        <DropdownMenuLabel>Store</DropdownMenuLabel>
         {organizations.length === 0 ? (
-          <DropdownMenuItem disabled>No active organizations</DropdownMenuItem>
+          <DropdownMenuItem disabled>No active Stores</DropdownMenuItem>
         ) : (
           organizations.map((organization) => (
             <DropdownMenuItem
