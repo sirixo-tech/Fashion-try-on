@@ -998,6 +998,11 @@ Customer, assisted by an authorized kiosk operator when needed.
   capture, corrupt image and decode failures remain blocking.
 - Android box + USB webcam behavior remains hardware verification pending until
   SelfX tests the certified hardware.
+- Portrait Android display + external camera rotated sideways -> authorized
+  operator opens local Camera Settings, uses Camera Orientation Auto first, then
+  selects 90 or 270 degrees if needed. The preview updates immediately, the
+  captured garment/model photo remains upright in review and the same
+  calibration persists after app restart.
 
 ### Boundary
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../camera/camera_models.dart';
+import '../camera/camera_preview_viewport.dart';
 import '../live/capture_readiness_engine.dart';
 import '../session/capture_flow.dart';
 import '../session/capture_scope.dart';
@@ -235,10 +236,7 @@ class _PreviewPanel extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (showPreview)
-              FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(width: 1280, height: 720, child: preview),
-              )
+              CameraPreviewViewport(state: state, preview: preview)
             else
               _CameraStateView(
                 starting: starting,

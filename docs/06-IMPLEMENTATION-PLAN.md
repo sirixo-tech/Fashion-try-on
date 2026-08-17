@@ -1239,6 +1239,34 @@ Verification should include Prisma validation/generation, targeted backend
 configuration tests, web typecheck/build, `flutter analyze` and targeted kiosk
 runtime-configuration tests. APK and Windows builds are not required.
 
+### KIOSK-6A.2 Portrait Camera Orientation & External Camera Calibration
+
+Implemented scope:
+
+- shared Flutter kiosk camera-orientation domain with Auto, 0, 90, 180 and
+  270 degree modes;
+- local operator Camera Settings control for physical camera mount
+  calibration;
+- local persistence through non-sensitive kiosk settings storage;
+- central camera-service resolver used by garment and model/person capture;
+- aspect-ratio-preserving preview viewport with cover/crop behavior instead of
+  fixed 16:9 stretching;
+- manual capture normalization for calibrated external cameras with a single
+  reported normalization step;
+- live-frame rotation metadata and TargetSubjectRegion normalized transforms
+  for 0/90/180/270 degree coordinate spaces.
+
+Explicitly not implemented:
+
+- remote/SaaS camera orientation management, Product Catalog, FASHN/provider
+  changes, RBAC, Organizations, API Gateway, release APK generation or native
+  Android manifest changes.
+
+Verification should include `flutter analyze`, targeted camera orientation
+tests, `kiosk_camera_foundation_test.dart` and directly affected
+capture/readiness tests. APK build is not required because Android native
+configuration did not change.
+
 ### SELFX-DESIGN-SYSTEM-2 Premium Cross-Application Design System
 
 Implemented scope:

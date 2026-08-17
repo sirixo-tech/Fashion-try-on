@@ -97,6 +97,17 @@ their client-generated boundaries.
 - The Windows camera implementation is isolated behind `CameraService`.
 - Android uses Flutter `camera` with the endorsed CameraX implementation
   through the same `CameraService`.
+- Camera orientation is resolved centrally through SelfX camera orientation
+  semantics. Auto is the default. Operators may locally calibrate a mounted
+  external camera to 0, 90, 180 or 270 degrees from Camera Settings when a
+  portrait kiosk preview appears sideways.
+- Orientation calibration is local physical-device configuration, not KIOSK-6A
+  SaaS runtime configuration. Customer-facing capture never exposes this
+  control.
+- Preview, captured stills, live-analysis rotation metadata and
+  TargetSubjectRegion coordinate semantics use the same effective orientation.
+  Portrait previews preserve aspect ratio and cover/crop the viewport rather
+  than stretching a landscape buffer.
 - Android commercial presentation is portrait-first. The app does not hardcode
   physical 32-inch/42-inch sizes; layouts adapt to logical viewport dimensions
   and aspect ratio.
@@ -328,6 +339,14 @@ their client-generated boundaries.
 7. Grant camera permission when prompted.
 8. Test built-in camera preview/capture/review.
 9. Plug in the USB webcam, open Camera Settings and refresh cameras.
+10. On a portrait-mounted Android display, leave Camera Orientation on Auto and
+    confirm the USB preview is upright.
+11. If the preview is sideways, set Camera Orientation to 90 or 270 degrees and
+    confirm the preview updates immediately without distortion.
+12. Capture one garment photo and one model/person photo, then confirm each
+    review image is upright.
+13. Restart the app and confirm the selected manual calibration persists.
+14. Test a landscape display/window and confirm Auto remains correct.
 
 ## KIOSK-4A Pairing Checklist
 

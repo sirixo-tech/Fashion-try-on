@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
+import 'package:selfx_kiosk/src/camera/camera_orientation.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
 import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
 import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration_controller.dart';
@@ -453,6 +454,9 @@ class FakeCameraService implements CameraService {
 
   @override
   Future<void> selectCamera(CameraDevice device) async {}
+
+  @override
+  Future<void> updateOrientationMode(CameraOrientationMode mode) async {}
 
   @override
   Future<void> startLiveFrames() async {}

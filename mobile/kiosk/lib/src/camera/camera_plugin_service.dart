@@ -4,10 +4,13 @@ import 'dart:io';
 import 'package:camera/camera.dart' as camera;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as image;
 
 import '../live/live_frame.dart';
 import '../session/temporary_capture_store.dart';
 import 'camera_models.dart';
+import 'camera_orientation.dart';
 import 'camera_service.dart';
 
 class CameraPluginService implements CameraService {
@@ -18,9 +21,12 @@ class CameraPluginService implements CameraService {
   final ValueNotifier<CameraState> _state = ValueNotifier(const CameraState());
   final StreamController<LiveCameraFrame> _liveFrameController =
       StreamController<LiveCameraFrame>.broadcast();
+  final CameraOrientationResolver _orientationResolver =
+      const CameraOrientationResolver();
   camera.CameraController? _controller;
   List<camera.CameraDescription> _descriptions = [];
   bool _streamingLiveFrames = false;
+  CameraOrientationMode _orientationMode = defaultCameraOrientationMode;
 
   @override
   ValueListenable<CameraState> get state => _state;
@@ -85,6 +91,16 @@ class CameraPluginService implements CameraService {
   }
 
   @override
+  Future<void> updateOrientationMode(CameraOrientationMode mode) async {
+    _orientationMode = mode;
+    final controller = _controller;
+    if (controller != null && controller.value.isInitialized) {
+      await _lockDisplayCaptureOrientation(controller);
+    }
+    _publishReadyState();
+  }
+
+  @override
   Future<CameraCaptureResult> captureStill() async {
     final controller = _controller;
     final selected = _state.value.selectedDevice;
@@ -101,13 +117,20 @@ class CameraPluginService implements CameraService {
     try {
       await stopLiveFrames();
       final file = await controller.takePicture();
-      final localPath = await _captureStore.preserveOriginal(File(file.path));
+      final normalization = _currentOrientationResolution();
+      final normalizedCapture = await _preserveCapture(
+        File(file.path),
+        normalization,
+      );
       _state.value = _state.value.copyWith(status: CameraStatus.ready);
       return CameraCaptureResult(
-        originalPath: localPath,
+        originalPath: normalizedCapture.path,
         createdAt: DateTime.now(),
         deviceId: selected.id,
         isTemporary: true,
+        orientationMode: normalization.mode,
+        normalizationDegrees: normalizedCapture.rotationDegrees,
+        orientationNormalized: normalizedCapture.normalized,
       );
     } catch (error) {
       _state.value = _state.value.copyWith(
@@ -179,7 +202,16 @@ class CameraPluginService implements CameraService {
         ),
       );
     }
-    return camera.CameraPreview(controller);
+    final preview = camera.CameraPreview(controller);
+    final resolution = _currentOrientationResolution();
+    if (!resolution.hasManualCorrection ||
+        resolution.effectiveRotationDegrees == 0) {
+      return preview;
+    }
+    return RotatedBox(
+      quarterTurns: quarterTurnsForDegrees(resolution.effectiveRotationDegrees),
+      child: preview,
+    );
   }
 
   @override
@@ -222,23 +254,10 @@ class CameraPluginService implements CameraService {
 
     try {
       await controller.initialize();
+      await _lockDisplayCaptureOrientation(controller);
       _controller = controller;
       controller.addListener(_handleControllerChanged);
-      final previewSize = controller.value.previewSize;
-      _state.value = _state.value.copyWith(
-        status: CameraStatus.ready,
-        selectedDevice: device,
-        capabilities: CameraCapabilities(
-          previewWidth: previewSize?.width,
-          previewHeight: previewSize?.height,
-          supportsStillCapture: true,
-          supportsLiveFrames:
-              Platform.isAndroid && controller.supportsImageStreaming(),
-          nativeBackend: _nativeBackendLabel,
-          notes: _capabilityNotes,
-        ),
-        clearFailure: true,
-      );
+      _publishReadyState();
     } on camera.CameraException catch (error) {
       await controller.dispose();
       final code = _failureCodeFor(error);
@@ -284,7 +303,10 @@ class CameraPluginService implements CameraService {
       dimensions: FrameDimensions(width: image.width, height: image.height),
       format: _pixelFormatFor(image.format.group),
       timestamp: DateTime.now(),
-      rotationDegrees: _normalizeRotation(description.sensorOrientation),
+      rotationDegrees: _orientationResolver.resolveLiveFrameRotationDegrees(
+        mode: _orientationMode,
+        sensorOrientationDegrees: description.sensorOrientation,
+      ),
       planes: image.planes
           .map(
             (plane) => LiveFramePlane(
@@ -306,16 +328,6 @@ class CameraPluginService implements CameraService {
       camera.ImageFormatGroup.jpeg => FramePixelFormat.jpeg,
       camera.ImageFormatGroup.bgra8888 => FramePixelFormat.bgra8888,
       _ => FramePixelFormat.unknown,
-    };
-  }
-
-  int _normalizeRotation(int value) {
-    final normalized = value % 360;
-    return switch (normalized) {
-      90 => 90,
-      180 => 180,
-      270 => 270,
-      _ => 0,
     };
   }
 
@@ -352,6 +364,102 @@ class CameraPluginService implements CameraService {
         camera.CameraLensDirection.external => CameraFacing.external,
       },
       sensorOrientation: description.sensorOrientation,
+    );
+  }
+
+  Future<void> _lockDisplayCaptureOrientation(
+    camera.CameraController controller,
+  ) async {
+    if (!Platform.isAndroid) {
+      return;
+    }
+    try {
+      await controller.lockCaptureOrientation(DeviceOrientation.portraitUp);
+    } catch (_) {
+      // Capture orientation locking is best-effort; manual normalization below
+      // still keeps SelfX's canonical output consistent when calibration is set.
+    }
+  }
+
+  void _publishReadyState() {
+    final controller = _controller;
+    final selected = _state.value.selectedDevice;
+    if (controller == null ||
+        selected == null ||
+        !controller.value.isInitialized) {
+      return;
+    }
+    final previewSize = controller.value.previewSize;
+    final resolution = _currentOrientationResolution();
+    final effectiveSize = previewSize == null
+        ? null
+        : rotatedSize(previewSize, resolution.effectiveRotationDegrees);
+    _state.value = _state.value.copyWith(
+      status: CameraStatus.ready,
+      selectedDevice: selected,
+      capabilities: CameraCapabilities(
+        previewWidth: previewSize?.width,
+        previewHeight: previewSize?.height,
+        effectivePreviewWidth: effectiveSize?.width,
+        effectivePreviewHeight: effectiveSize?.height,
+        supportsStillCapture: true,
+        supportsLiveFrames:
+            Platform.isAndroid && controller.supportsImageStreaming(),
+        nativeBackend: _nativeBackendLabel,
+        orientationMode: _orientationMode,
+        effectiveRotationDegrees: resolution.effectiveRotationDegrees,
+        notes: _capabilityNotes,
+      ),
+      clearFailure: true,
+    );
+  }
+
+  CameraOrientationResolution _currentOrientationResolution() {
+    final selected = _state.value.selectedDevice;
+    final controller = _controller;
+    return _orientationResolver.resolve(
+      mode: _orientationMode,
+      displayOrientation:
+          controller?.value.lockedCaptureOrientation ??
+          controller?.value.deviceOrientation ??
+          DeviceOrientation.portraitUp,
+      lensFacingLabel: selected?.facing.name ?? CameraFacing.unknown.name,
+      sensorOrientationDegrees: selected?.sensorOrientation,
+    );
+  }
+
+  Future<_PreservedCapture> _preserveCapture(
+    File source,
+    CameraOrientationResolution orientation,
+  ) async {
+    final degrees = orientation.effectiveRotationDegrees;
+    if (!orientation.hasManualCorrection || degrees == 0) {
+      return _PreservedCapture(
+        path: await _captureStore.preserveOriginal(source),
+        rotationDegrees: 0,
+        normalized: false,
+      );
+    }
+
+    final bytes = await source.readAsBytes();
+    final decoded = image.decodeImage(bytes);
+    if (decoded == null) {
+      throw const CameraServiceException(
+        CameraFailureCode.captureFailed,
+        'Captured image could not be decoded for orientation normalization.',
+      );
+    }
+    final baked = image.bakeOrientation(decoded);
+    final rotated = image.copyRotate(baked, angle: degrees);
+    final targetPath = await _captureStore.createTempCapturePath(
+      prefix: 'capture-normalized',
+      extension: '.jpg',
+    );
+    await File(targetPath).writeAsBytes(image.encodeJpg(rotated, quality: 95));
+    return _PreservedCapture(
+      path: targetPath,
+      rotationDegrees: degrees,
+      normalized: true,
     );
   }
 
@@ -415,6 +523,18 @@ class CameraPluginService implements CameraService {
     }
     return const ['KIOSK-1.5 supports Android and Windows kiosk builds.'];
   }
+}
+
+class _PreservedCapture {
+  const _PreservedCapture({
+    required this.path,
+    required this.rotationDegrees,
+    required this.normalized,
+  });
+
+  final String path;
+  final int rotationDegrees;
+  final bool normalized;
 }
 
 class CameraServiceException implements Exception {

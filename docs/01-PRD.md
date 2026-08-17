@@ -812,6 +812,14 @@ KIOSK-1.5 product rules:
   required for still-image capture.
 - Preferred camera selection remains local device configuration, not
   server-side kiosk configuration.
+- External camera orientation calibration is local physical-device
+  configuration. Auto is the default, and authorized operators may select 0,
+  90, 180 or 270 degrees only from local Camera Settings when a mounted USB
+  camera appears rotated.
+- Camera orientation correction must keep preview, captured image, still-image
+  analysis, live-readiness coordinates and TargetSubjectRegion semantics
+  consistent. Customer-facing screens must not expose technical orientation
+  controls.
 - Android commercial kiosk UX is portrait-first because SelfX currently
   deploys/rents primarily 32-inch and 42-inch vertically mounted displays.
 - Windows remains responsive across portrait and landscape desktop/window

@@ -614,6 +614,11 @@ KIOSK-1.5 rules:
   actual certified hardware testing proves it is required.
 - Preferred camera IDs remain local device configuration and should be scoped
   so Android and Windows camera identifiers are not treated as interchangeable.
+- External camera orientation calibration is local physical-device
+  configuration. Use the shared camera-orientation resolver and operator
+  fallback modes Auto, 0, 90, 180 and 270 degrees; do not add per-screen
+  preview rotation hacks or remote SaaS camera-orientation configuration in
+  this kiosk slice.
 - Request only camera permission for kiosk capture. Do not request microphone
   permission unless an approved audio feature exists.
 - Android commercial kiosk screens are portrait-first for SelfX's current
@@ -736,6 +741,10 @@ KIOSK-2A rules:
 - The camera preview remains for the camera image, subtle scope-aware framing
   overlay and future camera-specific overlays. Dynamic customer guidance remains
   below the camera in `CaptureGuidancePanel`.
+- Preview, captured stills, live-analysis rotation metadata and
+  TargetSubjectRegion semantics must remain orientation-consistent. Portrait
+  kiosk previews must preserve camera aspect ratio with cover/crop behavior
+  instead of stretching a landscape camera buffer into a portrait viewport.
 - Live analysis targets approximately 3 FPS initially, but this cadence is
   centralized and adaptive for lower-powered Android boxes. Camera preview
   smoothness has priority over analysis frequency.

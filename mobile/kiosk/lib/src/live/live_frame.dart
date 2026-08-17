@@ -42,6 +42,14 @@ class LiveCameraFrame {
 
   int get width => dimensions.width;
   int get height => dimensions.height;
+
+  FrameDimensions get orientedDimensions {
+    final rotation = rotationDegrees % 360;
+    if (rotation == 90 || rotation == 270 || rotation == -90 || rotation == -270) {
+      return FrameDimensions(width: height, height: width);
+    }
+    return dimensions;
+  }
 }
 
 class LiveFrameSourceCapabilities {

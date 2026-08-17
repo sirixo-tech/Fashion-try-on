@@ -305,10 +305,13 @@ class LuminanceLiveImageQualityAnalyzer implements LiveImageQualityAnalyzer {
         return LiveImageQualityResult.unavailable('LIVE_QUALITY_NO_PLANE');
       }
       final plane = frame.planes.first;
+      final sourceTargetRegion = targetRegion?.rotated(
+        -frame.rotationDegrees,
+      );
       final subjectBrightness = _meanBrightness(
         frame,
         plane,
-        roi: targetRegion?.toRect(frame.dimensions),
+        roi: sourceTargetRegion?.toRect(frame.dimensions),
       );
       final backgroundBrightness = _meanBrightness(frame, plane);
       final lighting = _lightingState(subjectBrightness, backgroundBrightness);
@@ -415,7 +418,7 @@ class LiveFrameAnalyzer {
     final analyzedAt = DateTime.now();
     final primarySubject = primarySubjectResolver.resolve(
       pose: pose,
-      frameDimensions: frame.dimensions,
+      frameDimensions: frame.orientedDimensions,
       scope: scope,
       observedAt: analyzedAt,
       allowSubjectReselection: allowSubjectReselection,
@@ -432,7 +435,7 @@ class LiveFrameAnalyzer {
       primarySubject: primarySubject,
       quality: quality,
       analyzedAt: analyzedAt,
-      frameDimensions: frame.dimensions,
+      frameDimensions: frame.orientedDimensions,
       poseLatency: poseWatch.elapsed,
       qualityLatency: qualityWatch.elapsed,
     );
@@ -516,6 +519,40 @@ class TargetSubjectRegion {
       width * frameWidth,
       height * frameHeight,
     );
+  }
+
+  TargetSubjectRegion rotated(int degrees) {
+    final normalized = _normalizeDegrees(degrees);
+    final safeX = x.clamp(0, 1).toDouble();
+    final safeY = y.clamp(0, 1).toDouble();
+    final safeWidth = width.clamp(0, 1).toDouble();
+    final safeHeight = height.clamp(0, 1).toDouble();
+    return switch (normalized) {
+      90 => TargetSubjectRegion(
+          x: _unit(1 - (safeY + safeHeight)),
+          y: _unit(safeX),
+          width: _unit(safeHeight),
+          height: _unit(safeWidth),
+        ),
+      180 => TargetSubjectRegion(
+          x: _unit(1 - (safeX + safeWidth)),
+          y: _unit(1 - (safeY + safeHeight)),
+          width: _unit(safeWidth),
+          height: _unit(safeHeight),
+        ),
+      270 => TargetSubjectRegion(
+          x: _unit(safeY),
+          y: _unit(1 - (safeX + safeWidth)),
+          width: _unit(safeHeight),
+          height: _unit(safeWidth),
+        ),
+      _ => TargetSubjectRegion(
+          x: safeX,
+          y: safeY,
+          width: safeWidth,
+          height: safeHeight,
+        ),
+    };
   }
 }
 
@@ -895,4 +932,19 @@ bool _hasAny(PersonObservation person, List<String> names) {
     final landmark = person.landmarks[name];
     return landmark != null && landmark.confidence >= 0.45;
   });
+}
+
+int _normalizeDegrees(int degrees) {
+  final normalized = degrees % 360;
+  final positive = normalized < 0 ? normalized + 360 : normalized;
+  return switch (positive) {
+    90 => 90,
+    180 => 180,
+    270 => 270,
+    _ => 0,
+  };
+}
+
+double _unit(num value) {
+  return math.max(0, math.min(1, value.toDouble()));
 }

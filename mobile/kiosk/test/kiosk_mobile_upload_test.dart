@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
+import 'package:selfx_kiosk/src/camera/camera_orientation.dart';
 import 'package:selfx_kiosk/src/acquisition/photo_acquisition.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
@@ -990,6 +991,9 @@ class FakeCameraService implements CameraService {
   Future<void> selectCamera(CameraDevice device) async {}
 
   @override
+  Future<void> updateOrientationMode(CameraOrientationMode mode) async {}
+
+  @override
   Future<CameraCaptureResult> captureStill() {
     throw UnimplementedError();
   }
@@ -1039,6 +1043,14 @@ class FakeSettingsStore implements CameraSettingsStore {
 
   @override
   Future<void> saveCaptureAudioProfile(CaptureAudioProfile profile) async {}
+
+  @override
+  Future<CameraOrientationMode> readCameraOrientationMode() async {
+    return defaultCameraOrientationMode;
+  }
+
+  @override
+  Future<void> saveCameraOrientationMode(CameraOrientationMode mode) async {}
 }
 
 class FakeQualityAnalyzer implements KioskImageQualityAnalyzer {

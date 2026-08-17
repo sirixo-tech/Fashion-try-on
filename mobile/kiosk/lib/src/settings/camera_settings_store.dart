@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../camera/camera_orientation.dart';
 import '../session/capture_audio_service.dart';
 import '../session/capture_flow.dart';
 
@@ -23,6 +24,10 @@ abstract class CameraSettingsStore {
   Future<CaptureAudioProfile> readCaptureAudioProfile();
 
   Future<void> saveCaptureAudioProfile(CaptureAudioProfile profile);
+
+  Future<CameraOrientationMode> readCameraOrientationMode();
+
+  Future<void> saveCameraOrientationMode(CameraOrientationMode mode);
 }
 
 class SharedPreferencesCameraSettingsStore implements CameraSettingsStore {
@@ -34,12 +39,15 @@ class SharedPreferencesCameraSettingsStore implements CameraSettingsStore {
       _captureSoundsEnabledKey =
           'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.captureSoundsEnabled',
       _captureAudioProfileKey =
-          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.captureAudioProfile';
+          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.captureAudioProfile',
+      _cameraOrientationModeKey =
+          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.cameraOrientationMode';
 
   final String _preferredCameraIdKey;
   final String _captureCountdownSecondsKey;
   final String _captureSoundsEnabledKey;
   final String _captureAudioProfileKey;
+  final String _cameraOrientationModeKey;
 
   final SharedPreferencesAsync _preferences;
 
@@ -92,6 +100,17 @@ class SharedPreferencesCameraSettingsStore implements CameraSettingsStore {
   Future<void> saveCaptureAudioProfile(CaptureAudioProfile profile) {
     return _preferences.setString(_captureAudioProfileKey, profile.name);
   }
+
+  @override
+  Future<CameraOrientationMode> readCameraOrientationMode() async {
+    final value = await _preferences.getString(_cameraOrientationModeKey);
+    return cameraOrientationModeFromStorage(value);
+  }
+
+  @override
+  Future<void> saveCameraOrientationMode(CameraOrientationMode mode) {
+    return _preferences.setString(_cameraOrientationModeKey, mode.storageValue);
+  }
 }
 
 class InMemoryCameraSettingsStore implements CameraSettingsStore {
@@ -99,6 +118,7 @@ class InMemoryCameraSettingsStore implements CameraSettingsStore {
   int? captureCountdownSeconds;
   bool? captureSoundsEnabled;
   CaptureAudioProfile? captureAudioProfile;
+  CameraOrientationMode? cameraOrientationMode;
 
   @override
   Future<String?> readPreferredCameraId() async => preferredCameraId;
@@ -141,5 +161,15 @@ class InMemoryCameraSettingsStore implements CameraSettingsStore {
   @override
   Future<void> saveCaptureAudioProfile(CaptureAudioProfile profile) async {
     captureAudioProfile = profile;
+  }
+
+  @override
+  Future<CameraOrientationMode> readCameraOrientationMode() async {
+    return cameraOrientationMode ?? defaultCameraOrientationMode;
+  }
+
+  @override
+  Future<void> saveCameraOrientationMode(CameraOrientationMode mode) async {
+    cameraOrientationMode = mode;
   }
 }

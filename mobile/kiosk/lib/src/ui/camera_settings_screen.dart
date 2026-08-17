@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../camera/camera_models.dart';
+import '../camera/camera_orientation.dart';
+import '../camera/camera_preview_viewport.dart';
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../live/frame_analysis_scheduler.dart';
 import '../live/person_analysis.dart';
@@ -77,6 +79,7 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
             countdownSeconds: widget.controller.captureCountdownSeconds,
             captureSoundsEnabled: widget.controller.captureSoundsEnabled,
             captureAudioProfile: widget.controller.captureAudioProfile,
+            cameraOrientationMode: widget.controller.cameraOrientationMode,
             analysisDiagnostics: widget.controller.analysisDiagnostics,
             primarySubject: widget.controller.primarySubject,
             poseAnalyzerLatency: widget.controller.poseAnalyzerLatency,
@@ -91,6 +94,8 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
             onCountdownChanged: widget.controller.updateCaptureCountdownSeconds,
             onCaptureSoundsChanged: widget.controller.updateCaptureSoundsEnabled,
             onAudioProfileChanged: widget.controller.updateCaptureAudioProfile,
+            onCameraOrientationChanged:
+                widget.controller.updateCameraOrientationMode,
             onPreviewSound: widget.controller.previewCaptureAudioProfile,
             onTestCamera: () => Navigator.of(context).pop(),
             configurationStatus:
@@ -120,6 +125,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
     required this.countdownSeconds,
     required this.captureSoundsEnabled,
     required this.captureAudioProfile,
+    required this.cameraOrientationMode,
     required this.analysisDiagnostics,
     required this.primarySubject,
     required this.poseAnalyzerLatency,
@@ -131,6 +137,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
     required this.onCountdownChanged,
     required this.onCaptureSoundsChanged,
     required this.onAudioProfileChanged,
+    required this.onCameraOrientationChanged,
     required this.onPreviewSound,
     required this.onTestCamera,
     required this.configurationStatus,
@@ -143,6 +150,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
   final int countdownSeconds;
   final bool captureSoundsEnabled;
   final CaptureAudioProfile captureAudioProfile;
+  final CameraOrientationMode cameraOrientationMode;
   final FrameAnalysisDiagnostics? analysisDiagnostics;
   final PrimarySubject? primarySubject;
   final Duration? poseAnalyzerLatency;
@@ -154,6 +162,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
   final ValueChanged<int> onCountdownChanged;
   final ValueChanged<bool> onCaptureSoundsChanged;
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
+  final ValueChanged<CameraOrientationMode> onCameraOrientationChanged;
   final VoidCallback onPreviewSound;
   final VoidCallback onTestCamera;
   final String configurationStatus;
@@ -172,6 +181,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
           countdownSeconds: countdownSeconds,
           captureSoundsEnabled: captureSoundsEnabled,
           captureAudioProfile: captureAudioProfile,
+          cameraOrientationMode: cameraOrientationMode,
           analysisDiagnostics: analysisDiagnostics,
           primarySubject: primarySubject,
           poseAnalyzerLatency: poseAnalyzerLatency,
@@ -181,6 +191,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
           onCountdownChanged: onCountdownChanged,
           onCaptureSoundsChanged: onCaptureSoundsChanged,
           onAudioProfileChanged: onAudioProfileChanged,
+          onCameraOrientationChanged: onCameraOrientationChanged,
           onPreviewSound: onPreviewSound,
           onTestCamera: onTestCamera,
           configurationStatus: configurationStatus,
@@ -242,7 +253,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
                 children: [
                   _CameraSummaryCard(state: state),
                   const SizedBox(height: 16),
-                  AspectRatio(aspectRatio: 16 / 9, child: preview),
+                  Expanded(child: preview),
                 ],
               ),
             ),
@@ -413,6 +424,7 @@ class _SettingsCategoryContent extends StatelessWidget {
     required this.countdownSeconds,
     required this.captureSoundsEnabled,
     required this.captureAudioProfile,
+    required this.cameraOrientationMode,
     required this.analysisDiagnostics,
     required this.primarySubject,
     required this.poseAnalyzerLatency,
@@ -422,6 +434,7 @@ class _SettingsCategoryContent extends StatelessWidget {
     required this.onCountdownChanged,
     required this.onCaptureSoundsChanged,
     required this.onAudioProfileChanged,
+    required this.onCameraOrientationChanged,
     required this.onPreviewSound,
     required this.onTestCamera,
     required this.configurationStatus,
@@ -434,6 +447,7 @@ class _SettingsCategoryContent extends StatelessWidget {
   final int countdownSeconds;
   final bool captureSoundsEnabled;
   final CaptureAudioProfile captureAudioProfile;
+  final CameraOrientationMode cameraOrientationMode;
   final FrameAnalysisDiagnostics? analysisDiagnostics;
   final PrimarySubject? primarySubject;
   final Duration? poseAnalyzerLatency;
@@ -443,6 +457,7 @@ class _SettingsCategoryContent extends StatelessWidget {
   final ValueChanged<int> onCountdownChanged;
   final ValueChanged<bool> onCaptureSoundsChanged;
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
+  final ValueChanged<CameraOrientationMode> onCameraOrientationChanged;
   final VoidCallback onPreviewSound;
   final VoidCallback onTestCamera;
   final String configurationStatus;
@@ -457,8 +472,10 @@ class _SettingsCategoryContent extends StatelessWidget {
         _OperatorSettingsCategory.camera => _CameraSection(
             state: state,
             loading: loading,
+            cameraOrientationMode: cameraOrientationMode,
             onRefresh: onRefresh,
             onSelectCamera: onSelectCamera,
+            onCameraOrientationChanged: onCameraOrientationChanged,
           ),
         _OperatorSettingsCategory.capture => _CaptureSection(
             countdownSeconds: countdownSeconds,
@@ -495,14 +512,18 @@ class _CameraSection extends StatelessWidget {
   const _CameraSection({
     required this.state,
     required this.loading,
+    required this.cameraOrientationMode,
     required this.onRefresh,
     required this.onSelectCamera,
+    required this.onCameraOrientationChanged,
   });
 
   final CameraState state;
   final bool loading;
+  final CameraOrientationMode cameraOrientationMode;
   final VoidCallback onRefresh;
   final ValueChanged<CameraDevice> onSelectCamera;
+  final ValueChanged<CameraOrientationMode> onCameraOrientationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -551,6 +572,28 @@ class _CameraSection extends StatelessWidget {
             },
           ),
         const SizedBox(height: 20),
+        DropdownButtonFormField<CameraOrientationMode>(
+          key: const Key('camera-orientation-mode'),
+          initialValue: cameraOrientationMode,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Camera Orientation',
+            helperText: 'Use Auto unless a mounted external camera appears sideways.',
+          ),
+          items: [
+            for (final mode in CameraOrientationMode.values)
+              DropdownMenuItem(
+                value: mode,
+                child: Text(_orientationModeLabel(mode)),
+              ),
+          ],
+          onChanged: (mode) {
+            if (mode != null) {
+              onCameraOrientationChanged(mode);
+            }
+          },
+        ),
+        const SizedBox(height: 20),
         _InfoGrid(
           rows: [
             _InfoItem(
@@ -561,6 +604,10 @@ class _CameraSection extends StatelessWidget {
             _InfoItem(
               label: 'Resolution',
               value: state.capabilities.resolutionLabel,
+            ),
+            _InfoItem(
+              label: 'Orientation',
+              value: _orientationModeLabel(state.capabilities.orientationMode),
             ),
             _InfoItem(label: 'Platform', value: Platform.operatingSystem),
           ],
@@ -846,6 +893,22 @@ class _DiagnosticsSection extends StatelessWidget {
                   value: state.capabilities.nativeBackend,
                 ),
                 _InfoItem(
+                  label: 'Orientation mode',
+                  value: _orientationModeLabel(
+                    state.capabilities.orientationMode,
+                  ),
+                ),
+                _InfoItem(
+                  label: 'Sensor orientation',
+                  value: state.selectedDevice?.sensorOrientation == null
+                      ? 'Unavailable'
+                      : '${state.selectedDevice!.sensorOrientation} deg',
+                ),
+                _InfoItem(
+                  label: 'Effective rotation',
+                  value: '${state.capabilities.effectiveRotationDegrees} deg',
+                ),
+                _InfoItem(
                   label: 'Live frames',
                   value: state.capabilities.supportsLiveFrames
                       ? 'Backend capable'
@@ -935,13 +998,10 @@ class _PreviewPanel extends StatelessWidget {
             children: [
               if (state.status == CameraStatus.ready ||
                   state.status == CameraStatus.capturing)
-                FittedBox(
+                CameraPreviewViewport(
+                  state: state,
+                  preview: controller.cameraService.buildPreview(context),
                   fit: BoxFit.contain,
-                  child: SizedBox(
-                    width: 1280,
-                    height: 720,
-                    child: controller.cameraService.buildPreview(context),
-                  ),
                 )
               else
                 const Center(
@@ -1403,6 +1463,16 @@ String _statusLabel(CameraStatus status) {
     CameraStatus.disconnected => 'Disconnected',
     CameraStatus.failed => 'Warning',
     CameraStatus.disposed => 'Disposed',
+  };
+}
+
+String _orientationModeLabel(CameraOrientationMode mode) {
+  return switch (mode) {
+    CameraOrientationMode.auto => 'Auto',
+    CameraOrientationMode.deg0 => '0 deg',
+    CameraOrientationMode.deg90 => '90 deg',
+    CameraOrientationMode.deg180 => '180 deg',
+    CameraOrientationMode.deg270 => '270 deg',
   };
 }
 

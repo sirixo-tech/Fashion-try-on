@@ -306,6 +306,15 @@ available:
 - The preferred camera ID is local device configuration stored through
   `shared_preferences` with platform scoping; it is not server-side kiosk
   configuration.
+- External camera orientation uses a shared SelfX camera-orientation resolver.
+  Auto is the default; operators can locally calibrate a mounted camera to 0,
+  90, 180 or 270 degrees from Camera Settings. This local physical-device
+  calibration keeps preview, captured stills, live-analysis rotation metadata
+  and TargetSubjectRegion semantics aligned and is not SaaS remote
+  configuration.
+- Camera previews preserve the effective camera aspect ratio and use
+  scale-to-cover/center-crop in portrait capture areas rather than stretching
+  landscape buffers.
 - KIOSK-2A's local capture flow was Kiosk Home -> CaptureScope selection ->
   Camera -> live preparation/readiness -> stable final 3/2/1 -> still capture
   -> Review -> Photo Ready; KIOSK-3A now routes the accepted photo onward to

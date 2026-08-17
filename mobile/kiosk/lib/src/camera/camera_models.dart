@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'camera_orientation.dart';
+
 enum CameraStatus {
   idle,
   discovering,
@@ -46,25 +48,44 @@ class CameraCapabilities {
     this.supportsPreview = true,
     this.previewWidth,
     this.previewHeight,
+    this.effectivePreviewWidth,
+    this.effectivePreviewHeight,
     this.supportsStillCapture = true,
     this.supportsLiveFrames = false,
     this.nativeBackend = 'Flutter camera plugin',
+    this.orientationMode = defaultCameraOrientationMode,
+    this.effectiveRotationDegrees = 0,
     this.notes = const [],
   });
 
   final bool supportsPreview;
   final double? previewWidth;
   final double? previewHeight;
+  final double? effectivePreviewWidth;
+  final double? effectivePreviewHeight;
   final bool supportsStillCapture;
   final bool supportsLiveFrames;
   final String nativeBackend;
+  final CameraOrientationMode orientationMode;
+  final int effectiveRotationDegrees;
   final List<String> notes;
 
+  double? get displayPreviewWidth => effectivePreviewWidth ?? previewWidth;
+  double? get displayPreviewHeight => effectivePreviewHeight ?? previewHeight;
+
   String get resolutionLabel {
-    if (previewWidth == null || previewHeight == null) {
+    final width = previewWidth;
+    final height = previewHeight;
+    if (width == null || height == null) {
       return 'Resolution available after preview starts';
     }
-    return '${previewWidth!.round()} x ${previewHeight!.round()}';
+    return '${width.round()} x ${height.round()}';
+  }
+
+  String get orientationLabel {
+    return orientationMode == CameraOrientationMode.auto
+        ? 'Auto'
+        : '$effectiveRotationDegrees deg';
   }
 }
 
@@ -124,10 +145,16 @@ class CameraCaptureResult {
     required this.createdAt,
     required this.deviceId,
     required this.isTemporary,
+    this.orientationMode = defaultCameraOrientationMode,
+    this.normalizationDegrees = 0,
+    this.orientationNormalized = false,
   });
 
   final String originalPath;
   final DateTime createdAt;
   final String deviceId;
   final bool isTemporary;
+  final CameraOrientationMode orientationMode;
+  final int normalizationDegrees;
+  final bool orientationNormalized;
 }

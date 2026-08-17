@@ -338,6 +338,12 @@ Android camera UX:
   operator/development context.
 - Integrated and external cameras are displayed as normal camera options when
   the platform exposes them.
+- Operator Camera Settings includes Camera Orientation: Auto, 0, 90, 180 and
+  270 degrees. The control is local-only, updates the bounded preview
+  immediately and is never shown in customer capture.
+- Camera previews preserve source/effective aspect ratio with cover/crop in
+  portrait viewports. A landscape camera buffer must not be stretched into a
+  portrait camera area.
 
 Quality UX remains the KIOSK-1 still-capture flow. Whole-frame brightness is
 only an initial quality signal because bright backgrounds can mask a backlit

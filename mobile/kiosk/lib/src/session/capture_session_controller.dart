@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../camera/camera_models.dart';
+import '../camera/camera_orientation.dart';
 import '../camera/camera_service.dart';
 import '../config/kiosk_runtime_configuration.dart';
 import '../live/capture_readiness_engine.dart';
@@ -68,6 +69,7 @@ class CaptureSessionController extends ChangeNotifier {
   int captureCountdownSeconds = defaultCaptureCountdownSeconds;
   bool captureSoundsEnabled = true;
   CaptureAudioProfile captureAudioProfile = defaultCaptureAudioProfile;
+  CameraOrientationMode cameraOrientationMode = defaultCameraOrientationMode;
   CaptureFlowState flowState = const CaptureFlowState();
 
   Timer? _countdownTimer;
@@ -122,6 +124,8 @@ class CaptureSessionController extends ChangeNotifier {
     captureCountdownSeconds = await settingsStore.readCaptureCountdownSeconds();
     captureSoundsEnabled = await settingsStore.readCaptureSoundsEnabled();
     captureAudioProfile = await settingsStore.readCaptureAudioProfile();
+    cameraOrientationMode = await settingsStore.readCameraOrientationMode();
+    await cameraService.updateOrientationMode(cameraOrientationMode);
     notifyListeners();
   }
 
@@ -143,6 +147,13 @@ class CaptureSessionController extends ChangeNotifier {
   Future<void> updateCaptureAudioProfile(CaptureAudioProfile profile) async {
     captureAudioProfile = profile;
     await settingsStore.saveCaptureAudioProfile(profile);
+    notifyListeners();
+  }
+
+  Future<void> updateCameraOrientationMode(CameraOrientationMode mode) async {
+    cameraOrientationMode = mode;
+    await settingsStore.saveCameraOrientationMode(mode);
+    await cameraService.updateOrientationMode(mode);
     notifyListeners();
   }
 

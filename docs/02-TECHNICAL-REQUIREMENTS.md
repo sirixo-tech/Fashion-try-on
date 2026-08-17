@@ -1061,6 +1061,12 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    not be requested for still-image capture.
    Local preferred camera IDs are platform-scoped device preferences and are
    not server configuration.
+   Local camera orientation calibration is also device-local physical
+   configuration. The shared SelfX camera-orientation resolver owns Auto, 0,
+   90, 180 and 270 degree modes and must be consumed by preview, still capture,
+   live-analysis metadata and TargetSubjectRegion coordinate semantics.
+   KIOSK-6A SaaS runtime configuration must not manage camera orientation in
+   this phase.
    Android commercial kiosk screens are portrait-first because SelfX currently
    deploys/rents primarily 32-inch and 42-inch vertically mounted displays.
    These physical sizes are commercial deployment characteristics, not
@@ -1154,6 +1160,10 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    and plane metadata are SelfX-owned semantics. Flutter CameraX and ML/pose
    plugin classes must stay inside adapters and must not leak into widgets or
    capture policy.
+   Rotation metadata must include the effective SelfX orientation correction so
+   pose/readiness analysis receives upright semantics. If a 90 or 270 degree
+   correction is active, oriented frame dimensions and normalized target-region
+   transforms must account for width/height swapping.
 
    Android KIOSK-2A uses the Flutter `camera` image-stream mechanism where the
    selected Android hardware exposes it. Windows remains KIOSK-2B for live
@@ -1226,6 +1236,10 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    hardware IDs belong under Diagnostics or hardware details. The camera
    preview is bounded and aspect-ratio preserving so it does not dominate
    configuration.
+   The Camera category includes an operator-only Camera Orientation control
+   with Auto, 0, 90, 180 and 270 degree choices. Changing it updates the local
+   preview immediately for hardware calibration. Customer-facing capture never
+   shows this control.
 
 10. Cross-Application Design Tokens
 

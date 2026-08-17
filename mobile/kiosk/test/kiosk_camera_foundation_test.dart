@@ -3,9 +3,12 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_kiosk/src/acquisition/photo_acquisition.dart';
 import 'package:selfx_kiosk/src/camera/camera_models.dart';
+import 'package:selfx_kiosk/src/camera/camera_orientation.dart';
+import 'package:selfx_kiosk/src/camera/camera_preview_viewport.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
 import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
@@ -14,6 +17,7 @@ import 'package:selfx_kiosk/src/device/kiosk_device_session_controller.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_storage.dart';
 import 'package:selfx_kiosk/src/idle/kiosk_idle_presentation.dart';
 import 'package:selfx_kiosk/src/live/live_frame.dart';
+import 'package:selfx_kiosk/src/live/person_analysis.dart';
 import 'package:selfx_kiosk/src/operator/operator_access.dart';
 import 'package:selfx_kiosk/src/quality/image_quality.dart';
 import 'package:selfx_kiosk/src/session/capture_audio_service.dart';
@@ -329,6 +333,200 @@ void main() {
         expect(audioService.events, isNot(contains('shutter')));
       },
     );
+  });
+
+  group('Camera orientation calibration', () {
+    test('AUTO is the default local camera orientation mode', () async {
+      final settings = InMemoryCameraSettingsStore();
+
+      expect(
+        await settings.readCameraOrientationMode(),
+        CameraOrientationMode.auto,
+      );
+    });
+
+    test('manual orientation modes resolve to expected rotations', () {
+      const resolver = CameraOrientationResolver();
+
+      expect(
+        resolver
+            .resolve(
+              mode: CameraOrientationMode.deg0,
+              displayOrientation: DeviceOrientation.portraitUp,
+              lensFacingLabel: 'external',
+              sensorOrientationDegrees: 90,
+            )
+            .effectiveRotationDegrees,
+        0,
+      );
+      expect(
+        resolver
+            .resolve(
+              mode: CameraOrientationMode.deg90,
+              displayOrientation: DeviceOrientation.portraitUp,
+              lensFacingLabel: 'external',
+              sensorOrientationDegrees: 90,
+            )
+            .effectiveRotationDegrees,
+        90,
+      );
+      expect(
+        resolver
+            .resolve(
+              mode: CameraOrientationMode.deg180,
+              displayOrientation: DeviceOrientation.portraitUp,
+              lensFacingLabel: 'external',
+              sensorOrientationDegrees: 90,
+            )
+            .effectiveRotationDegrees,
+        180,
+      );
+      expect(
+        resolver
+            .resolve(
+              mode: CameraOrientationMode.deg270,
+              displayOrientation: DeviceOrientation.portraitUp,
+              lensFacingLabel: 'external',
+              sensorOrientationDegrees: 90,
+            )
+            .effectiveRotationDegrees,
+        270,
+      );
+    });
+
+    test('90 and 270 degree rotation swap preview dimensions', () {
+      const source = FrameDimensions(width: 1920, height: 1080);
+
+      expect(rotatedFrameDimensions(source, 90).width, 1080);
+      expect(rotatedFrameDimensions(source, 90).height, 1920);
+      expect(rotatedFrameDimensions(source, 270).width, 1080);
+      expect(rotatedFrameDimensions(source, 270).height, 1920);
+      expect(rotatedFrameDimensions(source, 180).width, 1920);
+      expect(rotatedFrameDimensions(source, 180).height, 1080);
+    });
+
+    test('normalized target subject regions rotate consistently', () {
+      const region = TargetSubjectRegion(
+        x: 0.1,
+        y: 0.2,
+        width: 0.3,
+        height: 0.4,
+      );
+
+      final clockwise = region.rotated(90);
+      expect(clockwise.x, closeTo(0.4, 0.0001));
+      expect(clockwise.y, closeTo(0.1, 0.0001));
+      expect(clockwise.width, closeTo(0.4, 0.0001));
+      expect(clockwise.height, closeTo(0.3, 0.0001));
+
+      final halfTurn = region.rotated(180);
+      expect(halfTurn.x, closeTo(0.6, 0.0001));
+      expect(halfTurn.y, closeTo(0.4, 0.0001));
+      expect(halfTurn.width, closeTo(0.3, 0.0001));
+      expect(halfTurn.height, closeTo(0.4, 0.0001));
+
+      final counterClockwise = region.rotated(270);
+      expect(counterClockwise.x, closeTo(0.2, 0.0001));
+      expect(counterClockwise.y, closeTo(0.6, 0.0001));
+      expect(counterClockwise.width, closeTo(0.4, 0.0001));
+      expect(counterClockwise.height, closeTo(0.3, 0.0001));
+    });
+
+    test('manual setting persists, restores, and updates camera service', () async {
+      final camera = readyCamera();
+      final settings = InMemoryCameraSettingsStore();
+      final controller = testController(camera: camera, settings: settings);
+
+      await controller.updateCameraOrientationMode(CameraOrientationMode.deg90);
+
+      expect(await settings.readCameraOrientationMode(), CameraOrientationMode.deg90);
+      expect(camera.orientationMode, CameraOrientationMode.deg90);
+      expect(camera.state.value.capabilities.effectivePreviewWidth, 1080);
+      expect(camera.state.value.capabilities.effectivePreviewHeight, 1920);
+
+      final restored = testController(camera: camera, settings: settings);
+      await restored.loadOperatorSettings();
+
+      expect(restored.cameraOrientationMode, CameraOrientationMode.deg90);
+      expect(camera.orientationMode, CameraOrientationMode.deg90);
+    });
+
+    test('garment and model capture use the same orientation resolver', () async {
+      final camera = readyCamera();
+      final settings = InMemoryCameraSettingsStore()
+        ..cameraOrientationMode = CameraOrientationMode.deg270;
+      final controller = testController(camera: camera, settings: settings);
+
+      await controller.loadOperatorSettings();
+      controller.selectCapturePurpose(PhotoAcquisitionPurpose.model);
+      await controller.capturePhoto();
+      final modelCapture = controller.capture;
+
+      await controller.discardPendingCapture();
+      controller.selectCapturePurpose(PhotoAcquisitionPurpose.garment);
+      await controller.capturePhoto();
+      final garmentCapture = controller.capture;
+
+      expect(modelCapture?.orientationMode, CameraOrientationMode.deg270);
+      expect(garmentCapture?.orientationMode, CameraOrientationMode.deg270);
+      expect(camera.orientationMode, CameraOrientationMode.deg270);
+    });
+
+    test('manual capture normalization is reported once', () async {
+      final result = CameraCaptureResult(
+        originalPath: 'capture-normalized.jpg',
+        createdAt: DateTime(2026, 8, 17),
+        deviceId: 'usb',
+        isTemporary: true,
+        orientationMode: CameraOrientationMode.deg90,
+        normalizationDegrees: 90,
+        orientationNormalized: true,
+      );
+
+      expect(result.orientationNormalized, isTrue);
+      expect(result.normalizationDegrees, 90);
+    });
+
+    testWidgets('camera preview viewport preserves effective aspect ratio', (
+      tester,
+    ) async {
+      final state = const CameraState(
+        status: CameraStatus.ready,
+        capabilities: CameraCapabilities(
+          previewWidth: 1920,
+          previewHeight: 1080,
+          effectivePreviewWidth: 1080,
+          effectivePreviewHeight: 1920,
+          orientationMode: CameraOrientationMode.deg90,
+          effectiveRotationDegrees: 90,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            width: 400,
+            height: 700,
+            child: CameraPreviewViewport(
+              state: state,
+              preview: const ColoredBox(color: Colors.black),
+            ),
+          ),
+        ),
+      );
+
+      final previewBox = tester.widget<SizedBox>(
+        find
+            .ancestor(
+              of: find.byType(ColoredBox),
+              matching: find.byType(SizedBox),
+            )
+            .first,
+      );
+
+      expect(previewBox.width, 1080);
+      expect(previewBox.height, 1920);
+    });
   });
 
   group('Image quality semantics', () {
@@ -826,6 +1024,7 @@ class FakeCameraService implements CameraService {
   final StreamController<LiveCameraFrame> _liveFrames =
       StreamController<LiveCameraFrame>.broadcast();
   bool liveFramesStarted = false;
+  CameraOrientationMode orientationMode = defaultCameraOrientationMode;
 
   @override
   ValueListenable<CameraState> get state => _state;
@@ -851,6 +1050,10 @@ class FakeCameraService implements CameraService {
       createdAt: DateTime(2026, 8, 13),
       deviceId: _state.value.selectedDevice?.id ?? devices.first.id,
       isTemporary: true,
+      orientationMode: orientationMode,
+      normalizationDegrees: orientationMode.manualDegrees ?? 0,
+      orientationNormalized: orientationMode != CameraOrientationMode.auto &&
+          orientationMode != CameraOrientationMode.deg0,
     );
   }
 
@@ -918,6 +1121,32 @@ class FakeCameraService implements CameraService {
       status: CameraStatus.ready,
       selectedDevice: device,
       clearFailure: true,
+    );
+  }
+
+  @override
+  Future<void> updateOrientationMode(CameraOrientationMode mode) async {
+    orientationMode = mode;
+    _state.value = _state.value.copyWith(
+      capabilities: CameraCapabilities(
+        previewWidth: _state.value.capabilities.previewWidth,
+        previewHeight: _state.value.capabilities.previewHeight,
+        effectivePreviewWidth: mode == CameraOrientationMode.deg90 ||
+                mode == CameraOrientationMode.deg270
+            ? _state.value.capabilities.previewHeight
+            : _state.value.capabilities.previewWidth,
+        effectivePreviewHeight: mode == CameraOrientationMode.deg90 ||
+                mode == CameraOrientationMode.deg270
+            ? _state.value.capabilities.previewWidth
+            : _state.value.capabilities.previewHeight,
+        supportsPreview: _state.value.capabilities.supportsPreview,
+        supportsStillCapture: _state.value.capabilities.supportsStillCapture,
+        supportsLiveFrames: _state.value.capabilities.supportsLiveFrames,
+        nativeBackend: _state.value.capabilities.nativeBackend,
+        orientationMode: mode,
+        effectiveRotationDegrees: mode.manualDegrees ?? 0,
+        notes: _state.value.capabilities.notes,
+      ),
     );
   }
 
