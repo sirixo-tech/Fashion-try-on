@@ -19,6 +19,7 @@ import '../settings/camera_settings_store.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/kiosk_try_on_gateway.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../tryon/model_coverage_analyzer.dart';
 import '../ui/kiosk_startup_screen.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_gateway.dart';
@@ -36,9 +37,7 @@ class SelfxKioskApp extends StatelessWidget {
 
   factory SelfxKioskApp.production() {
     final preferences = SharedPreferencesAsync();
-    final settingsStore = SharedPreferencesCameraSettingsStore(
-      preferences,
-    );
+    final settingsStore = SharedPreferencesCameraSettingsStore(preferences);
     final deviceGateway = SelfxKioskDeviceGateway(
       config: KioskDeviceApiConfig.fromEnvironment(),
     );
@@ -67,6 +66,11 @@ class SelfxKioskApp extends StatelessWidget {
                 ),
           qualityAnalyzer: const LuminanceLiveImageQualityAnalyzer(),
         ),
+        modelCoverageAnalyzer: Platform.isAndroid
+            ? MlKitStillImageModelCoverageAnalyzer()
+            : const UnavailableModelCoverageAnalyzer(
+                'MODEL_COVERAGE_UNSUPPORTED_ON_WINDOWS',
+              ),
         captureStore: captureStore,
       ),
       tryOnController: KioskTryOnSessionController(

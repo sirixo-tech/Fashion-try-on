@@ -1326,6 +1326,11 @@ or provider calls from Flutter.
    kiosk skips model acquisition and continues to garment acquisition/review.
 7. If the retained model photo is not compatible, the kiosk asks for an updated
    photo before generation.
+8. When the model/photo source is phone upload, the kiosk downloads the
+   backend-validated image, resolves internal ModelCoverage from the still image
+   and accepts the photo only after that analysis completes.
+9. Replacing a phone-uploaded model photo clears the previous internal coverage
+   before resolving coverage for the new image.
 
 ### Customer Guidance
 
@@ -1335,6 +1340,8 @@ or provider calls from Flutter.
   and "We need a full-body photo for this item."
 - The customer never sees `UPPER_BODY`, `LOWER_BODY`, `FULL_BODY`,
   ModelCoverage, provider requirements or a compatibility matrix.
+- Phone-upload UNKNOWN/unavailable analysis uses the same update-photo guidance
+  and must not claim technical pose, landmark or body-part detection details.
 
 ### Boundary
 
@@ -1342,7 +1349,8 @@ SelfX internally resolves garment reference semantics. Product/hanger/unknown
 garment references use safe AUTO provider photo-type behavior, while verified
 person-worn references may map to ON_MODEL internally. KIOSK-5B does not add
 Product Catalog, Try-On Max, another provider, billing, RBAC or Windows live
-pose analysis.
+pose analysis. KIOSK-5B.1 does not add Windows still-image pose analysis,
+durable ModelCoverage persistence or garment-upload model coverage analysis.
 
 ## 6.0.5 Operator — Premium Settings Navigation
 

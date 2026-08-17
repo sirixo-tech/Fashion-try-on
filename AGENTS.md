@@ -1014,6 +1014,24 @@ KIOSK-4C rules:
   short-lived read URL for a `READY` photo, downloads the accepted image into
   temporary local capture storage, marks the session consumed and continues the
   existing generation flow.
+- Phone-uploaded model/person photos must resolve internal ModelCoverage from
+  still-image content before the photo becomes accepted. The selected category
+  or CaptureScope is not proof of body coverage for phone uploads.
+- ModelCoverage analysis is provider-neutral. Android may use the existing
+  ML Kit pose stack on still files; Windows has no still-image pose runtime in
+  this slice and must fail safe as analysis unavailable/UNKNOWN unless a future
+  supported analyzer is added.
+- Reuse SelfX body-coverage semantics: TOP readiness requires usable shoulder
+  and hip evidence and must not require knees, ankles or feet; BOTTOM and FULL
+  BODY keep their stricter lower-body/full-body requirements.
+- UNKNOWN or unavailable phone-upload model coverage must remain fail-safe and
+  must not be treated as compatible with TOP, BOTTOM or FULL_OUTFIT before
+  provider execution. New model uploads clear prior coverage before analysis.
+- Do not run model coverage analysis on GARMENT phone uploads. Garment
+  reference resolution remains separate from model/person coverage resolution.
+- KIOSK CAMERA FINAL-STILL COVERAGE VERIFICATION DEFERRED: kiosk-camera model
+  coverage may continue to use the existing live/capture scope metadata until a
+  future safe still-verification path is approved.
 - Cancel, expiry, rejection and replacement must clean up stored objects
   best-effort and must not allow a cancelled/expired upload to become ready.
 - Expired kiosk QR sessions must stop polling and rotate to a fresh backend

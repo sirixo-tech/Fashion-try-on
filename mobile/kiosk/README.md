@@ -182,6 +182,18 @@ their client-generated boundaries.
   person-worn garment references may use ON_MODEL internally; product, hanger
   or unknown references use AUTO. Customers never choose or see garment photo
   type, ModelCoverage, provider requirements or compatibility matrices.
+- KIOSK-5B.1 resolves phone-uploaded model/person coverage from the actual
+  still image before accepting the photo. Do not infer phone-upload coverage
+  from CaptureScope, selected category or garment intent.
+- Android phone model uploads may use the ML Kit still-image analyzer behind
+  the provider-neutral `ModelCoverageAnalyzer`. Windows has no supported
+  still-image pose analyzer in this slice and must fail safe as
+  UNKNOWN/unavailable.
+- UNKNOWN or unavailable phone model coverage remains incompatible before
+  provider submission. Customer UI uses plain update-photo guidance, not
+  coverage enums, landmark names, pose metrics or compatibility matrices.
+- Garment phone uploads do not run model coverage analysis; garment reference
+  profile resolution and model/person coverage resolution stay separate.
 - Try Another Garment retains a compatible accepted model/person photo and its
   internal coverage, clears garment/run/result/clientRequestId state and shows
   category selection again. Incompatible categories request an updated photo
@@ -224,6 +236,10 @@ their client-generated boundaries.
 - **Use This Photo** downloads the ready upload to temporary local capture
   storage and then consumes the upload session with the expected purpose before
   garment review or generation continues.
+- For model/person uploads, **Use This Photo** also resolves internal coverage
+  from the downloaded still image before the capture is accepted. A replacement
+  model upload clears previous coverage first; **Try Another Garment** may keep
+  already-resolved compatible coverage in the same kiosk session.
 - Pairing countdown and progress use backend `expiresAt/serverTime`, not a
   local hardcoded start time.
 - Expired pairing sessions rotate automatically to a new backend-generated code.

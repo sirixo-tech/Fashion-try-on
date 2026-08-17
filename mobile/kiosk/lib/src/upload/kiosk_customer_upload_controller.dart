@@ -162,8 +162,11 @@ class KioskCustomerUploadController extends ChangeNotifier {
         prefix: 'mobile-upload',
         extension: extensionForContentType(photo.contentType),
       );
-      await gateway.downloadReadyPhoto(readUrl: photo.readUrl, targetPath: path);
-      captureController.acceptMobileUpload(
+      await gateway.downloadReadyPhoto(
+        readUrl: photo.readUrl,
+        targetPath: path,
+      );
+      await captureController.acceptMobileUpload(
         originalPath: path,
         width: photo.width,
         height: photo.height,
@@ -203,7 +206,10 @@ class KioskCustomerUploadController extends ChangeNotifier {
         prefix: 'mobile-garment-upload',
         extension: extensionForContentType(photo.contentType),
       );
-      await gateway.downloadReadyPhoto(readUrl: photo.readUrl, targetPath: path);
+      await gateway.downloadReadyPhoto(
+        readUrl: photo.readUrl,
+        targetPath: path,
+      );
       session = await _withDeviceAuth(
         (token) => gateway.consumeSession(
           accessToken: token,
@@ -333,11 +339,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
     }
   }
 
-  void _fail(
-    String nextMessage, {
-    String? code,
-    bool stopForPairing = false,
-  }) {
+  void _fail(String nextMessage, {String? code, bool stopForPairing = false}) {
     _pollTimer?.cancel();
     _pollTimer = null;
     isBusy = false;
@@ -355,11 +357,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
     debugPrint('MOBILE_UPLOAD_CREATE_OK durationMs=$durationMs');
   }
 
-  void _logCreateFailure(
-    String code,
-    DateTime startedAt, {
-    int? statusCode,
-  }) {
+  void _logCreateFailure(String code, DateTime startedAt, {int? statusCode}) {
     final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
     final status = statusCode == null ? '' : ' status=$statusCode';
     debugPrint(

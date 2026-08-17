@@ -1193,6 +1193,18 @@ Implemented scope:
 - category selector selected/inactive visual rules are atomic and centered so
   selected text never becomes invisible.
 
+KIOSK-5B.1 still-image model coverage adds:
+
+- a provider-neutral `ModelCoverageAnalyzer` for downloaded phone model photos;
+- Android still-file coverage analysis using the existing ML Kit pose semantics;
+- fail-safe Windows/unavailable handling that leaves coverage UNKNOWN;
+- no CaptureScope/category-to-coverage mapping for phone uploads;
+- no model coverage analysis for garment uploads;
+- replacement model uploads clear previous coverage before new analysis;
+- TOP/upper-body compatibility follows existing shoulder/hip semantics and does
+  not require knees, ankles or feet;
+- KIOSK CAMERA FINAL-STILL COVERAGE VERIFICATION DEFERRED.
+
 KIOSK-5B does not implement Product Catalog, Try-On Max migration, another AI
 provider, billing, API Gateway, RBAC, Organizations or Windows live pose
 pipeline. Try-On Max may later be A/B tested for difficult layered or

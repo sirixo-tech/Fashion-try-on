@@ -1184,6 +1184,15 @@ KIOSK-4C product rules:
 - Once ready, the kiosk previews the uploaded photo, lets the customer upload
   another photo or select the ready photo, then continues the current kiosk
   Try-On flow.
+- For phone-uploaded model/person photos, SelfX resolves internal model body
+  coverage from the uploaded still image before accepting the photo for
+  generation. The selected category or CaptureScope must not be used as proof
+  that a phone-uploaded model image contains the required body coverage.
+- If model coverage is unavailable or UNKNOWN, SelfX must fail safe before paid
+  provider execution and ask for an updated photo with plain customer guidance.
+  Customer UI must not expose coverage enum values, landmark names or
+  compatibility matrices.
+- Garment phone uploads do not run model/person coverage analysis.
 - Temporary uploaded customer photos remain subject to the approved customer
   image privacy and retention rules.
 

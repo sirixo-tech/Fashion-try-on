@@ -416,6 +416,15 @@ KIOSK-3A added the first real end-to-end kiosk Try-On generation bridge:
 - KIOSK-5B resolves garment reference semantics internally: verified
   person-worn references may use ON_MODEL, while product/hanger/unknown
   references use safe AUTO behavior. Customers never choose garment photo type.
+- KIOSK-5B.1 resolves phone-uploaded model/person photo coverage from the
+  uploaded image content before accepting the model photo. CaptureScope or the
+  selected garment category must not be mapped to coverage for phone uploads.
+- Android uses the existing provider-neutral ML Kit pose path for still-image
+  model coverage. Windows has no supported still-image pose analyzer in this
+  slice and fails safe as UNKNOWN/unavailable.
+- UNKNOWN or unavailable model coverage is never silently compatible with Top,
+  Bottom or Full Outfit. Customers see plain update-photo guidance rather than
+  coverage enums or landmark terminology.
 - Try Another Garment preserves a compatible model/person photo and internal
   ModelCoverage, clears garment/run/result/clientRequestId state and shows the
   category selector again. Incompatible choices ask for an updated photo with
@@ -557,6 +566,9 @@ KIOSK-4C/KIOSK-5A add secure customer mobile photo upload for paired kiosks:
 - The kiosk downloads the ready upload into temporary local storage, marks it
   consumed with the expected purpose and continues to garment review or
   generation as appropriate.
+- For model/person phone uploads, the kiosk analyzes the downloaded still image
+  for internal ModelCoverage before accepting it. Garment phone uploads do not
+  run model coverage analysis.
 - Expired QR sessions stop polling and are replaced with a fresh backend
   customer upload session before the customer uses the QR again.
 - KIOSK-4C does not implement Product Catalog, QR result continuation, billing,

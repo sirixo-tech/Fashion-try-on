@@ -848,6 +848,18 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
     translate incompatibility into plain guidance and never render coverage
     enum values, provider requirements or compatibility matrices.
 
+    KIOSK-5B.1 requires phone-uploaded model/person photos to resolve
+    ModelCoverage from still-image content before acceptance. Do not infer
+    coverage from CaptureScope, selected category or garment intent for phone
+    uploads. Android may use the existing ML Kit pose stack with still-file
+    input behind a provider-neutral ModelCoverageAnalyzer. Windows has no
+    approved still-image pose runtime in this slice and must fail safe as
+    analysis unavailable/UNKNOWN. TOP coverage follows the existing upper-body
+    semantics and must not require knees, ankles or feet; UNKNOWN remains
+    incompatible before provider execution. Garment phone uploads do not run
+    model coverage analysis. KIOSK CAMERA FINAL-STILL COVERAGE VERIFICATION
+    DEFERRED.
+
     FULL_OUTFIT is represented as a provider-neutral garment intent distinct
     from ONE_PIECE. FASHN-specific handling remains inside the adapter boundary;
     CORE VTO-1.2 does not add product catalog, commerce sync, durable

@@ -76,6 +76,35 @@ class PersonObservation {
   Offset get center => bounds.center;
 }
 
+PersonObservation personObservationFromLandmarks(
+  Iterable<LandmarkObservation> source,
+) {
+  final landmarks = <String, LandmarkObservation>{};
+  var minX = double.infinity;
+  var minY = double.infinity;
+  var maxX = 0.0;
+  var maxY = 0.0;
+  var confidenceSum = 0.0;
+  var count = 0;
+
+  for (final landmark in source) {
+    landmarks[landmark.name] = landmark;
+    minX = math.min(minX, landmark.position.dx);
+    minY = math.min(minY, landmark.position.dy);
+    maxX = math.max(maxX, landmark.position.dx);
+    maxY = math.max(maxY, landmark.position.dy);
+    confidenceSum += landmark.confidence;
+    count++;
+  }
+
+  final bounds = count == 0 ? Rect.zero : Rect.fromLTRB(minX, minY, maxX, maxY);
+  return PersonObservation(
+    bounds: bounds,
+    landmarks: landmarks,
+    averageConfidence: count == 0 ? 0 : confidenceSum / count,
+  );
+}
+
 class PoseAnalysisResult {
   const PoseAnalysisResult({
     required this.available,
@@ -203,7 +232,9 @@ class MlKitPersonPoseAnalyzer implements PersonPoseAnalyzer {
       final selectedPose = poses.isEmpty ? null : poses.first;
       return PoseAnalysisResult(
         available: true,
-        people: selectedPose == null ? const [] : [_toObservation(selectedPose)],
+        people: selectedPose == null
+            ? const []
+            : [_toObservation(selectedPose)],
         capabilities: const PoseAnalyzerCapabilities.mlKitSinglePrimary(),
       );
     } catch (_) {
@@ -252,13 +283,7 @@ class MlKitPersonPoseAnalyzer implements PersonPoseAnalyzer {
   }
 
   PersonObservation _toObservation(mlkit.Pose pose) {
-    final landmarks = <String, LandmarkObservation>{};
-    var minX = double.infinity;
-    var minY = double.infinity;
-    var maxX = 0.0;
-    var maxY = 0.0;
-    var confidenceSum = 0.0;
-    var count = 0;
+    final observations = <LandmarkObservation>[];
 
     for (final entry in pose.landmarks.entries) {
       final landmark = entry.value;
@@ -266,29 +291,16 @@ class MlKitPersonPoseAnalyzer implements PersonPoseAnalyzer {
       if (confidence < 0.25) {
         continue;
       }
-      final name = entry.key.name;
-      final position = Offset(landmark.x, landmark.y);
-      landmarks[name] = LandmarkObservation(
-        name: name,
-        position: position,
-        confidence: confidence,
+      observations.add(
+        LandmarkObservation(
+          name: entry.key.name,
+          position: Offset(landmark.x, landmark.y),
+          confidence: confidence,
+        ),
       );
-      minX = math.min(minX, position.dx);
-      minY = math.min(minY, position.dy);
-      maxX = math.max(maxX, position.dx);
-      maxY = math.max(maxY, position.dy);
-      confidenceSum += confidence;
-      count++;
     }
 
-    final bounds = count == 0
-        ? Rect.zero
-        : Rect.fromLTRB(minX, minY, maxX, maxY);
-    return PersonObservation(
-      bounds: bounds,
-      landmarks: landmarks,
-      averageConfidence: count == 0 ? 0 : confidenceSum / count,
-    );
+    return personObservationFromLandmarks(observations);
   }
 }
 
@@ -305,9 +317,7 @@ class LuminanceLiveImageQualityAnalyzer implements LiveImageQualityAnalyzer {
         return LiveImageQualityResult.unavailable('LIVE_QUALITY_NO_PLANE');
       }
       final plane = frame.planes.first;
-      final sourceTargetRegion = targetRegion?.rotated(
-        -frame.rotationDegrees,
-      );
+      final sourceTargetRegion = targetRegion?.rotated(-frame.rotationDegrees);
       final subjectBrightness = _meanBrightness(
         frame,
         plane,
@@ -529,29 +539,29 @@ class TargetSubjectRegion {
     final safeHeight = height.clamp(0, 1).toDouble();
     return switch (normalized) {
       90 => TargetSubjectRegion(
-          x: _unit(1 - (safeY + safeHeight)),
-          y: _unit(safeX),
-          width: _unit(safeHeight),
-          height: _unit(safeWidth),
-        ),
+        x: _unit(1 - (safeY + safeHeight)),
+        y: _unit(safeX),
+        width: _unit(safeHeight),
+        height: _unit(safeWidth),
+      ),
       180 => TargetSubjectRegion(
-          x: _unit(1 - (safeX + safeWidth)),
-          y: _unit(1 - (safeY + safeHeight)),
-          width: _unit(safeWidth),
-          height: _unit(safeHeight),
-        ),
+        x: _unit(1 - (safeX + safeWidth)),
+        y: _unit(1 - (safeY + safeHeight)),
+        width: _unit(safeWidth),
+        height: _unit(safeHeight),
+      ),
       270 => TargetSubjectRegion(
-          x: _unit(safeY),
-          y: _unit(1 - (safeX + safeWidth)),
-          width: _unit(safeHeight),
-          height: _unit(safeWidth),
-        ),
+        x: _unit(safeY),
+        y: _unit(1 - (safeX + safeWidth)),
+        width: _unit(safeHeight),
+        height: _unit(safeWidth),
+      ),
       _ => TargetSubjectRegion(
-          x: safeX,
-          y: safeY,
-          width: safeWidth,
-          height: safeHeight,
-        ),
+        x: safeX,
+        y: safeY,
+        width: safeWidth,
+        height: safeHeight,
+      ),
     };
   }
 }
@@ -621,8 +631,7 @@ class PrimarySubject {
       absentFrameCount: absentFrameCount ?? this.absentFrameCount,
       firstObservedAt: firstObservedAt ?? this.firstObservedAt,
       lastObservedAt: lastObservedAt ?? this.lastObservedAt,
-      analyzerCapabilities:
-          analyzerCapabilities ?? this.analyzerCapabilities,
+      analyzerCapabilities: analyzerCapabilities ?? this.analyzerCapabilities,
       isUsableForScope: isUsableForScope ?? this.isUsableForScope,
     );
   }
@@ -647,9 +656,7 @@ class PrimarySubjectResolverConfig {
 }
 
 class PrimarySubjectResolver {
-  PrimarySubjectResolver({
-    this.config = const PrimarySubjectResolverConfig(),
-  });
+  PrimarySubjectResolver({this.config = const PrimarySubjectResolverConfig()});
 
   final PrimarySubjectResolverConfig config;
 
@@ -767,7 +774,10 @@ class PrimarySubjectResolver {
     PersonObservation observation,
     FrameDimensions frameDimensions,
   ) {
-    final frameArea = math.max(1, frameDimensions.width * frameDimensions.height);
+    final frameArea = math.max(
+      1,
+      frameDimensions.width * frameDimensions.height,
+    );
     return observation.averageConfidence >= config.minimumConfidence &&
         observation.area / frameArea >= config.minimumFrameAreaRatio;
   }
@@ -783,8 +793,12 @@ class PrimarySubjectResolver {
         config.minimumIouForContinuity) {
       return true;
     }
-    final maxDimension = math.max(frameDimensions.width, frameDimensions.height);
-    final centerShift = (lockedRect.center - nextRect.center).distance /
+    final maxDimension = math.max(
+      frameDimensions.width,
+      frameDimensions.height,
+    );
+    final centerShift =
+        (lockedRect.center - nextRect.center).distance /
         math.max(1, maxDimension);
     return centerShift <= config.maximumCenterShiftRatio;
   }

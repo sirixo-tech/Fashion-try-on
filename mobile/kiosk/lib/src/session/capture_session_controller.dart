@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
@@ -13,6 +14,7 @@ import '../live/live_frame.dart';
 import '../live/person_analysis.dart';
 import '../quality/image_quality.dart';
 import '../settings/camera_settings_store.dart';
+import '../tryon/model_coverage_analyzer.dart';
 import '../tryon/model_garment_compatibility.dart';
 import 'capture_audio_service.dart';
 import 'capture_flow.dart';
@@ -27,6 +29,7 @@ class CaptureSessionController extends ChangeNotifier {
     required this.captureStore,
     CaptureAudioService? audioService,
     LiveFrameAnalyzer? liveFrameAnalyzer,
+    ModelCoverageAnalyzer? modelCoverageAnalyzer,
     this.readinessConfig = const CaptureReadinessConfig(),
     this.schedulerConfig = const FrameAnalysisSchedulerConfig(),
     Duration? countdownTickDuration,
@@ -37,6 +40,8 @@ class CaptureSessionController extends ChangeNotifier {
              poseAnalyzer: const UnavailablePersonPoseAnalyzer(),
              qualityAnalyzer: const LuminanceLiveImageQualityAnalyzer(),
            ),
+       modelCoverageAnalyzer =
+           modelCoverageAnalyzer ?? const UnavailableModelCoverageAnalyzer(),
        countdownTickDuration =
            countdownTickDuration ?? const Duration(seconds: 1);
 
@@ -46,6 +51,7 @@ class CaptureSessionController extends ChangeNotifier {
   final TemporaryCaptureStore captureStore;
   final CaptureAudioService audioService;
   final LiveFrameAnalyzer liveFrameAnalyzer;
+  final ModelCoverageAnalyzer modelCoverageAnalyzer;
   final CaptureReadinessConfig readinessConfig;
   final FrameAnalysisSchedulerConfig schedulerConfig;
   final Duration countdownTickDuration;
@@ -60,6 +66,7 @@ class CaptureSessionController extends ChangeNotifier {
   CaptureTargetMetadata? captureTargetMetadata;
   CaptureTargetMetadata? acceptedCaptureTargetMetadata;
   ModelCoverage? acceptedModelCoverage;
+  ModelCoverageAnalysis? acceptedModelCoverageAnalysis;
   Duration? poseAnalyzerLatency;
   Duration? imageQualityAnalyzerLatency;
   bool isAnalyzingQuality = false;
@@ -278,6 +285,8 @@ class CaptureSessionController extends ChangeNotifier {
         acceptedCapture = null;
         acceptedPersonImage = null;
         acceptedCaptureTargetMetadata = null;
+        acceptedModelCoverage = null;
+        acceptedModelCoverageAnalysis = null;
       }
       captureTargetMetadata = targetMetadata;
       qualityResult = null;
@@ -336,6 +345,7 @@ class CaptureSessionController extends ChangeNotifier {
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
     acceptedModelCoverage = null;
+    acceptedModelCoverageAnalysis = null;
     primarySubject = null;
     liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;
@@ -396,6 +406,7 @@ class CaptureSessionController extends ChangeNotifier {
     }
     acceptedCapture = current;
     acceptedModelCoverage = modelCoverageForCaptureScope(captureScope);
+    acceptedModelCoverageAnalysis = null;
     acceptedPersonImage = CustomerPersonImage(
       originalPath: current.originalPath,
       source: CustomerPersonImageSource.kioskCamera,
@@ -413,11 +424,12 @@ class CaptureSessionController extends ChangeNotifier {
     return true;
   }
 
-  void acceptMobileUpload({
+  Future<void> acceptMobileUpload({
     required String originalPath,
     required int width,
     required int height,
-  }) {
+  }) async {
+    final runId = ++_captureRunId;
     final result = CameraCaptureResult(
       originalPath: originalPath,
       createdAt: DateTime.now(),
@@ -428,7 +440,8 @@ class CaptureSessionController extends ChangeNotifier {
     acceptedCapture = result;
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
-    acceptedModelCoverage = ModelCoverage.unknown;
+    acceptedModelCoverage = null;
+    acceptedModelCoverageAnalysis = null;
     qualityResult = ImageQualityResult(
       status: ImageQualityStatus.pass,
       passed: true,
@@ -442,6 +455,14 @@ class CaptureSessionController extends ChangeNotifier {
       ),
       issues: const [],
     );
+    final coverageAnalysis = await modelCoverageAnalyzer.analyze(
+      File(originalPath),
+    );
+    if (!_isActiveRun(runId)) {
+      return;
+    }
+    acceptedModelCoverage = coverageAnalysis.coverage;
+    acceptedModelCoverageAnalysis = coverageAnalysis;
     acceptedPersonImage = CustomerPersonImage(
       originalPath: originalPath,
       source: CustomerPersonImageSource.mobileUpload,
@@ -467,6 +488,7 @@ class CaptureSessionController extends ChangeNotifier {
     captureTargetMetadata = null;
     acceptedCaptureTargetMetadata = null;
     acceptedModelCoverage = null;
+    acceptedModelCoverageAnalysis = null;
     primarySubject = null;
     liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;
@@ -742,6 +764,7 @@ class CaptureSessionController extends ChangeNotifier {
     analyzer.dispose();
     cameraService.dispose();
     unawaited(liveFrameAnalyzer.dispose());
+    unawaited(modelCoverageAnalyzer.dispose());
     unawaited(audioService.dispose());
     super.dispose();
   }

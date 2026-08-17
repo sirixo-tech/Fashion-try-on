@@ -1546,12 +1546,19 @@ No checkout button is required.
 - **Try Another Garment** clears run/result state but may keep the accepted
   customer capture and internal ModelCoverage for another garment in the same
   kiosk session. The category screen is still shown before the next garment.
+- For phone-uploaded model/person photos, **Use This Photo** waits for internal
+  still-image coverage resolution after download/validation. The customer sees
+  the normal preview/continue flow, not coverage enums, landmark names or
+  technical metrics.
 - If the retained customer photo is incompatible with the selected category,
   show a plain update-photo screen before any paid generation. Bottoms copy:
   **Update your photo to try bottoms** / "We need to see more of your lower
   body for this item." Full Outfit copy: **Update your photo to try a full
   outfit** / "We need a full-body photo for this item." Actions are **Update My
   Photo** and **Choose Another Category**.
+- UNKNOWN or unavailable phone-upload coverage uses the same update-photo path.
+  Do not show a fallback that treats the selected category or CaptureScope as
+  sufficient coverage proof.
 - **Retake Photo** clears run/result and prepared target state while preserving
   selected garment where appropriate.
 - **Finish** clears customer capture, garment, run/result and prepared target
