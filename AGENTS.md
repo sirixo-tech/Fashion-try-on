@@ -616,9 +616,11 @@ KIOSK-1.5 rules:
   so Android and Windows camera identifiers are not treated as interchangeable.
 - External camera orientation calibration is local physical-device
   configuration. Use the shared camera-orientation resolver and operator
-  fallback modes Auto, 0, 90, 180 and 270 degrees; do not add per-screen
-  preview rotation hacks or remote SaaS camera-orientation configuration in
-  this kiosk slice.
+  fallback modes Auto, 0, 90, 180 and 270 degrees. Manual 0/90/180/270
+  calibration remains available for connected cameras even when external-camera
+  sensor orientation metadata is unavailable or unreliable; do not add
+  per-screen preview rotation hacks or remote SaaS camera-orientation
+  configuration in this kiosk slice.
 - Request only camera permission for kiosk capture. Do not request microphone
   permission unless an approved audio feature exists.
 - Android commercial kiosk screens are portrait-first for SelfX's current

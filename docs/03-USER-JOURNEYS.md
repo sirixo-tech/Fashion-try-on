@@ -1002,7 +1002,9 @@ Customer, assisted by an authorized kiosk operator when needed.
   operator opens local Camera Settings, uses Camera Orientation Auto first, then
   selects 90 or 270 degrees if needed. The preview updates immediately, the
   captured garment/model photo remains upright in review and the same
-  calibration persists after app restart.
+  calibration persists after app restart. The Camera Orientation control remains
+  available even when the USB/external camera reports no reliable sensor
+  orientation metadata.
 
 ### Boundary
 

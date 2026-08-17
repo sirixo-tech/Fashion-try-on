@@ -309,8 +309,10 @@ available:
 - External camera orientation uses a shared SelfX camera-orientation resolver.
   Auto is the default; operators can locally calibrate a mounted camera to 0,
   90, 180 or 270 degrees from Camera Settings. This local physical-device
-  calibration keeps preview, captured stills, live-analysis rotation metadata
-  and TargetSubjectRegion semantics aligned and is not SaaS remote
+  calibration remains available even when external-camera sensor orientation
+  metadata is unavailable or unreliable. It keeps preview, captured stills,
+  live-analysis rotation metadata and TargetSubjectRegion semantics aligned and
+  is not SaaS remote
   configuration.
 - Camera previews preserve the effective camera aspect ratio and use
   scale-to-cover/center-crop in portrait capture areas rather than stretching

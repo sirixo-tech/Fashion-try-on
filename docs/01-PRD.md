@@ -815,7 +815,9 @@ KIOSK-1.5 product rules:
 - External camera orientation calibration is local physical-device
   configuration. Auto is the default, and authorized operators may select 0,
   90, 180 or 270 degrees only from local Camera Settings when a mounted USB
-  camera appears rotated.
+  camera appears rotated. Manual 0/90/180/270 calibration remains available for
+  connected cameras even when external-camera sensor orientation metadata is
+  unavailable or unreliable.
 - Camera orientation correction must keep preview, captured image, still-image
   analysis, live-readiness coordinates and TargetSubjectRegion semantics
   consistent. Customer-facing screens must not expose technical orientation

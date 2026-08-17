@@ -528,6 +528,8 @@ class _CameraSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedDevice = state.selectedDevice;
+    final showOrientationCalibration =
+        _cameraOrientationCalibrationAvailable(state);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -571,28 +573,31 @@ class _CameraSection extends StatelessWidget {
               }
             },
           ),
-        const SizedBox(height: 20),
-        DropdownButtonFormField<CameraOrientationMode>(
-          key: const Key('camera-orientation-mode'),
-          initialValue: cameraOrientationMode,
-          isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'Camera Orientation',
-            helperText: 'Use Auto unless a mounted external camera appears sideways.',
+        if (showOrientationCalibration) ...[
+          const SizedBox(height: 20),
+          DropdownButtonFormField<CameraOrientationMode>(
+            key: const Key('camera-orientation-mode'),
+            initialValue: cameraOrientationMode,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Camera Orientation',
+              helperText:
+                  'Use Auto unless a mounted external camera appears sideways.',
+            ),
+            items: [
+              for (final mode in CameraOrientationMode.values)
+                DropdownMenuItem(
+                  value: mode,
+                  child: Text(_orientationModeLabel(mode)),
+                ),
+            ],
+            onChanged: (mode) {
+              if (mode != null) {
+                onCameraOrientationChanged(mode);
+              }
+            },
           ),
-          items: [
-            for (final mode in CameraOrientationMode.values)
-              DropdownMenuItem(
-                value: mode,
-                child: Text(_orientationModeLabel(mode)),
-              ),
-          ],
-          onChanged: (mode) {
-            if (mode != null) {
-              onCameraOrientationChanged(mode);
-            }
-          },
-        ),
+        ],
         const SizedBox(height: 20),
         _InfoGrid(
           rows: [
@@ -608,6 +613,20 @@ class _CameraSection extends StatelessWidget {
             _InfoItem(
               label: 'Orientation',
               value: _orientationModeLabel(state.capabilities.orientationMode),
+            ),
+            _InfoItem(
+              label: 'Lens direction',
+              value: selectedDevice?.facing.name ?? 'Unknown',
+            ),
+            _InfoItem(
+              label: 'Sensor orientation',
+              value: selectedDevice?.sensorOrientation == null
+                  ? 'Unknown'
+                  : '${selectedDevice!.sensorOrientation} deg',
+            ),
+            _InfoItem(
+              label: 'Effective correction',
+              value: '${state.capabilities.effectiveRotationDegrees} deg',
             ),
             _InfoItem(label: 'Platform', value: Platform.operatingSystem),
           ],
@@ -625,6 +644,12 @@ class _CameraSection extends StatelessWidget {
       ],
     );
   }
+}
+
+bool _cameraOrientationCalibrationAvailable(CameraState state) {
+  return state.selectedDevice != null &&
+      (state.status == CameraStatus.ready ||
+          state.status == CameraStatus.capturing);
 }
 
 class _CaptureSection extends StatelessWidget {
@@ -901,7 +926,7 @@ class _DiagnosticsSection extends StatelessWidget {
                 _InfoItem(
                   label: 'Sensor orientation',
                   value: state.selectedDevice?.sensorOrientation == null
-                      ? 'Unavailable'
+                      ? 'Unknown'
                       : '${state.selectedDevice!.sensorOrientation} deg',
                 ),
                 _InfoItem(

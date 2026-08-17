@@ -110,10 +110,10 @@ class CameraOrientationResolver {
 
   int resolveLiveFrameRotationDegrees({
     required CameraOrientationMode mode,
-    required int sensorOrientationDegrees,
+    int? sensorOrientationDegrees,
   }) {
     return normalizeQuarterTurnDegrees(
-      sensorOrientationDegrees + (mode.manualDegrees ?? 0),
+      (sensorOrientationDegrees ?? 0) + (mode.manualDegrees ?? 0),
     );
   }
 }

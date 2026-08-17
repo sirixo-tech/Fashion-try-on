@@ -28,6 +28,7 @@ import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
+import 'package:selfx_kiosk/src/ui/camera_settings_screen.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
@@ -345,6 +346,76 @@ void main() {
       );
     });
 
+    testWidgets('orientation selector is available for normal camera', (
+      tester,
+    ) async {
+      final controller = testController(
+        camera: FakeCameraService(
+          devices: [
+            testCamera(
+              'android-integrated',
+              facing: CameraFacing.back,
+              sensorOrientation: 90,
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpCameraSettings(controller);
+
+      expect(find.byKey(const Key('camera-orientation-mode')), findsOneWidget);
+      expect(find.text('Camera Orientation'), findsOneWidget);
+
+      controller.dispose();
+    });
+
+    testWidgets('orientation selector is available for external camera', (
+      tester,
+    ) async {
+      final controller = testController(
+        camera: FakeCameraService(
+          devices: [
+            testCamera(
+              'android-usb',
+              facing: CameraFacing.external,
+              sensorOrientation: 270,
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpCameraSettings(controller);
+
+      expect(find.byKey(const Key('camera-orientation-mode')), findsOneWidget);
+      expect(find.text('Camera Orientation'), findsOneWidget);
+
+      controller.dispose();
+    });
+
+    testWidgets('missing sensor orientation does not hide calibration', (
+      tester,
+    ) async {
+      final controller = testController(
+        camera: FakeCameraService(
+          devices: [
+            testCamera(
+              'android-usb',
+              facing: CameraFacing.external,
+              sensorOrientation: null,
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpCameraSettings(controller);
+
+      expect(find.byKey(const Key('camera-orientation-mode')), findsOneWidget);
+      expect(find.text('Sensor orientation'), findsWidgets);
+      expect(find.text('Unknown'), findsWidgets);
+
+      controller.dispose();
+    });
+
     test('manual orientation modes resolve to expected rotations', () {
       const resolver = CameraOrientationResolver();
 
@@ -391,6 +462,81 @@ void main() {
             )
             .effectiveRotationDegrees,
         270,
+      );
+    });
+
+    test(
+      'external camera manual 90 resolves without sensor orientation metadata',
+      () {
+        const resolver = CameraOrientationResolver();
+
+        final resolution = resolver.resolve(
+          mode: CameraOrientationMode.deg90,
+          displayOrientation: DeviceOrientation.portraitUp,
+          lensFacingLabel: CameraFacing.external.name,
+          sensorOrientationDegrees: null,
+        );
+
+        expect(resolution.sensorOrientationDegrees, isNull);
+        expect(resolution.effectiveRotationDegrees, 90);
+        expect(
+          resolver.resolveLiveFrameRotationDegrees(
+            mode: CameraOrientationMode.deg90,
+            sensorOrientationDegrees: null,
+          ),
+          90,
+        );
+      },
+    );
+
+    test(
+      'external camera manual 270 resolves without sensor orientation metadata',
+      () {
+        const resolver = CameraOrientationResolver();
+
+        final resolution = resolver.resolve(
+          mode: CameraOrientationMode.deg270,
+          displayOrientation: DeviceOrientation.portraitUp,
+          lensFacingLabel: CameraFacing.external.name,
+          sensorOrientationDegrees: null,
+        );
+
+        expect(resolution.sensorOrientationDegrees, isNull);
+        expect(resolution.effectiveRotationDegrees, 270);
+        expect(
+          resolver.resolveLiveFrameRotationDegrees(
+            mode: CameraOrientationMode.deg270,
+            sensorOrientationDegrees: null,
+          ),
+          270,
+        );
+      },
+    );
+
+    test('manual calibration does not depend on AUTO metadata', () {
+      const resolver = CameraOrientationResolver();
+
+      expect(
+        resolver
+            .resolve(
+              mode: CameraOrientationMode.auto,
+              displayOrientation: DeviceOrientation.portraitUp,
+              lensFacingLabel: CameraFacing.external.name,
+              sensorOrientationDegrees: null,
+            )
+            .effectiveRotationDegrees,
+        0,
+      );
+      expect(
+        resolver
+            .resolve(
+              mode: CameraOrientationMode.deg90,
+              displayOrientation: DeviceOrientation.portraitUp,
+              lensFacingLabel: CameraFacing.external.name,
+              sensorOrientationDegrees: null,
+            )
+            .effectiveRotationDegrees,
+        90,
       );
     });
 
@@ -449,6 +595,36 @@ void main() {
 
       expect(restored.cameraOrientationMode, CameraOrientationMode.deg90);
       expect(camera.orientationMode, CameraOrientationMode.deg90);
+    });
+
+    testWidgets('orientation selector remains available after restore', (
+      tester,
+    ) async {
+      final settings = InMemoryCameraSettingsStore()
+        ..cameraOrientationMode = CameraOrientationMode.deg270;
+      final controller = testController(
+        settings: settings,
+        camera: FakeCameraService(
+          devices: [
+            testCamera(
+              'windows-usb',
+              facing: CameraFacing.external,
+              sensorOrientation: null,
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpCameraSettings(controller);
+
+      expect(find.byKey(const Key('camera-orientation-mode')), findsOneWidget);
+      expect(controller.cameraOrientationMode, CameraOrientationMode.deg270);
+      expect(
+        await settings.readCameraOrientationMode(),
+        CameraOrientationMode.deg270,
+      );
+
+      controller.dispose();
     });
 
     test('garment and model capture use the same orientation resolver', () async {
@@ -806,6 +982,13 @@ extension _KioskHomeTester on WidgetTester {
     await tap(hotspot);
     await pump();
   }
+
+  Future<void> pumpCameraSettings(CaptureSessionController controller) async {
+    await pumpWidget(
+      MaterialApp(home: CameraSettingsScreen(controller: controller)),
+    );
+    await pumpAndSettle();
+  }
 }
 
 KioskCustomerUploadController testUploadController(
@@ -977,7 +1160,18 @@ class InMemoryKioskDeviceCredentialStore implements KioskDeviceCredentialStore {
   }
 }
 
-CameraDevice testCamera(String id) => CameraDevice(id: id, label: 'Camera $id');
+CameraDevice testCamera(
+  String id, {
+  CameraFacing facing = CameraFacing.unknown,
+  int? sensorOrientation,
+}) {
+  return CameraDevice(
+    id: id,
+    label: 'Camera $id',
+    facing: facing,
+    sensorOrientation: sensorOrientation,
+  );
+}
 
 FakeCameraService readyCamera({
   bool failCapture = false,

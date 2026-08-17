@@ -1065,6 +1065,9 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    configuration. The shared SelfX camera-orientation resolver owns Auto, 0,
    90, 180 and 270 degree modes and must be consumed by preview, still capture,
    live-analysis metadata and TargetSubjectRegion coordinate semantics.
+   Manual 0/90/180/270 calibration remains available for connected cameras even
+   when external-camera sensor orientation metadata is unavailable or
+   unreliable; missing metadata affects Auto internals only.
    KIOSK-6A SaaS runtime configuration must not manage camera orientation in
    this phase.
    Android commercial kiosk screens are portrait-first because SelfX currently
@@ -1238,8 +1241,9 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
    configuration.
    The Camera category includes an operator-only Camera Orientation control
    with Auto, 0, 90, 180 and 270 degree choices. Changing it updates the local
-   preview immediately for hardware calibration. Customer-facing capture never
-   shows this control.
+   preview immediately for hardware calibration. The control remains visible
+   for connected external cameras even when sensor orientation metadata is
+   unknown or unreliable. Customer-facing capture never shows this control.
 
 10. Cross-Application Design Tokens
 

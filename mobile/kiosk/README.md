@@ -100,7 +100,9 @@ their client-generated boundaries.
 - Camera orientation is resolved centrally through SelfX camera orientation
   semantics. Auto is the default. Operators may locally calibrate a mounted
   external camera to 0, 90, 180 or 270 degrees from Camera Settings when a
-  portrait kiosk preview appears sideways.
+  portrait kiosk preview appears sideways. Manual 0/90/180/270 calibration
+  remains available even when external-camera sensor orientation metadata is
+  unavailable or unreliable.
 - Orientation calibration is local physical-device configuration, not KIOSK-6A
   SaaS runtime configuration. Customer-facing capture never exposes this
   control.

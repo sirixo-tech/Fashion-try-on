@@ -1246,7 +1246,8 @@ Implemented scope:
 - shared Flutter kiosk camera-orientation domain with Auto, 0, 90, 180 and
   270 degree modes;
 - local operator Camera Settings control for physical camera mount
-  calibration;
+  calibration, available for connected cameras even when external-camera sensor
+  orientation metadata is unavailable or unreliable;
 - local persistence through non-sensitive kiosk settings storage;
 - central camera-service resolver used by garment and model/person capture;
 - aspect-ratio-preserving preview viewport with cover/crop behavior instead of

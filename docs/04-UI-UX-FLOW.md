@@ -340,7 +340,9 @@ Android camera UX:
   the platform exposes them.
 - Operator Camera Settings includes Camera Orientation: Auto, 0, 90, 180 and
   270 degrees. The control is local-only, updates the bounded preview
-  immediately and is never shown in customer capture.
+  immediately, remains available for connected external cameras even when
+  sensor orientation metadata is unknown or unreliable, and is never shown in
+  customer capture.
 - Camera previews preserve source/effective aspect ratio with cover/crop in
   portrait viewports. A landscape camera buffer must not be stretched into a
   portrait camera area.
