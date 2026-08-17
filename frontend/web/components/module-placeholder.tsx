@@ -8,6 +8,8 @@ const phaseLabels: Record<string, string> = {
   "Try-On Activity": "Phase 15",
   Analytics: "Phase 15",
   Integrations: "Phase 18+",
+  Shopify: "Phase 18+",
+  WooCommerce: "Phase 18+",
   "Developer / API": "Phase 17",
   "Usage & Billing": "Phase 16",
   Settings: "Phase 15",

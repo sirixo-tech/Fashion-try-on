@@ -87,6 +87,12 @@ export class PairKioskDto {
   storeId?: string;
 }
 
+export class UpdateKioskDeviceDto {
+  @IsString()
+  @Length(1, 160)
+  displayName!: string;
+}
+
 export class ExchangeKioskProvisioningDto {
   @IsUUID()
   pairingSessionId!: string;

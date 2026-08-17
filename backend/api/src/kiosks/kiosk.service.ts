@@ -44,6 +44,7 @@ import {
   type KioskPairingStatusResponseDto,
   type PairKioskDto,
   type RefreshKioskDeviceSessionDto,
+  type UpdateKioskDeviceDto,
 } from "./dto/kiosk.dto.js";
 
 interface DeviceAccessTokenPayload {
@@ -514,6 +515,50 @@ export class KioskService {
     };
   }
 
+  async updateDevice(
+    actorUserId: string,
+    deviceId: string,
+    input: UpdateKioskDeviceDto,
+  ): Promise<KioskDeviceResponseDto> {
+    const displayName = input.displayName.trim();
+    if (!displayName) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        KIOSK_ERROR_CODES.deviceUpdateInvalid,
+        "Kiosk name is required.",
+      );
+    }
+
+    const device = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.kioskDevice.findUnique({
+        where: { id: deviceId },
+      });
+      assertManageableDeviceExists(existing);
+
+      const updated = await tx.kioskDevice.update({
+        where: { id: deviceId },
+        data: { displayName },
+        include: assignmentInclude(),
+      });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          action: KIOSK_AUDIT_ACTIONS.updated,
+          actorUserId,
+          organizationId: updated.organizationId,
+          storeId: updated.storeId,
+          resourceType: "kiosk_device",
+          resourceId: updated.id,
+          metadata: {
+            changedFields: ["displayName"],
+          },
+        },
+      });
+      return updated;
+    });
+    return mapDevice(device);
+  }
+
   async activateDevice(
     actorUserId: string,
     deviceId: string,
@@ -629,7 +674,7 @@ export class KioskService {
       await tx.auditLog.create({
         data: {
           id: createSelfxId(),
-          action: KIOSK_AUDIT_ACTIONS.revoked,
+          action: KIOSK_AUDIT_ACTIONS.unpaired,
           actorUserId,
           organizationId: updated.organizationId,
           storeId: updated.storeId,

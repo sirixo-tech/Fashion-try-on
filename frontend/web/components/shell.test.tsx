@@ -119,9 +119,17 @@ describe("SelfX shared shell", () => {
       screen.getByRole("button", { name: "Collapse navigation" }),
     ).toBeTruthy();
     expect(screen.getByText("Dashboard content")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse navigation" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Expand navigation" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeTruthy();
   });
 
-  it("opens the user menu without Base UI group errors", async () => {
+  it("shows the profile and logout controls in the sidebar", async () => {
     const onNavigateTo = vi.fn();
     const onLogout = vi.fn();
     renderWithUi(
@@ -144,17 +152,12 @@ describe("SelfX shared shell", () => {
       </AppShell>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Open user menu" }));
-
-    expect(await screen.findByText("owner@example.test")).toBeTruthy();
-    expect(screen.getByText("Profile").closest("[data-disabled]")).toBeTruthy();
-
-    fireEvent.click(screen.getByText("Settings"));
-    expect(onNavigateTo).toHaveBeenCalledWith("/app/settings");
-
-    fireEvent.click(screen.getByRole("button", { name: "Open user menu" }));
-    fireEvent.click(await screen.findByText("Sign out"));
+    expect(screen.getByText("Owner")).toBeTruthy();
+    expect(screen.getByText("owner@example.test")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(await screen.findByText("Log out"));
     expect(onLogout).toHaveBeenCalledTimes(1);
+    expect(onNavigateTo).not.toHaveBeenCalled();
   });
 
   it("handles Store switcher available and empty states", () => {

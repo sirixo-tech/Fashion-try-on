@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 
 export type SelfxNavItem = {
-  href: string;
+  href?: string;
   label: string;
   icon?: ComponentType<{
     className?: string;
@@ -9,6 +9,7 @@ export type SelfxNavItem = {
     strokeWidth?: number;
   }>;
   disabled?: boolean;
+  children?: SelfxNavItem[];
 };
 
 export type SelfxOrganizationOption = {

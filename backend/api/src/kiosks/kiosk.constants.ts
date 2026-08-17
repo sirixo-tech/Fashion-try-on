@@ -13,6 +13,7 @@ export const KIOSK_ERROR_CODES = {
   deviceRevoked: "DEVICE_REVOKED",
   deviceDeleted: "DEVICE_DELETED",
   deviceUnpaired: "DEVICE_UNPAIRED",
+  deviceUpdateInvalid: "KIOSK_DEVICE_UPDATE_INVALID",
   assignmentInvalid: "KIOSK_ASSIGNMENT_INVALID",
   customerUploadInvalid: "KIOSK_CUSTOMER_UPLOAD_INVALID",
   customerUploadExpired: "KIOSK_CUSTOMER_UPLOAD_EXPIRED",
@@ -28,8 +29,10 @@ export const KIOSK_AUDIT_ACTIONS = {
   activated: "KIOSK_ACTIVATED",
   deactivated: "KIOSK_DEACTIVATED",
   revoked: "KIOSK_REVOKED",
+  unpaired: "KIOSK_UNPAIRED",
   deleted: "KIOSK_DELETED",
   heartbeat: "KIOSK_HEARTBEAT",
+  updated: "KIOSK_UPDATED",
   configured: "KIOSK_CONFIGURED",
 } as const;
 

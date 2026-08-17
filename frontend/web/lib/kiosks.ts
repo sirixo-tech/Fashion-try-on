@@ -161,6 +161,25 @@ export function revokeKioskDevice(
   });
 }
 
+export function unpairKioskDevice(
+  accessToken: string,
+  deviceId: string,
+): Promise<KioskDevice> {
+  return revokeKioskDevice(accessToken, deviceId);
+}
+
+export function updateKioskDevice(
+  accessToken: string,
+  deviceId: string,
+  input: { displayName: string },
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(`/api/v1/admin/kiosks/${deviceId}`, {
+    method: "PATCH",
+    accessToken,
+    body: JSON.stringify(input),
+  });
+}
+
 export function activateKioskDevice(
   accessToken: string,
   deviceId: string,

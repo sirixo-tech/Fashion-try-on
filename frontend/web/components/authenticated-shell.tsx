@@ -12,7 +12,6 @@ import {
   FlaskConicalIcon,
   LayoutDashboardIcon,
   MonitorIcon,
-  PackageIcon,
   SettingsIcon,
   ShieldIcon,
   StoreIcon,
@@ -37,21 +36,37 @@ const navItems: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/app/stores", label: "Stores", icon: StoreIcon },
   { href: "/app/staff", label: "Staff", icon: UsersIcon },
-  { href: "/app/products", label: "Products", icon: PackageIcon },
   { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
-  {
-    href: "/app/try-on-activity",
-    label: "Try-On Activity",
-    icon: ActivityIcon,
-  },
   { href: "/app/try-on-lab", label: "Try-On Lab", icon: FlaskConicalIcon },
   { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
-  { href: "/app/integrations", label: "Integrations", icon: BlocksIcon },
+  {
+    label: "Integrations",
+    icon: BlocksIcon,
+    children: [
+      { href: "/app/integrations/shopify", label: "Shopify", icon: StoreIcon },
+      {
+        href: "/app/integrations/woocommerce",
+        label: "WooCommerce",
+        icon: BlocksIcon,
+      },
+    ],
+  },
+  { href: "/app/activity", label: "Activity", icon: ActivityIcon },
   { href: "/app/developer", label: "Developer / API", icon: Code2Icon },
   { href: "/app/billing", label: "Usage & Billing", icon: CreditCardIcon },
-  { href: "/app/settings", label: "Settings", icon: SettingsIcon },
-  { href: "/app/onboarding", label: "Onboarding Status", icon: Building2Icon },
-  { href: "/app/platform", label: "Platform", icon: ShieldIcon },
+  {
+    label: "Platform",
+    icon: SettingsIcon,
+    children: [
+      { href: "/app/settings", label: "Settings", icon: SettingsIcon },
+      {
+        href: "/app/onboarding",
+        label: "Onboarding Status",
+        icon: Building2Icon,
+      },
+      { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },
+    ],
+  },
 ];
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {

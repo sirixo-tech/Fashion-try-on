@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -20,6 +29,7 @@ import {
   KioskDeviceResponseDto,
   KioskProvisioningPairResponseDto,
   PairKioskDto,
+  UpdateKioskDeviceDto,
 } from "./dto/kiosk.dto.js";
 import { KioskService } from "./kiosk.service.js";
 
@@ -85,6 +95,28 @@ export class AdminKiosksController {
       PLATFORM_PERMISSIONS.kiosksPair,
     );
     return { device: await this.kiosks.pairKiosk(user.id, dto) };
+  }
+
+  @Patch(":deviceId")
+  @ApiOperation({ summary: "Update kiosk device metadata" })
+  @ApiOkResponse({ type: KioskDeviceResponseDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async update(
+    @Req() request: FastifyRequest,
+    @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
+    @Body() dto: UpdateKioskDeviceDto,
+  ): Promise<KioskDeviceResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksUpdate,
+    );
+    return this.kiosks.updateDevice(user.id, deviceId, dto);
   }
 
   @Post(":deviceId/revoke")

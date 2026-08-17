@@ -7,8 +7,6 @@ import {
   ImageIcon,
   MonitorIcon,
   PlusIcon,
-  PowerIcon,
-  PowerOffIcon,
   RefreshCwIcon,
   SettingsIcon,
   ShieldAlertIcon,
@@ -48,16 +46,15 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
-  activateKioskDevice,
-  deactivateKioskDevice,
   deleteKioskDevice,
   createKioskConfigurationAssetUploadIntent,
   getKioskConfiguration,
   listKioskAssignmentOptions,
   listKioskDevices,
   pairKioskDevice,
-  revokeKioskDevice,
+  unpairKioskDevice,
   updateKioskConfiguration,
+  updateKioskDevice,
   type KioskConfiguration,
   type KioskConfigurationAssetType,
   type KioskConfigurationGarmentIntent,
@@ -127,9 +124,6 @@ export default function KiosksPage() {
   const activeCount = devices.filter(
     (device) => device.status === "ACTIVE",
   ).length;
-  const inactiveCount = devices.filter(
-    (device) => device.status === "INACTIVE",
-  ).length;
 
   return (
     <PageContainer width="wide">
@@ -155,7 +149,7 @@ export default function KiosksPage() {
       <PageSection>
         <TableContainer
           title="Fleet devices"
-          description={`Kiosks belong to the SelfX platform fleet and may be assigned to platform or Store scope. ${inactiveCount} inactive.`}
+          description="Kiosks belong to the SelfX platform fleet and may be assigned to platform or Store scope."
         >
           {error ? (
             <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -214,9 +208,7 @@ export default function KiosksPage() {
                     <TableCell className="text-right">
                       <KioskLifecycleActions
                         device={device}
-                        onActivate={() => void activate(device.id)}
-                        onDeactivate={() => void deactivate(device.id)}
-                        onRevoke={() => void revoke(device.id)}
+                        onUnpair={() => void unpair(device.id)}
                         onDelete={() => void remove(device.id)}
                         onConfigure={() => setConfigurationDevice(device)}
                       />
@@ -245,12 +237,13 @@ export default function KiosksPage() {
             setConfigurationDevice(null);
           }
         }}
-        onSaved={(configuration) => {
+        onSaved={(configuration, updatedDevice) => {
           setDevices((current) =>
             current.map((device) =>
               device.id === configurationDevice?.id
                 ? {
                     ...device,
+                    ...(updatedDevice ?? {}),
                     latestConfigurationVersion: configuration.version,
                   }
                 : device,
@@ -261,16 +254,8 @@ export default function KiosksPage() {
     </PageContainer>
   );
 
-  async function revoke(deviceId: string) {
-    await updateDevice((token) => revokeKioskDevice(token, deviceId));
-  }
-
-  async function activate(deviceId: string) {
-    await updateDevice((token) => activateKioskDevice(token, deviceId));
-  }
-
-  async function deactivate(deviceId: string) {
-    await updateDevice((token) => deactivateKioskDevice(token, deviceId));
+  async function unpair(deviceId: string) {
+    await updateDevice((token) => unpairKioskDevice(token, deviceId));
   }
 
   async function remove(deviceId: string) {
@@ -304,16 +289,12 @@ export default function KiosksPage() {
 
 function KioskLifecycleActions({
   device,
-  onActivate,
-  onDeactivate,
-  onRevoke,
+  onUnpair,
   onDelete,
   onConfigure,
 }: {
   device: KioskDevice;
-  onActivate: () => void;
-  onDeactivate: () => void;
-  onRevoke: () => void;
+  onUnpair: () => void;
   onDelete: () => void;
   onConfigure: () => void;
 }) {
@@ -323,28 +304,16 @@ function KioskLifecycleActions({
         <SettingsIcon aria-hidden="true" />
         Configure
       </Button>
-      {device.status === "ACTIVE" ? (
-        <Button variant="outline" size="sm" onClick={onDeactivate}>
-          <PowerOffIcon aria-hidden="true" />
-          Deactivate
-        </Button>
-      ) : null}
-      {device.status === "INACTIVE" ? (
-        <Button variant="outline" size="sm" onClick={onActivate}>
-          <PowerIcon aria-hidden="true" />
-          Activate
-        </Button>
-      ) : null}
       {device.status !== "REVOKED" ? (
         <ConfirmDialog
-          title="Revoke kiosk?"
-          description="This unpairs the kiosk device and revokes active refresh sessions. The physical display must be paired again before it can run as a kiosk."
-          confirmLabel="Revoke"
+          title="Unpair kiosk?"
+          description="This unpairs the kiosk, revokes active device sessions, and sends the physical display back to the pairing screen so it can show a new code."
+          confirmLabel="Unpair"
           destructive
-          onConfirm={onRevoke}
+          onConfirm={onUnpair}
           trigger={
             <Button variant="destructive" size="sm">
-              Revoke
+              Unpair
             </Button>
           }
         />
@@ -530,6 +499,11 @@ type PresentationAssetFormItem = {
 };
 
 type KioskConfigurationDialogApi = {
+  updateDevice: (
+    accessToken: string,
+    deviceId: string,
+    input: Parameters<typeof updateKioskDevice>[2],
+  ) => Promise<KioskDevice>;
   getConfiguration: (
     accessToken: string,
     deviceId: string,
@@ -547,6 +521,7 @@ type KioskConfigurationDialogApi = {
 };
 
 const defaultKioskConfigurationDialogApi: KioskConfigurationDialogApi = {
+  updateDevice: updateKioskDevice,
   getConfiguration: getKioskConfiguration,
   updateConfiguration: updateKioskConfiguration,
   createAssetUploadIntent: createKioskConfigurationAssetUploadIntent,
@@ -560,13 +535,14 @@ function KioskConfigurationDialog({
 }: {
   device: KioskDevice | null;
   onOpenChange: (open: boolean) => void;
-  onSaved: (configuration: KioskConfiguration) => void;
+  onSaved: (configuration: KioskConfiguration, device?: KioskDevice) => void;
   api?: KioskConfigurationDialogApi;
 }) {
   const session = useSession();
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
   const open = device !== null;
+  const [displayName, setDisplayName] = useState("");
   const [form, setForm] = useState<KioskConfigurationForm>(defaultConfigForm());
   const [version, setVersion] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -592,6 +568,10 @@ function KioskConfigurationDialog({
   }, [accessToken, api, device]);
 
   useEffect(() => {
+    setDisplayName(device?.displayName ?? "");
+  }, [device]);
+
+  useEffect(() => {
     if (open) {
       void loadConfiguration();
     }
@@ -604,6 +584,11 @@ function KioskConfigurationDialog({
     const validationError = validateConfigurationForm(form);
     if (validationError) {
       setError(validationError);
+      return;
+    }
+    const nextDisplayName = displayName.trim();
+    if (!nextDisplayName) {
+      setError("Kiosk name is required.");
       return;
     }
     setSaving(true);
@@ -653,9 +638,18 @@ function KioskConfigurationDialog({
           },
         },
       );
+      const updatedDevice =
+        nextDisplayName !== device.displayName
+          ? await api.updateDevice(accessToken, device.id, {
+              displayName: nextDisplayName,
+            })
+          : undefined;
       setVersion(configuration.version);
       setForm(formFromConfiguration(configuration));
-      onSaved(configuration);
+      if (updatedDevice) {
+        setDisplayName(updatedDevice.displayName);
+      }
+      onSaved(configuration, updatedDevice);
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -758,6 +752,18 @@ function KioskConfigurationDialog({
           </div>
         ) : (
           <div className="grid max-h-[72vh] gap-5 overflow-y-auto pr-1 lg:grid-cols-[1.1fr_0.9fr]">
+            <fieldset className="space-y-3 lg:col-span-2">
+              <legend className="text-sm font-semibold">Kiosk Details</legend>
+              <div className="max-w-md space-y-2 text-sm">
+                <Label htmlFor="configure-kiosk-name">Kiosk Name</Label>
+                <Input
+                  id="configure-kiosk-name"
+                  value={displayName}
+                  maxLength={160}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                />
+              </div>
+            </fieldset>
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold">Display</legend>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -986,7 +992,7 @@ function KioskConfigurationDialog({
             disabled={saving || loading || uploading}
             onClick={() => void save()}
           >
-            Save Configuration
+            Save Changes
           </Button>
         </DialogFooter>
       </DialogContent>

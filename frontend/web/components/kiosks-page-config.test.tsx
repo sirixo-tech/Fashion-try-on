@@ -8,6 +8,7 @@ import {
   listKioskAssignmentOptions,
   listKioskDevices,
   updateKioskConfiguration,
+  updateKioskDevice,
 } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
 
@@ -25,7 +26,9 @@ vi.mock("@/lib/kiosks", () => ({
   listKioskDevices: vi.fn(),
   pairKioskDevice: vi.fn(),
   revokeKioskDevice: vi.fn(),
+  unpairKioskDevice: vi.fn(),
   updateKioskConfiguration: vi.fn(),
+  updateKioskDevice: vi.fn(),
 }));
 
 const device = {
@@ -109,6 +112,7 @@ describe("Kiosks configuration UI", () => {
       ...configuration,
       version: 5,
     } as never);
+    vi.mocked(updateKioskDevice).mockResolvedValue(device as never);
     vi.mocked(createKioskConfigurationAssetUploadIntent).mockResolvedValue({
       assetRef: "asset-ref",
       type: "UPLOADED_IMAGE",
@@ -139,7 +143,7 @@ describe("Kiosks configuration UI", () => {
     const durationInput = await screen.findByDisplayValue("6");
     fireEvent.change(durationInput, { target: { value: "2" } });
     fireEvent.click(
-      screen.getByRole("button", { name: /Save Configuration/i }),
+      screen.getByRole("button", { name: /Save Changes/i }),
     );
 
     expect(
@@ -160,7 +164,7 @@ describe("Kiosks configuration UI", () => {
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Full Outfit" }));
     fireEvent.click(
-      screen.getByRole("button", { name: /Save Configuration/i }),
+      screen.getByRole("button", { name: /Save Changes/i }),
     );
 
     await waitFor(() => expect(updateKioskConfiguration).toHaveBeenCalled());

@@ -4,11 +4,8 @@ import { useState, type ReactNode } from "react";
 
 import { AppHeader } from "./app-header";
 import { AppSidebar } from "./app-sidebar";
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-} from "@selfx/ui/components/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@selfx/ui/components/sheet";
+import { cn } from "@selfx/ui/lib/utils";
 import type {
   SelfxNavItem,
   SelfxOrganizationOption,
@@ -19,9 +16,6 @@ export function AppShell({
   children,
   navItems,
   activePath,
-  organizations,
-  activeOrganizationId,
-  onSelectOrganization,
   user,
   onLogout,
   onNavigateTo,
@@ -37,13 +31,26 @@ export function AppShell({
   onNavigateTo?: (href: string) => void;
 }) {
   const [mobileOpened, setMobileOpened] = useState(false);
-  const [desktopOpened, setDesktopOpened] = useState(true);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
 
-  const sidebar = (
+  const mobileSidebar = (
     <AppSidebar
       items={navItems}
       activePath={activePath}
+      user={user}
+      onLogout={onLogout}
       onNavigate={() => setMobileOpened(false)}
+      onNavigateTo={onNavigateTo}
+    />
+  );
+  const desktopSidebar = (
+    <AppSidebar
+      items={navItems}
+      activePath={activePath}
+      user={user}
+      collapsed={desktopCollapsed}
+      onToggleCollapsed={() => setDesktopCollapsed((collapsed) => !collapsed)}
+      onLogout={onLogout}
       onNavigateTo={onNavigateTo}
     />
   );
@@ -51,29 +58,24 @@ export function AppShell({
   return (
     <div className="min-h-dvh bg-background">
       <AppHeader
-        organizations={organizations}
-        activeOrganizationId={activeOrganizationId}
-        onSelectOrganization={onSelectOrganization}
-        user={user}
-        onLogout={onLogout}
         mobileOpened={mobileOpened}
-        desktopOpened={desktopOpened}
         onToggleMobile={() => setMobileOpened((opened) => !opened)}
-        onToggleDesktop={() => setDesktopOpened((opened) => !opened)}
-        onNavigateTo={onNavigateTo}
       />
       <Sheet open={mobileOpened} onOpenChange={setMobileOpened}>
-        <SheetContent side="left" className="w-72 p-0" showCloseButton={false}>
+        <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
           <SheetTitle className="sr-only">Primary navigation</SheetTitle>
-          {sidebar}
+          {mobileSidebar}
         </SheetContent>
       </Sheet>
       <div className="flex">
-        {desktopOpened ? (
-          <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 border-r border-sidebar-border bg-sidebar md:block">
-            {sidebar}
-          </aside>
-        ) : null}
+        <aside
+          className={cn(
+            "sticky top-0 hidden h-dvh shrink-0 border-r border-sidebar-border bg-sidebar transition-[width] duration-200 md:block",
+            desktopCollapsed ? "w-20" : "w-64",
+          )}
+        >
+          {desktopSidebar}
+        </aside>
         <div className="min-w-0 flex-1">{children}</div>
       </div>
     </div>
