@@ -87,9 +87,9 @@ describe("KIOSK-4A device provisioning", () => {
     );
     expect(session.pairingCode).toMatch(/^\d{6}$/);
     expect(session.ttlSeconds).toBe(480);
-    expect(
-      Date.parse(session.expiresAt) - Date.parse(session.serverTime),
-    ).toBe(480_000);
+    expect(Date.parse(session.expiresAt) - Date.parse(session.serverTime)).toBe(
+      480_000,
+    );
 
     const stored = await prisma.kioskPairingSession.findUniqueOrThrow({
       where: { id: session.pairingSessionId },
@@ -146,7 +146,9 @@ describe("KIOSK-4A device provisioning", () => {
         assignmentScope: KioskAssignmentScope.PLATFORM,
       }),
     ]);
-    expect(attempts.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(
+      attempts.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
     await expectApiCode(
       service.pairKiosk(admin.id, {
         pairingCode: active.pairingCode,
@@ -168,14 +170,20 @@ describe("KIOSK-4A device provisioning", () => {
       },
     });
     await expectApiCode(
-      platformAuth.requirePermission(support.id, PLATFORM_PERMISSIONS.kiosksPair),
+      platformAuth.requirePermission(
+        support.id,
+        PLATFORM_PERMISSIONS.kiosksPair,
+      ),
       "PLATFORM_PERMISSION_DENIED",
     );
 
     const superadmin = await createUser("super-auth");
     await assignSuperAdmin(superadmin.id);
     await expect(
-      platformAuth.requirePermission(superadmin.id, PLATFORM_PERMISSIONS.kiosksPair),
+      platformAuth.requirePermission(
+        superadmin.id,
+        PLATFORM_PERMISSIONS.kiosksPair,
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -195,10 +203,7 @@ describe("KIOSK-4A device provisioning", () => {
     expect(platformDevice.assignment.scope).toBe(KioskAssignmentScope.PLATFORM);
     expect(platformDevice.assignment.organizationId).toBeNull();
 
-    const invalidStoreSession = await createPairingSession(
-      {},
-      "127.0.0.16",
-    );
+    const invalidStoreSession = await createPairingSession({}, "127.0.0.16");
     await expectApiCode(
       service.pairKiosk(admin.id, {
         pairingCode: invalidStoreSession.pairingCode,
@@ -262,9 +267,9 @@ describe("KIOSK-4A device provisioning", () => {
     ) as { typ: string; sub: string };
     expect(payload.typ).toBe("kiosk_device_access");
 
-    const refreshed = await service.refreshDeviceSession(
-      { refreshToken: credentials.refreshToken },
-    );
+    const refreshed = await service.refreshDeviceSession({
+      refreshToken: credentials.refreshToken,
+    });
     expect(refreshed.refreshToken).not.toBe(credentials.refreshToken);
     await expectApiCode(
       service.refreshDeviceSession({ refreshToken: credentials.refreshToken }),
@@ -279,6 +284,29 @@ describe("KIOSK-4A device provisioning", () => {
     await expectApiCode(
       service.me(`Bearer ${refreshed.accessToken}`),
       KIOSK_ERROR_CODES.deviceRevoked,
+    );
+  });
+
+  it("classifies expired and malformed device access tokens distinctly", async () => {
+    const admin = await createUser("expired-token-admin");
+    await assignSuperAdmin(admin.id);
+    const credentials = await pairedCredentials(admin.id);
+    const jwt = new JwtService();
+    const expiredAccessToken = await jwt.signAsync(
+      { sub: credentials.device.id, typ: "kiosk_device_access" },
+      {
+        secret: kioskConfig.deviceJwtSecret,
+        expiresIn: -1,
+      },
+    );
+
+    await expectApiCode(
+      service.me(`Bearer ${expiredAccessToken}`),
+      KIOSK_ERROR_CODES.deviceTokenExpired,
+    );
+    await expectApiCode(
+      service.me("Bearer malformed-device-token"),
+      KIOSK_ERROR_CODES.deviceTokenInvalid,
     );
   });
 
@@ -298,7 +326,10 @@ describe("KIOSK-4A device provisioning", () => {
       KIOSK_ERROR_CODES.deviceInactive,
     );
 
-    const active = await service.activateDevice(admin.id, credentials.device.id);
+    const active = await service.activateDevice(
+      admin.id,
+      credentials.device.id,
+    );
     expect(active.status).toBe(KioskDeviceStatus.ACTIVE);
     expect(active.inactiveAt).toBeNull();
 
@@ -437,7 +468,12 @@ describe("KIOSK-4A device provisioning", () => {
     });
     await prisma.kioskDevice.deleteMany({ where: { id: { in: deviceIds } } });
     await prisma.auditLog.deleteMany({
-      where: { OR: [{ actorUserId: { in: userIds } }, { resourceType: "kiosk_device" }] },
+      where: {
+        OR: [
+          { actorUserId: { in: userIds } },
+          { resourceType: "kiosk_device" },
+        ],
+      },
     });
     await prisma.platformRoleAssignment.deleteMany({
       where: { userId: { in: userIds } },

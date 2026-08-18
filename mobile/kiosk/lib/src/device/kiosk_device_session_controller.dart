@@ -40,10 +40,16 @@ class KioskDeviceSessionController extends ChangeNotifier {
 
   Timer? _pollTimer;
   Timer? _heartbeatTimer;
+  Future<KioskDeviceCredentials>? _refreshInFlight;
   bool _disposed = false;
 
   String get platformLabel =>
-      platform ?? (Platform.isAndroid ? 'android' : Platform.isWindows ? 'windows' : 'flutter');
+      platform ??
+      (Platform.isAndroid
+          ? 'android'
+          : Platform.isWindows
+          ? 'windows'
+          : 'flutter');
 
   Future<void> start() async {
     state = KioskStartupState.checking;
@@ -60,14 +66,14 @@ class KioskDeviceSessionController extends ChangeNotifier {
     state = KioskStartupState.restoring;
     notifyListeners();
     try {
-      final credentials = await gateway.refreshSession(refreshToken);
+      final credentials = await _refreshWithCredential(refreshToken);
       await _applyCredentials(credentials);
     } on TimeoutException catch (_) {
       _recoverableNetwork();
     } on SocketException catch (_) {
       _recoverableNetwork();
     } on KioskDeviceException catch (error) {
-      if (error.isRevoked) {
+      if (_isTerminalRefreshFailure(error)) {
         await clearAndPair();
       } else {
         _fail(error.message);
@@ -114,19 +120,17 @@ class KioskDeviceSessionController extends ChangeNotifier {
   }
 
   Future<void> heartbeat() async {
-    final token = accessToken;
-    if (token == null) {
-      return;
-    }
     try {
-      device = await gateway.heartbeat(
-        accessToken: token,
-        platform: platformLabel,
-        appVersion: appVersion,
+      device = await withDeviceAccess(
+        (token) => gateway.heartbeat(
+          accessToken: token,
+          platform: platformLabel,
+          appVersion: appVersion,
+        ),
       );
       notifyListeners();
     } on KioskDeviceException catch (error) {
-      if (error.isRevoked) {
+      if (error.isTerminalDeviceState) {
         await clearAndPair();
       }
     } catch (_) {
@@ -156,7 +160,8 @@ class KioskDeviceSessionController extends ChangeNotifier {
     }
 
     debugPrint('DEVICE_REFRESH_AVAILABLE=true');
-    await restore(refreshToken);
+    final credentials = await _refreshFromStoredCredential(refreshToken);
+    await _applyCredentials(credentials, restartHeartbeat: false);
     final refreshed = accessToken;
     if (state == KioskStartupState.active &&
         refreshed != null &&
@@ -171,8 +176,28 @@ class KioskDeviceSessionController extends ChangeNotifier {
     );
   }
 
-  Future<void> handleDeviceAuthRejected() async {
-    await clearAndPair();
+  Future<T> withDeviceAccess<T>(
+    Future<T> Function(String accessToken) request,
+  ) async {
+    final token = await requireAccessToken();
+    try {
+      return await request(token);
+    } on KioskDeviceException catch (error) {
+      if (error.isRefreshableAccessToken) {
+        final refreshedToken = await requireAccessToken(forceRefresh: true);
+        return request(refreshedToken);
+      }
+      if (error.isTerminalDeviceState) {
+        await clearAndPair();
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> handleDeviceAuthRejected([KioskDeviceException? error]) async {
+    if (error == null || error.isTerminalDeviceState) {
+      await clearAndPair();
+    }
   }
 
   Future<void> clearAndPair() async {
@@ -209,8 +234,7 @@ class KioskDeviceSessionController extends ChangeNotifier {
         await requestPairingSession();
         return;
       }
-      if (
-          status.status == KioskProvisioningStatus.paired &&
+      if (status.status == KioskProvisioningStatus.paired &&
           status.provisioningGrant != null) {
         _pollTimer?.cancel();
         final credentials = await gateway.exchangeProvisioningGrant(
@@ -245,7 +269,10 @@ class KioskDeviceSessionController extends ChangeNotifier {
     return (remaining.inMilliseconds / (session.ttlSeconds * 1000)).clamp(0, 1);
   }
 
-  Future<void> _applyCredentials(KioskDeviceCredentials credentials) async {
+  Future<void> _applyCredentials(
+    KioskDeviceCredentials credentials, {
+    bool restartHeartbeat = true,
+  }) async {
     await store.writeRefreshToken(credentials.refreshToken);
     accessToken = credentials.accessToken;
     accessTokenExpiresAt = credentials.accessTokenExpiresAt;
@@ -254,12 +281,54 @@ class KioskDeviceSessionController extends ChangeNotifier {
     state = KioskStartupState.active;
     message = null;
     notifyListeners();
+    if (!restartHeartbeat) {
+      return;
+    }
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(
       const Duration(seconds: 60),
       (_) => unawaited(heartbeat()),
     );
     unawaited(heartbeat());
+  }
+
+  Future<KioskDeviceCredentials> _refreshFromStoredCredential(
+    String refreshToken,
+  ) async {
+    try {
+      debugPrint('DEVICE_ACCESS_REFRESH_STARTED');
+      final credentials = await _refreshWithCredential(refreshToken);
+      debugPrint('DEVICE_ACCESS_REFRESH_SUCCEEDED');
+      return credentials;
+    } on KioskDeviceException catch (error) {
+      debugPrint('DEVICE_ACCESS_REFRESH_FAILED code=${error.code}');
+      if (_isTerminalRefreshFailure(error)) {
+        await clearAndPair();
+      }
+      rethrow;
+    } catch (_) {
+      debugPrint('DEVICE_ACCESS_REFRESH_FAILED');
+      rethrow;
+    }
+  }
+
+  Future<KioskDeviceCredentials> _refreshWithCredential(String refreshToken) {
+    final current = _refreshInFlight;
+    if (current != null) {
+      return current;
+    }
+    late final Future<KioskDeviceCredentials> next;
+    next = gateway.refreshSession(refreshToken).whenComplete(() {
+      if (_refreshInFlight == next) {
+        _refreshInFlight = null;
+      }
+    });
+    _refreshInFlight = next;
+    return next;
+  }
+
+  bool _isTerminalRefreshFailure(KioskDeviceException error) {
+    return error.isTerminalDeviceState || error.code == 'DEVICE_TOKEN_INVALID';
   }
 
   void _recoverableNetwork() {

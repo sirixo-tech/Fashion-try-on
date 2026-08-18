@@ -5,11 +5,16 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeftIcon,
+  PencilIcon,
   MonitorIcon,
   PlusIcon,
   RefreshCwIcon,
   SettingsIcon,
   ShieldAlertIcon,
+  ShieldCheckIcon,
+  Trash2Icon,
+  UserPlusIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import {
@@ -45,14 +50,28 @@ import {
 import { useSession } from "@/lib/session";
 import {
   activateStore,
+  addStoreUser,
+  createStoreRole,
+  deleteStoreRole,
   deactivateStore,
+  getEffectiveStorePermissions,
   getStore,
   getStoreKioskConfiguration,
+  listStorePermissions,
+  listStoreRoles,
+  listStoreUsers,
   pairStoreKiosk,
+  replaceStoreRolePermissions,
+  replaceStoreUserRoles,
   updateStore,
   updateStoreKioskConfiguration,
+  updateStoreRole,
+  updateStoreUserStatus,
   type AdminStoreDetail,
+  type StorePermission,
   type StoreInput,
+  type StoreRole,
+  type StoreUser,
 } from "@/lib/stores";
 
 export default function StoreDashboardPage() {
@@ -64,8 +83,17 @@ export default function StoreDashboardPage() {
   const [store, setStore] = useState<AdminStoreDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [roles, setRoles] = useState<StoreRole[]>([]);
+  const [users, setUsers] = useState<StoreUser[]>([]);
+  const [permissions, setPermissions] = useState<StorePermission[]>([]);
+  const [effectivePermissions, setEffectivePermissions] = useState<string[]>(
+    [],
+  );
+  const [platformBypass, setPlatformBypass] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [roleDialog, setRoleDialog] = useState<StoreRole | "new" | null>(null);
+  const [userDialog, setUserDialog] = useState<StoreUser | "new" | null>(null);
   const [configurationDevice, setConfigurationDevice] =
     useState<KioskDevice | null>(null);
 
@@ -76,7 +104,40 @@ export default function StoreDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      setStore(await getStore(accessToken, storeId));
+      const [nextStore, nextEffectivePermissions] = await Promise.all([
+        getStore(accessToken, storeId),
+        getEffectiveStorePermissions(accessToken, storeId),
+      ]);
+      const nextEffectivePermissionCodes = nextEffectivePermissions.permissions;
+      const canLoadRoles =
+        hasStorePermission(nextEffectivePermissionCodes, "roles.view") ||
+        hasStorePermission(nextEffectivePermissionCodes, "roles.assign") ||
+        hasStorePermission(nextEffectivePermissionCodes, "users.invite");
+      const canLoadUsers = hasStorePermission(
+        nextEffectivePermissionCodes,
+        "users.view",
+      );
+      const canLoadPermissionCatalog =
+        hasStorePermission(nextEffectivePermissionCodes, "roles.view") ||
+        hasStorePermission(nextEffectivePermissionCodes, "roles.create") ||
+        hasStorePermission(nextEffectivePermissionCodes, "roles.update");
+      const [nextRoles, nextUsers, nextPermissions] = await Promise.all([
+        canLoadRoles
+          ? listStoreRoles(accessToken, storeId, { pageSize: 100 })
+          : Promise.resolve(emptyStoreList<StoreRole>()),
+        canLoadUsers
+          ? listStoreUsers(accessToken, storeId, { pageSize: 100 })
+          : Promise.resolve(emptyStoreList<StoreUser>()),
+        canLoadPermissionCatalog
+          ? listStorePermissions(accessToken, storeId)
+          : Promise.resolve({ data: [] as StorePermission[] }),
+      ]);
+      setStore(nextStore);
+      setRoles(nextRoles.data);
+      setUsers(nextUsers.data);
+      setPermissions(nextPermissions.data);
+      setEffectivePermissions(nextEffectivePermissionCodes);
+      setPlatformBypass(nextEffectivePermissions.platformBypass);
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -89,6 +150,20 @@ export default function StoreDashboardPage() {
   }, [load]);
 
   const kiosks = store?.kiosks.data ?? [];
+  const can = useCallback(
+    (permission: string) => effectivePermissions.includes(permission),
+    [effectivePermissions],
+  );
+  const canPairKiosks = can("kiosks.pair");
+  const canConfigureKiosks = can("kiosks.configure");
+  const canInviteUsers = can("users.invite");
+  const canAssignRoles = can("roles.assign");
+  const canDeactivateUsers = can("users.deactivate");
+  const canManageUsers = canAssignRoles || canDeactivateUsers;
+  const canCreateRoles = can("roles.create");
+  const canUpdateRoles = can("roles.update");
+  const canDeleteRoles = can("roles.delete");
+  const canUpdateStore = can("stores.update");
 
   return (
     <PageContainer width="wide">
@@ -110,7 +185,10 @@ export default function StoreDashboardPage() {
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button onClick={() => setPairOpen(true)} disabled={!store}>
+            <Button
+              onClick={() => setPairOpen(true)}
+              disabled={!store || !canPairKiosks}
+            >
               <PlusIcon aria-hidden="true" />
               Pair Kiosk
             </Button>
@@ -199,14 +277,20 @@ export default function StoreDashboardPage() {
                       </TableCell>
                       <TableCell>{formatDate(device.lastSeenAt)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setConfigurationDevice(device)}
-                        >
-                          <SettingsIcon aria-hidden="true" />
-                          Manage
-                        </Button>
+                        {canConfigureKiosks ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setConfigurationDevice(device)}
+                          >
+                            <SettingsIcon aria-hidden="true" />
+                            Manage
+                          </Button>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            -
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -224,10 +308,12 @@ export default function StoreDashboardPage() {
                 <DetailRow label="Website" value={store.website ?? "-"} />
                 <DetailRow label="Timezone" value={store.timezone} />
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <Button variant="outline" onClick={() => setEditOpen(true)}>
-                    Edit Store
-                  </Button>
-                  {store.status === "ACTIVE" ? (
+                  {canUpdateStore ? (
+                    <Button variant="outline" onClick={() => setEditOpen(true)}>
+                      Edit Store
+                    </Button>
+                  ) : null}
+                  {platformBypass && store.status === "ACTIVE" ? (
                     <ConfirmDialog
                       title="Deactivate Store?"
                       description="The Store remains stored and kiosk records/configuration are not deleted. Inactive Stores cannot receive new kiosk assignments."
@@ -238,14 +324,204 @@ export default function StoreDashboardPage() {
                         <Button variant="destructive">Deactivate</Button>
                       }
                     />
-                  ) : (
+                  ) : platformBypass ? (
                     <Button onClick={() => void changeStoreStatus("ACTIVE")}>
                       Reactivate
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ) : null}
+          </TableContainer>
+        </div>
+      </PageSection>
+
+      <PageSection>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <TableContainer
+            title="Store Users"
+            description="Store memberships and assigned Store roles. Email invitations are deferred in RBAC-1."
+          >
+            <div className="mb-4 flex justify-end">
+              {canInviteUsers ? (
+                <Button onClick={() => setUserDialog("new")}>
+                  <UserPlusIcon aria-hidden="true" />
+                  Add User
+                </Button>
+              ) : null}
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Roles</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4}>Loading Store users...</TableCell>
+                  </TableRow>
+                ) : users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4}>
+                      <div className="flex items-center gap-3 py-8 text-muted-foreground">
+                        <UsersIcon size={20} aria-hidden="true" />
+                        No Store users are assigned yet.
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  users.map((user) => (
+                    <TableRow key={user.membershipId}>
+                      <TableCell>
+                        <div className="font-medium">
+                          {user.displayName ?? user.email}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {user.email}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={user.status} label={user.status} />
+                      </TableCell>
+                      <TableCell>
+                        {user.roles.length > 0
+                          ? user.roles.map((role) => role.name).join(", ")
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canManageUsers ? (
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {canAssignRoles ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setUserDialog(user)}
+                              >
+                                <PencilIcon aria-hidden="true" />
+                                Roles
+                              </Button>
+                            ) : null}
+                            {canDeactivateUsers ? (
+                              <Button
+                                variant={
+                                  user.status === "ACTIVE"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                                size="sm"
+                                onClick={() => void toggleUserStatus(user)}
+                              >
+                                {user.status === "ACTIVE"
+                                  ? "Suspend"
+                                  : "Activate"}
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            -
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <TableContainer
+            title="Store Roles"
+            description="Store roles group permissions. Permission-map management is restricted to SelfX platform admins."
+          >
+            <div className="mb-4 flex justify-end">
+              {canCreateRoles ? (
+                <Button onClick={() => setRoleDialog("new")}>
+                  <ShieldCheckIcon aria-hidden="true" />
+                  Add Role
+                </Button>
+              ) : null}
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Permissions</TableHead>
+                  <TableHead>Users</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4}>Loading Store roles...</TableCell>
+                  </TableRow>
+                ) : roles.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4}>
+                      <div className="flex items-center gap-3 py-8 text-muted-foreground">
+                        <ShieldCheckIcon size={20} aria-hidden="true" />
+                        No Store roles are configured yet.
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  roles.map((role) => (
+                    <TableRow key={role.id}>
+                      <TableCell>
+                        <div className="font-medium">{role.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {role.isSystem ? "System" : "Custom"}
+                          {!role.isActive ? " / inactive" : ""}
+                        </div>
+                      </TableCell>
+                      <TableCell>{role.permissionsCount}</TableCell>
+                      <TableCell>{role.assignedUsersCount}</TableCell>
+                      <TableCell className="text-right">
+                        {canUpdateRoles ||
+                        (canDeleteRoles && !role.isSystem) ? (
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {canUpdateRoles ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setRoleDialog(role)}
+                              >
+                                <PencilIcon aria-hidden="true" />
+                                Edit
+                              </Button>
+                            ) : null}
+                            {canDeleteRoles && !role.isSystem ? (
+                              <ConfirmDialog
+                                title="Delete Store role?"
+                                description="This deletes the role only if no Store users are assigned to it."
+                                confirmLabel="Delete"
+                                destructive
+                                onConfirm={() => void removeRole(role)}
+                                trigger={
+                                  <Button variant="outline" size="sm">
+                                    <Trash2Icon aria-hidden="true" />
+                                    Delete
+                                  </Button>
+                                }
+                              />
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            -
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </TableContainer>
         </div>
       </PageSection>
@@ -309,6 +585,68 @@ export default function StoreDashboardPage() {
           );
         }}
       />
+
+      <StoreRoleDialog
+        role={roleDialog}
+        roles={roles}
+        permissions={permissions}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRoleDialog(null);
+          }
+        }}
+        onSubmit={async (input) => {
+          if (!accessToken || !store) {
+            return;
+          }
+          if (roleDialog === "new") {
+            await createStoreRole(accessToken, store.id, input);
+          } else if (roleDialog) {
+            await updateStoreRole(accessToken, store.id, roleDialog.id, {
+              name: input.name,
+              description: input.description ?? null,
+              isActive: input.isActive,
+            });
+            if (!roleDialog.isSystem) {
+              await replaceStoreRolePermissions(
+                accessToken,
+                store.id,
+                roleDialog.id,
+                input.permissionCodes,
+              );
+            }
+          }
+          setRoleDialog(null);
+          await load();
+        }}
+      />
+
+      <StoreUserDialog
+        user={userDialog}
+        roles={roles.filter((role) => role.isActive)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUserDialog(null);
+          }
+        }}
+        onSubmit={async (input) => {
+          if (!accessToken || !store) {
+            return;
+          }
+          if (userDialog === "new") {
+            await addStoreUser(accessToken, store.id, input);
+          } else if (userDialog) {
+            await replaceStoreUserRoles(
+              accessToken,
+              store.id,
+              userDialog.membershipId,
+              input.roleIds,
+            );
+          }
+          setUserDialog(null);
+          await load();
+        }}
+      />
     </PageContainer>
   );
 
@@ -323,6 +661,37 @@ export default function StoreDashboardPage() {
           ? await activateStore(accessToken, store.id)
           : await deactivateStore(accessToken, store.id);
       setStore((current) => (current ? { ...current, ...updated } : current));
+    } catch (caught) {
+      setError(messageFor(caught));
+    }
+  }
+
+  async function toggleUserStatus(user: StoreUser) {
+    if (!accessToken || !store) {
+      return;
+    }
+    setError(null);
+    try {
+      await updateStoreUserStatus(
+        accessToken,
+        store.id,
+        user.membershipId,
+        user.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE",
+      );
+      await load();
+    } catch (caught) {
+      setError(messageFor(caught));
+    }
+  }
+
+  async function removeRole(role: StoreRole) {
+    if (!accessToken || !store) {
+      return;
+    }
+    setError(null);
+    try {
+      await deleteStoreRole(accessToken, store.id, role.id);
+      await load();
     } catch (caught) {
       setError(messageFor(caught));
     }
@@ -465,6 +834,297 @@ function StoreKioskConfigurationDialog({
             onClick={() => void save()}
           >
             Save Configuration
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StoreRoleDialog({
+  role,
+  permissions,
+  onOpenChange,
+  onSubmit,
+}: {
+  role: StoreRole | "new" | null;
+  roles: StoreRole[];
+  permissions: StorePermission[];
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (input: {
+    name: string;
+    description?: string;
+    isActive: boolean;
+    permissionCodes: string[];
+  }) => Promise<void>;
+}) {
+  const open = role !== null;
+  const editingRole = role && role !== "new" ? role : null;
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [permissionCodes, setPermissionCodes] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setName(editingRole?.name ?? "");
+    setDescription(editingRole?.description ?? "");
+    setIsActive(editingRole?.isActive ?? true);
+    setPermissionCodes(
+      editingRole?.permissions.map((permission) => permission.code) ?? [],
+    );
+    setError(null);
+  }, [editingRole, role]);
+
+  const groupedPermissions = groupPermissions(permissions);
+  const permissionsLocked = Boolean(editingRole?.isSystem);
+
+  async function submit() {
+    if (!name.trim()) {
+      setError("Role name is required.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({
+        name,
+        description,
+        isActive,
+        permissionCodes,
+      });
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>
+            {role === "new" ? "Add Store Role" : "Edit Store Role"}
+          </DialogTitle>
+          <DialogDescription>
+            Permissions are stable backend codes with readable labels for Store
+            administration.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+        <div className="grid max-h-[65vh] gap-5 overflow-y-auto pr-1 md:grid-cols-[0.8fr_1.2fr]">
+          <div className="space-y-4">
+            <label className="space-y-2 text-sm">
+              <span>Role Name *</span>
+              <Input
+                value={name}
+                maxLength={120}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <label className="space-y-2 text-sm">
+              <span>Description</span>
+              <Input
+                value={description}
+                maxLength={500}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+            {editingRole ? (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={isActive}
+                  disabled={editingRole.isSystem}
+                  onChange={(event) => setIsActive(event.target.checked)}
+                />
+                Active
+              </label>
+            ) : null}
+            {permissionsLocked ? (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                System role permission maps are protected in RBAC-1.
+              </div>
+            ) : null}
+          </div>
+          <div className="space-y-4">
+            {groupedPermissions.map(([module, modulePermissions]) => (
+              <fieldset
+                key={module}
+                className="space-y-2 rounded-lg border p-3"
+              >
+                <legend className="px-1 text-sm font-semibold capitalize">
+                  {module}
+                </legend>
+                {modulePermissions.map((permission) => (
+                  <label
+                    key={permission.code}
+                    className="flex gap-3 rounded-md p-2 text-sm hover:bg-muted/50"
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={permissionsLocked}
+                      checked={permissionCodes.includes(permission.code)}
+                      onChange={(event) =>
+                        setPermissionCodes((current) =>
+                          event.target.checked
+                            ? [...current, permission.code]
+                            : current.filter(
+                                (code) => code !== permission.code,
+                              ),
+                        )
+                      }
+                    />
+                    <span>
+                      <span className="block font-medium">
+                        {permission.label}
+                      </span>
+                      {permission.description ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {permission.description}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={submitting || !name.trim()}
+            onClick={() => void submit()}
+          >
+            Save Role
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StoreUserDialog({
+  user,
+  roles,
+  onOpenChange,
+  onSubmit,
+}: {
+  user: StoreUser | "new" | null;
+  roles: StoreRole[];
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (input: { email: string; roleIds: string[] }) => Promise<void>;
+}) {
+  const open = user !== null;
+  const editingUser = user && user !== "new" ? user : null;
+  const [email, setEmail] = useState("");
+  const [roleIds, setRoleIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setEmail(editingUser?.email ?? "");
+    setRoleIds(editingUser?.roles.map((role) => role.id) ?? []);
+    setError(null);
+  }, [editingUser, user]);
+
+  async function submit() {
+    if (!email.trim()) {
+      setError("Email is required.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({ email, roleIds });
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {user === "new" ? "Add Store User" : "Edit User Roles"}
+          </DialogTitle>
+          <DialogDescription>
+            RBAC-1 supports adding existing SelfX users. Email invitations are
+            deferred.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+        <div className="space-y-4">
+          <label className="space-y-2 text-sm">
+            <span>Email *</span>
+            <Input
+              value={email}
+              disabled={Boolean(editingUser)}
+              maxLength={320}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold">Assigned Roles</legend>
+            {roles.length === 0 ? (
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                No active Store roles are available.
+              </div>
+            ) : (
+              roles.map((role) => (
+                <label
+                  key={role.id}
+                  className="flex gap-3 rounded-md p-2 text-sm hover:bg-muted/50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={roleIds.includes(role.id)}
+                    onChange={(event) =>
+                      setRoleIds((current) =>
+                        event.target.checked
+                          ? [...current, role.id]
+                          : current.filter((id) => id !== role.id),
+                      )
+                    }
+                  />
+                  <span>
+                    <span className="block font-medium">{role.name}</span>
+                    {role.description ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {role.description}
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              ))
+            )}
+          </fieldset>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={submitting || !email.trim()}
+            onClick={() => void submit()}
+          >
+            Save User
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -748,6 +1408,21 @@ function storeLocation(store: AdminStoreDetail): string {
     .join(", ");
 }
 
+function groupPermissions(
+  permissions: StorePermission[],
+): Array<[string, StorePermission[]]> {
+  const groups = new Map<string, StorePermission[]>();
+  for (const permission of permissions) {
+    const group = groups.get(permission.module) ?? [];
+    group.push(permission);
+    groups.set(permission.module, group);
+  }
+  return [...groups.entries()].map(([module, modulePermissions]) => [
+    module,
+    modulePermissions.sort((a, b) => a.label.localeCompare(b.label)),
+  ]);
+}
+
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "-";
 }
@@ -757,4 +1432,24 @@ function messageFor(caught: unknown): string {
     return caught.message;
   }
   return "The Store request could not be completed.";
+}
+
+function hasStorePermission(
+  permissions: string[],
+  permission: string,
+): boolean {
+  return permissions.includes(permission);
+}
+
+function emptyStoreList<T>() {
+  return {
+    data: [] as T[],
+    pagination: {
+      page: 1,
+      pageSize: 100,
+      total: 0,
+      totalPages: 1,
+      hasMore: false,
+    },
+  };
 }

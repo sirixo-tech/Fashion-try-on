@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { SafeApiError, selfxApi } from "@/lib/api";
+import { SafeApiError, selfxApi, setAuthSessionHooks } from "@/lib/api";
 
 export type StaffUser = {
   id: string;
@@ -48,7 +48,9 @@ const emptySession: SessionState = {
 function isInvalidRefreshSession(error: unknown): boolean {
   return (
     error instanceof SafeApiError &&
-    (error.status === 401 || error.code === "AUTH_UNAUTHORIZED")
+    (error.status === 401 ||
+      error.code === "AUTH_UNAUTHORIZED" ||
+      error.code === "AUTH_REFRESH_TOKEN_INVALID")
   );
 }
 
@@ -56,7 +58,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>(emptySession);
   const sessionRef = useRef<SessionState>(emptySession);
   const operationVersionRef = useRef(0);
-  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
 
   const setSessionState = useCallback((nextSession: SessionState) => {
     sessionRef.current = nextSession;
@@ -74,7 +76,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [setSessionState],
   );
 
-  const refresh = useCallback(async () => {
+  const refreshAccessToken = useCallback(async (): Promise<string | null> => {
     if (refreshInFlightRef.current) {
       return refreshInFlightRef.current;
     }
@@ -87,18 +89,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then((response) => {
         if (operationVersionRef.current === refreshVersion) {
           applyTokenResponse(response);
+          return response.accessToken;
         }
+        return sessionRef.current.status === "authenticated"
+          ? sessionRef.current.accessToken
+          : null;
       })
       .catch((error: unknown) => {
         if (operationVersionRef.current !== refreshVersion) {
-          return;
+          return sessionRef.current.status === "authenticated"
+            ? sessionRef.current.accessToken
+            : null;
         }
 
-        if (
-          sessionRef.current.status === "authenticated" &&
-          !isInvalidRefreshSession(error)
-        ) {
-          return;
+        if (!isInvalidRefreshSession(error)) {
+          if (sessionRef.current.status === "authenticated") {
+            throw error;
+          }
+          setSessionState({
+            status: "unauthenticated",
+            user: null,
+            accessToken: null,
+          });
+          return null;
         }
 
         setSessionState({
@@ -106,6 +119,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           user: null,
           accessToken: null,
         });
+        console.debug("AUTH_SESSION_TERMINAL");
+        return null;
       })
       .finally(() => {
         if (refreshInFlightRef.current === refreshPromise) {
@@ -118,16 +133,47 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return refreshPromise;
   }, [applyTokenResponse, setSessionState]);
 
+  const refresh = useCallback(async () => {
+    try {
+      await refreshAccessToken();
+    } catch {
+      // Direct UI refresh attempts preserve the current authenticated state for
+      // transient connectivity failures. Request callers receive their own error.
+    }
+  }, [refreshAccessToken]);
+
+  const handleTerminalAuthFailure = useCallback(
+    (accessToken: string | null) => {
+      const current = sessionRef.current;
+      if (
+        current.status === "authenticated" &&
+        accessToken &&
+        current.accessToken === accessToken
+      ) {
+        setSessionState({
+          status: "unauthenticated",
+          user: null,
+          accessToken: null,
+        });
+        console.debug("AUTH_SESSION_TERMINAL");
+      }
+    },
+    [setSessionState],
+  );
+
   const login = useCallback(
     async (email: string, password: string) => {
       const loginVersion = operationVersionRef.current + 1;
       operationVersionRef.current = loginVersion;
 
       try {
-        const response = await selfxApi<AuthTokenResponse>("/api/v1/auth/login", {
-          method: "POST",
-          body: JSON.stringify({ email, password }),
-        });
+        const response = await selfxApi<AuthTokenResponse>(
+          "/api/v1/auth/login",
+          {
+            method: "POST",
+            body: JSON.stringify({ email, password }),
+          },
+        );
 
         if (operationVersionRef.current === loginVersion) {
           applyTokenResponse(response);
@@ -177,6 +223,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    setAuthSessionHooks({
+      getAccessToken: () =>
+        sessionRef.current.status === "authenticated"
+          ? sessionRef.current.accessToken
+          : null,
+      refreshSession: refreshAccessToken,
+      handleTerminalAuthFailure,
+    });
+
+    return () => setAuthSessionHooks(null);
+  }, [handleTerminalAuthFailure, refreshAccessToken]);
 
   const value = useMemo<SessionContextValue>(
     () => ({

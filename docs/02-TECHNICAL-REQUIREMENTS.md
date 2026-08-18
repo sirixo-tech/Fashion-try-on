@@ -58,6 +58,46 @@ or kiosk app build is introduced by STORE-1.
 
 ---
 
+## RBAC-1 Technical Addendum
+
+**Status:** UPDATED
+
+RBAC-1 introduces the production Store RBAC foundation on top of the STORE-1
+tenant compatibility layer.
+
+- `OrganizationMembership` remains the canonical Store membership relation for
+  product Stores represented by internal `organizations` rows.
+- The database adds a global `permissions` registry, Store-scoped
+  `store_roles`, `store_role_permissions` and `store_membership_roles`.
+- Composite foreign keys on Store membership-role assignment must enforce that
+  the membership and role belong to the same Store/tenant.
+- Store permissions are machine-stable string codes owned by the backend
+  registry. Controllers and services must authorize from stored roles and
+  permissions, not from client-supplied role names.
+- Platform authorization remains separate in `platform_role_assignments`.
+  `SELFX_SUPER_ADMIN` is immutable full platform authority; `SELFX_STAFF_ADMIN`
+  may administer operational Store RBAC without becoming a Store member.
+- RBAC-1 seeds system Store roles for existing Stores and backfills current
+  tenant memberships to compatible system roles.
+- Existing-user Store membership assignment is supported. Email invitation
+  delivery remains deferred until a dedicated invitation workflow is approved.
+- RBAC permission checks are database-authoritative. Staff access JWTs identify
+  the user/session only and must not contain trusted Store permission snapshots.
+  Role, permission, membership, user and Store status changes must affect the
+  next protected request without shortening token TTL as the revocation model.
+- Store-scoped API routes must canonicalize the Store from the route/resource
+  relationship and reject client-supplied Store IDs that do not match the
+  membership and role being mutated.
+- Permission registry synchronization is additive and idempotent. Missing
+  built-in permission codes may be created with upsert-style logic across API
+  replicas, but removing a code from source must not automatically delete
+  historical database permission rows.
+- Global Kiosk fleet management remains platform-authorized. Store-scoped
+  kiosk configuration may be allowed only after validating the kiosk belongs to
+  the requested Store and the actor has the current Store permission.
+
+---
+
 1. Purpose
    This document defines the approved technical architecture for the SelfX Virtual Try-On platform.
    `01-PRD.md` defines what the product must do.
@@ -436,6 +476,17 @@ or kiosk app build is introduced by STORE-1.
     valid session. Same-origin proxying restores first-party cookie semantics
     for the web app; it must not weaken backend CORS, wildcard origins, remove
     origin/CSRF checks or store tokens in localStorage/sessionStorage.
+
+    AUTH-PERSISTENCE-FIX-1 centralizes protected web requests through the shared
+    browser API client. For a protected request, the client sends the current
+    in-memory access token; on the canonical access-token 401 it calls the
+    existing `SessionProvider` single-flight refresh, obtains the newly issued
+    access token, retries the original request exactly once and returns the
+    retried response. Login, refresh and logout endpoints must not recursively
+    trigger refresh. Transient refresh failures should preserve current local
+    session state and surface a recoverable refresh/network error; terminal
+    refresh failures clear the session through the existing unauthenticated
+    login flow.
 
     This web proxy is not a general API Gateway. Tenant authorization,
     platform authorization and business logic remain in the SelfX API. Kiosk,
@@ -1456,6 +1507,21 @@ or kiosk app build is introduced by STORE-1.
      operations with platform permissions and audit entries;
    - Flutter stores the device refresh credential in OS-backed secure storage.
      The short-lived access token lives in memory;
+   - Flutter uses the device session controller as the central access-renewal
+     path. Heartbeat, runtime configuration, production Try-On and customer
+     upload gateways request access through this path, refresh once on
+     `DEVICE_TOKEN_EXPIRED` or first `DEVICE_TOKEN_INVALID`, persist the rotated
+     refresh credential before committing the new in-memory access token, and
+     retry the original request once;
+   - `DEVICE_TOKEN_EXPIRED` is a recoverable access-token condition. Malformed
+     or unverifiable device JWTs remain `DEVICE_TOKEN_INVALID`; Flutter may try
+     one refresh before treating the original request as failed;
+   - only `DEVICE_UNPAIRED`, `DEVICE_REVOKED`, `DEVICE_DELETED` and the
+     intentionally blocking `DEVICE_INACTIVE` lifecycle state clear secure
+     device credentials and return the kiosk to pairing/blocked startup;
+   - network timeout, 408, 429, 5xx, heartbeat failure, runtime configuration
+     sync failure, customer-upload failure and provider/Try-On failure must not
+     clear pairing or delete the persisted refresh credential;
    - revocation sets the device to `REVOKED`, revokes refresh sessions and makes
      the kiosk return to pairing after auth rejection;
    - KIOSK-4A uses single-instance in-memory request limiting for anonymous

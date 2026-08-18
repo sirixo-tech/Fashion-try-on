@@ -14,6 +14,7 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { KioskService, mapDevice } from "../kiosks/kiosk.service.js";
+import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import {
   AdminStoreStatus,
   type AdminStoreDetailResponseDto,
@@ -69,6 +70,7 @@ export class AdminStoresService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly kiosks: KioskService,
+    private readonly rbac: StoreRbacService,
   ) {}
 
   async listStores(
@@ -109,15 +111,19 @@ export class AdminStoresService {
   ): Promise<AdminStoreResponseDto> {
     const slug = normalizeSlug(input.slug ?? slugFromName(input.name));
     try {
-      const store = await this.prisma.organization.create({
-        data: {
-          id: createSelfxId(),
-          name: input.name.trim(),
-          slug,
-          status: OrganizationStatus.ACTIVE,
-          timezone: input.timezone?.trim() || "UTC",
-          settings: storeSettingsFromInput(input),
-        },
+      const store = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.organization.create({
+          data: {
+            id: createSelfxId(),
+            name: input.name.trim(),
+            slug,
+            status: OrganizationStatus.ACTIVE,
+            timezone: input.timezone?.trim() || "UTC",
+            settings: storeSettingsFromInput(input),
+          },
+        });
+        await this.rbac.ensureStoreRbacInTransaction(tx, created.id);
+        return created;
       });
       return mapStore(store);
     } catch (error) {

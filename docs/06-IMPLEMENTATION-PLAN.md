@@ -122,6 +122,56 @@ Verification:
 
 ---
 
+## RBAC-1 — Production Store RBAC Foundation
+
+**Status:** UPDATED
+
+Goal:
+
+Implement permission-driven Store membership and role management for the
+STORE-1 product hierarchy without duplicating the existing Store membership
+relationship.
+
+Implementation scope:
+
+- reuse `OrganizationMembership` as the canonical product Store membership;
+- add backend-owned Store permission registry and Store-scoped role tables;
+- seed default system Store roles and backfill current memberships;
+- add APIs for Store permissions, Store roles, Store users and effective Store
+  permissions;
+- protect permission/role administration with centralized platform
+  authorization for this first slice;
+- add Store Users and Store Roles UI sections under Store dashboard.
+
+Deferred:
+
+- email invitation delivery workflow;
+- merchant self-service custom permission definition changes;
+- Shopify, WooCommerce, billing, Product Catalog and API gateway work.
+
+Verification:
+
+- Prisma schema validation;
+- targeted RBAC controller unit tests;
+- API and web typechecks.
+
+RBAC-1.1 deployment-readiness validation must additionally prove:
+
+- Prisma client generation and schema validation pass on the deployment target;
+- Store RBAC migration constraints protect permission codes, Store role
+  ownership, membership-role assignment and duplicate edges;
+- `SELFX_SUPER_ADMIN` remains immutable from Staff Admin and Store RBAC paths;
+- cross-Store IDOR attempts are rejected by backend authorization and composite
+  Store checks;
+- effective permissions are deny-by-default, DB-authoritative and immediately
+  reflect role, permission and membership revocation without requiring re-login;
+- Store default RBAC initialization is idempotent and transaction-safe during
+  Store creation;
+- global Superadmin kiosk fleet management remains platform-scoped while
+  Store-scoped kiosk access validates Store ownership.
+
+---
+
 # 4. Phase 0 — Repository & Engineering Foundation
 
 **Status:** PLANNED
@@ -1508,6 +1558,20 @@ provider-neutral navigation callback from `@selfx/web` into `@selfx/ui`; normal
 left-clicks use Next.js client routing, while anchor hrefs remain available for
 copy link, middle-click and modified-click behavior. This same-origin web proxy
 is not an API Gateway, and tenant authorization remains in SelfX API.
+
+AUTH-PERSISTENCE-FIX-1 completes the transparent renewal slice:
+
+- protected web API clients use the shared `selfxApi` path, which invokes
+  SessionProvider's single-flight refresh on recoverable access-token 401s;
+- the original protected request is retried exactly once with the new access
+  token;
+- login, refresh and logout do not recursively refresh;
+- terminal refresh failure clears the web session, while transient refresh
+  failure remains a recoverable request error;
+- kiosk heartbeat, runtime configuration, production Try-On and customer-upload
+  flows use centralized device access renewal, refresh once on
+  `DEVICE_TOKEN_EXPIRED` or first `DEVICE_TOKEN_INVALID`, and clear pairing only
+  for authoritative terminal lifecycle states.
 
 ---
 

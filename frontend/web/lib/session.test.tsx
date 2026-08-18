@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 
 import { Providers } from "@/app/providers";
+import { selfxApi } from "@/lib/api";
 import { SessionProvider } from "@/lib/session";
 import { useSession, type StaffUser } from "@/lib/session";
 
@@ -156,6 +157,40 @@ function LogoutRaceProbe() {
   );
 }
 
+function ConcurrentAuthenticatedRequestProbe() {
+  const session = useSession();
+  const [result, setResult] = useState("idle");
+
+  return (
+    <>
+      <StatusProbe />
+      <button
+        type="button"
+        onClick={() => {
+          if (session.status !== "authenticated") {
+            return;
+          }
+          setResult("pending");
+          void Promise.all([
+            selfxApi("/api/v1/admin/stores", {
+              accessToken: session.accessToken,
+            }),
+            selfxApi("/api/v1/admin/kiosks", {
+              accessToken: session.accessToken,
+            }),
+            selfxApi("/api/v1/admin/stores/store-1/effective-permissions", {
+              accessToken: session.accessToken,
+            }),
+          ]).then(() => setResult("done"));
+        }}
+      >
+        Load protected data
+      </button>
+      <p data-testid="protected-result">{result}</p>
+    </>
+  );
+}
+
 function ProviderLifecycleProbe() {
   const [route, setRoute] = useState<"login" | "app">("login");
 
@@ -253,9 +288,7 @@ describe("SessionProvider", () => {
     await waitFor(() =>
       expect(screen.getByTestId("refresh-result").textContent).toBe("done"),
     );
-    expect(screen.getByTestId("access-token").textContent).toBe(
-      "shared-token",
-    );
+    expect(screen.getByTestId("access-token").textContent).toBe("shared-token");
     expect(refreshRequests).toBe(2);
   });
 
@@ -410,5 +443,72 @@ describe("SessionProvider", () => {
     expect(screen.getByTestId("route").textContent).toBe("app");
     expect(screen.getByTestId("access-token").textContent).toBe("root-token");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares one refresh across concurrent expired protected API requests", async () => {
+    useProductionApiProxy();
+    let refreshRequests = 0;
+    const protectedAuthorizations: string[] = [];
+    const fetchMock = vi.fn(
+      (input: string | URL | Request, init?: RequestInit) => {
+        const path = String(input);
+        const authorization = new Headers(init?.headers).get("Authorization");
+
+        if (path.includes("/api/v1/auth/refresh")) {
+          refreshRequests += 1;
+          return Promise.resolve(
+            authResponse(
+              refreshRequests === 1 ? "initial-token" : "fresh-token",
+            ),
+          );
+        }
+
+        if (path.includes("/api/v1/admin/")) {
+          protectedAuthorizations.push(authorization ?? "none");
+          if (authorization === "Bearer initial-token") {
+            return Promise.resolve(
+              jsonResponse(
+                {
+                  error: {
+                    code: "AUTH_ACCESS_TOKEN_INVALID",
+                    message: "Access token is invalid or expired.",
+                  },
+                },
+                401,
+              ),
+            );
+          }
+          return Promise.resolve(jsonResponse({ ok: true }));
+        }
+
+        return Promise.resolve(jsonResponse({ ok: true }));
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SessionProvider>
+        <ConcurrentAuthenticatedRequestProbe />
+      </SessionProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("access-token").textContent).toBe(
+        "initial-token",
+      ),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Load protected data" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("protected-result").textContent).toBe("done"),
+    );
+
+    expect(refreshRequests).toBe(2);
+    expect(
+      protectedAuthorizations.filter((value) => value === "Bearer fresh-token"),
+    ).toHaveLength(3);
   });
 });

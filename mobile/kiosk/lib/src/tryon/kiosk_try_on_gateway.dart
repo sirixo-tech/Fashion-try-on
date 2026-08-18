@@ -129,8 +129,11 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
 
   KioskTryOnRun _decodeRun(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      if (_isDeviceAuthRejected(response)) {
-        unawaited(deviceController.handleDeviceAuthRejected());
+      final terminalDeviceError = _terminalDeviceError(response);
+      if (terminalDeviceError != null) {
+        unawaited(
+          deviceController.handleDeviceAuthRejected(terminalDeviceError),
+        );
       }
       throw KioskTryOnException(
         _failureCodeForErrorResponse(response),
@@ -304,17 +307,21 @@ bool _isTokenRefreshable(http.Response response) {
   return code == 'DEVICE_TOKEN_INVALID' || code == 'DEVICE_TOKEN_EXPIRED';
 }
 
-bool _isDeviceAuthRejected(http.Response response) {
+KioskDeviceException? _terminalDeviceError(http.Response response) {
   if (response.statusCode != 401 && response.statusCode != 403) {
-    return false;
+    return null;
   }
   final code = _errorCode(response.body);
-  return code == 'DEVICE_TOKEN_INVALID' ||
-      code == 'DEVICE_TOKEN_EXPIRED' ||
-      code == 'DEVICE_UNPAIRED' ||
+  if (code == 'DEVICE_UNPAIRED' ||
       code == 'DEVICE_INACTIVE' ||
       code == 'DEVICE_REVOKED' ||
-      code == 'DEVICE_DELETED';
+      code == 'DEVICE_DELETED') {
+    return KioskDeviceException(
+      code!,
+      'Kiosk device authentication was rejected.',
+    );
+  }
+  return null;
 }
 
 String? _errorCode(String body) {

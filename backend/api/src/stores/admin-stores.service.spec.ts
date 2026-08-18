@@ -19,9 +19,11 @@ import { AdminStoreStatus } from "./dto/admin-store.dto.js";
 describe("STORE-1 admin Stores", () => {
   it("creates a product Store as an active internal tenant row with Store profile settings", async () => {
     const prisma = createPrismaMock();
+    const rbac = createRbacMock();
     const service = new AdminStoresService(
       prisma as never,
       createKioskMock() as never,
+      rbac as never,
     );
     prisma.organization.create.mockResolvedValue(
       organizationRecord({
@@ -60,12 +62,20 @@ describe("STORE-1 admin Stores", () => {
     });
     expect(store.status).toBe(AdminStoreStatus.ACTIVE);
     expect(store.internalLegacyModel).toBe("ORGANIZATION_AS_STORE");
+    expect(rbac.ensureStoreRbacInTransaction).toHaveBeenCalledWith(
+      expect.any(Object),
+      "store-1",
+    );
   });
 
   it("pairs from a Store route through the existing kiosk service using Store-as-tenant assignment", async () => {
     const prisma = createPrismaMock();
     const kiosks = createKioskMock();
-    const service = new AdminStoresService(prisma as never, kiosks as never);
+    const service = new AdminStoresService(
+      prisma as never,
+      kiosks as never,
+      createRbacMock() as never,
+    );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({
         id: "store-active",
@@ -99,7 +109,11 @@ describe("STORE-1 admin Stores", () => {
   it("blocks inactive Stores from new kiosk pairing", async () => {
     const prisma = createPrismaMock();
     const kiosks = createKioskMock();
-    const service = new AdminStoresService(prisma as never, kiosks as never);
+    const service = new AdminStoresService(
+      prisma as never,
+      kiosks as never,
+      createRbacMock() as never,
+    );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({
         id: "store-inactive",
@@ -122,6 +136,7 @@ describe("STORE-1 admin Stores", () => {
     const service = new AdminStoresService(
       prisma as never,
       createKioskMock() as never,
+      createRbacMock() as never,
     );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({ id: "store-a" }),
@@ -141,6 +156,7 @@ describe("STORE-1 admin Stores", () => {
     const service = new AdminStoresService(
       prisma as never,
       createKioskMock() as never,
+      createRbacMock() as never,
     );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({
@@ -182,6 +198,7 @@ describe("STORE-1 admin Stores", () => {
     const service = new AdminStoresService(
       prisma as never,
       createKioskMock() as never,
+      createRbacMock() as never,
     );
     prisma.organization.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Unique failed", {
@@ -216,6 +233,7 @@ describe("STORE-1 admin Stores", () => {
       platformAuthorization as never,
       stores as never,
       {} as never,
+      createRbacMock() as never,
     );
 
     await expectApiCode(
@@ -249,9 +267,13 @@ describe("STORE-1 admin Stores", () => {
       {
         requireAccessUser: vi.fn().mockResolvedValue({ id: "super-user" }),
       } as never,
-      { requirePermission: vi.fn().mockResolvedValue(undefined) } as never,
+      {
+        requirePermission: vi.fn().mockResolvedValue(undefined),
+        hasPermission: vi.fn().mockResolvedValue(true),
+      } as never,
       stores as never,
       configurations as never,
+      createRbacMock() as never,
     );
 
     await expectApiCode(
@@ -264,10 +286,53 @@ describe("STORE-1 admin Stores", () => {
     );
     expect(configurations.getAdminConfiguration).not.toHaveBeenCalled();
   });
+
+  it("allows Store-scoped kiosk configuration through Store RBAC without platform authority", async () => {
+    const stores = {
+      requireKioskInStore: vi.fn().mockResolvedValue(undefined),
+    };
+    const configurations = {
+      updateAdminConfiguration: vi.fn().mockResolvedValue({ version: 2 }),
+    };
+    const rbac = createRbacMock();
+    const controller = new AdminStoresController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "store-user" }),
+      } as never,
+      {
+        requirePermission: vi.fn(),
+        hasPermission: vi.fn().mockResolvedValue(false),
+      } as never,
+      stores as never,
+      configurations as never,
+      rbac as never,
+    );
+
+    await expect(
+      controller.updateKioskConfiguration(
+        { headers: { authorization: "Bearer store" } } as never,
+        "store-a",
+        "kiosk-a",
+        { display: { ctaLabel: "Start" } } as never,
+      ),
+    ).resolves.toMatchObject({ version: 2 });
+    expect(rbac.requireStorePermission).toHaveBeenCalledWith(
+      "store-user",
+      "store-a",
+      "kiosks.configure",
+    );
+    expect(stores.requireKioskInStore).toHaveBeenCalledWith(
+      "store-a",
+      "kiosk-a",
+    );
+  });
 });
 
 function createPrismaMock() {
   const tx = {
+    organization: {
+      create: vi.fn(),
+    },
     kioskDevice: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -297,6 +362,7 @@ function createPrismaMock() {
       callback(tx),
     ),
   };
+  tx.organization.create = prisma.organization.create;
   tx.kioskDevice.findUnique = prisma.kioskDevice.findUnique;
   tx.kioskDevice.update = prisma.kioskDevice.update;
   tx.auditLog.create = prisma.auditLog.create;
@@ -306,6 +372,14 @@ function createPrismaMock() {
 function createKioskMock() {
   return {
     pairKiosk: vi.fn(),
+  };
+}
+
+function createRbacMock() {
+  return {
+    ensureStoreRbac: vi.fn(),
+    ensureStoreRbacInTransaction: vi.fn(),
+    requireStorePermission: vi.fn(),
   };
 }
 

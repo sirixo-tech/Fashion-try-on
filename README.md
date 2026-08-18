@@ -169,6 +169,27 @@ KIOSK-6B. Configuration stays attached to the kiosk device; the Store dashboard
 only scopes access and validates kiosk ownership before configuration read,
 update or asset upload intent creation.
 
+## RBAC-1 Store RBAC
+
+RBAC-1 adds the production Store authorization foundation. Product Store
+memberships reuse `organization_memberships`, while Store-scoped roles and
+permissions live in `store_roles`, `permissions`, `store_role_permissions` and
+`store_membership_roles`. Default system roles are seeded for existing Stores
+and existing membership role enums are backfilled to compatible Store roles.
+
+The web Store dashboard now exposes Store Users and Store Roles sections.
+RBAC-1 supports adding existing SelfX users to a Store and assigning Store
+roles. Email invitation delivery is intentionally deferred and returns
+`EMAIL_INVITATION_FLOW_DEFERRED` for unknown emails.
+
+RBAC-1.1 validates the production security contract for that foundation:
+platform authority and Store RBAC stay separate, `SELFX_SUPER_ADMIN` remains
+protected from Staff Admin mutation, Store permissions are resolved from the
+current database state on each protected request, and role or membership changes
+take effect immediately without a new login. Store-scoped permissions can
+manage only the matching Store resources; the global Kiosk fleet remains a
+platform Superadmin surface.
+
 ## CORE VTO-1 Try-On Lab
 
 The internal development lab is available at:
@@ -747,6 +768,15 @@ Chrome:
 Because a production refresh token was exposed during manual debugging, revoke
 or logout all existing production administrator sessions after verification,
 then sign in again and use the newly created clean session.
+
+AUTH-PERSISTENCE-FIX-1 keeps web access tokens short-lived and memory-only, but
+routes protected browser API calls through one central refresh-aware request
+path. When a protected request receives the canonical access-token 401, the web
+client uses the existing HttpOnly refresh cookie with `credentials: "include"`,
+waits on the SessionProvider single-flight refresh, retries the original request
+once with the newly issued access token, and only clears the session when
+refresh confirms a terminal auth state. Refresh tokens are not moved to
+localStorage, sessionStorage or any JavaScript-readable storage.
 
 Same-origin proxy production verification remains pending until the deployed
 browser Network tab confirms login and refresh use the web origin rather than

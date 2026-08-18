@@ -5,8 +5,12 @@ import StoreDashboardPage from "../app/app/stores/[storeId]/page";
 import StoresPage from "../app/app/stores/page";
 import {
   createStore,
+  getEffectiveStorePermissions,
   getStore,
   getStoreKioskConfiguration,
+  listStorePermissions,
+  listStoreRoles,
+  listStoreUsers,
   listStores,
   pairStoreKiosk,
   updateStoreKioskConfiguration,
@@ -26,8 +30,12 @@ vi.mock("@/lib/stores", () => ({
   createStore: vi.fn(),
   createStoreKioskConfigurationAssetUploadIntent: vi.fn(),
   deactivateStore: vi.fn(),
+  getEffectiveStorePermissions: vi.fn(),
   getStore: vi.fn(),
   getStoreKioskConfiguration: vi.fn(),
+  listStorePermissions: vi.fn(),
+  listStoreRoles: vi.fn(),
+  listStoreUsers: vi.fn(),
   listStores: vi.fn(),
   pairStoreKiosk: vi.fn(),
   updateStore: vi.fn(),
@@ -121,6 +129,53 @@ const configuration = {
   updatedAt: "2026-08-16T00:00:00.000Z",
 } as const;
 
+const permissions = [
+  {
+    id: "permission-kiosks-configure",
+    code: "kiosks.configure",
+    module: "kiosks",
+    action: "configure",
+    label: "Configure Kiosks",
+    description: "Update Store-owned kiosk runtime configuration.",
+    isSystem: true,
+  },
+  {
+    id: "permission-users-update",
+    code: "users.update",
+    module: "users",
+    action: "update",
+    label: "Update Store Users",
+    description: "Update Store memberships.",
+    isSystem: true,
+  },
+] as const;
+
+const role = {
+  id: "role-1",
+  name: "Manager",
+  description: null,
+  systemCode: "manager",
+  isSystem: true,
+  isActive: true,
+  permissionsCount: 2,
+  assignedUsersCount: 1,
+  permissions,
+  createdAt: "2026-08-16T00:00:00.000Z",
+  updatedAt: "2026-08-16T00:00:00.000Z",
+} as const;
+
+const storeUser = {
+  membershipId: "membership-1",
+  userId: "user-1",
+  email: "manager@example.com",
+  displayName: "Manager",
+  status: "ACTIVE",
+  roles: [role],
+  joinedAt: "2026-08-16T00:00:00.000Z",
+  createdAt: "2026-08-16T00:00:00.000Z",
+  updatedAt: "2026-08-16T00:00:00.000Z",
+} as const;
+
 describe("STORE-1 web Store management", () => {
   beforeEach(() => {
     vi.mocked(useSession).mockReturnValue({
@@ -143,6 +198,45 @@ describe("STORE-1 web Store management", () => {
       ...store,
       kiosks: { data: [kiosk] },
     } as never);
+    vi.mocked(listStoreRoles).mockResolvedValue({
+      data: [role],
+      pagination: {
+        page: 1,
+        pageSize: 100,
+        total: 1,
+        totalPages: 1,
+        hasMore: false,
+      },
+    } as never);
+    vi.mocked(listStoreUsers).mockResolvedValue({
+      data: [storeUser],
+      pagination: {
+        page: 1,
+        pageSize: 100,
+        total: 1,
+        totalPages: 1,
+        hasMore: false,
+      },
+    } as never);
+    vi.mocked(listStorePermissions).mockResolvedValue({
+      data: permissions,
+    } as never);
+    vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
+      storeId: "store-1",
+      permissions: [
+        "stores.update",
+        "users.invite",
+        "users.deactivate",
+        "roles.assign",
+        "roles.create",
+        "roles.update",
+        "roles.delete",
+        "kiosks.pair",
+        "kiosks.configure",
+      ],
+      platformBypass: true,
+      membershipId: null,
+    });
     vi.mocked(pairStoreKiosk).mockResolvedValue(kiosk as never);
     vi.mocked(getStoreKioskConfiguration).mockResolvedValue(
       configuration as never,
@@ -204,5 +298,46 @@ describe("STORE-1 web Store management", () => {
         }),
       ),
     );
+  });
+
+  it("hides kiosk configuration when kiosks.configure is missing", async () => {
+    vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
+      storeId: "store-1",
+      permissions: ["kiosks.pair"],
+      platformBypass: false,
+      membershipId: "membership-1",
+    });
+
+    render(<StoreDashboardPage />);
+
+    expect(await screen.findByText("Front Display")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Manage/i })).toBeNull();
+  });
+
+  it("hides Store user mutation controls when user permissions are missing", async () => {
+    vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
+      storeId: "store-1",
+      permissions: ["kiosks.configure"],
+      platformBypass: false,
+      membershipId: "membership-1",
+    });
+
+    render(<StoreDashboardPage />);
+
+    expect(await screen.findByText("Store Users")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Add User/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Roles/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Suspend/i })).toBeNull();
+  });
+
+  it("groups role editor permissions by module", async () => {
+    render(<StoreDashboardPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add Role/i }));
+
+    expect(await screen.findByText("kiosks")).toBeTruthy();
+    expect(screen.getByText("users")).toBeTruthy();
+    expect(screen.getByText("Configure Kiosks")).toBeTruthy();
+    expect(screen.getByText("Update Store Users")).toBeTruthy();
   });
 });

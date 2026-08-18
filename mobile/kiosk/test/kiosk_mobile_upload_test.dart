@@ -437,7 +437,7 @@ void main() {
     expect(gateway.createCalls, 1);
     expect(deviceGateway.refreshCalls, 1);
     expect(deviceController.state, KioskStartupState.waitingForPairing);
-    expect(controller.errorCode, 'DEVICE_SESSION_UNAVAILABLE');
+    expect(controller.errorCode, 'DEVICE_UNPAIRED');
     controller.dispose();
     deviceController.dispose();
   });

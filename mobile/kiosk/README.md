@@ -52,6 +52,10 @@ configuration endpoints. Store ownership is enforced by the SelfX API/admin
 routes, and kiosk runtime configuration remains device-owned through the
 existing KIOSK-6A/KIOSK-6B configuration model.
 
+RBAC-1 is also backend/admin-web scoped. Store Users and Store Roles control
+human admin access; paired kiosk devices continue to authenticate with dedicated
+kiosk-device credentials rather than staff or Store membership credentials.
+
 ## Local commands
 
 ```powershell
@@ -259,8 +263,17 @@ their client-generated boundaries.
 - Device access tokens are short-lived and kept in memory.
 - On restart, secure refresh credential -> device refresh -> `session/me` ->
   customer home.
-- If refresh/session/me/heartbeat reports revoked or unpaired device state, the
-  kiosk clears device credentials and returns to pairing.
+- Heartbeat, runtime configuration, production Try-On and customer-upload flows
+  all request access through the central device session controller. Expired
+  access tokens are normal: the controller refreshes once, persists the rotated
+  refresh credential, updates the in-memory access token and retries the
+  original request once.
+- If refresh/session/me/heartbeat reports authoritative terminal device state
+  (`DEVICE_UNPAIRED`, `DEVICE_REVOKED`, `DEVICE_DELETED` or the intentionally
+  blocking `DEVICE_INACTIVE`), the kiosk clears device credentials and returns
+  to pairing/blocked startup. Network timeouts, rate limits, 5xx responses,
+  configuration sync failures, customer-upload failures and provider/Try-On
+  failures must not clear pairing.
 - Customer capture uses **Take Photo** -> preparation/live readiness where
   supported -> stable final 3/2/1 -> automatic capture. The normal customer flow
   does not show instant **Capture Now**.

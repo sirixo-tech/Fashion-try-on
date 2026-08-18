@@ -170,6 +170,42 @@ and UI contracts.
 
 ---
 
+## 3.2 RBAC-1 Store Authorization Schema
+
+**Status:** UPDATED
+
+RBAC-1 adds a tracked Prisma migration named
+`20260817000000_rbac_1_store_authorization`.
+
+New persistence:
+
+- `permissions`: global backend-owned registry of stable permission codes.
+- `store_roles`: Store-scoped roles with `organization_id` pointing at the
+  product Store/internal organization row.
+- `store_role_permissions`: many-to-many role permission assignments.
+- `store_membership_roles`: many-to-many Store membership role assignments.
+
+Compatibility:
+
+- `organization_memberships` remains the canonical Store membership table.
+- `store_membership_roles.organization_id` is stored explicitly so composite
+  foreign keys can require membership and role to belong to the same Store.
+- `permissions.code` is unique.
+- Store role names and system role codes are unique within a Store.
+- Role-permission and membership-role edges are unique.
+- Store role deletion must not silently cascade-delete memberships; assigned
+  roles are rejected by service policy before deletion.
+- Default system Store roles are created for every existing Store/internal
+  organization row.
+- Existing membership role enums are backfilled to matching system Store roles
+  for continuity.
+- `PlatformRole` adds `SELFX_STAFF_ADMIN`; platform roles remain outside Store
+  memberships and must not be represented as Store roles.
+- Permission registry synchronization is additive. Historical permission rows
+  are not removed solely because a later application version omits a code.
+
+---
+
 ## 4. Identifier Strategy
 
 SelfX primary business entities must use **UUIDv7** identifiers.

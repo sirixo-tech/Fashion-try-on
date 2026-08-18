@@ -30,45 +30,48 @@ import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('parses remote runtime configuration into kiosk presentation settings', () {
-    final configuration = KioskRuntimeConfiguration.fromJson({
-      'version': 7,
-      'display': {
-        'idleMode': 'SLIDESHOW',
-        'slideDurationSeconds': 12,
-        'title': 'SelfX Studio',
-        'subtitle': 'Try the new collection',
-        'ctaLabel': 'Begin',
-        'assets': [_bundledAssetJson()],
-      },
-      'capture': {
-        'countdownSeconds': 15,
-        'soundEnabled': true,
-        'soundProfile': 'STUDIO',
-        'guidanceAudioEnabled': true,
-      },
-      'experience': {
-        'enabledGarmentIntents': ['TOP', 'FULL_OUTFIT'],
-        'sessionIdleTimeoutSeconds': 180,
-      },
-      'updatedAt': '2026-08-16T00:00:00.000Z',
-    });
+  test(
+    'parses remote runtime configuration into kiosk presentation settings',
+    () {
+      final configuration = KioskRuntimeConfiguration.fromJson({
+        'version': 7,
+        'display': {
+          'idleMode': 'SLIDESHOW',
+          'slideDurationSeconds': 12,
+          'title': 'SelfX Studio',
+          'subtitle': 'Try the new collection',
+          'ctaLabel': 'Begin',
+          'assets': [_bundledAssetJson()],
+        },
+        'capture': {
+          'countdownSeconds': 15,
+          'soundEnabled': true,
+          'soundProfile': 'STUDIO',
+          'guidanceAudioEnabled': true,
+        },
+        'experience': {
+          'enabledGarmentIntents': ['TOP', 'FULL_OUTFIT'],
+          'sessionIdleTimeoutSeconds': 180,
+        },
+        'updatedAt': '2026-08-16T00:00:00.000Z',
+      });
 
-    final presentation = configuration.toIdlePresentation();
+      final presentation = configuration.toIdlePresentation();
 
-    expect(configuration.version, 7);
-    expect(presentation.title, 'SelfX Studio');
-    expect(presentation.ctaLabel, 'Begin');
-    expect(presentation.isSlideshow, isFalse);
-    expect(configuration.countdownSeconds, 15);
-    expect(configuration.captureAudioProfile, CaptureAudioProfile.classic);
-    expect(configuration.guidanceAudioEnabled, isTrue);
-    expect(
-      configuration.enabledGarmentIntents,
-      [KioskGarmentIntent.top, KioskGarmentIntent.fullOutfit],
-    );
-    expect(configuration.sessionIdleTimeoutSeconds, 180);
-  });
+      expect(configuration.version, 7);
+      expect(presentation.title, 'SelfX Studio');
+      expect(presentation.ctaLabel, 'Begin');
+      expect(presentation.isSlideshow, isFalse);
+      expect(configuration.countdownSeconds, 15);
+      expect(configuration.captureAudioProfile, CaptureAudioProfile.classic);
+      expect(configuration.guidanceAudioEnabled, isTrue);
+      expect(configuration.enabledGarmentIntents, [
+        KioskGarmentIntent.top,
+        KioskGarmentIntent.fullOutfit,
+      ]);
+      expect(configuration.sessionIdleTimeoutSeconds, 180);
+    },
+  );
 
   test('muted remote sound profile disables effective capture sounds', () {
     final configuration = KioskRuntimeConfiguration.fromJson({
@@ -133,7 +136,10 @@ void main() {
 
   test('downloads and activates newer configuration when safe', () async {
     final harness = RuntimeConfigHarness(latestConfigurationVersion: 5);
-    harness.gateway.remote = _runtimeConfiguration(version: 5, ctaLabel: 'Begin');
+    harness.gateway.remote = _runtimeConfiguration(
+      version: 5,
+      ctaLabel: 'Begin',
+    );
 
     await harness.controller.syncIfNeeded();
 
@@ -143,68 +149,78 @@ void main() {
     expect(harness.cache.value, contains('"version":5'));
   });
 
-  test('keeps previous active configuration when required asset download fails', () async {
-    final harness = RuntimeConfigHarness(
-      cache: MemoryRuntimeConfigurationCache(
-        jsonEncode(_configurationJson(version: 2, ctaLabel: 'Still Active')),
-      ),
-      latestConfigurationVersion: 3,
-      client: MockClient(
-        (_) async => http.Response('missing', 404, headers: {'content-type': 'text/plain'}),
-      ),
-    );
-    harness.gateway.remote = _runtimeConfiguration(
-      version: 3,
-      assets: [_remoteAsset('hero', 'https://cdn.selfx.test/hero.png')],
-    );
-    await harness.controller.loadCachedOrDefault();
+  test(
+    'keeps previous active configuration when required asset download fails',
+    () async {
+      final harness = RuntimeConfigHarness(
+        cache: MemoryRuntimeConfigurationCache(
+          jsonEncode(_configurationJson(version: 2, ctaLabel: 'Still Active')),
+        ),
+        latestConfigurationVersion: 3,
+        client: MockClient(
+          (_) async => http.Response(
+            'missing',
+            404,
+            headers: {'content-type': 'text/plain'},
+          ),
+        ),
+      );
+      harness.gateway.remote = _runtimeConfiguration(
+        version: 3,
+        assets: [_remoteAsset('hero', 'https://cdn.selfx.test/hero.png')],
+      );
+      await harness.controller.loadCachedOrDefault();
 
-    await harness.controller.syncIfNeeded();
+      await harness.controller.syncIfNeeded();
 
-    expect(harness.controller.configuration.version, 2);
-    expect(harness.controller.configuration.ctaLabel, 'Still Active');
-    expect(harness.controller.pendingConfiguration, isNull);
-    expect(harness.cache.value, contains('"version":2'));
-  });
+      expect(harness.controller.configuration.version, 2);
+      expect(harness.controller.configuration.ctaLabel, 'Still Active');
+      expect(harness.controller.pendingConfiguration, isNull);
+      expect(harness.cache.value, contains('"version":2'));
+    },
+  );
 
-  test('activates a candidate only after every remote asset is ready', () async {
-    final temp = await Directory.systemTemp.createTemp('selfx-kiosk-config-');
-    addTearDown(() => temp.delete(recursive: true));
-    final requested = <Uri>[];
-    final harness = RuntimeConfigHarness(
-      latestConfigurationVersion: 6,
-      cacheDirectory: temp,
-      client: MockClient((request) async {
-        requested.add(request.url);
-        return http.Response.bytes(
-          [137, 80, 78, 71],
-          200,
-          headers: {'content-type': 'image/png'},
-        );
-      }),
-    );
-    harness.gateway.remote = _runtimeConfiguration(
-      version: 6,
-      assets: [
-        _remoteAsset('hero-a', 'https://cdn.selfx.test/a.png'),
-        _remoteAsset('hero-b', 'https://cdn.selfx.test/b.png'),
-      ],
-    );
+  test(
+    'activates a candidate only after every remote asset is ready',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('selfx-kiosk-config-');
+      addTearDown(() => temp.delete(recursive: true));
+      final requested = <Uri>[];
+      final harness = RuntimeConfigHarness(
+        latestConfigurationVersion: 6,
+        cacheDirectory: temp,
+        client: MockClient((request) async {
+          requested.add(request.url);
+          return http.Response.bytes(
+            [137, 80, 78, 71],
+            200,
+            headers: {'content-type': 'image/png'},
+          );
+        }),
+      );
+      harness.gateway.remote = _runtimeConfiguration(
+        version: 6,
+        assets: [
+          _remoteAsset('hero-a', 'https://cdn.selfx.test/a.png'),
+          _remoteAsset('hero-b', 'https://cdn.selfx.test/b.png'),
+        ],
+      );
 
-    await harness.controller.syncIfNeeded(activateImmediately: false);
+      await harness.controller.syncIfNeeded(activateImmediately: false);
 
-    expect(requested, hasLength(2));
-    expect(harness.controller.configuration.version, 1);
-    expect(harness.controller.pendingConfiguration?.version, 6);
-    for (final asset in harness.controller.pendingConfiguration!.assets) {
-      expect(asset.localImagePath, isNotNull);
-      expect(await File(asset.localImagePath!).exists(), isTrue);
-    }
+      expect(requested, hasLength(2));
+      expect(harness.controller.configuration.version, 1);
+      expect(harness.controller.pendingConfiguration?.version, 6);
+      for (final asset in harness.controller.pendingConfiguration!.assets) {
+        expect(asset.localImagePath, isNotNull);
+        expect(await File(asset.localImagePath!).exists(), isTrue);
+      }
 
-    final activated = harness.controller.activatePendingConfiguration();
-    expect(activated?.version, 6);
-    expect(harness.controller.configuration.version, 6);
-  });
+      final activated = harness.controller.activatePendingConfiguration();
+      expect(activated?.version, 6);
+      expect(harness.controller.configuration.version, 6);
+    },
+  );
 
   test('allows only one configuration sync at a time', () async {
     final gate = Completer<KioskRuntimeConfiguration>();
@@ -220,74 +236,150 @@ void main() {
     expect(harness.controller.configuration.version, 8);
   });
 
-  test('keeps a newer configuration pending during an active customer session', () async {
-    final harness = RuntimeConfigHarness(latestConfigurationVersion: 9);
-    final tryOnController = KioskTryOnSessionController(gateway: FakeTryOnGateway());
-    harness.gateway.remote = _runtimeConfiguration(
-      version: 9,
-      intents: [KioskGarmentIntent.bottom],
-    );
-    tryOnController.beginCustomerSession();
+  test(
+    'configuration sync refreshes expired access token and retries once',
+    () async {
+      final harness = RuntimeConfigHarness(latestConfigurationVersion: 5);
+      harness.gateway.configurationFailures = [
+        const KioskDeviceException(
+          'DEVICE_TOKEN_EXPIRED',
+          'Access token expired.',
+        ),
+      ];
+      harness.deviceController.accessToken = 'stale-device-token';
+      await harness.credentialStore.writeRefreshToken('refresh-token');
+      harness.gateway.refreshedCredentials = _credentials(
+        accessToken: 'fresh-device-token',
+        refreshToken: 'next-refresh-token',
+        latestConfigurationVersion: 5,
+      );
 
-    await harness.controller.syncIfNeeded(
-      activateImmediately: tryOnController.canActivateRuntimeConfiguration,
-    );
+      await harness.controller.syncIfNeeded();
 
-    expect(harness.controller.configuration.version, 1);
-    expect(harness.controller.pendingConfiguration?.version, 9);
-    expect(tryOnController.enabledGarmentIntents, contains(KioskGarmentIntent.top));
+      expect(harness.gateway.refreshCalls, 1);
+      expect(harness.gateway.configurationAccessTokens, [
+        'stale-device-token',
+        'fresh-device-token',
+      ]);
+      expect(harness.controller.configuration.version, 2);
+      expect(harness.credentialStore.refreshToken, 'next-refresh-token');
+    },
+  );
 
-    tryOnController.endCustomerSession();
-    final activated = harness.controller.activatePendingConfiguration();
-    tryOnController.applyEnabledGarmentIntents(
-      activated!.enabledGarmentIntents,
-    );
+  test(
+    'configuration sync failure keeps cached configuration and pairing',
+    () async {
+      final cache = MemoryRuntimeConfigurationCache(
+        jsonEncode(_configurationJson(version: 4, ctaLabel: 'Cached Start')),
+      );
+      final harness = RuntimeConfigHarness(
+        cache: cache,
+        latestConfigurationVersion: 5,
+      );
+      harness.gateway.configurationFailures = [
+        const KioskDeviceException('KIOSK_RATE_LIMITED', 'Rate limited.'),
+      ];
+      await harness.controller.loadCachedOrDefault();
 
-    expect(harness.controller.configuration.version, 9);
-    expect(tryOnController.enabledGarmentIntents, [KioskGarmentIntent.bottom]);
-  });
+      await harness.controller.syncIfNeeded();
+
+      expect(harness.controller.configuration.version, 4);
+      expect(harness.credentialStore.refreshToken, isNull);
+      expect(harness.deviceController.state, KioskStartupState.checking);
+    },
+  );
+
+  test(
+    'keeps a newer configuration pending during an active customer session',
+    () async {
+      final harness = RuntimeConfigHarness(latestConfigurationVersion: 9);
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeTryOnGateway(),
+      );
+      harness.gateway.remote = _runtimeConfiguration(
+        version: 9,
+        intents: [KioskGarmentIntent.bottom],
+      );
+      tryOnController.beginCustomerSession();
+
+      await harness.controller.syncIfNeeded(
+        activateImmediately: tryOnController.canActivateRuntimeConfiguration,
+      );
+
+      expect(harness.controller.configuration.version, 1);
+      expect(harness.controller.pendingConfiguration?.version, 9);
+      expect(
+        tryOnController.enabledGarmentIntents,
+        contains(KioskGarmentIntent.top),
+      );
+
+      tryOnController.endCustomerSession();
+      final activated = harness.controller.activatePendingConfiguration();
+      tryOnController.applyEnabledGarmentIntents(
+        activated!.enabledGarmentIntents,
+      );
+
+      expect(harness.controller.configuration.version, 9);
+      expect(tryOnController.enabledGarmentIntents, [
+        KioskGarmentIntent.bottom,
+      ]);
+    },
+  );
 
   test('remote enabled garment intents control available categories', () {
-    final tryOnController = KioskTryOnSessionController(gateway: FakeTryOnGateway());
+    final tryOnController = KioskTryOnSessionController(
+      gateway: FakeTryOnGateway(),
+    );
 
     tryOnController.applyEnabledGarmentIntents([KioskGarmentIntent.bottom]);
 
     expect(tryOnController.enabledGarmentIntents, [KioskGarmentIntent.bottom]);
-    expect(tryOnController.enabledGarmentIntents, isNot(contains(KioskGarmentIntent.top)));
+    expect(
+      tryOnController.enabledGarmentIntents,
+      isNot(contains(KioskGarmentIntent.top)),
+    );
     expect(
       tryOnController.enabledGarmentIntents,
       isNot(contains(KioskGarmentIntent.fullOutfit)),
     );
   });
 
-  test('KIOSK-5B compatibility still blocks unsupported filtered categories', () {
-    final result = const ModelGarmentCompatibilityService().check(
-      coverage: ModelCoverage.upperBody,
-      intent: KioskGarmentIntent.bottom,
-    );
+  test(
+    'KIOSK-5B compatibility still blocks unsupported filtered categories',
+    () {
+      final result = const ModelGarmentCompatibilityService().check(
+        coverage: ModelCoverage.upperBody,
+        intent: KioskGarmentIntent.bottom,
+      );
 
-    expect(result.supported, isFalse);
-    expect(result.guidance?.title, 'Update your photo to try bottoms');
-  });
+      expect(result.supported, isFalse);
+      expect(result.guidance?.title, 'Update your photo to try bottoms');
+    },
+  );
 
-  test('try-on session completion does not mutate the configuration cache', () async {
-    final cache = MemoryRuntimeConfigurationCache(
-      jsonEncode(_configurationJson(version: 11)),
-    );
-    final tryOnController = KioskTryOnSessionController(gateway: FakeTryOnGateway());
-    final captureController = CaptureSessionController(
-      cameraService: FakeCameraService(),
-      settingsStore: InMemoryCameraSettingsStore(),
-      analyzer: FakeQualityAnalyzer(),
-      captureStore: InMemoryTemporaryCaptureStore(),
-    );
+  test(
+    'try-on session completion does not mutate the configuration cache',
+    () async {
+      final cache = MemoryRuntimeConfigurationCache(
+        jsonEncode(_configurationJson(version: 11)),
+      );
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeTryOnGateway(),
+      );
+      final captureController = CaptureSessionController(
+        cameraService: FakeCameraService(),
+        settingsStore: InMemoryCameraSettingsStore(),
+        analyzer: FakeQualityAnalyzer(),
+        captureStore: InMemoryTemporaryCaptureStore(),
+      );
 
-    tryOnController.beginCustomerSession();
-    await tryOnController.finish(captureController);
-    tryOnController.endCustomerSession();
+      tryOnController.beginCustomerSession();
+      await tryOnController.finish(captureController);
+      tryOnController.endCustomerSession();
 
-    expect(cache.value, contains('"version":11'));
-  });
+      expect(cache.value, contains('"version":11'));
+    },
+  );
 }
 
 class RuntimeConfigHarness {
@@ -298,30 +390,36 @@ class RuntimeConfigHarness {
     int latestConfigurationVersion = 1,
   }) : cache = cache ?? MemoryRuntimeConfigurationCache() {
     gateway = FakeDeviceGateway();
-    deviceController = KioskDeviceSessionController(
-      gateway: gateway,
-      store: MemoryDeviceCredentialStore(),
-      platform: 'windows',
-    )
-      ..accessToken = 'device-token'
-      ..accessTokenExpiresAt = DateTime.now().add(const Duration(hours: 1))
-      ..device = _device(latestConfigurationVersion);
+    credentialStore = MemoryDeviceCredentialStore();
+    deviceController =
+        KioskDeviceSessionController(
+            gateway: gateway,
+            store: credentialStore,
+            platform: 'windows',
+          )
+          ..accessToken = 'device-token'
+          ..accessTokenExpiresAt = DateTime.now().add(const Duration(hours: 1))
+          ..device = _device(latestConfigurationVersion);
     controller = KioskRuntimeConfigurationController(
       gateway: gateway,
       deviceController: deviceController,
       cache: this.cache,
       client: client,
-      cacheDirectoryProvider: cacheDirectory == null ? null : () async => cacheDirectory,
+      cacheDirectoryProvider: cacheDirectory == null
+          ? null
+          : () async => cacheDirectory,
     );
   }
 
   final MemoryRuntimeConfigurationCache cache;
   late final FakeDeviceGateway gateway;
+  late final MemoryDeviceCredentialStore credentialStore;
   late final KioskDeviceSessionController deviceController;
   late final KioskRuntimeConfigurationController controller;
 }
 
-class MemoryRuntimeConfigurationCache implements KioskRuntimeConfigurationCache {
+class MemoryRuntimeConfigurationCache
+    implements KioskRuntimeConfigurationCache {
   MemoryRuntimeConfigurationCache([this.value]);
 
   String? value;
@@ -338,11 +436,20 @@ class MemoryRuntimeConfigurationCache implements KioskRuntimeConfigurationCache 
 class FakeDeviceGateway implements KioskDeviceGateway {
   KioskRuntimeConfiguration remote = _runtimeConfiguration(version: 2);
   Completer<KioskRuntimeConfiguration>? remoteCompleter;
+  List<KioskDeviceException> configurationFailures = [];
+  KioskDeviceCredentials? refreshedCredentials;
   int configurationCalls = 0;
+  int refreshCalls = 0;
+  final List<String> configurationAccessTokens = [];
 
   @override
   Future<KioskRuntimeConfiguration> configuration(String accessToken) async {
+    configurationAccessTokens.add(accessToken);
     configurationCalls += 1;
+    final index = configurationCalls - 1;
+    if (index < configurationFailures.length) {
+      throw configurationFailures[index];
+    }
     final completer = remoteCompleter;
     if (completer != null) {
       return completer.future;
@@ -392,7 +499,8 @@ class FakeDeviceGateway implements KioskDeviceGateway {
 
   @override
   Future<KioskDeviceCredentials> refreshSession(String refreshToken) {
-    throw UnimplementedError();
+    refreshCalls += 1;
+    return Future.value(refreshedCredentials ?? _credentials());
   }
 }
 
@@ -414,6 +522,20 @@ class MemoryDeviceCredentialStore implements KioskDeviceCredentialStore {
   Future<void> writeRefreshToken(String token) async {
     refreshToken = token;
   }
+}
+
+KioskDeviceCredentials _credentials({
+  String accessToken = 'device-token',
+  String refreshToken = 'next-refresh-token',
+  int latestConfigurationVersion = 1,
+}) {
+  return KioskDeviceCredentials(
+    accessToken: accessToken,
+    accessTokenExpiresAt: DateTime.now().add(const Duration(minutes: 15)),
+    refreshToken: refreshToken,
+    refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 30)),
+    device: _device(latestConfigurationVersion),
+  );
 }
 
 class FakeTryOnGateway implements KioskTryOnGateway {

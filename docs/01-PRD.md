@@ -64,6 +64,45 @@ renamed. New customer/admin product surfaces should use Store terminology.
 
 ---
 
+## RBAC-1 Store Authorization Update
+
+**Status:** UPDATED
+
+RBAC-1 makes Store access permission-driven while preserving the STORE-1
+compatibility mapping where product Stores are internal `Organization` tenant
+rows.
+
+Product rules:
+
+1. Store memberships reuse the existing tenant membership relation rather than
+   introducing a second membership table for the same Store/user relationship.
+2. Store roles belong to exactly one Store and resolve to stable permission
+   codes such as `stores.view`, `users.view`, `roles.assign` and
+   `kiosks.configure`.
+3. Store role assignment must never assign a role from another Store.
+4. SelfX platform roles remain separate from Store roles. `SELFX_SUPER_ADMIN`
+   remains protected platform authority; `SELFX_STAFF_ADMIN` is a constrained
+   platform administration role.
+5. Permission definitions and Store role assignment are initially controlled by
+   authorized SelfX platform administrators.
+6. Store management UI includes Store Users and Store Roles views under the
+   Store dashboard.
+7. Email invitations are deferred in RBAC-1; the initial add-user flow may add
+   existing SelfX users only and must report `EMAIL_INVITATION_FLOW_DEFERRED`
+   when the target account does not exist.
+8. Store permissions are deny-by-default and must be evaluated from current
+   server-side membership, Store, role and permission state.
+9. Removing a role, permission or active membership must revoke the affected
+   Store capability on the next protected request without requiring the user to
+   log in again.
+10. Store RBAC must not create, mutate, demote or delete SelfX platform roles.
+    Normal Store users and `SELFX_STAFF_ADMIN` must not be able to assign or
+    remove `SELFX_SUPER_ADMIN`.
+11. Global Superadmin kiosk fleet management remains a platform capability and
+    must not be moved under normal Store-scoped menus or authorization.
+
+---
+
 # 1. Purpose
 
 SelfX Virtual Try-On is an AI-powered SaaS platform that allows customers to visualize themselves wearing garments before purchasing them.
@@ -1397,6 +1436,19 @@ browser API traffic so HttpOnly refresh cookies remain first-party to the web
 origin. This web proxy must not become a general API Gateway or move tenant
 authorization out of the SelfX API. Non-web clients may continue to call the
 SelfX API directly through approved client-specific authentication.
+
+AUTH-PERSISTENCE-FIX-1 clarifies that normal short-lived web access-token
+expiry is recoverable while the refresh session is valid. A protected web
+request must refresh transparently and retry once before showing any
+session-expired/login state. Users must not see raw token-internal messages such
+as "Access token is invalid or expired" for ordinary access-token expiry.
+
+Paired kiosks must remain paired across normal device access-token expiry,
+recoverable heartbeat/configuration/customer-upload/Try-On failures, backend
+restarts and temporary network loss. The kiosk may clear secure device
+credentials and return to pairing only for authoritative terminal lifecycle
+states such as unpaired, revoked, deleted or intentionally inactive device
+status, or genuine refresh-session expiry/invalidity.
 
 ---
 

@@ -34,7 +34,18 @@ import { useSession } from "@/lib/session";
 
 const navItems: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
-  { href: "/app/stores", label: "Stores", icon: StoreIcon },
+  {
+    label: "Stores",
+    icon: StoreIcon,
+    children: [
+      { href: "/app/stores", label: "Stores", icon: StoreIcon },
+      {
+        href: "/app/onboarding",
+        label: "Onboarding Status",
+        icon: Building2Icon,
+      },
+    ],
+  },
   { href: "/app/staff", label: "Staff", icon: UsersIcon },
   { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
   { href: "/app/try-on-lab", label: "Try-On Lab", icon: FlaskConicalIcon },
@@ -59,11 +70,6 @@ const navItems: SelfxNavItem[] = [
     icon: SettingsIcon,
     children: [
       { href: "/app/settings", label: "Settings", icon: SettingsIcon },
-      {
-        href: "/app/onboarding",
-        label: "Onboarding Status",
-        icon: Building2Icon,
-      },
       { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },
     ],
   },

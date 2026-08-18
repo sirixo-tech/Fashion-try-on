@@ -917,10 +917,15 @@ KIOSK-4A rules:
   `typ: "kiosk_device_access"` and revocable/rotatable refresh sessions.
 - Do not store device refresh credentials in SharedPreferences/plain files.
   Flutter uses OS-backed secure storage.
+- Expired device access tokens are recoverable. Flutter must refresh through
+  the central device session controller, persist the rotated refresh credential
+  before committing the new access token, and retry the original request once.
 - Device JWT claims are minimal. On device requests, reload current device
   status/assignment from the database rather than trusting org/store claims.
-- Revoked devices must fail refresh/session/me/heartbeat, clear local device
-  credentials and return to pairing.
+- Revoked, unpaired and deleted devices must fail refresh/session/me/heartbeat,
+  clear local device credentials and return to pairing. Transient network,
+  heartbeat, configuration, customer-upload or Try-On/provider failures must not
+  clear pairing.
 - Inactive devices must fail device-authenticated operation until reactivated.
   Deleted kiosk devices are soft-deleted from the normal fleet list while audit
   and pairing history remain intact.

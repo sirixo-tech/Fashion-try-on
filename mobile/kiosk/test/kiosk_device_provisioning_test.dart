@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -30,20 +31,47 @@ void main() {
       controller.dispose();
     });
 
-    test('startup restores device identity from secure refresh credential', () async {
-      final store = MemoryKioskDeviceCredentialStore(refreshToken: 'refresh-a');
-      final controller = KioskDeviceSessionController(
-        gateway: FakeKioskDeviceGateway(),
-        store: store,
-      );
+    test(
+      'startup restores device identity from secure refresh credential',
+      () async {
+        final store = MemoryKioskDeviceCredentialStore(
+          refreshToken: 'refresh-a',
+        );
+        final controller = KioskDeviceSessionController(
+          gateway: FakeKioskDeviceGateway(),
+          store: store,
+        );
 
-      await controller.start();
+        await controller.start();
 
-      expect(controller.state, KioskStartupState.active);
-      expect(controller.device?.id, 'device-1');
-      expect(await store.readRefreshToken(), 'refresh-b');
-      controller.dispose();
-    });
+        expect(controller.state, KioskStartupState.active);
+        expect(controller.device?.id, 'device-1');
+        expect(await store.readRefreshToken(), 'refresh-b');
+        controller.dispose();
+      },
+    );
+
+    test(
+      'startup network failure keeps persisted refresh credential',
+      () async {
+        final store = MemoryKioskDeviceCredentialStore(
+          refreshToken: 'refresh-a',
+        );
+        final controller = KioskDeviceSessionController(
+          gateway: FakeKioskDeviceGateway(
+            refreshFailure: const SocketException('offline'),
+          ),
+          store: store,
+        );
+
+        await controller.start();
+
+        expect(controller.state, KioskStartupState.networkUnavailable);
+        expect(await store.readRefreshToken(), 'refresh-a');
+        expect(controller.pairingSession, isNull);
+        controller.dispose();
+      },
+    );
 
     test('revoked restore clears credential and returns to pairing', () async {
       final store = MemoryKioskDeviceCredentialStore(refreshToken: 'revoked');
@@ -59,23 +87,158 @@ void main() {
       controller.dispose();
     });
 
-    test('timer derives remaining time from expiresAt and serverTime', () async {
-      final serverTime = DateTime.now().add(const Duration(minutes: 2));
-      final session = pairingSession(
-        serverTime: serverTime,
-        expiresAt: serverTime.add(const Duration(minutes: 8)),
+    test('heartbeat access expiry refreshes once and stays paired', () async {
+      final store = MemoryKioskDeviceCredentialStore(refreshToken: 'refresh-a');
+      final gateway = FakeKioskDeviceGateway(
+        heartbeatFailures: [
+          const KioskDeviceException(
+            'DEVICE_TOKEN_EXPIRED',
+            'Access token expired.',
+          ),
+        ],
+        credentialsResponse: credentials(
+          accessToken: 'fresh-access',
+          refreshToken: 'refresh-b',
+        ),
       );
-      final controller = KioskDeviceSessionController(
-        gateway: FakeKioskDeviceGateway(session: session),
-        store: MemoryKioskDeviceCredentialStore(),
-      );
+      final controller =
+          KioskDeviceSessionController(gateway: gateway, store: store)
+            ..accessToken = 'stale-access'
+            ..accessTokenExpiresAt = DateTime.now().add(
+              const Duration(minutes: 5),
+            )
+            ..device = credentials().device
+            ..state = KioskStartupState.active;
 
-      await controller.requestPairingSession();
+      await controller.heartbeat();
 
-      final remaining = controller.remainingFor(session);
-      expect(remaining.inSeconds, inInclusiveRange(477, 480));
+      expect(gateway.refreshCount, 1);
+      expect(gateway.heartbeatAccessTokens, ['stale-access', 'fresh-access']);
+      expect(await store.readRefreshToken(), 'refresh-b');
+      expect(controller.state, KioskStartupState.active);
+      expect(controller.pairingSession, isNull);
       controller.dispose();
     });
+
+    test('heartbeat transient failures do not clear pairing', () async {
+      for (final failure in <Object>[
+        const SocketException('offline'),
+        TimeoutException('timeout'),
+        const KioskDeviceException('KIOSK_RATE_LIMITED', 'Slow down.'),
+        const KioskDeviceException('KIOSK_REQUEST_FAILED', 'Server failed.'),
+      ]) {
+        final store = MemoryKioskDeviceCredentialStore(
+          refreshToken: 'refresh-a',
+        );
+        final controller =
+            KioskDeviceSessionController(
+                gateway: FakeKioskDeviceGateway(heartbeatFailures: [failure]),
+                store: store,
+              )
+              ..accessToken = 'access-a'
+              ..accessTokenExpiresAt = DateTime.now().add(
+                const Duration(minutes: 5),
+              )
+              ..device = credentials().device
+              ..state = KioskStartupState.active;
+
+        await controller.heartbeat();
+
+        expect(await store.readRefreshToken(), 'refresh-a');
+        expect(controller.state, KioskStartupState.active);
+        expect(controller.pairingSession, isNull);
+        controller.dispose();
+      }
+    });
+
+    test(
+      'terminal heartbeat response clears credential and returns to pairing',
+      () async {
+        final store = MemoryKioskDeviceCredentialStore(
+          refreshToken: 'refresh-a',
+        );
+        final controller =
+            KioskDeviceSessionController(
+                gateway: FakeKioskDeviceGateway(
+                  heartbeatFailures: [
+                    const KioskDeviceException(
+                      'DEVICE_REVOKED',
+                      'Device revoked.',
+                    ),
+                  ],
+                ),
+                store: store,
+              )
+              ..accessToken = 'access-a'
+              ..accessTokenExpiresAt = DateTime.now().add(
+                const Duration(minutes: 5),
+              )
+              ..device = credentials().device
+              ..state = KioskStartupState.active;
+
+        await controller.heartbeat();
+
+        expect(await store.readRefreshToken(), isNull);
+        expect(controller.state, KioskStartupState.waitingForPairing);
+        controller.dispose();
+      },
+    );
+
+    test(
+      'refresh persistence failure is surfaced before committing access token',
+      () async {
+        final store = MemoryKioskDeviceCredentialStore(
+          refreshToken: 'refresh-a',
+          failWrites: true,
+        );
+        final controller =
+            KioskDeviceSessionController(
+                gateway: FakeKioskDeviceGateway(
+                  credentialsResponse: credentials(
+                    accessToken: 'fresh-access',
+                    refreshToken: 'refresh-b',
+                  ),
+                ),
+                store: store,
+              )
+              ..accessToken = 'stale-access'
+              ..accessTokenExpiresAt = DateTime.now().subtract(
+                const Duration(minutes: 1),
+              )
+              ..device = credentials().device
+              ..state = KioskStartupState.active;
+
+        await expectLater(
+          controller.requireAccessToken(),
+          throwsA(isA<StateError>()),
+        );
+
+        expect(controller.accessToken, 'stale-access');
+        expect(await store.readRefreshToken(), 'refresh-a');
+        controller.dispose();
+      },
+    );
+
+    test(
+      'timer derives remaining time from expiresAt and serverTime',
+      () async {
+        final serverTime = DateTime.now().add(const Duration(minutes: 2));
+        final session = pairingSession(
+          serverTime: serverTime,
+          expiresAt: serverTime.add(const Duration(minutes: 8)),
+        );
+        final controller = KioskDeviceSessionController(
+          gateway: FakeKioskDeviceGateway(session: session),
+          store: MemoryKioskDeviceCredentialStore(),
+        );
+
+        await controller.requestPairingSession();
+
+        final remaining = controller.remainingFor(session);
+        expect(remaining.inSeconds, inInclusiveRange(477, 480));
+        controller.dispose();
+      },
+    );
 
     test('expired pairing causes a new session/code request', () async {
       final expired = pairingSession(
@@ -97,7 +260,9 @@ void main() {
       controller.dispose();
     });
 
-    testWidgets('pairing screen never renders provisioning secrets', (tester) async {
+    testWidgets('pairing screen never renders provisioning secrets', (
+      tester,
+    ) async {
       final session = pairingSession(secret: 'super-secret-provisioning-value');
       final controller = KioskDeviceSessionController(
         gateway: FakeKioskDeviceGateway(session: session),
@@ -209,9 +374,12 @@ KioskPairingSession pairingSession({
   );
 }
 
-KioskDeviceCredentials credentials({String refreshToken = 'refresh-b'}) {
+KioskDeviceCredentials credentials({
+  String accessToken = 'access-a',
+  String refreshToken = 'refresh-b',
+}) {
   return KioskDeviceCredentials(
-    accessToken: 'access-a',
+    accessToken: accessToken,
     accessTokenExpiresAt: DateTime.now().add(const Duration(minutes: 15)),
     refreshToken: refreshToken,
     refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 30)),
@@ -265,11 +433,22 @@ class FakeKioskDeviceGateway implements KioskDeviceGateway {
     KioskPairingSession? session,
     List<KioskPairingSession>? sessions,
     this.revokedRefreshToken,
-  }) : sessions = sessions ?? [session ?? pairingSession()];
+    this.refreshFailure,
+    KioskDeviceCredentials? credentialsResponse,
+    List<Object>? heartbeatFailures,
+  }) : sessions = sessions ?? [session ?? pairingSession()],
+       credentialsResponse = credentialsResponse ?? credentials(),
+       heartbeatFailures = heartbeatFailures ?? [];
 
   final List<KioskPairingSession> sessions;
   final String? revokedRefreshToken;
+  final Object? refreshFailure;
+  final KioskDeviceCredentials credentialsResponse;
+  final List<Object> heartbeatFailures;
   int createCount = 0;
+  int refreshCount = 0;
+  int heartbeatCount = 0;
+  final List<String> heartbeatAccessTokens = [];
 
   @override
   Future<KioskPairingSession> createPairingSession({
@@ -305,10 +484,15 @@ class FakeKioskDeviceGateway implements KioskDeviceGateway {
 
   @override
   Future<KioskDeviceCredentials> refreshSession(String refreshToken) async {
+    refreshCount += 1;
+    final failure = refreshFailure;
+    if (failure != null) {
+      throw failure;
+    }
     if (refreshToken == revokedRefreshToken) {
       throw const KioskDeviceException('DEVICE_REVOKED', 'Device revoked.');
     }
-    return credentials();
+    return credentialsResponse;
   }
 
   @override
@@ -322,7 +506,13 @@ class FakeKioskDeviceGateway implements KioskDeviceGateway {
     required String platform,
     required String appVersion,
   }) async {
-    return credentials().device;
+    heartbeatAccessTokens.add(accessToken);
+    final index = heartbeatCount;
+    heartbeatCount += 1;
+    if (index < heartbeatFailures.length) {
+      throw heartbeatFailures[index];
+    }
+    return credentialsResponse.device;
   }
 
   @override
@@ -332,11 +522,15 @@ class FakeKioskDeviceGateway implements KioskDeviceGateway {
 }
 
 class MemoryKioskDeviceCredentialStore implements KioskDeviceCredentialStore {
-  MemoryKioskDeviceCredentialStore({String? refreshToken}) {
+  MemoryKioskDeviceCredentialStore({
+    String? refreshToken,
+    this.failWrites = false,
+  }) {
     _refreshToken = refreshToken;
   }
 
   String? _refreshToken;
+  final bool failWrites;
   final String _installationId = 'install-test';
 
   @override
@@ -356,6 +550,9 @@ class MemoryKioskDeviceCredentialStore implements KioskDeviceCredentialStore {
 
   @override
   Future<void> writeRefreshToken(String token) async {
+    if (failWrites) {
+      throw StateError('secure storage write failed');
+    }
     _refreshToken = token;
   }
 }

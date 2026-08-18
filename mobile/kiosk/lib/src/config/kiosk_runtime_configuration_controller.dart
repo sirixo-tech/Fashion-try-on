@@ -70,7 +70,8 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
     bool activateImmediately = true,
   }) async {
     final latest = deviceController.device?.latestConfigurationVersion;
-    final preparedVersion = pendingConfiguration?.version ?? configuration.version;
+    final preparedVersion =
+        pendingConfiguration?.version ?? configuration.version;
     if (!force && latest != null && latest <= preparedVersion) {
       return;
     }
@@ -84,8 +85,9 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
     syncing = true;
     notifyListeners();
     try {
-      final token = await deviceController.requireAccessToken();
-      final remote = await gateway.configuration(token);
+      final remote = await deviceController.withDeviceAccess(
+        (token) => gateway.configuration(token),
+      );
       final prepared = await _prepareAssets(remote);
       await _cache.writeConfigurationJson(jsonEncode(prepared.toJson()));
       if (activateImmediately) {
@@ -186,9 +188,9 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
   }
 
   Future<String> _downloadAsset(int version, KioskRuntimeAsset asset) async {
-    final response = await _client.get(Uri.parse(asset.url!)).timeout(
-      const Duration(seconds: 20),
-    );
+    final response = await _client
+        .get(Uri.parse(asset.url!))
+        .timeout(const Duration(seconds: 20));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw const KioskDeviceException(
         'KIOSK_CONFIGURATION_ASSET_UNAVAILABLE',
@@ -205,7 +207,10 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
     final directory = await _configurationCacheDirectory();
     final extension = _extensionForContentType(contentType);
     final file = File(
-      path.join(directory.path, 'v$version-${_safeFilePart(asset.id)}$extension'),
+      path.join(
+        directory.path,
+        'v$version-${_safeFilePart(asset.id)}$extension',
+      ),
     );
     final temporaryFile = File('${file.path}.tmp');
     await temporaryFile.writeAsBytes(response.bodyBytes, flush: true);
@@ -259,8 +264,10 @@ class SharedPreferencesKioskRuntimeConfigurationCache
       preferences.getString(KioskRuntimeConfigurationController._cacheKey);
 
   @override
-  Future<void> writeConfigurationJson(String value) =>
-      preferences.setString(KioskRuntimeConfigurationController._cacheKey, value);
+  Future<void> writeConfigurationJson(String value) => preferences.setString(
+    KioskRuntimeConfigurationController._cacheKey,
+    value,
+  );
 }
 
 String _extensionForContentType(String contentType) {

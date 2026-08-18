@@ -101,10 +101,14 @@ class KioskDeviceException implements Exception {
   final String code;
   final String message;
 
-  bool get isRevoked =>
+  bool get isTerminalDeviceState =>
       code == 'DEVICE_REVOKED' ||
       code == 'DEVICE_DELETED' ||
       code == 'DEVICE_UNPAIRED' ||
-      code == 'DEVICE_INACTIVE' ||
-      code == 'DEVICE_TOKEN_INVALID';
+      code == 'DEVICE_INACTIVE';
+
+  bool get isRefreshableAccessToken =>
+      code == 'DEVICE_TOKEN_EXPIRED' || code == 'DEVICE_TOKEN_INVALID';
+
+  bool get isRevoked => isTerminalDeviceState;
 }

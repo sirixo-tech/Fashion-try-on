@@ -35,6 +35,11 @@ import {
   type PlatformPermission,
 } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
+import {
+  STORE_PERMISSION_CODES,
+  type StorePermissionCode,
+} from "../rbac/store-permissions.js";
+import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { AdminStoresService } from "./admin-stores.service.js";
 import {
   AdminStoreDetailResponseDto,
@@ -57,6 +62,7 @@ export class AdminStoresController {
     private readonly platformAuthorization: PlatformAuthorizationService,
     private readonly stores: AdminStoresService,
     private readonly configurations: KioskConfigurationService,
+    private readonly rbac: StoreRbacService,
   ) {}
 
   @Get()
@@ -97,7 +103,12 @@ export class AdminStoresController {
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
   ): Promise<AdminStoreDetailResponseDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.storesView);
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesView,
+      STORE_PERMISSION_CODES.storesView,
+    );
     return this.stores.getStore(storeId);
   }
 
@@ -114,7 +125,12 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Body() dto: UpdateAdminStoreDto,
   ): Promise<AdminStoreResponseDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.storesUpdate);
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
     return this.stores.updateStore(storeId, dto);
   }
 
@@ -150,7 +166,12 @@ export class AdminStoresController {
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
   ): Promise<KioskDeviceListResponseDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.kiosksView);
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.kiosksView,
+      STORE_PERMISSION_CODES.kiosksView,
+    );
     return this.stores.listStoreKiosks(storeId);
   }
 
@@ -162,9 +183,11 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Body() dto: PairStoreKioskDto,
   ): Promise<StoreKioskPairResponseDto> {
-    const user = await this.requirePermission(
+    const user = await this.requirePlatformOrStorePermission(
       request,
+      storeId,
       PLATFORM_PERMISSIONS.kiosksPair,
+      STORE_PERMISSION_CODES.kiosksPair,
     );
     return this.stores.pairStoreKiosk(user.id, storeId, dto);
   }
@@ -194,7 +217,12 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
   ): Promise<StoreKioskDeviceResponseDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.kiosksView);
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.kiosksView,
+      STORE_PERMISSION_CODES.kiosksView,
+    );
     return this.stores.getStoreKiosk(storeId, deviceId);
   }
 
@@ -208,7 +236,12 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
   ): Promise<KioskConfigurationDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.kiosksConfigure);
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.kiosksConfigure,
+      STORE_PERMISSION_CODES.kiosksConfigure,
+    );
     await this.stores.requireKioskInStore(storeId, deviceId);
     return this.configurations.getAdminConfiguration(deviceId);
   }
@@ -224,9 +257,11 @@ export class AdminStoresController {
     @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
     @Body() dto: UpdateKioskConfigurationDto,
   ): Promise<KioskConfigurationDto> {
-    const user = await this.requirePermission(
+    const user = await this.requirePlatformOrStorePermission(
       request,
+      storeId,
       PLATFORM_PERMISSIONS.kiosksConfigure,
+      STORE_PERMISSION_CODES.kiosksConfigure,
     );
     await this.stores.requireKioskInStore(storeId, deviceId);
     return this.configurations.updateAdminConfiguration(user.id, deviceId, dto);
@@ -243,7 +278,12 @@ export class AdminStoresController {
     @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
     @Body() dto: CreateKioskConfigurationAssetUploadDto,
   ): Promise<KioskConfigurationAssetUploadIntentDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.kiosksConfigure);
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.kiosksConfigure,
+      STORE_PERMISSION_CODES.kiosksConfigure,
+    );
     await this.stores.requireKioskInStore(storeId, deviceId);
     return this.configurations.createAdminAssetUploadIntent(deviceId, dto);
   }
@@ -256,6 +296,27 @@ export class AdminStoresController {
       request.headers.authorization,
     );
     await this.platformAuthorization.requirePermission(user.id, permission);
+    return user;
+  }
+
+  private async requirePlatformOrStorePermission(
+    request: FastifyRequest,
+    storeId: string,
+    platformPermission: PlatformPermission,
+    storePermission: StorePermissionCode,
+  ) {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    if (
+      await this.platformAuthorization.hasPermission(
+        user.id,
+        platformPermission,
+      )
+    ) {
+      return user;
+    }
+    await this.rbac.requireStorePermission(user.id, storeId, storePermission);
     return user;
   }
 }

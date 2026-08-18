@@ -51,6 +51,7 @@ enum StoreStatus {
 
 enum PlatformRole {
   SELFX_SUPPORT_ADMIN
+  SELFX_STAFF_ADMIN
   SELFX_SUPER_ADMIN
 }
 
@@ -152,6 +153,7 @@ model User {
   platformRoleAssignments PlatformRoleAssignment[] @relation("PlatformRoleAssignedToUser")
   platformRolesAssigned   PlatformRoleAssignment[] @relation("PlatformRoleAssignedByUser")
   requirementsReviewed    OrganizationActivationRequirement[] @relation("ActivationRequirementReviewedBy")
+  storeMembershipRolesAssigned StoreMembershipRole[] @relation("StoreMembershipRoleAssignedBy")
   sessions                UserSession[]
   kioskPairingClaims      KioskPairingSession[]    @relation("KioskPairingClaimedBy")
   kioskConfigurationsUpdated KioskDeviceConfiguration[] @relation("KioskConfigurationUpdatedBy")
@@ -189,6 +191,7 @@ model Organization {
   applications               OrganizationApplication[]
   auditLogs                  AuditLog[]
   memberships                OrganizationMembership[]
+  roles                      StoreRole[]
   stores                     Store[]
   kioskDevices               KioskDevice[]
 
@@ -208,6 +211,7 @@ model OrganizationMembership {
   createdAt      DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization   Organization                   @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  roleAssignments StoreMembershipRole[]
   storeScopes    MembershipStoreScope[]
   user           User                           @relation(fields: [userId], references: [id], onDelete: Restrict)
 
@@ -307,6 +311,74 @@ model MembershipStoreScope {
   @@index([orgId])
   @@index([storeId])
   @@map("membership_store_scopes")
+}
+
+model Permission {
+  id              String                @id @db.Uuid
+  code            String                @unique @db.VarChar(120)
+  module          String                @db.VarChar(80)
+  action          String                @db.VarChar(80)
+  label           String                @db.VarChar(160)
+  description     String?               @db.Text
+  isSystem        Boolean               @default(true) @map("is_system")
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rolePermissions StoreRolePermission[]
+
+  @@index([module, action])
+  @@map("permissions")
+}
+
+model StoreRole {
+  id              String                @id @db.Uuid
+  orgId           String                @map("organization_id") @db.Uuid
+  systemCode      String?               @map("system_code") @db.VarChar(80)
+  name            String                @db.VarChar(120)
+  description     String?               @db.Text
+  isSystem        Boolean               @default(false) @map("is_system")
+  isActive        Boolean               @default(true) @map("is_active")
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization    Organization          @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  membershipRoles StoreMembershipRole[]
+  permissions     StoreRolePermission[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, name])
+  @@unique([orgId, systemCode])
+  @@index([orgId, isActive])
+  @@map("store_roles")
+}
+
+model StoreRolePermission {
+  id           String     @id @db.Uuid
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+  role         StoreRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("store_role_permissions")
+}
+
+model StoreMembershipRole {
+  id               String                 @id @db.Uuid
+  orgId            String                 @map("organization_id") @db.Uuid
+  membershipId     String                 @map("membership_id") @db.Uuid
+  roleId           String                 @map("role_id") @db.Uuid
+  assignedByUserId String?                @map("assigned_by_user_id") @db.Uuid
+  assignedAt       DateTime               @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  assignedBy       User?                  @relation("StoreMembershipRoleAssignedBy", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  membership       OrganizationMembership @relation(fields: [orgId, membershipId], references: [orgId, id], onDelete: Cascade)
+  role             StoreRole              @relation(fields: [orgId, roleId], references: [orgId, id], onDelete: Cascade)
+
+  @@unique([membershipId, roleId])
+  @@index([orgId])
+  @@index([roleId])
+  @@index([assignedByUserId])
+  @@map("store_membership_roles")
 }
 
 model PlatformRoleAssignment {

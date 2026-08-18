@@ -71,6 +71,47 @@ End state:
 
 ---
 
+## RBAC-1 Journey Addendum
+
+**Status:** UPDATED
+
+### SelfX Platform Administrator — Store Users and Roles
+
+Preconditions:
+
+- The actor is authenticated and has the required SelfX platform permission for
+  Store user or Store role administration.
+- The target Store exists.
+
+Main flow:
+
+1. Administrator opens a Store dashboard.
+2. Administrator opens Store Users or Store Roles.
+3. Administrator may add an existing SelfX user to the Store, activate/suspend
+   a Store membership, assign Store roles, create custom roles or update custom
+   role permissions.
+4. SelfX validates every role assignment server-side against the same Store.
+5. SelfX writes audit records for Store role and Store membership changes.
+
+Alternate flows:
+
+- Missing platform permission returns forbidden before mutation.
+- Unknown email returns `EMAIL_INVITATION_FLOW_DEFERRED`.
+- Cross-Store role assignment is rejected.
+- System Store roles cannot be deleted or have their permission maps changed.
+- A suspended membership, inactive Store, inactive user or inactive role loses
+  Store capability on the next protected action.
+- Store users cannot use Store role names or request bodies to obtain platform
+  authority.
+
+End state:
+
+- Store membership and role assignments are durable, Store-scoped and auditable.
+- The actor's effective Store permissions reflect the current database state,
+  including role removal, permission removal and membership suspension.
+
+---
+
 ## 1. Purpose
 
 This document defines the major end-to-end user and system journeys for the SelfX Virtual Try-On platform.
@@ -511,6 +552,10 @@ Authenticated SelfX staff or platform administrator
 8. `SessionProvider` mounts, calls `POST /api/v1/auth/refresh` on the same web
    origin, the browser sends the refresh cookie, and the authenticated session
    is restored if the refresh session is valid.
+9. If a protected request later receives an expired/invalid access-token
+   response while the refresh session is still valid, the web client refreshes
+   once, retries the original request with the new access token and continues
+   without showing token-internal error text.
 
 ### Notes
 
@@ -1217,6 +1262,12 @@ new database persistence or provider calls from Flutter.
 - Cross-organization store assignment -> pairing is rejected.
 - Temporary network failure during startup -> kiosk shows recoverable retry and
   does not immediately erase a valid identity.
+- Expired device access token -> kiosk refreshes its device session, persists
+  the rotated refresh credential, retries the original heartbeat/session/config
+  request once and remains paired.
+- Temporary network, rate limit or server failure during heartbeat or
+  configuration sync -> kiosk keeps the secure refresh credential and stays in a
+  recoverable waiting/cached state rather than showing a fresh pairing code.
 - Inactive device -> device-authenticated operation is blocked until
   reactivated.
 - Revoked device -> refresh/session/me/heartbeat fails, kiosk clears device

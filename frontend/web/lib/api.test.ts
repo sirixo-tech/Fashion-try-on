@@ -1,14 +1,26 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   resolveBrowserApiBase,
+  setAuthSessionHooks,
   selfxApi,
   selfxApiBaseUrl,
   selfxApiUrl,
 } from "@/lib/api";
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 describe("selfx web API routing", () => {
   afterEach(() => {
+    setAuthSessionHooks(null);
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
@@ -101,5 +113,130 @@ describe("selfx web API routing", () => {
         credentials: "include",
       }),
     );
+  });
+
+  it("refreshes once and retries a protected request with the new access token", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SELFX_API_BASE_URL", "");
+    const refreshSession = vi.fn().mockResolvedValue("fresh-token");
+    setAuthSessionHooks({
+      getAccessToken: () => "stale-token",
+      refreshSession,
+      handleTerminalAuthFailure: vi.fn(),
+    });
+    const fetchMock = vi.fn(
+      (input: string | URL | Request, init?: RequestInit) => {
+        const authorization = new Headers(init?.headers).get("Authorization");
+        if (String(input) === "/api/v1/admin/stores") {
+          if (authorization === "Bearer stale-token") {
+            return Promise.resolve(
+              jsonResponse(
+                {
+                  error: {
+                    code: "AUTH_ACCESS_TOKEN_INVALID",
+                    message: "Access token is invalid or expired.",
+                  },
+                },
+                401,
+              ),
+            );
+          }
+          return Promise.resolve(jsonResponse({ data: [] }));
+        }
+        return Promise.resolve(jsonResponse({ ok: true }));
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      selfxApi<{ data: unknown[] }>("/api/v1/admin/stores", {
+        accessToken: "stale-token",
+      }),
+    ).resolves.toEqual({ data: [] });
+
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("Authorization"),
+    ).toBe("Bearer fresh-token");
+  });
+
+  it("does not retry a protected request more than once", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SELFX_API_BASE_URL", "");
+    const terminal = vi.fn();
+    setAuthSessionHooks({
+      getAccessToken: () => "stale-token",
+      refreshSession: vi.fn().mockResolvedValue("fresh-token"),
+      handleTerminalAuthFailure: terminal,
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            code: "AUTH_ACCESS_TOKEN_INVALID",
+            message: "Access token is invalid or expired.",
+          },
+        },
+        401,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      selfxApi("/api/v1/admin/kiosks", { accessToken: "stale-token" }),
+    ).rejects.toMatchObject({ code: "AUTH_ACCESS_TOKEN_INVALID" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(terminal).toHaveBeenCalledWith("fresh-token");
+  });
+
+  it("does not recursively refresh auth endpoints", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SELFX_API_BASE_URL", "");
+    const refreshSession = vi.fn().mockResolvedValue("fresh-token");
+    setAuthSessionHooks({
+      getAccessToken: () => "stale-token",
+      refreshSession,
+      handleTerminalAuthFailure: vi.fn(),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            error: {
+              code: "AUTH_UNAUTHORIZED",
+              message: "Refresh session is invalid or expired.",
+            },
+          },
+          401,
+        ),
+      ),
+    );
+
+    await expect(
+      selfxApi("/api/v1/auth/refresh", { method: "POST" }),
+    ).rejects.toMatchObject({ code: "AUTH_UNAUTHORIZED" });
+    expect(refreshSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps current protected clients on the shared selfxApi path", () => {
+    const protectedClients = [
+      "lib/stores.ts",
+      "lib/kiosks.ts",
+      "lib/organizations.ts",
+      "lib/try-on-lab-api.ts",
+    ];
+
+    for (const relativePath of protectedClients) {
+      const source = readFileSync(join(process.cwd(), relativePath), "utf8");
+      expect(source).toContain("selfxApi");
+      expect(source).not.toContain("selfxApiUrl(");
+      expect(source).not.toMatch(/\bfetch\(/);
+    }
   });
 });

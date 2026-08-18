@@ -436,7 +436,14 @@ export class KioskService {
       payload = await this.jwt.verifyAsync<DeviceAccessTokenPayload>(token, {
         secret: this.config.deviceJwtSecret,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === "TokenExpiredError") {
+        throw new ApiErrorException(
+          HttpStatus.UNAUTHORIZED,
+          KIOSK_ERROR_CODES.deviceTokenExpired,
+          "Kiosk device access token expired.",
+        );
+      }
       throwDeviceInvalid();
     }
 

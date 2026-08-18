@@ -67,6 +67,30 @@ diagnostic or implementation detail outside normal product copy.
 
 ---
 
+## RBAC-1 UI Addendum
+
+**Status:** UPDATED
+
+Store dashboards include two RBAC sections:
+
+- Store Users: list existing Store memberships, membership status, assigned
+  Store roles and actions to add an existing user, edit assigned roles, activate
+  or suspend the membership.
+- Store Roles: list system and custom Store roles, permission counts, assigned
+  user counts and actions to create, edit or delete eligible custom roles.
+
+System roles are visually readable but protected from permission editing and
+deletion. Role forms group permission checkboxes by module using backend
+permission codes. If an email is not an existing SelfX user, the UI must surface
+the deferred invitation state rather than pretending an invitation was sent.
+
+Store dashboard actions must be capability-aware: missing Store permissions hide
+or disable kiosk configuration, user mutation and role-editing controls. This is
+only a UX affordance; every protected action must still be enforced by the API.
+Store user screens must not expose protected platform or Superadmin controls.
+
+---
+
 ## 1. Purpose
 
 This document defines the screen-level UI/UX flow for the SelfX Virtual Try-On platform.
@@ -801,6 +825,13 @@ as copy link address, middle-click and modified-click new-tab behavior.
 Disabled navigation items must not navigate. Client-side navigation is only an
 ergonomic fix; reload, direct URL and new-tab session restoration still depend
 on the HttpOnly refresh-cookie flow through `SessionProvider`.
+
+AUTH-PERSISTENCE-FIX-1 requires protected web API screens to use the shared
+refresh-aware request path. If access-token expiry can be recovered by refresh,
+the UI must continue silently and must not show raw token messages such as
+"Access token is invalid or expired." Terminal refresh failure uses the existing
+session-expired/login behavior; transient refresh failure may show a recoverable
+network-style error.
 
 ---
 
