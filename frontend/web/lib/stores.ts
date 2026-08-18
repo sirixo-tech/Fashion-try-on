@@ -43,6 +43,8 @@ export type StorePermission = {
   label: string;
   description: string | null;
   isSystem: boolean;
+  applicability: "PLATFORM_ONLY" | "STORE" | "BOTH";
+  granted: boolean;
 };
 
 export type StoreRole = {

@@ -204,6 +204,37 @@ Compatibility:
 - Permission registry synchronization is additive. Historical permission rows
   are not removed solely because a later application version omits a code.
 
+## 3.3 RBAC-2 Global Authorization Schema
+
+**Status:** UPDATED
+
+RBAC-2 adds a tracked Prisma migration named
+`20260818000000_rbac_2_global_authorization`.
+
+New persistence:
+
+- `PermissionApplicability`: `PLATFORM_ONLY`, `STORE`, `BOTH`.
+- `permissions.applicability`: classifies each stable permission definition.
+- `platform_roles`: configurable global SelfX Platform roles.
+- `platform_role_permissions`: many-to-many Platform role permission edges.
+- `platform_user_roles`: user assignment to configurable Platform roles.
+- `store_permission_grants`: SelfX-granted Store permission ceiling.
+
+Compatibility and constraints:
+
+- The existing `platform_role_assignments` table remains the protected
+  bootstrap role source for `SELFX_SUPER_ADMIN`, `SELFX_STAFF_ADMIN` and
+  `SELFX_SUPPORT_ADMIN`.
+- Configurable Platform roles are not Store roles and must not be represented
+  as organization memberships.
+- `store_permission_grants.store_tenant_id` points at the STORE-1 product Store
+  tenant row (`organizations.id`).
+- Store grants are unique by `(store_tenant_id, permission_id)`.
+- Store role effective permissions must be computed from active Store role
+  permissions intersected with `store_permission_grants`.
+- Existing Stores are backfilled with the current Store permission catalog to
+  preserve RBAC-1 behavior until SelfX explicitly revokes grants.
+
 ---
 
 ## 4. Identifier Strategy

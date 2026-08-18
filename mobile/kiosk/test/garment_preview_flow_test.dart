@@ -210,7 +210,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(extraction.calls, 2);
-      expect(find.text('Change Image'), findsOneWidget);
+      expect(find.text('Retake'), findsOneWidget);
       expect(find.text('Garment looks ready'), findsOneWidget);
     });
   });

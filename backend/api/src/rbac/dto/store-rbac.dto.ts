@@ -129,6 +129,12 @@ export class StorePermissionDto {
 
   @ApiProperty()
   isSystem!: boolean;
+
+  @ApiProperty()
+  applicability!: string;
+
+  @ApiProperty()
+  granted!: boolean;
 }
 
 export class StoreRoleResponseDto {

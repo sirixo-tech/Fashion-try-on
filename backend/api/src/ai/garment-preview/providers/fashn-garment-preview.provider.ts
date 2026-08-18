@@ -51,7 +51,7 @@ export class FashnGarmentPreviewProvider extends GarmentPreviewProvider {
           image: toDataUri(input),
           prompt: promptFor(input.garmentIntent),
           aspect_ratio: "2:3",
-          generation_mode: "balanced",
+          generation_mode: "fast",
           num_images: 1,
           output_format: "png",
           resolution: "1k",

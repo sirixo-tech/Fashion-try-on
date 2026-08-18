@@ -190,6 +190,20 @@ take effect immediately without a new login. Store-scoped permissions can
 manage only the matching Store resources; the global Kiosk fleet remains a
 platform Superadmin surface.
 
+## RBAC-2 Global Authorization
+
+RBAC-2 extends RBAC-1 with a single global permission registry for both SelfX
+platform and Store scopes. Permission definitions are backend-owned and
+classified by applicability: `PLATFORM_ONLY`, `STORE` or `BOTH`. Stores cannot
+create permission definitions.
+
+Protected SelfX Superadmin bootstrap assignment remains the source of truth for
+global access-control mutation. Configurable Platform roles live separately from
+Store roles, and Store role effective permissions are now the intersection of
+assigned Store role permissions and the Store permission ceiling granted by
+SelfX. Revoking a Store permission grant takes effect on the next protected
+request and does not require a new login.
+
 ## CORE VTO-1 Try-On Lab
 
 The internal development lab is available at:

@@ -1,0 +1,199 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Req,
+} from "@nestjs/common";
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger";
+import { type FastifyRequest } from "fastify";
+
+import { AuthService } from "../auth/auth.service.js";
+import { ApiErrorException } from "../common/api-error.exception.js";
+import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
+import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
+import { PlatformAuthorizationService } from "./platform-authorization.service.js";
+import {
+  ACCESS_CONTROL_ERROR_CODES,
+  AccessControlService,
+} from "./access-control.service.js";
+import {
+  AccessPermissionDto,
+  AddPlatformUserDto,
+  AssignPlatformRolesDto,
+  CreatePlatformRoleDto,
+  PlatformRoleDto,
+  PlatformUserDto,
+  ReplacePermissionCodesDto,
+  StorePermissionGrantDto,
+  UpdatePlatformRoleDto,
+} from "./dto/access-control.dto.js";
+
+@ApiTags("Platform Access Control")
+@ApiBearerAuth()
+@Controller("api/v1/admin/access")
+export class AccessControlController {
+  constructor(
+    private readonly auth: AuthService,
+    private readonly platformAuthorization: PlatformAuthorizationService,
+    private readonly accessControl: AccessControlService,
+  ) {}
+
+  @Get("permissions")
+  @ApiOperation({ summary: "List the global SelfX permission registry" })
+  @ApiOkResponse({ type: [AccessPermissionDto] })
+  async listPermissions(
+    @Req() request: FastifyRequest,
+  ): Promise<{ data: AccessPermissionDto[] }> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.permissionsView,
+    );
+    return this.accessControl.listPermissions();
+  }
+
+  @Get("roles")
+  @ApiOperation({ summary: "List global SelfX Platform roles" })
+  @ApiOkResponse({ type: [PlatformRoleDto] })
+  async listRoles(
+    @Req() request: FastifyRequest,
+  ): Promise<{ data: PlatformRoleDto[] }> {
+    await this.requireAccessManager(request);
+    return this.accessControl.listPlatformRoles();
+  }
+
+  @Post("roles")
+  @ApiOperation({ summary: "Create a global SelfX Platform role" })
+  @ApiCreatedResponse({ type: PlatformRoleDto })
+  async createRole(
+    @Req() request: FastifyRequest,
+    @Body() dto: CreatePlatformRoleDto,
+  ): Promise<PlatformRoleDto> {
+    const user = await this.requireSuperadminAccessManager(request);
+    return this.accessControl.createPlatformRole(user.id, dto);
+  }
+
+  @Patch("roles/:roleId")
+  @ApiOperation({ summary: "Update a global SelfX Platform role" })
+  @ApiOkResponse({ type: PlatformRoleDto })
+  async updateRole(
+    @Req() request: FastifyRequest,
+    @Param("roleId", SelfxUuidParamPipe) roleId: string,
+    @Body() dto: UpdatePlatformRoleDto,
+  ): Promise<PlatformRoleDto> {
+    const user = await this.requireSuperadminAccessManager(request);
+    return this.accessControl.updatePlatformRole(user.id, roleId, dto);
+  }
+
+  @Put("roles/:roleId/permissions")
+  @ApiOperation({ summary: "Replace permissions on a Platform role" })
+  @ApiOkResponse({ type: PlatformRoleDto })
+  async replaceRolePermissions(
+    @Req() request: FastifyRequest,
+    @Param("roleId", SelfxUuidParamPipe) roleId: string,
+    @Body() dto: ReplacePermissionCodesDto,
+  ): Promise<PlatformRoleDto> {
+    const user = await this.requireSuperadminAccessManager(request);
+    return this.accessControl.replacePlatformRolePermissions(
+      user.id,
+      roleId,
+      dto,
+    );
+  }
+
+  @Get("users")
+  @ApiOperation({ summary: "List SelfX users and Platform role assignments" })
+  @ApiOkResponse({ type: [PlatformUserDto] })
+  async listUsers(
+    @Req() request: FastifyRequest,
+  ): Promise<{ data: PlatformUserDto[] }> {
+    await this.requireAccessManager(request);
+    return this.accessControl.listPlatformUsers();
+  }
+
+  @Post("users")
+  @ApiOperation({ summary: "Add an existing SelfX user to Platform roles" })
+  @ApiCreatedResponse({ type: PlatformUserDto })
+  async addUser(
+    @Req() request: FastifyRequest,
+    @Body() dto: AddPlatformUserDto,
+  ): Promise<PlatformUserDto> {
+    const user = await this.requireSuperadminAccessManager(request);
+    return this.accessControl.addPlatformUser(user.id, dto);
+  }
+
+  @Put("users/:userId/roles")
+  @ApiOperation({ summary: "Replace Platform role assignments for a user" })
+  @ApiOkResponse({ type: PlatformUserDto })
+  async replaceUserRoles(
+    @Req() request: FastifyRequest,
+    @Param("userId", SelfxUuidParamPipe) userId: string,
+    @Body() dto: AssignPlatformRolesDto,
+  ): Promise<PlatformUserDto> {
+    const user = await this.requireSuperadminAccessManager(request);
+    return this.accessControl.replaceUserPlatformRoles(user.id, userId, dto);
+  }
+
+  @Get("stores/:storeId/permission-grants")
+  @ApiOperation({ summary: "List a Store permission ceiling" })
+  @ApiOkResponse({ type: [StorePermissionGrantDto] })
+  async listStorePermissionGrants(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+  ): Promise<{ data: StorePermissionGrantDto[] }> {
+    await this.requireAccessManager(request);
+    return this.accessControl.listStorePermissionGrants(storeId);
+  }
+
+  @Put("stores/:storeId/permission-grants")
+  @ApiOperation({ summary: "Replace a Store permission ceiling" })
+  @ApiOkResponse({ type: [StorePermissionGrantDto] })
+  async replaceStorePermissionGrants(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: ReplacePermissionCodesDto,
+  ): Promise<{ data: StorePermissionGrantDto[] }> {
+    const user = await this.requireSuperadminAccessManager(request);
+    return this.accessControl.replaceStorePermissionGrants(
+      user.id,
+      storeId,
+      dto,
+    );
+  }
+
+  private async requireAccessManager(request: FastifyRequest) {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    );
+    return user;
+  }
+
+  private async requireSuperadminAccessManager(request: FastifyRequest) {
+    const user = await this.requireAccessManager(request);
+    if (await this.platformAuthorization.isSuperadmin(user.id)) {
+      return user;
+    }
+    throw new ApiErrorException(
+      HttpStatus.FORBIDDEN,
+      ACCESS_CONTROL_ERROR_CODES.protectedSuperadmin,
+      "Only the protected SelfX Superadmin can change global access control.",
+    );
+  }
+}

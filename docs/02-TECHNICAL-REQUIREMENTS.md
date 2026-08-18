@@ -96,6 +96,42 @@ tenant compatibility layer.
   kiosk configuration may be allowed only after validating the kiosk belongs to
   the requested Store and the actor has the current Store permission.
 
+## RBAC-2 Technical Addendum
+
+**Status:** UPDATED
+
+RBAC-2 keeps the RBAC-1 Store tables and adds global/hierarchical
+authorization without moving provider, kiosk or customer flows:
+
+- `permissions` is the single backend-owned catalog for Platform and Store
+  permission definitions. Each row carries `applicability`:
+  `PLATFORM_ONLY`, `STORE` or `BOTH`.
+- Configurable Platform roles are persisted in `platform_roles`,
+  `platform_role_permissions` and `platform_user_roles`. The existing
+  `platform_role_assignments` bootstrap table remains the protected
+  Superadmin/source-of-truth path for global access-control mutation.
+- Store permission ceilings are persisted in `store_permission_grants` against
+  the Store tenant row (`organizations.id` in STORE-1 compatibility mode).
+- Store role permission writes must reject permissions that are not
+  Store-applicable or not granted to the Store.
+- Effective Store permissions are role permissions intersected with current
+  Store grants.
+- Permission registry, Platform role/user and Store grant management APIs live
+  under `/api/v1/admin/access/*` and are platform-permission controlled.
+- Flutter kiosk/customer request and response contracts are unchanged by
+  RBAC-2.
+
+Protected route coverage:
+
+| Area | Backend routes/actions | Classification |
+| --- | --- | --- |
+| Platform access registry | `/api/v1/admin/access/permissions` | Permission controlled: `PERMISSIONS_VIEW` |
+| Platform roles/users/grants | `/api/v1/admin/access/roles`, `/users`, `/stores/:storeId/permission-grants` | Platform-Superadmin-only for mutation, `PERMISSIONS_MANAGE` for read |
+| Store dashboard and Store CRUD | `/api/v1/admin/stores*` | Permission controlled by Platform permission or Store permission |
+| Store users/roles | `/api/v1/admin/stores/:storeId/users*`, `/roles*` | Permission controlled, Store-scoped |
+| Kiosk fleet/configuration | Admin kiosk and Store kiosk configuration routes | Permission controlled, platform/store boundary checked |
+| Auth/session/health | Login, refresh, logout, health | Authenticated or unauthenticated utility; not RBAC mutation |
+
 ---
 
 1. Purpose

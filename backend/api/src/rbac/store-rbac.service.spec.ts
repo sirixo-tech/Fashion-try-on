@@ -385,6 +385,68 @@ describe("RBAC-1.1 Store authorization security", () => {
     ).resolves.toBe(STORE_PERMISSION_REGISTRY.length);
   });
 
+  it("intersects Store role permissions with the SelfX-granted Store ceiling", async () => {
+    const user = await createUser("ceiling-user");
+    const store = await createStore("ceiling-store");
+    await createMembershipWithRole(store.id, user.id, "Kiosk Manager", [
+      STORE_PERMISSION_CODES.kiosksConfigure,
+      STORE_PERMISSION_CODES.kiosksView,
+    ]);
+    const initialEffective = await rbac.effectivePermissions(user.id, store.id);
+    expect(initialEffective.permissions).toEqual(
+      expect.arrayContaining([
+        STORE_PERMISSION_CODES.kiosksConfigure,
+        STORE_PERMISSION_CODES.kiosksView,
+      ]),
+    );
+    const revokedPermission = await prisma.permission.findUniqueOrThrow({
+      where: { code: STORE_PERMISSION_CODES.kiosksConfigure },
+      select: { id: true },
+    });
+
+    await prisma.storePermissionGrant.deleteMany({
+      where: {
+        storeTenantId: store.id,
+        permissionId: revokedPermission.id,
+      },
+    });
+
+    const effective = await rbac.effectivePermissions(user.id, store.id);
+
+    expect(effective.permissions).toContain(STORE_PERMISSION_CODES.kiosksView);
+    expect(effective.permissions).not.toContain(
+      STORE_PERMISSION_CODES.kiosksConfigure,
+    );
+    await expectApiCode(
+      rbac.requireStorePermission(
+        user.id,
+        store.id,
+        STORE_PERMISSION_CODES.kiosksConfigure,
+      ),
+      STORE_RBAC_ERROR_CODES.permissionDenied,
+    );
+    await expectApiCode(
+      rbac.createRole(user.id, store.id, {
+        name: "Blocked Manager",
+        permissionCodes: [STORE_PERMISSION_CODES.kiosksConfigure],
+      }),
+      STORE_RBAC_ERROR_CODES.permissionNotGranted,
+    );
+  }, 15_000);
+
+  it("denies Store role permissions outside the SelfX-granted Store ceiling", async () => {
+    const user = await createUser("outside-ceiling");
+    const store = await createStore("outside-ceiling");
+
+    await expectApiCode(
+      rbac.createRole(user.id, store.id, {
+        name: "Ungrantable Kiosk Manager",
+        permissionCodes: [STORE_PERMISSION_CODES.kiosksConfigure],
+      }),
+      STORE_RBAC_ERROR_CODES.permissionNotGranted,
+    );
+  });
+
   async function createUser(
     label: string,
     status: UserStatus = UserStatus.ACTIVE,
@@ -437,6 +499,7 @@ describe("RBAC-1.1 Store authorization security", () => {
     name: string,
     permissionCodes: string[],
   ) {
+    await grantStorePermissions(storeId, permissionCodes);
     return rbac.createRole(userIds[0] ?? createSelfxId(), storeId, {
       name,
       permissionCodes,
@@ -449,6 +512,7 @@ describe("RBAC-1.1 Store authorization security", () => {
     roleName: string,
     permissionCodes: string[],
   ) {
+    await grantStorePermissions(storeId, permissionCodes);
     const role = await rbac.createRole(userId, storeId, {
       name: roleName,
       permissionCodes,
@@ -458,6 +522,31 @@ describe("RBAC-1.1 Store authorization security", () => {
       roleIds: [role.id],
     });
     return { membership, role };
+  }
+
+  async function grantStorePermissions(
+    storeId: string,
+    permissionCodes: string[],
+  ): Promise<void> {
+    const uniqueCodes = [...new Set(permissionCodes)];
+    if (uniqueCodes.length === 0) {
+      return;
+    }
+    const permissions = await prisma.permission.findMany({
+      where: { code: { in: uniqueCodes } },
+      select: { id: true, code: true },
+    });
+    expect(permissions.map((permission) => permission.code).sort()).toEqual(
+      uniqueCodes.sort(),
+    );
+    await prisma.storePermissionGrant.createMany({
+      data: permissions.map((permission) => ({
+        id: createSelfxId(),
+        storeTenantId: storeId,
+        permissionId: permission.id,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   async function membershipId(storeId: string, userId: string) {
@@ -493,6 +582,9 @@ describe("RBAC-1.1 Store authorization security", () => {
     });
     await prisma.storeMembershipRole.deleteMany({
       where: { orgId: { in: storeIds } },
+    });
+    await prisma.storePermissionGrant.deleteMany({
+      where: { storeTenantId: { in: storeIds } },
     });
     await prisma.storeRolePermission.deleteMany({
       where: { role: { orgId: { in: storeIds } } },

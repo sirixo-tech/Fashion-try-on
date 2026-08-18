@@ -122,7 +122,7 @@ export class AdminStoresService {
             settings: storeSettingsFromInput(input),
           },
         });
-        await this.rbac.ensureStoreRbacInTransaction(tx, created.id);
+        await this.rbac.ensureStoreRbacInTransaction(tx, created.id, true);
         return created;
       });
       return mapStore(store);

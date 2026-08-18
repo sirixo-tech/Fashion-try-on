@@ -29,6 +29,7 @@ export type StorePermissionDefinition = {
   action: string;
   label: string;
   description: string;
+  applicability: "STORE";
 };
 
 export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
@@ -38,6 +39,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "view",
     label: "View Stores",
     description: "View Store details and Store-scoped operational data.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.storesUpdate,
@@ -45,6 +47,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "update",
     label: "Update Stores",
     description: "Update Store profile and settings within authorized scope.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.usersView,
@@ -52,6 +55,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "view",
     label: "View Store Users",
     description: "View Store memberships and assigned roles.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.usersInvite,
@@ -59,6 +63,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "invite",
     label: "Add Store Users",
     description: "Add an existing user to a Store membership when authorized.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.usersUpdate,
@@ -66,6 +71,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "update",
     label: "Update Store Users",
     description: "Update Store membership status and membership metadata.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.usersDeactivate,
@@ -73,6 +79,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "deactivate",
     label: "Suspend Store Users",
     description: "Suspend or reactivate a Store membership.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.rolesView,
@@ -80,6 +87,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "view",
     label: "View Store Roles",
     description: "View Store roles and permission counts.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.rolesCreate,
@@ -87,6 +95,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "create",
     label: "Create Store Roles",
     description: "Create custom Store roles.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.rolesUpdate,
@@ -94,6 +103,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "update",
     label: "Update Store Roles",
     description: "Update Store role metadata, status and permissions.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.rolesDelete,
@@ -101,6 +111,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "delete",
     label: "Delete Store Roles",
     description: "Delete unused custom Store roles.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.rolesAssign,
@@ -108,6 +119,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "assign",
     label: "Assign Store Roles",
     description: "Assign or remove roles on Store memberships.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.kiosksView,
@@ -115,6 +127,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "view",
     label: "View Kiosks",
     description: "View kiosks owned by the Store.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.kiosksPair,
@@ -122,6 +135,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "pair",
     label: "Pair Kiosks",
     description: "Pair new physical kiosks to a Store.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.kiosksUpdate,
@@ -129,6 +143,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "update",
     label: "Update Kiosks",
     description: "Update kiosk metadata.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.kiosksAssign,
@@ -136,6 +151,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "assign",
     label: "Assign Kiosks",
     description: "Assign existing kiosks to a Store.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.kiosksConfigure,
@@ -143,6 +159,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "configure",
     label: "Configure Kiosks",
     description: "Update Store-owned kiosk runtime configuration.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.kiosksRevoke,
@@ -150,6 +167,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "revoke",
     label: "Unpair Kiosks",
     description: "Unpair or revoke Store-owned kiosk device sessions.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.analyticsView,
@@ -157,6 +175,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "view",
     label: "View Analytics",
     description: "View Store-scoped analytics when analytics is implemented.",
+    applicability: "STORE",
   },
   {
     code: STORE_PERMISSION_CODES.integrationsView,
@@ -165,6 +184,7 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     label: "View Integrations",
     description:
       "View Store integration status when integrations are implemented.",
+    applicability: "STORE",
   },
 ] as const;
 

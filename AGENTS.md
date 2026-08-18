@@ -279,6 +279,12 @@ role-name checks such as `role === "ADMIN"` through controllers. Centralize
 permission resolution from user, active organization membership, role and store
 scope.
 
+Global permission definitions belong to the backend-owned SelfX permission
+registry. Store roles may delegate only Store-applicable permissions currently
+granted to that Store by the SelfX Store permission ceiling. Platform roles and
+Store roles remain separate, and protected SelfX Superadmin bootstrap authority
+must not be mutated through normal Store or Platform role assignment flows.
+
 Do not place trusted organization/store authorization state in staff JWTs. Staff
 access JWTs remain primarily user/session identity. Organization and store
 authorization must be validated server-side from explicit resource routes and

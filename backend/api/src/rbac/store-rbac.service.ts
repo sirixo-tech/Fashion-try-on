@@ -3,6 +3,7 @@ import {
   MembershipStatus,
   OrganizationMembershipRole,
   OrganizationStatus,
+  PermissionApplicability,
   PlatformRole,
   PlatformRoleAssignmentStatus,
   Prisma,
@@ -52,6 +53,7 @@ export const STORE_RBAC_ERROR_CODES = {
   roleAssigned: "STORE_ROLE_ASSIGNED",
   systemRoleProtected: "STORE_SYSTEM_ROLE_PROTECTED",
   permissionInvalid: "STORE_PERMISSION_INVALID",
+  permissionNotGranted: "STORE_PERMISSION_NOT_GRANTED",
   crossStoreRoleAssignment: "STORE_ROLE_TENANT_MISMATCH",
 } as const;
 
@@ -150,12 +152,24 @@ type MembershipWithRoles = {
 export class StoreRbacService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listPermissions(): Promise<{ data: StorePermissionDto[] }> {
-    await this.ensurePermissionCatalog();
+  async listPermissions(
+    storeId: string,
+  ): Promise<{ data: StorePermissionDto[] }> {
+    await this.ensureStoreRbac(storeId);
+    const granted = await this.storeGrantedPermissionCodes(storeId);
     const permissions = await this.prisma.permission.findMany({
+      where: {
+        applicability: {
+          in: [PermissionApplicability.STORE, PermissionApplicability.BOTH],
+        },
+      },
       orderBy: [{ module: "asc" }, { action: "asc" }, { code: "asc" }],
     });
-    return { data: permissions.map(mapPermission) };
+    return {
+      data: permissions.map((permission) =>
+        mapPermission(permission, granted.has(permission.code)),
+      ),
+    };
   }
 
   async listRoles(
@@ -203,7 +217,8 @@ export class StoreRbacService {
     input: CreateStoreRoleDto,
   ): Promise<StoreRoleResponseDto> {
     await this.ensureStoreRbac(storeId);
-    const permissionIds = await this.permissionIdsForCodes(
+    const permissionIds = await this.permissionIdsForStoreGrantedCodes(
+      storeId,
       input.permissionCodes ?? [],
     );
     const role = await this.prisma
@@ -307,7 +322,10 @@ export class StoreRbacService {
       );
     }
     const uniqueCodes = uniquePermissionCodes(input.permissionCodes);
-    const permissionIds = await this.permissionIdsForCodes(uniqueCodes);
+    const permissionIds = await this.permissionIdsForStoreGrantedCodes(
+      storeId,
+      uniqueCodes,
+    );
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.storeRolePermission.deleteMany({ where: { roleId } });
       if (permissionIds.length > 0) {
@@ -640,10 +658,13 @@ export class StoreRbacService {
         membershipId: null,
       };
     }
+    const grantedCodes = await this.storeGrantedPermissionCodes(storeId);
     const permissions = [
       ...new Set(
         membership.roleAssignments.flatMap((assignment) =>
-          assignment.role.permissions.map((entry) => entry.permission.code),
+          assignment.role.permissions
+            .map((entry) => entry.permission.code)
+            .filter((code) => grantedCodes.has(code)),
         ),
       ),
     ].sort();
@@ -680,6 +701,7 @@ export class StoreRbacService {
   async ensureStoreRbacInTransaction(
     tx: Prisma.TransactionClient,
     storeId: string,
+    seedPermissionGrants = false,
   ): Promise<void> {
     await this.ensurePermissionCatalog(tx);
     const store = await tx.organization.findUnique({
@@ -690,6 +712,9 @@ export class StoreRbacService {
       throwStoreNotFound();
     }
     await this.ensureDefaultRoles(tx, storeId);
+    if (seedPermissionGrants) {
+      await this.ensureStorePermissionGrants(tx, storeId);
+    }
     await this.ensureLegacyMembershipRoleAssignments(tx, storeId);
   }
 
@@ -706,6 +731,7 @@ export class StoreRbacService {
           action: permission.action,
           label: permission.label,
           description: permission.description,
+          applicability: PermissionApplicability.STORE,
           isSystem: true,
         },
         update: {
@@ -713,10 +739,43 @@ export class StoreRbacService {
           action: permission.action,
           label: permission.label,
           description: permission.description,
+          applicability: PermissionApplicability.STORE,
           isSystem: true,
         },
       });
     }
+  }
+
+  private async ensureStorePermissionGrants(
+    prisma: PrismaService | Prisma.TransactionClient,
+    storeId: string,
+  ): Promise<void> {
+    const existingGrant = await prisma.storePermissionGrant.findFirst({
+      where: { storeTenantId: storeId },
+      select: { id: true },
+    });
+    if (existingGrant) {
+      return;
+    }
+    const permissionIds = await prisma.permission.findMany({
+      where: {
+        code: {
+          in: STORE_PERMISSION_REGISTRY.map((permission) => permission.code),
+        },
+        applicability: {
+          in: [PermissionApplicability.STORE, PermissionApplicability.BOTH],
+        },
+      },
+      select: { id: true },
+    });
+    await prisma.storePermissionGrant.createMany({
+      data: permissionIds.map((permission) => ({
+        id: createSelfxId(),
+        storeTenantId: storeId,
+        permissionId: permission.id,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   private async ensureDefaultRoles(
@@ -874,23 +933,51 @@ export class StoreRbacService {
     }
   }
 
-  private async permissionIdsForCodes(codes: string[]): Promise<string[]> {
+  private async permissionIdsForStoreGrantedCodes(
+    storeId: string,
+    codes: string[],
+  ): Promise<string[]> {
     const uniqueCodes = uniquePermissionCodes(codes);
     if (uniqueCodes.length === 0) {
       return [];
     }
     const permissions = await this.prisma.permission.findMany({
       where: { code: { in: uniqueCodes } },
-      select: { id: true, code: true },
+      select: { id: true, code: true, applicability: true },
     });
-    if (permissions.length !== uniqueCodes.length) {
+    if (
+      permissions.length !== uniqueCodes.length ||
+      permissions.some(
+        (permission) =>
+          permission.applicability !== PermissionApplicability.STORE &&
+          permission.applicability !== PermissionApplicability.BOTH,
+      )
+    ) {
       throw new ApiErrorException(
         HttpStatus.BAD_REQUEST,
         STORE_RBAC_ERROR_CODES.permissionInvalid,
         "One or more permissions are invalid.",
       );
     }
+    const granted = await this.storeGrantedPermissionCodes(storeId);
+    if (uniqueCodes.some((code) => !granted.has(code))) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        STORE_RBAC_ERROR_CODES.permissionNotGranted,
+        "One or more permissions are not granted to this Store.",
+      );
+    }
     return permissions.map((permission) => permission.id);
+  }
+
+  private async storeGrantedPermissionCodes(
+    storeId: string,
+  ): Promise<Set<string>> {
+    const grants = await this.prisma.storePermissionGrant.findMany({
+      where: { storeTenantId: storeId },
+      select: { permission: { select: { code: true } } },
+    });
+    return new Set(grants.map((grant) => grant.permission.code));
   }
 
   private async defaultRoleId(
@@ -980,7 +1067,10 @@ function membershipRoleInclude() {
   } as const;
 }
 
-function mapPermission(permission: Permission): StorePermissionDto {
+function mapPermission(
+  permission: Permission,
+  granted = true,
+): StorePermissionDto {
   return {
     id: permission.id,
     code: permission.code,
@@ -989,6 +1079,8 @@ function mapPermission(permission: Permission): StorePermissionDto {
     label: permission.label,
     description: permission.description,
     isSystem: permission.isSystem,
+    applicability: permission.applicability,
+    granted,
   };
 }
 

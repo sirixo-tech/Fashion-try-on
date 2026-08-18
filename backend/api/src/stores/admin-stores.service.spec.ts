@@ -65,6 +65,7 @@ describe("STORE-1 admin Stores", () => {
     expect(rbac.ensureStoreRbacInTransaction).toHaveBeenCalledWith(
       expect.any(Object),
       "store-1",
+      true,
     );
   });
 

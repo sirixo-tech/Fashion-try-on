@@ -73,7 +73,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.permissionsView,
       STORE_PERMISSION_CODES.rolesView,
     );
-    return this.rbac.listPermissions();
+    return this.rbac.listPermissions(storeId);
   }
 
   @Get("effective-permissions")

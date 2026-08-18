@@ -112,6 +112,44 @@ End state:
 
 ---
 
+## RBAC-2 Journey Addendum
+
+**Status:** UPDATED
+
+### SelfX Superadmin — Global Access Control
+
+Preconditions:
+
+- The actor is authenticated as protected SelfX Superadmin.
+
+Main flow:
+
+1. Superadmin opens Access Control in the SaaS application.
+2. Superadmin reviews the read-only global permission registry.
+3. Superadmin creates or updates configurable Platform roles using
+   Platform-applicable permissions.
+4. Superadmin assigns configurable Platform roles to existing SelfX users.
+5. Superadmin opens a Store and updates the Store permission ceiling.
+6. Store role editors can only select permissions currently granted to that
+   Store.
+
+Alternate flows:
+
+- Protected bootstrap Superadmin users cannot be changed through normal role
+  assignment.
+- Unsupported permission codes are rejected as controlled validation errors.
+- Store grant changes require Superadmin access-control authority.
+- Cross-Store role and membership mutations remain rejected.
+
+End state:
+
+- Platform access and Store delegation are controlled from one global
+  permission registry.
+- Revoked Store permission grants disappear from effective Store access on the
+  next protected request.
+
+---
+
 ## 1. Purpose
 
 This document defines the major end-to-end user and system journeys for the SelfX Virtual Try-On platform.

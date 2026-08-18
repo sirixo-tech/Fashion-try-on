@@ -150,9 +150,7 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
           final actions = _GarmentReviewActions(
             state: _previewState,
             failureKind: _failureKind,
-            sourceLabel: widget.pendingCameraCapture
-                ? 'Retake Photo'
-                : 'Change Image',
+            sourceLabel: 'Retake',
             compact: compact,
             onChooseAnother: () => _chooseAnother(context),
             onRetry: () => _preparePreview(force: true),
@@ -537,7 +535,7 @@ class _GarmentReviewActions extends StatelessWidget {
             Expanded(
               child: SelfxKioskButton(
                 key: const Key('continue-from-garment-review'),
-                label: 'Continue to Model Selection',
+                label: 'Proceed',
                 onPressed: state == GarmentPreviewState.success
                     ? onContinue
                     : null,

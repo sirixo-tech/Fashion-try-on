@@ -11,6 +11,7 @@ import {
   CreditCardIcon,
   FlaskConicalIcon,
   LayoutDashboardIcon,
+  LockKeyholeIcon,
   MonitorIcon,
   SettingsIcon,
   ShieldIcon,
@@ -48,6 +49,19 @@ const navItems: SelfxNavItem[] = [
   },
   { href: "/app/staff", label: "Staff", icon: UsersIcon },
   { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
+  {
+    label: "Access Control",
+    icon: LockKeyholeIcon,
+    children: [
+      {
+        href: "/app/permissions",
+        label: "Permissions",
+        icon: ShieldIcon,
+      },
+      { href: "/app/roles", label: "Platform Roles", icon: LockKeyholeIcon },
+      { href: "/app/users", label: "Platform Users", icon: UsersIcon },
+    ],
+  },
   { href: "/app/try-on-lab", label: "Try-On Lab", icon: FlaskConicalIcon },
   { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
   {

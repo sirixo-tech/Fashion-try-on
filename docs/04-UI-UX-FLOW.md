@@ -91,6 +91,28 @@ Store user screens must not expose protected platform or Superadmin controls.
 
 ---
 
+## RBAC-2 UI Addendum
+
+**Status:** UPDATED
+
+Access Control appears as a global SaaS navigation group with:
+
+- Permissions: read-only global permission registry with code, module, action
+  and applicability.
+- Platform Roles: configurable global SelfX Platform roles and their
+  Platform-applicable permission maps.
+- Platform Users: existing SelfX users and configurable Platform role
+  assignments. Protected bootstrap Superadmins are shown as protected and are
+  not editable through this screen.
+
+Store dashboards also show Store Permissions, the SelfX-granted permission
+ceiling for that Store. Store users can see granted/unavailable permissions
+when authorized. Superadmin users may update Store grants. Store role forms
+must disable permissions that are unavailable to the Store and must not allow a
+Store role to delegate a permission outside the current ceiling.
+
+---
+
 ## 1. Purpose
 
 This document defines the screen-level UI/UX flow for the SelfX Virtual Try-On platform.

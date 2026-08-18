@@ -101,6 +101,37 @@ Product rules:
 11. Global Superadmin kiosk fleet management remains a platform capability and
     must not be moved under normal Store-scoped menus or authorization.
 
+## RBAC-2 Global Authorization Update
+
+**Status:** UPDATED
+
+RBAC-2 introduces the global SelfX permission hierarchy:
+
+```text
+SELFX_SUPERADMIN
+→ Global permission registry
+→ SelfX Platform roles/users and Store permission ceilings
+→ Store roles/staff
+```
+
+Product rules:
+
+1. Permission definitions are owned by SelfX and live in one global registry.
+   Stores cannot create or rename permission definitions.
+2. Permission definitions have stable codes and an applicability of
+   `PLATFORM_ONLY`, `STORE` or `BOTH`.
+3. SelfX Platform roles are global and separate from Store roles.
+4. Protected Superadmin bootstrap authority must not be demoted, deleted or
+   assigned through ordinary role-management flows.
+5. Each Store has a SelfX-granted permission ceiling. Store roles may delegate
+   only Store-applicable permissions currently granted to that Store.
+6. Effective Store permissions are the intersection of active Store role
+   permissions and the Store permission ceiling.
+7. Revoking a Store permission grant must affect the next protected request
+   without a new login.
+8. Store Users and Store Roles remain Store-scoped and must preserve
+   cross-Store isolation.
+
 ---
 
 # 1. Purpose

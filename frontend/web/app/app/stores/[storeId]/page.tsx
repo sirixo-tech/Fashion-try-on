@@ -41,6 +41,7 @@ import {
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
+import { replaceStorePermissionGrants } from "@/lib/access-control";
 import {
   type KioskConfiguration,
   type KioskConfigurationAssetType,
@@ -86,6 +87,9 @@ export default function StoreDashboardPage() {
   const [roles, setRoles] = useState<StoreRole[]>([]);
   const [users, setUsers] = useState<StoreUser[]>([]);
   const [permissions, setPermissions] = useState<StorePermission[]>([]);
+  const [permissionGrantCodes, setPermissionGrantCodes] = useState<string[]>(
+    [],
+  );
   const [effectivePermissions, setEffectivePermissions] = useState<string[]>(
     [],
   );
@@ -94,6 +98,7 @@ export default function StoreDashboardPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [roleDialog, setRoleDialog] = useState<StoreRole | "new" | null>(null);
   const [userDialog, setUserDialog] = useState<StoreUser | "new" | null>(null);
+  const [savingPermissionGrants, setSavingPermissionGrants] = useState(false);
   const [configurationDevice, setConfigurationDevice] =
     useState<KioskDevice | null>(null);
 
@@ -136,6 +141,11 @@ export default function StoreDashboardPage() {
       setRoles(nextRoles.data);
       setUsers(nextUsers.data);
       setPermissions(nextPermissions.data);
+      setPermissionGrantCodes(
+        nextPermissions.data
+          .filter((permission) => permission.granted)
+          .map((permission) => permission.code),
+      );
       setEffectivePermissions(nextEffectivePermissionCodes);
       setPlatformBypass(nextEffectivePermissions.platformBypass);
     } catch (caught) {
@@ -337,6 +347,84 @@ export default function StoreDashboardPage() {
       </PageSection>
 
       <PageSection>
+        <TableContainer
+          title="Store Permissions"
+          description="SelfX-granted permission ceiling for this Store. Store roles can only delegate granted permissions."
+          actions={
+            platformBypass ? (
+              <Button
+                disabled={savingPermissionGrants}
+                onClick={() => void savePermissionGrants()}
+              >
+                Save Grants
+              </Button>
+            ) : null
+          }
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Permission</TableHead>
+                <TableHead>Module</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={3}>
+                    Loading Store permissions...
+                  </TableCell>
+                </TableRow>
+              ) : permissions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3}>
+                    Store permission visibility is unavailable for this user.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                permissions.map((permission) => (
+                  <TableRow key={permission.id}>
+                    <TableCell>
+                      {platformBypass ? (
+                        <input
+                          type="checkbox"
+                          className="mr-3 align-middle"
+                          checked={permissionGrantCodes.includes(
+                            permission.code,
+                          )}
+                          onChange={(event) =>
+                            setPermissionGrantCodes((current) =>
+                              event.target.checked
+                                ? [...current, permission.code]
+                                : current.filter(
+                                    (code) => code !== permission.code,
+                                  ),
+                            )
+                          }
+                        />
+                      ) : null}
+                      <div className="font-medium">{permission.label}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {permission.code}
+                      </div>
+                    </TableCell>
+                    <TableCell>{permission.module}</TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={permission.granted ? "GRANTED" : "UNAVAILABLE"}
+                        label={permission.granted ? "Granted" : "Unavailable"}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </PageSection>
+
+      <PageSection>
         <div className="grid gap-5 xl:grid-cols-2">
           <TableContainer
             title="Store Users"
@@ -436,7 +524,7 @@ export default function StoreDashboardPage() {
 
           <TableContainer
             title="Store Roles"
-            description="Store roles group permissions. Permission-map management is restricted to SelfX platform admins."
+            description="Store roles group granted permissions for Store-managed staff."
           >
             <div className="mb-4 flex justify-end">
               {canCreateRoles ? (
@@ -696,6 +784,30 @@ export default function StoreDashboardPage() {
       setError(messageFor(caught));
     }
   }
+
+  async function savePermissionGrants() {
+    if (!accessToken || !store) {
+      return;
+    }
+    setSavingPermissionGrants(true);
+    setError(null);
+    try {
+      const response = await replaceStorePermissionGrants(
+        accessToken,
+        store.id,
+        permissionGrantCodes,
+      );
+      const granted = response.data
+        .filter((permission) => permission.granted)
+        .map((permission) => permission.code);
+      setPermissionGrantCodes(granted);
+      await load();
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSavingPermissionGrants(false);
+    }
+  }
 }
 
 function StoreKioskConfigurationDialog({
@@ -868,14 +980,21 @@ function StoreRoleDialog({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    const grantedCodes = new Set(
+      permissions
+        .filter((permission) => permission.granted)
+        .map((permission) => permission.code),
+    );
     setName(editingRole?.name ?? "");
     setDescription(editingRole?.description ?? "");
     setIsActive(editingRole?.isActive ?? true);
     setPermissionCodes(
-      editingRole?.permissions.map((permission) => permission.code) ?? [],
+      editingRole?.permissions
+        .map((permission) => permission.code)
+        .filter((code) => grantedCodes.has(code)) ?? [],
     );
     setError(null);
-  }, [editingRole, role]);
+  }, [editingRole, permissions, role]);
 
   const groupedPermissions = groupPermissions(permissions);
   const permissionsLocked = Boolean(editingRole?.isSystem);
@@ -962,37 +1081,45 @@ function StoreRoleDialog({
                 <legend className="px-1 text-sm font-semibold capitalize">
                   {module}
                 </legend>
-                {modulePermissions.map((permission) => (
-                  <label
-                    key={permission.code}
-                    className="flex gap-3 rounded-md p-2 text-sm hover:bg-muted/50"
-                  >
-                    <input
-                      type="checkbox"
-                      disabled={permissionsLocked}
-                      checked={permissionCodes.includes(permission.code)}
-                      onChange={(event) =>
-                        setPermissionCodes((current) =>
-                          event.target.checked
-                            ? [...current, permission.code]
-                            : current.filter(
-                                (code) => code !== permission.code,
-                              ),
-                        )
-                      }
-                    />
-                    <span>
-                      <span className="block font-medium">
-                        {permission.label}
-                      </span>
-                      {permission.description ? (
-                        <span className="block text-xs text-muted-foreground">
-                          {permission.description}
+                {modulePermissions.map((permission) => {
+                  const unavailable = !permission.granted;
+                  return (
+                    <label
+                      key={permission.code}
+                      className="flex gap-3 rounded-md p-2 text-sm hover:bg-muted/50"
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={permissionsLocked || unavailable}
+                        checked={permissionCodes.includes(permission.code)}
+                        onChange={(event) =>
+                          setPermissionCodes((current) =>
+                            event.target.checked
+                              ? [...current, permission.code]
+                              : current.filter(
+                                  (code) => code !== permission.code,
+                                ),
+                          )
+                        }
+                      />
+                      <span className={unavailable ? "opacity-60" : undefined}>
+                        <span className="block font-medium">
+                          {permission.label}
                         </span>
-                      ) : null}
-                    </span>
-                  </label>
-                ))}
+                        {permission.description ? (
+                          <span className="block text-xs text-muted-foreground">
+                            {permission.description}
+                          </span>
+                        ) : null}
+                        {unavailable ? (
+                          <span className="block text-xs text-muted-foreground">
+                            Not granted to this Store
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
               </fieldset>
             ))}
           </div>

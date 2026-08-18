@@ -170,6 +170,44 @@ RBAC-1.1 deployment-readiness validation must additionally prove:
 - global Superadmin kiosk fleet management remains platform-scoped while
   Store-scoped kiosk access validates Store ownership.
 
+## RBAC-2 — Global/Hierarchical Authorization
+
+**Status:** UPDATED
+
+Goal:
+
+Implement the global SelfX permission registry, configurable Platform roles and
+Store permission ceilings while preserving RBAC-1 Store users/roles.
+
+Implementation scope:
+
+- add `permissions.applicability`;
+- add Platform role definition, Platform role permission and Platform user role
+  assignment persistence;
+- add Store permission grants as the Store ceiling;
+- add `/api/v1/admin/access/*` APIs for registry, Platform roles/users and
+  Store grants;
+- update Store RBAC so effective permissions are role permissions intersected
+  with current Store grants;
+- add admin web pages for Permissions, Platform Roles and Platform Users;
+- show Store granted/unavailable permissions in Store dashboard role
+  management.
+
+Deferred:
+
+- direct user permissions;
+- impersonation;
+- merchant-created permission definitions;
+- catalog, billing, analytics, Shopify/WooCommerce and API Gateway changes.
+
+Verification:
+
+- Prisma format/generate/validate;
+- backend typecheck and production build;
+- RBAC/platform/store/kiosk authorization regression tests;
+- web typecheck/build for the new admin pages;
+- `git diff --check`.
+
 ---
 
 # 4. Phase 0 — Repository & Engineering Foundation
