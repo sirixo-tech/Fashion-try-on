@@ -784,6 +784,16 @@ tenant compatibility layer.
     future SelfX-hosted models
     Clients must never depend directly on provider-specific parameters or status names.
 
+    Capability-based provider routing is configured independently per AI
+    capability. `SELFX_GARMENT_PREVIEW_PROVIDER` selects the server-side
+    garment-preview adapter and currently supports `fashn` and `openai`.
+    `SELFX_TRYON_PROVIDER` selects the Virtual Try-On adapter and currently
+    supports `fashn`. Provider keys are required only for selected providers:
+    FASHN preview or FASHN Try-On requires `FASHN_API_KEY`; OpenAI preview
+    requires `OPENAI_API_KEY` and may use `GARMENT_EXTRACTION_OPENAI_MODEL`.
+    A deployment using FASHN for both preview and Try-On must not require
+    `OPENAI_API_KEY`.
+
     CORE VTO-1 implementation note:
     SelfX intentionally prioritized a guarded internal development Try-On Lab
     before Product Catalog implementation to prove the core person-image plus

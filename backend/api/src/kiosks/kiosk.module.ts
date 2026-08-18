@@ -5,6 +5,10 @@ import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { TryOnModule } from "../try-on/try-on.module.js";
+import { GarmentPreviewProviderRegistry } from "../ai/garment-preview/garment-preview.registry.js";
+import { GarmentPreviewService } from "../ai/garment-preview/garment-preview.service.js";
+import { FashnGarmentPreviewProvider } from "../ai/garment-preview/providers/fashn-garment-preview.provider.js";
+import { OpenAiGarmentPreviewProvider } from "../ai/garment-preview/providers/openai-garment-preview.provider.js";
 import { AdminKiosksController } from "./admin-kiosks.controller.js";
 import {
   CustomerUploadCapabilityController,
@@ -32,10 +36,6 @@ import {
 import { KioskConfigurationService } from "./kiosk-configuration.service.js";
 import { KioskGarmentExtractionController } from "./kiosk-garment-extraction.controller.js";
 import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.service.js";
-import {
-  GarmentExtractionProvider,
-  OpenAiGarmentExtractionProvider,
-} from "./garment-extraction.provider.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule, JwtModule.register({}), TryOnModule],
@@ -57,13 +57,13 @@ import {
     KioskCustomerUploadService,
     KioskTryOnService,
     KioskGarmentExtractionService,
+    GarmentPreviewService,
+    GarmentPreviewProviderRegistry,
+    FashnGarmentPreviewProvider,
+    OpenAiGarmentPreviewProvider,
     KioskConfigurationService,
     ObjectStorageService,
     PlatformAuthorizationService,
-    {
-      provide: GarmentExtractionProvider,
-      useClass: OpenAiGarmentExtractionProvider,
-    },
     { provide: KIOSK_CONFIG, useFactory: () => loadKioskConfig() },
   ],
   exports: [KioskService, KioskConfigurationService],

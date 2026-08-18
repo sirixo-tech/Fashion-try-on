@@ -5,10 +5,10 @@ import { TRY_ON_LAB_ERROR_CODES } from "@selfx/shared";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import type { CreateTryOnLabRunPayload } from "../try-on-lab/try-on-lab-multipart.js";
 import type {
-  TryOnProvider,
-  TryOnProviderMetadata,
-  TryOnProviderStatusResult,
-} from "../try-on-lab/providers/try-on-provider.js";
+  VirtualTryOnProvider,
+  VirtualTryOnProviderMetadata,
+  VirtualTryOnProviderStatusResult,
+} from "./providers/virtual-try-on.provider.js";
 import {
   TRY_ON_PROVIDER,
   TRY_ON_PROVIDER_POLL_INTERVAL_MS,
@@ -21,10 +21,13 @@ export interface TryOnExecutionObserver {
   onStarted(startedAt: Date): MaybePromise<void>;
   onSubmitted(providerPredictionId: string): MaybePromise<void>;
   onStatus(
-    status: TryOnProviderStatusResult & { completedAt?: Date },
+    status: VirtualTryOnProviderStatusResult & { completedAt?: Date },
   ): MaybePromise<void>;
   onTimedOut(completedAt: Date): MaybePromise<void>;
-  onError(error: NormalizedTryOnProcessError, completedAt: Date): MaybePromise<void>;
+  onError(
+    error: NormalizedTryOnProcessError,
+    completedAt: Date,
+  ): MaybePromise<void>;
 }
 
 export interface NormalizedTryOnProcessError {
@@ -35,13 +38,15 @@ export interface NormalizedTryOnProcessError {
 
 @Injectable()
 export class TryOnExecutionService {
-  constructor(@Inject(TRY_ON_PROVIDER) private readonly provider: TryOnProvider) {}
+  constructor(
+    @Inject(TRY_ON_PROVIDER) private readonly provider: VirtualTryOnProvider,
+  ) {}
 
   assertConfigured(): void {
     this.provider.assertConfigured();
   }
 
-  metadata(): TryOnProviderMetadata {
+  metadata(): VirtualTryOnProviderMetadata {
     return this.provider.metadata();
   }
 
@@ -81,8 +86,8 @@ export class TryOnExecutionService {
 }
 
 export function terminalPatch(
-  status: TryOnProviderStatusResult,
-): TryOnProviderStatusResult & { completedAt?: Date } {
+  status: VirtualTryOnProviderStatusResult,
+): VirtualTryOnProviderStatusResult & { completedAt?: Date } {
   if (status.status === "COMPLETED" || status.status === "FAILED") {
     return { ...status, completedAt: new Date() };
   }
@@ -90,7 +95,9 @@ export function terminalPatch(
   return status;
 }
 
-export function normalizeProcessError(error: unknown): NormalizedTryOnProcessError {
+export function normalizeProcessError(
+  error: unknown,
+): NormalizedTryOnProcessError {
   if (error instanceof ApiErrorException) {
     const response = error.getResponse();
     if (

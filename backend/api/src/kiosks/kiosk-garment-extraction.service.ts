@@ -2,12 +2,11 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import {
-  GarmentExtractionProvider,
-  GarmentExtractionProviderError,
-} from "./garment-extraction.provider.js";
-import {
-  type KioskGarmentExtractionPayload,
-} from "./kiosk-garment-extraction.multipart.js";
+  SELFX_AI_PROVIDER_ERROR_CODES,
+  SelfxAiProviderError,
+} from "../ai/provider-errors.js";
+import { GarmentPreviewService } from "../ai/garment-preview/garment-preview.service.js";
+import { type KioskGarmentExtractionPayload } from "./kiosk-garment-extraction.multipart.js";
 
 export interface KioskGarmentExtractionResponse {
   imageDataUri: string;
@@ -16,24 +15,21 @@ export interface KioskGarmentExtractionResponse {
 
 @Injectable()
 export class KioskGarmentExtractionService {
-  constructor(private readonly provider: GarmentExtractionProvider) {}
+  constructor(private readonly preview: GarmentPreviewService) {}
 
   async extract(
     _device: unknown,
     payload: KioskGarmentExtractionPayload,
   ): Promise<KioskGarmentExtractionResponse> {
     try {
-      return await this.provider.extract({
-        garmentImage: payload.garmentImage,
+      return await this.preview.generatePreview({
+        image: payload.garmentImage,
         garmentIntent: payload.garmentIntent,
       });
     } catch (error) {
-      if (error instanceof GarmentExtractionProviderError) {
-        throw new ApiErrorException(
-          error.status as HttpStatus,
-          error.code,
-          error.message,
-        );
+      if (error instanceof SelfxAiProviderError) {
+        const mapped = mapPreviewError(error);
+        throw new ApiErrorException(mapped.status, mapped.code, mapped.message);
       }
       throw new ApiErrorException(
         HttpStatus.BAD_GATEWAY,
@@ -41,5 +37,54 @@ export class KioskGarmentExtractionService {
         "SelfX could not prepare the garment image.",
       );
     }
+  }
+}
+
+function mapPreviewError(error: SelfxAiProviderError): {
+  status: HttpStatus;
+  code: string;
+  message: string;
+} {
+  switch (error.code) {
+    case SELFX_AI_PROVIDER_ERROR_CODES.configurationError:
+    case SELFX_AI_PROVIDER_ERROR_CODES.providerAuthFailed:
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: "GARMENT_EXTRACTION_NOT_CONFIGURED",
+        message: "Garment extraction is not configured.",
+      };
+    case SELFX_AI_PROVIDER_ERROR_CODES.invalidImage:
+    case SELFX_AI_PROVIDER_ERROR_CODES.garmentNotDetected:
+    case SELFX_AI_PROVIDER_ERROR_CODES.unsupportedInput:
+      return {
+        status: HttpStatus.BAD_REQUEST,
+        code: "GARMENT_EXTRACTION_IMAGE_INVALID",
+        message: "SelfX could not use this garment image.",
+      };
+    case SELFX_AI_PROVIDER_ERROR_CODES.rateLimited:
+      return {
+        status: HttpStatus.TOO_MANY_REQUESTS,
+        code: "GARMENT_EXTRACTION_PROVIDER_RATE_LIMITED",
+        message: "Garment extraction is temporarily busy.",
+      };
+    case SELFX_AI_PROVIDER_ERROR_CODES.providerUnavailable:
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: "GARMENT_EXTRACTION_PROVIDER_UNAVAILABLE",
+        message: "SelfX could not reach the garment extraction provider.",
+      };
+    case SELFX_AI_PROVIDER_ERROR_CODES.generationTimeout:
+      return {
+        status: HttpStatus.GATEWAY_TIMEOUT,
+        code: "GARMENT_EXTRACTION_PROVIDER_TIMEOUT",
+        message: "Garment extraction timed out.",
+      };
+    case SELFX_AI_PROVIDER_ERROR_CODES.generationFailed:
+    default:
+      return {
+        status: HttpStatus.BAD_GATEWAY,
+        code: "GARMENT_EXTRACTION_PROVIDER_FAILED",
+        message: "SelfX could not prepare the garment image.",
+      };
   }
 }
