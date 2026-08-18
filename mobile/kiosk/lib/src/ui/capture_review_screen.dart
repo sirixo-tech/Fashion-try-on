@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../quality/image_quality.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'garment_selection_screen.dart';
@@ -17,11 +18,13 @@ class CaptureReviewScreen extends StatelessWidget {
     required this.controller,
     required this.tryOnController,
     required this.uploadController,
+    this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +75,7 @@ class CaptureReviewScreen extends StatelessWidget {
                 controller: controller,
                 tryOnController: tryOnController,
                 uploadController: uploadController,
+                extractionService: extractionService,
                 quality: quality,
                 compact: compact,
               );
@@ -119,6 +123,7 @@ class _ReviewActions extends StatelessWidget {
     required this.controller,
     required this.tryOnController,
     required this.uploadController,
+    required this.extractionService,
     required this.quality,
     required this.compact,
   });
@@ -126,6 +131,7 @@ class _ReviewActions extends StatelessWidget {
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
   final ImageQualityResult? quality;
   final bool compact;
 
@@ -168,6 +174,7 @@ class _ReviewActions extends StatelessWidget {
                           captureController: controller,
                           tryOnController: tryOnController,
                           uploadController: uploadController,
+                          extractionService: extractionService,
                         ),
                       ),
                     );
@@ -179,6 +186,7 @@ class _ReviewActions extends StatelessWidget {
                         captureController: controller,
                         tryOnController: tryOnController,
                         uploadController: uploadController,
+                        extractionService: extractionService,
                       ),
                     ),
                   );

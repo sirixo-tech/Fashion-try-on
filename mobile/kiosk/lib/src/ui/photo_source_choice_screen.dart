@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
@@ -15,11 +16,13 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
 
   @override
   Widget build(BuildContext context) {
@@ -56,13 +59,13 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                 icon: Icons.camera_alt_outlined,
                 trailing: const Icon(Icons.arrow_forward),
                 variant: SelfxKioskButtonVariant.secondary,
-                minHeight: 112,
+                minHeight: 76,
                 expanded: true,
                 textAlign: TextAlign.start,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 26,
-                  vertical: 24,
+                  horizontal: 20,
+                  vertical: 16,
                 ),
                 onPressed: () {
                   Navigator.of(context).push(
@@ -71,6 +74,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                         controller: captureController,
                         tryOnController: tryOnController,
                         uploadController: uploadController,
+                        extractionService: extractionService,
                         purpose: PhotoAcquisitionPurpose.model,
                       ),
                     ),
@@ -85,13 +89,13 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                 icon: Icons.qr_code_2,
                 trailing: const Icon(Icons.arrow_forward),
                 variant: SelfxKioskButtonVariant.secondary,
-                minHeight: 112,
+                minHeight: 76,
                 expanded: true,
                 textAlign: TextAlign.start,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 26,
-                  vertical: 24,
+                  horizontal: 20,
+                  vertical: 16,
                 ),
                 onPressed: () {
                   Navigator.of(context).push(
@@ -100,6 +104,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
                         captureController: captureController,
                         tryOnController: tryOnController,
                         uploadController: uploadController,
+                        extractionService: extractionService,
                         purpose: PhotoAcquisitionPurpose.model,
                       ),
                     ),

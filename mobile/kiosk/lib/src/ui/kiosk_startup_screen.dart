@@ -6,6 +6,7 @@ import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_session_controller.dart';
 import '../operator/operator_access.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_home_screen.dart';
@@ -20,12 +21,14 @@ class KioskStartupScreen extends StatefulWidget {
     required this.uploadController,
     required this.configurationController,
     required this.operatorAccessController,
+    this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final KioskDeviceSessionController deviceController;
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
   final KioskRuntimeConfigurationController configurationController;
   final OperatorAccessController operatorAccessController;
 
@@ -55,6 +58,7 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
               controller: widget.captureController,
               tryOnController: widget.tryOnController,
               uploadController: widget.uploadController,
+              extractionService: widget.extractionService,
               configurationController: widget.configurationController,
               operatorAccessController: widget.operatorAccessController,
             );

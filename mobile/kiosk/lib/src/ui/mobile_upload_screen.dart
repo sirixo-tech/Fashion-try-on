@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
@@ -21,6 +22,7 @@ class MobileUploadScreen extends StatefulWidget {
     required this.uploadController,
     this.purpose = PhotoAcquisitionPurpose.model,
     this.garmentIntent,
+    this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController captureController;
@@ -28,6 +30,7 @@ class MobileUploadScreen extends StatefulWidget {
   final KioskCustomerUploadController uploadController;
   final PhotoAcquisitionPurpose purpose;
   final KioskGarmentIntent? garmentIntent;
+  final GarmentExtractionService extractionService;
 
   @override
   State<MobileUploadScreen> createState() => _MobileUploadScreenState();
@@ -81,6 +84,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
               tryOnController: widget.tryOnController,
               purpose: widget.purpose,
               garmentIntent: widget.garmentIntent,
+              extractionService: widget.extractionService,
               session: session!,
             );
           }
@@ -143,7 +147,8 @@ class _QrPanel extends StatelessWidget {
         final minHeight = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : 0.0;
-        final compact = constraints.maxWidth < 640 || constraints.maxHeight < 560;
+        final compact =
+            constraints.maxWidth < 640 || constraints.maxHeight < 560;
         final padding = compact ? 18.0 : 30.0;
         final qrDimension = _qrDimensionFor(constraints, hasValidSession);
 
@@ -319,6 +324,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
     required this.captureController,
     required this.tryOnController,
     required this.purpose,
+    required this.extractionService,
     this.garmentIntent,
     required this.session,
   });
@@ -327,6 +333,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final PhotoAcquisitionPurpose purpose;
+  final GarmentExtractionService extractionService;
   final KioskGarmentIntent? garmentIntent;
   final KioskCustomerUploadSession session;
 
@@ -351,27 +358,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
           mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      purpose.readyTitle,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
-                    Text('${photo.width} x ${photo.height}'),
-                    if (controller.message != null) ...[
-                      const SizedBox(height: 12),
-                      Text(controller.message!),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (compact) const SizedBox(height: 18) else const Spacer(),
+            if (!compact) const Spacer(),
             OutlinedButton.icon(
               key: const Key('upload-another-photo'),
               onPressed: controller.isBusy
@@ -401,13 +388,15 @@ class _ReadyPhotoPanel extends StatelessWidget {
                               tryOnController: tryOnController,
                               uploadController: controller,
                               garmentInput: input,
+                              extractionService: extractionService,
                             ),
                           ),
                         );
                         return;
                       }
-                      final accepted =
-                          await controller.useReadyPhoto(captureController);
+                      final accepted = await controller.useReadyPhoto(
+                        captureController,
+                      );
                       if (!accepted || !context.mounted) {
                         return;
                       }
@@ -419,6 +408,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                               captureController: captureController,
                               tryOnController: tryOnController,
                               uploadController: controller,
+                              extractionService: extractionService,
                             ),
                           ),
                         );
@@ -430,6 +420,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                             captureController: captureController,
                             tryOnController: tryOnController,
                             uploadController: controller,
+                            extractionService: extractionService,
                           ),
                         ),
                       );
@@ -441,15 +432,13 @@ class _ReadyPhotoPanel extends StatelessWidget {
         );
 
         if (compact) {
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(height: 460, child: preview),
-                const SizedBox(height: 16),
-                actions,
-              ],
-            ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: preview),
+              const SizedBox(height: 12),
+              actions,
+            ],
           );
         }
         return Row(

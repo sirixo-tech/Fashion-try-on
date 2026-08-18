@@ -9,6 +9,7 @@ import '../idle/kiosk_idle_presentation.dart';
 import '../operator/operator_access.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_settings_screen.dart';
@@ -22,6 +23,7 @@ class KioskHomeScreen extends StatefulWidget {
     required this.tryOnController,
     required this.uploadController,
     required this.operatorAccessController,
+    this.extractionService = const UnavailableGarmentExtractionService(),
     this.configurationController,
     this.presentation = defaultIdlePresentation,
   });
@@ -29,6 +31,7 @@ class KioskHomeScreen extends StatefulWidget {
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
   final OperatorAccessController operatorAccessController;
   final KioskRuntimeConfigurationController? configurationController;
   final KioskIdlePresentation presentation;
@@ -119,9 +122,8 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     final unlocked = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => OperatorPinDialog(
-        controller: widget.operatorAccessController,
-      ),
+      builder: (context) =>
+          OperatorPinDialog(controller: widget.operatorAccessController),
     );
     if (!mounted || unlocked != true) {
       return;
@@ -147,8 +149,11 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
           captureController: widget.controller,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
-          enabledGarmentIntents:
-              widget.configurationController?.configuration.enabledGarmentIntents,
+          extractionService: widget.extractionService,
+          enabledGarmentIntents: widget
+              .configurationController
+              ?.configuration
+              .enabledGarmentIntents,
         ),
       ),
     );
@@ -160,8 +165,8 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     if (!widget.tryOnController.canActivateRuntimeConfiguration) {
       return;
     }
-    final activated =
-        widget.configurationController?.activatePendingConfiguration();
+    final activated = widget.configurationController
+        ?.activatePendingConfiguration();
     if (activated == null) {
       return;
     }
@@ -479,7 +484,10 @@ class _IdleWallpaper extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (image != null) image else CustomPaint(painter: _WallpaperPainter()),
+          if (image != null)
+            image
+          else
+            CustomPaint(painter: _WallpaperPainter()),
         ],
       ),
     );
@@ -514,8 +522,16 @@ class _WallpaperPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.white.withValues(alpha: 0.08);
-    canvas.drawCircle(Offset(size.width * 0.82, size.height * 0.18), 180, paint);
-    canvas.drawCircle(Offset(size.width * 0.18, size.height * 0.78), 260, paint);
+    canvas.drawCircle(
+      Offset(size.width * 0.82, size.height * 0.18),
+      180,
+      paint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.18, size.height * 0.78),
+      260,
+      paint,
+    );
     final linePaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.12)
       ..strokeWidth = 2;

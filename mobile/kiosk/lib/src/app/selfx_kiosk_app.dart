@@ -17,6 +17,7 @@ import '../session/capture_session_controller.dart';
 import '../session/temporary_capture_store.dart';
 import '../settings/camera_settings_store.dart';
 import '../theme/selfx_kiosk_theme.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_gateway.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_coverage_analyzer.dart';
@@ -32,6 +33,7 @@ class SelfxKioskApp extends StatelessWidget {
     required this.deviceController,
     required this.uploadController,
     required this.configurationController,
+    this.extractionService = const UnavailableGarmentExtractionService(),
     this.operatorAccessController,
   });
 
@@ -86,6 +88,11 @@ class SelfxKioskApp extends StatelessWidget {
         ),
         captureStore: captureStore,
       ),
+      extractionService: SelfxGarmentExtractionService(
+        config: KioskGarmentExtractionApiConfig.fromEnvironment(),
+        deviceController: deviceController,
+        captureStore: captureStore,
+      ),
       operatorAccessController: OperatorAccessController(
         verifier: const Sha256OperatorAccessVerifier(
           expectedDigest: demoOperatorPinSha256Digest,
@@ -98,6 +105,7 @@ class SelfxKioskApp extends StatelessWidget {
   final KioskTryOnSessionController tryOnController;
   final KioskDeviceSessionController deviceController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
   final KioskRuntimeConfigurationController configurationController;
   final OperatorAccessController? operatorAccessController;
 
@@ -112,6 +120,7 @@ class SelfxKioskApp extends StatelessWidget {
         captureController: controller,
         tryOnController: tryOnController,
         uploadController: uploadController,
+        extractionService: extractionService,
         configurationController: configurationController,
         operatorAccessController:
             operatorAccessController ??

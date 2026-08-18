@@ -111,11 +111,11 @@ class _CaptureScopeButton extends StatelessWidget {
         variant: selected
             ? SelfxKioskButtonVariant.selected
             : SelfxKioskButtonVariant.secondary,
-        minHeight: 112,
+        minHeight: 76,
         expanded: true,
         textAlign: TextAlign.start,
         crossAxisAlignment: CrossAxisAlignment.start,
-        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         onPressed: onPressed,
       ),
     );

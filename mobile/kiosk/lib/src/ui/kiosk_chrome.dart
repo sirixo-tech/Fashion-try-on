@@ -10,12 +10,16 @@ class KioskScaffold extends StatelessWidget {
     required this.subtitle,
     required this.child,
     this.leading,
+    this.showBrandHeader = false,
+    this.padding,
   });
 
   final String title;
   final String subtitle;
   final Widget child;
   final Widget? leading;
+  final bool showBrandHeader;
+  final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context) {
@@ -24,37 +28,43 @@ class KioskScaffold extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 720;
-            final padding = compact ? 16.0 : 28.0;
             return Padding(
-              padding: EdgeInsets.all(padding),
+              padding: padding ?? EdgeInsets.all(compact ? 16.0 : 28.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (leading != null) ...[
-                        leading!,
-                        const SizedBox(width: 12),
-                      ],
-                      const _SelfxMark(),
-                      const SizedBox(width: 18),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: Theme.of(context).textTheme.headlineMedium,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(subtitle, overflow: TextOverflow.ellipsis),
-                          ],
+                  if (showBrandHeader) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (leading != null) ...[
+                          leading!,
+                          const SizedBox(width: 12),
+                        ],
+                        const _SelfxMark(),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineMedium,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(subtitle, overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: compact ? 18 : 28),
+                      ],
+                    ),
+                    SizedBox(height: compact ? 18 : 28),
+                  ] else if (leading != null) ...[
+                    Align(alignment: Alignment.centerLeft, child: leading!),
+                    SizedBox(height: compact ? 2 : 4),
+                  ],
                   Expanded(child: child),
                 ],
               ),

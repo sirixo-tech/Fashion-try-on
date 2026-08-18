@@ -30,6 +30,12 @@ import {
   KioskConfigurationController,
 } from "./kiosk-configuration.controller.js";
 import { KioskConfigurationService } from "./kiosk-configuration.service.js";
+import { KioskGarmentExtractionController } from "./kiosk-garment-extraction.controller.js";
+import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.service.js";
+import {
+  GarmentExtractionProvider,
+  OpenAiGarmentExtractionProvider,
+} from "./garment-extraction.provider.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule, JwtModule.register({}), TryOnModule],
@@ -40,6 +46,7 @@ import { KioskConfigurationService } from "./kiosk-configuration.service.js";
     KioskDeviceSessionController,
     KioskHeartbeatController,
     KioskTryOnController,
+    KioskGarmentExtractionController,
     KioskCustomerUploadDeviceController,
     CustomerUploadCapabilityController,
     AdminKioskConfigurationController,
@@ -49,9 +56,14 @@ import { KioskConfigurationService } from "./kiosk-configuration.service.js";
     KioskService,
     KioskCustomerUploadService,
     KioskTryOnService,
+    KioskGarmentExtractionService,
     KioskConfigurationService,
     ObjectStorageService,
     PlatformAuthorizationService,
+    {
+      provide: GarmentExtractionProvider,
+      useClass: OpenAiGarmentExtractionProvider,
+    },
     { provide: KIOSK_CONFIG, useFactory: () => loadKioskConfig() },
   ],
   exports: [KioskService, KioskConfigurationService],

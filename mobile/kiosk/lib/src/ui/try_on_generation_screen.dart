@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
@@ -15,11 +16,13 @@ class TryOnGenerationScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
 
   @override
   State<TryOnGenerationScreen> createState() => _TryOnGenerationScreenState();
@@ -176,6 +179,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
             captureController: widget.captureController,
             tryOnController: widget.tryOnController,
             uploadController: widget.uploadController,
+            extractionService: widget.extractionService,
           ),
         ),
       );
@@ -193,6 +197,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
           captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          extractionService: widget.extractionService,
         ),
       ),
       (route) => route.isFirst,
@@ -210,6 +215,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
           captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          extractionService: widget.extractionService,
         ),
       ),
       (route) => route.isFirst,

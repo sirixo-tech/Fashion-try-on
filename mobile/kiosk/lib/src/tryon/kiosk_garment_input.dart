@@ -8,13 +8,7 @@ enum KioskGarmentInputSource {
   remoteAsset,
 }
 
-enum KioskGarmentIntent {
-  auto,
-  top,
-  bottom,
-  onePiece,
-  fullOutfit,
-}
+enum KioskGarmentIntent { auto, top, bottom, onePiece, fullOutfit }
 
 enum KioskGarmentPhotoType { auto, flatLay, onModel }
 
@@ -24,12 +18,32 @@ class KioskGarmentInput {
     required this.localPath,
     this.intent = KioskGarmentIntent.auto,
     this.photoType = KioskGarmentPhotoType.auto,
+    this.extractedPreviewPath,
   });
 
   final KioskGarmentInputSource source;
   final String localPath;
   final KioskGarmentIntent intent;
   final KioskGarmentPhotoType photoType;
+  final String? extractedPreviewPath;
+
+  String get previewPath => extractedPreviewPath ?? localPath;
+
+  KioskGarmentInput copyWith({
+    KioskGarmentInputSource? source,
+    String? localPath,
+    KioskGarmentIntent? intent,
+    KioskGarmentPhotoType? photoType,
+    String? extractedPreviewPath,
+  }) {
+    return KioskGarmentInput(
+      source: source ?? this.source,
+      localPath: localPath ?? this.localPath,
+      intent: intent ?? this.intent,
+      photoType: photoType ?? this.photoType,
+      extractedPreviewPath: extractedPreviewPath ?? this.extractedPreviewPath,
+    );
+  }
 
   String get displayName {
     final segments = localPath.split(Platform.pathSeparator);

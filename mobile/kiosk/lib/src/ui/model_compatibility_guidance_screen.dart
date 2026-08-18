@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_garment_compatibility.dart';
@@ -15,12 +16,14 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final KioskGarmentIntent intent;
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final GarmentExtractionService extractionService;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +96,7 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
           captureController: captureController,
           tryOnController: tryOnController,
           uploadController: uploadController,
+          extractionService: extractionService,
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../acquisition/photo_acquisition.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
+import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_garment_compatibility.dart';
@@ -20,12 +21,14 @@ class GarmentSelectionScreen extends StatefulWidget {
     required this.tryOnController,
     required this.uploadController,
     this.enabledGarmentIntents,
+    this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
   final List<KioskGarmentIntent>? enabledGarmentIntents;
+  final GarmentExtractionService extractionService;
 
   @override
   State<GarmentSelectionScreen> createState() => _GarmentSelectionScreenState();
@@ -44,7 +47,9 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
         existing != KioskGarmentIntent.auto &&
         _enabledIntents.contains(existing)) {
       _intent = existing;
-      widget.captureController.selectCaptureScope(captureScopeForIntent(existing));
+      widget.captureController.selectCaptureScope(
+        captureScopeForIntent(existing),
+      );
     }
   }
 
@@ -57,91 +62,107 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
     return KioskScaffold(
       title: 'SelfX Kiosk',
       subtitle: 'Garment photo',
+      showBrandHeader: false,
       leading: IconButton(
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.arrow_back),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return SingleChildScrollView(
+          final veryShort = constraints.maxHeight < 560;
+          final short = constraints.maxHeight < 760;
+          final narrow = constraints.maxWidth < 560;
+          final titleStyle = Theme.of(context).textTheme.displaySmall?.copyWith(
+            fontSize: veryShort ? 30 : (short ? 36 : 42),
+            height: 1.08,
+          );
+          final sectionTitleStyle = Theme.of(context).textTheme.headlineMedium
+              ?.copyWith(fontSize: veryShort ? 24 : (short ? 28 : 32));
+          final bodyStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontSize: veryShort ? 15 : (short ? 17 : 18),
+          );
+          final buttonMinHeight = veryShort ? 60.0 : 76.0;
+          final horizontalPadding = narrow ? 14.0 : 20.0;
+          final verticalPadding = veryShort ? 10.0 : (short ? 14.0 : 16.0);
+
+          return Center(
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 980),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'What are you trying on?',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displaySmall,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Choose the closest option, then add a clear outfit photo.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 28),
-                      Wrap(
-                        spacing: 14,
-                        runSpacing: 14,
-                        alignment: WrapAlignment.center,
-                        children: _enabledIntents.map(_intentChip).toList(),
-                      ),
-                      const SizedBox(height: 34),
-                      Text(
-                        'Add garment photo',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'The outfit should be clearly visible on one person.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 26),
-                      SelfxKioskButton(
-                        key: const Key('take-garment-photo-source'),
-                        label: 'Take a Photo',
-                        subtitle: 'Use the kiosk camera',
-                        icon: Icons.camera_alt_outlined,
-                        trailing: const Icon(Icons.arrow_forward),
-                        variant: SelfxKioskButtonVariant.secondary,
-                        minHeight: 112,
-                        expanded: true,
-                        textAlign: TextAlign.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 26,
-                          vertical: 24,
-                        ),
-                        onPressed: _intent == null ? null : _openCamera,
-                      ),
-                      const SizedBox(height: 18),
-                      SelfxKioskButton(
-                        key: const Key('use-phone-garment-source'),
-                        label: 'Use Your Phone',
-                        subtitle: 'Scan a QR code from your phone browser',
-                        icon: Icons.qr_code_2,
-                        trailing: const Icon(Icons.arrow_forward),
-                        variant: SelfxKioskButtonVariant.secondary,
-                        minHeight: 112,
-                        expanded: true,
-                        textAlign: TextAlign.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 26,
-                          vertical: 24,
-                        ),
-                        onPressed: _intent == null ? null : _openPhoneUpload,
-                      ),
-                    ],
+              constraints: const BoxConstraints(maxWidth: 980),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'What are you trying on?',
+                    textAlign: TextAlign.center,
+                    style: titleStyle,
                   ),
-                ),
+                  SizedBox(height: veryShort ? 4 : (short ? 8 : 10)),
+                  Text(
+                    'Choose the closest option, then add a clear outfit photo.',
+                    textAlign: TextAlign.center,
+                    style: bodyStyle,
+                  ),
+                  SizedBox(height: veryShort ? 10 : (short ? 18 : 24)),
+                  _IntentGrid(
+                    intents: _enabledIntents,
+                    selectedIntent: _intent,
+                    narrow: narrow,
+                    short: short,
+                    veryShort: veryShort,
+                    onSelected: _selectIntent,
+                  ),
+                  SizedBox(height: veryShort ? 14 : (short ? 24 : 30)),
+                  Text(
+                    'Add garment photo',
+                    textAlign: TextAlign.center,
+                    style: sectionTitleStyle,
+                  ),
+                  SizedBox(height: veryShort ? 4 : (short ? 8 : 10)),
+                  Text(
+                    'The outfit should be clearly visible on one person.',
+                    textAlign: TextAlign.center,
+                    style: bodyStyle,
+                  ),
+                  SizedBox(height: veryShort ? 10 : (short ? 18 : 22)),
+                  SelfxKioskButton(
+                    key: const Key('take-garment-photo-source'),
+                    label: 'Take a Photo',
+                    subtitle: veryShort ? null : 'Use the kiosk camera',
+                    icon: Icons.camera_alt_outlined,
+                    trailing: const Icon(Icons.arrow_forward),
+                    variant: SelfxKioskButtonVariant.secondary,
+                    minHeight: buttonMinHeight,
+                    expanded: true,
+                    textAlign: TextAlign.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: verticalPadding,
+                    ),
+                    onPressed: _intent == null ? null : _openCamera,
+                  ),
+                  SizedBox(height: veryShort ? 8 : (short ? 12 : 14)),
+                  SelfxKioskButton(
+                    key: const Key('use-phone-garment-source'),
+                    label: 'Use Your Phone',
+                    subtitle: veryShort
+                        ? null
+                        : 'Scan a QR code from your phone browser',
+                    icon: Icons.qr_code_2,
+                    trailing: const Icon(Icons.arrow_forward),
+                    variant: SelfxKioskButtonVariant.secondary,
+                    minHeight: buttonMinHeight,
+                    expanded: true,
+                    textAlign: TextAlign.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: verticalPadding,
+                    ),
+                    onPressed: _intent == null ? null : _openPhoneUpload,
+                  ),
+                ],
               ),
             ),
           );
@@ -173,25 +194,11 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
             captureController: widget.captureController,
             tryOnController: widget.tryOnController,
             uploadController: widget.uploadController,
+            extractionService: widget.extractionService,
           ),
         ),
       );
     }
-  }
-
-  Widget _intentChip(KioskGarmentIntent intent) {
-    return _IntentChip(
-      key: Key('garment-intent-${intent.apiValue.toLowerCase().replaceAll('_', '-')}'),
-      label: intent == KioskGarmentIntent.fullOutfit ? 'Full Outfit' : intent.label,
-      icon: switch (intent) {
-        KioskGarmentIntent.top => Icons.checkroom_outlined,
-        KioskGarmentIntent.bottom => Icons.accessibility_new_outlined,
-        KioskGarmentIntent.fullOutfit => Icons.person_outline,
-        _ => Icons.checkroom_outlined,
-      },
-      selected: _intent == intent,
-      onPressed: () => _selectIntent(intent),
-    );
   }
 
   void _openCamera() {
@@ -207,6 +214,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
           uploadController: widget.uploadController,
           purpose: PhotoAcquisitionPurpose.garment,
           garmentIntent: intent,
+          extractionService: widget.extractionService,
         ),
       ),
     );
@@ -225,42 +233,116 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
           uploadController: widget.uploadController,
           purpose: PhotoAcquisitionPurpose.garment,
           garmentIntent: intent,
+          extractionService: widget.extractionService,
         ),
       ),
     );
   }
 }
 
+class _IntentGrid extends StatelessWidget {
+  const _IntentGrid({
+    required this.intents,
+    required this.selectedIntent,
+    required this.narrow,
+    required this.short,
+    required this.veryShort,
+    required this.onSelected,
+  });
+
+  final List<KioskGarmentIntent> intents;
+  final KioskGarmentIntent? selectedIntent;
+  final bool narrow;
+  final bool short;
+  final bool veryShort;
+  final ValueChanged<KioskGarmentIntent> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (narrow) {
+      return Column(
+        children: intents
+            .map(
+              (intent) => Padding(
+                padding: EdgeInsets.only(
+                  bottom: intent == intents.last ? 0 : 10,
+                ),
+                child: _IntentChip(
+                  intent: intent,
+                  selected: selectedIntent == intent,
+                  short: short,
+                  veryShort: veryShort,
+                  onPressed: () => onSelected(intent),
+                ),
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    return Row(
+      children: [
+        for (final intent in intents) ...[
+          Expanded(
+            child: _IntentChip(
+              intent: intent,
+              selected: selectedIntent == intent,
+              short: short,
+              veryShort: veryShort,
+              onPressed: () => onSelected(intent),
+            ),
+          ),
+          if (intent != intents.last) const SizedBox(width: 12),
+        ],
+      ],
+    );
+  }
+}
+
 class _IntentChip extends StatelessWidget {
   const _IntentChip({
-    super.key,
-    required this.label,
-    required this.icon,
+    required this.intent,
     required this.selected,
+    required this.short,
+    required this.veryShort,
     required this.onPressed,
   });
 
-  final String label;
-  final IconData icon;
+  final KioskGarmentIntent intent;
   final bool selected;
+  final bool short;
+  final bool veryShort;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 250,
-      child: SelfxKioskButton(
-        label: label,
-        icon: icon,
-        variant: selected
-            ? SelfxKioskButtonVariant.selected
-            : SelfxKioskButtonVariant.secondary,
-        minHeight: 86,
-        textAlign: TextAlign.center,
-        mainAxisAlignment: MainAxisAlignment.center,
-        animateSurface: false,
-        onPressed: onPressed,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+    final label = intent == KioskGarmentIntent.fullOutfit
+        ? 'Full Outfit'
+        : intent.label;
+    final icon = switch (intent) {
+      KioskGarmentIntent.top => Icons.checkroom_outlined,
+      KioskGarmentIntent.bottom => Icons.accessibility_new_outlined,
+      KioskGarmentIntent.fullOutfit => Icons.person_outline,
+      _ => Icons.checkroom_outlined,
+    };
+
+    return SelfxKioskButton(
+      key: Key(
+        'garment-intent-${intent.apiValue.toLowerCase().replaceAll('_', '-')}',
+      ),
+      label: label,
+      icon: icon,
+      variant: selected
+          ? SelfxKioskButtonVariant.selected
+          : SelfxKioskButtonVariant.secondary,
+      minHeight: veryShort ? 56 : 64,
+      textAlign: TextAlign.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      animateSurface: false,
+      onPressed: onPressed,
+      padding: EdgeInsets.symmetric(
+        horizontal: veryShort ? 8 : (short ? 10 : 14),
+        vertical: veryShort ? 8 : (short ? 12 : 14),
       ),
     );
   }
