@@ -30,11 +30,20 @@ void main() {
       deviceController: deviceController,
       client: MockClient((http.Request request) async {
         expect(request.url.path, '/api/v1/kiosk/try-on/runs');
-        expect(request.headers[HttpHeaders.authorizationHeader], 'Bearer device-token');
+        expect(
+          request.headers[HttpHeaders.authorizationHeader],
+          'Bearer device-token',
+        );
         expect(
           request.headers[HttpHeaders.contentTypeHeader],
           startsWith('multipart/form-data; boundary='),
         );
+        final multipartBody = utf8.decode(
+          request.bodyBytes,
+          allowMalformed: true,
+        );
+        expect(multipartBody, contains('original-garment.jpg'));
+        expect(multipartBody, isNot(contains('generated-preview.png')));
         return jsonResponse({'id': 'run-1', 'status': 'QUEUED'});
       }),
     );
@@ -58,13 +67,13 @@ void main() {
       refreshedCredentials: credentials('fresh-device-token'),
     );
     final store = InMemoryDeviceStore()..refreshToken = 'refresh-token';
-    final deviceController = KioskDeviceSessionController(
-      gateway: deviceGateway,
-      store: store,
-    )
-      ..accessToken = 'expired-device-token'
-      ..accessTokenExpiresAt = DateTime.now().subtract(const Duration(minutes: 1))
-      ..state = KioskStartupState.active;
+    final deviceController =
+        KioskDeviceSessionController(gateway: deviceGateway, store: store)
+          ..accessToken = 'expired-device-token'
+          ..accessTokenExpiresAt = DateTime.now().subtract(
+            const Duration(minutes: 1),
+          )
+          ..state = KioskStartupState.active;
     final seenTokens = <String>[];
     final gateway = SelfxKioskTryOnGateway(
       config: const KioskTryOnApiConfig(apiBaseUrl: 'https://api.selfx.test'),
@@ -128,9 +137,15 @@ void main() {
 
 Future<KioskTryOnRequest> tryOnRequest(Directory tempDir) async {
   final person = File('${tempDir.path}${Platform.pathSeparator}person.jpg');
-  final garment = File('${tempDir.path}${Platform.pathSeparator}garment.jpg');
+  final garment = File(
+    '${tempDir.path}${Platform.pathSeparator}original-garment.jpg',
+  );
+  final preview = File(
+    '${tempDir.path}${Platform.pathSeparator}generated-preview.png',
+  );
   await person.writeAsBytes([1, 2, 3]);
   await garment.writeAsBytes([1, 2, 3]);
+  await preview.writeAsBytes([1, 2, 3]);
   return KioskTryOnRequest(
     clientRequestId: 'attempt-1',
     personImage: person,
@@ -139,6 +154,7 @@ Future<KioskTryOnRequest> tryOnRequest(Directory tempDir) async {
       localPath: garment.path,
       intent: KioskGarmentIntent.top,
       photoType: KioskGarmentPhotoType.flatLay,
+      extractedPreviewPath: preview.path,
     ),
     captureScope: CaptureScope.fullBody,
     modelCoverage: ModelCoverage.fullBody,
@@ -160,9 +176,9 @@ Future<KioskTryOnRequest> tryOnRequest(Directory tempDir) async {
 
 KioskDeviceSessionController testDeviceController(String accessToken) {
   return KioskDeviceSessionController(
-    gateway: FakeDeviceGateway(),
-    store: InMemoryDeviceStore(),
-  )
+      gateway: FakeDeviceGateway(),
+      store: InMemoryDeviceStore(),
+    )
     ..accessToken = accessToken
     ..accessTokenExpiresAt = DateTime.now().add(const Duration(minutes: 5))
     ..state = KioskStartupState.active;

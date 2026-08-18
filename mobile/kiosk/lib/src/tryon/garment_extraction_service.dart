@@ -12,16 +12,22 @@ import 'kiosk_garment_input.dart';
 
 enum GarmentExtractionStatus { unavailable, succeeded, failed }
 
+enum GarmentExtractionFailureKind { image, temporary }
+
 class GarmentExtractionResult {
   const GarmentExtractionResult({
     required this.status,
     this.previewPath,
     this.message,
+    this.code,
+    this.failureKind = GarmentExtractionFailureKind.temporary,
   });
 
   final GarmentExtractionStatus status;
   final String? previewPath;
   final String? message;
+  final String? code;
+  final GarmentExtractionFailureKind failureKind;
 
   bool get hasPreview =>
       status == GarmentExtractionStatus.succeeded &&
@@ -43,6 +49,7 @@ class UnavailableGarmentExtractionService implements GarmentExtractionService {
     return const GarmentExtractionResult(
       status: GarmentExtractionStatus.unavailable,
       message: 'Garment extraction is not configured on this kiosk.',
+      code: 'GARMENT_PREVIEW_CONFIGURATION_ERROR',
     );
   }
 }
@@ -88,12 +95,15 @@ class SelfxGarmentExtractionService implements GarmentExtractionService {
       return const GarmentExtractionResult(
         status: GarmentExtractionStatus.failed,
         message: 'SelfX API is not configured on this kiosk.',
+        code: 'GARMENT_PREVIEW_CONFIGURATION_ERROR',
       );
     }
     if (!await input.exists()) {
       return const GarmentExtractionResult(
         status: GarmentExtractionStatus.failed,
         message: 'Garment photo is unavailable.',
+        code: 'GARMENT_PREVIEW_IMAGE_MISSING',
+        failureKind: GarmentExtractionFailureKind.image,
       );
     }
 
@@ -125,6 +135,8 @@ class SelfxGarmentExtractionService implements GarmentExtractionService {
         return GarmentExtractionResult(
           status: GarmentExtractionStatus.failed,
           message: _safeErrorMessage(response.body),
+          code: _errorCode(response.body),
+          failureKind: _failureKindFor(_errorCode(response.body)),
         );
       }
 
@@ -133,6 +145,7 @@ class SelfxGarmentExtractionService implements GarmentExtractionService {
         return const GarmentExtractionResult(
           status: GarmentExtractionStatus.failed,
           message: 'SelfX did not return a garment image.',
+          code: 'GARMENT_PREVIEW_RESPONSE_INVALID',
         );
       }
 
@@ -148,11 +161,25 @@ class SelfxGarmentExtractionService implements GarmentExtractionService {
       return GarmentExtractionResult(
         status: GarmentExtractionStatus.failed,
         message: error.message,
+        code: error.code,
+      );
+    } on TimeoutException {
+      return const GarmentExtractionResult(
+        status: GarmentExtractionStatus.failed,
+        message: 'SelfX could not prepare the garment image in time.',
+        code: 'GARMENT_PREVIEW_TIMEOUT',
+      );
+    } on SocketException {
+      return const GarmentExtractionResult(
+        status: GarmentExtractionStatus.failed,
+        message: 'SelfX could not be reached.',
+        code: 'GARMENT_PREVIEW_NETWORK_UNAVAILABLE',
       );
     } catch (_) {
       return const GarmentExtractionResult(
         status: GarmentExtractionStatus.failed,
         message: 'SelfX could not prepare the garment image.',
+        code: 'GARMENT_PREVIEW_FAILED',
       );
     }
   }
@@ -234,6 +261,15 @@ class SelfxGarmentExtractionService implements GarmentExtractionService {
     } catch (_) {}
     return 'SelfX could not prepare the garment image.';
   }
+}
+
+GarmentExtractionFailureKind _failureKindFor(String? code) {
+  return switch (code) {
+    'GARMENT_EXTRACTION_IMAGE_INVALID' ||
+    'GARMENT_EXTRACTION_MULTIPART_INVALID' ||
+    'GARMENT_PREVIEW_IMAGE_MISSING' => GarmentExtractionFailureKind.image,
+    _ => GarmentExtractionFailureKind.temporary,
+  };
 }
 
 bool _isTokenRefreshable(http.Response response) {

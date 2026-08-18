@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../session/capture_session_controller.dart';
@@ -14,6 +15,8 @@ import 'model_compatibility_guidance_screen.dart';
 import 'photo_source_choice_screen.dart';
 import 'selfx_kiosk_button.dart';
 import 'try_on_generation_screen.dart';
+
+enum GarmentPreviewState { preparing, success, failure }
 
 class GarmentReviewScreen extends StatefulWidget {
   const GarmentReviewScreen({
@@ -39,23 +42,51 @@ class GarmentReviewScreen extends StatefulWidget {
 
 class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
   late KioskGarmentInput _displayInput;
-  bool _extracting = false;
-  String? _extractionMessage;
+  GarmentPreviewState _previewState = GarmentPreviewState.preparing;
+  GarmentExtractionFailureKind _failureKind =
+      GarmentExtractionFailureKind.temporary;
+  String? _activeExtractionPath;
 
   @override
   void initState() {
     super.initState();
     _displayInput = widget.garmentInput;
-    _extractPreview();
+    _preparePreview();
   }
 
-  Future<void> _extractPreview() async {
-    if (widget.garmentInput.extractedPreviewPath != null) {
+  @override
+  void didUpdateWidget(covariant GarmentReviewScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.garmentInput.localPath != widget.garmentInput.localPath ||
+        oldWidget.garmentInput.extractedPreviewPath !=
+            widget.garmentInput.extractedPreviewPath) {
+      _activeExtractionPath = null;
+      _displayInput = widget.garmentInput;
+      _previewState = GarmentPreviewState.preparing;
+      _failureKind = GarmentExtractionFailureKind.temporary;
+      _preparePreview();
+    }
+  }
+
+  Future<void> _preparePreview({bool force = false}) async {
+    final originalPath = widget.garmentInput.localPath;
+    if (_activeExtractionPath == originalPath) {
       return;
     }
+    if (!force && await _hasValidPreview(widget.garmentInput)) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _displayInput = widget.garmentInput;
+        _previewState = GarmentPreviewState.success;
+      });
+      return;
+    }
+
     setState(() {
-      _extracting = true;
-      _extractionMessage = null;
+      _activeExtractionPath = originalPath;
+      _previewState = GarmentPreviewState.preparing;
     });
     final result = await widget.extractionService.extractPreview(
       widget.garmentInput,
@@ -63,27 +94,41 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
     if (!mounted) {
       return;
     }
+    if (_activeExtractionPath != originalPath) {
+      return;
+    }
     if (result.hasPreview) {
       setState(() {
         _displayInput = widget.garmentInput.copyWith(
           extractedPreviewPath: result.previewPath,
         );
-        _extracting = false;
-        _extractionMessage = null;
+        _previewState = GarmentPreviewState.success;
+        _activeExtractionPath = null;
       });
       return;
     }
+    debugPrint(
+      'GARMENT_PREVIEW_FAILED code=${result.code ?? 'UNKNOWN'} status=${result.status.name}',
+    );
     setState(() {
-      _extracting = false;
-      _extractionMessage =
-          result.message ?? 'SelfX could not prepare the garment image.';
+      _previewState = GarmentPreviewState.failure;
+      _failureKind = result.failureKind;
+      _activeExtractionPath = null;
     });
+  }
+
+  Future<bool> _hasValidPreview(KioskGarmentInput input) async {
+    final path = input.extractedPreviewPath;
+    if (path == null || path.trim().isEmpty) {
+      return false;
+    }
+    return File(path).exists();
   }
 
   @override
   Widget build(BuildContext context) {
     return KioskScaffold(
-      title: 'Review Garment',
+      title: 'Garment Preview',
       subtitle: _displayInput.intent.label,
       leading: IconButton(
         onPressed: () => _chooseAnother(context),
@@ -97,17 +142,20 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
               constraints.maxHeight < 620 ||
               portrait;
           final imagePreview = _GarmentPreview(
+            originalPath: _displayInput.localPath,
             path: _displayInput.extractedPreviewPath,
-            extracting: _extracting,
-            message: _extractionMessage,
+            state: _previewState,
+            failureKind: _failureKind,
           );
           final actions = _GarmentReviewActions(
+            state: _previewState,
+            failureKind: _failureKind,
+            sourceLabel: widget.pendingCameraCapture
+                ? 'Retake Photo'
+                : 'Change Image',
             compact: compact,
             onChooseAnother: () => _chooseAnother(context),
-            canContinue:
-                !_extracting &&
-                (_displayInput.extractedPreviewPath?.trim().isNotEmpty ??
-                    false),
+            onRetry: () => _preparePreview(force: true),
             onContinue: () => _continue(context),
           );
 
@@ -136,6 +184,8 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
   }
 
   Future<void> _chooseAnother(BuildContext context) async {
+    _activeExtractionPath = null;
+    await _deleteGeneratedPreviewIfUnused();
     if (widget.pendingCameraCapture) {
       await widget.captureController.discardPendingCapture();
     }
@@ -157,6 +207,9 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
   }
 
   Future<void> _continue(BuildContext context) async {
+    if (_previewState != GarmentPreviewState.success) {
+      return;
+    }
     widget.tryOnController.selectGarment(_displayInput);
     if (widget.pendingCameraCapture) {
       widget.captureController.preservePendingCaptureAsExternalInput();
@@ -207,18 +260,28 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
       ),
     );
   }
+
+  Future<void> _deleteGeneratedPreviewIfUnused() async {
+    final previewPath = _displayInput.extractedPreviewPath;
+    if (previewPath == null || previewPath == _displayInput.localPath) {
+      return;
+    }
+    await widget.captureController.captureStore.deleteCapture(previewPath);
+  }
 }
 
 class _GarmentPreview extends StatelessWidget {
   const _GarmentPreview({
+    required this.originalPath,
     required this.path,
-    required this.extracting,
-    required this.message,
+    required this.state,
+    required this.failureKind,
   });
 
+  final String originalPath;
   final String? path;
-  final bool extracting;
-  final String? message;
+  final GarmentPreviewState state;
+  final GarmentExtractionFailureKind failureKind;
 
   @override
   Widget build(BuildContext context) {
@@ -229,32 +292,23 @@ class _GarmentPreview extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (previewPath != null && previewPath.trim().isNotEmpty)
+            if (state == GarmentPreviewState.success &&
+                previewPath != null &&
+                previewPath.trim().isNotEmpty)
               Image.file(
                 File(previewPath),
                 fit: BoxFit.contain,
                 errorBuilder: (_, _, _) {
-                  return const _GarmentPreviewState(
+                  return const _GarmentPreviewMessage(
                     message: 'Garment image unavailable.',
                   );
                 },
               )
+            else if (state == GarmentPreviewState.preparing)
+              _PreparingPreview(originalPath: originalPath)
             else
-              _GarmentPreviewState(
-                message: extracting
-                    ? 'Preparing garment image...'
-                    : message ?? 'Preparing garment image...',
-              ),
-            if (extracting)
-              const Positioned(
-                right: 14,
-                top: 14,
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                ),
-              ),
+              _FailurePreview(failureKind: failureKind),
+            if (state == GarmentPreviewState.preparing) const _PreviewSpinner(),
           ],
         ),
       ),
@@ -262,8 +316,129 @@ class _GarmentPreview extends StatelessWidget {
   }
 }
 
-class _GarmentPreviewState extends StatelessWidget {
-  const _GarmentPreviewState({required this.message});
+class _PreparingPreview extends StatelessWidget {
+  const _PreparingPreview({required this.originalPath});
+
+  final String originalPath;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.file(
+          File(originalPath),
+          fit: BoxFit.contain,
+          opacity: const AlwaysStoppedAnimation(0.28),
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        ),
+        const _GarmentPreviewMessage(message: 'Preparing garment preview...'),
+      ],
+    );
+  }
+}
+
+class _FailurePreview extends StatelessWidget {
+  const _FailurePreview({required this.failureKind});
+
+  final GarmentExtractionFailureKind failureKind;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageIssue = failureKind == GarmentExtractionFailureKind.image;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                imageIssue
+                    ? Icons.image_search_outlined
+                    : Icons.cloud_off_outlined,
+                color: Theme.of(context).colorScheme.primary,
+                size: 58,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                imageIssue
+                    ? "We couldn't detect the garment clearly."
+                    : "We couldn't prepare the garment preview right now.",
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                imageIssue
+                    ? 'Try another photo with the full garment visible.'
+                    : 'Please try again in a moment.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              if (imageIssue) ...[
+                const SizedBox(height: 18),
+                const _GuidanceLines(),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GuidanceLines extends StatelessWidget {
+  const _GuidanceLines();
+
+  @override
+  Widget build(BuildContext context) {
+    const lines = [
+      'Keep the full garment visible',
+      'Use good lighting',
+      'Avoid blur',
+      'Avoid hands covering the garment',
+      'Keep one garment clearly in frame',
+    ];
+    return Column(
+      children: [
+        for (final line in lines)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check, size: 18),
+                const SizedBox(width: 8),
+                Flexible(child: Text(line, textAlign: TextAlign.center)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PreviewSpinner extends StatelessWidget {
+  const _PreviewSpinner();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Positioned(
+      right: 14,
+      top: 14,
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 3),
+      ),
+    );
+  }
+}
+
+class _GarmentPreviewMessage extends StatelessWidget {
+  const _GarmentPreviewMessage({required this.message});
 
   final String message;
 
@@ -284,15 +459,21 @@ class _GarmentPreviewState extends StatelessWidget {
 
 class _GarmentReviewActions extends StatelessWidget {
   const _GarmentReviewActions({
+    required this.state,
+    required this.failureKind,
+    required this.sourceLabel,
     required this.compact,
     required this.onChooseAnother,
-    required this.canContinue,
+    required this.onRetry,
     required this.onContinue,
   });
 
+  final GarmentPreviewState state;
+  final GarmentExtractionFailureKind failureKind;
+  final String sourceLabel;
   final bool compact;
   final VoidCallback onChooseAnother;
-  final bool canContinue;
+  final VoidCallback onRetry;
   final VoidCallback onContinue;
 
   @override
@@ -301,13 +482,45 @@ class _GarmentReviewActions extends StatelessWidget {
       mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (state == GarmentPreviewState.success) ...[
+          _ActionCopy(
+            title: 'Garment looks ready',
+            message: 'Make sure this is the garment you want to try on.',
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (state == GarmentPreviewState.failure) ...[
+          _ActionCopy(
+            title: failureKind == GarmentExtractionFailureKind.image
+                ? 'Use a clearer garment photo'
+                : 'Preview service needs another try',
+            message: failureKind == GarmentExtractionFailureKind.image
+                ? 'You can retry this image or choose another one.'
+                : 'Your photo is still here. Retry the preview when ready.',
+          ),
+          const SizedBox(height: 12),
+        ],
         if (!compact) const Spacer(),
+        if (state == GarmentPreviewState.failure) ...[
+          SelfxKioskButton(
+            key: const Key('retry-garment-preview'),
+            label: 'Retry Preview',
+            onPressed: onRetry,
+            icon: Icons.refresh,
+            variant: SelfxKioskButtonVariant.primary,
+            minHeight: 64,
+            textAlign: TextAlign.center,
+            mainAxisAlignment: MainAxisAlignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          const SizedBox(height: 10),
+        ],
         Row(
           children: [
             Expanded(
               child: SelfxKioskButton(
                 key: const Key('choose-another-garment'),
-                label: 'Retake Photo',
+                label: sourceLabel,
                 onPressed: onChooseAnother,
                 icon: Icons.replay,
                 variant: SelfxKioskButtonVariant.secondary,
@@ -324,8 +537,10 @@ class _GarmentReviewActions extends StatelessWidget {
             Expanded(
               child: SelfxKioskButton(
                 key: const Key('continue-from-garment-review'),
-                label: 'Proceed',
-                onPressed: canContinue ? onContinue : null,
+                label: 'Continue to Model Selection',
+                onPressed: state == GarmentPreviewState.success
+                    ? onContinue
+                    : null,
                 icon: Icons.arrow_forward,
                 variant: SelfxKioskButtonVariant.primary,
                 minHeight: 64,
@@ -338,6 +553,33 @@ class _GarmentReviewActions extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionCopy extends StatelessWidget {
+  const _ActionCopy({required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
     );
