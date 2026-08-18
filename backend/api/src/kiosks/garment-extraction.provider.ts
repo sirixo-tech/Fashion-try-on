@@ -47,9 +47,12 @@ export class OpenAiGarmentExtractionProvider extends GarmentExtractionProvider {
     }
 
     const form = new FormData();
+
+    const garmentImageBytes = Uint8Array.from(input.garmentImage.buffer);
+
     form.append(
       "image",
-      new Blob([input.garmentImage.buffer], {
+      new Blob([garmentImageBytes], {
         type: input.garmentImage.mimeType,
       }),
       input.garmentImage.filename || "garment-reference.png",
