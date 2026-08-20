@@ -53,7 +53,7 @@ export class ObjectStorageService implements ObjectStorage {
     const response = await fetch(this.presign("PUT", input.key, 60), {
       method: "PUT",
       headers: { "Content-Type": input.contentType },
-      body: input.body,
+      body: new Uint8Array(input.body),
     });
     if (!response.ok) {
       throwStorageUnavailable("Object could not be stored.");

@@ -69,7 +69,7 @@ async function main() {
   const categoryIds = new Map<string, string>();
   for (const category of categories) {
     const catalogKey = categoryKey(category.audience, category.slug);
-    const [row] = await prisma.$queryRaw<Array<{ id: string }>>`
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
       INSERT INTO product_categories (
         id,
         catalog_key,
@@ -101,6 +101,10 @@ async function main() {
         updated_at = CURRENT_TIMESTAMP
       RETURNING id
     `;
+    const row = rows[0];
+    if (!row) {
+      throw new Error(`Catalog category upsert returned no id for ${catalogKey}`);
+    }
     categoryIds.set(catalogKey, row.id);
   }
 

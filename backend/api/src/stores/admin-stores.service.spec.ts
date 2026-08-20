@@ -24,6 +24,7 @@ describe("STORE-1 admin Stores", () => {
       prisma as never,
       createKioskMock() as never,
       rbac as never,
+      createGarmentPreviewSettingsMock() as never,
     );
     prisma.organization.create.mockResolvedValue(
       organizationRecord({
@@ -76,6 +77,7 @@ describe("STORE-1 admin Stores", () => {
       prisma as never,
       kiosks as never,
       createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
     );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({
@@ -114,6 +116,7 @@ describe("STORE-1 admin Stores", () => {
       prisma as never,
       kiosks as never,
       createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
     );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({
@@ -138,6 +141,7 @@ describe("STORE-1 admin Stores", () => {
       prisma as never,
       createKioskMock() as never,
       createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
     );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({ id: "store-a" }),
@@ -158,6 +162,7 @@ describe("STORE-1 admin Stores", () => {
       prisma as never,
       createKioskMock() as never,
       createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
     );
     prisma.organization.findUnique.mockResolvedValue(
       organizationRecord({
@@ -200,6 +205,7 @@ describe("STORE-1 admin Stores", () => {
       prisma as never,
       createKioskMock() as never,
       createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
     );
     prisma.organization.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Unique failed", {
@@ -381,6 +387,13 @@ function createRbacMock() {
     ensureStoreRbac: vi.fn(),
     ensureStoreRbacInTransaction: vi.fn(),
     requireStorePermission: vi.fn(),
+  };
+}
+
+function createGarmentPreviewSettingsMock() {
+  return {
+    storeSettings: vi.fn(),
+    storeSettingsFromValue: vi.fn(),
   };
 }
 

@@ -348,6 +348,9 @@ class ConfigurationHarness {
       },
     } as never,
     this.storage as never,
+    {
+      resolveGarmentPreviewEnabled: async () => false,
+    } as never,
   );
 
   private device(id: string): Record<string, unknown> | null {

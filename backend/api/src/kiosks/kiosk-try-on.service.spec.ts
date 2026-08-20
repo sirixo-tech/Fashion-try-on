@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
-import type { CreateTryOnLabRunPayload } from "../try-on-lab/try-on-lab-multipart.js";
+import type { CreateKioskTryOnRunPayload } from "./kiosk-try-on.multipart.js";
 import type { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 
 describe("KIOSK-4B production Try-On service", () => {
@@ -117,8 +117,8 @@ describe("KIOSK-4B production Try-On service", () => {
 });
 
 function payload(
-  overrides: Partial<CreateTryOnLabRunPayload> = {},
-): CreateTryOnLabRunPayload {
+  overrides: Partial<CreateKioskTryOnRunPayload> = {},
+): CreateKioskTryOnRunPayload {
   return {
     clientRequestId: "attempt-1",
     personImage: uploadedImage("personImage"),
@@ -148,6 +148,8 @@ function uploadedImage(fieldName: "personImage" | "garmentImage") {
     sizeBytes: 128,
     buffer: Buffer.from("image"),
     dataUri: "data:image/jpeg;base64,aW1hZ2U=",
+    width: 128,
+    height: 128,
   };
 }
 
@@ -176,7 +178,9 @@ async function flushPromises(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-class FakeExecution implements Pick<TryOnExecutionService, "assertConfigured" | "metadata" | "process"> {
+class FakeExecution
+  implements Pick<TryOnExecutionService, "assertConfigured" | "metadata" | "process">
+{
   submissions = 0;
 
   assertConfigured(): void {
@@ -192,7 +196,7 @@ class FakeExecution implements Pick<TryOnExecutionService, "assertConfigured" | 
   }
 
   async process(
-    _payload: CreateTryOnLabRunPayload,
+    _payload: Parameters<TryOnExecutionService["process"]>[0],
     observer: Parameters<TryOnExecutionService["process"]>[1],
   ): Promise<void> {
     this.submissions += 1;

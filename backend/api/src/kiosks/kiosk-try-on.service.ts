@@ -697,9 +697,21 @@ async function parseResultImage(resultImage: string): Promise<{
       "Try-On result image is invalid.",
     );
   }
+  const contentType = match[1];
+  const base64Payload = match[2];
+  if (!contentType || !base64Payload) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      TRY_ON_LAB_ERROR_CODES.imageInvalid,
+      "Try-On result image is invalid.",
+    );
+  }
   return {
-    contentType: match[1].toLowerCase() as "image/jpeg" | "image/png" | "image/webp",
-    buffer: Buffer.from(match[2], "base64"),
+    contentType: contentType.toLowerCase() as
+      | "image/jpeg"
+      | "image/png"
+      | "image/webp",
+    buffer: Buffer.from(base64Payload, "base64"),
   };
 }
 
