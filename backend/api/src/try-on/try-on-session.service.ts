@@ -173,6 +173,7 @@ export class TryOnSessionService {
       kioskTryOnRunId: string;
       personAssetId: string;
       garmentAssetId?: string | null;
+      productId?: string | null;
       resultAsset: TryOnAssetStorageInput;
       expiresAt?: Date;
     },
@@ -225,6 +226,7 @@ export class TryOnSessionService {
           kioskTryOnRunId: run.id,
           personAssetId: input.personAssetId,
           garmentAssetId: input.garmentAssetId ?? null,
+          productId: input.productId ?? null,
           resultAssetId: resultAsset.id,
           assignmentScope: session.assignmentScope,
           organizationId: session.organizationId,

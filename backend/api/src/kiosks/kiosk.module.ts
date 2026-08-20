@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 
 import { AuthModule } from "../auth/auth.module.js";
+import { CatalogService } from "../catalog/catalog.service.js";
 import { DatabaseModule } from "../database/database.module.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { TryOnModule } from "../try-on/try-on.module.js";
@@ -60,6 +61,7 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskService,
     KioskCustomerUploadService,
     KioskTryOnService,
+    CatalogService,
     KioskGarmentExtractionService,
     GarmentPreviewService,
     GarmentPreviewProviderRegistry,

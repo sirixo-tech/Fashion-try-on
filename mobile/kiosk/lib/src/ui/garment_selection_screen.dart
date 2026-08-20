@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
@@ -8,17 +9,19 @@ import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
 import 'model_compatibility_guidance_screen.dart';
 import 'selfx_kiosk_button.dart';
 
-class GarmentSelectionScreen extends StatefulWidget {
+class GarmentSelectionScreen extends StatelessWidget {
   const GarmentSelectionScreen({
     super.key,
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.enabledGarmentIntents,
     this.extractionService = const UnavailableGarmentExtractionService(),
   });
@@ -26,14 +29,135 @@ class GarmentSelectionScreen extends StatefulWidget {
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final List<KioskGarmentIntent>? enabledGarmentIntents;
   final GarmentExtractionService extractionService;
 
   @override
-  State<GarmentSelectionScreen> createState() => _GarmentSelectionScreenState();
+  Widget build(BuildContext context) {
+    return KioskScaffold(
+      title: 'SelfX Kiosk',
+      subtitle: 'Choose garment',
+      showBrandHeader: false,
+      leading: IconButton(
+        onPressed: () => Navigator.of(context).pop(),
+        icon: const Icon(Icons.arrow_back),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Choose Garment',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.displaySmall,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'How would you like to choose?',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 30),
+              SelfxKioskButton(
+                key: const Key('browse-products-source'),
+                label: 'Browse Products',
+                subtitle: 'Explore available garments',
+                icon: Icons.checkroom_outlined,
+                trailing: const Icon(Icons.arrow_forward),
+                variant: SelfxKioskButtonVariant.primary,
+                minHeight: 92,
+                expanded: true,
+                textAlign: TextAlign.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 18,
+                ),
+                onPressed: () => _openBrowseProducts(context),
+              ),
+              const SizedBox(height: 18),
+              SelfxKioskButton(
+                key: const Key('capture-garment-source'),
+                label: 'Capture Garment',
+                subtitle: 'Use the kiosk camera',
+                icon: Icons.camera_alt_outlined,
+                trailing: const Icon(Icons.arrow_forward),
+                variant: SelfxKioskButtonVariant.primary,
+                minHeight: 92,
+                expanded: true,
+                textAlign: TextAlign.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 18,
+                ),
+                onPressed: () => _openCaptureGarment(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openBrowseProducts(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BrowseProductsScreen(
+          captureController: captureController,
+          tryOnController: tryOnController,
+          uploadController: uploadController,
+          catalogGateway: catalogGateway,
+          extractionService: extractionService,
+        ),
+      ),
+    );
+  }
+
+  void _openCaptureGarment(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _CapturedGarmentOptionsScreen(
+          captureController: captureController,
+          tryOnController: tryOnController,
+          uploadController: uploadController,
+          catalogGateway: catalogGateway,
+          enabledGarmentIntents: enabledGarmentIntents,
+          extractionService: extractionService,
+        ),
+      ),
+    );
+  }
 }
 
-class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
+class _CapturedGarmentOptionsScreen extends StatefulWidget {
+  const _CapturedGarmentOptionsScreen({
+    required this.captureController,
+    required this.tryOnController,
+    required this.uploadController,
+    required this.catalogGateway,
+    this.enabledGarmentIntents,
+    required this.extractionService,
+  });
+
+  final CaptureSessionController captureController;
+  final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
+  final List<KioskGarmentIntent>? enabledGarmentIntents;
+  final GarmentExtractionService extractionService;
+
+  @override
+  State<_CapturedGarmentOptionsScreen> createState() =>
+      _CapturedGarmentOptionsScreenState();
+}
+
+class _CapturedGarmentOptionsScreenState
+    extends State<_CapturedGarmentOptionsScreen> {
   KioskGarmentIntent? _intent;
 
   @override
@@ -60,7 +184,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
   Widget build(BuildContext context) {
     return KioskScaffold(
       title: 'SelfX Kiosk',
-      subtitle: 'Choose garment',
+      subtitle: 'Capture garment',
       showBrandHeader: false,
       leading: IconButton(
         onPressed: () => Navigator.of(context).pop(),
@@ -75,8 +199,6 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
             fontSize: veryShort ? 30 : (short ? 36 : 42),
             height: 1.08,
           );
-          final sectionTitleStyle = Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(fontSize: veryShort ? 24 : (short ? 28 : 32));
           final bodyStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontSize: veryShort ? 15 : (short ? 17 : 18),
           );
@@ -92,7 +214,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Choose Garment',
+                    'Capture Garment',
                     textAlign: TextAlign.center,
                     style: titleStyle,
                   ),
@@ -111,26 +233,14 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                     veryShort: veryShort,
                     onSelected: _selectIntent,
                   ),
-                  SizedBox(height: veryShort ? 14 : (short ? 24 : 30)),
-                  Text(
-                    'Capture Garment',
-                    textAlign: TextAlign.center,
-                    style: sectionTitleStyle,
-                  ),
-                  SizedBox(height: veryShort ? 4 : (short ? 8 : 10)),
-                  Text(
-                    'The outfit should be clearly visible on one person.',
-                    textAlign: TextAlign.center,
-                    style: bodyStyle,
-                  ),
-                  SizedBox(height: veryShort ? 10 : (short ? 18 : 22)),
+                  SizedBox(height: veryShort ? 18 : (short ? 26 : 34)),
                   SelfxKioskButton(
                     key: const Key('take-garment-photo-source'),
                     label: 'Capture Garment',
                     subtitle: veryShort ? null : 'Use the kiosk camera',
                     icon: Icons.camera_alt_outlined,
                     trailing: const Icon(Icons.arrow_forward),
-                    variant: SelfxKioskButtonVariant.secondary,
+                    variant: SelfxKioskButtonVariant.primary,
                     minHeight: buttonMinHeight,
                     expanded: true,
                     textAlign: TextAlign.start,
@@ -173,6 +283,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
             captureController: widget.captureController,
             tryOnController: widget.tryOnController,
             uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
             extractionService: widget.extractionService,
           ),
         ),
@@ -191,6 +302,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
           controller: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
           purpose: PhotoAcquisitionPurpose.garment,
           garmentIntent: intent,
           extractionService: widget.extractionService,

@@ -80,10 +80,8 @@ void main() {
         harness.tryOn.garmentInput?.extractedPreviewPath,
         harness.preview.path,
       );
-      expect(
-        find.text('How would you like to add your photo?'),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+      expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
     });
 
     testWidgets('failure hides raw error and retry reuses same original path', (

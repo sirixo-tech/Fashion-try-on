@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../acquisition/photo_acquisition.dart';
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'camera_capture_screen.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
-import 'photo_source_choice_screen.dart';
 import 'try_on_result_screen.dart';
 
 class TryOnGenerationScreen extends StatefulWidget {
@@ -16,12 +18,14 @@ class TryOnGenerationScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
 
   @override
@@ -179,6 +183,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
             captureController: widget.captureController,
             tryOnController: widget.tryOnController,
             uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
             extractionService: widget.extractionService,
           ),
         ),
@@ -193,11 +198,13 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => PhotoSourceChoiceScreen(
-          captureController: widget.captureController,
+        builder: (_) => CameraCaptureScreen(
+          controller: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
           extractionService: widget.extractionService,
+          purpose: PhotoAcquisitionPurpose.model,
         ),
       ),
       (route) => route.isFirst,
@@ -215,6 +222,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
           captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
           extractionService: widget.extractionService,
         ),
       ),

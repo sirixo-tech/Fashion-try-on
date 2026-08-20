@@ -147,13 +147,15 @@ class SelfxKioskTryOnGateway
             ),
           );
         }
-        multipart.files.add(
-          await http.MultipartFile.fromPath(
-            'garmentImage',
-            request.garmentInput.localPath,
-            contentType: _contentTypeFor(request.garmentInput.localPath),
-          ),
-        );
+        if (!request.garmentInput.isCatalogProduct) {
+          multipart.files.add(
+            await http.MultipartFile.fromPath(
+              'garmentImage',
+              request.garmentInput.localPath,
+              contentType: _contentTypeFor(request.garmentInput.localPath),
+            ),
+          );
+        }
         return multipart;
       },
     );
@@ -199,27 +201,35 @@ class SelfxKioskTryOnGateway
     return {
       'clientRequestId': request.clientRequestId,
       if (request.sessionId != null) 'sessionId': request.sessionId!,
-      if (request.personAssetId != null) 'personAssetId': request.personAssetId!,
-      'garmentSource': 'DIRECT_UPLOAD',
+      if (request.personAssetId != null)
+        'personAssetId': request.personAssetId!,
+      if (request.garmentInput.productId != null)
+        'productId': request.garmentInput.productId!,
+      'garmentSource': request.garmentInput.isCatalogProduct
+          ? 'SELFX_CATALOG'
+          : 'DIRECT_UPLOAD',
       'garmentIntent': request.garmentInput.intent.apiValue,
       'category': request.garmentInput.intent.categoryApiValue,
       'garmentPhotoType': request.garmentInput.photoType.apiValue,
       'modelCoverage': request.modelCoverage.apiValue,
       'generationProfile': 'BALANCED',
-      'categoryResolutionSource':
-          request.garmentInput.intent == KioskGarmentIntent.auto
+      'categoryResolutionSource': request.garmentInput.isCatalogProduct
+          ? 'SELFX_CATALOG_METADATA'
+          : request.garmentInput.intent == KioskGarmentIntent.auto
           ? 'AUTO_FALLBACK'
           : 'INTERNAL_LAB_OVERRIDE',
-      'photoTypeResolutionSource':
-          request.garmentInput.photoType == KioskGarmentPhotoType.auto
+      'photoTypeResolutionSource': request.garmentInput.isCatalogProduct
+          ? 'SELFX_CATALOG_METADATA'
+          : request.garmentInput.photoType == KioskGarmentPhotoType.auto
           ? 'AUTO_FALLBACK'
           : 'INTERNAL_LAB_OVERRIDE',
       'profileResolutionSource': 'PLATFORM_DEFAULT',
       'disambiguationRequired': 'false',
       'disambiguationResolved':
-          request.garmentInput.intent == KioskGarmentIntent.auto
-          ? 'false'
-          : 'true',
+          request.garmentInput.isCatalogProduct ||
+              request.garmentInput.intent != KioskGarmentIntent.auto
+          ? 'true'
+          : 'false',
       'garmentAnalysisReasonCodes': '[]',
       'qualityWarningCodes': '[]',
       'qualityOverrideAccepted': 'false',
@@ -323,45 +333,50 @@ class SelfxKioskTryOnGateway
         'SelfX Try-On looks response was incomplete.',
       );
     }
-    return data.map((item) {
-      if (item is! Map<String, dynamic>) {
-        throw const KioskTryOnException(
-          KioskTryOnFailureCode.uploadFailed,
-          'SelfX Try-On look response was incomplete.',
-        );
-      }
-      final lookId = item['lookId'];
-      final runId = item['runId'];
-      final personAssetId = item['personAssetId'];
-      final resultAssetId = item['resultAssetId'];
-      final resultReadUrl = item['resultReadUrl'];
-      final createdAt = DateTime.tryParse('${item['createdAt']}');
-      final expiresAt = DateTime.tryParse('${item['expiresAt']}');
-      if (lookId is! String ||
-          runId is! String ||
-          personAssetId is! String ||
-          resultAssetId is! String ||
-          resultReadUrl is! String ||
-          createdAt == null ||
-          expiresAt == null) {
-        throw const KioskTryOnException(
-          KioskTryOnFailureCode.uploadFailed,
-          'SelfX Try-On look response was incomplete.',
-        );
-      }
-      return KioskTryOnLook(
-        lookId: lookId,
-        runId: runId,
-        personAssetId: personAssetId,
-        garmentAssetId: item['garmentAssetId'] is String
-            ? item['garmentAssetId'] as String
-            : null,
-        resultAssetId: resultAssetId,
-        resultReadUrl: resultReadUrl,
-        createdAt: createdAt,
-        expiresAt: expiresAt,
-      );
-    }).toList(growable: false);
+    return data
+        .map((item) {
+          if (item is! Map<String, dynamic>) {
+            throw const KioskTryOnException(
+              KioskTryOnFailureCode.uploadFailed,
+              'SelfX Try-On look response was incomplete.',
+            );
+          }
+          final lookId = item['lookId'];
+          final runId = item['runId'];
+          final personAssetId = item['personAssetId'];
+          final resultAssetId = item['resultAssetId'];
+          final resultReadUrl = item['resultReadUrl'];
+          final createdAt = DateTime.tryParse('${item['createdAt']}');
+          final expiresAt = DateTime.tryParse('${item['expiresAt']}');
+          if (lookId is! String ||
+              runId is! String ||
+              personAssetId is! String ||
+              resultAssetId is! String ||
+              resultReadUrl is! String ||
+              createdAt == null ||
+              expiresAt == null) {
+            throw const KioskTryOnException(
+              KioskTryOnFailureCode.uploadFailed,
+              'SelfX Try-On look response was incomplete.',
+            );
+          }
+          return KioskTryOnLook(
+            lookId: lookId,
+            runId: runId,
+            personAssetId: personAssetId,
+            garmentAssetId: item['garmentAssetId'] is String
+                ? item['garmentAssetId'] as String
+                : null,
+            productId: item['productId'] is String
+                ? item['productId'] as String
+                : null,
+            resultAssetId: resultAssetId,
+            resultReadUrl: resultReadUrl,
+            createdAt: createdAt,
+            expiresAt: expiresAt,
+          );
+        })
+        .toList(growable: false);
   }
 
   Map<String, dynamic> _decodeObjectResponse(http.Response response) {

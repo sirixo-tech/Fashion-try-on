@@ -18,22 +18,50 @@ class KioskGarmentInput {
     required this.localPath,
     this.intent = KioskGarmentIntent.auto,
     this.photoType = KioskGarmentPhotoType.auto,
+    this.productId,
+    this.remoteImageUrl,
+    this.name,
     this.extractedPreviewPath,
   });
+
+  const KioskGarmentInput.catalogProduct({
+    required String productId,
+    required String name,
+    required String imageUrl,
+    required KioskGarmentIntent intent,
+    required KioskGarmentPhotoType photoType,
+  }) : this(
+         source: KioskGarmentInputSource.catalogProduct,
+         localPath: '',
+         productId: productId,
+         name: name,
+         remoteImageUrl: imageUrl,
+         intent: intent,
+         photoType: photoType,
+       );
 
   final KioskGarmentInputSource source;
   final String localPath;
   final KioskGarmentIntent intent;
   final KioskGarmentPhotoType photoType;
+  final String? productId;
+  final String? remoteImageUrl;
+  final String? name;
   final String? extractedPreviewPath;
 
   String get previewPath => extractedPreviewPath ?? localPath;
+
+  bool get isCatalogProduct =>
+      source == KioskGarmentInputSource.catalogProduct && productId != null;
 
   KioskGarmentInput copyWith({
     KioskGarmentInputSource? source,
     String? localPath,
     KioskGarmentIntent? intent,
     KioskGarmentPhotoType? photoType,
+    String? productId,
+    String? remoteImageUrl,
+    String? name,
     String? extractedPreviewPath,
   }) {
     return KioskGarmentInput(
@@ -41,16 +69,28 @@ class KioskGarmentInput {
       localPath: localPath ?? this.localPath,
       intent: intent ?? this.intent,
       photoType: photoType ?? this.photoType,
+      productId: productId ?? this.productId,
+      remoteImageUrl: remoteImageUrl ?? this.remoteImageUrl,
+      name: name ?? this.name,
       extractedPreviewPath: extractedPreviewPath ?? this.extractedPreviewPath,
     );
   }
 
   String get displayName {
+    if (name != null && name!.trim().isNotEmpty) {
+      return name!;
+    }
+    if (isCatalogProduct) {
+      return productId!;
+    }
     final segments = localPath.split(Platform.pathSeparator);
     return segments.isEmpty ? localPath : segments.last;
   }
 
   Future<bool> exists() async {
+    if (isCatalogProduct) {
+      return true;
+    }
     return localPath.trim().isNotEmpty && await File(localPath).exists();
   }
 }

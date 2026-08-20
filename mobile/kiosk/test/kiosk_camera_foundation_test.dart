@@ -578,24 +578,32 @@ void main() {
       expect(counterClockwise.height, closeTo(0.3, 0.0001));
     });
 
-    test('manual setting persists, restores, and updates camera service', () async {
-      final camera = readyCamera();
-      final settings = InMemoryCameraSettingsStore();
-      final controller = testController(camera: camera, settings: settings);
+    test(
+      'manual setting persists, restores, and updates camera service',
+      () async {
+        final camera = readyCamera();
+        final settings = InMemoryCameraSettingsStore();
+        final controller = testController(camera: camera, settings: settings);
 
-      await controller.updateCameraOrientationMode(CameraOrientationMode.deg90);
+        await controller.updateCameraOrientationMode(
+          CameraOrientationMode.deg90,
+        );
 
-      expect(await settings.readCameraOrientationMode(), CameraOrientationMode.deg90);
-      expect(camera.orientationMode, CameraOrientationMode.deg90);
-      expect(camera.state.value.capabilities.effectivePreviewWidth, 1080);
-      expect(camera.state.value.capabilities.effectivePreviewHeight, 1920);
+        expect(
+          await settings.readCameraOrientationMode(),
+          CameraOrientationMode.deg90,
+        );
+        expect(camera.orientationMode, CameraOrientationMode.deg90);
+        expect(camera.state.value.capabilities.effectivePreviewWidth, 1080);
+        expect(camera.state.value.capabilities.effectivePreviewHeight, 1920);
 
-      final restored = testController(camera: camera, settings: settings);
-      await restored.loadOperatorSettings();
+        final restored = testController(camera: camera, settings: settings);
+        await restored.loadOperatorSettings();
 
-      expect(restored.cameraOrientationMode, CameraOrientationMode.deg90);
-      expect(camera.orientationMode, CameraOrientationMode.deg90);
-    });
+        expect(restored.cameraOrientationMode, CameraOrientationMode.deg90);
+        expect(camera.orientationMode, CameraOrientationMode.deg90);
+      },
+    );
 
     testWidgets('orientation selector remains available after restore', (
       tester,
@@ -627,26 +635,29 @@ void main() {
       controller.dispose();
     });
 
-    test('garment and model capture use the same orientation resolver', () async {
-      final camera = readyCamera();
-      final settings = InMemoryCameraSettingsStore()
-        ..cameraOrientationMode = CameraOrientationMode.deg270;
-      final controller = testController(camera: camera, settings: settings);
+    test(
+      'garment and model capture use the same orientation resolver',
+      () async {
+        final camera = readyCamera();
+        final settings = InMemoryCameraSettingsStore()
+          ..cameraOrientationMode = CameraOrientationMode.deg270;
+        final controller = testController(camera: camera, settings: settings);
 
-      await controller.loadOperatorSettings();
-      controller.selectCapturePurpose(PhotoAcquisitionPurpose.model);
-      await controller.capturePhoto();
-      final modelCapture = controller.capture;
+        await controller.loadOperatorSettings();
+        controller.selectCapturePurpose(PhotoAcquisitionPurpose.model);
+        await controller.capturePhoto();
+        final modelCapture = controller.capture;
 
-      await controller.discardPendingCapture();
-      controller.selectCapturePurpose(PhotoAcquisitionPurpose.garment);
-      await controller.capturePhoto();
-      final garmentCapture = controller.capture;
+        await controller.discardPendingCapture();
+        controller.selectCapturePurpose(PhotoAcquisitionPurpose.garment);
+        await controller.capturePhoto();
+        final garmentCapture = controller.capture;
 
-      expect(modelCapture?.orientationMode, CameraOrientationMode.deg270);
-      expect(garmentCapture?.orientationMode, CameraOrientationMode.deg270);
-      expect(camera.orientationMode, CameraOrientationMode.deg270);
-    });
+        expect(modelCapture?.orientationMode, CameraOrientationMode.deg270);
+        expect(garmentCapture?.orientationMode, CameraOrientationMode.deg270);
+        expect(camera.orientationMode, CameraOrientationMode.deg270);
+      },
+    );
 
     test('manual capture normalization is reported once', () async {
       final result = CameraCaptureResult(
@@ -787,8 +798,11 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('What are you trying on?'), findsOneWidget);
-      expect(find.byKey(const Key('garment-intent-top')), findsOneWidget);
+      expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+      expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
+      expect(find.byKey(const Key('flip-person-camera')), findsOneWidget);
+      expect(find.text('How would you like to add your photo?'), findsNothing);
+      expect(find.text('What are you trying on?'), findsNothing);
       expect(find.byKey(const Key('garment-image-path')), findsNothing);
     });
 
@@ -884,14 +898,14 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('What are you trying on?'), findsOneWidget);
-      expect(find.byKey(const Key('garment-intent-top')), findsOneWidget);
+      expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+      expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
     });
   });
 
   group('KIOSK-4C.1 garment selection', () {
     testWidgets(
-      'customer garment screen uses picker preview and reaches photo source',
+      'customer garment screen uses picker preview and camera capture only',
       (tester) async {
         final captureController = testController();
         final tryOnController = KioskTryOnSessionController(
@@ -924,8 +938,11 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        expect(find.byKey(const Key('take-garment-photo-source')), findsOneWidget);
-        expect(find.byKey(const Key('use-phone-garment-source')), findsOneWidget);
+        expect(
+          find.byKey(const Key('take-garment-photo-source')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('use-phone-garment-source')), findsNothing);
 
         captureController.dispose();
       },
@@ -1246,7 +1263,8 @@ class FakeCameraService implements CameraService {
       isTemporary: true,
       orientationMode: orientationMode,
       normalizationDegrees: orientationMode.manualDegrees ?? 0,
-      orientationNormalized: orientationMode != CameraOrientationMode.auto &&
+      orientationNormalized:
+          orientationMode != CameraOrientationMode.auto &&
           orientationMode != CameraOrientationMode.deg0,
     );
   }
@@ -1325,11 +1343,13 @@ class FakeCameraService implements CameraService {
       capabilities: CameraCapabilities(
         previewWidth: _state.value.capabilities.previewWidth,
         previewHeight: _state.value.capabilities.previewHeight,
-        effectivePreviewWidth: mode == CameraOrientationMode.deg90 ||
+        effectivePreviewWidth:
+            mode == CameraOrientationMode.deg90 ||
                 mode == CameraOrientationMode.deg270
             ? _state.value.capabilities.previewHeight
             : _state.value.capabilities.previewWidth,
-        effectivePreviewHeight: mode == CameraOrientationMode.deg90 ||
+        effectivePreviewHeight:
+            mode == CameraOrientationMode.deg90 ||
                 mode == CameraOrientationMode.deg270
             ? _state.value.capabilities.previewWidth
             : _state.value.capabilities.previewHeight,

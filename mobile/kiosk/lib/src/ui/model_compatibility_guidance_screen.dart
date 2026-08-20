@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../acquisition/photo_acquisition.dart';
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
-import 'photo_source_choice_screen.dart';
 
 class ModelCompatibilityGuidanceScreen extends StatelessWidget {
   const ModelCompatibilityGuidanceScreen({
@@ -16,6 +18,7 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
@@ -23,6 +26,7 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
 
   @override
@@ -92,11 +96,13 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
     }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => PhotoSourceChoiceScreen(
-          captureController: captureController,
+        builder: (_) => CameraCaptureScreen(
+          controller: captureController,
           tryOnController: tryOnController,
           uploadController: uploadController,
+          catalogGateway: catalogGateway,
           extractionService: extractionService,
+          purpose: PhotoAcquisitionPurpose.model,
         ),
       ),
     );

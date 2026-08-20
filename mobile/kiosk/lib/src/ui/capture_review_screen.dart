@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../quality/image_quality.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
@@ -17,12 +18,14 @@ class CaptureReviewScreen extends StatelessWidget {
     required this.controller,
     required this.tryOnController,
     required this.uploadController,
+    this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
 
   @override
@@ -74,6 +77,7 @@ class CaptureReviewScreen extends StatelessWidget {
                 controller: controller,
                 tryOnController: tryOnController,
                 uploadController: uploadController,
+                catalogGateway: catalogGateway,
                 extractionService: extractionService,
                 quality: quality,
                 compact: compact,
@@ -122,6 +126,7 @@ class _ReviewActions extends StatelessWidget {
     required this.controller,
     required this.tryOnController,
     required this.uploadController,
+    required this.catalogGateway,
     required this.extractionService,
     required this.quality,
     required this.compact,
@@ -130,6 +135,7 @@ class _ReviewActions extends StatelessWidget {
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
   final ImageQualityResult? quality;
   final bool compact;
@@ -188,6 +194,7 @@ class _ReviewActions extends StatelessWidget {
                         captureController: controller,
                         tryOnController: tryOnController,
                         uploadController: uploadController,
+                        catalogGateway: catalogGateway,
                         extractionService: extractionService,
                       ),
                     ),

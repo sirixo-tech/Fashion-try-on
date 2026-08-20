@@ -3,13 +3,15 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../acquisition/photo_acquisition.dart';
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'camera_capture_screen.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
-import 'photo_source_choice_screen.dart';
 import 'selfx_kiosk_button.dart';
 
 class TryOnResultScreen extends StatelessWidget {
@@ -18,12 +20,14 @@ class TryOnResultScreen extends StatelessWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.extractionService = const UnavailableGarmentExtractionService(),
   });
 
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
 
   @override
@@ -88,6 +92,7 @@ class TryOnResultScreen extends StatelessWidget {
           captureController: captureController,
           tryOnController: tryOnController,
           uploadController: uploadController,
+          catalogGateway: catalogGateway,
           extractionService: extractionService,
         ),
       ),
@@ -102,11 +107,13 @@ class TryOnResultScreen extends StatelessWidget {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => PhotoSourceChoiceScreen(
-          captureController: captureController,
+        builder: (_) => CameraCaptureScreen(
+          controller: captureController,
           tryOnController: tryOnController,
           uploadController: uploadController,
+          catalogGateway: catalogGateway,
           extractionService: extractionService,
+          purpose: PhotoAcquisitionPurpose.model,
         ),
       ),
       (route) => route.isFirst,

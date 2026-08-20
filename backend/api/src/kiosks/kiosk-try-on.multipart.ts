@@ -60,7 +60,8 @@ export interface CreateKioskTryOnRunPayload {
   sessionId?: string;
   personAssetId?: string;
   personImage?: KioskTryOnUploadedImage;
-  garmentImage: KioskTryOnUploadedImage;
+  garmentImage?: KioskTryOnUploadedImage;
+  productId?: string;
   garmentSource: SelfxGarmentSource;
   garmentIntent: SelfxGarmentIntent;
   category: SelfxGarmentCategory;
@@ -134,14 +135,32 @@ export async function parseKioskTryOnRunMultipartRequest(
     throwMultipartInvalid("Kiosk Try-On multipart request could not be processed.");
   }
 
-  const garmentImage = images.get("garmentImage");
-  if (!garmentImage) {
-    throwMultipartInvalid("Garment image is required.");
-  }
   const sessionId = parseOptionalUuid(fields.get("sessionId"), "Invalid session ID.");
   const personImage = images.get("personImage");
   if (!personImage && !sessionId) {
     throwMultipartInvalid("Person image is required for legacy Try-On requests.");
+  }
+  const garmentImage = images.get("garmentImage");
+  const productId = parseOptionalUuid(
+    fields.get("productId"),
+    "Invalid catalog product ID.",
+  );
+  if (garmentImage && productId) {
+    throwMultipartInvalid("Provide either a garment image or catalog product.");
+  }
+  if (!garmentImage && !productId) {
+    throwMultipartInvalid("Garment image or catalog product is required.");
+  }
+  const garmentSource = parseEnum(
+    fields.get("garmentSource") ?? (productId ? "SELFX_CATALOG" : "DIRECT_UPLOAD"),
+    SELFX_GARMENT_SOURCES,
+    "Invalid garment source.",
+  );
+  if (productId && garmentSource !== "SELFX_CATALOG") {
+    throwResolutionMetadataInvalid("Catalog product requires SelfX catalog source.");
+  }
+  if (garmentImage && garmentSource === "SELFX_CATALOG") {
+    throwResolutionMetadataInvalid("SelfX catalog source requires a product ID.");
   }
 
   return {
@@ -153,11 +172,8 @@ export async function parseKioskTryOnRunMultipartRequest(
     ),
     personImage,
     garmentImage,
-    garmentSource: parseEnum(
-      fields.get("garmentSource") ?? "DIRECT_UPLOAD",
-      SELFX_GARMENT_SOURCES,
-      "Invalid garment source.",
-    ),
+    productId,
+    garmentSource,
     garmentIntent: parseEnum(
       fields.get("garmentIntent") ?? fields.get("category") ?? "AUTO",
       SELFX_GARMENT_INTENTS,

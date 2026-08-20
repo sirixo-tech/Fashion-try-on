@@ -153,12 +153,14 @@ class KioskTryOnLook {
     required this.createdAt,
     required this.expiresAt,
     this.garmentAssetId,
+    this.productId,
   });
 
   final String lookId;
   final String runId;
   final String personAssetId;
   final String? garmentAssetId;
+  final String? productId;
   final String resultAssetId;
   final String resultReadUrl;
   final DateTime createdAt;

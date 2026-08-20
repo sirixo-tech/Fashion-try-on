@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_session_controller.dart';
 import '../operator/operator_access.dart';
@@ -19,6 +20,7 @@ class KioskStartupScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    required this.catalogGateway,
     required this.configurationController,
     required this.operatorAccessController,
     this.extractionService = const UnavailableGarmentExtractionService(),
@@ -28,6 +30,7 @@ class KioskStartupScreen extends StatefulWidget {
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
   final KioskRuntimeConfigurationController configurationController;
   final OperatorAccessController operatorAccessController;
@@ -58,6 +61,7 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
               controller: widget.captureController,
               tryOnController: widget.tryOnController,
               uploadController: widget.uploadController,
+              catalogGateway: widget.catalogGateway,
               extractionService: widget.extractionService,
               configurationController: widget.configurationController,
               operatorAccessController: widget.operatorAccessController,

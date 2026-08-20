@@ -45,12 +45,15 @@ export class KioskTryOnController {
   @ApiBody({
     schema: {
       type: "object",
-      required: ["clientRequestId", "personImage", "garmentImage"],
+      required: ["clientRequestId"],
       properties: {
         clientRequestId: { type: "string" },
+        sessionId: { type: "string", format: "uuid" },
+        personAssetId: { type: "string", format: "uuid" },
         personImage: { type: "string", format: "binary" },
         garmentImage: { type: "string", format: "binary" },
-        garmentSource: { type: "string", enum: ["DIRECT_UPLOAD"] },
+        productId: { type: "string", format: "uuid" },
+        garmentSource: { type: "string", enum: ["DIRECT_UPLOAD", "SELFX_CATALOG"] },
         garmentIntent: {
           type: "string",
           enum: ["AUTO", "TOP", "BOTTOM", "ONE_PIECE", "FULL_OUTFIT"],

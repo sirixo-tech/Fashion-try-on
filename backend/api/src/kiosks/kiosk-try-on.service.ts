@@ -11,11 +11,15 @@ import {
 
 import { createSelfxId } from "@selfx/database";
 import {
+  SELFX_GARMENT_CATEGORIES,
+  SELFX_GARMENT_INTENTS,
+  SELFX_GARMENT_PHOTO_TYPES,
   TRY_ON_LAB_ERROR_CODES,
   isModelCoverageCompatibleWithGarment,
   type SelfxTryOnRunStatus,
 } from "@selfx/shared";
 
+import { CatalogService } from "../catalog/catalog.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { validateTechnicalImageBuffer } from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -48,6 +52,7 @@ interface SessionRunAssets {
   kioskDeviceId: string;
   personAssetId: string;
   garmentAssetId: string | null;
+  productId: string | null;
   executionPayload: CreateTryOnLabRunPayload;
 }
 
@@ -59,6 +64,7 @@ export class KioskTryOnService {
     @Optional() private readonly sessions?: TryOnSessionService,
     @Optional() private readonly storage?: ObjectStorageService,
     @Optional() private readonly customerUploads?: KioskCustomerUploadService,
+    @Optional() private readonly catalog?: CatalogService,
   ) {}
 
   async createSession(
@@ -161,12 +167,11 @@ export class KioskTryOnService {
       return toResponse(existing);
     }
 
-    enforceModelGarmentCompatibility(payload);
-
     const sessionRun = payload.sessionId
       ? await this.prepareSessionRunAssets(device, payload)
       : undefined;
     const executionPayload = sessionRun?.executionPayload ?? requireLegacyPayload(payload);
+    enforceModelGarmentCompatibility(executionPayload);
 
     this.execution.assertConfigured();
     const providerMetadata = this.execution.metadata();
@@ -213,6 +218,7 @@ export class KioskTryOnService {
               : null,
           personAssetId: sessionRun?.personAssetId,
           garmentAssetId: sessionRun?.garmentAssetId,
+          productId: sessionRun?.productId,
           provider: providerMetadata.provider,
           providerDisplayName: providerMetadata.providerDisplayName,
           providerModel: providerMetadata.model,
@@ -335,11 +341,14 @@ export class KioskTryOnService {
     device: KioskDeviceContext,
     payload: CreateKioskTryOnRunPayload,
   ): Promise<SessionRunAssets> {
-    if (payload.garmentSource !== "DIRECT_UPLOAD") {
+    if (
+      payload.garmentSource !== "DIRECT_UPLOAD" &&
+      payload.garmentSource !== "SELFX_CATALOG"
+    ) {
       throw new ApiErrorException(
         HttpStatus.BAD_REQUEST,
         TRY_ON_LAB_ERROR_CODES.resolutionMetadataInvalid,
-        "Only direct captured garments are supported for session Try-On runs.",
+        "Only direct captured garments and SelfX catalog products are supported for session Try-On runs.",
       );
     }
     const sessionId = payload.sessionId;
@@ -372,14 +381,65 @@ export class KioskTryOnService {
       });
     }
 
+    const personImage = await this.readAssetAsUploadedImage(
+      personAsset,
+      "personImage",
+    );
+    if (payload.productId) {
+      const product = await this.requireCatalog().resolveKioskProductForTryOn(
+        device.assignmentScope === KioskAssignmentScope.PLATFORM
+          ? null
+          : device.organizationId,
+        payload.productId,
+      );
+      const executionPayload: CreateTryOnLabRunPayload = {
+        ...payload,
+        personImage,
+        garmentImage: product.garmentImage,
+        garmentSource: "SELFX_CATALOG",
+        garmentIntent: requireCatalogEnum(
+          product.garmentIntent,
+          SELFX_GARMENT_INTENTS,
+          "Invalid catalog garment intent.",
+        ),
+        category: requireCatalogEnum(
+          product.garmentCategory,
+          SELFX_GARMENT_CATEGORIES,
+          "Invalid catalog garment category.",
+        ),
+        garmentPhotoType: requireCatalogEnum(
+          product.garmentPhotoType,
+          SELFX_GARMENT_PHOTO_TYPES,
+          "Invalid catalog garment photo type.",
+        ),
+        categoryResolutionSource: "SELFX_CATALOG_METADATA",
+        photoTypeResolutionSource: "SELFX_CATALOG_METADATA",
+        disambiguationRequired: false,
+        disambiguationResolved: true,
+        garmentAnalysisReasonCodes: [],
+      };
+
+      return {
+        sessionId,
+        kioskDeviceId: device.id,
+        personAssetId: personAsset.id,
+        garmentAssetId: null,
+        productId: product.productId,
+        executionPayload,
+      };
+    }
+
+    if (!payload.garmentImage) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        TRY_ON_LAB_ERROR_CODES.multipartInvalid,
+        "Garment image is required for captured garment Try-On runs.",
+      );
+    }
     const garmentAsset = await this.storeAndAttachGarmentImage(
       device,
       sessionId,
       payload.garmentImage,
-    );
-    const personImage = await this.readAssetAsUploadedImage(
-      personAsset,
-      "personImage",
     );
     const executionPayload: CreateTryOnLabRunPayload = {
       ...payload,
@@ -392,6 +452,7 @@ export class KioskTryOnService {
       kioskDeviceId: device.id,
       personAssetId: personAsset.id,
       garmentAssetId: garmentAsset.id,
+      productId: null,
       executionPayload,
     };
   }
@@ -493,6 +554,7 @@ export class KioskTryOnService {
       kioskTryOnRunId: runId,
       personAssetId: sessionRun.personAssetId,
       garmentAssetId: sessionRun.garmentAssetId,
+      productId: sessionRun.productId,
       resultAsset: {
         storageKey: key,
         contentType: metadata.mimeType,
@@ -535,6 +597,17 @@ export class KioskTryOnService {
     }
     return this.customerUploads;
   }
+
+  private requireCatalog(): CatalogService {
+    if (!this.catalog) {
+      throw new ApiErrorException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "KIOSK_CATALOG_UNAVAILABLE",
+        "Catalog service is not available.",
+      );
+    }
+    return this.catalog;
+  }
 }
 
 function enforceModelGarmentCompatibility(
@@ -568,11 +641,33 @@ function requireLegacyPayload(
       "Person image is required for legacy Try-On requests.",
     );
   }
+  if (!payload.garmentImage) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      TRY_ON_LAB_ERROR_CODES.multipartInvalid,
+      "Garment image is required for legacy Try-On requests.",
+    );
+  }
   return {
     ...payload,
     personImage: payload.personImage,
     garmentImage: payload.garmentImage,
   };
+}
+
+function requireCatalogEnum<const TValue extends readonly string[]>(
+  value: string,
+  allowed: TValue,
+  message: string,
+): TValue[number] {
+  if ((allowed as readonly string[]).includes(value)) {
+    return value as TValue[number];
+  }
+  throw new ApiErrorException(
+    HttpStatus.CONFLICT,
+    TRY_ON_LAB_ERROR_CODES.resolutionMetadataInvalid,
+    message,
+  );
 }
 
 function requireClientRequestId(value: string | undefined): string {
@@ -655,6 +750,7 @@ function toLookResponse(
     runId: look.kioskTryOnRunId,
     personAssetId: look.personAssetId,
     garmentAssetId: look.garmentAssetId ?? undefined,
+    productId: look.productId ?? undefined,
     resultAssetId: look.resultAssetId,
     resultReadUrl: storage.createReadUrl({
       key: look.resultAsset.storageKey,

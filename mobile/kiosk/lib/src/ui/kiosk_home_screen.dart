@@ -7,13 +7,15 @@ import 'package:flutter/services.dart';
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../idle/kiosk_idle_presentation.dart';
 import '../operator/operator_access.dart';
+import '../acquisition/photo_acquisition.dart';
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'camera_capture_screen.dart';
 import 'camera_settings_screen.dart';
-import 'photo_source_choice_screen.dart';
 import 'selfx_kiosk_button.dart';
 
 class KioskHomeScreen extends StatefulWidget {
@@ -23,6 +25,7 @@ class KioskHomeScreen extends StatefulWidget {
     required this.tryOnController,
     required this.uploadController,
     required this.operatorAccessController,
+    this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.extractionService = const UnavailableGarmentExtractionService(),
     this.configurationController,
     this.presentation = defaultIdlePresentation,
@@ -31,6 +34,7 @@ class KioskHomeScreen extends StatefulWidget {
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
   final OperatorAccessController operatorAccessController;
   final KioskRuntimeConfigurationController? configurationController;
@@ -176,11 +180,13 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PhotoSourceChoiceScreen(
-          captureController: widget.controller,
+        builder: (_) => CameraCaptureScreen(
+          controller: widget.controller,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
           extractionService: widget.extractionService,
+          purpose: PhotoAcquisitionPurpose.model,
         ),
       ),
     );

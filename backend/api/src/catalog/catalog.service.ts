@@ -1,8 +1,16 @@
-import { Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
+import { TRY_ON_LAB_ERROR_CODES } from "@selfx/shared";
+
+import { ApiErrorException } from "../common/api-error.exception.js";
+import {
+  type SupportedImageMimeType,
+  validateTechnicalImageBuffer,
+} from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import { TRY_ON_LAB_MAX_IMAGE_BYTES } from "../try-on-lab/try-on-lab.constants.js";
 import {
   type KioskCatalogCategoryDto,
   type KioskCatalogCategoryListResponseDto,
@@ -45,6 +53,25 @@ type CategoryRow = {
   audience: string | null;
   product_count: bigint | number;
 };
+
+export interface KioskCatalogProductTryOnImage {
+  fieldName: "garmentImage";
+  filename: string;
+  mimeType: SupportedImageMimeType;
+  sizeBytes: number;
+  buffer: Buffer;
+  dataUri: string;
+  width: number;
+  height: number;
+}
+
+export interface KioskCatalogProductForTryOn {
+  productId: string;
+  garmentIntent: string;
+  garmentCategory: string;
+  garmentPhotoType: string;
+  garmentImage: KioskCatalogProductTryOnImage;
+}
 
 @Injectable()
 export class CatalogService {
@@ -133,6 +160,56 @@ export class CatalogService {
     return { data: rows.map(mapCategory) };
   }
 
+  async resolveKioskProductForTryOn(
+    storeTenantId: string | null,
+    productId: string,
+  ): Promise<KioskCatalogProductForTryOn> {
+    const context = await this.resolveCatalogContext(storeTenantId);
+    const where = Prisma.join(
+      [...baseProductConditions(context), Prisma.sql`p.id = ${productId}::uuid`],
+      " AND ",
+    );
+    const rows = await this.prisma.$queryRaw<ProductRow[]>`
+      SELECT
+        p.id,
+        p.name,
+        p.description,
+        p.audience,
+        p.garment_intent,
+        p.garment_category,
+        p.garment_photo_type,
+        p.image_url,
+        p.image_storage_key,
+        p.image_content_type,
+        p.image_width,
+        p.image_height,
+        c.id AS category_id,
+        c.name AS category_name,
+        c.slug AS category_slug,
+        c.audience AS category_audience
+      FROM products p
+      INNER JOIN product_categories c ON c.id = p.category_id
+      WHERE ${where}
+      LIMIT 1
+    `;
+    const product = rows[0];
+    if (!product) {
+      throw new ApiErrorException(
+        HttpStatus.NOT_FOUND,
+        TRY_ON_LAB_ERROR_CODES.resolutionMetadataInvalid,
+        "Catalog product is not available for this kiosk.",
+      );
+    }
+
+    return {
+      productId: product.id,
+      garmentIntent: product.garment_intent,
+      garmentCategory: product.garment_category,
+      garmentPhotoType: product.garment_photo_type,
+      garmentImage: await this.resolveTryOnImage(product),
+    };
+  }
+
   private async resolveCatalogContext(
     storeTenantId: string | null,
   ): Promise<{ scope: CatalogScope; storeTenantId: string | null }> {
@@ -189,6 +266,74 @@ export class CatalogService {
       key: storageKey,
       expiresInSeconds: catalogReadUrlTtlSeconds,
     });
+  }
+
+  private async resolveTryOnImage(
+    product: Pick<
+      ProductRow,
+      "id" | "image_storage_key" | "image_url" | "image_content_type"
+    >,
+  ): Promise<KioskCatalogProductTryOnImage> {
+    const image = product.image_storage_key
+      ? await this.readStoredProductImage(product.image_storage_key)
+      : await this.fetchProductImage(product.image_url);
+    const metadata = validateTechnicalImageBuffer({
+      buffer: image.buffer,
+      declaredContentType: product.image_content_type ?? image.contentType,
+      maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
+    });
+    return {
+      fieldName: "garmentImage",
+      filename: `catalog-product-${product.id}`,
+      mimeType: metadata.mimeType,
+      sizeBytes: metadata.sizeBytes,
+      buffer: image.buffer,
+      dataUri: `data:${metadata.mimeType};base64,${image.buffer.toString("base64")}`,
+      width: metadata.width,
+      height: metadata.height,
+    };
+  }
+
+  private async readStoredProductImage(
+    storageKey: string,
+  ): Promise<{ buffer: Buffer; contentType: string | null }> {
+    return {
+      buffer: await this.storage.readObject(storageKey, TRY_ON_LAB_MAX_IMAGE_BYTES),
+      contentType: null,
+    };
+  }
+
+  private async fetchProductImage(
+    imageUrl: string | null,
+  ): Promise<{ buffer: Buffer; contentType: string | null }> {
+    if (!imageUrl || imageUrl.trim() === "") {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        TRY_ON_LAB_ERROR_CODES.imageInvalid,
+        "Catalog product image is unavailable.",
+      );
+    }
+    let url: URL;
+    try {
+      url = new URL(imageUrl);
+    } catch {
+      throwInvalidCatalogImage();
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throwInvalidCatalogImage();
+    }
+    const response = await fetch(url);
+    if (!response.ok) {
+      throwInvalidCatalogImage();
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > TRY_ON_LAB_MAX_IMAGE_BYTES) {
+      throwInvalidCatalogImage();
+    }
+    return {
+      buffer,
+      contentType: response.headers.get("content-type")?.split(";")[0]?.trim() ?? null,
+    };
   }
 }
 
@@ -252,4 +397,12 @@ function boundedPositiveInt(value: number | undefined, fallback: number): number
     return fallback;
   }
   return value;
+}
+
+function throwInvalidCatalogImage(): never {
+  throw new ApiErrorException(
+    HttpStatus.CONFLICT,
+    TRY_ON_LAB_ERROR_CODES.imageInvalid,
+    "Catalog product image is unavailable.",
+  );
 }

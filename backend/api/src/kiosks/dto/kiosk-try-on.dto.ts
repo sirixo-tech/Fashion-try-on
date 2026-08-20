@@ -86,6 +86,9 @@ export class KioskTryOnLookResponseDto {
   @ApiPropertyOptional()
   garmentAssetId?: string;
 
+  @ApiPropertyOptional()
+  productId?: string;
+
   @ApiProperty()
   resultAssetId!: string;
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../acquisition/photo_acquisition.dart';
+import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
@@ -19,6 +20,7 @@ class MobileUploadScreen extends StatefulWidget {
     required this.captureController,
     required this.tryOnController,
     required this.uploadController,
+    this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.purpose = PhotoAcquisitionPurpose.model,
     this.garmentIntent,
     this.extractionService = const UnavailableGarmentExtractionService(),
@@ -27,6 +29,7 @@ class MobileUploadScreen extends StatefulWidget {
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
+  final KioskCatalogGateway catalogGateway;
   final PhotoAcquisitionPurpose purpose;
   final KioskGarmentIntent? garmentIntent;
   final GarmentExtractionService extractionService;
@@ -81,6 +84,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
               controller: widget.uploadController,
               captureController: widget.captureController,
               tryOnController: widget.tryOnController,
+              catalogGateway: widget.catalogGateway,
               purpose: widget.purpose,
               garmentIntent: widget.garmentIntent,
               extractionService: widget.extractionService,
@@ -322,6 +326,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
     required this.controller,
     required this.captureController,
     required this.tryOnController,
+    required this.catalogGateway,
     required this.purpose,
     required this.extractionService,
     this.garmentIntent,
@@ -331,6 +336,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
   final KioskCustomerUploadController controller;
   final CaptureSessionController captureController;
   final KioskTryOnSessionController tryOnController;
+  final KioskCatalogGateway catalogGateway;
   final PhotoAcquisitionPurpose purpose;
   final GarmentExtractionService extractionService;
   final KioskGarmentIntent? garmentIntent;
@@ -386,6 +392,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                               captureController: captureController,
                               tryOnController: tryOnController,
                               uploadController: controller,
+                              catalogGateway: catalogGateway,
                               garmentInput: input,
                               extractionService: extractionService,
                             ),
@@ -421,6 +428,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                             captureController: captureController,
                             tryOnController: tryOnController,
                             uploadController: controller,
+                            catalogGateway: catalogGateway,
                             extractionService: extractionService,
                           ),
                         ),

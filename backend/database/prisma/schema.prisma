@@ -476,6 +476,8 @@ model Product {
   updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization     Organization?       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   category         ProductCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  tryOnRuns        KioskTryOnRun[]
+  tryOnLooks       TryOnLook[]
 
   @@index([scope, active, vtoEnabled, audience, sortOrder])
   @@index([organizationId, active, vtoEnabled, audience, sortOrder])
@@ -740,6 +742,7 @@ model KioskTryOnRun {
   storeId              String?              @map("store_id") @db.Uuid
   personAssetId        String?              @map("person_asset_id") @db.Uuid
   garmentAssetId       String?              @map("garment_asset_id") @db.Uuid
+  productId            String?              @map("product_id") @db.Uuid
   resultAssetId        String?              @map("result_asset_id") @db.Uuid
   provider             String               @db.VarChar(80)
   providerDisplayName  String               @map("provider_display_name") @db.VarChar(120)
@@ -763,6 +766,7 @@ model KioskTryOnRun {
   tryOnSession         TryOnSession?        @relation(fields: [tryOnSessionId], references: [id], onDelete: SetNull)
   personAsset          TryOnAsset?          @relation("KioskTryOnRunPersonAsset", fields: [personAssetId], references: [id], onDelete: SetNull)
   garmentAsset         TryOnAsset?          @relation("KioskTryOnRunGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: SetNull)
+  product              Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
   resultAsset          TryOnAsset?          @relation("KioskTryOnRunResultAsset", fields: [resultAssetId], references: [id], onDelete: SetNull)
   look                 TryOnLook?
 
@@ -772,6 +776,7 @@ model KioskTryOnRun {
   @@index([tryOnSessionId, createdAt])
   @@index([personAssetId])
   @@index([garmentAssetId])
+  @@index([productId])
   @@index([resultAssetId])
   @@index([organizationId, createdAt])
   @@index([storeId, createdAt])
@@ -854,6 +859,7 @@ model TryOnLook {
   kioskTryOnRunId String               @unique @map("kiosk_try_on_run_id") @db.Uuid
   personAssetId   String               @map("person_asset_id") @db.Uuid
   garmentAssetId  String?              @map("garment_asset_id") @db.Uuid
+  productId       String?              @map("product_id") @db.Uuid
   resultAssetId   String               @map("result_asset_id") @db.Uuid
   assignmentScope KioskAssignmentScope @map("assignment_scope")
   organizationId  String?              @map("organization_id") @db.Uuid
@@ -866,6 +872,7 @@ model TryOnLook {
   kioskTryOnRun   KioskTryOnRun        @relation(fields: [kioskTryOnRunId], references: [id], onDelete: Cascade)
   personAsset     TryOnAsset           @relation("TryOnLookPersonAsset", fields: [personAssetId], references: [id], onDelete: Restrict)
   garmentAsset    TryOnAsset?          @relation("TryOnLookGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: Restrict)
+  product         Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
   resultAsset     TryOnAsset           @relation("TryOnLookResultAsset", fields: [resultAssetId], references: [id], onDelete: Restrict)
   organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   store           Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
@@ -877,6 +884,7 @@ model TryOnLook {
   @@index([storeId, createdAt])
   @@index([personAssetId])
   @@index([garmentAssetId])
+  @@index([productId])
   @@index([resultAssetId])
   @@index([expiresAt])
   @@map("try_on_looks")
