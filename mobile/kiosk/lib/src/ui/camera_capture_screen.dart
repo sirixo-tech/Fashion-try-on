@@ -15,6 +15,7 @@ import 'capture_review_screen.dart';
 import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_kiosk_button.dart';
+import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
   const CameraCaptureScreen({
@@ -40,6 +41,7 @@ class CameraCaptureScreen extends StatefulWidget {
 
 class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   bool _starting = true;
+  bool _switchingCamera = false;
   String? _reviewCapturePath;
 
   @override
@@ -100,6 +102,16 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                 state: cameraState,
                 preview: widget.controller.cameraService.buildPreview(context),
                 onRetry: _start,
+                showFlipCamera:
+                    widget.purpose == PhotoAcquisitionPurpose.model &&
+                    widget.controller.canFlipCamera,
+                onFlipCamera:
+                    widget.purpose == PhotoAcquisitionPurpose.model &&
+                        cameraState.status == CameraStatus.ready &&
+                        flowState.stage == CaptureFlowStage.preview &&
+                        !_switchingCamera
+                    ? _flipCamera
+                    : null,
               );
               final guidancePanel = CaptureGuidancePanel(
                 state: cameraState,
@@ -147,6 +159,22 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
     return widget.controller.beginAssistedCapture();
   }
 
+  Future<void> _flipCamera() async {
+    if (_switchingCamera || !widget.controller.canFlipCamera) {
+      return;
+    }
+    setState(() => _switchingCamera = true);
+    try {
+      await widget.controller.flipCamera();
+    } catch (_) {
+      // Camera selection failures are published by the camera service state.
+    } finally {
+      if (mounted) {
+        setState(() => _switchingCamera = false);
+      }
+    }
+  }
+
   void _handleControllerChanged() {
     final flowState = widget.controller.flowState;
     final capturePath = widget.controller.capture?.originalPath;
@@ -158,33 +186,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         if (!mounted) {
           return;
         }
-        final route = widget.purpose == PhotoAcquisitionPurpose.garment
-            ? MaterialPageRoute<void>(
-                builder: (_) => GarmentReviewScreen(
-                  captureController: widget.controller,
-                  tryOnController: widget.tryOnController,
-                  uploadController: widget.uploadController,
-                  garmentInput: KioskGarmentInput(
-                    source: KioskGarmentInputSource.capturedGarment,
-                    localPath: capturePath,
-                    intent:
-                        widget.garmentIntent ?? KioskGarmentIntent.fullOutfit,
-                    photoType: resolveGarmentReferenceProfile(
-                      bodyContext: widget.controller.captureTargetMetadata,
-                    ).photoType,
-                  ),
-                  pendingCameraCapture: true,
-                  extractionService: widget.extractionService,
-                ),
-              )
-            : MaterialPageRoute<void>(
-                builder: (_) => CaptureReviewScreen(
-                  controller: widget.controller,
-                  tryOnController: widget.tryOnController,
-                  uploadController: widget.uploadController,
-                  extractionService: widget.extractionService,
-                ),
-              );
+        final route = _routeForCapturedPhoto(capturePath);
         await Navigator.of(context).push(route);
         if (mounted &&
             widget.controller.flowState.stage == CaptureFlowStage.preview) {
@@ -195,6 +197,51 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
       _reviewCapturePath = null;
     }
   }
+
+  MaterialPageRoute<void> _routeForCapturedPhoto(String capturePath) {
+    if (widget.purpose != PhotoAcquisitionPurpose.garment) {
+      return MaterialPageRoute<void>(
+        builder: (_) => CaptureReviewScreen(
+          controller: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          extractionService: widget.extractionService,
+        ),
+      );
+    }
+
+    final garmentInput = KioskGarmentInput(
+      source: KioskGarmentInputSource.capturedGarment,
+      localPath: capturePath,
+      intent: widget.garmentIntent ?? KioskGarmentIntent.fullOutfit,
+      photoType: resolveGarmentReferenceProfile(
+        bodyContext: widget.controller.captureTargetMetadata,
+      ).photoType,
+    );
+    if (widget.tryOnController.garmentPreviewEnabled) {
+      return MaterialPageRoute<void>(
+        builder: (_) => GarmentReviewScreen(
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          garmentInput: garmentInput,
+          pendingCameraCapture: true,
+          extractionService: widget.extractionService,
+        ),
+      );
+    }
+
+    widget.tryOnController.selectGarment(garmentInput);
+    widget.controller.preservePendingCaptureAsExternalInput();
+    return MaterialPageRoute<void>(
+      builder: (_) => TryOnGenerationScreen(
+        captureController: widget.controller,
+        tryOnController: widget.tryOnController,
+        uploadController: widget.uploadController,
+        extractionService: widget.extractionService,
+      ),
+    );
+  }
 }
 
 class _PreviewPanel extends StatelessWidget {
@@ -203,12 +250,16 @@ class _PreviewPanel extends StatelessWidget {
     required this.state,
     required this.preview,
     required this.onRetry,
+    required this.showFlipCamera,
+    required this.onFlipCamera,
   });
 
   final bool starting;
   final CameraState state;
   final Widget preview;
   final VoidCallback onRetry;
+  final bool showFlipCamera;
+  final VoidCallback? onFlipCamera;
 
   @override
   Widget build(BuildContext context) {
@@ -229,8 +280,33 @@ class _PreviewPanel extends StatelessWidget {
                 state: state,
                 onRetry: onRetry,
               ),
+            if (showFlipCamera)
+              Positioned(
+                right: 14,
+                top: 14,
+                child: _FlipCameraButton(onPressed: onFlipCamera),
+              ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FlipCameraButton extends StatelessWidget {
+  const _FlipCameraButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Flip camera',
+      child: FilledButton.tonalIcon(
+        key: const Key('flip-person-camera'),
+        onPressed: onPressed,
+        icon: const Icon(Icons.cameraswitch_outlined),
+        label: const Text('Flip Camera'),
       ),
     );
   }

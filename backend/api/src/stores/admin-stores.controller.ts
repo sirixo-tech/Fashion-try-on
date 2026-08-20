@@ -50,6 +50,8 @@ import {
   PairStoreKioskDto,
   StoreKioskDeviceResponseDto,
   StoreKioskPairResponseDto,
+  StoreVirtualTryOnSettingsResponseDto,
+  UpdateStoreVirtualTryOnSettingsDto,
   UpdateAdminStoreDto,
 } from "./dto/admin-store.dto.js";
 
@@ -132,6 +134,39 @@ export class AdminStoresController {
       STORE_PERMISSION_CODES.storesUpdate,
     );
     return this.stores.updateStore(storeId, dto);
+  }
+
+  @Get(":storeId/virtual-try-on-settings")
+  @ApiOperation({ summary: "Read Store Virtual Try-On settings" })
+  @ApiOkResponse({ type: StoreVirtualTryOnSettingsResponseDto })
+  async getVirtualTryOnSettings(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+  ): Promise<StoreVirtualTryOnSettingsResponseDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesView,
+      STORE_PERMISSION_CODES.storesView,
+    );
+    return this.stores.getVirtualTryOnSettings(storeId);
+  }
+
+  @Put(":storeId/virtual-try-on-settings")
+  @ApiOperation({ summary: "Update Store Virtual Try-On settings" })
+  @ApiOkResponse({ type: StoreVirtualTryOnSettingsResponseDto })
+  async updateVirtualTryOnSettings(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: UpdateStoreVirtualTryOnSettingsDto,
+  ): Promise<StoreVirtualTryOnSettingsResponseDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
+    return this.stores.updateVirtualTryOnSettings(storeId, dto);
   }
 
   @Post(":storeId/deactivate")

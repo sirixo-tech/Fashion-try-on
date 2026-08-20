@@ -25,7 +25,10 @@ import {
 } from "./kiosk-provisioning.controller.js";
 import { KIOSK_CONFIG } from "./kiosk.constants.js";
 import { loadKioskConfig } from "./kiosk.config.js";
-import { KioskTryOnController } from "./kiosk-try-on.controller.js";
+import {
+  KioskTryOnController,
+  KioskTryOnSessionController,
+} from "./kiosk-try-on.controller.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
@@ -45,6 +48,7 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskSessionController,
     KioskDeviceSessionController,
     KioskHeartbeatController,
+    KioskTryOnSessionController,
     KioskTryOnController,
     KioskGarmentExtractionController,
     KioskCustomerUploadDeviceController,

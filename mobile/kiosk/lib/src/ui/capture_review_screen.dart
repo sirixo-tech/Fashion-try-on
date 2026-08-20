@@ -10,7 +10,6 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
-import 'try_on_generation_screen.dart';
 
 class CaptureReviewScreen extends StatelessWidget {
   const CaptureReviewScreen({
@@ -166,15 +165,18 @@ class _ReviewActions extends StatelessWidget {
                   if (!accepted || !context.mounted) {
                     return;
                   }
-                  if (tryOnController.garmentInput == null &&
-                      tryOnController.pendingGarmentIntent != null) {
-                    await Navigator.of(context).pushReplacement(
-                      MaterialPageRoute<void>(
-                        builder: (_) => GarmentSelectionScreen(
-                          captureController: controller,
-                          tryOnController: tryOnController,
-                          uploadController: uploadController,
-                          extractionService: extractionService,
+                  final attached = await tryOnController.attachAcceptedPerson(
+                    controller,
+                  );
+                  if (!context.mounted) {
+                    return;
+                  }
+                  if (!attached) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          tryOnController.sessionMessage ??
+                              'SelfX could not save this photo for reuse.',
                         ),
                       ),
                     );
@@ -182,7 +184,7 @@ class _ReviewActions extends StatelessWidget {
                   }
                   await Navigator.of(context).pushReplacement(
                     MaterialPageRoute<void>(
-                      builder: (_) => TryOnGenerationScreen(
+                      builder: (_) => GarmentSelectionScreen(
                         captureController: controller,
                         tryOnController: tryOnController,
                         uploadController: uploadController,
@@ -193,7 +195,7 @@ class _ReviewActions extends StatelessWidget {
                 }
               : null,
           icon: const Icon(Icons.check_circle_outline),
-          label: const Text('Use Photo'),
+          label: const Text('Continue'),
         ),
       ],
     );

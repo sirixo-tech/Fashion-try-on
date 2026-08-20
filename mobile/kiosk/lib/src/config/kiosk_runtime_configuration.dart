@@ -6,13 +6,7 @@ import '../tryon/kiosk_garment_input.dart';
 
 enum RuntimeKioskIdleMode { static, slideshow }
 
-enum RuntimeKioskSoundProfile {
-  selfxSignature,
-  soft,
-  studio,
-  minimal,
-  muted,
-}
+enum RuntimeKioskSoundProfile { selfxSignature, soft, studio, minimal, muted }
 
 enum RuntimeKioskAssetType { bundledImage, remoteImage }
 
@@ -30,6 +24,7 @@ class KioskRuntimeConfiguration {
     required this.soundProfile,
     required this.guidanceAudioEnabled,
     required this.enabledGarmentIntents,
+    required this.garmentPreviewEnabled,
     required this.sessionIdleTimeoutSeconds,
     required this.updatedAt,
   });
@@ -53,7 +48,8 @@ class KioskRuntimeConfiguration {
       slideDurationSeconds: _int(display, 'slideDurationSeconds', 6),
       title: _nullableString(display['title']) ?? 'SelfX Virtual Try-On',
       subtitle:
-          _nullableString(display['subtitle']) ?? 'Find your perfect fit in seconds.',
+          _nullableString(display['subtitle']) ??
+          'Find your perfect fit in seconds.',
       ctaLabel: _nullableString(display['ctaLabel']) ?? 'Start Try-On',
       assets: assets.isEmpty ? defaultRuntimeConfiguration.assets : assets,
       countdownSeconds: _int(capture, 'countdownSeconds', 10),
@@ -67,12 +63,16 @@ class KioskRuntimeConfiguration {
       enabledGarmentIntents: intents.isEmpty
           ? defaultRuntimeConfiguration.enabledGarmentIntents
           : intents,
+      garmentPreviewEnabled: experience['garmentPreviewEnabled'] is bool
+          ? experience['garmentPreviewEnabled'] as bool
+          : false,
       sessionIdleTimeoutSeconds: _int(
         experience,
         'sessionIdleTimeoutSeconds',
         120,
       ),
-      updatedAt: DateTime.tryParse(_string(json, 'updatedAt', '')) ??
+      updatedAt:
+          DateTime.tryParse(_string(json, 'updatedAt', '')) ??
           DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
@@ -89,6 +89,7 @@ class KioskRuntimeConfiguration {
   final RuntimeKioskSoundProfile soundProfile;
   final bool guidanceAudioEnabled;
   final List<KioskGarmentIntent> enabledGarmentIntents;
+  final bool garmentPreviewEnabled;
   final int sessionIdleTimeoutSeconds;
   final DateTime updatedAt;
 
@@ -154,6 +155,7 @@ class KioskRuntimeConfiguration {
         'enabledGarmentIntents': enabledGarmentIntents
             .map((intent) => intent.apiValue)
             .toList(),
+        'garmentPreviewEnabled': garmentPreviewEnabled,
         'sessionIdleTimeoutSeconds': sessionIdleTimeoutSeconds,
       },
       'updatedAt': updatedAt.toIso8601String(),
@@ -249,6 +251,7 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
     KioskGarmentIntent.bottom,
     KioskGarmentIntent.fullOutfit,
   ],
+  garmentPreviewEnabled: false,
   sessionIdleTimeoutSeconds: 120,
   updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
 );

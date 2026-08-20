@@ -16,6 +16,7 @@ export const STORE_PERMISSION_CODES = {
   kiosksAssign: "kiosks.assign",
   kiosksConfigure: "kiosks.configure",
   kiosksRevoke: "kiosks.revoke",
+  tryOnGarmentPreview: "tryon.garment_preview",
   analyticsView: "analytics.view",
   integrationsView: "integrations.view",
 } as const;
@@ -167,6 +168,15 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     action: "revoke",
     label: "Unpair Kiosks",
     description: "Unpair or revoke Store-owned kiosk device sessions.",
+    applicability: "STORE",
+  },
+  {
+    code: STORE_PERMISSION_CODES.tryOnGarmentPreview,
+    module: "tryon",
+    action: "garment_preview",
+    label: "Captured Garment Preview",
+    description:
+      "Allow this Store to use the captured garment extraction preview step.",
     applicability: "STORE",
   },
   {

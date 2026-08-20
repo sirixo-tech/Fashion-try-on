@@ -12,7 +12,6 @@ import '../upload/kiosk_customer_upload_models.dart';
 import 'garment_review_screen.dart';
 import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
-import 'try_on_generation_screen.dart';
 
 class MobileUploadScreen extends StatefulWidget {
   const MobileUploadScreen({
@@ -400,15 +399,17 @@ class _ReadyPhotoPanel extends StatelessWidget {
                       if (!accepted || !context.mounted) {
                         return;
                       }
-                      if (tryOnController.garmentInput == null &&
-                          tryOnController.pendingGarmentIntent != null) {
-                        await Navigator.of(context).pushReplacement(
-                          MaterialPageRoute<void>(
-                            builder: (_) => GarmentSelectionScreen(
-                              captureController: captureController,
-                              tryOnController: tryOnController,
-                              uploadController: controller,
-                              extractionService: extractionService,
+                      final attached = await tryOnController
+                          .attachAcceptedPerson(captureController);
+                      if (!context.mounted) {
+                        return;
+                      }
+                      if (!attached) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              tryOnController.sessionMessage ??
+                                  'SelfX could not save this photo for reuse.',
                             ),
                           ),
                         );
@@ -416,7 +417,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                       }
                       await Navigator.of(context).pushReplacement(
                         MaterialPageRoute<void>(
-                          builder: (_) => TryOnGenerationScreen(
+                          builder: (_) => GarmentSelectionScreen(
                             captureController: captureController,
                             tryOnController: tryOnController,
                             uploadController: controller,
@@ -426,7 +427,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                       );
                     },
               icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Use This Photo'),
+              label: const Text('Continue'),
             ),
           ],
         );

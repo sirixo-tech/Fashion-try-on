@@ -174,6 +174,24 @@ export const SELFX_TRY_ON_RUN_STATUSES = [
 
 export type SelfxTryOnRunStatus = (typeof SELFX_TRY_ON_RUN_STATUSES)[number];
 
+export const SELFX_TRY_ON_SESSION_STATUSES = [
+  "ACTIVE",
+  "COMPLETED",
+  "EXPIRED",
+] as const;
+
+export type SelfxTryOnSessionStatus =
+  (typeof SELFX_TRY_ON_SESSION_STATUSES)[number];
+
+export const SELFX_TRY_ON_ASSET_PURPOSES = [
+  "PERSON",
+  "GARMENT",
+  "RESULT",
+] as const;
+
+export type SelfxTryOnAssetPurpose =
+  (typeof SELFX_TRY_ON_ASSET_PURPOSES)[number];
+
 export const TRY_ON_LAB_ERROR_CODES = {
   imageInvalid: "TRYON_IMAGE_INVALID",
   imageTooSmall: "TRYON_IMAGE_TOO_SMALL",

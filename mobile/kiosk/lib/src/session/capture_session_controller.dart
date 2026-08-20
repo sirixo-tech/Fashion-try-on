@@ -112,6 +112,28 @@ class CaptureSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool get canFlipCamera {
+    final state = cameraService.state.value;
+    final selected = state.selectedDevice;
+    if (selected == null || state.devices.length < 2) {
+      return false;
+    }
+    return _nextCustomerCamera(state.devices, selected) != null;
+  }
+
+  Future<void> flipCamera() async {
+    final state = cameraService.state.value;
+    final selected = state.selectedDevice;
+    if (selected == null || !canFlipCamera) {
+      return;
+    }
+    final next = _nextCustomerCamera(state.devices, selected);
+    if (next == null) {
+      return;
+    }
+    await selectCamera(next);
+  }
+
   void selectCaptureScope(CaptureScope scope) {
     captureScope = scope;
     liveFrameAnalyzer.resetSubjectLock();
@@ -768,6 +790,52 @@ class CaptureSessionController extends ChangeNotifier {
     unawaited(audioService.dispose());
     super.dispose();
   }
+}
+
+CameraDevice? _nextCustomerCamera(
+  List<CameraDevice> devices,
+  CameraDevice selected,
+) {
+  if (devices.length < 2) {
+    return null;
+  }
+
+  CameraDevice? firstFacing(CameraFacing facing) {
+    for (final device in devices) {
+      if (device.id != selected.id && device.facing == facing) {
+        return device;
+      }
+    }
+    return null;
+  }
+
+  final preferredFacing = switch (selected.facing) {
+    CameraFacing.front => CameraFacing.back,
+    CameraFacing.back => CameraFacing.front,
+    CameraFacing.external || CameraFacing.unknown => CameraFacing.front,
+  };
+  final preferred = firstFacing(preferredFacing);
+  if (preferred != null) {
+    return preferred;
+  }
+  if (selected.facing != CameraFacing.back) {
+    final back = firstFacing(CameraFacing.back);
+    if (back != null) {
+      return back;
+    }
+  }
+  if (selected.facing != CameraFacing.front) {
+    final front = firstFacing(CameraFacing.front);
+    if (front != null) {
+      return front;
+    }
+  }
+  for (final device in devices) {
+    if (device.id != selected.id) {
+      return device;
+    }
+  }
+  return null;
 }
 
 enum CustomerPersonImageSource { kioskCamera, mobileUpload }

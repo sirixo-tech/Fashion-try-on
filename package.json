@@ -29,6 +29,7 @@
     "db:migrate:deploy": "npm run prisma:migrate:deploy --workspace @selfx/database",
     "db:migrate:status": "npm run prisma:migrate:status --workspace @selfx/database",
     "db:test:uuid": "npm run test:uuid --workspace @selfx/database",
+    "catalog:seed": "npm run seed:catalog --workspace @selfx/database",
     "auth:bootstrap": "npm run bootstrap:staff --workspace @selfx/api",
     "platform:bootstrap": "npm run bootstrap:platform-admin --workspace @selfx/api",
     "production:bootstrap-admin": "npm run bootstrap:production-admin --workspace @selfx/api",

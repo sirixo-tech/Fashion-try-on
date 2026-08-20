@@ -13,8 +13,16 @@ import { type FastifyRequest } from "fastify";
 
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
-import { parseTryOnLabMultipartRequest } from "../try-on-lab/try-on-lab-multipart.js";
-import { KioskTryOnRunResponseDto } from "./dto/kiosk-try-on.dto.js";
+import {
+  KioskTryOnAssetResponseDto,
+  KioskTryOnLooksResponseDto,
+  KioskTryOnRunResponseDto,
+  KioskTryOnSessionResponseDto,
+} from "./dto/kiosk-try-on.dto.js";
+import {
+  parseKioskPersonMultipartRequest,
+  parseKioskTryOnRunMultipartRequest,
+} from "./kiosk-try-on.multipart.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
 
@@ -74,7 +82,7 @@ export class KioskTryOnController {
     @Req() request: FastifyRequest,
   ): Promise<KioskTryOnRunResponseDto> {
     const device = await this.kiosks.requireDevice(request.headers.authorization);
-    const payload = await parseTryOnLabMultipartRequest(request);
+    const payload = await parseKioskTryOnRunMultipartRequest(request);
     return this.tryOn.createRun(device, payload);
   }
 
@@ -90,5 +98,92 @@ export class KioskTryOnController {
   ): Promise<KioskTryOnRunResponseDto> {
     const device = await this.kiosks.requireDevice(request.headers.authorization);
     return this.tryOn.getRun(device, runId);
+  }
+}
+
+@ApiTags("Kiosk Try-On Sessions")
+@ApiBearerAuth()
+@Controller("api/v1/kiosk/try-on/sessions")
+export class KioskTryOnSessionController {
+  constructor(
+    private readonly kiosks: KioskService,
+    private readonly tryOn: KioskTryOnService,
+  ) {}
+
+  @Post()
+  @ApiOperation({ summary: "Create a kiosk customer Try-On session" })
+  @ApiCreatedResponse({ type: KioskTryOnSessionResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  async create(
+    @Req() request: FastifyRequest,
+  ): Promise<KioskTryOnSessionResponseDto> {
+    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    return this.tryOn.createSession(device);
+  }
+
+  @Post(":sessionId/person")
+  @ApiOperation({ summary: "Set the current person image for a Try-On session" })
+  @ApiConsumes("multipart/form-data", "application/json")
+  @ApiBody({
+    schema: {
+      oneOf: [
+        {
+          type: "object",
+          required: ["personImage"],
+          properties: {
+            personImage: { type: "string", format: "binary" },
+          },
+        },
+        {
+          type: "object",
+          required: ["customerUploadSessionId"],
+          properties: {
+            customerUploadSessionId: { type: "string" },
+          },
+        },
+      ],
+    },
+  })
+  @ApiCreatedResponse({ type: KioskTryOnAssetResponseDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async setPerson(
+    @Req() request: FastifyRequest,
+    @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
+  ): Promise<KioskTryOnAssetResponseDto> {
+    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    const payload = await parseKioskPersonMultipartRequest(request);
+    return this.tryOn.setCurrentPerson(device, sessionId, payload);
+  }
+
+  @Get(":sessionId/looks")
+  @ApiOperation({ summary: "List successful customer looks for a Try-On session" })
+  @ApiOkResponse({ type: KioskTryOnLooksResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async looks(
+    @Req() request: FastifyRequest,
+    @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
+  ): Promise<KioskTryOnLooksResponseDto> {
+    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    return this.tryOn.getSessionLooks(device, sessionId);
+  }
+
+  @Post(":sessionId/complete")
+  @ApiOperation({ summary: "Complete a kiosk customer Try-On session" })
+  @ApiOkResponse({ type: KioskTryOnSessionResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async complete(
+    @Req() request: FastifyRequest,
+    @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
+  ): Promise<KioskTryOnSessionResponseDto> {
+    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    return this.tryOn.completeSession(device, sessionId);
   }
 }

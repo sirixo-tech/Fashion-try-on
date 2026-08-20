@@ -10,7 +10,6 @@ import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
-import 'mobile_upload_screen.dart';
 import 'model_compatibility_guidance_screen.dart';
 import 'selfx_kiosk_button.dart';
 
@@ -61,7 +60,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
   Widget build(BuildContext context) {
     return KioskScaffold(
       title: 'SelfX Kiosk',
-      subtitle: 'Garment photo',
+      subtitle: 'Choose garment',
       showBrandHeader: false,
       leading: IconButton(
         onPressed: () => Navigator.of(context).pop(),
@@ -93,13 +92,13 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'What are you trying on?',
+                    'Choose Garment',
                     textAlign: TextAlign.center,
                     style: titleStyle,
                   ),
                   SizedBox(height: veryShort ? 4 : (short ? 8 : 10)),
                   Text(
-                    'Choose the closest option, then add a clear outfit photo.',
+                    'Choose the closest option, then capture a clear garment photo.',
                     textAlign: TextAlign.center,
                     style: bodyStyle,
                   ),
@@ -114,7 +113,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                   ),
                   SizedBox(height: veryShort ? 14 : (short ? 24 : 30)),
                   Text(
-                    'Add garment photo',
+                    'Capture Garment',
                     textAlign: TextAlign.center,
                     style: sectionTitleStyle,
                   ),
@@ -127,7 +126,7 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                   SizedBox(height: veryShort ? 10 : (short ? 18 : 22)),
                   SelfxKioskButton(
                     key: const Key('take-garment-photo-source'),
-                    label: 'Take a Photo',
+                    label: 'Capture Garment',
                     subtitle: veryShort ? null : 'Use the kiosk camera',
                     icon: Icons.camera_alt_outlined,
                     trailing: const Icon(Icons.arrow_forward),
@@ -141,26 +140,6 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                       vertical: verticalPadding,
                     ),
                     onPressed: _intent == null ? null : _openCamera,
-                  ),
-                  SizedBox(height: veryShort ? 8 : (short ? 12 : 14)),
-                  SelfxKioskButton(
-                    key: const Key('use-phone-garment-source'),
-                    label: 'Use Your Phone',
-                    subtitle: veryShort
-                        ? null
-                        : 'Scan a QR code from your phone browser',
-                    icon: Icons.qr_code_2,
-                    trailing: const Icon(Icons.arrow_forward),
-                    variant: SelfxKioskButtonVariant.secondary,
-                    minHeight: buttonMinHeight,
-                    expanded: true,
-                    textAlign: TextAlign.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: horizontalPadding,
-                      vertical: verticalPadding,
-                    ),
-                    onPressed: _intent == null ? null : _openPhoneUpload,
                   ),
                 ],
               ),
@@ -210,25 +189,6 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
           controller: widget.captureController,
-          tryOnController: widget.tryOnController,
-          uploadController: widget.uploadController,
-          purpose: PhotoAcquisitionPurpose.garment,
-          garmentIntent: intent,
-          extractionService: widget.extractionService,
-        ),
-      ),
-    );
-  }
-
-  void _openPhoneUpload() {
-    final intent = _intent;
-    if (intent == null) {
-      return;
-    }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MobileUploadScreen(
-          captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           purpose: PhotoAcquisitionPurpose.garment,

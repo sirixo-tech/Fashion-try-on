@@ -15,7 +15,11 @@
     "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma",
+    "seed:catalog": "tsx src/seed-catalog.ts",
     "test:uuid": "tsx src/uuid.spec.ts"
+  },
+  "prisma": {
+    "seed": "tsx src/seed-catalog.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

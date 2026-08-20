@@ -102,6 +102,18 @@ enum KioskCustomerUploadPurpose {
   GARMENT
 }
 
+enum TryOnSessionStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+enum TryOnAssetPurpose {
+  PERSON
+  GARMENT
+  RESULT
+}
+
 enum KioskIdleMode {
   STATIC
   SLIDESHOW
@@ -125,6 +137,11 @@ enum KioskConfigurationGarmentIntent {
   TOP
   BOTTOM
   FULL_OUTFIT
+}
+
+enum CatalogProductScope {
+  PLATFORM_DEFAULT
+  STORE
 }
 
 enum OrganizationApplicationStatus {
@@ -204,6 +221,11 @@ model Organization {
   permissionGrants       StorePermissionGrant[]
   stores                 Store[]
   kioskDevices           KioskDevice[]
+  tryOnSessions          TryOnSession[]
+  tryOnAssets            TryOnAsset[]
+  tryOnLooks             TryOnLook[]
+  productCategories      ProductCategory[]
+  products               Product[]
 
   @@index([status])
   @@map("organizations")
@@ -300,6 +322,9 @@ model Store {
   kioskDevices KioskDevice[]
   organization Organization           @relation(fields: [orgId], references: [id], onDelete: Restrict)
   storeScopes  MembershipStoreScope[]
+  tryOnSessions TryOnSession[]
+  tryOnAssets   TryOnAsset[]
+  tryOnLooks    TryOnLook[]
 
   @@unique([orgId, id])
   @@unique([orgId, code])
@@ -393,6 +418,70 @@ model PlatformUserAccessRole {
   @@index([userId, status])
   @@index([assignedByUserId])
   @@map("platform_user_roles")
+}
+
+model PlatformSetting {
+  key       String   @id @db.VarChar(120)
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("platform_settings")
+}
+
+model ProductCategory {
+  id             String              @id @db.Uuid
+  catalogKey     String              @unique @map("catalog_key") @db.VarChar(220)
+  scope          CatalogProductScope
+  organizationId String?             @map("organization_id") @db.Uuid
+  name           String              @db.VarChar(120)
+  slug           String              @db.VarChar(120)
+  audience       String?             @db.VarChar(40)
+  active         Boolean             @default(true)
+  sortOrder      Int                 @default(0) @map("sort_order")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization   Organization?       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  products       Product[]
+
+  @@index([scope, active, sortOrder])
+  @@index([organizationId, active, sortOrder])
+  @@index([audience, slug])
+  @@map("product_categories")
+}
+
+model Product {
+  id               String              @id @db.Uuid
+  catalogKey       String              @unique @map("catalog_key") @db.VarChar(260)
+  scope            CatalogProductScope
+  organizationId   String?             @map("organization_id") @db.Uuid
+  categoryId       String              @map("category_id") @db.Uuid
+  name             String              @db.VarChar(180)
+  slug             String              @db.VarChar(160)
+  description      String?             @db.Text
+  audience         String              @db.VarChar(40)
+  active           Boolean             @default(true)
+  vtoEnabled       Boolean             @default(false) @map("vto_enabled")
+  sortOrder        Int                 @default(0) @map("sort_order")
+  garmentIntent    String              @map("garment_intent") @db.VarChar(40)
+  garmentCategory  String              @map("garment_category") @db.VarChar(40)
+  garmentPhotoType String              @default("AUTO") @map("garment_photo_type") @db.VarChar(40)
+  imageUrl         String?             @map("image_url") @db.Text
+  imageStorageKey  String?             @map("image_storage_key") @db.VarChar(512)
+  imageContentType String?             @map("image_content_type") @db.VarChar(80)
+  imageWidth       Int?                @map("image_width")
+  imageHeight      Int?                @map("image_height")
+  productUrl       String?             @map("product_url") @db.Text
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization     Organization?       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  category         ProductCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([scope, active, vtoEnabled, audience, sortOrder])
+  @@index([organizationId, active, vtoEnabled, audience, sortOrder])
+  @@index([categoryId, active, vtoEnabled, sortOrder])
+  @@index([garmentIntent])
+  @@map("products")
 }
 
 model StoreRole {
@@ -503,6 +592,9 @@ model KioskDevice {
   store                  Store?                       @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
   customerUploadSessions KioskCustomerUploadSession[]
   tryOnRuns              KioskTryOnRun[]
+  tryOnSessions          TryOnSession[]
+  tryOnAssets            TryOnAsset[]
+  tryOnLooks             TryOnLook[]
   pairingSessions        KioskPairingSession[]
   sessions               KioskDeviceSession[]
   configuration          KioskDeviceConfiguration?
@@ -640,11 +732,15 @@ model KioskCustomerUploadSession {
 model KioskTryOnRun {
   id                   String               @id @db.Uuid
   kioskDeviceId        String               @map("kiosk_device_id") @db.Uuid
+  tryOnSessionId       String?              @map("try_on_session_id") @db.Uuid
   clientRequestId      String               @map("client_request_id") @db.VarChar(160)
   status               String               @default("QUEUED") @db.VarChar(24)
   assignmentScope      KioskAssignmentScope @map("assignment_scope")
   organizationId       String?              @map("organization_id") @db.Uuid
   storeId              String?              @map("store_id") @db.Uuid
+  personAssetId        String?              @map("person_asset_id") @db.Uuid
+  garmentAssetId       String?              @map("garment_asset_id") @db.Uuid
+  resultAssetId        String?              @map("result_asset_id") @db.Uuid
   provider             String               @db.VarChar(80)
   providerDisplayName  String               @map("provider_display_name") @db.VarChar(120)
   providerModel        String               @map("provider_model") @db.VarChar(120)
@@ -664,15 +760,126 @@ model KioskTryOnRun {
   createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
   kioskDevice          KioskDevice          @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+  tryOnSession         TryOnSession?        @relation(fields: [tryOnSessionId], references: [id], onDelete: SetNull)
+  personAsset          TryOnAsset?          @relation("KioskTryOnRunPersonAsset", fields: [personAssetId], references: [id], onDelete: SetNull)
+  garmentAsset         TryOnAsset?          @relation("KioskTryOnRunGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: SetNull)
+  resultAsset          TryOnAsset?          @relation("KioskTryOnRunResultAsset", fields: [resultAssetId], references: [id], onDelete: SetNull)
+  look                 TryOnLook?
 
   @@unique([kioskDeviceId, clientRequestId])
   @@index([kioskDeviceId, createdAt])
   @@index([kioskDeviceId, status])
+  @@index([tryOnSessionId, createdAt])
+  @@index([personAssetId])
+  @@index([garmentAssetId])
+  @@index([resultAssetId])
   @@index([organizationId, createdAt])
   @@index([storeId, createdAt])
   @@index([status, expiresAt])
   @@index([expiresAt])
   @@map("kiosk_try_on_runs")
+}
+
+model TryOnSession {
+  id                   String               @id @db.Uuid
+  status               TryOnSessionStatus   @default(ACTIVE)
+  assignmentScope      KioskAssignmentScope @map("assignment_scope")
+  organizationId       String?              @map("organization_id") @db.Uuid
+  storeId              String?              @map("store_id") @db.Uuid
+  kioskDeviceId        String?              @map("kiosk_device_id") @db.Uuid
+  currentPersonAssetId String?              @map("current_person_asset_id") @db.Uuid
+  completedAt          DateTime?            @map("completed_at") @db.Timestamptz(3)
+  expiresAt            DateTime             @map("expires_at") @db.Timestamptz(3)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization         Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store                Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  kioskDevice          KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+  currentPersonAsset   TryOnAsset?          @relation("TryOnSessionCurrentPersonAsset", fields: [currentPersonAssetId], references: [id], onDelete: SetNull)
+  assets               TryOnAsset[]         @relation("TryOnSessionAssets")
+  runs                 KioskTryOnRun[]
+  looks                TryOnLook[]
+
+  @@index([kioskDeviceId, status, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([status, expiresAt])
+  @@index([expiresAt])
+  @@index([currentPersonAssetId])
+  @@map("try_on_sessions")
+}
+
+model TryOnAsset {
+  id                         String               @id @db.Uuid
+  sessionId                  String               @map("try_on_session_id") @db.Uuid
+  purpose                    TryOnAssetPurpose
+  assignmentScope            KioskAssignmentScope @map("assignment_scope")
+  organizationId             String?              @map("organization_id") @db.Uuid
+  storeId                    String?              @map("store_id") @db.Uuid
+  kioskDeviceId              String?              @map("kiosk_device_id") @db.Uuid
+  storageKey                 String               @unique @map("storage_key") @db.VarChar(512)
+  contentType                String?              @map("content_type") @db.VarChar(80)
+  sizeBytes                  Int?                 @map("size_bytes")
+  width                      Int?
+  height                     Int?
+  expiresAt                  DateTime             @map("expires_at") @db.Timestamptz(3)
+  deletedAt                  DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  createdAt                  DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session                    TryOnSession         @relation("TryOnSessionAssets", fields: [sessionId], references: [id], onDelete: Cascade)
+  currentForSessions         TryOnSession[]       @relation("TryOnSessionCurrentPersonAsset")
+  organization               Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store                      Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  kioskDevice                KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+  personForRuns             KioskTryOnRun[]       @relation("KioskTryOnRunPersonAsset")
+  garmentForRuns            KioskTryOnRun[]       @relation("KioskTryOnRunGarmentAsset")
+  resultForRuns             KioskTryOnRun[]       @relation("KioskTryOnRunResultAsset")
+  personForLooks            TryOnLook[]           @relation("TryOnLookPersonAsset")
+  garmentForLooks           TryOnLook[]           @relation("TryOnLookGarmentAsset")
+  resultForLooks            TryOnLook[]           @relation("TryOnLookResultAsset")
+
+  @@index([sessionId, purpose, createdAt])
+  @@index([kioskDeviceId, purpose, createdAt])
+  @@index([organizationId, purpose, createdAt])
+  @@index([storeId, purpose, createdAt])
+  @@index([purpose, expiresAt])
+  @@index([expiresAt])
+  @@index([deletedAt])
+  @@map("try_on_assets")
+}
+
+model TryOnLook {
+  id              String               @id @db.Uuid
+  sessionId       String               @map("try_on_session_id") @db.Uuid
+  kioskTryOnRunId String               @unique @map("kiosk_try_on_run_id") @db.Uuid
+  personAssetId   String               @map("person_asset_id") @db.Uuid
+  garmentAssetId  String?              @map("garment_asset_id") @db.Uuid
+  resultAssetId   String               @map("result_asset_id") @db.Uuid
+  assignmentScope KioskAssignmentScope @map("assignment_scope")
+  organizationId  String?              @map("organization_id") @db.Uuid
+  storeId         String?              @map("store_id") @db.Uuid
+  kioskDeviceId   String?              @map("kiosk_device_id") @db.Uuid
+  expiresAt       DateTime             @map("expires_at") @db.Timestamptz(3)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session         TryOnSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  kioskTryOnRun   KioskTryOnRun        @relation(fields: [kioskTryOnRunId], references: [id], onDelete: Cascade)
+  personAsset     TryOnAsset           @relation("TryOnLookPersonAsset", fields: [personAssetId], references: [id], onDelete: Restrict)
+  garmentAsset    TryOnAsset?          @relation("TryOnLookGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: Restrict)
+  resultAsset     TryOnAsset           @relation("TryOnLookResultAsset", fields: [resultAssetId], references: [id], onDelete: Restrict)
+  organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store           Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  kioskDevice     KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, createdAt])
+  @@index([kioskDeviceId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([personAssetId])
+  @@index([garmentAssetId])
+  @@index([resultAssetId])
+  @@index([expiresAt])
+  @@map("try_on_looks")
 }
 
 model AuditLog {

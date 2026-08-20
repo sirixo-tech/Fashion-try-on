@@ -17,10 +17,24 @@ abstract class KioskTryOnGateway {
   Future<KioskTryOnRun> getRun(String runId);
 }
 
+abstract class KioskTryOnSessionGateway {
+  Future<KioskTryOnSession> createTryOnSession();
+
+  Future<KioskTryOnAsset> setSessionPerson({
+    required String sessionId,
+    required File personImage,
+  });
+
+  Future<List<KioskTryOnLook>> getSessionLooks(String sessionId);
+
+  Future<KioskTryOnSession> completeTryOnSession(String sessionId);
+}
+
 class KioskTryOnApiConfig {
   const KioskTryOnApiConfig({
     required this.apiBaseUrl,
     this.runsPath = '/api/v1/kiosk/try-on/runs',
+    this.sessionsPath = '/api/v1/kiosk/try-on/sessions',
   });
 
   factory KioskTryOnApiConfig.fromEnvironment() {
@@ -31,11 +45,13 @@ class KioskTryOnApiConfig {
 
   final String apiBaseUrl;
   final String runsPath;
+  final String sessionsPath;
 
   bool get isConfigured => apiBaseUrl.trim().isNotEmpty;
 }
 
-class SelfxKioskTryOnGateway implements KioskTryOnGateway {
+class SelfxKioskTryOnGateway
+    implements KioskTryOnGateway, KioskTryOnSessionGateway {
   SelfxKioskTryOnGateway({
     required this.config,
     required this.deviceController,
@@ -49,6 +65,55 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
   final Duration timeout;
 
   @override
+  Future<KioskTryOnSession> createTryOnSession() async {
+    _assertConfigured();
+    final response = await _requestWithDeviceAuth(
+      forceRefresh: false,
+      requestFactory: (accessToken) {
+        return http.Request('POST', _sessionsUri())
+          ..headers[HttpHeaders.authorizationHeader] =
+              'Bearer ${accessToken.trim()}';
+      },
+    );
+    return _decodeSession(response);
+  }
+
+  @override
+  Future<KioskTryOnAsset> setSessionPerson({
+    required String sessionId,
+    required File personImage,
+  }) async {
+    _assertConfigured();
+    if (!await personImage.exists()) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.personMissing,
+        'Customer photo is unavailable.',
+      );
+    }
+
+    final response = await _sendWithDeviceAuth(
+      forceRefresh: false,
+      requestFactory: (accessToken) async {
+        final multipart = http.MultipartRequest(
+          'POST',
+          _sessionsUri('$sessionId/person'),
+        );
+        multipart.headers[HttpHeaders.authorizationHeader] =
+            'Bearer ${accessToken.trim()}';
+        multipart.files.add(
+          await http.MultipartFile.fromPath(
+            'personImage',
+            personImage.path,
+            contentType: _contentTypeFor(personImage.path),
+          ),
+        );
+        return multipart;
+      },
+    );
+    return _decodeAsset(response);
+  }
+
+  @override
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
     _assertConfigured();
     if (!await request.garmentInput.exists()) {
@@ -57,7 +122,9 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
         'Choose a garment image before generating.',
       );
     }
-    if (!await request.personImage.exists()) {
+    final personImage = request.personImage;
+    if (!request.usesStoredPerson &&
+        (personImage == null || !await personImage.exists())) {
       throw const KioskTryOnException(
         KioskTryOnFailureCode.personMissing,
         'Customer photo is unavailable.',
@@ -71,13 +138,15 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
         multipart.headers[HttpHeaders.authorizationHeader] =
             'Bearer ${accessToken.trim()}';
         multipart.fields.addAll(_fieldsFor(request));
-        multipart.files.add(
-          await http.MultipartFile.fromPath(
-            'personImage',
-            request.personImage.path,
-            contentType: _contentTypeFor(request.personImage.path),
-          ),
-        );
+        if (!request.usesStoredPerson && personImage != null) {
+          multipart.files.add(
+            await http.MultipartFile.fromPath(
+              'personImage',
+              personImage.path,
+              contentType: _contentTypeFor(personImage.path),
+            ),
+          );
+        }
         multipart.files.add(
           await http.MultipartFile.fromPath(
             'garmentImage',
@@ -98,9 +167,39 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
     return _decodeRun(response);
   }
 
+  @override
+  Future<List<KioskTryOnLook>> getSessionLooks(String sessionId) async {
+    _assertConfigured();
+    final response = await _requestWithDeviceAuth(
+      forceRefresh: false,
+      requestFactory: (accessToken) {
+        return http.Request('GET', _sessionsUri('$sessionId/looks'))
+          ..headers[HttpHeaders.authorizationHeader] =
+              'Bearer ${accessToken.trim()}';
+      },
+    );
+    return _decodeLooks(response);
+  }
+
+  @override
+  Future<KioskTryOnSession> completeTryOnSession(String sessionId) async {
+    _assertConfigured();
+    final response = await _requestWithDeviceAuth(
+      forceRefresh: false,
+      requestFactory: (accessToken) {
+        return http.Request('POST', _sessionsUri('$sessionId/complete'))
+          ..headers[HttpHeaders.authorizationHeader] =
+              'Bearer ${accessToken.trim()}';
+      },
+    );
+    return _decodeSession(response);
+  }
+
   Map<String, String> _fieldsFor(KioskTryOnRequest request) {
     return {
       'clientRequestId': request.clientRequestId,
+      if (request.sessionId != null) 'sessionId': request.sessionId!,
+      if (request.personAssetId != null) 'personAssetId': request.personAssetId!,
       'garmentSource': 'DIRECT_UPLOAD',
       'garmentIntent': request.garmentInput.intent.apiValue,
       'category': request.garmentInput.intent.categoryApiValue,
@@ -128,26 +227,7 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
   }
 
   KioskTryOnRun _decodeRun(http.Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final terminalDeviceError = _terminalDeviceError(response);
-      if (terminalDeviceError != null) {
-        unawaited(
-          deviceController.handleDeviceAuthRejected(terminalDeviceError),
-        );
-      }
-      throw KioskTryOnException(
-        _failureCodeForErrorResponse(response),
-        _safeErrorMessage(response.body),
-      );
-    }
-
-    final json = jsonDecode(response.body);
-    if (json is! Map<String, dynamic>) {
-      throw const KioskTryOnException(
-        KioskTryOnFailureCode.uploadFailed,
-        'SelfX returned an unexpected Try-On response.',
-      );
-    }
+    final json = _decodeObjectResponse(response);
 
     final id = json['id'];
     final status = json['status'];
@@ -173,6 +253,141 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
     );
   }
 
+  KioskTryOnSession _decodeSession(http.Response response) {
+    final json = _decodeObjectResponse(response);
+    final sessionId = json['sessionId'];
+    final status = json['status'];
+    final createdAt = DateTime.tryParse('${json['createdAt']}');
+    final updatedAt = DateTime.tryParse('${json['updatedAt']}');
+    final expiresAt = DateTime.tryParse('${json['expiresAt']}');
+    if (sessionId is! String ||
+        status is! String ||
+        createdAt == null ||
+        updatedAt == null ||
+        expiresAt == null) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.uploadFailed,
+        'SelfX Try-On session response was incomplete.',
+      );
+    }
+    return KioskTryOnSession(
+      sessionId: sessionId,
+      status: _mapSessionStatus(status),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      expiresAt: expiresAt,
+      currentPersonAssetId: json['currentPersonAssetId'] is String
+          ? json['currentPersonAssetId'] as String
+          : null,
+    );
+  }
+
+  KioskTryOnAsset _decodeAsset(http.Response response) {
+    final json = _decodeObjectResponse(response);
+    final assetId = json['assetId'];
+    final purpose = json['purpose'];
+    final contentType = json['contentType'];
+    final sizeBytes = json['sizeBytes'];
+    final width = json['width'];
+    final height = json['height'];
+    final expiresAt = DateTime.tryParse('${json['expiresAt']}');
+    if (assetId is! String ||
+        purpose is! String ||
+        contentType is! String ||
+        sizeBytes is! num ||
+        width is! num ||
+        height is! num ||
+        expiresAt == null) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.uploadFailed,
+        'SelfX Try-On asset response was incomplete.',
+      );
+    }
+    return KioskTryOnAsset(
+      assetId: assetId,
+      purpose: _mapAssetPurpose(purpose),
+      contentType: contentType,
+      sizeBytes: sizeBytes.toInt(),
+      width: width.toInt(),
+      height: height.toInt(),
+      expiresAt: expiresAt,
+    );
+  }
+
+  List<KioskTryOnLook> _decodeLooks(http.Response response) {
+    final json = _decodeObjectResponse(response);
+    final data = json['data'];
+    if (data is! List) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.uploadFailed,
+        'SelfX Try-On looks response was incomplete.',
+      );
+    }
+    return data.map((item) {
+      if (item is! Map<String, dynamic>) {
+        throw const KioskTryOnException(
+          KioskTryOnFailureCode.uploadFailed,
+          'SelfX Try-On look response was incomplete.',
+        );
+      }
+      final lookId = item['lookId'];
+      final runId = item['runId'];
+      final personAssetId = item['personAssetId'];
+      final resultAssetId = item['resultAssetId'];
+      final resultReadUrl = item['resultReadUrl'];
+      final createdAt = DateTime.tryParse('${item['createdAt']}');
+      final expiresAt = DateTime.tryParse('${item['expiresAt']}');
+      if (lookId is! String ||
+          runId is! String ||
+          personAssetId is! String ||
+          resultAssetId is! String ||
+          resultReadUrl is! String ||
+          createdAt == null ||
+          expiresAt == null) {
+        throw const KioskTryOnException(
+          KioskTryOnFailureCode.uploadFailed,
+          'SelfX Try-On look response was incomplete.',
+        );
+      }
+      return KioskTryOnLook(
+        lookId: lookId,
+        runId: runId,
+        personAssetId: personAssetId,
+        garmentAssetId: item['garmentAssetId'] is String
+            ? item['garmentAssetId'] as String
+            : null,
+        resultAssetId: resultAssetId,
+        resultReadUrl: resultReadUrl,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+      );
+    }).toList(growable: false);
+  }
+
+  Map<String, dynamic> _decodeObjectResponse(http.Response response) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final terminalDeviceError = _terminalDeviceError(response);
+      if (terminalDeviceError != null) {
+        unawaited(
+          deviceController.handleDeviceAuthRejected(terminalDeviceError),
+        );
+      }
+      throw KioskTryOnException(
+        _failureCodeForErrorResponse(response),
+        _safeErrorMessage(response.body),
+      );
+    }
+
+    final json = jsonDecode(response.body);
+    if (json is! Map<String, dynamic>) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.uploadFailed,
+        'SelfX returned an unexpected Try-On response.',
+      );
+    }
+    return json;
+  }
+
   KioskTryOnStatus _mapStatus(String status) {
     return switch (status) {
       'QUEUED' => KioskTryOnStatus.queued,
@@ -181,6 +396,24 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
       'SUCCEEDED' => KioskTryOnStatus.succeeded,
       'FAILED' => KioskTryOnStatus.failed,
       _ => KioskTryOnStatus.failed,
+    };
+  }
+
+  KioskTryOnSessionStatus _mapSessionStatus(String status) {
+    return switch (status) {
+      'ACTIVE' => KioskTryOnSessionStatus.active,
+      'COMPLETED' => KioskTryOnSessionStatus.completed,
+      'EXPIRED' => KioskTryOnSessionStatus.expired,
+      _ => KioskTryOnSessionStatus.expired,
+    };
+  }
+
+  KioskTryOnAssetPurpose _mapAssetPurpose(String purpose) {
+    return switch (purpose) {
+      'PERSON' => KioskTryOnAssetPurpose.person,
+      'GARMENT' => KioskTryOnAssetPurpose.garment,
+      'RESULT' => KioskTryOnAssetPurpose.result,
+      _ => KioskTryOnAssetPurpose.result,
     };
   }
 
@@ -195,6 +428,23 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
     final response = await http.Response.fromStream(streamed);
     if (!forceRefresh && _isTokenRefreshable(response)) {
       return _sendWithDeviceAuth(
+        forceRefresh: true,
+        requestFactory: requestFactory,
+      );
+    }
+    return response;
+  }
+
+  Future<http.Response> _requestWithDeviceAuth({
+    required bool forceRefresh,
+    required http.Request Function(String accessToken) requestFactory,
+  }) async {
+    final accessToken = await _deviceAccessToken(forceRefresh: forceRefresh);
+    final request = requestFactory(accessToken);
+    final streamed = await client.send(request).timeout(timeout);
+    final response = await http.Response.fromStream(streamed);
+    if (!forceRefresh && _isTokenRefreshable(response)) {
+      return _requestWithDeviceAuth(
         forceRefresh: true,
         requestFactory: requestFactory,
       );
@@ -240,6 +490,14 @@ class SelfxKioskTryOnGateway implements KioskTryOnGateway {
   Uri _runsUri([String? runId]) {
     final base = Uri.parse(config.apiBaseUrl.trim());
     final path = runId == null ? config.runsPath : '${config.runsPath}/$runId';
+    return base.replace(path: _joinPaths(base.path, path));
+  }
+
+  Uri _sessionsUri([String? childPath]) {
+    final base = Uri.parse(config.apiBaseUrl.trim());
+    final path = childPath == null
+        ? config.sessionsPath
+        : '${config.sessionsPath}/$childPath';
     return base.replace(path: _joinPaths(base.path, path));
   }
 

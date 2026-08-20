@@ -155,6 +155,7 @@ export class KioskConfigurationDto {
   experience!: {
     enabledGarmentIntents: KioskConfigurationGarmentIntent[];
     sessionIdleTimeoutSeconds: number;
+    garmentPreviewEnabled: boolean;
   };
   assetUpload!: {
     supported: boolean;

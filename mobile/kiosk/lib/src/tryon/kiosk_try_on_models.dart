@@ -31,22 +31,32 @@ enum KioskTryOnFailureCode {
   cancelled,
 }
 
+enum KioskTryOnSessionStatus { active, completed, expired }
+
+enum KioskTryOnAssetPurpose { person, garment, result }
+
 class KioskTryOnRequest {
   const KioskTryOnRequest({
     required this.clientRequestId,
-    required this.personImage,
     required this.garmentInput,
     required this.captureScope,
     required this.modelCoverage,
     required this.targetMetadata,
+    this.personImage,
+    this.sessionId,
+    this.personAssetId,
   });
 
   final String clientRequestId;
-  final File personImage;
+  final File? personImage;
   final KioskGarmentInput garmentInput;
   final CaptureScope captureScope;
   final ModelCoverage modelCoverage;
   final TryOnTargetPreparationMetadata targetMetadata;
+  final String? sessionId;
+  final String? personAssetId;
+
+  bool get usesStoredPerson => sessionId != null && personAssetId != null;
 }
 
 class KioskTryOnRun {
@@ -91,6 +101,68 @@ class KioskTryOnResult {
 
   final KioskTryOnRun run;
   final String generatedImage;
+}
+
+class KioskTryOnSession {
+  const KioskTryOnSession({
+    required this.sessionId,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.expiresAt,
+    this.currentPersonAssetId,
+  });
+
+  final String sessionId;
+  final KioskTryOnSessionStatus status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime expiresAt;
+  final String? currentPersonAssetId;
+
+  bool get isActive => status == KioskTryOnSessionStatus.active;
+}
+
+class KioskTryOnAsset {
+  const KioskTryOnAsset({
+    required this.assetId,
+    required this.purpose,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.width,
+    required this.height,
+    required this.expiresAt,
+  });
+
+  final String assetId;
+  final KioskTryOnAssetPurpose purpose;
+  final String contentType;
+  final int sizeBytes;
+  final int width;
+  final int height;
+  final DateTime expiresAt;
+}
+
+class KioskTryOnLook {
+  const KioskTryOnLook({
+    required this.lookId,
+    required this.runId,
+    required this.personAssetId,
+    required this.resultAssetId,
+    required this.resultReadUrl,
+    required this.createdAt,
+    required this.expiresAt,
+    this.garmentAssetId,
+  });
+
+  final String lookId;
+  final String runId;
+  final String personAssetId;
+  final String? garmentAssetId;
+  final String resultAssetId;
+  final String resultReadUrl;
+  final DateTime createdAt;
+  final DateTime expiresAt;
 }
 
 class TryOnTargetPreparationMetadata {

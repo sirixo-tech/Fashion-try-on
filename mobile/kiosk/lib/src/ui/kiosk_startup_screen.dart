@@ -115,6 +115,9 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
         widget.tryOnController.applyEnabledGarmentIntents(
           widget.configurationController.configuration.enabledGarmentIntents,
         );
+        widget.tryOnController.applyGarmentPreviewEnabled(
+          widget.configurationController.configuration.garmentPreviewEnabled,
+        );
       } catch (_) {
         unawaited(widget.deviceController.handleDeviceAuthRejected());
       }

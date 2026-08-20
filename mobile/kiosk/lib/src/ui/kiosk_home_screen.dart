@@ -13,7 +13,7 @@ import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_settings_screen.dart';
-import 'garment_selection_screen.dart';
+import 'photo_source_choice_screen.dart';
 import 'selfx_kiosk_button.dart';
 
 class KioskHomeScreen extends StatefulWidget {
@@ -42,6 +42,7 @@ class KioskHomeScreen extends StatefulWidget {
 
 class _KioskHomeScreenState extends State<KioskHomeScreen> {
   bool _operatorHintVisible = false;
+  bool _startingTryOn = false;
   int _slideIndex = 0;
   Timer? _operatorRevealTimer;
   Timer? _slideshowTimer;
@@ -142,23 +143,58 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<void> _startTryOn() async {
-    widget.tryOnController.beginCustomerSession();
+    if (_startingTryOn) {
+      return;
+    }
+    setState(() => _startingTryOn = true);
+    final enabledIntents =
+        widget.configurationController?.configuration.enabledGarmentIntents;
+    if (enabledIntents != null) {
+      widget.tryOnController.applyEnabledGarmentIntents(enabledIntents);
+    }
+    widget.tryOnController.applyGarmentPreviewEnabled(
+      widget.configurationController?.configuration.garmentPreviewEnabled ??
+          false,
+    );
+    await widget.controller.resetSession();
+    final started = await widget.tryOnController.beginCustomerSession();
+    if (!mounted) {
+      return;
+    }
+    if (!started) {
+      widget.tryOnController.endCustomerSession();
+      setState(() => _startingTryOn = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.tryOnController.sessionMessage ??
+                'SelfX session could not be started right now.',
+          ),
+        ),
+      );
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => GarmentSelectionScreen(
+        builder: (_) => PhotoSourceChoiceScreen(
           captureController: widget.controller,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           extractionService: widget.extractionService,
-          enabledGarmentIntents: widget
-              .configurationController
-              ?.configuration
-              .enabledGarmentIntents,
         ),
       ),
     );
-    widget.tryOnController.endCustomerSession();
-    await _activatePendingConfigurationIfSafe();
+    if (!mounted) {
+      return;
+    }
+    final homeIsCurrent = ModalRoute.of(context)?.isCurrent ?? false;
+    if (homeIsCurrent) {
+      await widget.tryOnController.finish(widget.controller);
+      await _activatePendingConfigurationIfSafe();
+    }
+    if (mounted) {
+      setState(() => _startingTryOn = false);
+    }
   }
 
   Future<void> _activatePendingConfigurationIfSafe() async {
@@ -173,6 +209,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     await widget.controller.applyRuntimeConfiguration(activated);
     widget.tryOnController.applyEnabledGarmentIntents(
       activated.enabledGarmentIntents,
+    );
+    widget.tryOnController.applyGarmentPreviewEnabled(
+      activated.garmentPreviewEnabled,
     );
   }
 
@@ -257,7 +296,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                   variant: SelfxKioskButtonVariant.primary,
                                   minHeight: compact ? 70 : 78,
                                   textAlign: TextAlign.center,
-                                  onPressed: _startTryOn,
+                                  onPressed: _startingTryOn
+                                      ? null
+                                      : _startTryOn,
                                   padding: EdgeInsets.symmetric(
                                     horizontal: compact ? 32 : 46,
                                     vertical: compact ? 22 : 28,

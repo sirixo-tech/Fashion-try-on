@@ -63,6 +63,7 @@ export type KioskConfiguration = {
   experience: {
     enabledGarmentIntents: KioskConfigurationGarmentIntent[];
     sessionIdleTimeoutSeconds: number;
+    garmentPreviewEnabled: boolean;
   };
   assetUpload: {
     supported: boolean;

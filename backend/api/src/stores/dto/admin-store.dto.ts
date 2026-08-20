@@ -4,6 +4,7 @@ import { Type } from "class-transformer";
 import {
   IsEmail,
   IsEnum,
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -272,6 +273,18 @@ export class StoreKioskPairResponseDto extends KioskProvisioningPairResponseDto 
 export class StoreKioskDeviceResponseDto extends KioskDeviceResponseDto {}
 
 export class StoreKioskConfigurationResponseDto extends KioskConfigurationDto {}
+
+export class UpdateStoreVirtualTryOnSettingsDto {
+  @IsBoolean()
+  garmentPreviewEnabled!: boolean;
+}
+
+export class StoreVirtualTryOnSettingsResponseDto {
+  platformGarmentPreviewEnabled!: boolean;
+  storeHasGarmentPreviewPermission!: boolean;
+  storeGarmentPreviewEnabled!: boolean;
+  effectiveGarmentPreviewEnabled!: boolean;
+}
 
 export function pairStoreKioskToPairKioskDto(
   input: PairStoreKioskDto,

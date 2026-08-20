@@ -16,6 +16,10 @@ import { PrismaService } from "../database/prisma.service.js";
 import { KioskService, mapDevice } from "../kiosks/kiosk.service.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import {
+  GarmentPreviewSettingsService,
+  type StoreGarmentPreviewSettingsDto,
+} from "../try-on/garment-preview-settings.service.js";
+import {
   AdminStoreStatus,
   type AdminStoreDetailResponseDto,
   type AdminStoreListQueryDto,
@@ -33,6 +37,7 @@ export const STORE_ERROR_CODES = {
   storeNotFound: "STORE_NOT_FOUND",
   storeInactive: "STORE_INACTIVE",
   storeSlugConflict: "STORE_SLUG_CONFLICT",
+  storeFeatureUnavailable: "STORE_FEATURE_UNAVAILABLE",
   kioskNotFound: "KIOSK_NOT_FOUND",
   kioskStoreMismatch: "KIOSK_STORE_MISMATCH",
 } as const;
@@ -71,6 +76,7 @@ export class AdminStoresService {
     private readonly prisma: PrismaService,
     private readonly kiosks: KioskService,
     private readonly rbac: StoreRbacService,
+    private readonly garmentPreviewSettings: GarmentPreviewSettingsService,
   ) {}
 
   async listStores(
@@ -145,6 +151,41 @@ export class AdminStoresService {
       ...mapStore(store, stats.get(store.id)),
       kiosks: await this.listStoreKiosks(store.id),
     };
+  }
+
+  async getVirtualTryOnSettings(
+    storeId: string,
+  ): Promise<StoreGarmentPreviewSettingsDto> {
+    await this.findStoreOrThrow(storeId);
+    return this.garmentPreviewSettings.storeSettings(storeId);
+  }
+
+  async updateVirtualTryOnSettings(
+    storeId: string,
+    input: { garmentPreviewEnabled: boolean },
+  ): Promise<StoreGarmentPreviewSettingsDto> {
+    const store = await this.findStoreOrThrow(storeId);
+    const current = await this.garmentPreviewSettings.storeSettings(storeId);
+    if (
+      input.garmentPreviewEnabled &&
+      (!current.platformGarmentPreviewEnabled ||
+        !current.storeHasGarmentPreviewPermission)
+    ) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        STORE_ERROR_CODES.storeFeatureUnavailable,
+        "Captured garment preview is not available for this Store.",
+      );
+    }
+    const settings = this.garmentPreviewSettings.storeSettingsFromValue(
+      store.settings,
+      input.garmentPreviewEnabled,
+    );
+    await this.prisma.organization.update({
+      where: { id: storeId },
+      data: { settings },
+    });
+    return this.garmentPreviewSettings.storeSettings(storeId);
   }
 
   async updateStore(

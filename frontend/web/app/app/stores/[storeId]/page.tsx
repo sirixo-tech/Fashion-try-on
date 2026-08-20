@@ -58,6 +58,7 @@ import {
   getEffectiveStorePermissions,
   getStore,
   getStoreKioskConfiguration,
+  getStoreVirtualTryOnSettings,
   listStorePermissions,
   listStoreRoles,
   listStoreUsers,
@@ -67,11 +68,13 @@ import {
   updateStore,
   updateStoreKioskConfiguration,
   updateStoreRole,
+  updateStoreVirtualTryOnSettings,
   updateStoreUserStatus,
   type AdminStoreDetail,
   type StorePermission,
   type StoreInput,
   type StoreRole,
+  type StoreVirtualTryOnSettings,
   type StoreUser,
 } from "@/lib/stores";
 
@@ -90,6 +93,8 @@ export default function StoreDashboardPage() {
   const [permissionGrantCodes, setPermissionGrantCodes] = useState<string[]>(
     [],
   );
+  const [storeTryOnSettings, setStoreTryOnSettings] =
+    useState<StoreVirtualTryOnSettings | null>(null);
   const [effectivePermissions, setEffectivePermissions] = useState<string[]>(
     [],
   );
@@ -99,6 +104,8 @@ export default function StoreDashboardPage() {
   const [roleDialog, setRoleDialog] = useState<StoreRole | "new" | null>(null);
   const [userDialog, setUserDialog] = useState<StoreUser | "new" | null>(null);
   const [savingPermissionGrants, setSavingPermissionGrants] = useState(false);
+  const [savingStoreTryOnSettings, setSavingStoreTryOnSettings] =
+    useState(false);
   const [configurationDevice, setConfigurationDevice] =
     useState<KioskDevice | null>(null);
 
@@ -109,10 +116,12 @@ export default function StoreDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextStore, nextEffectivePermissions] = await Promise.all([
-        getStore(accessToken, storeId),
-        getEffectiveStorePermissions(accessToken, storeId),
-      ]);
+      const [nextStore, nextEffectivePermissions, nextStoreTryOnSettings] =
+        await Promise.all([
+          getStore(accessToken, storeId),
+          getEffectiveStorePermissions(accessToken, storeId),
+          getStoreVirtualTryOnSettings(accessToken, storeId),
+        ]);
       const nextEffectivePermissionCodes = nextEffectivePermissions.permissions;
       const canLoadRoles =
         hasStorePermission(nextEffectivePermissionCodes, "roles.view") ||
@@ -138,6 +147,7 @@ export default function StoreDashboardPage() {
           : Promise.resolve({ data: [] as StorePermission[] }),
       ]);
       setStore(nextStore);
+      setStoreTryOnSettings(nextStoreTryOnSettings);
       setRoles(nextRoles.data);
       setUsers(nextUsers.data);
       setPermissions(nextPermissions.data);
@@ -174,6 +184,11 @@ export default function StoreDashboardPage() {
   const canUpdateRoles = can("roles.update");
   const canDeleteRoles = can("roles.delete");
   const canUpdateStore = can("stores.update");
+  const garmentPreviewControlDisabled =
+    !canUpdateStore ||
+    savingStoreTryOnSettings ||
+    !storeTryOnSettings?.platformGarmentPreviewEnabled ||
+    !storeTryOnSettings.storeHasGarmentPreviewPermission;
 
   return (
     <PageContainer width="wide">
@@ -317,6 +332,46 @@ export default function StoreDashboardPage() {
                 <DetailRow label="Phone" value={store.contactPhone ?? "-"} />
                 <DetailRow label="Website" value={store.website ?? "-"} />
                 <DetailRow label="Timezone" value={store.timezone} />
+                {storeTryOnSettings ? (
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs font-medium uppercase text-muted-foreground">
+                      Virtual Try-On
+                    </div>
+                    <label className="mt-3 flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={storeTryOnSettings.storeGarmentPreviewEnabled}
+                        disabled={garmentPreviewControlDisabled}
+                        onChange={(event) =>
+                          void updateStoreGarmentPreview(
+                            event.target.checked,
+                          )
+                        }
+                      />
+                      <span>
+                        <span className="block font-medium">
+                          Captured Garment Preview
+                        </span>
+                        <span className="block text-muted-foreground">
+                          Show an extracted garment preview after a garment is
+                          photographed.
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          Effective:{" "}
+                          {storeTryOnSettings.effectiveGarmentPreviewEnabled
+                            ? "On"
+                            : "Off"}
+                          {!storeTryOnSettings.platformGarmentPreviewEnabled
+                            ? " - disabled globally"
+                            : !storeTryOnSettings.storeHasGarmentPreviewPermission
+                              ? " - feature not granted"
+                              : ""}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-2 pt-2">
                   {canUpdateStore ? (
                     <Button variant="outline" onClick={() => setEditOpen(true)}>
@@ -806,6 +861,25 @@ export default function StoreDashboardPage() {
       setError(messageFor(caught));
     } finally {
       setSavingPermissionGrants(false);
+    }
+  }
+
+  async function updateStoreGarmentPreview(enabled: boolean) {
+    if (!accessToken || !store) {
+      return;
+    }
+    setSavingStoreTryOnSettings(true);
+    setError(null);
+    try {
+      setStoreTryOnSettings(
+        await updateStoreVirtualTryOnSettings(accessToken, store.id, {
+          garmentPreviewEnabled: enabled,
+        }),
+      );
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSavingStoreTryOnSettings(false);
     }
   }
 }

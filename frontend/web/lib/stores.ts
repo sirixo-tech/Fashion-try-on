@@ -91,6 +91,13 @@ export type EffectiveStorePermissions = {
   membershipId: string | null;
 };
 
+export type StoreVirtualTryOnSettings = {
+  platformGarmentPreviewEnabled: boolean;
+  storeHasGarmentPreviewPermission: boolean;
+  storeGarmentPreviewEnabled: boolean;
+  effectiveGarmentPreviewEnabled: boolean;
+};
+
 export type StoreListResponse = {
   data: AdminStore[];
   pagination: {
@@ -173,6 +180,31 @@ export function updateStore(
     accessToken,
     body: JSON.stringify(input),
   });
+}
+
+export function getStoreVirtualTryOnSettings(
+  accessToken: string,
+  storeId: string,
+): Promise<StoreVirtualTryOnSettings> {
+  return selfxApi<StoreVirtualTryOnSettings>(
+    `/api/v1/admin/stores/${storeId}/virtual-try-on-settings`,
+    { accessToken },
+  );
+}
+
+export function updateStoreVirtualTryOnSettings(
+  accessToken: string,
+  storeId: string,
+  input: { garmentPreviewEnabled: boolean },
+): Promise<StoreVirtualTryOnSettings> {
+  return selfxApi<StoreVirtualTryOnSettings>(
+    `/api/v1/admin/stores/${storeId}/virtual-try-on-settings`,
+    {
+      method: "PUT",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export function deactivateStore(

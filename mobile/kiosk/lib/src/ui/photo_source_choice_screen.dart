@@ -28,7 +28,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return KioskScaffold(
       title: 'SelfX Kiosk',
-      subtitle: '${captureController.captureScope.label} photo source',
+      subtitle: 'Person photo source',
       leading: IconButton(
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.arrow_back),
@@ -54,7 +54,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
               const SizedBox(height: 30),
               SelfxKioskButton(
                 key: const Key('take-photo-source'),
-                label: 'Take Photo',
+                label: 'Capture Photo',
                 subtitle: 'Use the kiosk camera',
                 icon: Icons.camera_alt_outlined,
                 trailing: const Icon(Icons.arrow_forward),
@@ -84,7 +84,7 @@ class PhotoSourceChoiceScreen extends StatelessWidget {
               const SizedBox(height: 18),
               SelfxKioskButton(
                 key: const Key('use-phone-source'),
-                label: 'Use Your Phone',
+                label: 'Upload From Mobile',
                 subtitle: 'Scan a QR code from your phone browser',
                 icon: Icons.qr_code_2,
                 trailing: const Icon(Icons.arrow_forward),

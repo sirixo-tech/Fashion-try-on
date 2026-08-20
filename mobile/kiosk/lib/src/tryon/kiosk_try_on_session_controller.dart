@@ -31,36 +31,52 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskGarmentIntent.bottom,
     KioskGarmentIntent.fullOutfit,
   ];
+  bool garmentPreviewEnabled = false;
   KioskTryOnStatus status = KioskTryOnStatus.idle;
   KioskTryOnRun? run;
   KioskTryOnResult? result;
   KioskTryOnFailureCode? failureCode;
   String? customerTitle;
   String? customerMessage;
+  String? sessionMessage;
+  String? activeSessionId;
+  String? currentPersonAssetId;
+  KioskTryOnSessionStatus? sessionStatus;
+  List<KioskTryOnLook> looks = const [];
   TryOnTargetPreparationMetadata? targetMetadata;
   bool customerSessionActive = false;
 
   Timer? _pollTimer;
   DateTime? _pollStartedAt;
   bool _submitting = false;
+  bool _creatingSession = false;
+  bool _attachingPerson = false;
+  bool _refreshingLooks = false;
+  bool _completingSession = false;
   bool _disposed = false;
   String? _activeClientRequestId;
   File? _preparedPersonFile;
 
   bool get canActivateRuntimeConfiguration =>
       !customerSessionActive &&
+      activeSessionId == null &&
+      currentPersonAssetId == null &&
+      looks.isEmpty &&
       garmentInput == null &&
       pendingGarmentIntent == null &&
       run == null &&
       result == null &&
       status == KioskTryOnStatus.idle;
 
-  void beginCustomerSession() {
-    if (customerSessionActive) {
-      return;
+  Future<bool> beginCustomerSession() async {
+    if (!customerSessionActive) {
+      _clearRunState(keepGarment: false);
+      _clearBackendSessionState();
+      customerSessionActive = true;
+      notifyListeners();
     }
-    customerSessionActive = true;
-    notifyListeners();
+    await createBackendSession();
+    return activeSessionId != null;
   }
 
   void endCustomerSession() {
@@ -96,6 +112,137 @@ class KioskTryOnSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void applyGarmentPreviewEnabled(bool enabled) {
+    if (garmentPreviewEnabled == enabled) {
+      return;
+    }
+    garmentPreviewEnabled = enabled;
+    notifyListeners();
+  }
+
+  Future<bool> createBackendSession() async {
+    if (_creatingSession ||
+        (activeSessionId != null &&
+            sessionStatus == KioskTryOnSessionStatus.active)) {
+      return activeSessionId != null;
+    }
+    _creatingSession = true;
+    sessionMessage = null;
+    notifyListeners();
+    try {
+      final session = await _sessionGateway.createTryOnSession();
+      _applySession(session);
+    } on KioskTryOnException catch (error) {
+      sessionMessage = error.message;
+    } on TimeoutException {
+      sessionMessage = 'SelfX session could not be started right now.';
+    } on SocketException {
+      sessionMessage = 'SelfX session could not be started right now.';
+    } catch (_) {
+      sessionMessage = 'SelfX session could not be started right now.';
+    } finally {
+      _creatingSession = false;
+      notifyListeners();
+    }
+    return activeSessionId != null;
+  }
+
+  Future<bool> attachAcceptedPerson(CaptureSessionController capture) async {
+    if (_attachingPerson) {
+      return currentPersonAssetId != null;
+    }
+    final accepted = capture.acceptedCapture;
+    if (accepted == null) {
+      return false;
+    }
+    await createBackendSession();
+    final sessionId = activeSessionId;
+    if (sessionId == null) {
+      return false;
+    }
+
+    _attachingPerson = true;
+    sessionMessage = null;
+    notifyListeners();
+    try {
+      final asset = await _sessionGateway.setSessionPerson(
+        sessionId: sessionId,
+        personImage: File(accepted.originalPath),
+      );
+      if (asset.purpose == KioskTryOnAssetPurpose.person) {
+        currentPersonAssetId = asset.assetId;
+      }
+      return currentPersonAssetId != null;
+    } on KioskTryOnException catch (error) {
+      sessionMessage = error.message;
+      return false;
+    } on TimeoutException {
+      sessionMessage = 'SelfX could not save this photo for reuse.';
+      return false;
+    } on SocketException {
+      sessionMessage = 'SelfX could not save this photo for reuse.';
+      return false;
+    } catch (_) {
+      sessionMessage = 'SelfX could not save this photo for reuse.';
+      return false;
+    } finally {
+      _attachingPerson = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshLooks() async {
+    if (_refreshingLooks) {
+      return;
+    }
+    final sessionId = activeSessionId;
+    if (sessionId == null) {
+      looks = const [];
+      notifyListeners();
+      return;
+    }
+    _refreshingLooks = true;
+    sessionMessage = null;
+    notifyListeners();
+    try {
+      looks = await _sessionGateway.getSessionLooks(sessionId);
+    } on KioskTryOnException catch (error) {
+      sessionMessage = error.message;
+    } on TimeoutException {
+      sessionMessage = 'SelfX could not refresh your looks.';
+    } on SocketException {
+      sessionMessage = 'SelfX could not refresh your looks.';
+    } catch (_) {
+      sessionMessage = 'SelfX could not refresh your looks.';
+    } finally {
+      _refreshingLooks = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> completeBackendSession() async {
+    if (_completingSession) {
+      return;
+    }
+    final sessionId = activeSessionId;
+    if (sessionId == null) {
+      _clearBackendSessionState();
+      notifyListeners();
+      return;
+    }
+    _completingSession = true;
+    try {
+      final session = await _sessionGateway.completeTryOnSession(sessionId);
+      _applySession(session);
+    } catch (_) {
+      // Finish must still clear local kiosk state even if the network is down.
+    } finally {
+      _completingSession = false;
+      _clearBackendSessionState();
+      notifyListeners();
+    }
+  }
+
   Future<void> submitFromCapture(CaptureSessionController capture) async {
     if (_submitting || run != null) {
       return;
@@ -116,7 +263,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
       );
       return;
     }
-    final modelCoverage = capture.acceptedModelCoverage ?? ModelCoverage.unknown;
+    final modelCoverage =
+        capture.acceptedModelCoverage ?? ModelCoverage.unknown;
     final compatibility = const ModelGarmentCompatibilityService().check(
       coverage: modelCoverage,
       intent: garment.intent,
@@ -134,26 +282,36 @@ class KioskTryOnSessionController extends ChangeNotifier {
     _submitting = true;
     _setStatus(KioskTryOnStatus.preparing, 'Preparing your photo');
     try {
+      if (activeSessionId == null && customerSessionActive) {
+        await createBackendSession();
+      }
+      if (activeSessionId != null && currentPersonAssetId == null) {
+        await attachAcceptedPerson(capture);
+      }
+      _activeClientRequestId ??= _createClientRequestId();
+      final sessionId = activeSessionId;
+      final personAssetId = currentPersonAssetId;
       final prepared = await targetPreparer.prepare(
         originalPath: accepted.originalPath,
         scope: capture.captureScope,
         targetMetadata: capture.acceptedCaptureTargetMetadata,
-        windowsFullFrameFallback:
-            capture.acceptedCaptureTargetMetadata == null,
+        windowsFullFrameFallback: capture.acceptedCaptureTargetMetadata == null,
       );
       _preparedPersonFile = prepared.file;
       targetMetadata = prepared.metadata;
-      _activeClientRequestId ??= _createClientRequestId();
+      final usesStoredPerson = sessionId != null && personAssetId != null;
 
       _setStatus(KioskTryOnStatus.uploading, 'Uploading securely to SelfX');
       final created = await gateway.createRun(
         KioskTryOnRequest(
           clientRequestId: _activeClientRequestId!,
-          personImage: prepared.file,
+          personImage: usesStoredPerson ? null : prepared.file,
           garmentInput: garment,
           captureScope: capture.captureScope,
           modelCoverage: modelCoverage,
           targetMetadata: prepared.metadata,
+          sessionId: sessionId,
+          personAssetId: personAssetId,
         ),
       );
       run = created;
@@ -203,14 +361,17 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }
 
   Future<void> retakePhoto(CaptureSessionController capture) async {
-    _clearRunState(keepGarment: true);
+    currentPersonAssetId = null;
+    _clearRunState(keepGarment: false);
     await capture.retake();
     notifyListeners();
   }
 
   Future<void> finish(CaptureSessionController capture) async {
+    await completeBackendSession();
     _clearRunState(keepGarment: false);
     await capture.resetSession();
+    customerSessionActive = false;
     notifyListeners();
   }
 
@@ -237,7 +398,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
 
   Future<void> _poll(String runId) async {
     final startedAt = _pollStartedAt;
-    if (startedAt != null && DateTime.now().difference(startedAt) > pollTimeout) {
+    if (startedAt != null &&
+        DateTime.now().difference(startedAt) > pollTimeout) {
       _pollTimer?.cancel();
       _pollTimer = null;
       _fail(
@@ -287,6 +449,9 @@ class KioskTryOnSessionController extends ChangeNotifier {
         generatedImage: terminalRun.resultImage!,
       );
       _setStatus(KioskTryOnStatus.succeeded, 'Your Try-On is ready');
+      if (activeSessionId != null) {
+        unawaited(refreshLooks());
+      }
       return;
     }
 
@@ -340,6 +505,33 @@ class KioskTryOnSessionController extends ChangeNotifier {
     }
   }
 
+  void _applySession(KioskTryOnSession session) {
+    activeSessionId = session.sessionId;
+    sessionStatus = session.status;
+    currentPersonAssetId = session.currentPersonAssetId ?? currentPersonAssetId;
+  }
+
+  void _clearBackendSessionState() {
+    activeSessionId = null;
+    currentPersonAssetId = null;
+    sessionStatus = null;
+    sessionMessage = null;
+    looks = const [];
+  }
+
+  KioskTryOnSessionGateway get _sessionGateway {
+  final sessionGateway = gateway;
+
+  if (sessionGateway is! KioskTryOnSessionGateway) {
+    throw const KioskTryOnException(
+      KioskTryOnFailureCode.configurationMissing,
+      'Try-On sessions are not available.',
+    );
+  }
+
+  return sessionGateway as KioskTryOnSessionGateway;
+}
+
   String _messageForStatus(KioskTryOnStatus status) {
     return switch (status) {
       KioskTryOnStatus.idle => 'Ready',
@@ -376,8 +568,9 @@ class KioskTryOnSessionController extends ChangeNotifier {
         'SelfX could not be reached. Check the connection and try again.',
       KioskTryOnFailureCode.generationTimedOut =>
         'Try-On generation is taking too long. Please try again.',
-      KioskTryOnFailureCode.modelImageIncompatibleWithGarment =>
-        guidanceFor(intent ?? KioskGarmentIntent.auto).message,
+      KioskTryOnFailureCode.modelImageIncompatibleWithGarment => guidanceFor(
+        intent ?? KioskGarmentIntent.auto,
+      ).message,
       KioskTryOnFailureCode.cancelled => 'Try-On generation was cancelled.',
       KioskTryOnFailureCode.uploadFailed ||
       KioskTryOnFailureCode.generationFailed => fallback,
@@ -389,8 +582,9 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskGarmentIntent? intent,
   ) {
     return switch (code) {
-      KioskTryOnFailureCode.modelImageIncompatibleWithGarment =>
-        guidanceFor(intent ?? KioskGarmentIntent.auto).title,
+      KioskTryOnFailureCode.modelImageIncompatibleWithGarment => guidanceFor(
+        intent ?? KioskGarmentIntent.auto,
+      ).title,
       _ => null,
     };
   }

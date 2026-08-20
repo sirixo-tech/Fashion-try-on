@@ -16,6 +16,7 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
 import {
   type CreateKioskConfigurationAssetUploadDto,
   type KioskConfigurationAssetUploadIntentDto,
@@ -63,6 +64,7 @@ export class KioskConfigurationService {
     private readonly prisma: PrismaService,
     private readonly kiosks: KioskService,
     private readonly storage: ObjectStorageService,
+    private readonly garmentPreviewSettings: GarmentPreviewSettingsService,
   ) {}
 
   async getAdminConfiguration(
@@ -73,7 +75,8 @@ export class KioskConfigurationService {
       where: { kioskDeviceId: deviceId },
       include: { assets: { orderBy: { sortOrder: "asc" } } },
     });
-    return this.mapConfiguration(configuration);
+    const storeId = await this.storeIdForDevice(deviceId);
+    return this.mapConfiguration(configuration, storeId);
   }
 
   async createAdminAssetUploadIntent(
@@ -180,7 +183,8 @@ export class KioskConfigurationService {
         include: { assets: { orderBy: { sortOrder: "asc" } } },
       });
     });
-    return this.mapConfiguration(updated);
+    const storeId = await this.storeIdForDevice(deviceId);
+    return this.mapConfiguration(updated, storeId);
   }
 
   async getDeviceConfiguration(
@@ -191,7 +195,7 @@ export class KioskConfigurationService {
       where: { kioskDeviceId: device.id },
       include: { assets: { orderBy: { sortOrder: "asc" } } },
     });
-    return this.mapConfiguration(configuration);
+    return this.mapConfiguration(configuration, device.organizationId);
   }
 
   private async requireManageableDevice(deviceId: string): Promise<void> {
@@ -208,11 +212,22 @@ export class KioskConfigurationService {
     }
   }
 
-  private mapConfiguration(
+  private async storeIdForDevice(deviceId: string): Promise<string | null> {
+    const device = await this.prisma.kioskDevice.findUnique({
+      where: { id: deviceId },
+      select: { organizationId: true },
+    });
+    return device?.organizationId ?? null;
+  }
+
+  private async mapConfiguration(
     configuration: ConfigurationWithAssets | null,
-  ): KioskConfigurationDto {
+    storeId: string | null,
+  ): Promise<KioskConfigurationDto> {
     const source = configuration ?? defaultConfiguration();
     const assets = source.assets.length > 0 ? source.assets : defaultAssets();
+    const garmentPreviewEnabled =
+      await this.garmentPreviewSettings.resolveGarmentPreviewEnabled(storeId);
     return {
       version: source.version,
       display: {
@@ -242,6 +257,7 @@ export class KioskConfigurationService {
       experience: {
         enabledGarmentIntents: [...source.enabledGarmentIntents],
         sessionIdleTimeoutSeconds: source.sessionIdleTimeoutSeconds,
+        garmentPreviewEnabled,
       },
       assetUpload: {
         supported: true,

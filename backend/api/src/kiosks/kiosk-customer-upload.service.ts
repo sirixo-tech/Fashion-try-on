@@ -152,6 +152,70 @@ export class KioskCustomerUploadService {
     return this.mapDeviceStatus(updated, new Date());
   }
 
+  async consumeReadyUploadForAsset(
+    device: Pick<KioskDevice, "id">,
+    sessionId: string,
+    purposeInput?: string | KioskCustomerUploadPurpose,
+  ): Promise<{
+    storageKey: string;
+    contentType: SupportedImageMimeType;
+    sizeBytes: number;
+    width: number;
+    height: number;
+    expiresAt: Date;
+  }> {
+    const expectedPurpose = normalizePurpose(purposeInput);
+    const session = await this.requireDeviceSession(device.id, sessionId);
+    const current = await this.expireIfNeeded(session, new Date());
+    if (current.purpose !== expectedPurpose) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        KIOSK_ERROR_CODES.customerUploadPurposeMismatch,
+        "Customer upload purpose does not match this kiosk action.",
+      );
+    }
+    if (
+      current.status !== KioskCustomerUploadSessionStatus.READY &&
+      current.status !== KioskCustomerUploadSessionStatus.CONSUMED
+    ) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        KIOSK_ERROR_CODES.customerUploadNotReady,
+        "Customer upload is not ready.",
+      );
+    }
+    if (
+      !current.assetKey ||
+      !current.contentType ||
+      !current.sizeBytes ||
+      !current.width ||
+      !current.height
+    ) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        KIOSK_ERROR_CODES.customerUploadNotReady,
+        "Customer upload is missing image metadata.",
+      );
+    }
+    if (current.status === KioskCustomerUploadSessionStatus.READY) {
+      await this.prisma.kioskCustomerUploadSession.update({
+        where: { id: current.id },
+        data: {
+          status: KioskCustomerUploadSessionStatus.CONSUMED,
+          consumedAt: new Date(),
+        },
+      });
+    }
+    return {
+      storageKey: current.assetKey,
+      contentType: current.contentType as SupportedImageMimeType,
+      sizeBytes: current.sizeBytes,
+      width: current.width,
+      height: current.height,
+      expiresAt: current.expiresAt,
+    };
+  }
+
   async publicStatus(
     capability: string,
     ipAddress: string,

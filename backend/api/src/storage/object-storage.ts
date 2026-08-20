@@ -10,6 +10,11 @@ export interface ObjectStorageHead {
 }
 
 export interface ObjectStorage {
+  putObject(input: {
+    key: string;
+    contentType: string;
+    body: Buffer;
+  }): Promise<void>;
   createUploadUrl(input: {
     key: string;
     contentType: string;
@@ -38,6 +43,21 @@ export class ObjectStorageService implements ObjectStorage {
 
   constructor() {
     this.config = loadObjectStorageConfig();
+  }
+
+  async putObject(input: {
+    key: string;
+    contentType: string;
+    body: Buffer;
+  }): Promise<void> {
+    const response = await fetch(this.presign("PUT", input.key, 60), {
+      method: "PUT",
+      headers: { "Content-Type": input.contentType },
+      body: input.body,
+    });
+    if (!response.ok) {
+      throwStorageUnavailable("Object could not be stored.");
+    }
   }
 
   createUploadUrl(input: {
