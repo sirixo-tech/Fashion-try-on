@@ -20,6 +20,7 @@ class SelfxKioskButton extends StatefulWidget {
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.animateSurface = true,
     this.expanded = false,
+    this.borderRadius,
   });
 
   final String label;
@@ -35,6 +36,7 @@ class SelfxKioskButton extends StatefulWidget {
   final MainAxisAlignment mainAxisAlignment;
   final bool animateSurface;
   final bool expanded;
+  final double? borderRadius;
 
   @override
   State<SelfxKioskButton> createState() => _SelfxKioskButtonState();
@@ -63,6 +65,7 @@ class _SelfxKioskButtonState extends State<SelfxKioskButton> {
           elevation: enabled ? style.elevation : 0,
           shadowColor: style.shadowColor,
           border: border,
+          borderRadius: widget.borderRadius,
           child: InkWell(
             onTap: widget.onPressed,
             onHighlightChanged: (value) {
@@ -73,10 +76,7 @@ class _SelfxKioskButtonState extends State<SelfxKioskButton> {
             hoverColor: style.hoverColor,
             focusColor: style.focusColor,
             splashColor: style.splashColor,
-            child: _ButtonContent(
-              widget: widget,
-              foreground: foreground,
-            ),
+            child: _ButtonContent(widget: widget, foreground: foreground),
           ),
         ),
       ),
@@ -91,6 +91,7 @@ class _ButtonMaterial extends StatelessWidget {
     required this.elevation,
     required this.shadowColor,
     required this.border,
+    required this.borderRadius,
     required this.child,
   });
 
@@ -99,12 +100,15 @@ class _ButtonMaterial extends StatelessWidget {
   final double elevation;
   final Color shadowColor;
   final Color border;
+  final double? borderRadius;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(SelfxKioskTokens.buttonRadius),
+      borderRadius: BorderRadius.circular(
+        borderRadius ?? SelfxKioskTokens.buttonRadius,
+      ),
       side: BorderSide(color: border, width: 1.2),
     );
     final material = Material(
@@ -127,10 +131,7 @@ class _ButtonMaterial extends StatelessWidget {
 }
 
 class _ButtonContent extends StatelessWidget {
-  const _ButtonContent({
-    required this.widget,
-    required this.foreground,
-  });
+  const _ButtonContent({required this.widget, required this.foreground});
 
   final SelfxKioskButton widget;
   final Color foreground;
@@ -175,13 +176,9 @@ class _ButtonContent extends StatelessWidget {
                       Text(
                         widget.subtitle!,
                         textAlign: widget.textAlign,
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(
-                              color: _subtitleColor(
-                                foreground,
-                                widget.variant,
-                              ),
-                            ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: _subtitleColor(foreground, widget.variant),
+                        ),
                       ),
                     ],
                   ],

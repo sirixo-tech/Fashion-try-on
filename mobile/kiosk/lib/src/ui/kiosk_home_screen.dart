@@ -16,6 +16,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'camera_settings_screen.dart';
+import 'mobile_upload_screen.dart';
 import 'selfx_kiosk_button.dart';
 
 class KioskHomeScreen extends StatefulWidget {
@@ -47,6 +48,7 @@ class KioskHomeScreen extends StatefulWidget {
 class _KioskHomeScreenState extends State<KioskHomeScreen> {
   bool _operatorHintVisible = false;
   bool _startingTryOn = false;
+  bool _startingMobileUpload = false;
   int _slideIndex = 0;
   Timer? _operatorRevealTimer;
   Timer? _slideshowTimer;
@@ -147,35 +149,16 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<void> _startTryOn() async {
-    if (_startingTryOn) {
+    if (_startingTryOn || _startingMobileUpload) {
       return;
     }
     setState(() => _startingTryOn = true);
-    final enabledIntents =
-        widget.configurationController?.configuration.enabledGarmentIntents;
-    if (enabledIntents != null) {
-      widget.tryOnController.applyEnabledGarmentIntents(enabledIntents);
-    }
-    widget.tryOnController.applyGarmentPreviewEnabled(
-      widget.configurationController?.configuration.garmentPreviewEnabled ??
-          false,
-    );
-    await widget.controller.resetSession();
-    final started = await widget.tryOnController.beginCustomerSession();
+    final started = await _prepareCustomerSession();
     if (!mounted) {
       return;
     }
     if (!started) {
-      widget.tryOnController.endCustomerSession();
       setState(() => _startingTryOn = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.tryOnController.sessionMessage ??
-                'SelfX session could not be started right now.',
-          ),
-        ),
-      );
       return;
     }
     await Navigator.of(context).push(
@@ -190,6 +173,78 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
         ),
       ),
     );
+    await _handleReturnedHome();
+    if (mounted) {
+      setState(() => _startingTryOn = false);
+    }
+  }
+
+  Future<void> _uploadFromMobile() async {
+    if (_startingTryOn || _startingMobileUpload) {
+      return;
+    }
+    setState(() => _startingMobileUpload = true);
+    final started = await _prepareCustomerSession();
+    if (!mounted) {
+      return;
+    }
+    if (!started) {
+      setState(() => _startingMobileUpload = false);
+      return;
+    }
+    await widget.uploadController.cancel();
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MobileUploadScreen(
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+          purpose: PhotoAcquisitionPurpose.model,
+        ),
+      ),
+    );
+    await _handleReturnedHome();
+    if (mounted) {
+      setState(() => _startingMobileUpload = false);
+    }
+  }
+
+  Future<bool> _prepareCustomerSession() async {
+    final enabledIntents =
+        widget.configurationController?.configuration.enabledGarmentIntents;
+    if (enabledIntents != null) {
+      widget.tryOnController.applyEnabledGarmentIntents(enabledIntents);
+    }
+    widget.tryOnController.applyGarmentPreviewEnabled(
+      widget.configurationController?.configuration.garmentPreviewEnabled ??
+          false,
+    );
+    await widget.controller.resetSession();
+    final started = await widget.tryOnController.beginCustomerSession();
+    if (!mounted) {
+      return false;
+    }
+    if (!started) {
+      widget.tryOnController.endCustomerSession();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.tryOnController.sessionMessage ??
+                'SelfX session could not be started right now.',
+          ),
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _handleReturnedHome() async {
     if (!mounted) {
       return;
     }
@@ -197,9 +252,6 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     if (homeIsCurrent) {
       await widget.tryOnController.finish(widget.controller);
       await _activatePendingConfigurationIfSafe();
-    }
-    if (mounted) {
-      setState(() => _startingTryOn = false);
     }
   }
 
@@ -294,17 +346,31 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                 ),
-                                const SizedBox(height: 36),
+                                const SizedBox(height: 126),
+                                SelfxKioskButton(
+                                  key: const Key('upload-from-mobile-start'),
+                                  label: 'Upload From Mobile',
+                                  icon: Icons.file_upload_outlined,
+                                  variant: SelfxKioskButtonVariant.primary,
+                                  minHeight: compact ? 66 : 74,
+                                  borderRadius: 999,
+                                  textAlign: TextAlign.center,
+                                  onPressed: _uploadFromMobile,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: compact ? 30 : 44,
+                                    vertical: compact ? 20 : 26,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
                                 SelfxKioskButton(
                                   key: const Key('start-try-on'),
                                   label: presentation.ctaLabel,
                                   icon: Icons.auto_awesome_outlined,
                                   variant: SelfxKioskButtonVariant.primary,
                                   minHeight: compact ? 70 : 78,
+                                  borderRadius: 999,
                                   textAlign: TextAlign.center,
-                                  onPressed: _startingTryOn
-                                      ? null
-                                      : _startTryOn,
+                                  onPressed: _startTryOn,
                                   padding: EdgeInsets.symmetric(
                                     horizontal: compact ? 32 : 46,
                                     vertical: compact ? 22 : 28,

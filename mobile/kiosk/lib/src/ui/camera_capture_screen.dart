@@ -15,8 +15,6 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'garment_review_screen.dart';
-import 'kiosk_chrome.dart';
-import 'mobile_upload_screen.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -76,15 +74,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return KioskScaffold(
-      title: widget.purpose == PhotoAcquisitionPurpose.garment
-          ? 'Garment Photo'
-          : 'Camera Test',
-      subtitle: widget.purpose == PhotoAcquisitionPurpose.garment
-          ? '${widget.garmentIntent?.label ?? 'Garment'} reference'
-          : '${widget.controller.captureScope.label} capture guidance',
-      padding: EdgeInsets.zero,
-      child: AnimatedBuilder(
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: AnimatedBuilder(
         animation: Listenable.merge([
           widget.controller,
           widget.controller.cameraService.state,
@@ -92,44 +84,38 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         builder: (context, _) {
           final cameraState = widget.controller.cameraService.state.value;
           final flowState = widget.controller.flowState;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          return Stack(
+            fit: StackFit.expand,
             children: [
-              Expanded(
-                child: _PreviewPanel(
-                  starting: _starting,
-                  state: cameraState,
-                  preview: widget.controller.cameraService.buildPreview(
-                    context,
-                  ),
-                  onRetry: _start,
-                ),
-              ),
-              CaptureGuidancePanel(
+              _PreviewPanel(
+                starting: _starting,
                 state: cameraState,
-                flowState: flowState,
-                readinessResult: widget.controller.readinessResult,
-                onBack: () => Navigator.of(context).pop(),
-                onCapture: _capture,
-                onCancelCountdown: widget.controller.cancelCountdown,
-                onCaptureAnyway: widget.controller.captureAnyway,
-                canUploadFromMobile:
-                    widget.purpose == PhotoAcquisitionPurpose.model,
-                onUploadFromMobile:
-                    widget.purpose == PhotoAcquisitionPurpose.model &&
-                        flowState.stage == CaptureFlowStage.preview
-                    ? _openMobileUpload
-                    : null,
-                canFlipCamera:
-                    widget.purpose == PhotoAcquisitionPurpose.model &&
-                    widget.controller.canFlipCamera,
-                onFlipCamera:
-                    widget.purpose == PhotoAcquisitionPurpose.model &&
-                        cameraState.status == CameraStatus.ready &&
-                        flowState.stage == CaptureFlowStage.preview &&
-                        !_switchingCamera
-                    ? _flipCamera
-                    : null,
+                preview: widget.controller.cameraService.buildPreview(context),
+                onRetry: _start,
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: CaptureGuidancePanel(
+                  state: cameraState,
+                  flowState: flowState,
+                  readinessResult: widget.controller.readinessResult,
+                  onBack: () => Navigator.of(context).pop(),
+                  onCapture: _capture,
+                  onCancelCountdown: widget.controller.cancelCountdown,
+                  onCaptureAnyway: widget.controller.captureAnyway,
+                  canFlipCamera:
+                      widget.purpose == PhotoAcquisitionPurpose.model &&
+                      widget.controller.canFlipCamera,
+                  onFlipCamera:
+                      widget.purpose == PhotoAcquisitionPurpose.model &&
+                          cameraState.status == CameraStatus.ready &&
+                          flowState.stage == CaptureFlowStage.preview &&
+                          !_switchingCamera
+                      ? _flipCamera
+                      : null,
+                ),
               ),
             ],
           );
@@ -140,25 +126,6 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
 
   Future<void> _capture() {
     return widget.controller.beginAssistedCapture();
-  }
-
-  Future<void> _openMobileUpload() async {
-    await widget.uploadController.cancel();
-    if (!mounted) {
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MobileUploadScreen(
-          captureController: widget.controller,
-          tryOnController: widget.tryOnController,
-          uploadController: widget.uploadController,
-          catalogGateway: widget.catalogGateway,
-          extractionService: widget.extractionService,
-          purpose: PhotoAcquisitionPurpose.model,
-        ),
-      ),
-    );
   }
 
   Future<void> _flipCamera() async {
@@ -290,8 +257,6 @@ class CaptureGuidancePanel extends StatelessWidget {
     required this.onCapture,
     required this.onCancelCountdown,
     required this.onCaptureAnyway,
-    required this.canUploadFromMobile,
-    required this.onUploadFromMobile,
     required this.canFlipCamera,
     required this.onFlipCamera,
   });
@@ -303,8 +268,6 @@ class CaptureGuidancePanel extends StatelessWidget {
   final VoidCallback onCapture;
   final VoidCallback onCancelCountdown;
   final VoidCallback onCaptureAnyway;
-  final bool canUploadFromMobile;
-  final VoidCallback? onUploadFromMobile;
   final bool canFlipCamera;
   final VoidCallback? onFlipCamera;
 
@@ -318,8 +281,6 @@ class CaptureGuidancePanel extends StatelessWidget {
       onCapture: onCapture,
       onCancelCountdown: onCancelCountdown,
       onCaptureAnyway: onCaptureAnyway,
-      canUploadFromMobile: canUploadFromMobile,
-      onUploadFromMobile: onUploadFromMobile,
       canFlipCamera: canFlipCamera,
       onFlipCamera: onFlipCamera,
     );
@@ -335,8 +296,6 @@ class _CaptureControls extends StatelessWidget {
     required this.onCapture,
     required this.onCancelCountdown,
     required this.onCaptureAnyway,
-    required this.canUploadFromMobile,
-    required this.onUploadFromMobile,
     required this.canFlipCamera,
     required this.onFlipCamera,
   });
@@ -348,8 +307,6 @@ class _CaptureControls extends StatelessWidget {
   final VoidCallback onCapture;
   final VoidCallback onCancelCountdown;
   final VoidCallback onCaptureAnyway;
-  final bool canUploadFromMobile;
-  final VoidCallback? onUploadFromMobile;
   final bool canFlipCamera;
   final VoidCallback? onFlipCamera;
 
@@ -382,77 +339,76 @@ class _CaptureControls extends StatelessWidget {
     final leftIcon = isCountdown ? Icons.close : Icons.arrow_back;
     final leftTooltip = isCountdown ? 'Cancel countdown' : 'Back';
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: SelfxKioskTokens.surface,
-        border: Border(top: BorderSide(color: SelfxKioskTokens.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (flowState.errorMessage != null) ...[
-                Text(
-                  flowState.errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 10, 28, 26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (flowState.errorMessage != null) ...[
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: SelfxKioskTokens.surface.withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: SelfxKioskTokens.border),
                 ),
-                const SizedBox(height: 10),
-              ],
-              SizedBox(
-                height: 76,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: _CameraRailButton(
-                          key: const Key('camera-back'),
-                          tooltip: leftTooltip,
-                          icon: leftIcon,
-                          onPressed: leftAction,
-                        ),
-                      ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  child: Text(
+                    flowState.errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
-                    Expanded(
-                      child: Center(
-                        child: _PrimaryCameraActionButton(
-                          key: const Key('upload-person-photo'),
-                          label: 'Upload from mobile',
-                          icon: Icons.file_upload_outlined,
-                          onPressed: canUploadFromMobile
-                              ? onUploadFromMobile
-                              : null,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: _PrimaryCameraActionButton(
-                          key: const Key('capture-photo'),
-                          label: primaryLabel,
-                          icon: _captureIconFor(stage, canCaptureAnyway),
-                          onPressed: primaryAction,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: _CameraRailButton(
-                          key: const Key('flip-person-camera'),
-                          tooltip: 'Flip camera',
-                          icon: Icons.cameraswitch_outlined,
-                          onPressed: canFlipCamera ? onFlipCamera : null,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
+              const SizedBox(height: 12),
             ],
-          ),
+            SizedBox(
+              height: 66,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _CameraRailButton(
+                        key: const Key('camera-back'),
+                        tooltip: leftTooltip,
+                        icon: leftIcon,
+                        onPressed: leftAction,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: _PrimaryCameraActionButton(
+                        key: const Key('capture-photo'),
+                        label: primaryLabel,
+                        icon: _captureIconFor(stage, canCaptureAnyway),
+                        onPressed: primaryAction,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _CameraRailButton(
+                        key: const Key('flip-person-camera'),
+                        tooltip: 'Flip camera',
+                        icon: Icons.cameraswitch_outlined,
+                        onPressed: canFlipCamera ? onFlipCamera : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -479,7 +435,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
         button: true,
         label: label,
         child: SizedBox.square(
-          dimension: 76,
+          dimension: 66,
           child: FilledButton(
             onPressed: onPressed,
             style: FilledButton.styleFrom(
@@ -493,10 +449,10 @@ class _PrimaryCameraActionButton extends StatelessWidget {
               ),
               padding: EdgeInsets.zero,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(17),
               ),
             ),
-            child: Icon(icon, size: 34),
+            child: Icon(icon, size: 30),
           ),
         ),
       ),
@@ -521,7 +477,7 @@ class _CameraRailButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: SizedBox.square(
-        dimension: 60,
+        dimension: 54,
         child: IconButton(
           onPressed: onPressed,
           icon: Icon(icon),
@@ -531,7 +487,7 @@ class _CameraRailButton extends StatelessWidget {
             backgroundColor: SelfxKioskTokens.surface,
             side: const BorderSide(color: SelfxKioskTokens.border),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
         ),
