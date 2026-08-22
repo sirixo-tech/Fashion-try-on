@@ -106,3 +106,39 @@ export class KioskTryOnLooksResponseDto {
   @ApiProperty({ type: [KioskTryOnLookResponseDto] })
   data!: KioskTryOnLookResponseDto[];
 }
+
+export class KioskTryOnShareResponseDto {
+  @ApiProperty()
+  shareUrl!: string;
+
+  @ApiProperty()
+  expiresAt!: string;
+}
+
+export class PublicTryOnShareLookDto {
+  @ApiProperty()
+  lookId!: string;
+
+  @ApiProperty()
+  imageReadUrl!: string;
+
+  @ApiProperty()
+  createdAt!: string;
+
+  @ApiProperty()
+  expiresAt!: string;
+
+  @ApiPropertyOptional()
+  productName?: string;
+}
+
+export class PublicTryOnShareResponseDto {
+  @ApiProperty()
+  expiresAt!: string;
+
+  @ApiProperty()
+  serverTime!: string;
+
+  @ApiProperty({ type: [PublicTryOnShareLookDto] })
+  looks!: PublicTryOnShareLookDto[];
+}

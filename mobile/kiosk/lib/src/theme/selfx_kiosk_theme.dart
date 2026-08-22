@@ -37,31 +37,19 @@ class SelfxKioskTokens {
   static const radiusMedium = 10.0;
   static const radiusLarge = 14.0;
   static const cardRadius = radiusMedium;
-  static const buttonRadius = radiusMedium;
+  static const buttonRadius = 999.0;
   static const spacingSmall = 8.0;
   static const spacingMedium = 16.0;
   static const spacingLarge = 24.0;
 
   static const cardShadow = [
-    BoxShadow(
-      color: Color(0x140F172A),
-      blurRadius: 22,
-      offset: Offset(0, 10),
-    ),
+    BoxShadow(color: Color(0x140F172A), blurRadius: 22, offset: Offset(0, 10)),
   ];
   static const softShadow = [
-    BoxShadow(
-      color: Color(0x1A0F172A),
-      blurRadius: 28,
-      offset: Offset(0, 12),
-    ),
+    BoxShadow(color: Color(0x1A0F172A), blurRadius: 28, offset: Offset(0, 12)),
   ];
   static const primaryActionShadow = [
-    BoxShadow(
-      color: Color(0x30FF7119),
-      blurRadius: 20,
-      offset: Offset(0, 8),
-    ),
+    BoxShadow(color: Color(0x30FF7119), blurRadius: 20, offset: Offset(0, 8)),
   ];
 }
 

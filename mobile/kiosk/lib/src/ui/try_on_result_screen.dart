@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
@@ -11,7 +8,9 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'garment_selection_screen.dart';
+import 'generated_try_on_image.dart';
 import 'kiosk_chrome.dart';
+import 'my_looks_screen.dart';
 import 'selfx_kiosk_button.dart';
 
 class TryOnResultScreen extends StatelessWidget {
@@ -50,13 +49,14 @@ class TryOnResultScreen extends StatelessWidget {
                 final image = Card(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: _GeneratedTryOnImage(src: result.generatedImage),
+                    child: GeneratedTryOnImage(src: result.generatedImage),
                   ),
                 );
                 final actions = _ResultActions(
                   compact: compact,
                   onTryAnotherGarment: () => _tryAnotherGarment(context),
                   onRetakePhoto: () => _retakePhoto(context),
+                  onGetMyLooks: () => _getMyLooks(context),
                   onFinish: () => _finish(context),
                 );
 
@@ -64,8 +64,14 @@ class TryOnResultScreen extends StatelessWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(child: image),
+                      Text(
+                        'Your Look',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                       const SizedBox(height: 10),
+                      Expanded(child: image),
+                      const SizedBox(height: 12),
                       actions,
                     ],
                   );
@@ -76,7 +82,21 @@ class TryOnResultScreen extends StatelessWidget {
                   children: [
                     Expanded(child: image),
                     const SizedBox(width: 24),
-                    SizedBox(width: 420, child: actions),
+                    SizedBox(
+                      width: 420,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Your Look',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.displaySmall,
+                          ),
+                          const SizedBox(height: 18),
+                          Expanded(child: actions),
+                        ],
+                      ),
+                    ),
                   ],
                 );
               },
@@ -120,6 +140,20 @@ class TryOnResultScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _getMyLooks(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MyLooksScreen(
+          captureController: captureController,
+          tryOnController: tryOnController,
+          uploadController: uploadController,
+          catalogGateway: catalogGateway,
+          extractionService: extractionService,
+        ),
+      ),
+    );
+  }
+
   Future<void> _finish(BuildContext context) async {
     await tryOnController.finish(captureController);
     if (context.mounted) {
@@ -128,108 +162,40 @@ class TryOnResultScreen extends StatelessWidget {
   }
 }
 
-class _GeneratedTryOnImage extends StatelessWidget {
-  const _GeneratedTryOnImage({required this.src});
-
-  final String src;
-
-  @override
-  Widget build(BuildContext context) {
-    if (src.startsWith('data:image/')) {
-      final bytes = _decodeDataImage(src);
-      if (bytes == null) {
-        return const Center(child: Text('Generated image unavailable'));
-      }
-      return Image.memory(
-        bytes,
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) =>
-            const Center(child: Text('Generated image unavailable')),
-      );
-    }
-    if (!src.startsWith('http://') && !src.startsWith('https://')) {
-      final bytes = _decodeBase64Image(src);
-      if (bytes == null) {
-        return const Center(child: Text('Generated image unavailable'));
-      }
-      return Image.memory(
-        bytes,
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) =>
-            const Center(child: Text('Generated image unavailable')),
-      );
-    }
-    return Image.network(
-      src,
-      fit: BoxFit.contain,
-      errorBuilder: (_, _, _) =>
-          const Center(child: Text('Generated image unavailable')),
-    );
-  }
-
-  Uint8List? _decodeDataImage(String value) {
-    try {
-      return UriData.parse(value).contentAsBytes();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Uint8List? _decodeBase64Image(String value) {
-    try {
-      return base64Decode(value);
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
 class _ResultActions extends StatelessWidget {
   const _ResultActions({
     required this.onTryAnotherGarment,
     required this.onRetakePhoto,
+    required this.onGetMyLooks,
     required this.onFinish,
     required this.compact,
   });
 
   final VoidCallback onTryAnotherGarment;
   final VoidCallback onRetakePhoto;
+  final VoidCallback onGetMyLooks;
   final VoidCallback onFinish;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Icon(
-                  Icons.check_circle,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 42,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Try-On Ready',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Your generated look is ready for this kiosk session.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
+        if (!compact) const Spacer(),
+        SelfxKioskButton(
+          key: const Key('try-another-garment'),
+          label: 'Try Another Garment',
+          onPressed: onTryAnotherGarment,
+          icon: Icons.checkroom_outlined,
+          variant: SelfxKioskButtonVariant.primary,
+          minHeight: 68,
+          textAlign: TextAlign.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         ),
-        if (compact) const SizedBox(height: 12) else const Spacer(),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -251,10 +217,10 @@ class _ResultActions extends StatelessWidget {
             const SizedBox(width: 14),
             Expanded(
               child: SelfxKioskButton(
-                key: const Key('finish-try-on'),
-                label: 'Finish',
-                onPressed: onFinish,
-                icon: Icons.home_outlined,
+                key: const Key('get-my-looks'),
+                label: 'Get My Looks',
+                onPressed: onGetMyLooks,
+                icon: Icons.collections_outlined,
                 variant: SelfxKioskButtonVariant.secondary,
                 minHeight: 64,
                 textAlign: TextAlign.center,
@@ -269,12 +235,12 @@ class _ResultActions extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SelfxKioskButton(
-          key: const Key('try-another-garment'),
-          label: 'Try Another Garment',
-          onPressed: onTryAnotherGarment,
-          icon: Icons.checkroom_outlined,
-          variant: SelfxKioskButtonVariant.primary,
-          minHeight: 64,
+          key: const Key('finish-try-on'),
+          label: 'Finish',
+          onPressed: onFinish,
+          icon: Icons.home_outlined,
+          variant: SelfxKioskButtonVariant.secondary,
+          minHeight: 58,
           textAlign: TextAlign.center,
           mainAxisAlignment: MainAxisAlignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

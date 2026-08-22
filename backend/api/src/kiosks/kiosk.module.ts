@@ -30,6 +30,11 @@ import {
   KioskTryOnController,
   KioskTryOnSessionController,
 } from "./kiosk-try-on.controller.js";
+import {
+  KioskTryOnShareController,
+  PublicTryOnShareController,
+} from "./kiosk-try-on-share.controller.js";
+import { KioskTryOnShareService } from "./kiosk-try-on-share.service.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
@@ -51,6 +56,8 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskHeartbeatController,
     KioskTryOnSessionController,
     KioskTryOnController,
+    KioskTryOnShareController,
+    PublicTryOnShareController,
     KioskGarmentExtractionController,
     KioskCustomerUploadDeviceController,
     CustomerUploadCapabilityController,
@@ -61,6 +68,7 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskService,
     KioskCustomerUploadService,
     KioskTryOnService,
+    KioskTryOnShareService,
     CatalogService,
     KioskGarmentExtractionService,
     GarmentPreviewService,

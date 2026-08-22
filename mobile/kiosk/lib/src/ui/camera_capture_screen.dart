@@ -448,9 +448,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
                 alpha: 0.72,
               ),
               padding: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(17),
-              ),
+              shape: const StadiumBorder(),
             ),
             child: Icon(icon, size: 30),
           ),
@@ -486,9 +484,7 @@ class _CameraRailButton extends StatelessWidget {
           style: IconButton.styleFrom(
             backgroundColor: SelfxKioskTokens.surface,
             side: const BorderSide(color: SelfxKioskTokens.border),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            shape: const StadiumBorder(),
           ),
         ),
       ),

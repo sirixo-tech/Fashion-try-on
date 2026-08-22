@@ -167,6 +167,13 @@ class KioskTryOnLook {
   final DateTime expiresAt;
 }
 
+class KioskTryOnShare {
+  const KioskTryOnShare({required this.shareUrl, required this.expiresAt});
+
+  final String shareUrl;
+  final DateTime expiresAt;
+}
+
 class TryOnTargetPreparationMetadata {
   const TryOnTargetPreparationMetadata({
     required this.originalPath,

@@ -1,8 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 
 import {
   type SupportedImageMimeType,
@@ -33,7 +32,7 @@ interface DefaultCatalogAssetManifest {
   assets: DefaultCatalogAsset[];
 }
 
-const scriptDir = dirname(fileURLToPath(import.meta.url));
+const scriptDir = __dirname;
 const repoRoot = resolve(scriptDir, "../../../..");
 const defaultManifestPath = resolve(
   repoRoot,
@@ -62,7 +61,10 @@ async function main(): Promise<void> {
       declaredContentType: asset.contentType,
       maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
     });
-    if (metadata.mimeType !== "image/png" || asset.contentType !== "image/png") {
+    if (
+      metadata.mimeType !== "image/png" ||
+      asset.contentType !== "image/png"
+    ) {
       throw new Error(
         `${asset.localPath} must be a PNG because seed-catalog.ts stores image/png.`,
       );

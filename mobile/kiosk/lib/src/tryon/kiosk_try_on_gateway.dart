@@ -27,6 +27,8 @@ abstract class KioskTryOnSessionGateway {
 
   Future<List<KioskTryOnLook>> getSessionLooks(String sessionId);
 
+  Future<KioskTryOnShare> createSessionShare(String sessionId);
+
   Future<KioskTryOnSession> completeTryOnSession(String sessionId);
 }
 
@@ -181,6 +183,20 @@ class SelfxKioskTryOnGateway
       },
     );
     return _decodeLooks(response);
+  }
+
+  @override
+  Future<KioskTryOnShare> createSessionShare(String sessionId) async {
+    _assertConfigured();
+    final response = await _requestWithDeviceAuth(
+      forceRefresh: false,
+      requestFactory: (accessToken) {
+        return http.Request('POST', _sessionsUri('$sessionId/share'))
+          ..headers[HttpHeaders.authorizationHeader] =
+              'Bearer ${accessToken.trim()}';
+      },
+    );
+    return _decodeShare(response);
   }
 
   @override
@@ -377,6 +393,19 @@ class SelfxKioskTryOnGateway
           );
         })
         .toList(growable: false);
+  }
+
+  KioskTryOnShare _decodeShare(http.Response response) {
+    final json = _decodeObjectResponse(response);
+    final shareUrl = json['shareUrl'];
+    final expiresAt = DateTime.tryParse('${json['expiresAt']}');
+    if (shareUrl is! String || expiresAt == null) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.uploadFailed,
+        'SelfX Try-On share response was incomplete.',
+      );
+    }
+    return KioskTryOnShare(shareUrl: shareUrl, expiresAt: expiresAt);
   }
 
   Map<String, dynamic> _decodeObjectResponse(http.Response response) {

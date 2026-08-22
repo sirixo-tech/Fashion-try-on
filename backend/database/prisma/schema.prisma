@@ -224,6 +224,7 @@ model Organization {
   tryOnSessions          TryOnSession[]
   tryOnAssets            TryOnAsset[]
   tryOnLooks             TryOnLook[]
+  tryOnShareCapabilities TryOnShareCapability[]
   productCategories      ProductCategory[]
   products               Product[]
 
@@ -325,6 +326,7 @@ model Store {
   tryOnSessions TryOnSession[]
   tryOnAssets   TryOnAsset[]
   tryOnLooks    TryOnLook[]
+  tryOnShareCapabilities TryOnShareCapability[]
 
   @@unique([orgId, id])
   @@unique([orgId, code])
@@ -597,6 +599,7 @@ model KioskDevice {
   tryOnSessions          TryOnSession[]
   tryOnAssets            TryOnAsset[]
   tryOnLooks             TryOnLook[]
+  tryOnShareCapabilities TryOnShareCapability[]
   pairingSessions        KioskPairingSession[]
   sessions               KioskDeviceSession[]
   configuration          KioskDeviceConfiguration?
@@ -804,6 +807,7 @@ model TryOnSession {
   assets               TryOnAsset[]         @relation("TryOnSessionAssets")
   runs                 KioskTryOnRun[]
   looks                TryOnLook[]
+  shareCapabilities    TryOnShareCapability[]
 
   @@index([kioskDeviceId, status, createdAt])
   @@index([organizationId, createdAt])
@@ -888,6 +892,32 @@ model TryOnLook {
   @@index([resultAssetId])
   @@index([expiresAt])
   @@map("try_on_looks")
+}
+
+model TryOnShareCapability {
+  id               String               @id @db.Uuid
+  sessionId        String               @map("try_on_session_id") @db.Uuid
+  capabilityDigest String               @unique @map("capability_digest")
+  assignmentScope  KioskAssignmentScope @map("assignment_scope")
+  organizationId   String?              @map("organization_id") @db.Uuid
+  storeId          String?              @map("store_id") @db.Uuid
+  kioskDeviceId    String?              @map("kiosk_device_id") @db.Uuid
+  expiresAt        DateTime             @map("expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session          TryOnSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  organization     Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store            Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  kioskDevice      KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, expiresAt])
+  @@index([kioskDeviceId, expiresAt])
+  @@index([organizationId, expiresAt])
+  @@index([storeId, expiresAt])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("try_on_share_capabilities")
 }
 
 model AuditLog {

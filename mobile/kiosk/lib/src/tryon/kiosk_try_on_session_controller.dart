@@ -52,10 +52,12 @@ class KioskTryOnSessionController extends ChangeNotifier {
   bool _creatingSession = false;
   bool _attachingPerson = false;
   bool _refreshingLooks = false;
+  bool _creatingShare = false;
   bool _completingSession = false;
   bool _disposed = false;
   String? _activeClientRequestId;
   File? _preparedPersonFile;
+  KioskTryOnShare? _currentShare;
 
   bool get canActivateRuntimeConfiguration =>
       !customerSessionActive &&
@@ -67,6 +69,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
       run == null &&
       result == null &&
       status == KioskTryOnStatus.idle;
+
+  bool get creatingShare => _creatingShare;
 
   Future<bool> beginCustomerSession() async {
     if (!customerSessionActive) {
@@ -216,6 +220,45 @@ class KioskTryOnSessionController extends ChangeNotifier {
       sessionMessage = 'SelfX could not refresh your looks.';
     } finally {
       _refreshingLooks = false;
+      notifyListeners();
+    }
+  }
+
+  Future<KioskTryOnShare?> createSessionShare() async {
+    final cached = _currentShare;
+    if (cached != null && _shareIsReusable(cached)) {
+      return cached;
+    }
+    if (_creatingShare) {
+      return null;
+    }
+    final sessionId = activeSessionId;
+    if (sessionId == null) {
+      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      notifyListeners();
+      return null;
+    }
+    _creatingShare = true;
+    sessionMessage = null;
+    notifyListeners();
+    try {
+      final share = await _sessionGateway.createSessionShare(sessionId);
+      _currentShare = share;
+      return share;
+    } on KioskTryOnException {
+      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      return null;
+    } on TimeoutException {
+      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      return null;
+    } on SocketException {
+      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      return null;
+    } catch (_) {
+      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      return null;
+    } finally {
+      _creatingShare = false;
       notifyListeners();
     }
   }
@@ -517,20 +560,21 @@ class KioskTryOnSessionController extends ChangeNotifier {
     sessionStatus = null;
     sessionMessage = null;
     looks = const [];
+    _currentShare = null;
   }
 
   KioskTryOnSessionGateway get _sessionGateway {
-  final sessionGateway = gateway;
+    final sessionGateway = gateway;
 
-  if (sessionGateway is! KioskTryOnSessionGateway) {
-    throw const KioskTryOnException(
-      KioskTryOnFailureCode.configurationMissing,
-      'Try-On sessions are not available.',
-    );
+    if (sessionGateway is! KioskTryOnSessionGateway) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.configurationMissing,
+        'Try-On sessions are not available.',
+      );
+    }
+
+    return sessionGateway as KioskTryOnSessionGateway;
   }
-
-  return sessionGateway as KioskTryOnSessionGateway;
-}
 
   String _messageForStatus(KioskTryOnStatus status) {
     return switch (status) {
@@ -622,4 +666,9 @@ Future<void> _deleteIfPresent(String path) async {
   } catch (_) {
     // Temporary prepared inputs are best-effort cleanup only.
   }
+}
+
+bool _shareIsReusable(KioskTryOnShare share) {
+  return share.expiresAt.difference(DateTime.now()) >
+      const Duration(minutes: 1);
 }
