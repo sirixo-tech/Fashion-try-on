@@ -127,7 +127,10 @@ class CaptureSessionController extends ChangeNotifier {
     if (selected == null || !canFlipCamera) {
       return;
     }
-    final next = _nextCustomerCamera(state.devices, selected);
+    final refreshedDevices = await cameraService.rediscoverDevices();
+    final devices = refreshedDevices.isEmpty ? state.devices : refreshedDevices;
+    final current = _deviceById(devices, selected.id) ?? selected;
+    final next = _nextCustomerCamera(devices, current);
     if (next == null) {
       return;
     }
@@ -832,6 +835,15 @@ CameraDevice? _nextCustomerCamera(
   }
   for (final device in devices) {
     if (device.id != selected.id) {
+      return device;
+    }
+  }
+  return null;
+}
+
+CameraDevice? _deviceById(List<CameraDevice> devices, String id) {
+  for (final device in devices) {
+    if (device.id == id) {
       return device;
     }
   }

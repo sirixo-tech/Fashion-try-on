@@ -10,6 +10,7 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   ShieldAlertIcon,
+  StoreIcon,
   Trash2Icon,
   UploadIcon,
   Volume2Icon,
@@ -46,6 +47,7 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
+  assignKioskDeviceToStore,
   deleteKioskDevice,
   createKioskConfigurationAssetUploadIntent,
   getKioskConfiguration,
@@ -232,6 +234,7 @@ export default function KiosksPage() {
       />
       <KioskConfigurationDialog
         device={configurationDevice}
+        options={options}
         onOpenChange={(open) => {
           if (!open) {
             setConfigurationDevice(null);
@@ -499,6 +502,11 @@ type PresentationAssetFormItem = {
 };
 
 type KioskConfigurationDialogApi = {
+  assignStore: (
+    accessToken: string,
+    storeId: string,
+    deviceId: string,
+  ) => Promise<KioskDevice>;
   updateDevice: (
     accessToken: string,
     deviceId: string,
@@ -521,6 +529,7 @@ type KioskConfigurationDialogApi = {
 };
 
 const defaultKioskConfigurationDialogApi: KioskConfigurationDialogApi = {
+  assignStore: assignKioskDeviceToStore,
   updateDevice: updateKioskDevice,
   getConfiguration: getKioskConfiguration,
   updateConfiguration: updateKioskConfiguration,
@@ -529,11 +538,13 @@ const defaultKioskConfigurationDialogApi: KioskConfigurationDialogApi = {
 
 function KioskConfigurationDialog({
   device,
+  options,
   onOpenChange,
   onSaved,
   api = defaultKioskConfigurationDialogApi,
 }: {
   device: KioskDevice | null;
+  options: KioskAssignmentOptions;
   onOpenChange: (open: boolean) => void;
   onSaved: (configuration: KioskConfiguration, device?: KioskDevice) => void;
   api?: KioskConfigurationDialogApi;
@@ -543,6 +554,7 @@ function KioskConfigurationDialog({
     session.status === "authenticated" ? session.accessToken : null;
   const open = device !== null;
   const [displayName, setDisplayName] = useState("");
+  const [assignmentStoreId, setAssignmentStoreId] = useState("");
   const [form, setForm] = useState<KioskConfigurationForm>(defaultConfigForm());
   const [version, setVersion] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -569,6 +581,7 @@ function KioskConfigurationDialog({
 
   useEffect(() => {
     setDisplayName(device?.displayName ?? "");
+    setAssignmentStoreId(currentAssignmentStoreId(device));
   }, [device]);
 
   useEffect(() => {
@@ -591,9 +604,18 @@ function KioskConfigurationDialog({
       setError("Kiosk name is required.");
       return;
     }
+    const currentStoreId = currentAssignmentStoreId(device);
+    if (currentStoreId && !assignmentStoreId) {
+      setError("Choose a Store for this assigned kiosk.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
+      let updatedDevice =
+        assignmentStoreId && assignmentStoreId !== currentStoreId
+          ? await api.assignStore(accessToken, assignmentStoreId, device.id)
+          : undefined;
       const assets =
         form.presentationAssets.length > 0
           ? form.presentationAssets.map((asset) => ({
@@ -638,16 +660,16 @@ function KioskConfigurationDialog({
           },
         },
       );
-      const updatedDevice =
-        nextDisplayName !== device.displayName
-          ? await api.updateDevice(accessToken, device.id, {
-              displayName: nextDisplayName,
-            })
-          : undefined;
+      if (nextDisplayName !== (updatedDevice ?? device).displayName) {
+        updatedDevice = await api.updateDevice(accessToken, device.id, {
+          displayName: nextDisplayName,
+        });
+      }
       setVersion(configuration.version);
       setForm(formFromConfiguration(configuration));
       if (updatedDevice) {
         setDisplayName(updatedDevice.displayName);
+        setAssignmentStoreId(currentAssignmentStoreId(updatedDevice));
       }
       onSaved(configuration, updatedDevice);
     } catch (caught) {
@@ -730,9 +752,14 @@ function KioskConfigurationDialog({
     }
   }
 
+  const storeOptions = assignmentStoreOptions(options, device);
+  const currentStoreId = currentAssignmentStoreId(device);
+  const currentStoreName =
+    device?.assignment.organizationName ?? device?.assignment.storeName ?? null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Configure Kiosk</DialogTitle>
           <DialogDescription>
@@ -751,21 +778,59 @@ function KioskConfigurationDialog({
             Loading configuration...
           </div>
         ) : (
-          <div className="grid max-h-[72vh] gap-5 overflow-y-auto pr-1 lg:grid-cols-[1.1fr_0.9fr]">
-            <fieldset className="space-y-3 lg:col-span-2">
-              <legend className="text-sm font-semibold">Kiosk Details</legend>
-              <div className="max-w-md space-y-2 text-sm">
-                <Label htmlFor="configure-kiosk-name">Kiosk Name</Label>
-                <Input
-                  id="configure-kiosk-name"
-                  value={displayName}
-                  maxLength={160}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                />
+          <div className="grid max-h-[66vh] gap-4 overflow-y-auto pr-1 lg:grid-cols-[1.05fr_0.95fr]">
+            <fieldset className="rounded-xl border bg-card/70 p-4 shadow-sm lg:col-span-2">
+              <legend className="px-1 text-sm font-semibold">
+                Kiosk Details
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
+                <div className="space-y-2 text-sm">
+                  <Label htmlFor="configure-kiosk-name">Kiosk Name</Label>
+                  <Input
+                    id="configure-kiosk-name"
+                    value={displayName}
+                    maxLength={160}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 text-sm">
+                  <Label htmlFor="configure-kiosk-store">Store Assignment</Label>
+                  <div className="relative">
+                    <StoreIcon
+                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <select
+                      id="configure-kiosk-store"
+                      className="h-10 w-full rounded-full border bg-background py-2 pl-9 pr-9 text-sm outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
+                      value={assignmentStoreId}
+                      onChange={(event) =>
+                        setAssignmentStoreId(event.target.value)
+                      }
+                    >
+                      {!currentStoreId ? (
+                        <option value="">Platform fleet</option>
+                      ) : null}
+                      {storeOptions.map((store) => (
+                        <option key={store.id} value={store.id}>
+                          {store.name}
+                          {store.status !== "ACTIVE"
+                            ? ` (${store.status.toLowerCase()})`
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {currentStoreName
+                      ? `Currently assigned to ${currentStoreName}.`
+                      : "Assign this screen to a Store when it is ready for the floor."}
+                  </p>
+                </div>
               </div>
             </fieldset>
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-semibold">Display</legend>
+            <fieldset className="space-y-3 rounded-xl border bg-card/70 p-4 shadow-sm">
+              <legend className="px-1 text-sm font-semibold">Display</legend>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2 text-sm">
                   <Label>Idle Mode</Label>
@@ -857,8 +922,8 @@ function KioskConfigurationDialog({
               />
             </fieldset>
 
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-semibold">Capture</legend>
+            <fieldset className="space-y-3 rounded-xl border bg-card/70 p-4 shadow-sm">
+              <legend className="px-1 text-sm font-semibold">Capture</legend>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2 text-sm">
                   <Label>Countdown</Label>
@@ -943,8 +1008,10 @@ function KioskConfigurationDialog({
               </label>
             </fieldset>
 
-            <fieldset className="space-y-3 lg:col-start-2 lg:row-start-2">
-              <legend className="text-sm font-semibold">Experience</legend>
+            <fieldset className="space-y-3 rounded-xl border bg-card/70 p-4 shadow-sm lg:col-start-2 lg:row-start-2">
+              <legend className="px-1 text-sm font-semibold">
+                Experience
+              </legend>
               <div className="flex flex-wrap gap-3">
                 {garmentIntents.map((intent) => (
                   <label
@@ -977,7 +1044,7 @@ function KioskConfigurationDialog({
               </label>
             </fieldset>
 
-            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground lg:col-span-2">
+            <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground lg:col-span-2">
               Uploaded presentation images are stored through SelfX object
               storage and delivered to the paired kiosk as signed runtime
               configuration media URLs.
@@ -1169,6 +1236,37 @@ function assignmentLabel(device: KioskDevice): string {
     device.assignment.organizationName ?? "Store",
     device.assignment.storeName ?? "Store",
   ].join(" / ");
+}
+
+function currentAssignmentStoreId(device: KioskDevice | null): string {
+  if (!device || device.assignment.scope === "PLATFORM") {
+    return "";
+  }
+  return device.assignment.organizationId ?? device.assignment.storeId ?? "";
+}
+
+function assignmentStoreOptions(
+  options: KioskAssignmentOptions,
+  device: KioskDevice | null,
+): KioskAssignmentOptions["organizations"] {
+  const currentStoreId = currentAssignmentStoreId(device);
+  const stores = options.organizations.filter(
+    (store) => store.status === "ACTIVE" || store.id === currentStoreId,
+  );
+  if (
+    currentStoreId &&
+    !stores.some((store) => store.id === currentStoreId)
+  ) {
+    stores.unshift({
+      id: currentStoreId,
+      name:
+        device?.assignment.organizationName ??
+        device?.assignment.storeName ??
+        "Assigned Store",
+      status: "ACTIVE",
+    });
+  }
+  return stores;
 }
 
 function defaultConfigForm(): KioskConfigurationForm {

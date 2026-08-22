@@ -22,6 +22,7 @@ export type SelfxOrganizationOption = {
 export type SelfxUserSummary = {
   email: string;
   displayName?: string | null;
+  hasPlatformAccess?: boolean;
 };
 
 export type StateAction = {

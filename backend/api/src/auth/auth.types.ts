@@ -1,4 +1,7 @@
-import { type UserStatus } from "@prisma/client";
+import {
+  type PlatformRoleAssignmentStatus,
+  type UserStatus,
+} from "@prisma/client";
 
 export interface AuthUserRecord {
   id: string;
@@ -10,6 +13,12 @@ export interface AuthUserRecord {
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  platformRoleAssignments?: Array<{
+    status: PlatformRoleAssignmentStatus;
+  }>;
+  platformAccessRoleAssignments?: Array<{
+    status: PlatformRoleAssignmentStatus;
+  }>;
 }
 
 export interface AuthSessionRecord {
@@ -33,6 +42,7 @@ export interface AuthUserResponse {
   email: string;
   displayName: string | null;
   status: UserStatus;
+  hasPlatformAccess: boolean;
 }
 
 export interface RequestMetadata {

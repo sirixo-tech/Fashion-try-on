@@ -12,6 +12,9 @@ export class AuthUserDto {
 
   @ApiProperty()
   status!: string;
+
+  @ApiProperty()
+  hasPlatformAccess!: boolean;
 }
 
 export class AuthTokenResponseDto {

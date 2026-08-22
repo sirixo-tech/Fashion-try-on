@@ -181,6 +181,20 @@ export function updateKioskDevice(
   });
 }
 
+export function assignKioskDeviceToStore(
+  accessToken: string,
+  storeId: string,
+  deviceId: string,
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(
+    `/api/v1/admin/stores/${storeId}/kiosks/${deviceId}/assign`,
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
+}
+
 export function activateKioskDevice(
   accessToken: string,
   deviceId: string,

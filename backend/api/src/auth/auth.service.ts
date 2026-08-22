@@ -358,6 +358,9 @@ export function sanitizeUser(user: AuthUserRecord): AuthUserResponse {
     email: user.email,
     displayName: user.displayName,
     status: user.status,
+    hasPlatformAccess:
+      (user.platformRoleAssignments?.length ?? 0) > 0 ||
+      (user.platformAccessRoleAssignments?.length ?? 0) > 0,
   };
 }
 

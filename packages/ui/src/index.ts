@@ -1,5 +1,6 @@
 export { cn } from "./lib/utils";
-export { SelfxUiProvider } from "./theme/selfx-ui-provider";
+export { SelfxUiProvider, useSelfxTheme } from "./theme/selfx-ui-provider";
+export type { SelfxTheme } from "./theme/selfx-ui-provider";
 export { selfxDesignTokens } from "./theme/selfx-design-tokens";
 export { Alert, AlertDescription, AlertTitle } from "./components/alert";
 export { Avatar, AvatarFallback, AvatarImage } from "./components/avatar";

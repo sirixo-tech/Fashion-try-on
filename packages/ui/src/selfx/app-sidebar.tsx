@@ -7,9 +7,11 @@ import {
   ChevronRightIcon,
   CreditCardIcon,
   LogOutIcon,
+  MoonIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   SparklesIcon,
+  SunIcon,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@selfx/ui/components/avatar";
@@ -17,6 +19,7 @@ import { Button } from "@selfx/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -24,6 +27,7 @@ import {
 } from "@selfx/ui/components/dropdown-menu";
 import { SelfxLogo } from "./selfx-logo";
 import { cn } from "@selfx/ui/lib/utils";
+import { useSelfxTheme } from "../theme/selfx-ui-provider";
 import type { SelfxNavItem, SelfxUserSummary } from "./types";
 
 export function AppSidebar({
@@ -274,7 +278,7 @@ function navItemClass(active: boolean, collapsed: boolean): string {
     "group relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 font-sans text-[15px] font-medium leading-5 text-sidebar-muted transition-colors",
     "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
     active &&
-      "bg-[color-mix(in_srgb,var(--selfx-primary),white_88%)] text-sidebar-accent-foreground shadow-[0_1px_3px_rgba(15,23,42,0.14)] before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r-full before:bg-primary",
+      "bg-[color-mix(in_srgb,var(--selfx-primary),white_88%)] text-sidebar-accent-foreground shadow-[0_1px_3px_rgba(15,23,42,0.14)] before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-r-full before:bg-primary dark:bg-[color-mix(in_srgb,var(--selfx-primary),black_76%)] dark:shadow-none",
     collapsed && "justify-center gap-0 px-0",
   );
 }
@@ -309,6 +313,10 @@ function SidebarAccount({
   collapsed: boolean;
 }) {
   const initials = user ? initialsFor(user) : "SX";
+  const { theme, toggleTheme } = useSelfxTheme();
+  const nextThemeLabel = theme === "dark" ? "Light mode" : "Dark mode";
+  const ThemeIcon = theme === "dark" ? SunIcon : MoonIcon;
+  const showStoreCommercialActions = !user?.hasPlatformAccess;
 
   return (
     <DropdownMenu>
@@ -357,31 +365,48 @@ function SidebarAccount({
         sideOffset={8}
         className="w-72 rounded-xl border-sidebar-border bg-sidebar p-0 text-sidebar-foreground shadow-xl"
       >
-        <DropdownMenuLabel className="p-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar size="lg">
-              <AvatarFallback className="bg-muted font-sans text-sm font-semibold text-foreground">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <span className="block truncate font-sans text-[15px] font-medium leading-5">
-                {user?.displayName ?? "SelfX user"}
-              </span>
-              {user?.email ? (
-                <span className="block truncate font-sans text-[13px] font-normal leading-4 text-sidebar-muted">
-                  {user.email}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="p-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar size="lg">
+                <AvatarFallback className="bg-muted font-sans text-sm font-semibold text-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <span className="block truncate font-sans text-[15px] font-medium leading-5">
+                  {user?.displayName ?? "SelfX user"}
                 </span>
-              ) : null}
+                {user?.email ? (
+                  <span className="block truncate font-sans text-[13px] font-normal leading-4 text-sidebar-muted">
+                    {user.email}
+                  </span>
+                ) : null}
+              </div>
             </div>
-          </div>
-        </DropdownMenuLabel>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <AccountMenuItem icon={SparklesIcon} label="Upgrade to Pro" disabled />
-        <DropdownMenuSeparator />
+        {showStoreCommercialActions ? (
+          <>
+            <AccountMenuItem
+              icon={SparklesIcon}
+              label="Upgrade to Pro"
+              disabled
+            />
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <AccountMenuItem icon={BadgeCheckIcon} label="Account" disabled />
-        <AccountMenuItem icon={CreditCardIcon} label="Billing" disabled />
+        {showStoreCommercialActions ? (
+          <AccountMenuItem icon={CreditCardIcon} label="Billing" disabled />
+        ) : null}
         <AccountMenuItem icon={BellIcon} label="Notifications" disabled />
+        <AccountMenuItem
+          icon={ThemeIcon}
+          label={nextThemeLabel}
+          onClick={toggleTheme}
+        />
         <DropdownMenuSeparator />
         <AccountMenuItem icon={LogOutIcon} label="Log out" onClick={onLogout} />
       </DropdownMenuContent>
@@ -404,7 +429,7 @@ function AccountMenuItem({
     <DropdownMenuItem
       disabled={disabled}
       onClick={onClick}
-      className="min-h-11 cursor-pointer gap-3 px-3 font-sans text-[15px] font-medium leading-5 text-sidebar-foreground focus:bg-[color-mix(in_srgb,var(--selfx-primary),white_90%)] focus:text-sidebar-accent-foreground"
+      className="min-h-11 cursor-pointer gap-3 px-3 font-sans text-[15px] font-medium leading-5 text-sidebar-foreground focus:bg-[color-mix(in_srgb,var(--selfx-primary),white_90%)] focus:text-sidebar-accent-foreground dark:focus:bg-[color-mix(in_srgb,var(--selfx-primary),black_76%)]"
     >
       <Icon size={17} strokeWidth={1.9} aria-hidden="true" />
       {label}

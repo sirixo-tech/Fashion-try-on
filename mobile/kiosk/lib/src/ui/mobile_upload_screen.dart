@@ -40,6 +40,8 @@ class MobileUploadScreen extends StatefulWidget {
 
 class _MobileUploadScreenState extends State<MobileUploadScreen> {
   Timer? _tickTimer;
+  bool _handoffInProgress = false;
+  String? _handoffMessage;
 
   @override
   void initState() {
@@ -78,17 +80,17 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
           final session = widget.uploadController.session;
           final message =
               widget.uploadController.message ?? 'Preparing secure upload...';
+          if (_handoffInProgress) {
+            return _UploadProcessingPanel(
+              message: _handoffMessage ?? 'Opening uploaded photo...',
+            );
+          }
           if (session?.status == KioskCustomerUploadStatus.ready &&
               session?.photo != null) {
             return _ReadyPhotoPanel(
               controller: widget.uploadController,
-              captureController: widget.captureController,
-              tryOnController: widget.tryOnController,
-              catalogGateway: widget.catalogGateway,
-              purpose: widget.purpose,
-              garmentIntent: widget.garmentIntent,
-              extractionService: widget.extractionService,
               session: session!,
+              onUseReadyUpload: _useReadyUpload,
             );
           }
           if (widget.uploadController.flowState ==
@@ -121,6 +123,89 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _useReadyUpload() async {
+    if (_handoffInProgress) {
+      return;
+    }
+    setState(() {
+      _handoffInProgress = true;
+      _handoffMessage = widget.purpose == PhotoAcquisitionPurpose.garment
+          ? 'Opening garment photo...'
+          : 'Opening uploaded photo...';
+    });
+
+    if (widget.purpose == PhotoAcquisitionPurpose.garment) {
+      final input = await widget.uploadController.useReadyGarment(
+        intent: widget.garmentIntent ?? KioskGarmentIntent.auto,
+      );
+      if (input == null || !mounted) {
+        _stopHandoff();
+        return;
+      }
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => GarmentReviewScreen(
+            captureController: widget.captureController,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
+            garmentInput: input,
+            extractionService: widget.extractionService,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final accepted = await widget.uploadController.useReadyPhoto(
+      widget.captureController,
+    );
+    if (!accepted || !mounted) {
+      _stopHandoff();
+      return;
+    }
+    setState(() => _handoffMessage = 'Saving uploaded photo...');
+    final attached = await widget.tryOnController.attachAcceptedPerson(
+      widget.captureController,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!attached) {
+      _stopHandoff();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.tryOnController.sessionMessage ??
+                'SelfX could not save this photo for reuse.',
+          ),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => GarmentSelectionScreen(
+          captureController: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+        ),
+      ),
+    );
+  }
+
+  void _stopHandoff() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _handoffInProgress = false;
+      _handoffMessage = null;
+    });
   }
 }
 
@@ -321,26 +406,50 @@ class _UploadFailurePanel extends StatelessWidget {
   }
 }
 
+class _UploadProcessingPanel extends StatelessWidget {
+  const _UploadProcessingPanel({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(30),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ReadyPhotoPanel extends StatelessWidget {
   const _ReadyPhotoPanel({
     required this.controller,
-    required this.captureController,
-    required this.tryOnController,
-    required this.catalogGateway,
-    required this.purpose,
-    required this.extractionService,
-    this.garmentIntent,
     required this.session,
+    required this.onUseReadyUpload,
   });
 
   final KioskCustomerUploadController controller;
-  final CaptureSessionController captureController;
-  final KioskTryOnSessionController tryOnController;
-  final KioskCatalogGateway catalogGateway;
-  final PhotoAcquisitionPurpose purpose;
-  final GarmentExtractionService extractionService;
-  final KioskGarmentIntent? garmentIntent;
   final KioskCustomerUploadSession session;
+  final Future<void> Function() onUseReadyUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -377,63 +486,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
               key: const Key('use-mobile-photo'),
               onPressed: controller.isBusy
                   ? null
-                  : () async {
-                      if (purpose == PhotoAcquisitionPurpose.garment) {
-                        final input = await controller.useReadyGarment(
-                          intent:
-                              garmentIntent ?? KioskGarmentIntent.fullOutfit,
-                        );
-                        if (input == null || !context.mounted) {
-                          return;
-                        }
-                        await Navigator.of(context).pushReplacement(
-                          MaterialPageRoute<void>(
-                            builder: (_) => GarmentReviewScreen(
-                              captureController: captureController,
-                              tryOnController: tryOnController,
-                              uploadController: controller,
-                              catalogGateway: catalogGateway,
-                              garmentInput: input,
-                              extractionService: extractionService,
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      final accepted = await controller.useReadyPhoto(
-                        captureController,
-                      );
-                      if (!accepted || !context.mounted) {
-                        return;
-                      }
-                      final attached = await tryOnController
-                          .attachAcceptedPerson(captureController);
-                      if (!context.mounted) {
-                        return;
-                      }
-                      if (!attached) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              tryOnController.sessionMessage ??
-                                  'SelfX could not save this photo for reuse.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      await Navigator.of(context).pushReplacement(
-                        MaterialPageRoute<void>(
-                          builder: (_) => GarmentSelectionScreen(
-                            captureController: captureController,
-                            tryOnController: tryOnController,
-                            uploadController: controller,
-                            catalogGateway: catalogGateway,
-                            extractionService: extractionService,
-                          ),
-                        ),
-                      );
-                    },
+                  : () => unawaited(onUseReadyUpload()),
               icon: const Icon(Icons.check_circle_outline),
               label: const Text('Continue'),
             ),

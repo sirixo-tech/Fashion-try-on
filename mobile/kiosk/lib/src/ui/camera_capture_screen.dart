@@ -183,7 +183,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
     final garmentInput = KioskGarmentInput(
       source: KioskGarmentInputSource.capturedGarment,
       localPath: capturePath,
-      intent: widget.garmentIntent ?? KioskGarmentIntent.fullOutfit,
+      intent: widget.garmentIntent ?? KioskGarmentIntent.auto,
       photoType: resolveGarmentReferenceProfile(
         bodyContext: widget.controller.captureTargetMetadata,
       ).photoType,

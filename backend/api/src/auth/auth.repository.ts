@@ -16,11 +16,17 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
 
   async findUserByEmail(email: string): Promise<AuthUserRecord | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+    return this.prisma.user.findUnique({
+      where: { email },
+      include: activePlatformAccessInclude,
+    });
   }
 
   async findUserById(userId: string): Promise<AuthUserRecord | null> {
-    return this.prisma.user.findUnique({ where: { id: userId } });
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      include: activePlatformAccessInclude,
+    });
   }
 
   async updateUserLogin(userId: string, loggedInAt: Date): Promise<void> {
@@ -57,7 +63,7 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
   ): Promise<AuthSessionWithUserRecord | null> {
     return this.prisma.userSession.findUnique({
       where: { id: sessionId },
-      include: { user: true },
+      include: { user: { include: activePlatformAccessInclude } },
     });
   }
 
@@ -122,3 +128,14 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
     });
   }
 }
+
+const activePlatformAccessInclude = {
+  platformRoleAssignments: {
+    where: { status: "ACTIVE" },
+    select: { status: true },
+  },
+  platformAccessRoleAssignments: {
+    where: { status: "ACTIVE" },
+    select: { status: true },
+  },
+} satisfies Prisma.UserInclude;

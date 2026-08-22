@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import KiosksPage from "../app/app/kiosks/page";
 import {
+  assignKioskDeviceToStore,
   createKioskConfigurationAssetUploadIntent,
   getKioskConfiguration,
   listKioskAssignmentOptions,
@@ -18,6 +19,7 @@ vi.mock("@/lib/session", () => ({
 
 vi.mock("@/lib/kiosks", () => ({
   activateKioskDevice: vi.fn(),
+  assignKioskDeviceToStore: vi.fn(),
   createKioskConfigurationAssetUploadIntent: vi.fn(),
   deactivateKioskDevice: vi.fn(),
   deleteKioskDevice: vi.fn(),
@@ -113,6 +115,7 @@ describe("Kiosks configuration UI", () => {
       version: 5,
     } as never);
     vi.mocked(updateKioskDevice).mockResolvedValue(device as never);
+    vi.mocked(assignKioskDeviceToStore).mockResolvedValue(device as never);
     vi.mocked(createKioskConfigurationAssetUploadIntent).mockResolvedValue({
       assetRef: "asset-ref",
       type: "UPLOADED_IMAGE",
@@ -188,6 +191,34 @@ describe("Kiosks configuration UI", () => {
           enabledGarmentIntents: ["TOP", "BOTTOM"],
         }),
       }),
+    );
+  });
+
+  it("assigns a configured kiosk to a selected Store", async () => {
+    vi.mocked(listKioskAssignmentOptions).mockResolvedValue({
+      organizations: [
+        {
+          id: "01b0006a-0000-7000-8000-000000000010",
+          name: "SelfX Demo Store",
+          status: "ACTIVE",
+        },
+      ],
+      stores: [],
+    });
+
+    render(<KiosksPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
+    fireEvent.change(await screen.findByLabelText("Store Assignment"), {
+      target: { value: "01b0006a-0000-7000-8000-000000000010" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save Changes/i }));
+
+    await waitFor(() => expect(assignKioskDeviceToStore).toHaveBeenCalled());
+    expect(assignKioskDeviceToStore).toHaveBeenCalledWith(
+      "staff-token",
+      "01b0006a-0000-7000-8000-000000000010",
+      device.id,
     );
   });
 });

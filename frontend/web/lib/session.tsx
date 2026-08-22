@@ -18,6 +18,7 @@ export type StaffUser = {
   email: string;
   displayName: string | null;
   status: string;
+  hasPlatformAccess: boolean;
 };
 
 type AuthTokenResponse = {
