@@ -316,7 +316,7 @@ function SidebarAccount({
   const { theme, toggleTheme } = useSelfxTheme();
   const nextThemeLabel = theme === "dark" ? "Light mode" : "Dark mode";
   const ThemeIcon = theme === "dark" ? SunIcon : MoonIcon;
-  const showStoreCommercialActions = !user?.hasPlatformAccess;
+  const showStoreCommercialActions = user?.hasPlatformAccess === false;
 
   return (
     <DropdownMenu>

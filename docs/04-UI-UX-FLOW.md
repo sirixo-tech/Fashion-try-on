@@ -60,6 +60,9 @@ SelfX Platform
   asking for a legacy Organization or child Store.
 - Manage configuration opens the existing KIOSK-6A/KIOSK-6B kiosk
   configuration dialog through nested Store routes.
+- Store Permissions, Store Users and Store Roles are not shown on the Store
+  dashboard. Store detail should remain focused on Store profile, kiosk fleet
+  and runtime operations.
 
 Visible product copy on these screens should say Store/Stores/Store Dashboard/
 Store Kiosks. Organization terminology is allowed only as an internal
@@ -71,7 +74,8 @@ diagnostic or implementation detail outside normal product copy.
 
 **Status:** UPDATED
 
-Store dashboards include two RBAC sections:
+Store-scoped access control uses dedicated RBAC views rather than inline Store
+dashboard sections:
 
 - Store Users: list existing Store memberships, membership status, assigned
   Store roles and actions to add an existing user, edit assigned roles, activate
@@ -85,9 +89,9 @@ permission codes. If an email is not an existing SelfX user, the UI must surface
 the deferred invitation state rather than pretending an invitation was sent.
 
 Store dashboard actions must be capability-aware: missing Store permissions hide
-or disable kiosk configuration, user mutation and role-editing controls. This is
-only a UX affordance; every protected action must still be enforced by the API.
-Store user screens must not expose protected platform or Superadmin controls.
+or disable kiosk configuration and Store mutation controls. This is only a UX
+affordance; every protected action must still be enforced by the API. Store user
+screens must not expose protected platform or Superadmin controls.
 
 ---
 
@@ -105,11 +109,11 @@ Access Control appears as a global SaaS navigation group with:
   assignments. Protected bootstrap Superadmins are shown as protected and are
   not editable through this screen.
 
-Store dashboards also show Store Permissions, the SelfX-granted permission
-ceiling for that Store. Store users can see granted/unavailable permissions
-when authorized. Superadmin users may update Store grants. Store role forms
-must disable permissions that are unavailable to the Store and must not allow a
-Store role to delegate a permission outside the current ceiling.
+Dedicated Store access-control views show Store Permissions, the SelfX-granted
+permission ceiling for that Store. Store users can see granted/unavailable
+permissions when authorized. Superadmin users may update Store grants. Store
+role forms must disable permissions that are unavailable to the Store and must
+not allow a Store role to delegate a permission outside the current ceiling.
 
 ---
 

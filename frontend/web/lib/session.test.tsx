@@ -46,6 +46,7 @@ const staffUser: StaffUser = {
   email: "owner@example.test",
   displayName: "Owner",
   status: "ACTIVE",
+  hasPlatformAccess: false,
 };
 
 function jsonResponse(body: unknown, status = 200): FetchResponse {

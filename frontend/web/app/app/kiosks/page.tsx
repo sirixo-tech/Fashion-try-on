@@ -10,7 +10,6 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   ShieldAlertIcon,
-  StoreIcon,
   Trash2Icon,
   UploadIcon,
   Volume2Icon,
@@ -794,33 +793,24 @@ function KioskConfigurationDialog({
                   />
                 </div>
                 <div className="space-y-2 text-sm">
-                  <Label htmlFor="configure-kiosk-store">Store Assignment</Label>
-                  <div className="relative">
-                    <StoreIcon
-                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    <select
-                      id="configure-kiosk-store"
-                      className="h-10 w-full rounded-full border bg-background py-2 pl-9 pr-9 text-sm outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
-                      value={assignmentStoreId}
-                      onChange={(event) =>
-                        setAssignmentStoreId(event.target.value)
-                      }
-                    >
-                      {!currentStoreId ? (
-                        <option value="">Platform fleet</option>
-                      ) : null}
-                      {storeOptions.map((store) => (
-                        <option key={store.id} value={store.id}>
-                          {store.name}
-                          {store.status !== "ACTIVE"
-                            ? ` (${store.status.toLowerCase()})`
-                            : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Label>Store Assignment</Label>
+                  <SelectMenu
+                    ariaLabel="Store assignment"
+                    value={assignmentStoreId}
+                    options={[
+                      ...(!currentStoreId
+                        ? [{ value: "", label: "Platform fleet" }]
+                        : []),
+                      ...storeOptions.map((store) => ({
+                        value: store.id,
+                        label:
+                          store.status === "ACTIVE"
+                            ? store.name
+                            : `${store.name} (${store.status.toLowerCase()})`,
+                      })),
+                    ]}
+                    onChange={(value) => setAssignmentStoreId(value)}
+                  />
                   <p className="text-xs text-muted-foreground">
                     {currentStoreName
                       ? `Currently assigned to ${currentStoreName}.`
@@ -906,23 +896,9 @@ function KioskConfigurationDialog({
                   }
                 />
               </label>
-              <PresentationAssetUploader
-                assets={form.presentationAssets}
-                idleMode={form.idleMode}
-                uploading={uploading}
-                onUpload={(files) => void uploadPresentationAssets(files)}
-                onRemove={(assetId) =>
-                  setForm((current) => ({
-                    ...current,
-                    presentationAssets: current.presentationAssets.filter(
-                      (asset) => asset.id !== assetId,
-                    ),
-                  }))
-                }
-              />
             </fieldset>
 
-            <fieldset className="space-y-3 rounded-xl border bg-card/70 p-4 shadow-sm">
+            <fieldset className="space-y-3 rounded-xl border bg-card/70 p-4 shadow-sm lg:col-start-2 lg:row-start-2">
               <legend className="px-1 text-sm font-semibold">Capture</legend>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2 text-sm">
@@ -945,7 +921,7 @@ function KioskConfigurationDialog({
                 </div>
                 <div className="space-y-2 text-sm">
                   <Label>Sound Profile</Label>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                     <SelectMenu
                       ariaLabel="Sound profile"
                       value={form.soundProfile}
@@ -966,6 +942,7 @@ function KioskConfigurationDialog({
                       type="button"
                       variant="outline"
                       size="icon"
+                      className="shrink-0"
                       aria-label="Sound preview unavailable"
                       title="Sound preview is unavailable until web-served kiosk sound assets are added."
                       disabled
@@ -1008,7 +985,7 @@ function KioskConfigurationDialog({
               </label>
             </fieldset>
 
-            <fieldset className="space-y-3 rounded-xl border bg-card/70 p-4 shadow-sm lg:col-start-2 lg:row-start-2">
+            <fieldset className="space-y-3 rounded-xl border bg-card/70 p-4 shadow-sm lg:col-span-2">
               <legend className="px-1 text-sm font-semibold">
                 Experience
               </legend>
@@ -1042,6 +1019,26 @@ function KioskConfigurationDialog({
                   }
                 />
               </label>
+            </fieldset>
+
+            <fieldset className="rounded-xl border bg-card/70 p-4 shadow-sm lg:col-span-2">
+              <legend className="px-1 text-sm font-semibold">
+                Presentation Image
+              </legend>
+              <PresentationAssetUploader
+                assets={form.presentationAssets}
+                idleMode={form.idleMode}
+                uploading={uploading}
+                onUpload={(files) => void uploadPresentationAssets(files)}
+                onRemove={(assetId) =>
+                  setForm((current) => ({
+                    ...current,
+                    presentationAssets: current.presentationAssets.filter(
+                      (asset) => asset.id !== assetId,
+                    ),
+                  }))
+                }
+              />
             </fieldset>
 
             <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground lg:col-span-2">
@@ -1094,10 +1091,18 @@ function PresentationAssetUploader({
   onRemove: (assetId: string) => void;
 }) {
   const inputId = "presentation-asset-upload";
+  const currentAsset = assets[0] ?? null;
+  const currentPreviewUrl = currentAsset?.previewUrl ?? currentAsset?.url ?? "";
+  const currentDescription = currentAsset
+    ? currentAsset.type === "REMOTE_IMAGE"
+      ? "Hosted image"
+      : formatFileSize(currentAsset.sizeBytes)
+    : "Bundled kiosk image";
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label htmlFor={inputId}>Presentation Image</Label>
+        <Label htmlFor={inputId}>Current wallpaper</Label>
         <label
           htmlFor={inputId}
           className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
@@ -1121,58 +1126,107 @@ function PresentationAssetUploader({
           }}
         />
       </div>
-      <div className="grid gap-2">
-        {assets.length === 0 ? (
-          <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
-            <div className="grid size-10 place-items-center rounded-md bg-background text-muted-foreground">
-              <ImageIcon size={18} aria-hidden="true" />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(14rem,0.9fr)]">
+        <div className="rounded-lg border bg-background p-2">
+          <div className="aspect-video overflow-hidden rounded-md border bg-muted">
+            {currentPreviewUrl ? (
+              <img
+                src={currentPreviewUrl}
+                alt=""
+                className="size-full object-cover"
+              />
+            ) : (
+              <DefaultWallpaperPreview />
+            )}
+          </div>
+          <div className="mt-2 min-w-0">
+            <div className="truncate text-sm font-medium">
+              {currentAsset?.label ?? "SelfX default wallpaper"}
             </div>
-            <div>
-              <div className="font-medium">SelfX default wallpaper</div>
-              <div className="text-xs text-muted-foreground">
-                Bundled kiosk image
-              </div>
+            <div className="text-xs text-muted-foreground">
+              {currentDescription}
             </div>
           </div>
-        ) : (
-          assets.map((asset) => (
-            <div
-              key={asset.id}
-              className="flex items-center gap-3 rounded-md border bg-background p-2"
-            >
-              <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-md bg-muted">
-                {asset.previewUrl || asset.url ? (
-                  <img
-                    src={asset.previewUrl ?? asset.url ?? ""}
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                ) : (
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-xs font-medium uppercase text-muted-foreground">
+            Available images
+          </div>
+          <div className="grid gap-2">
+            {assets.length === 0 ? (
+              <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
+                <div className="grid size-10 place-items-center rounded-md bg-background text-muted-foreground">
                   <ImageIcon size={18} aria-hidden="true" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">
-                  {asset.label}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {asset.type === "REMOTE_IMAGE"
-                    ? "Hosted image"
-                    : formatFileSize(asset.sizeBytes)}
+                <div>
+                  <div className="font-medium">SelfX default wallpaper</div>
+                  <div className="text-xs text-muted-foreground">
+                    Active wallpaper
+                  </div>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${asset.label}`}
-                onClick={() => onRemove(asset.id)}
-              >
-                <XIcon aria-hidden="true" />
-              </Button>
-            </div>
-          ))
-        )}
+            ) : (
+              assets.map((asset, index) => (
+                <div
+                  key={asset.id}
+                  className="flex items-center gap-3 rounded-md border bg-background p-2"
+                >
+                  <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-md bg-muted">
+                    {asset.previewUrl || asset.url ? (
+                      <img
+                        src={asset.previewUrl ?? asset.url ?? ""}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon size={18} aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      {asset.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {index === 0 ? "Current wallpaper" : "Queued image"}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${asset.label}`}
+                    onClick={() => onRemove(asset.id)}
+                  >
+                    <XIcon aria-hidden="true" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DefaultWallpaperPreview() {
+  return (
+    <div className="relative flex size-full overflow-hidden bg-zinc-950 text-white">
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,#09090b_0%,#18181b_58%,#7c2d12_100%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-16 bg-black/35" />
+      <div className="relative flex size-full flex-col justify-end p-5">
+        <div className="max-w-[78%]">
+          <div className="text-lg font-semibold leading-tight">
+            SelfX Virtual Try-On
+          </div>
+          <div className="mt-1 text-xs text-white/75">
+            Find your perfect fit in seconds.
+          </div>
+          <div className="mt-3 inline-flex rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
+            Start Try-On
+          </div>
+        </div>
       </div>
     </div>
   );

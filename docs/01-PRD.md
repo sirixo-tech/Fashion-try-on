@@ -85,8 +85,8 @@ Product rules:
    platform administration role.
 5. Permission definitions and Store role assignment are initially controlled by
    authorized SelfX platform administrators.
-6. Store management UI includes Store Users and Store Roles views under the
-   Store dashboard.
+6. Store management UI includes Store Users and Store Roles views in dedicated
+   Store-scoped access-control surfaces, separate from the Store dashboard.
 7. Email invitations are deferred in RBAC-1; the initial add-user flow may add
    existing SelfX users only and must report `EMAIL_INVITATION_FLOW_DEFERRED`
    when the target account does not exist.

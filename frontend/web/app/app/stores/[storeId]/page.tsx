@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIcon,
   ArrowLeftIcon,
-  PencilIcon,
+  Clock3Icon,
+  GlobeIcon,
+  MailIcon,
+  MapPinIcon,
   MonitorIcon,
+  PhoneIcon,
   PlusIcon,
   RefreshCwIcon,
   SettingsIcon,
   ShieldAlertIcon,
-  ShieldCheckIcon,
-  Trash2Icon,
-  UserPlusIcon,
-  UsersIcon,
 } from "lucide-react";
 
 import {
@@ -41,7 +43,6 @@ import {
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
-import { replaceStorePermissionGrants } from "@/lib/access-control";
 import {
   type KioskConfiguration,
   type KioskConfigurationAssetType,
@@ -51,31 +52,18 @@ import {
 import { useSession } from "@/lib/session";
 import {
   activateStore,
-  addStoreUser,
-  createStoreRole,
-  deleteStoreRole,
   deactivateStore,
   getEffectiveStorePermissions,
   getStore,
   getStoreKioskConfiguration,
   getStoreVirtualTryOnSettings,
-  listStorePermissions,
-  listStoreRoles,
-  listStoreUsers,
   pairStoreKiosk,
-  replaceStoreRolePermissions,
-  replaceStoreUserRoles,
   updateStore,
   updateStoreKioskConfiguration,
-  updateStoreRole,
   updateStoreVirtualTryOnSettings,
-  updateStoreUserStatus,
   type AdminStoreDetail,
-  type StorePermission,
   type StoreInput,
-  type StoreRole,
   type StoreVirtualTryOnSettings,
-  type StoreUser,
 } from "@/lib/stores";
 
 export default function StoreDashboardPage() {
@@ -87,12 +75,6 @@ export default function StoreDashboardPage() {
   const [store, setStore] = useState<AdminStoreDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [roles, setRoles] = useState<StoreRole[]>([]);
-  const [users, setUsers] = useState<StoreUser[]>([]);
-  const [permissions, setPermissions] = useState<StorePermission[]>([]);
-  const [permissionGrantCodes, setPermissionGrantCodes] = useState<string[]>(
-    [],
-  );
   const [storeTryOnSettings, setStoreTryOnSettings] =
     useState<StoreVirtualTryOnSettings | null>(null);
   const [effectivePermissions, setEffectivePermissions] = useState<string[]>(
@@ -101,9 +83,6 @@ export default function StoreDashboardPage() {
   const [platformBypass, setPlatformBypass] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [roleDialog, setRoleDialog] = useState<StoreRole | "new" | null>(null);
-  const [userDialog, setUserDialog] = useState<StoreUser | "new" | null>(null);
-  const [savingPermissionGrants, setSavingPermissionGrants] = useState(false);
   const [savingStoreTryOnSettings, setSavingStoreTryOnSettings] =
     useState(false);
   const [configurationDevice, setConfigurationDevice] =
@@ -123,39 +102,8 @@ export default function StoreDashboardPage() {
           getStoreVirtualTryOnSettings(accessToken, storeId),
         ]);
       const nextEffectivePermissionCodes = nextEffectivePermissions.permissions;
-      const canLoadRoles =
-        hasStorePermission(nextEffectivePermissionCodes, "roles.view") ||
-        hasStorePermission(nextEffectivePermissionCodes, "roles.assign") ||
-        hasStorePermission(nextEffectivePermissionCodes, "users.invite");
-      const canLoadUsers = hasStorePermission(
-        nextEffectivePermissionCodes,
-        "users.view",
-      );
-      const canLoadPermissionCatalog =
-        hasStorePermission(nextEffectivePermissionCodes, "roles.view") ||
-        hasStorePermission(nextEffectivePermissionCodes, "roles.create") ||
-        hasStorePermission(nextEffectivePermissionCodes, "roles.update");
-      const [nextRoles, nextUsers, nextPermissions] = await Promise.all([
-        canLoadRoles
-          ? listStoreRoles(accessToken, storeId, { pageSize: 100 })
-          : Promise.resolve(emptyStoreList<StoreRole>()),
-        canLoadUsers
-          ? listStoreUsers(accessToken, storeId, { pageSize: 100 })
-          : Promise.resolve(emptyStoreList<StoreUser>()),
-        canLoadPermissionCatalog
-          ? listStorePermissions(accessToken, storeId)
-          : Promise.resolve({ data: [] as StorePermission[] }),
-      ]);
       setStore(nextStore);
       setStoreTryOnSettings(nextStoreTryOnSettings);
-      setRoles(nextRoles.data);
-      setUsers(nextUsers.data);
-      setPermissions(nextPermissions.data);
-      setPermissionGrantCodes(
-        nextPermissions.data
-          .filter((permission) => permission.granted)
-          .map((permission) => permission.code),
-      );
       setEffectivePermissions(nextEffectivePermissionCodes);
       setPlatformBypass(nextEffectivePermissions.platformBypass);
     } catch (caught) {
@@ -176,14 +124,12 @@ export default function StoreDashboardPage() {
   );
   const canPairKiosks = can("kiosks.pair");
   const canConfigureKiosks = can("kiosks.configure");
-  const canInviteUsers = can("users.invite");
-  const canAssignRoles = can("roles.assign");
-  const canDeactivateUsers = can("users.deactivate");
-  const canManageUsers = canAssignRoles || canDeactivateUsers;
-  const canCreateRoles = can("roles.create");
-  const canUpdateRoles = can("roles.update");
-  const canDeleteRoles = can("roles.delete");
   const canUpdateStore = can("stores.update");
+  const location = store ? storeLocation(store) : "";
+  const activeKioskShare =
+    store && store.totalKiosks > 0
+      ? Math.round((store.activeKiosks / store.totalKiosks) * 100)
+      : 0;
   const garmentPreviewControlDisabled =
     !canUpdateStore ||
     savingStoreTryOnSettings ||
@@ -197,8 +143,8 @@ export default function StoreDashboardPage() {
         title={store?.name ?? "Store"}
         description={
           store
-            ? storeLocation(store) || "Manage Store kiosks."
-            : "Manage Store kiosks."
+            ? location || "Store operations and kiosk runtime settings."
+            : "Store operations and kiosk runtime settings."
         }
         actions={
           <div className="flex flex-wrap gap-2">
@@ -236,19 +182,36 @@ export default function StoreDashboardPage() {
       ) : null}
 
       <PageSection>
-        <div className="grid gap-4 md:grid-cols-4">
-          <MetricCard label="Total Kiosks" value={store?.totalKiosks ?? 0} />
-          <MetricCard label="Active Kiosks" value={store?.activeKiosks ?? 0} />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Total Kiosks"
+            value={store?.totalKiosks ?? 0}
+            icon={<MonitorIcon size={18} aria-hidden="true" />}
+            caption="Paired devices"
+          />
+          <MetricCard
+            label="Active Kiosks"
+            value={store?.activeKiosks ?? 0}
+            icon={<ActivityIcon size={18} aria-hidden="true" />}
+            caption={`${activeKioskShare}% fleet active`}
+          />
           <MetricCard
             label="Last Activity"
             value={formatDate(store?.lastActivityAt ?? null)}
+            icon={<Clock3Icon size={18} aria-hidden="true" />}
+            caption="Most recent kiosk signal"
           />
-          <MetricCard label="Configurable" value={kiosks.length} />
+          <MetricCard
+            label="Configuration"
+            value={kiosks.length}
+            icon={<SettingsIcon size={18} aria-hidden="true" />}
+            caption="Kiosks ready to manage"
+          />
         </div>
       </PageSection>
 
       <PageSection>
-        <div className="grid gap-5 lg:grid-cols-[1.5fr_0.75fr]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.55fr)]">
           <TableContainer
             title="Store Kiosks"
             description="Kiosks assigned to this Store. Configuration remains attached to each kiosk device."
@@ -324,23 +287,64 @@ export default function StoreDashboardPage() {
             </Table>
           </TableContainer>
 
-          <TableContainer title="Store Settings" description="Store details">
+          <div className="rounded-xl border bg-card p-5 shadow-sm">
             {store ? (
-              <div className="space-y-4 text-sm">
-                <DetailRow label="Slug" value={`/${store.slug}`} />
-                <DetailRow label="Contact" value={store.contactEmail ?? "-"} />
-                <DetailRow label="Phone" value={store.contactPhone ?? "-"} />
-                <DetailRow label="Website" value={store.website ?? "-"} />
-                <DetailRow label="Timezone" value={store.timezone} />
-                {storeTryOnSettings ? (
-                  <div className="rounded-lg border p-3">
-                    <div className="text-xs font-medium uppercase text-muted-foreground">
-                      Virtual Try-On
+              <div className="space-y-5">
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">Store Settings</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Store profile and runtime preferences.
+                      </p>
                     </div>
-                    <label className="mt-3 flex items-start gap-3">
+                    <StatusBadge status={store.status} label={store.status} />
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <StoreInfoRow
+                    icon={<MapPinIcon size={16} aria-hidden="true" />}
+                    label="Store URL"
+                    value={`/${store.slug}`}
+                  />
+                  <StoreInfoRow
+                    icon={<MailIcon size={16} aria-hidden="true" />}
+                    label="Contact"
+                    value={store.contactEmail ?? "-"}
+                  />
+                  <StoreInfoRow
+                    icon={<PhoneIcon size={16} aria-hidden="true" />}
+                    label="Phone"
+                    value={store.contactPhone ?? "-"}
+                  />
+                  <StoreInfoRow
+                    icon={<GlobeIcon size={16} aria-hidden="true" />}
+                    label="Website"
+                    value={store.website ?? "-"}
+                  />
+                  <StoreInfoRow
+                    icon={<Clock3Icon size={16} aria-hidden="true" />}
+                    label="Timezone"
+                    value={store.timezone}
+                  />
+                </div>
+
+                {storeTryOnSettings ? (
+                  <div className="rounded-lg border bg-muted/25 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">
+                          Captured Garment Preview
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Show the extracted garment preview after a garment is
+                          photographed.
+                        </p>
+                      </div>
                       <input
                         type="checkbox"
-                        className="mt-1"
+                        className="mt-1 size-4"
                         checked={storeTryOnSettings.storeGarmentPreviewEnabled}
                         disabled={garmentPreviewControlDisabled}
                         onChange={(event) =>
@@ -349,27 +353,18 @@ export default function StoreDashboardPage() {
                           )
                         }
                       />
-                      <span>
-                        <span className="block font-medium">
-                          Captured Garment Preview
-                        </span>
-                        <span className="block text-muted-foreground">
-                          Show an extracted garment preview after a garment is
-                          photographed.
-                        </span>
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          Effective:{" "}
-                          {storeTryOnSettings.effectiveGarmentPreviewEnabled
-                            ? "On"
-                            : "Off"}
-                          {!storeTryOnSettings.platformGarmentPreviewEnabled
-                            ? " - disabled globally"
-                            : !storeTryOnSettings.storeHasGarmentPreviewPermission
-                              ? " - feature not granted"
-                              : ""}
-                        </span>
-                      </span>
-                    </label>
+                    </div>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      Effective:{" "}
+                      {storeTryOnSettings.effectiveGarmentPreviewEnabled
+                        ? "On"
+                        : "Off"}
+                      {!storeTryOnSettings.platformGarmentPreviewEnabled
+                        ? " - disabled globally"
+                        : !storeTryOnSettings.storeHasGarmentPreviewPermission
+                          ? " - feature not granted"
+                          : ""}
+                    </div>
                   </div>
                 ) : null}
                 <div className="flex flex-wrap gap-2 pt-2">
@@ -397,275 +392,7 @@ export default function StoreDashboardPage() {
                 </div>
               </div>
             ) : null}
-          </TableContainer>
-        </div>
-      </PageSection>
-
-      <PageSection>
-        <TableContainer
-          title="Store Permissions"
-          description="SelfX-granted permission ceiling for this Store. Store roles can only delegate granted permissions."
-          actions={
-            platformBypass ? (
-              <Button
-                disabled={savingPermissionGrants}
-                onClick={() => void savePermissionGrants()}
-              >
-                Save Grants
-              </Button>
-            ) : null
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Permission</TableHead>
-                <TableHead>Module</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={3}>
-                    Loading Store permissions...
-                  </TableCell>
-                </TableRow>
-              ) : permissions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3}>
-                    Store permission visibility is unavailable for this user.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                permissions.map((permission) => (
-                  <TableRow key={permission.id}>
-                    <TableCell>
-                      {platformBypass ? (
-                        <input
-                          type="checkbox"
-                          className="mr-3 align-middle"
-                          checked={permissionGrantCodes.includes(
-                            permission.code,
-                          )}
-                          onChange={(event) =>
-                            setPermissionGrantCodes((current) =>
-                              event.target.checked
-                                ? [...current, permission.code]
-                                : current.filter(
-                                    (code) => code !== permission.code,
-                                  ),
-                            )
-                          }
-                        />
-                      ) : null}
-                      <div className="font-medium">{permission.label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {permission.code}
-                      </div>
-                    </TableCell>
-                    <TableCell>{permission.module}</TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        status={permission.granted ? "GRANTED" : "UNAVAILABLE"}
-                        label={permission.granted ? "Granted" : "Unavailable"}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </PageSection>
-
-      <PageSection>
-        <div className="grid gap-5 xl:grid-cols-2">
-          <TableContainer
-            title="Store Users"
-            description="Store memberships and assigned Store roles. Email invitations are deferred in RBAC-1."
-          >
-            <div className="mb-4 flex justify-end">
-              {canInviteUsers ? (
-                <Button onClick={() => setUserDialog("new")}>
-                  <UserPlusIcon aria-hidden="true" />
-                  Add User
-                </Button>
-              ) : null}
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Roles</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={4}>Loading Store users...</TableCell>
-                  </TableRow>
-                ) : users.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4}>
-                      <div className="flex items-center gap-3 py-8 text-muted-foreground">
-                        <UsersIcon size={20} aria-hidden="true" />
-                        No Store users are assigned yet.
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  users.map((user) => (
-                    <TableRow key={user.membershipId}>
-                      <TableCell>
-                        <div className="font-medium">
-                          {user.displayName ?? user.email}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {user.email}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={user.status} label={user.status} />
-                      </TableCell>
-                      <TableCell>
-                        {user.roles.length > 0
-                          ? user.roles.map((role) => role.name).join(", ")
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {canManageUsers ? (
-                          <div className="flex flex-wrap justify-end gap-2">
-                            {canAssignRoles ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setUserDialog(user)}
-                              >
-                                <PencilIcon aria-hidden="true" />
-                                Roles
-                              </Button>
-                            ) : null}
-                            {canDeactivateUsers ? (
-                              <Button
-                                variant={
-                                  user.status === "ACTIVE"
-                                    ? "destructive"
-                                    : "outline"
-                                }
-                                size="sm"
-                                onClick={() => void toggleUserStatus(user)}
-                              >
-                                {user.status === "ACTIVE"
-                                  ? "Suspend"
-                                  : "Activate"}
-                              </Button>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            -
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <TableContainer
-            title="Store Roles"
-            description="Store roles group granted permissions for Store-managed staff."
-          >
-            <div className="mb-4 flex justify-end">
-              {canCreateRoles ? (
-                <Button onClick={() => setRoleDialog("new")}>
-                  <ShieldCheckIcon aria-hidden="true" />
-                  Add Role
-                </Button>
-              ) : null}
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Permissions</TableHead>
-                  <TableHead>Users</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={4}>Loading Store roles...</TableCell>
-                  </TableRow>
-                ) : roles.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4}>
-                      <div className="flex items-center gap-3 py-8 text-muted-foreground">
-                        <ShieldCheckIcon size={20} aria-hidden="true" />
-                        No Store roles are configured yet.
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  roles.map((role) => (
-                    <TableRow key={role.id}>
-                      <TableCell>
-                        <div className="font-medium">{role.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {role.isSystem ? "System" : "Custom"}
-                          {!role.isActive ? " / inactive" : ""}
-                        </div>
-                      </TableCell>
-                      <TableCell>{role.permissionsCount}</TableCell>
-                      <TableCell>{role.assignedUsersCount}</TableCell>
-                      <TableCell className="text-right">
-                        {canUpdateRoles ||
-                        (canDeleteRoles && !role.isSystem) ? (
-                          <div className="flex flex-wrap justify-end gap-2">
-                            {canUpdateRoles ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setRoleDialog(role)}
-                              >
-                                <PencilIcon aria-hidden="true" />
-                                Edit
-                              </Button>
-                            ) : null}
-                            {canDeleteRoles && !role.isSystem ? (
-                              <ConfirmDialog
-                                title="Delete Store role?"
-                                description="This deletes the role only if no Store users are assigned to it."
-                                confirmLabel="Delete"
-                                destructive
-                                onConfirm={() => void removeRole(role)}
-                                trigger={
-                                  <Button variant="outline" size="sm">
-                                    <Trash2Icon aria-hidden="true" />
-                                    Delete
-                                  </Button>
-                                }
-                              />
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            -
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          </div>
         </div>
       </PageSection>
 
@@ -728,68 +455,6 @@ export default function StoreDashboardPage() {
           );
         }}
       />
-
-      <StoreRoleDialog
-        role={roleDialog}
-        roles={roles}
-        permissions={permissions}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRoleDialog(null);
-          }
-        }}
-        onSubmit={async (input) => {
-          if (!accessToken || !store) {
-            return;
-          }
-          if (roleDialog === "new") {
-            await createStoreRole(accessToken, store.id, input);
-          } else if (roleDialog) {
-            await updateStoreRole(accessToken, store.id, roleDialog.id, {
-              name: input.name,
-              description: input.description ?? null,
-              isActive: input.isActive,
-            });
-            if (!roleDialog.isSystem) {
-              await replaceStoreRolePermissions(
-                accessToken,
-                store.id,
-                roleDialog.id,
-                input.permissionCodes,
-              );
-            }
-          }
-          setRoleDialog(null);
-          await load();
-        }}
-      />
-
-      <StoreUserDialog
-        user={userDialog}
-        roles={roles.filter((role) => role.isActive)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setUserDialog(null);
-          }
-        }}
-        onSubmit={async (input) => {
-          if (!accessToken || !store) {
-            return;
-          }
-          if (userDialog === "new") {
-            await addStoreUser(accessToken, store.id, input);
-          } else if (userDialog) {
-            await replaceStoreUserRoles(
-              accessToken,
-              store.id,
-              userDialog.membershipId,
-              input.roleIds,
-            );
-          }
-          setUserDialog(null);
-          await load();
-        }}
-      />
     </PageContainer>
   );
 
@@ -806,61 +471,6 @@ export default function StoreDashboardPage() {
       setStore((current) => (current ? { ...current, ...updated } : current));
     } catch (caught) {
       setError(messageFor(caught));
-    }
-  }
-
-  async function toggleUserStatus(user: StoreUser) {
-    if (!accessToken || !store) {
-      return;
-    }
-    setError(null);
-    try {
-      await updateStoreUserStatus(
-        accessToken,
-        store.id,
-        user.membershipId,
-        user.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE",
-      );
-      await load();
-    } catch (caught) {
-      setError(messageFor(caught));
-    }
-  }
-
-  async function removeRole(role: StoreRole) {
-    if (!accessToken || !store) {
-      return;
-    }
-    setError(null);
-    try {
-      await deleteStoreRole(accessToken, store.id, role.id);
-      await load();
-    } catch (caught) {
-      setError(messageFor(caught));
-    }
-  }
-
-  async function savePermissionGrants() {
-    if (!accessToken || !store) {
-      return;
-    }
-    setSavingPermissionGrants(true);
-    setError(null);
-    try {
-      const response = await replaceStorePermissionGrants(
-        accessToken,
-        store.id,
-        permissionGrantCodes,
-      );
-      const granted = response.data
-        .filter((permission) => permission.granted)
-        .map((permission) => permission.code);
-      setPermissionGrantCodes(granted);
-      await load();
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setSavingPermissionGrants(false);
     }
   }
 
@@ -1027,323 +637,53 @@ function StoreKioskConfigurationDialog({
   );
 }
 
-function StoreRoleDialog({
-  role,
-  permissions,
-  onOpenChange,
-  onSubmit,
-}: {
-  role: StoreRole | "new" | null;
-  roles: StoreRole[];
-  permissions: StorePermission[];
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (input: {
-    name: string;
-    description?: string;
-    isActive: boolean;
-    permissionCodes: string[];
-  }) => Promise<void>;
-}) {
-  const open = role !== null;
-  const editingRole = role && role !== "new" ? role : null;
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [permissionCodes, setPermissionCodes] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    const grantedCodes = new Set(
-      permissions
-        .filter((permission) => permission.granted)
-        .map((permission) => permission.code),
-    );
-    setName(editingRole?.name ?? "");
-    setDescription(editingRole?.description ?? "");
-    setIsActive(editingRole?.isActive ?? true);
-    setPermissionCodes(
-      editingRole?.permissions
-        .map((permission) => permission.code)
-        .filter((code) => grantedCodes.has(code)) ?? [],
-    );
-    setError(null);
-  }, [editingRole, permissions, role]);
-
-  const groupedPermissions = groupPermissions(permissions);
-  const permissionsLocked = Boolean(editingRole?.isSystem);
-
-  async function submit() {
-    if (!name.trim()) {
-      setError("Role name is required.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onSubmit({
-        name,
-        description,
-        isActive,
-        permissionCodes,
-      });
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>
-            {role === "new" ? "Add Store Role" : "Edit Store Role"}
-          </DialogTitle>
-          <DialogDescription>
-            Permissions are stable backend codes with readable labels for Store
-            administration.
-          </DialogDescription>
-        </DialogHeader>
-        {error ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-        <div className="grid max-h-[65vh] gap-5 overflow-y-auto pr-1 md:grid-cols-[0.8fr_1.2fr]">
-          <div className="space-y-4">
-            <label className="space-y-2 text-sm">
-              <span>Role Name *</span>
-              <Input
-                value={name}
-                maxLength={120}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-            <label className="space-y-2 text-sm">
-              <span>Description</span>
-              <Input
-                value={description}
-                maxLength={500}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </label>
-            {editingRole ? (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  disabled={editingRole.isSystem}
-                  onChange={(event) => setIsActive(event.target.checked)}
-                />
-                Active
-              </label>
-            ) : null}
-            {permissionsLocked ? (
-              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
-                System role permission maps are protected in RBAC-1.
-              </div>
-            ) : null}
-          </div>
-          <div className="space-y-4">
-            {groupedPermissions.map(([module, modulePermissions]) => (
-              <fieldset
-                key={module}
-                className="space-y-2 rounded-lg border p-3"
-              >
-                <legend className="px-1 text-sm font-semibold capitalize">
-                  {module}
-                </legend>
-                {modulePermissions.map((permission) => {
-                  const unavailable = !permission.granted;
-                  return (
-                    <label
-                      key={permission.code}
-                      className="flex gap-3 rounded-md p-2 text-sm hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={permissionsLocked || unavailable}
-                        checked={permissionCodes.includes(permission.code)}
-                        onChange={(event) =>
-                          setPermissionCodes((current) =>
-                            event.target.checked
-                              ? [...current, permission.code]
-                              : current.filter(
-                                  (code) => code !== permission.code,
-                                ),
-                          )
-                        }
-                      />
-                      <span className={unavailable ? "opacity-60" : undefined}>
-                        <span className="block font-medium">
-                          {permission.label}
-                        </span>
-                        {permission.description ? (
-                          <span className="block text-xs text-muted-foreground">
-                            {permission.description}
-                          </span>
-                        ) : null}
-                        {unavailable ? (
-                          <span className="block text-xs text-muted-foreground">
-                            Not granted to this Store
-                          </span>
-                        ) : null}
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
-            ))}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={submitting || !name.trim()}
-            onClick={() => void submit()}
-          >
-            Save Role
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function StoreUserDialog({
-  user,
-  roles,
-  onOpenChange,
-  onSubmit,
-}: {
-  user: StoreUser | "new" | null;
-  roles: StoreRole[];
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (input: { email: string; roleIds: string[] }) => Promise<void>;
-}) {
-  const open = user !== null;
-  const editingUser = user && user !== "new" ? user : null;
-  const [email, setEmail] = useState("");
-  const [roleIds, setRoleIds] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    setEmail(editingUser?.email ?? "");
-    setRoleIds(editingUser?.roles.map((role) => role.id) ?? []);
-    setError(null);
-  }, [editingUser, user]);
-
-  async function submit() {
-    if (!email.trim()) {
-      setError("Email is required.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onSubmit({ email, roleIds });
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {user === "new" ? "Add Store User" : "Edit User Roles"}
-          </DialogTitle>
-          <DialogDescription>
-            RBAC-1 supports adding existing SelfX users. Email invitations are
-            deferred.
-          </DialogDescription>
-        </DialogHeader>
-        {error ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-        <div className="space-y-4">
-          <label className="space-y-2 text-sm">
-            <span>Email *</span>
-            <Input
-              value={email}
-              disabled={Boolean(editingUser)}
-              maxLength={320}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-semibold">Assigned Roles</legend>
-            {roles.length === 0 ? (
-              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
-                No active Store roles are available.
-              </div>
-            ) : (
-              roles.map((role) => (
-                <label
-                  key={role.id}
-                  className="flex gap-3 rounded-md p-2 text-sm hover:bg-muted/50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={roleIds.includes(role.id)}
-                    onChange={(event) =>
-                      setRoleIds((current) =>
-                        event.target.checked
-                          ? [...current, role.id]
-                          : current.filter((id) => id !== role.id),
-                      )
-                    }
-                  />
-                  <span>
-                    <span className="block font-medium">{role.name}</span>
-                    {role.description ? (
-                      <span className="block text-xs text-muted-foreground">
-                        {role.description}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
-              ))
-            )}
-          </fieldset>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={submitting || !email.trim()}
-            onClick={() => void submit()}
-          >
-            Save User
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function MetricCard({
   label,
   value,
+  icon,
+  caption,
 }: {
   label: string;
   value: string | number;
+  icon: ReactNode;
+  caption: string;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
+    <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm text-muted-foreground">{label}</div>
+          <div className="mt-2 text-2xl font-semibold">{value}</div>
+        </div>
+        <div className="grid size-9 place-items-center rounded-lg border bg-muted/40 text-primary">
+          {icon}
+        </div>
+      </div>
+      <div className="mt-3 text-xs text-muted-foreground">{caption}</div>
+    </div>
+  );
+}
+
+function StoreInfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-lg border bg-background/70 p-3 text-sm">
+      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-muted/50 text-muted-foreground">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-xs font-medium uppercase text-muted-foreground">
+          {label}
+        </div>
+        <div className="mt-1 break-words font-medium">{value}</div>
+      </div>
     </div>
   );
 }
@@ -1609,21 +949,6 @@ function storeLocation(store: AdminStoreDetail): string {
     .join(", ");
 }
 
-function groupPermissions(
-  permissions: StorePermission[],
-): Array<[string, StorePermission[]]> {
-  const groups = new Map<string, StorePermission[]>();
-  for (const permission of permissions) {
-    const group = groups.get(permission.module) ?? [];
-    group.push(permission);
-    groups.set(permission.module, group);
-  }
-  return [...groups.entries()].map(([module, modulePermissions]) => [
-    module,
-    modulePermissions.sort((a, b) => a.label.localeCompare(b.label)),
-  ]);
-}
-
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "-";
 }
@@ -1633,24 +958,4 @@ function messageFor(caught: unknown): string {
     return caught.message;
   }
   return "The Store request could not be completed.";
-}
-
-function hasStorePermission(
-  permissions: string[],
-  permission: string,
-): boolean {
-  return permissions.includes(permission);
-}
-
-function emptyStoreList<T>() {
-  return {
-    data: [] as T[],
-    pagination: {
-      page: 1,
-      pageSize: 100,
-      total: 0,
-      totalPages: 1,
-      hasMore: false,
-    },
-  };
 }
