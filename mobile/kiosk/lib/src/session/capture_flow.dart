@@ -66,7 +66,7 @@ class CaptureGuidance {
   final bool emphasizeNumber;
 }
 
-const defaultCaptureCountdownSeconds = 10;
+const defaultCaptureCountdownSeconds = 5;
 const minCaptureCountdownSeconds = 1;
 const maxCaptureCountdownSeconds = 15;
 

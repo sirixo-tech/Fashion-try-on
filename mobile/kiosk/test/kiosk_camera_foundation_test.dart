@@ -37,6 +37,7 @@ import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 import 'package:selfx_kiosk/src/ui/browse_products_screen.dart';
 import 'package:selfx_kiosk/src/ui/camera_capture_screen.dart';
 import 'package:selfx_kiosk/src/ui/camera_settings_screen.dart';
+import 'package:selfx_kiosk/src/ui/capture_review_screen.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
@@ -227,7 +228,7 @@ void main() {
       expect(controller.imageUsabilityResult?.isUsable, isFalse);
       expect(
         controller.imageUsabilityResult?.message,
-        "We couldn't detect a person clearly. Please retake your photo.",
+        "Failed to detect a person. Please retake your photo.",
       );
 
       final accepted = await controller.usePhoto();
@@ -235,7 +236,7 @@ void main() {
       expect(accepted.accepted, isFalse);
       expect(
         accepted.message,
-        "We couldn't detect a person clearly. Please retake your photo.",
+        "Failed to detect a person. Please retake your photo.",
       );
       expect(controller.acceptedCapture, isNull);
       expect(
@@ -267,6 +268,36 @@ void main() {
         expect(camera.captureCount, 2);
         expect(controller.capture?.originalPath, 'capture-2.jpg');
         expect(controller.flowState.stage, CaptureFlowStage.review);
+      },
+    );
+
+    test(
+      'preserving captured garment input keeps the accepted person photo',
+      () async {
+        final camera = readyCamera();
+        final controller = testController(camera: camera);
+
+        await controller.capturePhoto();
+        final accepted = await controller.usePhoto();
+
+        expect(accepted.accepted, isTrue);
+        expect(
+          controller.activeAcceptedPersonPhoto?.capture.originalPath,
+          'capture-1.jpg',
+        );
+
+        controller.selectCapturePurpose(PhotoAcquisitionPurpose.garment);
+        await controller.capturePhoto();
+        expect(controller.capture?.originalPath, 'capture-2.jpg');
+
+        controller.preservePendingCaptureAsExternalInput();
+
+        expect(controller.capture, isNull);
+        expect(
+          controller.activeAcceptedPersonPhoto?.capture.originalPath,
+          'capture-1.jpg',
+        );
+        expect(controller.activeAcceptedPersonPhoto?.coverage, isNotNull);
       },
     );
 
@@ -1048,6 +1079,74 @@ void main() {
 
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
       expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
+    });
+  });
+
+  group('Model capture review actions', () {
+    testWidgets('usable model photo offers garment capture and catalog', (
+      tester,
+    ) async {
+      final captureController = testController();
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeKioskTryOnGateway(),
+      );
+      await captureController.capturePhoto();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CaptureReviewScreen(
+            controller: captureController,
+            tryOnController: tryOnController,
+            uploadController: testUploadController(
+              captureController.captureStore,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('take-garment-photo')), findsOneWidget);
+      expect(find.byKey(const Key('browse-catalog')), findsOneWidget);
+      expect(find.byKey(const Key('upload-model-photo')), findsNothing);
+      expect(find.byKey(const Key('use-photo')), findsNothing);
+
+      captureController.dispose();
+      tryOnController.dispose();
+    });
+
+    testWidgets('failed model detection offers retake and upload replacement', (
+      tester,
+    ) async {
+      final captureController = testController(
+        modelCoverageAnalyzer: const FakeModelCoverageAnalyzer(
+          ModelCoverageAnalysis.unknown(
+            reasonCode: 'MODEL_PERSON_NOT_DETECTED',
+          ),
+        ),
+      );
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeKioskTryOnGateway(),
+      );
+      await captureController.capturePhoto();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CaptureReviewScreen(
+            controller: captureController,
+            tryOnController: tryOnController,
+            uploadController: testUploadController(
+              captureController.captureStore,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('retake-photo')), findsOneWidget);
+      expect(find.byKey(const Key('upload-model-photo')), findsOneWidget);
+      expect(find.byKey(const Key('take-garment-photo')), findsNothing);
+      expect(find.byKey(const Key('browse-catalog')), findsNothing);
+
+      captureController.dispose();
+      tryOnController.dispose();
     });
   });
 

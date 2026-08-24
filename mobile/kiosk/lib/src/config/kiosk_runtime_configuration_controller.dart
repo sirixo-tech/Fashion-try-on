@@ -148,6 +148,7 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
               label: asset.label,
               bundledAssetKey: asset.bundledAssetKey,
               assetImagePath: assetPath,
+              assetVideoPath: videoPathForBundledKey(asset.bundledAssetKey),
             ),
           );
         }

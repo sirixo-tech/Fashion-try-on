@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
 
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../idle/kiosk_idle_presentation.dart';
@@ -18,6 +19,7 @@ import 'camera_capture_screen.dart';
 import 'camera_settings_screen.dart';
 import 'mobile_upload_screen.dart';
 import 'selfx_kiosk_button.dart';
+import 'selfx_logo.dart';
 
 class KioskHomeScreen extends StatefulWidget {
   const KioskHomeScreen({
@@ -311,7 +313,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _HomeBrand(label: presentation.brandLabel),
+                      const _HomeBrand(),
                       Expanded(
                         child: Center(
                           child: ConstrainedBox(
@@ -358,6 +360,8 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                   label: 'Upload From Mobile',
                                   icon: Icons.file_upload_outlined,
                                   variant: SelfxKioskButtonVariant.primary,
+                                  backgroundColor: const Color(0xFFFFA21C),
+                                  borderColor: const Color(0xFFFFA21C),
                                   minHeight: compact ? 66 : 74,
                                   borderRadius: 999,
                                   textAlign: TextAlign.center,
@@ -584,26 +588,103 @@ class _OperatorPinDialogState extends State<OperatorPinDialog> {
   }
 }
 
-class _IdleWallpaper extends StatelessWidget {
+class _IdleWallpaper extends StatefulWidget {
   const _IdleWallpaper({super.key, required this.asset});
 
   final KioskIdleAsset asset;
 
   @override
+  State<_IdleWallpaper> createState() => _IdleWallpaperState();
+}
+
+class _IdleWallpaperState extends State<_IdleWallpaper> {
+  VideoPlayerController? _videoController;
+  bool _videoReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_configureVideo());
+  }
+
+  @override
+  void didUpdateWidget(covariant _IdleWallpaper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset.assetVideoPath != widget.asset.assetVideoPath) {
+      unawaited(_configureVideo());
+    }
+  }
+
+  @override
+  void dispose() {
+    final controller = _videoController;
+    _videoController = null;
+    unawaited(controller?.dispose());
+    super.dispose();
+  }
+
+  Future<void> _configureVideo() async {
+    final oldController = _videoController;
+    _videoController = null;
+    _videoReady = false;
+    if (mounted) {
+      setState(() {});
+    }
+    unawaited(oldController?.dispose());
+
+    final videoPath = widget.asset.assetVideoPath;
+    if (videoPath == null || videoPath.isEmpty) {
+      return;
+    }
+
+    final controller = VideoPlayerController.asset(
+      videoPath,
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+    _videoController = controller;
+    try {
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      await controller.initialize();
+      await controller.play();
+    } catch (_) {
+      if (_videoController == controller) {
+        _videoController = null;
+      }
+      await controller.dispose();
+      if (mounted) {
+        setState(() => _videoReady = false);
+      }
+      return;
+    }
+
+    if (!mounted || _videoController != controller) {
+      await controller.dispose();
+      return;
+    }
+    setState(() => _videoReady = true);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final image = _imageFor(asset);
+    final image = _imageFor(widget.asset);
+    final video = _videoReady && _videoController != null
+        ? _videoFor(_videoController!)
+        : null;
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: asset.colors,
+          colors: widget.asset.colors,
         ),
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (image != null)
+          if (video != null)
+            video
+          else if (image != null)
             image
           else
             CustomPaint(painter: _WallpaperPainter()),
@@ -634,6 +715,22 @@ class _IdleWallpaper extends StatelessWidget {
     }
 
     return null;
+  }
+
+  Widget _videoFor(VideoPlayerController controller) {
+    final size = controller.value.size;
+    if (size.width <= 0 || size.height <= 0) {
+      return CustomPaint(painter: _WallpaperPainter());
+    }
+    return FittedBox(
+      fit: BoxFit.cover,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: size.width,
+        height: size.height,
+        child: VideoPlayer(controller),
+      ),
+    );
   }
 }
 
@@ -669,40 +766,74 @@ class _WallpaperPainter extends CustomPainter {
 }
 
 class _HomeBrand extends StatelessWidget {
-  const _HomeBrand({required this.label});
-
-  final String label;
+  const _HomeBrand();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 62,
-          height: 62,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
-          ),
-          child: const Text(
-            'SX',
-            style: TextStyle(
-              color: SelfxKioskTokens.primary,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        final logoWidth = (constraints.maxWidth * (compact ? 0.64 : 0.54))
+            .clamp(260.0, 520.0)
+            .toDouble();
+
+        return Padding(
+          padding: EdgeInsets.only(top: compact ? 24 : 32),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Semantics(
+              label: 'SelfX. Make your business standout.',
+              image: true,
+              child: ExcludeSemantics(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRect(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        heightFactor: 0.8,
+                        child: Image.asset(
+                          selfxLogoAssetPath,
+                          width: logoWidth,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                          errorBuilder: (_, _, _) => Text(
+                            'SELFX',
+                            style: Theme.of(context).textTheme.displaySmall
+                                ?.copyWith(
+                                  color: const Color(0xFFFF7119),
+                                  fontWeight: FontWeight.w900,
+                                  height: 0.9,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'MAKE YOUR BUSINESS STANDOUT',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontSize: logoWidth * 0.048,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                        shadows: const [
+                          Shadow(
+                            color: Color(0x66000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

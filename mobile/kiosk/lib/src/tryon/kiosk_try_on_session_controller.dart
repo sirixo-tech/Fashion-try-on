@@ -155,8 +155,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
     if (_attachingPerson) {
       return currentPersonAssetId != null;
     }
-    final accepted = capture.acceptedCapture;
-    if (accepted == null) {
+    final personPhoto = capture.activeAcceptedPersonPhoto;
+    if (personPhoto == null) {
       return false;
     }
     await createBackendSession();
@@ -171,7 +171,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     try {
       final asset = await _sessionGateway.setSessionPerson(
         sessionId: sessionId,
-        personImage: File(accepted.originalPath),
+        personImage: File(personPhoto.capture.originalPath),
       );
       if (asset.purpose == KioskTryOnAssetPurpose.person) {
         currentPersonAssetId = asset.assetId;
@@ -291,7 +291,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
       return;
     }
     final garment = garmentInput;
-    final accepted = capture.acceptedCapture;
+    final personPhoto = capture.activeAcceptedPersonPhoto;
     if (garment == null) {
       _fail(
         KioskTryOnFailureCode.garmentMissing,
@@ -299,15 +299,14 @@ class KioskTryOnSessionController extends ChangeNotifier {
       );
       return;
     }
-    if (accepted == null) {
+    if (personPhoto == null) {
       _fail(
         KioskTryOnFailureCode.personMissing,
         'Retake your photo before generating.',
       );
       return;
     }
-    final modelCoverage =
-        capture.acceptedModelCoverage ?? ModelCoverage.unknown;
+    final modelCoverage = personPhoto.coverage;
     final compatibility = const ModelGarmentCompatibilityService().check(
       coverage: modelCoverage,
       intent: garment.intent,
@@ -335,10 +334,10 @@ class KioskTryOnSessionController extends ChangeNotifier {
       final sessionId = activeSessionId;
       final personAssetId = currentPersonAssetId;
       final prepared = await targetPreparer.prepare(
-        originalPath: accepted.originalPath,
-        scope: capture.captureScope,
-        targetMetadata: capture.acceptedCaptureTargetMetadata,
-        windowsFullFrameFallback: capture.acceptedCaptureTargetMetadata == null,
+        originalPath: personPhoto.capture.originalPath,
+        scope: personPhoto.captureScope,
+        targetMetadata: personPhoto.targetMetadata,
+        windowsFullFrameFallback: personPhoto.targetMetadata == null,
       );
       _preparedPersonFile = prepared.file;
       targetMetadata = prepared.metadata;
@@ -350,7 +349,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
           clientRequestId: _activeClientRequestId!,
           personImage: usesStoredPerson ? null : prepared.file,
           garmentInput: garment,
-          captureScope: capture.captureScope,
+          captureScope: personPhoto.captureScope,
           modelCoverage: modelCoverage,
           targetMetadata: prepared.metadata,
           sessionId: sessionId,

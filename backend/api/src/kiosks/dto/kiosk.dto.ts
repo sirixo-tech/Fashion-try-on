@@ -87,6 +87,12 @@ export class PairKioskDto {
   storeId?: string;
 }
 
+export class PairExistingKioskDto {
+  @IsString()
+  @Matches(KIOSK_PAIRING_CODE_PATTERN)
+  pairingCode!: string;
+}
+
 export class UpdateKioskDeviceDto {
   @IsString()
   @Length(1, 160)

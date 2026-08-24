@@ -152,6 +152,18 @@ export async function pairKioskDevice(
   return response.device;
 }
 
+export function pairExistingKioskDevice(
+  accessToken: string,
+  deviceId: string,
+  input: { pairingCode: string },
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(`/api/v1/admin/kiosks/${deviceId}/pair`, {
+    method: "POST",
+    accessToken,
+    body: JSON.stringify(input),
+  });
+}
+
 export function revokeKioskDevice(
   accessToken: string,
   deviceId: string,

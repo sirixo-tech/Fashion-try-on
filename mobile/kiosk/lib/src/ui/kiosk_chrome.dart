@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../camera/camera_models.dart';
 import '../theme/selfx_kiosk_theme.dart';
+import 'selfx_logo.dart';
 
 class KioskScaffold extends StatelessWidget {
   const KioskScaffold({
@@ -46,8 +47,8 @@ class KioskScaffold extends StatelessWidget {
                               leading!,
                               const SizedBox(width: 12),
                             ],
-                            const _SelfxMark(),
-                            const SizedBox(width: 18),
+                            const SelfxLogo(height: 48, maxWidth: 178),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,31 +125,6 @@ class StatusPill extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SelfxMark extends StatelessWidget {
-  const _SelfxMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 64,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusMedium),
-      ),
-      child: const Text(
-        'SX',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 22,
-          fontWeight: FontWeight.w900,
         ),
       ),
     );

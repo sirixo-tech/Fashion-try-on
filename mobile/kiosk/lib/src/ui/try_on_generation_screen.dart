@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
@@ -8,7 +10,7 @@ import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
-import 'garment_selection_screen.dart';
+import 'capture_review_screen.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_result_screen.dart';
 
@@ -32,13 +34,19 @@ class TryOnGenerationScreen extends StatefulWidget {
   State<TryOnGenerationScreen> createState() => _TryOnGenerationScreenState();
 }
 
-class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
+class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
+    with SingleTickerProviderStateMixin {
   bool _submitted = false;
   bool _navigatedToResult = false;
+  late final AnimationController _motionController;
 
   @override
   void initState() {
     super.initState();
+    _motionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat();
     widget.tryOnController.addListener(_handleTryOnChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_submitted) {
@@ -50,6 +58,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
 
   @override
   void dispose() {
+    _motionController.dispose();
     widget.tryOnController.removeListener(_handleTryOnChanged);
     super.dispose();
   }
@@ -73,6 +82,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
           final compatibilityFailure =
               widget.tryOnController.failureCode ==
               KioskTryOnFailureCode.modelImageIncompatibleWithGarment;
+          final progress = _progressFor(status);
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 720),
@@ -83,15 +93,14 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(
-                        failed
-                            ? Icons.error_outline
-                            : Icons.auto_awesome_outlined,
-                        size: 78,
-                        color: failed
-                            ? Theme.of(context).colorScheme.error
-                            : Theme.of(context).colorScheme.primary,
-                      ),
+                      if (failed)
+                        Icon(
+                          Icons.error_outline,
+                          size: 78,
+                          color: Theme.of(context).colorScheme.error,
+                        )
+                      else
+                        _TryOnMotionGraphic(animation: _motionController),
                       const SizedBox(height: 22),
                       Text(
                         failed
@@ -110,11 +119,20 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
                       ),
                       const SizedBox(height: 28),
                       if (!failed) ...[
-                        LinearProgressIndicator(value: _progressFor(status)),
-                        const SizedBox(height: 26),
-                        Text(
-                          _stepLabelFor(status),
-                          textAlign: TextAlign.center,
+                        _GenerationProgressBar(progress: progress),
+                        const SizedBox(height: 18),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          child: Text(
+                            '${(progress * 100).round()}%',
+                            key: ValueKey<double>(progress),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
                         ),
                       ] else if (compatibilityFailure) ...[
                         ElevatedButton.icon(
@@ -218,8 +236,8 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => GarmentSelectionScreen(
-          captureController: widget.captureController,
+        builder: (_) => CaptureReviewScreen(
+          controller: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
@@ -242,24 +260,187 @@ String _titleFor(KioskTryOnStatus status) {
   };
 }
 
-String _stepLabelFor(KioskTryOnStatus status) {
+double _progressFor(KioskTryOnStatus status) {
   return switch (status) {
-    KioskTryOnStatus.preparing => 'Step 1 of 5',
-    KioskTryOnStatus.uploading => 'Step 2 of 5',
-    KioskTryOnStatus.queued => 'Step 3 of 5',
-    KioskTryOnStatus.processing => 'Step 4 of 5',
-    KioskTryOnStatus.succeeded => 'Step 5 of 5',
-    _ => 'Starting',
-  };
-}
-
-double? _progressFor(KioskTryOnStatus status) {
-  return switch (status) {
+    KioskTryOnStatus.idle => 0.06,
     KioskTryOnStatus.preparing => 0.18,
     KioskTryOnStatus.uploading => 0.34,
     KioskTryOnStatus.queued => 0.52,
     KioskTryOnStatus.processing => 0.78,
     KioskTryOnStatus.succeeded => 1,
-    _ => null,
+    _ => 0.06,
   };
+}
+
+class _GenerationProgressBar extends StatelessWidget {
+  const _GenerationProgressBar({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: progress.clamp(0, 1)),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            height: 10,
+            child: LinearProgressIndicator(
+              value: value,
+              minHeight: 10,
+              backgroundColor: const Color(0xFFFFD9C7),
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TryOnMotionGraphic extends StatelessWidget {
+  const _TryOnMotionGraphic({required this.animation});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 132,
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          return CustomPaint(
+            painter: _TryOnMotionPainter(
+              progress: animation.value,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TryOnMotionPainter extends CustomPainter {
+  const _TryOnMotionPainter({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final pulse = 0.5 + 0.5 * math.sin(progress * math.pi * 2);
+    final sweep = progress * math.pi * 2;
+
+    final glowPaint = Paint()
+      ..color = color.withValues(alpha: 0.08 + pulse * 0.06)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 46 + pulse * 10, glowPaint);
+
+    final ringPaint = Paint()
+      ..color = color.withValues(alpha: 0.18)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: 52),
+      sweep,
+      math.pi * 1.25,
+      false,
+      ringPaint,
+    );
+
+    final ribbonPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+    final ribbon = Path();
+    for (var i = 0; i <= 64; i++) {
+      final t = i / 64;
+      final x = center.dx - 78 + t * 156;
+      final y =
+          center.dy +
+          math.sin((t * math.pi * 2) + sweep) * 18 -
+          math.cos((t * math.pi * 4) + sweep) * 5;
+      if (i == 0) {
+        ribbon.moveTo(x, y);
+      } else {
+        ribbon.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(ribbon, ribbonPaint);
+
+    final ghostPaint = Paint()
+      ..color = color.withValues(alpha: 0.22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    final ghost = Path();
+    for (var i = 0; i <= 64; i++) {
+      final t = i / 64;
+      final x = center.dx - 64 + t * 128;
+      final y = center.dy + 26 + math.sin((t * math.pi * 2) - sweep) * 9;
+      if (i == 0) {
+        ghost.moveTo(x, y);
+      } else {
+        ghost.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(ghost, ghostPaint);
+
+    _drawSparkle(
+      canvas,
+      Offset(center.dx - 86, center.dy - 34 + pulse * 8),
+      18 + pulse * 5,
+      color,
+      0.9,
+    );
+    _drawSparkle(
+      canvas,
+      Offset(center.dx + 84, center.dy - 38 - pulse * 6),
+      14 + (1 - pulse) * 5,
+      color,
+      0.75,
+    );
+    _drawSparkle(
+      canvas,
+      Offset(center.dx + 44, center.dy + 36 + pulse * 4),
+      12 + pulse * 4,
+      color,
+      0.65,
+    );
+  }
+
+  void _drawSparkle(
+    Canvas canvas,
+    Offset center,
+    double size,
+    Color color,
+    double alpha,
+  ) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: alpha)
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(center.dx, center.dy - size)
+      ..lineTo(center.dx + size * 0.28, center.dy - size * 0.28)
+      ..lineTo(center.dx + size, center.dy)
+      ..lineTo(center.dx + size * 0.28, center.dy + size * 0.28)
+      ..lineTo(center.dx, center.dy + size)
+      ..lineTo(center.dx - size * 0.28, center.dy + size * 0.28)
+      ..lineTo(center.dx - size, center.dy)
+      ..lineTo(center.dx - size * 0.28, center.dy - size * 0.28)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TryOnMotionPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
+  }
 }

@@ -21,6 +21,9 @@ class SelfxKioskButton extends StatefulWidget {
     this.animateSurface = true,
     this.expanded = false,
     this.borderRadius,
+    this.backgroundColor,
+    this.foregroundColor,
+    this.borderColor,
   });
 
   final String label;
@@ -37,6 +40,9 @@ class SelfxKioskButton extends StatefulWidget {
   final bool animateSurface;
   final bool expanded;
   final double? borderRadius;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+  final Color? borderColor;
 
   @override
   State<SelfxKioskButton> createState() => _SelfxKioskButtonState();
@@ -49,9 +55,15 @@ class _SelfxKioskButtonState extends State<SelfxKioskButton> {
   Widget build(BuildContext context) {
     final style = _SolidButtonStyle.forVariant(widget.variant);
     final enabled = widget.onPressed != null;
-    final background = enabled ? style.background : const Color(0xFFE5E7EB);
-    final foreground = enabled ? style.foreground : SelfxKioskTokens.textMuted;
-    final border = enabled ? style.border : const Color(0xFFD1D5DB);
+    final background = enabled
+        ? widget.backgroundColor ?? style.background
+        : const Color(0xFFE5E7EB);
+    final foreground = enabled
+        ? widget.foregroundColor ?? style.foreground
+        : SelfxKioskTokens.textMuted;
+    final border = enabled
+        ? widget.borderColor ?? widget.backgroundColor ?? style.border
+        : const Color(0xFFD1D5DB);
 
     return Semantics(
       button: true,
@@ -250,13 +262,13 @@ class _SolidButtonStyle {
       ),
       SelfxKioskButtonVariant.secondary => const _SolidButtonStyle(
         background: SelfxKioskTokens.buttonSecondary,
-        foreground: SelfxKioskTokens.textPrimary,
-        border: SelfxKioskTokens.border,
-        elevation: 1,
-        shadowColor: Color(0x140F172A),
-        hoverColor: Color(0xFFF4F6F8),
-        focusColor: Color(0xFFFFEFE4),
-        splashColor: Color(0x1AFF7119),
+        foreground: SelfxKioskTokens.onSecondary,
+        border: SelfxKioskTokens.secondary,
+        elevation: 2,
+        shadowColor: Color(0x26FFA21C),
+        hoverColor: Color(0x1AFFFFFF),
+        focusColor: Color(0x24FFFFFF),
+        splashColor: Color(0x2EFFFFFF),
       ),
       SelfxKioskButtonVariant.ghost => const _SolidButtonStyle(
         background: SelfxKioskTokens.buttonGhost,
@@ -284,6 +296,7 @@ class _SolidButtonStyle {
 
 Color _subtitleColor(Color foreground, SelfxKioskButtonVariant variant) {
   if (variant == SelfxKioskButtonVariant.primary ||
+      variant == SelfxKioskButtonVariant.secondary ||
       variant == SelfxKioskButtonVariant.selected) {
     return foreground.withValues(alpha: 0.9);
   }

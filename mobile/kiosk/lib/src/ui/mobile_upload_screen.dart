@@ -10,8 +10,9 @@ import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_models.dart';
+import 'browse_products_screen.dart';
+import 'camera_capture_screen.dart';
 import 'garment_review_screen.dart';
-import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
 
 class MobileUploadScreen extends StatefulWidget {
@@ -85,8 +86,11 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
             return _ReadyPhotoPanel(
               controller: widget.uploadController,
               session: continuingSession!,
+              purpose: widget.purpose,
               busy: true,
               onUseReadyUpload: _useReadyUpload,
+              onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
+              onBrowseCatalog: _browseCatalogAfterReadyUpload,
             );
           }
           if (session?.status == KioskCustomerUploadStatus.ready &&
@@ -94,8 +98,11 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
             return _ReadyPhotoPanel(
               controller: widget.uploadController,
               session: session!,
+              purpose: widget.purpose,
               busy: _continuing,
               onUseReadyUpload: _useReadyUpload,
+              onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
+              onBrowseCatalog: _browseCatalogAfterReadyUpload,
             );
           }
           if (widget.uploadController.flowState ==
@@ -131,6 +138,10 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   }
 
   Future<void> _useReadyUpload() async {
+    if (widget.purpose != PhotoAcquisitionPurpose.garment) {
+      await _browseCatalogAfterReadyUpload();
+      return;
+    }
     if (_continuing) {
       return;
     }
@@ -139,41 +150,83 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       _continuingSession = widget.uploadController.session;
     });
 
-    if (widget.purpose == PhotoAcquisitionPurpose.garment) {
-      final input = await widget.uploadController.useReadyGarment(
-        intent: widget.garmentIntent ?? KioskGarmentIntent.auto,
-      );
-      if (input == null || !mounted) {
-        _stopContinuing();
-        return;
-      }
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => GarmentReviewScreen(
-            captureController: widget.captureController,
-            tryOnController: widget.tryOnController,
-            uploadController: widget.uploadController,
-            catalogGateway: widget.catalogGateway,
-            garmentInput: input,
-            extractionService: widget.extractionService,
-          ),
-        ),
-      );
+    final input = await widget.uploadController.useReadyGarment(
+      intent: widget.garmentIntent ?? KioskGarmentIntent.auto,
+    );
+    if (input == null || !mounted) {
+      _stopContinuing();
       return;
     }
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => GarmentReviewScreen(
+          captureController: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          garmentInput: input,
+          extractionService: widget.extractionService,
+        ),
+      ),
+    );
+  }
 
+  Future<void> _takeGarmentPhotoAfterReadyUpload() async {
+    if (!await _acceptReadyModelUpload() || !mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => CameraCaptureScreen(
+          controller: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+          purpose: PhotoAcquisitionPurpose.garment,
+          garmentIntent: KioskGarmentIntent.auto,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _browseCatalogAfterReadyUpload() async {
+    if (!await _acceptReadyModelUpload() || !mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => BrowseProductsScreen(
+          captureController: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _acceptReadyModelUpload() async {
+    if (_continuing) {
+      return false;
+    }
+    setState(() {
+      _continuing = true;
+      _continuingSession = widget.uploadController.session;
+    });
     final accepted = await widget.uploadController.useReadyPhoto(
       widget.captureController,
     );
     if (!accepted || !mounted) {
       _stopContinuing();
-      return;
+      return false;
     }
     final attached = await widget.tryOnController.attachAcceptedPerson(
       widget.captureController,
     );
     if (!mounted) {
-      return;
+      return false;
     }
     if (!attached) {
       _stopContinuing();
@@ -185,19 +238,9 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
           ),
         ),
       );
-      return;
+      return false;
     }
-    await Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => GarmentSelectionScreen(
-          captureController: widget.captureController,
-          tryOnController: widget.tryOnController,
-          uploadController: widget.uploadController,
-          catalogGateway: widget.catalogGateway,
-          extractionService: widget.extractionService,
-        ),
-      ),
-    );
+    return true;
   }
 
   void _stopContinuing() {
@@ -412,14 +455,20 @@ class _ReadyPhotoPanel extends StatelessWidget {
   const _ReadyPhotoPanel({
     required this.controller,
     required this.session,
+    required this.purpose,
     required this.busy,
     required this.onUseReadyUpload,
+    required this.onTakeGarmentPhoto,
+    required this.onBrowseCatalog,
   });
 
   final KioskCustomerUploadController controller;
   final KioskCustomerUploadSession session;
+  final PhotoAcquisitionPurpose purpose;
   final bool busy;
   final Future<void> Function() onUseReadyUpload;
+  final Future<void> Function() onTakeGarmentPhoto;
+  final Future<void> Function() onBrowseCatalog;
 
   @override
   Widget build(BuildContext context) {
@@ -443,23 +492,97 @@ class _ReadyPhotoPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!compact) const Spacer(),
-            OutlinedButton.icon(
-              key: const Key('upload-another-photo'),
-              onPressed: busy || controller.isBusy
-                  ? null
-                  : () => unawaited(controller.uploadAnother()),
-              icon: const Icon(Icons.qr_code_2),
-              label: const Text('Upload Another'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              key: const Key('use-mobile-photo'),
-              onPressed: busy || controller.isBusy
-                  ? null
-                  : () => unawaited(onUseReadyUpload()),
-              icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Continue'),
-            ),
+            if (purpose == PhotoAcquisitionPurpose.model) ...[
+              Text(
+                "You're Ready",
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Chip(
+                avatar: const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF2F855A),
+                ),
+                label: const Text('Photo looks good!'),
+                backgroundColor: const Color(0xFFE6F4EA),
+                labelStyle: const TextStyle(
+                  color: Color(0xFF2F855A),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Now, show the garment to the camera.',
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                key: const Key('take-garment-photo'),
+                onPressed: busy || controller.isBusy
+                    ? null
+                    : () => unawaited(onTakeGarmentPhoto()),
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Take Garment Photo'),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const Key('browse-catalog'),
+                      onPressed: busy || controller.isBusy
+                          ? null
+                          : () => unawaited(onBrowseCatalog()),
+                      icon: const Icon(Icons.inventory_2_outlined),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Browse Catalog'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const Key('upload-another-photo'),
+                      onPressed: busy || controller.isBusy
+                          ? null
+                          : () => unawaited(controller.uploadAnother()),
+                      icon: const Icon(Icons.qr_code_2),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Upload Another'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+            ] else
+              OutlinedButton.icon(
+                key: const Key('upload-another-photo'),
+                onPressed: busy || controller.isBusy
+                    ? null
+                    : () => unawaited(controller.uploadAnother()),
+                icon: const Icon(Icons.qr_code_2),
+                label: const Text('Upload Another'),
+              ),
+            if (purpose == PhotoAcquisitionPurpose.garment) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                key: const Key('use-mobile-photo'),
+                onPressed: busy || controller.isBusy
+                    ? null
+                    : () => unawaited(onUseReadyUpload()),
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Continue'),
+              ),
+            ],
           ],
         );
 

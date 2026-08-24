@@ -9,7 +9,7 @@ import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
-import 'garment_selection_screen.dart';
+import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_kiosk_button.dart';
@@ -137,8 +137,8 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
     widget.tryOnController.tryAnotherGarment();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => GarmentSelectionScreen(
-          captureController: widget.captureController,
+        builder: (_) => CaptureReviewScreen(
+          controller: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
@@ -218,44 +218,27 @@ class _LooksCarousel extends StatelessWidget {
             constraints.maxWidth < 900 ||
             constraints.maxHeight < 680 ||
             portrait;
-        final imageArea = Stack(
-          fit: StackFit.expand,
-          children: [
-            PageView.builder(
-              controller: pageController,
-              itemCount: looks.length,
-              onPageChanged: onPageChanged,
-              itemBuilder: (context, itemIndex) {
-                final look = looks[itemIndex];
-                return Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: compact ? 4 : 14,
-                    vertical: 4,
-                  ),
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: GeneratedTryOnImage(src: look.resultReadUrl),
-                  ),
-                );
-              },
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _CarouselNavButton(
-                icon: Icons.chevron_left,
-                onPressed: onPrevious,
-                tooltip: 'Previous look',
+        final imageArea = PageView.builder(
+          controller: pageController,
+          itemCount: looks.length,
+          onPageChanged: onPageChanged,
+          itemBuilder: (context, itemIndex) {
+            final look = looks[itemIndex];
+            return Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 4 : 14,
+                vertical: 4,
               ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: _CarouselNavButton(
-                icon: Icons.chevron_right,
-                onPressed: onNext,
-                tooltip: 'Next look',
+              child: Card(
+                clipBehavior: Clip.antiAlias,
+                child: GeneratedTryOnImage(src: look.resultReadUrl),
               ),
-            ),
-          ],
+            );
+          },
+        );
+        final sliderControls = _CarouselControls(
+          onPrevious: onPrevious,
+          onNext: onNext,
         );
         final actions = _MyLooksActions(
           compact: compact,
@@ -279,7 +262,9 @@ class _LooksCarousel extends StatelessWidget {
               header,
               const SizedBox(height: 10),
               Expanded(child: imageArea),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              sliderControls,
+              const SizedBox(height: 8),
               _Dots(count: looks.length, index: index),
               const SizedBox(height: 12),
               actions,
@@ -296,7 +281,9 @@ class _LooksCarousel extends StatelessWidget {
                   header,
                   const SizedBox(height: 12),
                   Expanded(child: imageArea),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+                  sliderControls,
+                  const SizedBox(height: 10),
                   _Dots(count: looks.length, index: index),
                 ],
               ),
@@ -333,17 +320,24 @@ class _LooksHeader extends StatelessWidget {
         Text(
           'My Looks',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.displaySmall,
+          style: Theme.of(
+            context,
+          ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 6),
         Text(
           '$current of $total',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleLarge,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
         ),
         if (refreshing) ...[
           const SizedBox(height: 6),
-          const Text('Getting your looks...'),
+          const Text(
+            'Getting your looks...',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
         ] else if (refreshFailed) ...[
           const SizedBox(height: 8),
           TextButton.icon(
@@ -388,6 +382,33 @@ class _Dots extends StatelessWidget {
   }
 }
 
+class _CarouselControls extends StatelessWidget {
+  const _CarouselControls({required this.onPrevious, required this.onNext});
+
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _CarouselNavButton(
+          icon: Icons.chevron_left,
+          onPressed: onPrevious,
+          tooltip: 'Previous look',
+        ),
+        const SizedBox(width: 18),
+        _CarouselNavButton(
+          icon: Icons.chevron_right,
+          onPressed: onNext,
+          tooltip: 'Next look',
+        ),
+      ],
+    );
+  }
+}
+
 class _CarouselNavButton extends StatelessWidget {
   const _CarouselNavButton({
     required this.icon,
@@ -401,24 +422,19 @@ class _CarouselNavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Tooltip(
-        message: tooltip,
-        child: SizedBox.square(
-          dimension: 58,
-          child: IconButton(
-            onPressed: onPressed,
-            icon: Icon(icon, size: 34),
-            color: Theme.of(context).colorScheme.onSurface,
-            disabledColor: Theme.of(context).colorScheme.outline,
-            style: IconButton.styleFrom(
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.surface.withValues(alpha: 0.9),
-              side: BorderSide(color: Theme.of(context).colorScheme.outline),
-              shape: const StadiumBorder(),
-            ),
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox.square(
+        dimension: 54,
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 32),
+          color: Theme.of(context).colorScheme.onSurface,
+          disabledColor: Theme.of(context).colorScheme.outline,
+          style: IconButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            side: BorderSide(color: Theme.of(context).colorScheme.outline),
+            shape: const StadiumBorder(),
           ),
         ),
       ),
@@ -452,7 +468,7 @@ class _MyLooksActions extends StatelessWidget {
           key: const Key('download-my-looks'),
           label: creatingShare ? 'Preparing...' : 'Download My Looks',
           icon: Icons.file_download_outlined,
-          variant: SelfxKioskButtonVariant.secondary,
+          variant: SelfxKioskButtonVariant.primary,
           minHeight: 64,
           textAlign: TextAlign.center,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -530,13 +546,17 @@ class _LooksShareQrDialog extends StatelessWidget {
                   Text(
                     'Get Your Looks',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Scan with your phone',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Center(
@@ -604,7 +624,9 @@ class _ShareFailureDialog extends StatelessWidget {
             Text(
               "Couldn't prepare your looks.",
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(
@@ -668,7 +690,9 @@ class _EmptyLooks extends StatelessWidget {
             Text(
               failed ? 'Looks could not be refreshed' : 'No looks yet',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             Text(

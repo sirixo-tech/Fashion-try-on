@@ -39,6 +39,7 @@ class KioskIdleAsset {
     required this.colors,
     this.localImagePath,
     this.assetImagePath,
+    this.assetVideoPath,
   });
 
   final String id;
@@ -46,12 +47,14 @@ class KioskIdleAsset {
   final List<Color> colors;
   final String? localImagePath;
   final String? assetImagePath;
+  final String? assetVideoPath;
 }
 
 const fallbackIdleAsset = KioskIdleAsset(
   id: 'selfx-fallback',
-  label: 'SelfX default wallpaper',
+  label: 'SelfX default video',
   colors: [Color(0xFF102A43), Color(0xFF0F766E), Color(0xFFBAE6FD)],
+  assetVideoPath: 'assets/videos/garment-selection-background.mp4',
   assetImagePath: 'assets/wallpapers/selfx-default-kiosk-wallpaper.png',
 );
 

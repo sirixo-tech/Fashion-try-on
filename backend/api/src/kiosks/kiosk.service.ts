@@ -42,6 +42,7 @@ import {
   type KioskHeartbeatDto,
   type KioskPairingSessionResponseDto,
   type KioskPairingStatusResponseDto,
+  type PairExistingKioskDto,
   type PairKioskDto,
   type RefreshKioskDeviceSessionDto,
   type UpdateKioskAssignmentDto,
@@ -292,6 +293,117 @@ export class KioskService {
         where: { id: created.id },
         include: assignmentInclude(),
       });
+    });
+
+    return mapDevice(device);
+  }
+
+  async pairExistingKiosk(
+    actorUserId: string,
+    deviceId: string,
+    input: PairExistingKioskDto,
+  ): Promise<KioskDeviceResponseDto> {
+    const now = new Date();
+    const pairingCode = canonicalPairingCode(input.pairingCode);
+    const codeDigest = this.digestPairingCode(pairingCode);
+
+    const device = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.kioskDevice.findUnique({
+        where: { id: deviceId },
+      });
+      assertManageableDeviceExists(existing);
+
+      if (existing.status !== KioskDeviceStatus.REVOKED) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          KIOSK_ERROR_CODES.deviceRevoked,
+          "Only unpaired kiosk devices can be paired again.",
+        );
+      }
+
+      const session = await tx.kioskPairingSession.findFirst({
+        where: {
+          codeDigest,
+          status: KioskPairingSessionStatus.PENDING,
+          expiresAt: { gt: now },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!session) {
+        throw new ApiErrorException(
+          HttpStatus.BAD_REQUEST,
+          KIOSK_ERROR_CODES.pairingInvalid,
+          "Pairing code expired or invalid.",
+        );
+      }
+
+      const claimed = await tx.kioskPairingSession.updateMany({
+        where: {
+          id: session.id,
+          status: KioskPairingSessionStatus.PENDING,
+          expiresAt: { gt: now },
+        },
+        data: {
+          status: KioskPairingSessionStatus.CLAIMED,
+          claimedAt: now,
+          claimedByUserId: actorUserId,
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          KIOSK_ERROR_CODES.pairingAlreadyClaimed,
+          "Pairing code expired or invalid.",
+        );
+      }
+
+      const updated = await tx.kioskDevice.update({
+        where: { id: deviceId },
+        data: {
+          status: KioskDeviceStatus.ACTIVE,
+          platform: session.platform,
+          appVersion: session.appVersion,
+          installationId: session.installationId,
+          pairedAt: now,
+          inactiveAt: null,
+          revokedAt: null,
+        },
+        include: assignmentInclude(),
+      });
+
+      const provisioningGrant = this.createProvisioningGrant(
+        session.id,
+        session.provisioningSecretHash,
+        updated.id,
+      );
+
+      await tx.kioskPairingSession.update({
+        where: { id: session.id },
+        data: {
+          kioskDeviceId: updated.id,
+          provisioningGrantHash:
+            this.digestProvisioningSecret(provisioningGrant),
+          grantIssuedAt: now,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          action: KIOSK_AUDIT_ACTIONS.paired,
+          actorUserId,
+          organizationId: updated.organizationId,
+          storeId: updated.storeId,
+          resourceType: "kiosk_device",
+          resourceId: updated.id,
+          metadata: {
+            repaired_existing_device: true,
+          },
+        },
+      });
+
+      return updated;
     });
 
     return mapDevice(device);

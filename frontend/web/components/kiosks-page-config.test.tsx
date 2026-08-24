@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import KiosksPage from "../app/app/kiosks/page";
 import {
-  assignKioskDeviceToStore,
-  createKioskConfigurationAssetUploadIntent,
-  getKioskConfiguration,
+  deleteKioskDevice,
   listKioskAssignmentOptions,
   listKioskDevices,
-  updateKioskConfiguration,
-  updateKioskDevice,
+  pairExistingKioskDevice,
+  unpairKioskDevice,
 } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
 
@@ -26,14 +24,16 @@ vi.mock("@/lib/kiosks", () => ({
   getKioskConfiguration: vi.fn(),
   listKioskAssignmentOptions: vi.fn(),
   listKioskDevices: vi.fn(),
+  pairExistingKioskDevice: vi.fn(),
   pairKioskDevice: vi.fn(),
   revokeKioskDevice: vi.fn(),
   unpairKioskDevice: vi.fn(),
+  updateKioskAssignment: vi.fn(),
   updateKioskConfiguration: vi.fn(),
   updateKioskDevice: vi.fn(),
 }));
 
-const device = {
+const activeDevice = {
   id: "01a0006a-0000-7000-8000-000000000001",
   displayName: "Front Display",
   status: "ACTIVE",
@@ -57,168 +57,71 @@ const device = {
   latestConfigurationVersion: 4,
 } as const;
 
-const configuration = {
-  version: 4,
-  display: {
-    idleMode: "STATIC",
-    slideDurationSeconds: 6,
-    title: "SelfX Virtual Try-On",
-    subtitle: "Find your perfect fit in seconds.",
-    ctaLabel: "Start Try-On",
-    assets: [
-      {
-        id: "asset-1",
-        type: "BUNDLED_IMAGE",
-        label: "SelfX default wallpaper",
-        url: null,
-        bundledAssetKey: "selfx-default-kiosk-wallpaper",
-        assetRef: null,
-        contentType: null,
-        sizeBytes: null,
-        sortOrder: 0,
-      },
-    ],
-  },
-  capture: {
-    countdownSeconds: 10,
-    soundEnabled: true,
-    soundProfile: "SELFX_SIGNATURE",
-    guidanceAudioEnabled: false,
-  },
-  experience: {
-    enabledGarmentIntents: ["TOP", "BOTTOM", "FULL_OUTFIT"],
-    sessionIdleTimeoutSeconds: 120,
-  },
-  assetUpload: {
-    supported: true,
-    maxImageBytes: 12 * 1024 * 1024,
-    supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
-  },
-  updatedAt: "2026-08-16T00:00:00.000Z",
+const revokedDevice = {
+  ...activeDevice,
+  status: "REVOKED",
+  revokedAt: "2026-08-16T00:05:00.000Z",
 } as const;
 
-describe("Kiosks configuration UI", () => {
+describe("Kiosks page lifecycle UI", () => {
   beforeEach(() => {
     vi.mocked(useSession).mockReturnValue({
       status: "authenticated",
       accessToken: "staff-token",
       user: { email: "admin@selfx.test", displayName: "Admin" },
     } as never);
-    vi.mocked(listKioskDevices).mockResolvedValue([device] as never);
+    vi.mocked(listKioskDevices).mockResolvedValue([activeDevice] as never);
     vi.mocked(listKioskAssignmentOptions).mockResolvedValue({
       organizations: [],
       stores: [],
     });
-    vi.mocked(getKioskConfiguration).mockResolvedValue(configuration as never);
-    vi.mocked(updateKioskConfiguration).mockResolvedValue({
-      ...configuration,
-      version: 5,
+    vi.mocked(unpairKioskDevice).mockResolvedValue(revokedDevice as never);
+    vi.mocked(pairExistingKioskDevice).mockResolvedValue(
+      activeDevice as never,
+    );
+    vi.mocked(deleteKioskDevice).mockResolvedValue({
+      ...activeDevice,
+      status: "DELETED",
+      deletedAt: "2026-08-16T00:10:00.000Z",
     } as never);
-    vi.mocked(updateKioskDevice).mockResolvedValue(device as never);
-    vi.mocked(assignKioskDeviceToStore).mockResolvedValue(device as never);
-    vi.mocked(createKioskConfigurationAssetUploadIntent).mockResolvedValue({
-      assetRef: "asset-ref",
-      type: "UPLOADED_IMAGE",
-      label: "hero",
-      uploadUrl: "https://storage.selfx.test/upload",
-      method: "PUT",
-      expiresAt: "2026-08-16T00:05:00.000Z",
-      headers: { "Content-Type": "image/png" },
-      maxImageBytes: 12 * 1024 * 1024,
-      supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
+  });
+
+  it("links Edit to the kiosk edit page instead of opening configuration inline", async () => {
+    render(<KiosksPage />);
+
+    const editLink = await screen.findByRole("link", { name: /Edit/i });
+
+    expect(editLink.getAttribute("href")).toBe(
+      `/app/kiosks/${activeDevice.id}/edit`,
+    );
+    expect(screen.queryByRole("button", { name: /Configure/i })).toBeNull();
+  });
+
+  it("changes Unpair to Pair after the kiosk is unpaired", async () => {
+    render(<KiosksPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Unpair/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /^Unpair$/i }).at(-1)!);
+
+    await waitFor(() => expect(unpairKioskDevice).toHaveBeenCalled());
+    expect(await screen.findByRole("button", { name: /^Pair$/i })).toBeTruthy();
+  });
+
+  it("pairs an existing unpaired kiosk with a pairing code", async () => {
+    vi.mocked(listKioskDevices).mockResolvedValue([revokedDevice] as never);
+    render(<KiosksPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Pair$/i }));
+    fireEvent.change(await screen.findByLabelText("Pairing Code"), {
+      target: { value: "123456" },
     });
-  });
+    fireEvent.click(screen.getAllByRole("button", { name: /^Pair$/i }).at(-1)!);
 
-  it("loads and displays the selected kiosk configuration", async () => {
-    render(<KiosksPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
-
-    expect(await screen.findByText(/Current version 4/i)).toBeTruthy();
-    expect(screen.getByDisplayValue("SelfX Virtual Try-On")).toBeTruthy();
-    expect(screen.getByDisplayValue("Start Try-On")).toBeTruthy();
-  });
-
-  it("shows validation feedback and does not submit invalid slide durations", async () => {
-    render(<KiosksPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
-    const durationInput = await screen.findByDisplayValue("6");
-    fireEvent.change(durationInput, { target: { value: "2" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: /Save Changes/i }),
-    );
-
-    expect(
-      await screen.findByText(
-        "Slide duration must be between 3 and 60 seconds.",
-      ),
-    ).toBeTruthy();
-    expect(updateKioskConfiguration).not.toHaveBeenCalled();
-  });
-
-  it("submits the expected save payload", async () => {
-    render(<KiosksPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
-    await screen.findByText(/Current version 4/i);
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "Guidance audio enabled" }),
-    );
-    fireEvent.click(screen.getByRole("checkbox", { name: "Full Outfit" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /Save Changes/i }),
-    );
-
-    await waitFor(() => expect(updateKioskConfiguration).toHaveBeenCalled());
-    expect(updateKioskConfiguration).toHaveBeenCalledWith(
+    await waitFor(() => expect(pairExistingKioskDevice).toHaveBeenCalled());
+    expect(pairExistingKioskDevice).toHaveBeenCalledWith(
       "staff-token",
-      device.id,
-      expect.objectContaining({
-        display: expect.objectContaining({
-          assets: [
-            {
-              type: "BUNDLED_IMAGE",
-              label: "SelfX default wallpaper",
-              bundledAssetKey: "selfx-default-kiosk-wallpaper",
-            },
-          ],
-        }),
-        capture: expect.objectContaining({
-          guidanceAudioEnabled: true,
-        }),
-        experience: expect.objectContaining({
-          enabledGarmentIntents: ["TOP", "BOTTOM"],
-        }),
-      }),
-    );
-  });
-
-  it("assigns a configured kiosk to a selected Store", async () => {
-    vi.mocked(listKioskAssignmentOptions).mockResolvedValue({
-      organizations: [
-        {
-          id: "01b0006a-0000-7000-8000-000000000010",
-          name: "SelfX Demo Store",
-          status: "ACTIVE",
-        },
-      ],
-      stores: [],
-    });
-
-    render(<KiosksPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Configure/i }));
-    fireEvent.change(await screen.findByLabelText("Store Assignment"), {
-      target: { value: "01b0006a-0000-7000-8000-000000000010" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Save Changes/i }));
-
-    await waitFor(() => expect(assignKioskDeviceToStore).toHaveBeenCalled());
-    expect(assignKioskDeviceToStore).toHaveBeenCalledWith(
-      "staff-token",
-      "01b0006a-0000-7000-8000-000000000010",
-      device.id,
+      revokedDevice.id,
+      { pairingCode: "123456" },
     );
   });
 });

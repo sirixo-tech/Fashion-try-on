@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
+  PencilIcon,
   CheckIcon,
   ChevronDownIcon,
   MonitorIcon,
   PlusIcon,
   RefreshCwIcon,
-  SettingsIcon,
   ShieldAlertIcon,
   Trash2Icon,
   UploadIcon,
@@ -49,6 +50,7 @@ import {
   getKioskConfiguration,
   listKioskAssignmentOptions,
   listKioskDevices,
+  pairExistingKioskDevice,
   pairKioskDevice,
   unpairKioskDevice,
   updateKioskAssignment,
@@ -93,8 +95,7 @@ export default function KiosksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pairOpen, setPairOpen] = useState(false);
-  const [configurationDevice, setConfigurationDevice] =
-    useState<KioskDevice | null>(null);
+  const [pairingDevice, setPairingDevice] = useState<KioskDevice | null>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -207,9 +208,9 @@ export default function KiosksPage() {
                     <TableCell className="text-right">
                       <KioskLifecycleActions
                         device={device}
+                        onPair={() => setPairingDevice(device)}
                         onUnpair={() => void unpair(device.id)}
                         onDelete={() => void remove(device.id)}
-                        onConfigure={() => setConfigurationDevice(device)}
                       />
                     </TableCell>
                   </TableRow>
@@ -229,26 +230,22 @@ export default function KiosksPage() {
           setPairOpen(false);
         }}
       />
-      <KioskConfigurationDialog
-        device={configurationDevice}
-        options={options}
+      <PairExistingKioskDialog
+        device={pairingDevice}
         onOpenChange={(open) => {
           if (!open) {
-            setConfigurationDevice(null);
+            setPairingDevice(null);
           }
         }}
-        onSaved={(configuration, updatedDevice) => {
+        onPaired={(updatedDevice) => {
           setDevices((current) =>
             current.map((device) =>
-              device.id === configurationDevice?.id
-                ? {
-                    ...device,
-                    ...(updatedDevice ?? {}),
-                    latestConfigurationVersion: configuration.version,
-                  }
+              device.id === updatedDevice.id
+                ? updatedDevice
                 : device,
             ),
           );
+          setPairingDevice(null);
         }}
       />
     </PageContainer>
@@ -289,20 +286,24 @@ export default function KiosksPage() {
 
 function KioskLifecycleActions({
   device,
+  onPair,
   onUnpair,
   onDelete,
-  onConfigure,
 }: {
   device: KioskDevice;
+  onPair: () => void;
   onUnpair: () => void;
   onDelete: () => void;
-  onConfigure: () => void;
 }) {
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <Button variant="outline" size="sm" onClick={onConfigure}>
-        <SettingsIcon aria-hidden="true" />
-        Configure
+      <Button
+        variant="outline"
+        size="sm"
+        render={<Link href={`/app/kiosks/${device.id}/edit`} />}
+      >
+        <PencilIcon aria-hidden="true" />
+        Edit
       </Button>
       {device.status !== "REVOKED" ? (
         <ConfirmDialog
@@ -317,7 +318,12 @@ function KioskLifecycleActions({
             </Button>
           }
         />
-      ) : null}
+      ) : (
+        <Button variant="outline" size="sm" onClick={onPair}>
+          <PlusIcon aria-hidden="true" />
+          Pair
+        </Button>
+      )}
       <ConfirmDialog
         title="Delete kiosk?"
         description="This removes the kiosk from the fleet list and revokes any remaining device sessions. Audit history is retained."
@@ -463,6 +469,103 @@ function PairKioskDialog({
             Cancel
           </Button>
           <Button disabled={submitting || !displayName.trim()} onClick={submit}>
+            Pair
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PairExistingKioskDialog({
+  device,
+  onOpenChange,
+  onPaired,
+}: {
+  device: KioskDevice | null;
+  onOpenChange: (open: boolean) => void;
+  onPaired: (device: KioskDevice) => void;
+}) {
+  const session = useSession();
+  const [pairingCode, setPairingCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const open = device !== null;
+
+  function close() {
+    setPairingCode("");
+    setError(null);
+    onOpenChange(false);
+  }
+
+  async function submit() {
+    if (session.status !== "authenticated" || !device) {
+      return;
+    }
+    const canonicalCode = pairingCode.replace(/\s/g, "");
+    if (!/^\d{6}$/.test(canonicalCode)) {
+      setError("Pairing code expired or invalid.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const updatedDevice = await pairExistingKioskDevice(
+        session.accessToken,
+        device.id,
+        { pairingCode: canonicalCode },
+      );
+      setPairingCode("");
+      onPaired(updatedDevice);
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          setPairingCode("");
+          setError(null);
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Pair Kiosk</DialogTitle>
+          <DialogDescription>
+            Enter the six-digit code shown on the physical kiosk to connect it
+            to {device?.displayName ?? "this kiosk"}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {error ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+          <div className="space-y-2">
+            <Label htmlFor="existing-pairing-code">Pairing Code</Label>
+            <Input
+              id="existing-pairing-code"
+              value={pairingCode}
+              inputMode="numeric"
+              placeholder="482 731"
+              maxLength={7}
+              onChange={(event) => setPairingCode(event.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>
+            Cancel
+          </Button>
+          <Button disabled={submitting || !device} onClick={submit}>
             Pair
           </Button>
         </DialogFooter>

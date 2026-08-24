@@ -315,6 +315,48 @@ describe("KIOSK-4A device provisioning", () => {
     );
   });
 
+  it("re-pairs an unpaired kiosk into the same fleet record", async () => {
+    const admin = await createUser("repair-admin");
+    await assignSuperAdmin(admin.id);
+    const credentials = await pairedCredentials(admin.id);
+
+    const unpaired = await service.revokeDevice(admin.id, credentials.device.id);
+    expect(unpaired.status).toBe(KioskDeviceStatus.REVOKED);
+    await expectApiCode(
+      service.refreshDeviceSession({ refreshToken: credentials.refreshToken }),
+      KIOSK_ERROR_CODES.deviceTokenInvalid,
+    );
+
+    const newPhysicalKiosk = await createPairingSession(
+      {
+        installationId: "replacement-installation",
+        platform: "android",
+        appVersion: "1.0.1",
+      },
+      "127.0.1.200",
+    );
+    const repaired = await service.pairExistingKiosk(admin.id, unpaired.id, {
+      pairingCode: newPhysicalKiosk.pairingCode,
+    });
+
+    expect(repaired.id).toBe(unpaired.id);
+    expect(repaired.status).toBe(KioskDeviceStatus.ACTIVE);
+    expect(repaired.installationId).toBe("replacement-installation");
+    expect(repaired.platform).toBe("android");
+    expect(repaired.appVersion).toBe("1.0.1");
+
+    const status = await service.getPairingStatus(
+      newPhysicalKiosk.pairingSessionId,
+      newPhysicalKiosk.provisioningSecret,
+    );
+    const newCredentials = await service.exchangeProvisioningGrant({
+      pairingSessionId: newPhysicalKiosk.pairingSessionId,
+      provisioningSecret: newPhysicalKiosk.provisioningSecret,
+      provisioningGrant: status.provisioningGrant!,
+    });
+    expect(newCredentials.device.id).toBe(unpaired.id);
+  });
+
   it("classifies expired and malformed device access tokens distinctly", async () => {
     const admin = await createUser("expired-token-admin");
     await assignSuperAdmin(admin.id);

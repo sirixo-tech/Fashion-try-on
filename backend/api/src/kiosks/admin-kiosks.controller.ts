@@ -28,6 +28,7 @@ import {
   KioskDeviceListResponseDto,
   KioskDeviceResponseDto,
   KioskProvisioningPairResponseDto,
+  PairExistingKioskDto,
   PairKioskDto,
   UpdateKioskAssignmentDto,
   UpdateKioskDeviceDto,
@@ -96,6 +97,28 @@ export class AdminKiosksController {
       PLATFORM_PERMISSIONS.kiosksPair,
     );
     return { device: await this.kiosks.pairKiosk(user.id, dto) };
+  }
+
+  @Post(":deviceId/pair")
+  @ApiOperation({ summary: "Pair an existing unpaired kiosk using its code" })
+  @ApiOkResponse({ type: KioskDeviceResponseDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async pairExisting(
+    @Req() request: FastifyRequest,
+    @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
+    @Body() dto: PairExistingKioskDto,
+  ): Promise<KioskDeviceResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksPair,
+    );
+    return this.kiosks.pairExistingKiosk(user.id, deviceId, dto);
   }
 
   @Patch(":deviceId")

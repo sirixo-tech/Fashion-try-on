@@ -60,6 +60,7 @@ class CaptureSessionController extends ChangeNotifier {
 
   CameraCaptureResult? capture;
   CameraCaptureResult? acceptedCapture;
+  AcceptedPersonPhoto? acceptedPersonPhoto;
   CustomerPersonImage? acceptedPersonImage;
   ImageQualityResult? qualityResult;
   ImageUsabilityResult? imageUsabilityResult;
@@ -95,6 +96,33 @@ class CaptureSessionController extends ChangeNotifier {
   bool _captureInProgress = false;
   bool _currentCountdownSoundsEnabled = true;
   CaptureAudioProfile _currentAudioProfile = defaultCaptureAudioProfile;
+
+  AcceptedPersonPhoto? get activeAcceptedPersonPhoto {
+    final stable = acceptedPersonPhoto;
+    if (stable != null) {
+      return stable;
+    }
+    final capture = acceptedCapture;
+    final coverage = acceptedModelCoverage;
+    if (capture == null || coverage == null) {
+      return null;
+    }
+    final image =
+        acceptedPersonImage ??
+        CustomerPersonImage(
+          originalPath: capture.originalPath,
+          source: CustomerPersonImageSource.kioskCamera,
+          captureScope: captureScope,
+          createdAt: capture.createdAt,
+        );
+    return AcceptedPersonPhoto(
+      capture: capture,
+      image: image,
+      coverage: coverage,
+      coverageAnalysis: acceptedModelCoverageAnalysis,
+      targetMetadata: acceptedCaptureTargetMetadata,
+    );
+  }
 
   Future<void> startCamera() async {
     await loadOperatorSettings();
@@ -148,7 +176,6 @@ class CaptureSessionController extends ChangeNotifier {
     primarySubject = null;
     readinessResult = null;
     captureTargetMetadata = null;
-    acceptedCaptureTargetMetadata = null;
     notifyListeners();
   }
 
@@ -335,11 +362,7 @@ class CaptureSessionController extends ChangeNotifier {
       final previousAcceptedPath = acceptedCapture?.originalPath;
       capture = result;
       if (isModelCapture) {
-        acceptedCapture = null;
-        acceptedPersonImage = null;
-        acceptedCaptureTargetMetadata = null;
-        acceptedModelCoverage = null;
-        acceptedModelCoverageAnalysis = null;
+        _clearAcceptedPersonPhoto();
       }
       captureTargetMetadata = targetMetadata;
       qualityResult = null;
@@ -409,14 +432,10 @@ class CaptureSessionController extends ChangeNotifier {
     _captureRunId++;
     final previous = capture;
     capture = null;
-    acceptedCapture = null;
-    acceptedPersonImage = null;
     captureTargetMetadata = null;
-    acceptedCaptureTargetMetadata = null;
     pendingModelCoverage = null;
     pendingModelCoverageAnalysis = null;
-    acceptedModelCoverage = null;
-    acceptedModelCoverageAnalysis = null;
+    _clearAcceptedPersonPhoto();
     primarySubject = null;
     liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;
@@ -473,6 +492,24 @@ class CaptureSessionController extends ChangeNotifier {
     );
   }
 
+  void _setAcceptedPersonPhoto(AcceptedPersonPhoto personPhoto) {
+    acceptedPersonPhoto = personPhoto;
+    acceptedCapture = personPhoto.capture;
+    acceptedPersonImage = personPhoto.image;
+    acceptedModelCoverage = personPhoto.coverage;
+    acceptedModelCoverageAnalysis = personPhoto.coverageAnalysis;
+    acceptedCaptureTargetMetadata = personPhoto.targetMetadata;
+  }
+
+  void _clearAcceptedPersonPhoto() {
+    acceptedPersonPhoto = null;
+    acceptedCapture = null;
+    acceptedPersonImage = null;
+    acceptedModelCoverage = null;
+    acceptedModelCoverageAnalysis = null;
+    acceptedCaptureTargetMetadata = null;
+  }
+
   Future<CaptureUsePhotoResult> usePhoto() async {
     if (capturePurpose != PhotoAcquisitionPurpose.model) {
       return const CaptureUsePhotoResult.rejected();
@@ -486,17 +523,23 @@ class CaptureSessionController extends ChangeNotifier {
         !usability.isUsable) {
       return CaptureUsePhotoResult.rejected(message: usability?.message);
     }
-    acceptedCapture = current;
-    acceptedModelCoverage =
+    final coverage =
         pendingModelCoverage ?? modelCoverageForCaptureScope(captureScope);
-    acceptedModelCoverageAnalysis = pendingModelCoverageAnalysis;
-    acceptedPersonImage = CustomerPersonImage(
+    final personImage = CustomerPersonImage(
       originalPath: current.originalPath,
       source: CustomerPersonImageSource.kioskCamera,
       captureScope: captureScope,
       createdAt: current.createdAt,
     );
-    acceptedCaptureTargetMetadata = captureTargetMetadata;
+    _setAcceptedPersonPhoto(
+      AcceptedPersonPhoto(
+        capture: current,
+        image: personImage,
+        coverage: coverage,
+        coverageAnalysis: pendingModelCoverageAnalysis,
+        targetMetadata: captureTargetMetadata,
+      ),
+    );
     _setFlowState(
       flowState.copyWith(
         stage: CaptureFlowStage.photoReady,
@@ -520,16 +563,13 @@ class CaptureSessionController extends ChangeNotifier {
       isTemporary: true,
     );
     capture = result;
-    acceptedCapture = result;
     captureTargetMetadata = null;
-    acceptedCaptureTargetMetadata = null;
     imageUsabilityResult = const ImageUsabilityResult.usable(
-      'Image is usable. You can continue.',
+      'Photo looks good!',
     );
     pendingModelCoverage = null;
     pendingModelCoverageAnalysis = null;
-    acceptedModelCoverage = null;
-    acceptedModelCoverageAnalysis = null;
+    _clearAcceptedPersonPhoto();
     qualityResult = ImageQualityResult(
       status: ImageQualityStatus.pass,
       passed: true,
@@ -549,13 +589,20 @@ class CaptureSessionController extends ChangeNotifier {
     if (!_isActiveRun(runId)) {
       return;
     }
-    acceptedModelCoverage = coverageAnalysis.coverage;
-    acceptedModelCoverageAnalysis = coverageAnalysis;
-    acceptedPersonImage = CustomerPersonImage(
+    final personImage = CustomerPersonImage(
       originalPath: originalPath,
       source: CustomerPersonImageSource.mobileUpload,
       captureScope: captureScope,
       createdAt: result.createdAt,
+    );
+    _setAcceptedPersonPhoto(
+      AcceptedPersonPhoto(
+        capture: result,
+        image: personImage,
+        coverage: coverageAnalysis.coverage,
+        coverageAnalysis: coverageAnalysis,
+        targetMetadata: null,
+      ),
     );
     _setFlowState(
       flowState.copyWith(
@@ -571,15 +618,11 @@ class CaptureSessionController extends ChangeNotifier {
     _cancelCountdownTimer();
     _captureRunId++;
     capture = null;
-    acceptedCapture = null;
-    acceptedPersonImage = null;
     captureTargetMetadata = null;
-    acceptedCaptureTargetMetadata = null;
     imageUsabilityResult = null;
     pendingModelCoverage = null;
     pendingModelCoverageAnalysis = null;
-    acceptedModelCoverage = null;
-    acceptedModelCoverageAnalysis = null;
+    _clearAcceptedPersonPhoto();
     primarySubject = null;
     liveFrameAnalyzer.resetSubjectLock();
     qualityResult = null;
@@ -607,7 +650,7 @@ class CaptureSessionController extends ChangeNotifier {
     }
     if (!isModelCapture) {
       imageUsabilityResult = const ImageUsabilityResult.usable(
-        'Image is usable. You can continue.',
+        'Photo looks good!',
       );
       return;
     }
@@ -623,7 +666,7 @@ class CaptureSessionController extends ChangeNotifier {
     if (coverageAnalysis.status == ModelCoverageAnalysisStatus.unknown) {
       pendingModelCoverage = null;
       imageUsabilityResult = const ImageUsabilityResult.unusable(
-        "We couldn't detect a person clearly. Please retake your photo.",
+        "Failed to detect a person. Please retake your photo.",
       );
       return;
     }
@@ -632,7 +675,7 @@ class CaptureSessionController extends ChangeNotifier {
         ? coverageAnalysis.coverage
         : modelCoverageForCaptureScope(captureScope);
     imageUsabilityResult = const ImageUsabilityResult.usable(
-      'Image is usable. You can continue.',
+      'Photo looks good!',
     );
   }
 
@@ -1000,6 +1043,25 @@ class CustomerPersonImage {
   final CustomerPersonImageSource source;
   final CaptureScope captureScope;
   final DateTime createdAt;
+}
+
+@immutable
+class AcceptedPersonPhoto {
+  const AcceptedPersonPhoto({
+    required this.capture,
+    required this.image,
+    required this.coverage,
+    required this.coverageAnalysis,
+    required this.targetMetadata,
+  });
+
+  final CameraCaptureResult capture;
+  final CustomerPersonImage image;
+  final ModelCoverage coverage;
+  final ModelCoverageAnalysis? coverageAnalysis;
+  final CaptureTargetMetadata? targetMetadata;
+
+  CaptureScope get captureScope => image.captureScope;
 }
 
 @immutable

@@ -52,7 +52,7 @@ class KioskRuntimeConfiguration {
           'Find your perfect fit in seconds.',
       ctaLabel: _nullableString(display['ctaLabel']) ?? 'Start Try-On',
       assets: assets.isEmpty ? defaultRuntimeConfiguration.assets : assets,
-      countdownSeconds: _int(capture, 'countdownSeconds', 10),
+      countdownSeconds: _int(capture, 'countdownSeconds', 5),
       soundEnabled: capture['soundEnabled'] is bool
           ? capture['soundEnabled'] as bool
           : true,
@@ -102,6 +102,7 @@ class KioskRuntimeConfiguration {
             colors: const [Color(0xFF101828), Color(0xFFFF7119)],
             localImagePath: asset.localImagePath,
             assetImagePath: asset.assetImagePath,
+            assetVideoPath: asset.assetVideoPath,
           ),
         )
         .toList(growable: false);
@@ -172,6 +173,7 @@ class KioskRuntimeAsset {
     this.bundledAssetKey,
     this.localImagePath,
     this.assetImagePath,
+    this.assetVideoPath,
   });
 
   factory KioskRuntimeAsset.fromJson(Map<String, dynamic> json) {
@@ -190,6 +192,9 @@ class KioskRuntimeAsset {
       assetImagePath: localImagePath == null
           ? assetPathForBundledKey(bundledAssetKey)
           : null,
+      assetVideoPath: localImagePath == null
+          ? videoPathForBundledKey(bundledAssetKey)
+          : null,
     );
   }
 
@@ -200,6 +205,7 @@ class KioskRuntimeAsset {
   final String? bundledAssetKey;
   final String? localImagePath;
   final String? assetImagePath;
+  final String? assetVideoPath;
 
   KioskRuntimeAsset copyWithLocalImagePath(String path) {
     return KioskRuntimeAsset(
@@ -209,6 +215,7 @@ class KioskRuntimeAsset {
       url: url,
       bundledAssetKey: bundledAssetKey,
       localImagePath: path,
+      assetVideoPath: assetVideoPath,
     );
   }
 
@@ -235,14 +242,15 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
   ctaLabel: 'Start Try-On',
   assets: [
     KioskRuntimeAsset(
-      id: 'selfx-default-kiosk-wallpaper',
+      id: 'selfx-default-kiosk-video',
       type: RuntimeKioskAssetType.bundledImage,
-      label: 'SelfX default wallpaper',
-      bundledAssetKey: 'selfx-default-kiosk-wallpaper',
+      label: 'SelfX default video',
+      bundledAssetKey: 'selfx-default-kiosk-video',
+      assetVideoPath: 'assets/videos/garment-selection-background.mp4',
       assetImagePath: 'assets/wallpapers/selfx-default-kiosk-wallpaper.png',
     ),
   ],
-  countdownSeconds: 10,
+  countdownSeconds: 5,
   soundEnabled: true,
   soundProfile: RuntimeKioskSoundProfile.selfxSignature,
   guidanceAudioEnabled: false,
@@ -267,8 +275,18 @@ KioskGarmentIntent garmentIntentFromApiValue(String value) {
 
 String? assetPathForBundledKey(String? key) {
   return switch (key) {
+    'selfx-default-kiosk-video' =>
+      'assets/wallpapers/selfx-default-kiosk-wallpaper.png',
     'selfx-default-kiosk-wallpaper' =>
       'assets/wallpapers/selfx-default-kiosk-wallpaper.png',
+    _ => null,
+  };
+}
+
+String? videoPathForBundledKey(String? key) {
+  return switch (key) {
+    'selfx-default-kiosk-video' =>
+      'assets/videos/garment-selection-background.mp4',
     _ => null,
   };
 }

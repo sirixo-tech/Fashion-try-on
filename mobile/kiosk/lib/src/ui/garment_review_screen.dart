@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -11,7 +12,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
-import 'garment_selection_screen.dart';
+import 'capture_review_screen.dart';
 import 'kiosk_chrome.dart';
 import 'model_compatibility_guidance_screen.dart';
 import 'selfx_kiosk_button.dart';
@@ -155,7 +156,7 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
             failureKind: _failureKind,
             sourceLabel: 'Retake',
             compact: compact,
-            onChooseAnother: () => _chooseAnother(context),
+            onChooseAnother: () => _retakeGarmentPhoto(context),
             onRetry: () => _preparePreview(force: true),
             onContinue: () => _continue(context),
           );
@@ -196,8 +197,8 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => GarmentSelectionScreen(
-          captureController: widget.captureController,
+        builder: (_) => CaptureReviewScreen(
+          controller: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
@@ -206,6 +207,18 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
       ),
       (route) => route.isFirst,
     );
+  }
+
+  Future<void> _retakeGarmentPhoto(BuildContext context) async {
+    if (!widget.pendingCameraCapture) {
+      await _chooseAnother(context);
+      return;
+    }
+    _activeExtractionPath = null;
+    final navigator = Navigator.of(context);
+    unawaited(_deleteGeneratedPreviewIfUnused());
+    unawaited(widget.captureController.discardPendingCapture());
+    navigator.pop();
   }
 
   Future<void> _continue(BuildContext context) async {
@@ -219,10 +232,10 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
     if (!context.mounted) {
       return;
     }
-    final coverage = widget.captureController.acceptedModelCoverage;
-    if (widget.captureController.acceptedCapture != null && coverage != null) {
+    final personPhoto = widget.captureController.activeAcceptedPersonPhoto;
+    if (personPhoto != null) {
       final compatibility = const ModelGarmentCompatibilityService().check(
-        coverage: coverage,
+        coverage: personPhoto.coverage,
         intent: _displayInput.intent,
       );
       if (!compatibility.supported) {

@@ -10,6 +10,8 @@ class SelfxKioskTokens {
   static const primaryHover = Color(0xFFE6600F);
   static const primaryPressed = Color(0xFFC84F0A);
   static const onPrimary = Color(0xFFFFFFFF);
+  static const secondary = Color(0xFFFFA21C);
+  static const onSecondary = Color(0xFFFFFFFF);
 
   static const background = Color(0xFFF7F8FB);
   static const surface = Color(0xFFFFFFFF);
@@ -29,7 +31,7 @@ class SelfxKioskTokens {
   static const info = Color(0xFF2563EB);
 
   static const buttonPrimary = primary;
-  static const buttonSecondary = surface;
+  static const buttonSecondary = secondary;
   static const buttonDanger = danger;
   static const buttonGhost = Color(0x00FFFFFF);
 
@@ -64,7 +66,7 @@ ThemeData buildSelfxKioskTheme() {
     colorScheme: scheme.copyWith(
       primary: SelfxKioskTokens.primary,
       onPrimary: SelfxKioskTokens.onPrimary,
-      secondary: SelfxKioskTokens.info,
+      secondary: SelfxKioskTokens.secondary,
       error: SelfxKioskTokens.danger,
       surface: SelfxKioskTokens.surface,
       onSurface: SelfxKioskTokens.textPrimary,
@@ -178,9 +180,9 @@ ThemeData buildSelfxKioskTheme() {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(180, 56),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
-        backgroundColor: SelfxKioskTokens.surface,
-        foregroundColor: SelfxKioskTokens.textPrimary,
-        side: const BorderSide(color: SelfxKioskTokens.border),
+        backgroundColor: SelfxKioskTokens.secondary,
+        foregroundColor: SelfxKioskTokens.onSecondary,
+        side: const BorderSide(color: SelfxKioskTokens.secondary),
         textStyle: const TextStyle(
           fontFamily: SelfxKioskTokens.bodyFontFamily,
           fontSize: 19,
