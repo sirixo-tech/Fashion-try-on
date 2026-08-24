@@ -893,7 +893,8 @@ Platform default catalog rows use `scope = PLATFORM_DEFAULT` and
 Store-owned kiosks fall back to them only when the Store has no active,
 VTO-enabled Store catalog products. Managed prices are optional and stored as
 integer cents plus ISO currency code so catalog products remain VTO-focused
-instead of becoming POS inventory.
+instead of becoming POS inventory. New product prices inherit the platform
+default currency stored in `platform_settings`.
 
 Possible source types:
 

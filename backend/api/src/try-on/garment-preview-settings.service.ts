@@ -6,9 +6,13 @@ import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 
 export const GARMENT_PREVIEW_PLATFORM_SETTING_KEY =
   "tryon.garment_preview.platform_enabled";
+export const PLATFORM_DEFAULT_CURRENCY_SETTING_KEY =
+  "platform.commerce.default_currency";
+export const PLATFORM_DEFAULT_CURRENCY = "USD";
 
 export type GarmentPreviewPlatformSettingsDto = {
   garmentPreviewEnabled: boolean;
+  defaultCurrency: string;
 };
 
 export type StoreGarmentPreviewSettingsDto = {
@@ -23,25 +27,64 @@ export class GarmentPreviewSettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getPlatformSettings(): Promise<GarmentPreviewPlatformSettingsDto> {
-    return {
-      garmentPreviewEnabled: await this.platformGarmentPreviewEnabled(),
-    };
+    const [garmentPreviewEnabled, defaultCurrency] = await Promise.all([
+      this.platformGarmentPreviewEnabled(),
+      this.platformDefaultCurrency(),
+    ]);
+    return { garmentPreviewEnabled, defaultCurrency };
   }
 
   async updatePlatformSettings(
-    enabled: boolean,
+    enabled: boolean | undefined,
+    defaultCurrency: string | undefined,
   ): Promise<GarmentPreviewPlatformSettingsDto> {
-    await this.prisma.$executeRaw`
-      INSERT INTO platform_settings ("key", "value")
-      VALUES (
-        ${GARMENT_PREVIEW_PLATFORM_SETTING_KEY},
-        ${JSON.stringify({ garmentPreviewEnabled: enabled })}::jsonb
-      )
-      ON CONFLICT ("key") DO UPDATE SET
-        "value" = EXCLUDED."value",
-        "updated_at" = CURRENT_TIMESTAMP
+    const updates: Promise<unknown>[] = [];
+    if (enabled !== undefined) {
+      updates.push(
+        this.prisma.$executeRaw`
+          INSERT INTO platform_settings ("key", "value")
+          VALUES (
+            ${GARMENT_PREVIEW_PLATFORM_SETTING_KEY},
+            ${JSON.stringify({ garmentPreviewEnabled: enabled })}::jsonb
+          )
+          ON CONFLICT ("key") DO UPDATE SET
+            "value" = EXCLUDED."value",
+            "updated_at" = CURRENT_TIMESTAMP
+        `,
+      );
+    }
+    if (defaultCurrency !== undefined) {
+      updates.push(
+        this.prisma.$executeRaw`
+          INSERT INTO platform_settings ("key", "value")
+          VALUES (
+            ${PLATFORM_DEFAULT_CURRENCY_SETTING_KEY},
+            ${JSON.stringify({
+              defaultCurrency: normalizeCurrency(defaultCurrency),
+            })}::jsonb
+          )
+          ON CONFLICT ("key") DO UPDATE SET
+            "value" = EXCLUDED."value",
+            "updated_at" = CURRENT_TIMESTAMP
+        `,
+      );
+    }
+    await Promise.all(updates);
+    return this.getPlatformSettings();
+  }
+
+  async platformDefaultCurrency(): Promise<string> {
+    const rows = await this.prisma.$queryRaw<Array<{ value: unknown }>>`
+      SELECT "value"
+      FROM platform_settings
+      WHERE "key" = ${PLATFORM_DEFAULT_CURRENCY_SETTING_KEY}
+      LIMIT 1
     `;
-    return { garmentPreviewEnabled: enabled };
+    const [row] = rows;
+    if (!row) {
+      return PLATFORM_DEFAULT_CURRENCY;
+    }
+    return defaultCurrencyFromPlatformSetting(row.value);
   }
 
   async storeSettings(
@@ -140,6 +183,18 @@ function garmentPreviewEnabledFromPlatformSetting(value: unknown): boolean {
   return typeof value.garmentPreviewEnabled === "boolean"
     ? value.garmentPreviewEnabled
     : true;
+}
+
+function defaultCurrencyFromPlatformSetting(value: unknown): string {
+  if (!isRecord(value) || typeof value.defaultCurrency !== "string") {
+    return PLATFORM_DEFAULT_CURRENCY;
+  }
+  return normalizeCurrency(value.defaultCurrency);
+}
+
+function normalizeCurrency(value: string): string {
+  const currency = value.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(currency) ? currency : PLATFORM_DEFAULT_CURRENCY;
 }
 
 function storeGarmentPreviewEnabledFromSettings(

@@ -2,6 +2,7 @@ import { selfxApi } from "@/lib/api";
 
 export type PlatformVirtualTryOnSettings = {
   garmentPreviewEnabled: boolean;
+  defaultCurrency: string;
 };
 
 export function getPlatformVirtualTryOnSettings(
@@ -15,7 +16,7 @@ export function getPlatformVirtualTryOnSettings(
 
 export function updatePlatformVirtualTryOnSettings(
   accessToken: string,
-  input: PlatformVirtualTryOnSettings,
+  input: Partial<PlatformVirtualTryOnSettings>,
 ): Promise<PlatformVirtualTryOnSettings> {
   return selfxApi<PlatformVirtualTryOnSettings>(
     "/api/v1/admin/platform-settings/virtual-try-on",
@@ -26,4 +27,3 @@ export function updatePlatformVirtualTryOnSettings(
     },
   );
 }
-

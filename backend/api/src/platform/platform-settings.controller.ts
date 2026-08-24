@@ -55,6 +55,7 @@ export class PlatformSettingsController {
     }
     return this.garmentPreviewSettings.updatePlatformSettings(
       dto.garmentPreviewEnabled,
+      dto.defaultCurrency,
     );
   }
 
@@ -69,4 +70,3 @@ export class PlatformSettingsController {
     return user;
   }
 }
-

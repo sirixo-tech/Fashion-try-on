@@ -1015,6 +1015,7 @@ Use clear warning/confirmation states for access removal or suspension.
 - product image
 - product name
 - price when available
+- platform default currency from Platform Settings
 - source
 - VTO status
 - stores
@@ -1025,7 +1026,8 @@ Use clear warning/confirmation states for access removal or suspension.
 - create native product
 - create/edit Platform default product for platform-owned kiosks and Store
   fallback catalogs
-- edit Store product name, category, price, image and VTO readiness
+- edit Store product name, category, price, image and VTO readiness; currency
+  is inherited from Platform Settings
 - open product
 - enable/disable VTO
 - sync/retry where appropriate

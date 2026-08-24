@@ -40,8 +40,8 @@ class MobileUploadScreen extends StatefulWidget {
 
 class _MobileUploadScreenState extends State<MobileUploadScreen> {
   Timer? _tickTimer;
-  bool _handoffInProgress = false;
-  String? _handoffMessage;
+  bool _continuing = false;
+  KioskCustomerUploadSession? _continuingSession;
 
   @override
   void initState() {
@@ -78,11 +78,15 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
         animation: widget.uploadController,
         builder: (context, _) {
           final session = widget.uploadController.session;
+          final continuingSession = _continuingSession;
           final message =
               widget.uploadController.message ?? 'Preparing secure upload...';
-          if (_handoffInProgress) {
-            return _UploadProcessingPanel(
-              message: _handoffMessage ?? 'Opening uploaded photo...',
+          if (continuingSession?.photo != null) {
+            return _ReadyPhotoPanel(
+              controller: widget.uploadController,
+              session: continuingSession!,
+              busy: true,
+              onUseReadyUpload: _useReadyUpload,
             );
           }
           if (session?.status == KioskCustomerUploadStatus.ready &&
@@ -90,6 +94,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
             return _ReadyPhotoPanel(
               controller: widget.uploadController,
               session: session!,
+              busy: _continuing,
               onUseReadyUpload: _useReadyUpload,
             );
           }
@@ -126,14 +131,12 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   }
 
   Future<void> _useReadyUpload() async {
-    if (_handoffInProgress) {
+    if (_continuing) {
       return;
     }
     setState(() {
-      _handoffInProgress = true;
-      _handoffMessage = widget.purpose == PhotoAcquisitionPurpose.garment
-          ? 'Opening garment photo...'
-          : 'Opening uploaded photo...';
+      _continuing = true;
+      _continuingSession = widget.uploadController.session;
     });
 
     if (widget.purpose == PhotoAcquisitionPurpose.garment) {
@@ -141,7 +144,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
         intent: widget.garmentIntent ?? KioskGarmentIntent.auto,
       );
       if (input == null || !mounted) {
-        _stopHandoff();
+        _stopContinuing();
         return;
       }
       await Navigator.of(context).pushReplacement(
@@ -163,10 +166,9 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       widget.captureController,
     );
     if (!accepted || !mounted) {
-      _stopHandoff();
+      _stopContinuing();
       return;
     }
-    setState(() => _handoffMessage = 'Saving uploaded photo...');
     final attached = await widget.tryOnController.attachAcceptedPerson(
       widget.captureController,
     );
@@ -174,7 +176,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       return;
     }
     if (!attached) {
-      _stopHandoff();
+      _stopContinuing();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -198,13 +200,13 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     );
   }
 
-  void _stopHandoff() {
+  void _stopContinuing() {
     if (!mounted) {
       return;
     }
     setState(() {
-      _handoffInProgress = false;
-      _handoffMessage = null;
+      _continuing = false;
+      _continuingSession = null;
     });
   }
 }
@@ -406,49 +408,17 @@ class _UploadFailurePanel extends StatelessWidget {
   }
 }
 
-class _UploadProcessingPanel extends StatelessWidget {
-  const _UploadProcessingPanel({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(30),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(height: 22),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ReadyPhotoPanel extends StatelessWidget {
   const _ReadyPhotoPanel({
     required this.controller,
     required this.session,
+    required this.busy,
     required this.onUseReadyUpload,
   });
 
   final KioskCustomerUploadController controller;
   final KioskCustomerUploadSession session;
+  final bool busy;
   final Future<void> Function() onUseReadyUpload;
 
   @override
@@ -475,7 +445,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
             if (!compact) const Spacer(),
             OutlinedButton.icon(
               key: const Key('upload-another-photo'),
-              onPressed: controller.isBusy
+              onPressed: busy || controller.isBusy
                   ? null
                   : () => unawaited(controller.uploadAnother()),
               icon: const Icon(Icons.qr_code_2),
@@ -484,7 +454,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               key: const Key('use-mobile-photo'),
-              onPressed: controller.isBusy
+              onPressed: busy || controller.isBusy
                   ? null
                   : () => unawaited(onUseReadyUpload()),
               icon: const Icon(Icons.check_circle_outline),

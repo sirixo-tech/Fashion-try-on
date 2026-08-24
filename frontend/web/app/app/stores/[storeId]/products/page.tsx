@@ -38,7 +38,16 @@ import {
   Textarea,
 } from "@selfx/ui";
 
+import {
+  garmentCategoryForProductCategory,
+  productAudiences,
+  productCategories,
+  productGarmentIntents,
+  ProductSelectMenu,
+  ProductToggleCheckbox,
+} from "@/components/product-form-controls";
 import { SafeApiError } from "@/lib/api";
+import { getPlatformVirtualTryOnSettings } from "@/lib/platform-settings";
 import { useSession } from "@/lib/session";
 import {
   createStoreProduct,
@@ -57,20 +66,6 @@ const productStatuses = [
   { value: "VTO_ENABLED", label: "Try-On ready" },
   { value: "ACTIVE", label: "Active" },
   { value: "INACTIVE", label: "Inactive" },
-] as const;
-
-const garmentIntents = [
-  { value: "TOP", label: "Top" },
-  { value: "BOTTOM", label: "Bottom" },
-  { value: "FULL_OUTFIT", label: "Full outfit" },
-] as const;
-
-const garmentCategories = [
-  { value: "TOPS", label: "Tops" },
-  { value: "BOTTOMS", label: "Bottoms" },
-  { value: "DRESSES", label: "Dresses" },
-  { value: "OUTERWEAR", label: "Outerwear" },
-  { value: "FULL_OUTFIT", label: "Full outfit" },
 ] as const;
 
 type ProductStatus = (typeof productStatuses)[number]["value"];
@@ -98,6 +93,7 @@ export default function StoreProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<StoreProduct | null>(null);
   const [creating, setCreating] = useState(false);
+  const [defaultCurrency, setDefaultCurrency] = useState("USD");
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -106,16 +102,19 @@ export default function StoreProductsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextStore, nextPermissions, nextProducts] = await Promise.all([
-        getStore(accessToken, storeId),
-        getEffectiveStorePermissions(accessToken, storeId),
-        listStoreProducts(accessToken, storeId, {
-          page,
-          pageSize: 25,
-          search,
-          status,
-        }),
-      ]);
+      const [settings, nextStore, nextPermissions, nextProducts] =
+        await Promise.all([
+          getPlatformVirtualTryOnSettings(accessToken),
+          getStore(accessToken, storeId),
+          getEffectiveStorePermissions(accessToken, storeId),
+          listStoreProducts(accessToken, storeId, {
+            page,
+            pageSize: 25,
+            search,
+            status,
+          }),
+        ]);
+      setDefaultCurrency(settings.defaultCurrency);
       setStore(nextStore);
       setProducts(nextProducts.data);
       setPagination(nextProducts.pagination);
@@ -200,20 +199,15 @@ export default function StoreProductsPage() {
               }}
             />
           </label>
-          <select
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/35"
+          <ProductSelectMenu
+            ariaLabel="Filter products by status"
             value={status}
-            onChange={(event) => {
+            options={productStatuses}
+            onChange={(value) => {
               setPage(1);
-              setStatus(event.target.value as ProductStatus);
+              setStatus(value);
             }}
-          >
-            {productStatuses.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </PageSection>
 
@@ -324,6 +318,7 @@ export default function StoreProductsPage() {
         open={creating}
         accessToken={accessToken}
         storeId={storeId}
+        defaultCurrency={defaultCurrency}
         onOpenChange={setCreating}
         onSaved={async () => {
           setCreating(false);
@@ -335,6 +330,7 @@ export default function StoreProductsPage() {
         accessToken={accessToken}
         storeId={storeId}
         product={editing}
+        defaultCurrency={defaultCurrency}
         onOpenChange={(open) => {
           if (!open) {
             setEditing(null);
@@ -353,6 +349,7 @@ function ProductDialog({
   open,
   accessToken,
   storeId,
+  defaultCurrency,
   product,
   onOpenChange,
   onSaved,
@@ -360,6 +357,7 @@ function ProductDialog({
   open: boolean;
   accessToken: string | null;
   storeId: string;
+  defaultCurrency: string;
   product?: StoreProduct | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => Promise<void>;
@@ -408,7 +406,7 @@ function ProductDialog({
         imageUrl: form.imageUrl,
         existingProduct: product ?? null,
       });
-      const input = productInputFromForm(form, image);
+      const input = productInputFromForm(form, image, defaultCurrency);
       if (product) {
         await updateStoreProduct(accessToken, storeId, product.id, input);
       } else {
@@ -499,56 +497,51 @@ function ProductDialog({
               </label>
               <label className="space-y-2 text-sm">
                 <span>Category *</span>
-                <Input
+                <ProductSelectMenu
+                  ariaLabel="Select product category"
                   value={form.categoryName}
-                  maxLength={120}
-                  onChange={(event) =>
+                  options={productCategories}
+                  onChange={(value) =>
                     setForm((current) => ({
                       ...current,
-                      categoryName: event.target.value,
+                      categoryName: value,
                     }))
                   }
                 />
               </label>
               <label className="space-y-2 text-sm">
                 <span>Audience</span>
-                <Input
+                <ProductSelectMenu
+                  ariaLabel="Select product audience"
                   value={form.audience}
-                  maxLength={40}
-                  onChange={(event) =>
+                  options={productAudiences}
+                  onChange={(value) =>
                     setForm((current) => ({
                       ...current,
-                      audience: event.target.value,
+                      audience: value,
                     }))
                   }
                 />
               </label>
               <label className="space-y-2 text-sm">
-                <span>Price</span>
-                <Input
-                  value={form.price}
-                  inputMode="decimal"
-                  placeholder="49.99"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      price: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="space-y-2 text-sm">
-                <span>Currency</span>
-                <Input
-                  value={form.currency}
-                  maxLength={3}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      currency: event.target.value.toUpperCase(),
-                    }))
-                  }
-                />
+                <span>Price ({defaultCurrency})</span>
+                <div className="relative">
+                  <Input
+                    className="pr-16"
+                    value={form.price}
+                    inputMode="decimal"
+                    placeholder="49.99"
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        price: event.target.value,
+                      }))
+                    }
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                    {defaultCurrency}
+                  </span>
+                </div>
               </label>
             </div>
 
@@ -570,41 +563,17 @@ function ProductDialog({
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm">
                 <span>Garment Type</span>
-                <select
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/35"
+                <ProductSelectMenu
+                  ariaLabel="Select garment type"
                   value={form.garmentIntent}
-                  onChange={(event) =>
+                  options={productGarmentIntents}
+                  onChange={(value) =>
                     setForm((current) => ({
                       ...current,
-                      garmentIntent: event.target.value,
+                      garmentIntent: value,
                     }))
                   }
-                >
-                  {garmentIntents.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-2 text-sm">
-                <span>Category Mapping</span>
-                <select
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/35"
-                  value={form.garmentCategory}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      garmentCategory: event.target.value,
-                    }))
-                  }
-                >
-                  {garmentCategories.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
             </div>
 
@@ -624,28 +593,24 @@ function ProductDialog({
 
             <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2">
               <label className="flex items-center gap-3 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  className="size-5 rounded border-border accent-primary"
+                <ProductToggleCheckbox
                   checked={form.active}
-                  onChange={(event) =>
+                  onChange={(checked) =>
                     setForm((current) => ({
                       ...current,
-                      active: event.target.checked,
+                      active: checked,
                     }))
                   }
                 />
                 Active
               </label>
               <label className="flex items-center gap-3 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  className="size-5 rounded border-border accent-primary"
+                <ProductToggleCheckbox
                   checked={form.vtoEnabled}
-                  onChange={(event) =>
+                  onChange={(checked) =>
                     setForm((current) => ({
                       ...current,
-                      vtoEnabled: event.target.checked,
+                      vtoEnabled: checked,
                     }))
                   }
                 />
@@ -688,12 +653,10 @@ type ProductForm = {
   categoryName: string;
   audience: string;
   price: string;
-  currency: string;
   description: string;
   productUrl: string;
   imageUrl: string;
   garmentIntent: string;
-  garmentCategory: string;
   active: boolean;
   vtoEnabled: boolean;
 };
@@ -701,18 +664,16 @@ type ProductForm = {
 function formFromProduct(product: StoreProduct | null): ProductForm {
   return {
     name: product?.name ?? "",
-    categoryName: product?.categoryName ?? "Tops",
-    audience: product?.audience ?? "all",
+    categoryName: product?.categoryName ?? productCategories[0].value,
+    audience: product?.audience ?? "UNISEX",
     price:
       product?.priceAmountCents !== null && product?.priceAmountCents !== undefined
         ? (product.priceAmountCents / 100).toFixed(2)
         : "",
-    currency: product?.priceCurrency ?? "USD",
     description: product?.description ?? "",
     productUrl: product?.productUrl ?? "",
     imageUrl: product?.image.storageKey ? "" : product?.image.url ?? "",
     garmentIntent: product?.garmentIntent ?? "TOP",
-    garmentCategory: product?.garmentCategory ?? "TOPS",
     active: product?.active ?? true,
     vtoEnabled: product?.vtoEnabled ?? true,
   };
@@ -721,17 +682,18 @@ function formFromProduct(product: StoreProduct | null): ProductForm {
 function productInputFromForm(
   form: ProductForm,
   image: StoreProductInput["image"] | undefined,
+  defaultCurrency: string,
 ): StoreProductInput {
   return {
     name: form.name.trim(),
     categoryName: form.categoryName.trim(),
     description: form.description.trim() || null,
-    audience: form.audience.trim() || "all",
+    audience: form.audience.trim().toUpperCase() || "UNISEX",
     priceAmountCents: priceToCents(form.price),
-    priceCurrency: form.price.trim() ? form.currency.trim().toUpperCase() || "USD" : null,
+    priceCurrency: form.price.trim() ? defaultCurrency : null,
     productUrl: form.productUrl.trim() || null,
     garmentIntent: form.garmentIntent,
-    garmentCategory: form.garmentCategory,
+    garmentCategory: garmentCategoryForProductCategory(form.categoryName),
     garmentPhotoType: "AUTO",
     active: form.active,
     vtoEnabled: form.vtoEnabled,

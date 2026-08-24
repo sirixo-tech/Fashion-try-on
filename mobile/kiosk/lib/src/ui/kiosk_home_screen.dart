@@ -322,17 +322,23 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Text(
-                                  presentation.title,
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .displayMedium
-                                      ?.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        height: 1.04,
-                                      ),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    presentation.title,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .displayMedium
+                                        ?.copyWith(
+                                          color: Colors.white,
+                                          fontSize: compact ? 42 : 54,
+                                          fontWeight: FontWeight.w900,
+                                          height: 1.04,
+                                        ),
+                                  ),
                                 ),
                                 const SizedBox(height: 18),
                                 Text(
@@ -346,7 +352,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                 ),
-                                const SizedBox(height: 126),
+                                SizedBox(height: compact ? 28 : 36),
                                 SelfxKioskButton(
                                   key: const Key('upload-from-mobile-start'),
                                   label: 'Upload From Mobile',
@@ -537,11 +543,11 @@ class _OperatorPinDialogState extends State<OperatorPinDialog> {
                     child: SelfxKioskButton(
                       label: 'Cancel',
                       variant: SelfxKioskButtonVariant.secondary,
-                      minHeight: 54,
+                      minHeight: 48,
                       expanded: true,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 13,
+                        horizontal: 14,
+                        vertical: 10,
                       ),
                       onPressed: _verifying
                           ? null
@@ -555,11 +561,11 @@ class _OperatorPinDialogState extends State<OperatorPinDialog> {
                       label: _verifying ? 'Unlocking' : 'Unlock',
                       icon: _verifying ? null : Icons.lock_open_outlined,
                       variant: SelfxKioskButtonVariant.primary,
-                      minHeight: 54,
+                      minHeight: 48,
                       expanded: true,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 13,
+                        horizontal: 14,
+                        vertical: 10,
                       ),
                       onPressed: _verifying ? null : _submit,
                     ),

@@ -163,12 +163,18 @@ class _ButtonContent extends StatelessWidget {
                   crossAxisAlignment: widget.crossAxisAlignment,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      widget.label,
-                      textAlign: widget.textAlign,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: foreground,
-                        fontWeight: FontWeight.w800,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        widget.label,
+                        textAlign: widget.textAlign,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: foreground,
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
                     if (widget.subtitle != null) ...[

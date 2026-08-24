@@ -1,12 +1,18 @@
-import { IsBoolean } from "class-validator";
+import { IsBoolean, IsOptional, Matches } from "class-validator";
 
 export class UpdateGarmentPreviewSettingsDto {
+  @IsOptional()
   @IsBoolean()
-  garmentPreviewEnabled!: boolean;
+  garmentPreviewEnabled?: boolean;
+
+  @IsOptional()
+  @Matches(/^[A-Z]{3}$/)
+  defaultCurrency?: string;
 }
 
 export class GarmentPreviewPlatformSettingsResponseDto {
   garmentPreviewEnabled!: boolean;
+  defaultCurrency!: string;
 }
 
 export class StoreGarmentPreviewSettingsResponseDto {
@@ -15,4 +21,3 @@ export class StoreGarmentPreviewSettingsResponseDto {
   storeGarmentPreviewEnabled!: boolean;
   effectiveGarmentPreviewEnabled!: boolean;
 }
-

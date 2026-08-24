@@ -11,6 +11,11 @@ import {
   TableContainer,
 } from "@selfx/ui";
 
+import {
+  platformCurrencyOptions,
+  ProductSelectMenu,
+  ProductToggleCheckbox,
+} from "@/components/product-form-controls";
 import { SafeApiError } from "@/lib/api";
 import {
   getPlatformVirtualTryOnSettings,
@@ -67,6 +72,25 @@ export default function SettingsPage() {
     }
   }
 
+  async function setDefaultCurrency(defaultCurrency: string) {
+    if (!accessToken || !settings) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      setSettings(
+        await updatePlatformVirtualTryOnSettings(accessToken, {
+          defaultCurrency,
+        }),
+      );
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <PageContainer>
       <PageHeader
@@ -102,14 +126,10 @@ export default function SettingsPage() {
           ) : settings ? (
             <div className="space-y-4">
               <label className="flex items-start gap-3 rounded-lg border p-4 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1"
+                <ProductToggleCheckbox
                   checked={settings.garmentPreviewEnabled}
                   disabled={saving}
-                  onChange={(event) =>
-                    void setGarmentPreviewEnabled(event.target.checked)
-                  }
+                  onChange={(checked) => void setGarmentPreviewEnabled(checked)}
                 />
                 <span>
                   <span className="block font-medium">
@@ -122,6 +142,21 @@ export default function SettingsPage() {
                   </span>
                 </span>
               </label>
+              <div className="grid gap-3 rounded-lg border p-4 text-sm sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
+                <div>
+                  <div className="font-medium">Default Currency</div>
+                  <div className="text-muted-foreground">
+                    Used by product pricing throughout Store and Platform
+                    catalog management.
+                  </div>
+                </div>
+                <ProductSelectMenu
+                  ariaLabel="Select default currency"
+                  value={settings.defaultCurrency}
+                  options={platformCurrencyOptions}
+                  onChange={(value) => void setDefaultCurrency(value)}
+                />
+              </div>
             </div>
           ) : null}
         </TableContainer>
@@ -136,4 +171,3 @@ function messageFor(caught: unknown): string {
   }
   return "Platform settings could not be loaded.";
 }
-

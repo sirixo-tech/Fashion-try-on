@@ -155,7 +155,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
       return false;
     }
     isBusy = true;
-    message = 'Opening uploaded photo...';
+    message = 'Preparing image preview...';
     notifyListeners();
     try {
       final path = await captureStore.createTempCapturePath(
@@ -182,7 +182,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (_) {
-      _fail('Uploaded photo could not be opened.');
+      _fail('Photo could not be prepared.');
       return false;
     }
   }
@@ -199,7 +199,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
       return null;
     }
     isBusy = true;
-    message = 'Opening garment photo...';
+    message = 'Preparing garment preview...';
     notifyListeners();
     try {
       final path = await captureStore.createTempCapturePath(
@@ -226,7 +226,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
         photoType: resolveGarmentReferenceProfile().photoType,
       );
     } catch (_) {
-      _fail('Uploaded garment photo could not be opened.');
+      _fail('Garment photo could not be prepared.');
       return null;
     }
   }

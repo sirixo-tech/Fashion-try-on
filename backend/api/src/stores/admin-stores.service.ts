@@ -355,7 +355,11 @@ export class AdminStoresService {
     const productId = createSelfxId();
     const slug = normalizeProductSlug(input.slug ?? slugFromName(input.name));
     const image = normalizeProductImage(storeId, input.image);
-    const price = normalizePrice(input.priceAmountCents, input.priceCurrency);
+    const price = normalizePrice(
+      input.priceAmountCents,
+      input.priceCurrency,
+      await this.garmentPreviewSettings.platformDefaultCurrency(),
+    );
     try {
       const rows = await this.prisma.$queryRaw<StoreProductRow[]>`
         INSERT INTO products (
@@ -486,7 +490,11 @@ export class AdminStoresService {
       input.priceAmountCents !== undefined ||
       input.priceCurrency !== undefined
     ) {
-      const price = normalizePrice(input.priceAmountCents, input.priceCurrency);
+      const price = normalizePrice(
+        input.priceAmountCents,
+        input.priceCurrency,
+        await this.garmentPreviewSettings.platformDefaultCurrency(),
+      );
       if (input.priceAmountCents !== undefined) {
         assignments.push(Prisma.sql`price_amount_cents = ${price.amountCents}`);
       }
@@ -1203,6 +1211,7 @@ function normalizeProductImage(
 function normalizePrice(
   amountCents: number | null | undefined,
   currency: string | null | undefined,
+  defaultCurrency: string,
 ): { amountCents: number | null; currency: string | null } {
   if (amountCents === null) {
     return { amountCents: null, currency: null };
@@ -1215,7 +1224,8 @@ function normalizePrice(
   }
   return {
     amountCents,
-    currency: nullableTrim(currency ?? undefined)?.toUpperCase() ?? "USD",
+    currency:
+      nullableTrim(currency ?? undefined)?.toUpperCase() ?? defaultCurrency,
   };
 }
 

@@ -6,6 +6,7 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
 import {
   type CreatePlatformProductDto,
   type CreatePlatformProductImageUploadDto,
@@ -66,6 +67,7 @@ export class AdminCatalogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: ObjectStorageService,
+    private readonly platformSettings: GarmentPreviewSettingsService,
   ) {}
 
   async listPlatformProducts(
@@ -116,7 +118,11 @@ export class AdminCatalogService {
     const productId = createSelfxId();
     const slug = normalizeProductSlug(input.slug ?? slugFromName(input.name));
     const image = normalizeProductImage(input.image);
-    const price = normalizePrice(input.priceAmountCents, input.priceCurrency);
+    const price = normalizePrice(
+      input.priceAmountCents,
+      input.priceCurrency,
+      await this.platformSettings.platformDefaultCurrency(),
+    );
     try {
       await this.prisma.$executeRaw`
         INSERT INTO products (
@@ -208,7 +214,11 @@ export class AdminCatalogService {
       );
     }
     if (input.priceAmountCents !== undefined || input.priceCurrency !== undefined) {
-      const price = normalizePrice(input.priceAmountCents, input.priceCurrency);
+      const price = normalizePrice(
+        input.priceAmountCents,
+        input.priceCurrency,
+        await this.platformSettings.platformDefaultCurrency(),
+      );
       if (input.priceAmountCents !== undefined) {
         assignments.push(Prisma.sql`price_amount_cents = ${price.amountCents}`);
       }
@@ -511,6 +521,7 @@ function normalizeProductImage(
 function normalizePrice(
   amountCents: number | null | undefined,
   currency: string | null | undefined,
+  defaultCurrency: string,
 ): { amountCents: number | null; currency: string | null } {
   if (amountCents === null) {
     return { amountCents: null, currency: null };
@@ -523,7 +534,8 @@ function normalizePrice(
   }
   return {
     amountCents,
-    currency: nullableTrim(currency ?? undefined)?.toUpperCase() ?? "USD",
+    currency:
+      nullableTrim(currency ?? undefined)?.toUpperCase() ?? defaultCurrency,
   };
 }
 

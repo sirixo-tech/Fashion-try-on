@@ -49,6 +49,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   qr_flutter: ^4.1.0
   file_selector: ^1.0.3
+  video_player: ^2.10.0
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +78,7 @@ flutter:
     - assets/audio/capture/digital/
     - assets/audio/capture/minimal/
     - assets/wallpapers/
+    - assets/videos/
   fonts:
     - family: Manrope
       fonts:
