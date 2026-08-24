@@ -35,6 +35,7 @@ import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/tryon/model_coverage_analyzer.dart';
 import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 import 'package:selfx_kiosk/src/ui/browse_products_screen.dart';
+import 'package:selfx_kiosk/src/ui/camera_capture_screen.dart';
 import 'package:selfx_kiosk/src/ui/camera_settings_screen.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
@@ -283,7 +284,7 @@ void main() {
 
   group('Assisted capture countdown', () {
     test(
-      'countdown preference defaults and stays in supported range',
+      'countdown preference defaults and clamps to the manual range',
       () async {
         final settings = InMemoryCameraSettingsStore();
 
@@ -296,9 +297,18 @@ void main() {
         expect(await settings.readCaptureCountdownSeconds(), 15);
 
         await settings.saveCaptureCountdownSeconds(7);
+        expect(await settings.readCaptureCountdownSeconds(), 7);
+
+        await settings.saveCaptureCountdownSeconds(0);
         expect(
           await settings.readCaptureCountdownSeconds(),
-          defaultCaptureCountdownSeconds,
+          minCaptureCountdownSeconds,
+        );
+
+        await settings.saveCaptureCountdownSeconds(99);
+        expect(
+          await settings.readCaptureCountdownSeconds(),
+          maxCaptureCountdownSeconds,
         );
         expect(await settings.readCaptureSoundsEnabled(), isTrue);
       },
@@ -380,6 +390,33 @@ void main() {
 
       expect(camera.captureCount, 1);
       expect(audioService.events, isEmpty);
+    });
+
+    testWidgets('countdown control shows the remaining number', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CaptureGuidancePanel(
+              state: const CameraState(status: CameraStatus.ready),
+              flowState: const CaptureFlowState(
+                stage: CaptureFlowStage.countdown,
+                countdownSeconds: 7,
+                secondsRemaining: 4,
+              ),
+              readinessResult: null,
+              onBack: () {},
+              onCapture: () {},
+              onCancelCountdown: () {},
+              onCaptureAnyway: () {},
+              canFlipCamera: false,
+              onFlipCamera: null,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('4'), findsOneWidget);
+      expect(find.byIcon(Icons.timer_outlined), findsNothing);
     });
 
     test(

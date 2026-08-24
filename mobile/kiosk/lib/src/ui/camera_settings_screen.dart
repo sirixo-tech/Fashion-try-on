@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../camera/camera_models.dart';
 import '../camera/camera_orientation.dart';
@@ -92,14 +93,16 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
             onRefresh: _refresh,
             onSelectCamera: _selectCamera,
             onCountdownChanged: widget.controller.updateCaptureCountdownSeconds,
-            onCaptureSoundsChanged: widget.controller.updateCaptureSoundsEnabled,
+            onCaptureSoundsChanged:
+                widget.controller.updateCaptureSoundsEnabled,
             onAudioProfileChanged: widget.controller.updateCaptureAudioProfile,
             onCameraOrientationChanged:
                 widget.controller.updateCameraOrientationMode,
             onPreviewSound: widget.controller.previewCaptureAudioProfile,
             onTestCamera: () => Navigator.of(context).pop(),
             configurationStatus:
-                widget.configurationController?.statusLabel ?? 'Bundled defaults',
+                widget.configurationController?.statusLabel ??
+                'Bundled defaults',
             configurationErrorCode:
                 widget.configurationController?.lastErrorCode,
           );
@@ -242,9 +245,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 18),
-            Expanded(
-              child: SingleChildScrollView(child: content),
-            ),
+            Expanded(child: SingleChildScrollView(child: content)),
             const SizedBox(width: 18),
             SizedBox(
               width: previewWidth,
@@ -470,39 +471,39 @@ class _SettingsCategoryContent extends StatelessWidget {
       description: category.description,
       child: switch (category) {
         _OperatorSettingsCategory.camera => _CameraSection(
-            state: state,
-            loading: loading,
-            cameraOrientationMode: cameraOrientationMode,
-            onRefresh: onRefresh,
-            onSelectCamera: onSelectCamera,
-            onCameraOrientationChanged: onCameraOrientationChanged,
-          ),
+          state: state,
+          loading: loading,
+          cameraOrientationMode: cameraOrientationMode,
+          onRefresh: onRefresh,
+          onSelectCamera: onSelectCamera,
+          onCameraOrientationChanged: onCameraOrientationChanged,
+        ),
         _OperatorSettingsCategory.capture => _CaptureSection(
-            countdownSeconds: countdownSeconds,
-            onCountdownChanged: onCountdownChanged,
-          ),
+          countdownSeconds: countdownSeconds,
+          onCountdownChanged: onCountdownChanged,
+        ),
         _OperatorSettingsCategory.display => _DisplaySection(
-            configurationStatus: configurationStatus,
-            configurationErrorCode: configurationErrorCode,
-          ),
+          configurationStatus: configurationStatus,
+          configurationErrorCode: configurationErrorCode,
+        ),
         _OperatorSettingsCategory.audio => _AudioSection(
-            captureSoundsEnabled: captureSoundsEnabled,
-            captureAudioProfile: captureAudioProfile,
-            onCaptureSoundsChanged: onCaptureSoundsChanged,
-            onAudioProfileChanged: onAudioProfileChanged,
-            onPreviewSound: onPreviewSound,
-          ),
+          captureSoundsEnabled: captureSoundsEnabled,
+          captureAudioProfile: captureAudioProfile,
+          onCaptureSoundsChanged: onCaptureSoundsChanged,
+          onAudioProfileChanged: onAudioProfileChanged,
+          onPreviewSound: onPreviewSound,
+        ),
         _OperatorSettingsCategory.diagnostics => _DiagnosticsSection(
-            state: state,
-            analysisDiagnostics: analysisDiagnostics,
-            primarySubject: primarySubject,
-            poseAnalyzerLatency: poseAnalyzerLatency,
-            imageQualityAnalyzerLatency: imageQualityAnalyzerLatency,
-          ),
+          state: state,
+          analysisDiagnostics: analysisDiagnostics,
+          primarySubject: primarySubject,
+          poseAnalyzerLatency: poseAnalyzerLatency,
+          imageQualityAnalyzerLatency: imageQualityAnalyzerLatency,
+        ),
         _OperatorSettingsCategory.system => _SystemSection(
-            onRefresh: onRefresh,
-            onTestCamera: onTestCamera,
-          ),
+          onRefresh: onRefresh,
+          onTestCamera: onTestCamera,
+        ),
       },
     );
   }
@@ -528,8 +529,9 @@ class _CameraSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedDevice = state.selectedDevice;
-    final showOrientationCalibration =
-        _cameraOrientationCalibrationAvailable(state);
+    final showOrientationCalibration = _cameraOrientationCalibrationAvailable(
+      state,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -652,7 +654,7 @@ bool _cameraOrientationCalibrationAvailable(CameraState state) {
           state.status == CameraStatus.capturing);
 }
 
-class _CaptureSection extends StatelessWidget {
+class _CaptureSection extends StatefulWidget {
   const _CaptureSection({
     required this.countdownSeconds,
     required this.onCountdownChanged,
@@ -662,28 +664,93 @@ class _CaptureSection extends StatelessWidget {
   final ValueChanged<int> onCountdownChanged;
 
   @override
+  State<_CaptureSection> createState() => _CaptureSectionState();
+}
+
+class _CaptureSectionState extends State<_CaptureSection> {
+  late final TextEditingController _countdownController;
+  late final FocusNode _countdownFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _countdownController = TextEditingController(
+      text: widget.countdownSeconds.toString(),
+    );
+    _countdownFocusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CaptureSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.countdownSeconds != oldWidget.countdownSeconds &&
+        !_countdownFocusNode.hasFocus) {
+      _countdownController.text = widget.countdownSeconds.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _countdownController.dispose();
+    _countdownFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _FieldHeader(
           title: 'Assisted countdown',
-          description: 'Customers see one guided countdown before still capture.',
+          description:
+              'Customers see one guided countdown before still capture.',
         ),
-        SegmentedButton<int>(
+        Row(
           key: const Key('countdown-duration-selector'),
-          selected: {countdownSeconds},
-          segments: [
-            for (final seconds in allowedCaptureCountdownSeconds)
-              ButtonSegment<int>(
-                value: seconds,
-                label: Text('$seconds sec'),
-                icon: const Icon(Icons.timer_outlined),
+          children: [
+            IconButton.filledTonal(
+              tooltip: 'Decrease countdown',
+              onPressed: widget.countdownSeconds > minCaptureCountdownSeconds
+                  ? () => _setCountdown(widget.countdownSeconds - 1)
+                  : null,
+              icon: const Icon(Icons.remove),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 132,
+              child: TextFormField(
+                controller: _countdownController,
+                focusNode: _countdownFocusNode,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Seconds',
+                  suffixText: 'sec',
+                  helperText: '1-15',
+                ),
+                onChanged: _handleCountdownInput,
+                onFieldSubmitted: (_) => _commitCountdownInput(),
+                onEditingComplete: _commitCountdownInput,
               ),
+            ),
+            const SizedBox(width: 12),
+            IconButton.filledTonal(
+              tooltip: 'Increase countdown',
+              onPressed: widget.countdownSeconds < maxCaptureCountdownSeconds
+                  ? () => _setCountdown(widget.countdownSeconds + 1)
+                  : null,
+              icon: const Icon(Icons.add),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                '${widget.countdownSeconds} second countdown before capture',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
           ],
-          onSelectionChanged: (selection) {
-            onCountdownChanged(selection.first);
-          },
         ),
         const SizedBox(height: 24),
         const _StatusBanner(
@@ -695,6 +762,31 @@ class _CaptureSection extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _handleCountdownInput(String value) {
+    final seconds = int.tryParse(value);
+    if (seconds == null ||
+        seconds < minCaptureCountdownSeconds ||
+        seconds > maxCaptureCountdownSeconds) {
+      return;
+    }
+    widget.onCountdownChanged(seconds);
+  }
+
+  void _commitCountdownInput() {
+    final normalized = normalizeCaptureCountdownSeconds(
+      int.tryParse(_countdownController.text),
+    );
+    _countdownController.text = normalized.toString();
+    widget.onCountdownChanged(normalized);
+    _countdownFocusNode.unfocus();
+  }
+
+  void _setCountdown(int seconds) {
+    final normalized = normalizeCaptureCountdownSeconds(seconds);
+    _countdownController.text = normalized.toString();
+    widget.onCountdownChanged(normalized);
   }
 }
 
@@ -864,7 +956,10 @@ class _DiagnosticsSection extends StatelessWidget {
           label: 'Dropped frames',
           value: analysisDiagnostics!.droppedFrameCount.toString(),
         ),
-        _InfoItem(label: 'Pose latency', value: _durationLabel(poseAnalyzerLatency)),
+        _InfoItem(
+          label: 'Pose latency',
+          value: _durationLabel(poseAnalyzerLatency),
+        ),
         _InfoItem(
           label: 'Quality latency',
           value: _durationLabel(imageQualityAnalyzerLatency),
@@ -875,7 +970,8 @@ class _DiagnosticsSection extends StatelessWidget {
         ),
         _InfoItem(
           label: 'Prominence',
-          value: primarySubject?.visualProminenceScore.toStringAsFixed(2) ??
+          value:
+              primarySubject?.visualProminenceScore.toStringAsFixed(2) ??
               'Unavailable',
         ),
         _InfoItem(
@@ -890,7 +986,8 @@ class _DiagnosticsSection extends StatelessWidget {
         ),
         _InfoItem(
           label: 'Analyzer',
-          value: primarySubject?.analyzerCapabilities.displayName ??
+          value:
+              primarySubject?.analyzerCapabilities.displayName ??
               'ML Kit / single-primary',
         ),
         const _InfoItem(label: 'Multi-person awareness', value: 'Unsupported'),
@@ -954,10 +1051,7 @@ class _DiagnosticsSection extends StatelessWidget {
 }
 
 class _SystemSection extends StatelessWidget {
-  const _SystemSection({
-    required this.onRefresh,
-    required this.onTestCamera,
-  });
+  const _SystemSection({required this.onRefresh, required this.onTestCamera});
 
   final VoidCallback onRefresh;
   final VoidCallback onTestCamera;

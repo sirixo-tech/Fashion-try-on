@@ -153,11 +153,10 @@ class _ReviewActions extends StatelessWidget {
         if (compact) const SizedBox(height: 20) else const Spacer(),
         OutlinedButton.icon(
           key: const Key('retake-photo'),
-          onPressed: () async {
-            await controller.retake();
-            if (context.mounted) {
-              Navigator.of(context).pop();
-            }
+          onPressed: () {
+            final navigator = Navigator.of(context);
+            unawaited(controller.retake());
+            navigator.pop();
           },
           icon: const Icon(Icons.replay),
           label: const Text('Retake'),

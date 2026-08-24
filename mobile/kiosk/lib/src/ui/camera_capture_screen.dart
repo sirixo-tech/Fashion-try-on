@@ -332,6 +332,9 @@ class _CaptureControls extends StatelessWidget {
       CaptureFlowStage.analyzing => 'Checking Photo',
       _ => 'Take Photo',
     };
+    final countdownText = isCountdown && flowState.secondsRemaining != null
+        ? '${flowState.secondsRemaining}'
+        : null;
     final primaryAction = switch (stage) {
       CaptureFlowStage.preparing when canCaptureAnyway => onCaptureAnyway,
       CaptureFlowStage.preview
@@ -393,7 +396,10 @@ class _CaptureControls extends StatelessWidget {
                       child: _PrimaryCameraActionButton(
                         key: const Key('capture-photo'),
                         label: primaryLabel,
-                        icon: _captureIconFor(stage, canCaptureAnyway),
+                        icon: countdownText == null
+                            ? _captureIconFor(stage, canCaptureAnyway)
+                            : null,
+                        centerText: countdownText,
                         onPressed: primaryAction,
                       ),
                     ),
@@ -424,11 +430,13 @@ class _PrimaryCameraActionButton extends StatelessWidget {
     super.key,
     required this.label,
     required this.icon,
+    this.centerText,
     required this.onPressed,
   });
 
   final String label;
-  final IconData icon;
+  final IconData? icon;
+  final String? centerText;
   final VoidCallback? onPressed;
 
   @override
@@ -454,7 +462,15 @@ class _PrimaryCameraActionButton extends StatelessWidget {
               padding: EdgeInsets.zero,
               shape: const StadiumBorder(),
             ),
-            child: Icon(icon, size: 30),
+            child: centerText != null
+                ? Text(
+                    centerText!,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: SelfxKioskTokens.onPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  )
+                : Icon(icon, size: 30),
           ),
         ),
       ),

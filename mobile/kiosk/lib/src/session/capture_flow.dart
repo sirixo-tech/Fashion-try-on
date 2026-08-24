@@ -67,13 +67,14 @@ class CaptureGuidance {
 }
 
 const defaultCaptureCountdownSeconds = 10;
-const allowedCaptureCountdownSeconds = [5, 10, 15];
+const minCaptureCountdownSeconds = 1;
+const maxCaptureCountdownSeconds = 15;
 
 int normalizeCaptureCountdownSeconds(int? value) {
-  if (allowedCaptureCountdownSeconds.contains(value)) {
-    return value!;
+  if (value == null) {
+    return defaultCaptureCountdownSeconds;
   }
-  return defaultCaptureCountdownSeconds;
+  return value.clamp(minCaptureCountdownSeconds, maxCaptureCountdownSeconds);
 }
 
 CaptureGuidance scriptedCaptureGuidance({
