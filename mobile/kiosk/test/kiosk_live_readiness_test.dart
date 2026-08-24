@@ -134,6 +134,26 @@ void main() {
     expect(camera.captureCount, 1);
   });
 
+  test(
+    'live streaming support still uses scripted capture by default',
+    () async {
+      final camera = readyCamera(supportsLiveFrames: true);
+      final settings = InMemoryCameraSettingsStore()
+        ..captureCountdownSeconds = 5;
+      final controller = testController(
+        camera: camera,
+        settings: settings,
+        countdownTickDuration: const Duration(milliseconds: 1),
+      );
+
+      await controller.beginAssistedCapture();
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      expect(camera.liveFramesStarted, isFalse);
+      expect(camera.captureCount, 1);
+    },
+  );
+
   test('Capture Anyway does not bypass technical capture failure', () async {
     final camera = readyCamera(failCapture: true);
     final controller = testController(camera: camera);
@@ -159,10 +179,7 @@ void main() {
       final resolver = PrimarySubjectResolver();
 
       final subject = resolver.resolve(
-        pose: PoseAnalysisResult(
-          available: true,
-          people: [fullBodyPerson()],
-        ),
+        pose: PoseAnalysisResult(available: true, people: [fullBodyPerson()]),
         frameDimensions: const FrameDimensions(width: 1000, height: 1600),
         scope: CaptureScope.fullBody,
         observedAt: DateTime(2026, 8, 13),
@@ -177,7 +194,9 @@ void main() {
 
     test('keeps normalized target region inside frame bounds', () {
       final region = TargetSubjectRegion.fromObservation(
-        person: fullBodyPerson(bounds: const Rect.fromLTWH(-80, 20, 1200, 1700)),
+        person: fullBodyPerson(
+          bounds: const Rect.fromLTWH(-80, 20, 1200, 1700),
+        ),
         frameDimensions: const FrameDimensions(width: 1000, height: 1600),
         scope: CaptureScope.fullBody,
       );
@@ -193,10 +212,7 @@ void main() {
     test('short positional movement retains the subject lock', () {
       final resolver = PrimarySubjectResolver();
       final first = resolver.resolve(
-        pose: PoseAnalysisResult(
-          available: true,
-          people: [fullBodyPerson()],
-        ),
+        pose: PoseAnalysisResult(available: true, people: [fullBodyPerson()]),
         frameDimensions: const FrameDimensions(width: 1000, height: 1600),
         scope: CaptureScope.fullBody,
         observedAt: DateTime(2026, 8, 13),
@@ -252,10 +268,7 @@ void main() {
         config: const PrimarySubjectResolverConfig(releaseAfterAbsentFrames: 2),
       );
       resolver.resolve(
-        pose: PoseAnalysisResult(
-          available: true,
-          people: [fullBodyPerson()],
-        ),
+        pose: PoseAnalysisResult(available: true, people: [fullBodyPerson()]),
         frameDimensions: const FrameDimensions(width: 1000, height: 1600),
         scope: CaptureScope.fullBody,
         observedAt: DateTime(2026, 8, 13),
@@ -282,10 +295,7 @@ void main() {
     test('session reset releases subject lock', () {
       final resolver = PrimarySubjectResolver();
       resolver.resolve(
-        pose: PoseAnalysisResult(
-          available: true,
-          people: [fullBodyPerson()],
-        ),
+        pose: PoseAnalysisResult(available: true, people: [fullBodyPerson()]),
         frameDimensions: const FrameDimensions(width: 1000, height: 1600),
         scope: CaptureScope.fullBody,
         observedAt: DateTime(2026, 8, 13),
@@ -303,7 +313,9 @@ void main() {
       final first = resolver.resolve(
         pose: PoseAnalysisResult(
           available: true,
-          people: [fullBodyPerson(bounds: const Rect.fromLTWH(250, 180, 360, 1180))],
+          people: [
+            fullBodyPerson(bounds: const Rect.fromLTWH(250, 180, 360, 1180)),
+          ],
         ),
         frameDimensions: const FrameDimensions(width: 1000, height: 1600),
         scope: CaptureScope.fullBody,

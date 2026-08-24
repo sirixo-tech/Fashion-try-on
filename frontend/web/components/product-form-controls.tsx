@@ -37,12 +37,20 @@ export const productGarmentIntents = [
 ] as const;
 
 export const platformCurrencyOptions = [
-  { value: "USD", label: "USD" },
-  { value: "INR", label: "INR" },
-  { value: "AED", label: "AED" },
-  { value: "EUR", label: "EUR" },
-  { value: "GBP", label: "GBP" },
+  { value: "USD", label: "$ USD" },
+  { value: "INR", label: "₹ INR" },
+  { value: "AED", label: "د.إ AED" },
+  { value: "EUR", label: "€ EUR" },
+  { value: "GBP", label: "£ GBP" },
 ] as const;
+
+export function currencySymbolFor(currency: string): string {
+  return (
+    platformCurrencyOptions
+      .find((option) => option.value === currency)
+      ?.label.split(" ")[0] ?? currency
+  );
+}
 
 export function ProductSelectMenu<T extends string>({
   ariaLabel,

@@ -237,7 +237,11 @@ class _PreviewPanel extends StatelessWidget {
     return ColoredBox(
       color: Colors.black,
       child: showPreview
-          ? CameraPreviewViewport(state: state, preview: preview)
+          ? CameraPreviewViewport(
+              state: state,
+              preview: preview,
+              fit: BoxFit.cover,
+            )
           : _CameraStateView(
               starting: starting,
               state: state,
@@ -523,7 +527,7 @@ class _CameraStateView extends StatelessWidget {
         state.status == CameraStatus.initializing;
     final failure = state.failure;
     return ColoredBox(
-      color: const Color(0xFF102A43),
+      color: const Color(0xFF030712),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -549,12 +553,20 @@ class _CameraStateView extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               if (!isBusy)
-                OutlinedButton.icon(
+                FilledButton.icon(
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: SelfxKioskTokens.primary,
+                    foregroundColor: SelfxKioskTokens.onPrimary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 34,
+                      vertical: 16,
+                    ),
+                    textStyle: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                    shape: const StadiumBorder(),
                   ),
                 ),
             ],

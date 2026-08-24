@@ -167,8 +167,17 @@ class _ReviewActions extends StatelessWidget {
           key: const Key('use-photo'),
           onPressed: quality != null && !quality!.isBlocked
               ? () async {
-                  final accepted = controller.usePhoto();
-                  if (!accepted || !context.mounted) {
+                  final result = await controller.usePhoto();
+                  if (!context.mounted) {
+                    return;
+                  }
+                  if (!result.accepted) {
+                    final message =
+                        result.message ??
+                        'Please retake your photo before continuing.';
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(message)));
                     return;
                   }
                   final attached = await tryOnController.attachAcceptedPerson(
@@ -218,16 +227,14 @@ class _QualitySummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final result = this.result;
+    final status = result?.status;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Quality Summary',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Photo Review', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             if (isLoading)
               const Row(
@@ -242,7 +249,7 @@ class _QualitySummary extends StatelessWidget {
                 ],
               )
             else if (result == null)
-              const Text('Quality check has not completed.')
+              const Text('Checking your photo before continuing.')
             else ...[
               Text(
                 qualityStatusLabel(result.status),
@@ -251,18 +258,14 @@ class _QualitySummary extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _MetricRows(metrics: result.metrics),
-              const SizedBox(height: 20),
-              if (result.issues.isEmpty)
-                const _QualityLine(icon: Icons.check, text: 'Photo looks clear')
-              else
-                for (final issue in result.issues)
-                  _QualityLine(
-                    icon: issue.severity == ImageQualityIssueSeverity.blocking
-                        ? Icons.error_outline
-                        : Icons.warning_amber_outlined,
-                    text: issue.message,
-                  ),
+              _QualityLine(
+                icon: status == ImageQualityStatus.blocked
+                    ? Icons.error_outline
+                    : status == ImageQualityStatus.warning
+                    ? Icons.warning_amber_outlined
+                    : Icons.check,
+                text: _customerMessage(result),
+              ),
             ],
           ],
         ),
@@ -277,61 +280,16 @@ class _QualitySummary extends StatelessWidget {
       ImageQualityStatus.blocked => const Color(0xFFC53030),
     };
   }
-}
 
-class _MetricRows extends StatelessWidget {
-  const _MetricRows({required this.metrics});
-
-  final ImageQualityMetrics metrics;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _MetricRow(label: 'Resolution', value: _resolutionLabel()),
-        _MetricRow(label: 'Sharpness', value: _metric(metrics.sharpness)),
-        _MetricRow(label: 'Brightness', value: _metric(metrics.brightness)),
-        _MetricRow(label: 'Contrast', value: _metric(metrics.contrast)),
-      ],
-    );
-  }
-
-  String _resolutionLabel() {
-    if (metrics.width == null || metrics.height == null) {
-      return 'Unavailable';
-    }
-    return '${metrics.width} x ${metrics.height}';
-  }
-
-  String _metric(double? value) =>
-      value == null ? 'Unavailable' : value.toStringAsFixed(2);
-}
-
-class _MetricRow extends StatelessWidget {
-  const _MetricRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, overflow: TextOverflow.ellipsis)),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _customerMessage(ImageQualityResult result) {
+    return switch (result.status) {
+      ImageQualityStatus.pass =>
+        'Image looks good. You can proceed or retake it.',
+      ImageQualityStatus.warning =>
+        'This photo may reduce Try-On quality. Retake for better results, or continue.',
+      ImageQualityStatus.blocked =>
+        'We could not use this photo. Please retake it.',
+    };
   }
 }
 

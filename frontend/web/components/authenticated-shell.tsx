@@ -36,6 +36,7 @@ import { useSession } from "@/lib/session";
 
 const navItems: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
+  { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
   {
     label: "Stores",
     icon: StoreIcon,
@@ -48,8 +49,20 @@ const navItems: SelfxNavItem[] = [
       },
     ],
   },
-  { href: "/app/staff", label: "Staff", icon: UsersIcon },
-  { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
+  { href: "/app/products", label: "Products", icon: PackageIcon },
+  { href: "/app/try-on-lab", label: "Try-On Lab", icon: FlaskConicalIcon },
+  {
+    label: "Integrations",
+    icon: BlocksIcon,
+    children: [
+      { href: "/app/integrations/shopify", label: "Shopify", icon: StoreIcon },
+      {
+        href: "/app/integrations/woocommerce",
+        label: "WooCommerce",
+        icon: BlocksIcon,
+      },
+    ],
+  },
   {
     label: "Access Control",
     icon: LockKeyholeIcon,
@@ -63,29 +76,16 @@ const navItems: SelfxNavItem[] = [
       { href: "/app/users", label: "Platform Users", icon: UsersIcon },
     ],
   },
-  { href: "/app/try-on-lab", label: "Try-On Lab", icon: FlaskConicalIcon },
-  { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
-  {
-    label: "Integrations",
-    icon: BlocksIcon,
-    children: [
-      { href: "/app/integrations/shopify", label: "Shopify", icon: StoreIcon },
-      {
-        href: "/app/integrations/woocommerce",
-        label: "WooCommerce",
-        icon: BlocksIcon,
-      },
-    ],
-  },
   { href: "/app/activity", label: "Activity", icon: ActivityIcon },
   { href: "/app/developer", label: "Developer / API", icon: Code2Icon },
+  { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
+  { href: "/app/staff", label: "Staff", icon: UsersIcon },
   { href: "/app/billing", label: "Usage & Billing", icon: CreditCardIcon },
   {
     label: "Platform",
     icon: SettingsIcon,
     children: [
       { href: "/app/settings", label: "Settings", icon: SettingsIcon },
-      { href: "/app/products", label: "Products", icon: PackageIcon },
       { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },
     ],
   },

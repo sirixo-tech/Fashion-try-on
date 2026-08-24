@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CheckIcon,
   ChevronDownIcon,
-  ImageIcon,
   MonitorIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -13,7 +12,6 @@ import {
   Trash2Icon,
   UploadIcon,
   Volume2Icon,
-  XIcon,
 } from "lucide-react";
 
 import {
@@ -46,7 +44,6 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
-  assignKioskDeviceToStore,
   deleteKioskDevice,
   createKioskConfigurationAssetUploadIntent,
   getKioskConfiguration,
@@ -96,8 +93,6 @@ export default function KiosksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pairOpen, setPairOpen] = useState(false);
-  const [reassignmentDevice, setReassignmentDevice] =
-    useState<KioskDevice | null>(null);
   const [configurationDevice, setConfigurationDevice] =
     useState<KioskDevice | null>(null);
 
@@ -215,7 +210,6 @@ export default function KiosksPage() {
                         onUnpair={() => void unpair(device.id)}
                         onDelete={() => void remove(device.id)}
                         onConfigure={() => setConfigurationDevice(device)}
-                        onReassign={() => setReassignmentDevice(device)}
                       />
                     </TableCell>
                   </TableRow>
@@ -255,23 +249,6 @@ export default function KiosksPage() {
                 : device,
             ),
           );
-        }}
-      />
-      <KioskReassignmentDialog
-        device={reassignmentDevice}
-        options={options}
-        onOpenChange={(open) => {
-          if (!open) {
-            setReassignmentDevice(null);
-          }
-        }}
-        onReassigned={(updated) => {
-          setDevices((current) =>
-            current.map((device) =>
-              device.id === updated.id ? updated : device,
-            ),
-          );
-          setReassignmentDevice(null);
         }}
       />
     </PageContainer>
@@ -315,22 +292,17 @@ function KioskLifecycleActions({
   onUnpair,
   onDelete,
   onConfigure,
-  onReassign,
 }: {
   device: KioskDevice;
   onUnpair: () => void;
   onDelete: () => void;
   onConfigure: () => void;
-  onReassign: () => void;
 }) {
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <Button variant="outline" size="sm" onClick={onConfigure}>
         <SettingsIcon aria-hidden="true" />
         Configure
-      </Button>
-      <Button variant="outline" size="sm" onClick={onReassign}>
-        Reassign
       </Button>
       {device.status !== "REVOKED" ? (
         <ConfirmDialog
@@ -359,103 +331,6 @@ function KioskLifecycleActions({
         }
       />
     </div>
-  );
-}
-
-function KioskReassignmentDialog({
-  device,
-  options,
-  onOpenChange,
-  onReassigned,
-}: {
-  device: KioskDevice | null;
-  options: KioskAssignmentOptions;
-  onOpenChange: (open: boolean) => void;
-  onReassigned: (device: KioskDevice) => void;
-}) {
-  const session = useSession();
-  const open = device !== null;
-  const [assignmentStoreId, setAssignmentStoreId] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setAssignmentStoreId(currentAssignmentStoreId(device));
-    setError(null);
-  }, [device]);
-
-  const storeOptions = assignmentStoreOptions(options, device);
-  const currentLabel = device ? assignmentLabel(device) : "Platform";
-
-  async function submit() {
-    if (!device || session.status !== "authenticated") {
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const updated = await updateKioskAssignment(
-        session.accessToken,
-        device.id,
-        assignmentStoreId
-          ? {
-              assignmentScope: "ORGANIZATION",
-              organizationId: assignmentStoreId,
-            }
-          : { assignmentScope: "PLATFORM" },
-      );
-      onReassigned(updated);
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reassign Kiosk</DialogTitle>
-          <DialogDescription>
-            {device
-              ? `${device.displayName} is currently assigned to ${currentLabel}.`
-              : "Move this kiosk between the platform fleet and Stores."}
-          </DialogDescription>
-        </DialogHeader>
-        {error ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-        <div className="space-y-2 text-sm">
-          <Label>Assignment</Label>
-          <SelectMenu
-            ariaLabel="Kiosk reassignment"
-            value={assignmentStoreId}
-            options={[
-              { value: "", label: "Platform fleet" },
-              ...storeOptions.map((store) => ({
-                value: store.id,
-                label:
-                  store.status === "ACTIVE"
-                    ? store.name
-                    : `${store.name} (${store.status.toLowerCase()})`,
-              })),
-            ]}
-            onChange={(value) => setAssignmentStoreId(value)}
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={submitting} onClick={() => void submit()}>
-            Save Assignment
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -624,10 +499,10 @@ type PresentationAssetFormItem = {
 };
 
 type KioskConfigurationDialogApi = {
-  assignStore: (
+  updateAssignment: (
     accessToken: string,
-    storeId: string,
     deviceId: string,
+    input: Parameters<typeof updateKioskAssignment>[2],
   ) => Promise<KioskDevice>;
   updateDevice: (
     accessToken: string,
@@ -651,7 +526,7 @@ type KioskConfigurationDialogApi = {
 };
 
 const defaultKioskConfigurationDialogApi: KioskConfigurationDialogApi = {
-  assignStore: assignKioskDeviceToStore,
+  updateAssignment: updateKioskAssignment,
   updateDevice: updateKioskDevice,
   getConfiguration: getKioskConfiguration,
   updateConfiguration: updateKioskConfiguration,
@@ -727,16 +602,21 @@ function KioskConfigurationDialog({
       return;
     }
     const currentStoreId = currentAssignmentStoreId(device);
-    if (currentStoreId && !assignmentStoreId) {
-      setError("Choose a Store for this assigned kiosk.");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
       let updatedDevice =
-        assignmentStoreId && assignmentStoreId !== currentStoreId
-          ? await api.assignStore(accessToken, assignmentStoreId, device.id)
+        assignmentStoreId !== currentStoreId
+          ? await api.updateAssignment(
+              accessToken,
+              device.id,
+              assignmentStoreId
+                ? {
+                    assignmentScope: "ORGANIZATION",
+                    organizationId: assignmentStoreId,
+                  }
+                : { assignmentScope: "PLATFORM" },
+            )
           : undefined;
       const assets =
         form.presentationAssets.length > 0
@@ -875,7 +755,6 @@ function KioskConfigurationDialog({
   }
 
   const storeOptions = assignmentStoreOptions(options, device);
-  const currentStoreId = currentAssignmentStoreId(device);
   const currentStoreName =
     device?.assignment.organizationName ?? device?.assignment.storeName ?? null;
 
@@ -921,9 +800,7 @@ function KioskConfigurationDialog({
                     ariaLabel="Store assignment"
                     value={assignmentStoreId}
                     options={[
-                      ...(!currentStoreId
-                        ? [{ value: "", label: "Platform fleet" }]
-                        : []),
+                      { value: "", label: "Platform fleet" },
                       ...storeOptions.map((store) => ({
                         value: store.id,
                         label:
@@ -1153,14 +1030,6 @@ function KioskConfigurationDialog({
                 idleMode={form.idleMode}
                 uploading={uploading}
                 onUpload={(files) => void uploadPresentationAssets(files)}
-                onRemove={(assetId) =>
-                  setForm((current) => ({
-                    ...current,
-                    presentationAssets: current.presentationAssets.filter(
-                      (asset) => asset.id !== assetId,
-                    ),
-                  }))
-                }
               />
             </fieldset>
 
@@ -1205,13 +1074,11 @@ function PresentationAssetUploader({
   idleMode,
   uploading,
   onUpload,
-  onRemove,
 }: {
   assets: PresentationAssetFormItem[];
   idleMode: KioskIdleMode;
   uploading: boolean;
   onUpload: (files: FileList) => void;
-  onRemove: (assetId: string) => void;
 }) {
   const inputId = "presentation-asset-upload";
   const currentAsset = assets[0] ?? null;
@@ -1249,83 +1116,24 @@ function PresentationAssetUploader({
           }}
         />
       </div>
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(14rem,0.9fr)]">
-        <div className="rounded-lg border bg-background p-2">
-          <div className="aspect-video overflow-hidden rounded-md border bg-muted">
-            {currentPreviewUrl ? (
-              <img
-                src={currentPreviewUrl}
-                alt=""
-                className="size-full object-cover"
-              />
-            ) : (
-              <DefaultWallpaperPreview />
-            )}
-          </div>
-          <div className="mt-2 min-w-0">
-            <div className="truncate text-sm font-medium">
-              {currentAsset?.label ?? "SelfX default wallpaper"}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {currentDescription}
-            </div>
-          </div>
+      <div className="max-w-xl rounded-lg border bg-background p-2">
+        <div className="aspect-video overflow-hidden rounded-md border bg-muted">
+          {currentPreviewUrl ? (
+            <img
+              src={currentPreviewUrl}
+              alt=""
+              className="size-full object-cover"
+            />
+          ) : (
+            <DefaultWallpaperPreview />
+          )}
         </div>
-
-        <div className="space-y-2">
-          <div className="text-xs font-medium uppercase text-muted-foreground">
-            Available images
+        <div className="mt-2 min-w-0">
+          <div className="truncate text-sm font-medium">
+            {currentAsset?.label ?? "SelfX default wallpaper"}
           </div>
-          <div className="grid gap-2">
-            {assets.length === 0 ? (
-              <div className="flex items-center gap-3 rounded-md border bg-muted/30 p-3 text-sm">
-                <div className="grid size-10 place-items-center rounded-md bg-background text-muted-foreground">
-                  <ImageIcon size={18} aria-hidden="true" />
-                </div>
-                <div>
-                  <div className="font-medium">SelfX default wallpaper</div>
-                  <div className="text-xs text-muted-foreground">
-                    Active wallpaper
-                  </div>
-                </div>
-              </div>
-            ) : (
-              assets.map((asset, index) => (
-                <div
-                  key={asset.id}
-                  className="flex items-center gap-3 rounded-md border bg-background p-2"
-                >
-                  <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-md bg-muted">
-                    {asset.previewUrl || asset.url ? (
-                      <img
-                        src={asset.previewUrl ?? asset.url ?? ""}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon size={18} aria-hidden="true" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {asset.label}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {index === 0 ? "Current wallpaper" : "Queued image"}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Remove ${asset.label}`}
-                    onClick={() => onRemove(asset.id)}
-                  >
-                    <XIcon aria-hidden="true" />
-                  </Button>
-                </div>
-              ))
-            )}
+          <div className="text-xs text-muted-foreground">
+            {currentDescription}
           </div>
         </div>
       </div>

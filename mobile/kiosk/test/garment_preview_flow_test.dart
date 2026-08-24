@@ -133,12 +133,14 @@ void main() {
         );
 
       await tester.pumpReview(harness, extraction);
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(
-        find.text("We couldn't detect the garment clearly."),
+        find.text("We couldn't find a clear garment in this photo."),
         findsOneWidget,
       );
+      expect(find.text('Retake garment photo'), findsOneWidget);
       expect(find.text('Keep the full garment visible'), findsOneWidget);
       expect(find.textContaining('decoder internals'), findsNothing);
     });

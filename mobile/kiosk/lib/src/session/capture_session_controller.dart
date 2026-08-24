@@ -32,6 +32,7 @@ class CaptureSessionController extends ChangeNotifier {
     ModelCoverageAnalyzer? modelCoverageAnalyzer,
     this.readinessConfig = const CaptureReadinessConfig(),
     this.schedulerConfig = const FrameAnalysisSchedulerConfig(),
+    this.liveReadinessEnabled = false,
     Duration? countdownTickDuration,
   }) : audioService = audioService ?? AssetCaptureAudioService(),
        liveFrameAnalyzer =
@@ -54,6 +55,7 @@ class CaptureSessionController extends ChangeNotifier {
   final ModelCoverageAnalyzer modelCoverageAnalyzer;
   final CaptureReadinessConfig readinessConfig;
   final FrameAnalysisSchedulerConfig schedulerConfig;
+  final bool liveReadinessEnabled;
   final Duration countdownTickDuration;
 
   CameraCaptureResult? capture;
@@ -148,8 +150,27 @@ class CaptureSessionController extends ChangeNotifier {
   }
 
   void selectCapturePurpose(PhotoAcquisitionPurpose purpose) {
+    final previousCapture = capture;
     capturePurpose = purpose;
-    notifyListeners();
+    _cancelCountdownTimer();
+    _captureRunId++;
+    capture = null;
+    captureTargetMetadata = null;
+    qualityResult = null;
+    isAnalyzingQuality = false;
+    readinessResult = null;
+    primarySubject = null;
+    liveFrameAnalyzer.resetSubjectLock();
+    _setFlowState(
+      flowState.copyWith(
+        stage: CaptureFlowStage.preview,
+        clearSecondsRemaining: true,
+        clearError: true,
+      ),
+    );
+    if (previousCapture?.originalPath != acceptedCapture?.originalPath) {
+      unawaited(captureStore.deleteCapture(previousCapture?.originalPath));
+    }
   }
 
   Future<void> loadOperatorSettings() async {
@@ -237,7 +258,8 @@ class CaptureSessionController extends ChangeNotifier {
     _currentAudioProfile = profile;
     _playAudioIfEnabled(() => audioService.playCountdownStart(profile));
 
-    if (cameraService.state.value.capabilities.supportsLiveFrames) {
+    if (liveReadinessEnabled &&
+        cameraService.state.value.capabilities.supportsLiveFrames) {
       await _beginLiveReadinessCapture(runId);
       return;
     }
@@ -420,18 +442,34 @@ class CaptureSessionController extends ChangeNotifier {
     );
   }
 
-  bool usePhoto() {
+  Future<CaptureUsePhotoResult> usePhoto() async {
     if (capturePurpose != PhotoAcquisitionPurpose.model) {
-      return false;
+      return const CaptureUsePhotoResult.rejected();
     }
     final current = capture;
     final quality = qualityResult;
     if (current == null || quality == null || quality.isBlocked) {
-      return false;
+      return const CaptureUsePhotoResult.rejected();
+    }
+    final coverageAnalysis = await modelCoverageAnalyzer.analyze(
+      File(current.originalPath),
+    );
+    if (coverageAnalysis.status == ModelCoverageAnalysisStatus.unknown) {
+      acceptedCapture = null;
+      acceptedModelCoverage = null;
+      acceptedModelCoverageAnalysis = coverageAnalysis;
+      acceptedPersonImage = null;
+      return const CaptureUsePhotoResult.rejected(
+        message:
+            "We couldn't detect a person clearly. Please retake your photo.",
+      );
     }
     acceptedCapture = current;
-    acceptedModelCoverage = modelCoverageForCaptureScope(captureScope);
-    acceptedModelCoverageAnalysis = null;
+    acceptedModelCoverage =
+        coverageAnalysis.status == ModelCoverageAnalysisStatus.resolved
+        ? coverageAnalysis.coverage
+        : modelCoverageForCaptureScope(captureScope);
+    acceptedModelCoverageAnalysis = coverageAnalysis;
     acceptedPersonImage = CustomerPersonImage(
       originalPath: current.originalPath,
       source: CustomerPersonImageSource.kioskCamera,
@@ -446,7 +484,7 @@ class CaptureSessionController extends ChangeNotifier {
         clearError: true,
       ),
     );
-    return true;
+    return const CaptureUsePhotoResult.accepted();
   }
 
   Future<void> acceptMobileUpload({
@@ -851,6 +889,19 @@ CameraDevice? _deviceById(List<CameraDevice> devices, String id) {
 }
 
 enum CustomerPersonImageSource { kioskCamera, mobileUpload }
+
+@immutable
+class CaptureUsePhotoResult {
+  const CaptureUsePhotoResult._({required this.accepted, this.message});
+
+  const CaptureUsePhotoResult.accepted() : this._(accepted: true);
+
+  const CaptureUsePhotoResult.rejected({String? message})
+    : this._(accepted: false, message: message);
+
+  final bool accepted;
+  final String? message;
+}
 
 @immutable
 class CustomerPersonImage {

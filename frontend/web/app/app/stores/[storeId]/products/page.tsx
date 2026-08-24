@@ -39,6 +39,7 @@ import {
 } from "@selfx/ui";
 
 import {
+  currencySymbolFor,
   garmentCategoryForProductCategory,
   productAudiences,
   productCategories,
@@ -367,6 +368,7 @@ function ProductDialog({
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const currencySymbol = currencySymbolFor(defaultCurrency);
 
   useEffect(() => {
     if (!open) {
@@ -452,7 +454,7 @@ function ProductDialog({
                   </div>
                 )}
               </div>
-              <label className="flex cursor-pointer items-center justify-center gap-2 border-t bg-card px-4 py-3 text-sm font-semibold text-primary">
+              <label className="flex cursor-pointer items-center justify-center gap-2 border-t border-primary bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
                 <UploadIcon size={16} aria-hidden="true" />
                 Upload Image
                 <input
@@ -524,7 +526,7 @@ function ProductDialog({
                 />
               </label>
               <label className="space-y-2 text-sm">
-                <span>Price ({defaultCurrency})</span>
+                <span>Price ({currencySymbol})</span>
                 <div className="relative">
                   <Input
                     className="pr-16"
@@ -539,7 +541,7 @@ function ProductDialog({
                     }
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
-                    {defaultCurrency}
+                    {currencySymbol}
                   </span>
                 </div>
               </label>

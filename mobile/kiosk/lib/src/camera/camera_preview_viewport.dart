@@ -37,10 +37,16 @@ class CameraPreviewViewport extends StatelessWidget {
 
         return ClipRect(
           child: Center(
-            child: SizedBox(
-              width: size.width,
-              height: size.height,
-              child: preview,
+            child: OverflowBox(
+              minWidth: size.width,
+              maxWidth: size.width,
+              minHeight: size.height,
+              maxHeight: size.height,
+              child: SizedBox(
+                width: size.width,
+                height: size.height,
+                child: preview,
+              ),
             ),
           ),
         );

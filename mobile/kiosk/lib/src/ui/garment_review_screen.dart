@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
@@ -371,7 +370,7 @@ class _FailurePreview extends StatelessWidget {
               const SizedBox(height: 18),
               Text(
                 imageIssue
-                    ? "We couldn't detect the garment clearly."
+                    ? "We couldn't find a clear garment in this photo."
                     : "We couldn't prepare the garment preview right now.",
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge,
@@ -379,7 +378,7 @@ class _FailurePreview extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 imageIssue
-                    ? 'Try another photo with the full garment visible.'
+                    ? 'Please retake the garment photo with the item clearly visible.'
                     : 'Please try again in a moment.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge,
@@ -499,10 +498,10 @@ class _GarmentReviewActions extends StatelessWidget {
         if (state == GarmentPreviewState.failure) ...[
           _ActionCopy(
             title: failureKind == GarmentExtractionFailureKind.image
-                ? 'Use a clearer garment photo'
+                ? 'Retake garment photo'
                 : 'Preview service needs another try',
             message: failureKind == GarmentExtractionFailureKind.image
-                ? 'You can retry this image or choose another one.'
+                ? "We couldn't find a clear garment in this photo."
                 : 'Your photo is still here. Retry the preview when ready.',
           ),
           const SizedBox(height: 12),

@@ -11,20 +11,15 @@ import {
   type ReactNode,
 } from "react";
 import {
-  AlertCircleIcon,
-  CheckCircle2Icon,
   Maximize2Icon,
   RotateCcwIcon,
-  SlidersHorizontalIcon,
   SparklesIcon,
-  TriangleAlertIcon,
 } from "lucide-react";
 
 import {
   Alert as ShadcnAlert,
   AlertDescription,
   AlertTitle,
-  Badge as ShadcnBadge,
   Button as ShadcnButton,
   Dialog,
   DialogContent,
@@ -35,10 +30,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
-  Progress as ShadcnProgress,
   SectionCard,
-  SectionHeader,
-  StatusBadge,
   cn,
 } from "@selfx/ui";
 import {
@@ -47,10 +39,7 @@ import {
   type ImageQualityIssueCode,
   type ImageQualityResult,
   type ImageQualityTarget,
-  type SelfxGarmentPhotoType,
-  type SelfxGenerationProfile,
   type SelfxGarmentIntent,
-  type ResolvedGenerationPolicy,
   type TryOnLabRunResponse,
   resolveGenerationPolicy,
 } from "@selfx/shared";
@@ -63,16 +52,6 @@ import {
 import { createTryOnLabRun, getTryOnLabRun } from "@/lib/try-on-lab-api";
 import { SafeApiError } from "@/lib/api";
 import { useSession } from "@/lib/session";
-
-type LabUiState =
-  | "IDLE"
-  | "ANALYZING"
-  | "READY"
-  | "SUBMITTING"
-  | "QUEUED"
-  | "PROCESSING"
-  | "COMPLETED"
-  | "FAILED";
 
 type ImageSlot = {
   file: File | null;
@@ -240,34 +219,6 @@ function Text({
   );
 }
 
-function Badge({
-  children,
-  color,
-}: {
-  children: ReactNode;
-  color?: "blue" | "gray" | "red" | "yellow" | "green";
-}) {
-  return (
-    <ShadcnBadge
-      variant={
-        color === "red"
-          ? "destructive"
-          : color === "gray" || color === "blue" || color === "yellow" || color === "green"
-            ? "outline"
-            : "default"
-      }
-      className={cn(
-        color === "blue" && "border-blue-200 bg-blue-50 text-blue-700",
-        color === "gray" && "border-border bg-muted text-muted-foreground",
-        color === "yellow" && "border-amber-200 bg-amber-50 text-amber-700",
-        color === "green" && "border-emerald-200 bg-emerald-50 text-emerald-700",
-      )}
-    >
-      {children}
-    </ShadcnBadge>
-  );
-}
-
 function Button({
   children,
   variant,
@@ -329,24 +280,6 @@ function Alert({
   );
 }
 
-function Progress({
-  value,
-  animated,
-  color,
-}: {
-  value: number;
-  animated?: boolean;
-  color?: "red" | "blue";
-}) {
-  return (
-    <ShadcnProgress
-      value={value}
-      animated={animated}
-      tone={color === "red" ? "danger" : "default"}
-    />
-  );
-}
-
 function FileInput({
   label,
   placeholder,
@@ -372,9 +305,7 @@ function FileInput({
         <span className="font-semibold text-foreground">
           {value?.name ?? placeholder}
         </span>
-        <span className="mt-1 text-muted-foreground">
-          JPEG, PNG or WebP. Original file is submitted unchanged.
-        </span>
+        <span className="mt-1 text-muted-foreground">JPEG, PNG or WebP.</span>
       </label>
       <input
         id={inputId}
@@ -410,41 +341,6 @@ function Modal({
         {children}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function SegmentedControl({
-  value,
-  onChange,
-  data,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  data: Array<{ label: string; value: string }>;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2" role="radiogroup">
-      {data.map((item) => {
-        const selected = item.value === value;
-        return (
-          <button
-            key={item.value}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => onChange(item.value)}
-            className={cn(
-              "rounded-lg border px-3 py-2 text-sm font-semibold transition-colors",
-              selected
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background text-foreground hover:border-primary",
-            )}
-          >
-            {item.label}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -536,13 +432,6 @@ export function TryOnLabClient() {
     useState<GarmentInputAnalysisResult | null>(null);
   const [disambiguationIntent, setDisambiguationIntent] =
     useState<SelfxGarmentIntent | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [advancedGarmentIntent, setAdvancedGarmentIntent] =
-    useState<SelfxGarmentIntent | null>(null);
-  const [advancedGarmentPhotoType, setAdvancedGarmentPhotoType] =
-    useState<SelfxGarmentPhotoType | null>(null);
-  const [advancedGenerationProfile, setAdvancedGenerationProfile] =
-    useState<SelfxGenerationProfile | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [run, setRun] = useState<TryOnLabRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -564,9 +453,6 @@ export function TryOnLabClient() {
   const resetGarmentResolutionState = useCallback(() => {
     setGarmentAnalysis(null);
     setDisambiguationIntent(null);
-    setAdvancedGarmentIntent(null);
-    setAdvancedGarmentPhotoType(null);
-    setAdvancedGenerationProfile(null);
   }, []);
 
   useEffect(() => {
@@ -576,33 +462,15 @@ export function TryOnLabClient() {
     };
   }, []);
 
-  const internalLabOverride = useMemo(
-    () =>
-      advancedGarmentIntent ||
-      advancedGarmentPhotoType ||
-      advancedGenerationProfile
-        ? {
-            garmentIntent: advancedGarmentIntent ?? undefined,
-            garmentPhotoType: advancedGarmentPhotoType ?? undefined,
-            generationProfile: advancedGenerationProfile ?? undefined,
-          }
-        : null,
-    [
-      advancedGarmentIntent,
-      advancedGarmentPhotoType,
-      advancedGenerationProfile,
-    ],
-  );
-
   const resolvedPolicy = useMemo(
     () =>
       resolveGenerationPolicy({
         garmentSource: "DIRECT_UPLOAD",
         directUploadAnalysis: garmentAnalysis,
         userDisambiguationIntent: disambiguationIntent,
-        internalLabOverride,
+        internalLabOverride: null,
       }),
-    [disambiguationIntent, garmentAnalysis, internalLabOverride],
+    [disambiguationIntent, garmentAnalysis],
   );
 
   const canGenerate =
@@ -624,31 +492,6 @@ export function TryOnLabClient() {
 
   const hasQualityWarnings =
     qualityWarnings.person.length > 0 || qualityWarnings.garment.length > 0;
-
-  const uiState: LabUiState = useMemo(() => {
-    if (submitting) {
-      return "SUBMITTING";
-    }
-    if (analyzing) {
-      return "ANALYZING";
-    }
-    if (run?.status === "COMPLETED") {
-      return "COMPLETED";
-    }
-    if (run?.status === "FAILED") {
-      return "FAILED";
-    }
-    if (run?.status === "PROCESSING") {
-      return "PROCESSING";
-    }
-    if (run?.status === "QUEUED") {
-      return "QUEUED";
-    }
-    if (canGenerate) {
-      return "READY";
-    }
-    return "IDLE";
-  }, [analyzing, canGenerate, run?.status, submitting]);
 
   const handleFileChange = useCallback(
     async (file: File | null, target: ImageQualityTarget) => {
@@ -871,44 +714,20 @@ export function TryOnLabClient() {
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Internal development"
         title="Try-On Lab"
-        description="Upload a person image and garment image to validate the core SelfX VTO loop before production catalog, assets, queues and kiosk capture are implemented."
-        status={
-          <Group gap="xs" wrap="wrap">
-            <StatusBadge status={uiState} label={stateLabel(uiState)} />
-            <Badge color="gray">
-              Internal Lab
-            </Badge>
-          </Group>
-        }
       />
 
       <PageSection>
-        <Alert
-          color="blue"
-          title="Internal testing only"
-          icon={<AlertCircleIcon size={18} aria-hidden="true" />}
-        >
-          Upload only images you are authorized to process.
-        </Alert>
-      </PageSection>
-
-      <PageSection>
-        <SectionHeader
-          title="Images"
-          description="Add the person photo and garment photo for this internal lab run."
-        />
         <SimpleGrid cols={{ base: 1, lg: 2 }}>
           <ImageInputCard
-            title="Person photo"
+            title="Upload model photo"
             target="person"
             slot={person}
             onChange={(file) => void handleFileChange(file, "person")}
             onPreviewOpen={setPreviewModal}
           />
           <ImageInputCard
-            title="Garment photo"
+            title="Upload garment image"
             target="garment"
             slot={garment}
             onChange={(file) => void handleFileChange(file, "garment")}
@@ -918,22 +737,18 @@ export function TryOnLabClient() {
       </PageSection>
 
       <PageSection>
-        <SectionCard
-          title="Generate Try-On"
-          description="Try-On settings are selected automatically."
-        >
-          <Stack gap="lg">
-            <PolicySummary policy={resolvedPolicy} />
-            <AdvancedSettings
-              opened={advancedOpen}
-              onToggle={() => setAdvancedOpen((value) => !value)}
-              garmentIntent={advancedGarmentIntent}
-              garmentPhotoType={advancedGarmentPhotoType}
-              generationProfile={advancedGenerationProfile}
-              onGarmentIntentChange={setAdvancedGarmentIntent}
-              onGarmentPhotoTypeChange={setAdvancedGarmentPhotoType}
-              onGenerationProfileChange={setAdvancedGenerationProfile}
-            />
+        <SectionCard>
+          <Stack gap="md">
+            {error ? (
+              <Alert color="red" title="Try-On failed">
+                {error}
+              </Alert>
+            ) : null}
+            {run?.errorMessage ? (
+              <Alert color="red" title={run.errorCode ?? "TRYON_FAILED"}>
+                {run.errorMessage}
+              </Alert>
+            ) : null}
             <FormActions>
               <Button
                 variant="light"
@@ -950,74 +765,23 @@ export function TryOnLabClient() {
                 className="w-full sm:w-auto"
               >
                 <SparklesIcon size={16} aria-hidden="true" />
-                Generate Try-On
+                {submitting ? "Generating" : "Generate Try-On"}
               </Button>
             </FormActions>
           </Stack>
         </SectionCard>
       </PageSection>
 
-      <PageSection>
-        <SectionCard
-          title="Generation state"
-          description={stateDescription(uiState)}
-        >
-          <Stack gap="md">
-            <Progress
-              value={progressValue(uiState)}
-              animated={["SUBMITTING", "QUEUED", "PROCESSING"].includes(
-                uiState,
-              )}
-              color={uiState === "FAILED" ? "red" : "blue"}
-            />
-            {error ? (
-              <Alert color="red" title="Try-On Lab error">
-                {error}
-              </Alert>
-            ) : null}
-            {run?.errorMessage ? (
-              <Alert color="red" title={run.errorCode ?? "TRYON_FAILED"}>
-                {run.errorMessage}
-              </Alert>
-            ) : null}
-            {run ? (
-              <Text size="sm" c="dimmed">
-                SelfX run ID: {run.id}
-              </Text>
-            ) : null}
-          </Stack>
-        </SectionCard>
-      </PageSection>
-
-      {run ? (
-        <PageSection>
-          <RunSummary run={run} />
-        </PageSection>
-      ) : null}
-
       {run?.status === "COMPLETED" && run.resultImage ? (
         <PageSection>
-          <SectionCard
-            title="Result comparison"
-            description="Ephemeral development output. No history or permanent media storage is implemented in this slice."
-          >
-            <SimpleGrid cols={{ base: 1, md: 3 }}>
-              <PreviewPanel
-                title="Person"
-                imageUrl={person.previewUrl}
-                onPreviewOpen={setPreviewModal}
-              />
-              <PreviewPanel
-                title="Garment"
-                imageUrl={garment.previewUrl}
-                onPreviewOpen={setPreviewModal}
-              />
+          <SectionCard title="Try-On Result">
+            <div className="mx-auto max-w-2xl">
               <PreviewPanel
                 title="Generated Try-On"
                 imageUrl={run.resultImage}
                 onPreviewOpen={setPreviewModal}
               />
-            </SimpleGrid>
+            </div>
             <FormActions align="apart">
               <Button
                 variant="light"
@@ -1096,7 +860,7 @@ export function TryOnLabClient() {
                   garmentSource: "DIRECT_UPLOAD",
                   directUploadAnalysis: garmentAnalysis,
                   userDisambiguationIntent: option.value,
-                  internalLabOverride,
+                  internalLabOverride: null,
                 });
                 setDisambiguationIntent(option.value);
                 setAmbiguityModalOpened(false);
@@ -1152,17 +916,10 @@ function ImageInputCard({
   onPreviewOpen: (preview: { title: string; imageUrl: string }) => void;
 }) {
   return (
-    <SectionCard
-      title={title}
-      description={
-        target === "person"
-          ? "Use a clear person photo. Body-region validation comes later."
-          : "Use a clear garment reference photo."
-      }
-    >
+    <SectionCard title={title}>
       <Stack gap="md">
         <FileInput
-          label={title}
+          label={target === "person" ? "Model photo" : "Garment image"}
           placeholder={
             slot.file ? "Change / re-upload" : "Choose JPEG, PNG or WebP"
           }
@@ -1178,123 +935,8 @@ function ImageInputCard({
             onPreviewOpen={onPreviewOpen}
           />
         ) : null}
-        <QualitySummary result={slot.quality} />
       </Stack>
     </SectionCard>
-  );
-}
-
-function PolicySummary({ policy }: { policy: ResolvedGenerationPolicy }) {
-  return (
-    <Stack gap="sm">
-      <Group gap="xs" wrap="wrap">
-        <Badge color="blue">
-          {labelForIntent(policy.garmentIntent)}
-        </Badge>
-        <Badge color="gray">
-          {labelForPhotoType(policy.garmentPhotoType)}
-        </Badge>
-        <Badge color="gray">
-          {labelForProfile(policy.generationProfile)}
-        </Badge>
-      </Group>
-      <Text size="sm" c="dimmed">
-        {policy.disambiguationRequired
-          ? "This garment image may include more than one clothing area."
-          : "Automatic resolution will be recorded with this lab run."}
-      </Text>
-    </Stack>
-  );
-}
-
-function AdvancedSettings({
-  opened,
-  onToggle,
-  garmentIntent,
-  garmentPhotoType,
-  generationProfile,
-  onGarmentIntentChange,
-  onGarmentPhotoTypeChange,
-  onGenerationProfileChange,
-}: {
-  opened: boolean;
-  onToggle: () => void;
-  garmentIntent: SelfxGarmentIntent | null;
-  garmentPhotoType: SelfxGarmentPhotoType | null;
-  generationProfile: SelfxGenerationProfile | null;
-  onGarmentIntentChange: (value: SelfxGarmentIntent | null) => void;
-  onGarmentPhotoTypeChange: (value: SelfxGarmentPhotoType | null) => void;
-  onGenerationProfileChange: (value: SelfxGenerationProfile | null) => void;
-}) {
-  return (
-    <Stack gap="md">
-      <Group justify="space-between" align="center" wrap="wrap">
-        <Stack gap={2}>
-          <Text fw={700}>Advanced settings</Text>
-          <Text size="sm" c="dimmed">
-            Internal Lab override for testing only.
-          </Text>
-        </Stack>
-        <Button
-          variant="subtle"
-          color="gray"
-          onClick={onToggle}
-        >
-          <SlidersHorizontalIcon size={16} aria-hidden="true" />
-          {opened ? "Hide" : "Show"}
-        </Button>
-      </Group>
-      {opened ? (
-        <Stack gap="md">
-          <SegmentedControl
-            value={garmentIntent ?? "AUTOMATIC"}
-            onChange={(value) =>
-              onGarmentIntentChange(
-                value === "AUTOMATIC" ? null : (value as SelfxGarmentIntent),
-              )
-            }
-            data={[
-              { label: "Automatic", value: "AUTOMATIC" },
-              { label: "Auto", value: "AUTO" },
-              { label: "Top", value: "TOP" },
-              { label: "Bottom", value: "BOTTOM" },
-              { label: "One-piece", value: "ONE_PIECE" },
-              { label: "Full outfit", value: "FULL_OUTFIT" },
-            ]}
-          />
-          <SegmentedControl
-            value={garmentPhotoType ?? "AUTOMATIC"}
-            onChange={(value) =>
-              onGarmentPhotoTypeChange(
-                value === "AUTOMATIC" ? null : (value as SelfxGarmentPhotoType),
-              )
-            }
-            data={[
-              { label: "Automatic", value: "AUTOMATIC" },
-              { label: "Auto photo", value: "AUTO" },
-              { label: "Flat lay", value: "FLAT_LAY" },
-              { label: "On model", value: "ON_MODEL" },
-            ]}
-          />
-          <SegmentedControl
-            value={generationProfile ?? "AUTOMATIC"}
-            onChange={(value) =>
-              onGenerationProfileChange(
-                value === "AUTOMATIC"
-                  ? null
-                  : (value as SelfxGenerationProfile),
-              )
-            }
-            data={[
-              { label: "Automatic", value: "AUTOMATIC" },
-              { label: "Performance", value: "PERFORMANCE" },
-              { label: "Balanced", value: "BALANCED" },
-              { label: "Quality", value: "QUALITY" },
-            ]}
-          />
-        </Stack>
-      ) : null}
-    </Stack>
   );
 }
 
@@ -1351,206 +993,6 @@ function PreviewPanel({
   );
 }
 
-function RunSummary({ run }: { run: TryOnLabRunResponse }) {
-  const telemetry = run.telemetry;
-  const qualityWarnings =
-    telemetry.qualityWarningCodes.length > 0
-      ? telemetry.qualityWarningCodes.join(", ")
-      : "None";
-  const elapsed =
-    typeof telemetry.elapsedMs === "number"
-      ? `${telemetry.elapsedMs} ms`
-      : "In progress";
-
-  return (
-    <SectionCard
-      title="Run summary"
-      description="Automatic settings were used for this development run."
-    >
-      <Stack gap="md">
-        <Group gap="xs" wrap="wrap">
-          <StatusBadge
-            status={telemetry.status}
-            label={stateLabel(telemetry.status)}
-          />
-          <Text size="sm" c="dimmed">
-            {run.status === "COMPLETED"
-              ? "Try-On result is ready."
-              : stateDescription(run.status)}
-          </Text>
-          <Text size="sm" c="dimmed">
-            Elapsed: {elapsed}
-          </Text>
-        </Group>
-
-        <Box
-          component="details"
-          style={{
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            padding: "0.75rem",
-          }}
-        >
-          <Box
-            component="summary"
-            style={{
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
-          >
-            Run diagnostics
-          </Box>
-          <Text size="sm" c="dimmed" className="mt-2">
-            Current-run telemetry only. Provider identifiers, credentials, raw
-            images and Base64 payloads stay hidden.
-          </Text>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} className="mt-4">
-            <DetailItem label="Status" value={telemetry.status} />
-            <DetailItem
-              label="Provider"
-              value={telemetry.providerDisplayName}
-            />
-            <DetailItem
-              label="Model / profile"
-              value={`${telemetry.model} / ${telemetry.profile}`}
-            />
-            <DetailItem
-              label="Garment"
-              value={`${telemetry.garmentIntent} / ${telemetry.garmentPhotoType}`}
-            />
-            <DetailItem
-              label="Resolution"
-              value={`${telemetry.categoryResolutionSource} / ${telemetry.photoTypeResolutionSource}`}
-            />
-            <DetailItem
-              label="Source"
-              value={`${telemetry.garmentSource} / ${telemetry.profileResolutionSource}`}
-            />
-            <DetailItem
-              label="Analysis"
-              value={
-                telemetry.garmentAnalysisBodyCoverage
-                  ? `${telemetry.garmentAnalysisBodyCoverage} / ${formatOptionalMetric(
-                      telemetry.analysisConfidence,
-                    )}`
-                  : "Unavailable"
-              }
-            />
-            <DetailItem label="Elapsed" value={elapsed} />
-            <DetailItem label="Quality warnings" value={qualityWarnings} />
-            <DetailItem
-              label="Override accepted"
-              value={telemetry.qualityOverrideAccepted ? "Yes" : "No"}
-            />
-            <DetailItem
-              label="Disambiguation"
-              value={telemetry.disambiguationResolved ? "Selected" : "None"}
-            />
-            <DetailItem label="Channel" value={telemetry.channel} />
-          </SimpleGrid>
-        </Box>
-      </Stack>
-    </SectionCard>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <Stack gap={2}>
-      <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" fw={600}>
-        {value}
-      </Text>
-    </Stack>
-  );
-}
-
-function QualitySummary({ result }: { result: ImageQualityResult | null }) {
-  if (!result) {
-    return (
-      <Text size="sm" c="dimmed">
-        Quality analysis appears after image selection.
-      </Text>
-    );
-  }
-
-  const blocking = result.issues.filter(
-    (issue) => issue.severity === "BLOCKING",
-  );
-  const warnings = result.issues.filter(
-    (issue) => issue.severity === "WARNING",
-  );
-  const analysisUnavailable = result.issues.some(
-    (issue) => issue.code === "IMAGE_QUALITY_ANALYSIS_UNAVAILABLE",
-  );
-
-  return (
-    <Stack gap="sm">
-      <Group gap="xs" wrap="wrap">
-        <ThemeIcon
-          color={
-            blocking.length > 0
-              ? "red"
-              : warnings.length > 0
-                ? "yellow"
-                : "green"
-          }
-          variant="light"
-          radius="xl"
-        >
-          {blocking.length > 0 ? (
-            <AlertCircleIcon size={16} />
-          ) : warnings.length > 0 ? (
-            <TriangleAlertIcon size={16} />
-          ) : (
-            <CheckCircle2Icon size={16} />
-          )}
-        </ThemeIcon>
-        <Badge
-          color={
-            blocking.length > 0
-              ? "red"
-              : warnings.length > 0
-                ? "yellow"
-                : "green"
-          }
-        >
-          {blocking.length > 0
-            ? "blocked"
-            : warnings.length > 0
-              ? "warnings"
-              : "ready"}
-        </Badge>
-        <Text size="sm" c="dimmed">
-          {analysisUnavailable
-            ? "Score unavailable"
-            : `Score ${result.score}/100`}
-        </Text>
-      </Group>
-      {result.issues.length > 0 ? (
-        <List size="sm">
-          {result.issues.map((issue) => (
-            <List.Item key={issue.code}>{issue.message}</List.Item>
-          ))}
-        </List>
-      ) : (
-        <Text size="sm" c="dimmed">
-          Resolution, exposure and contrast look usable for this lab.
-        </Text>
-      )}
-      <Text size="xs" c="dimmed">
-        {formatMetric(result.metrics.width)}x
-        {formatMetric(result.metrics.height)}, sharpness{" "}
-        {formatMetric(result.metrics.sharpness)}, brightness{" "}
-        {formatMetric(result.metrics.brightness)}, contrast{" "}
-        {formatMetric(result.metrics.contrast)}
-      </Text>
-    </Stack>
-  );
-}
-
 function WarningGroup({
   title,
   issues,
@@ -1589,51 +1031,6 @@ function collectQualityWarningCodes(warnings: {
   ];
 }
 
-function formatMetric(value: number | null): string {
-  return value === null ? "not analyzed" : String(value);
-}
-
-function formatOptionalMetric(value: number | undefined): string {
-  return typeof value === "number" ? String(value) : "not analyzed";
-}
-
-function labelForIntent(intent: SelfxGarmentIntent): string {
-  switch (intent) {
-    case "AUTO":
-      return "Automatic garment";
-    case "TOP":
-      return "Upper garment";
-    case "BOTTOM":
-      return "Lower garment";
-    case "ONE_PIECE":
-      return "One-piece";
-    case "FULL_OUTFIT":
-      return "Full outfit";
-  }
-}
-
-function labelForPhotoType(photoType: SelfxGarmentPhotoType): string {
-  switch (photoType) {
-    case "AUTO":
-      return "Automatic photo type";
-    case "FLAT_LAY":
-      return "Flat lay";
-    case "ON_MODEL":
-      return "On model";
-  }
-}
-
-function labelForProfile(profile: SelfxGenerationProfile): string {
-  switch (profile) {
-    case "PERFORMANCE":
-      return "Performance profile";
-    case "BALANCED":
-      return "Balanced profile";
-    case "QUALITY":
-      return "Quality profile";
-  }
-}
-
 function revokePreviewUrl(
   target: ImageQualityTarget,
   ref: { current: Record<ImageQualityTarget, string | null> },
@@ -1642,52 +1039,6 @@ function revokePreviewUrl(
   if (previewUrl) {
     URL.revokeObjectURL(previewUrl);
     ref.current[target] = null;
-  }
-}
-
-function stateLabel(state: LabUiState): string {
-  return state.toLowerCase().replace("_", " ");
-}
-
-function stateDescription(state: LabUiState): string {
-  switch (state) {
-    case "IDLE":
-      return "Add both images, review quality and generate.";
-    case "ANALYZING":
-      return "Analyzing images...";
-    case "READY":
-      return "Ready to submit.";
-    case "SUBMITTING":
-      return "Submitting Try-On...";
-    case "QUEUED":
-      return "Try-On request is queued.";
-    case "PROCESSING":
-      return "Generating Try-On...";
-    case "COMPLETED":
-      return "Try-On ready.";
-    case "FAILED":
-      return "Try-On failed.";
-  }
-}
-
-function progressValue(state: LabUiState): number {
-  switch (state) {
-    case "IDLE":
-      return 0;
-    case "ANALYZING":
-      return 18;
-    case "READY":
-      return 28;
-    case "SUBMITTING":
-      return 40;
-    case "QUEUED":
-      return 55;
-    case "PROCESSING":
-      return 75;
-    case "COMPLETED":
-      return 100;
-    case "FAILED":
-      return 100;
   }
 }
 

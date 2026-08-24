@@ -266,6 +266,9 @@ class SelfxGarmentExtractionService implements GarmentExtractionService {
 GarmentExtractionFailureKind _failureKindFor(String? code) {
   return switch (code) {
     'GARMENT_EXTRACTION_IMAGE_INVALID' ||
+    'GARMENT_EXTRACTION_NO_GARMENT' ||
+    'GARMENT_EXTRACTION_GARMENT_NOT_FOUND' ||
+    'GARMENT_EXTRACTION_GARMENT_UNCLEAR' ||
     'GARMENT_EXTRACTION_MULTIPART_INVALID' ||
     'GARMENT_PREVIEW_IMAGE_MISSING' => GarmentExtractionFailureKind.image,
     _ => GarmentExtractionFailureKind.temporary,

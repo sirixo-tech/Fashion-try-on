@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +29,8 @@ import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
+import 'package:selfx_kiosk/src/tryon/model_coverage_analyzer.dart';
+import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 import 'package:selfx_kiosk/src/ui/camera_settings_screen.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
@@ -181,9 +184,9 @@ void main() {
       final controller = testController();
       await controller.capturePhoto();
 
-      final accepted = controller.usePhoto();
+      final accepted = await controller.usePhoto();
 
-      expect(accepted, isTrue);
+      expect(accepted.accepted, isTrue);
       expect(controller.acceptedCapture?.originalPath, 'capture-1.jpg');
       expect(controller.flowState.stage, CaptureFlowStage.photoReady);
     });
@@ -199,11 +202,61 @@ void main() {
       );
       await controller.capturePhoto();
 
-      final accepted = controller.usePhoto();
+      final accepted = await controller.usePhoto();
 
-      expect(accepted, isFalse);
+      expect(accepted.accepted, isFalse);
       expect(controller.acceptedCapture, isNull);
     });
+
+    test('Use Photo rejects capture when no model is detected', () async {
+      final controller = testController(
+        modelCoverageAnalyzer: const FakeModelCoverageAnalyzer(
+          ModelCoverageAnalysis.unknown(
+            reasonCode: 'MODEL_PERSON_NOT_DETECTED',
+          ),
+        ),
+      );
+      await controller.capturePhoto();
+
+      final accepted = await controller.usePhoto();
+
+      expect(accepted.accepted, isFalse);
+      expect(
+        accepted.message,
+        "We couldn't detect a person clearly. Please retake your photo.",
+      );
+      expect(controller.acceptedCapture, isNull);
+      expect(
+        controller.acceptedModelCoverageAnalysis?.reasonCode,
+        'MODEL_PERSON_NOT_DETECTED',
+      );
+    });
+
+    test(
+      'selecting garment capture after accepted model photo starts from preview',
+      () async {
+        final camera = readyCamera();
+        final settings = InMemoryCameraSettingsStore()
+          ..captureCountdownSeconds = 5;
+        final controller = testController(
+          camera: camera,
+          settings: settings,
+          countdownTickDuration: const Duration(milliseconds: 1),
+        );
+        await controller.capturePhoto();
+        final accepted = await controller.usePhoto();
+
+        controller.selectCapturePurpose(PhotoAcquisitionPurpose.garment);
+        await controller.beginAssistedCapture();
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+
+        expect(accepted.accepted, isTrue);
+        expect(controller.acceptedCapture?.originalPath, 'capture-1.jpg');
+        expect(camera.captureCount, 2);
+        expect(controller.capture?.originalPath, 'capture-2.jpg');
+        expect(controller.flowState.stage, CaptureFlowStage.review);
+      },
+    );
 
     test('capture replacement cleans the old temporary capture', () async {
       final store = InMemoryTemporaryCaptureStore();
@@ -714,6 +767,53 @@ void main() {
       expect(previewSize.width, moreOrLessEquals(337.5));
       expect(previewSize.height, 600);
     });
+
+    testWidgets(
+      'camera preview viewport cover crops rotated preview without stretching',
+      (tester) async {
+        final state = const CameraState(
+          status: CameraStatus.ready,
+          capabilities: CameraCapabilities(
+            previewWidth: 1920,
+            previewHeight: 1080,
+            effectivePreviewWidth: 1080,
+            effectivePreviewHeight: 1920,
+            orientationMode: CameraOrientationMode.deg90,
+            effectiveRotationDegrees: 90,
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: SizedBox(
+                width: 400,
+                height: 600,
+                child: CameraPreviewViewport(
+                  state: state,
+                  fit: BoxFit.cover,
+                  preview: const ColoredBox(
+                    key: Key('camera-preview-content'),
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final previewSize = tester.getSize(
+          find.byKey(const Key('camera-preview-content')),
+        );
+
+        expect(previewSize.width, 400);
+        expect(previewSize.height, moreOrLessEquals(711.11, epsilon: 0.01));
+        expect(
+          previewSize.width / previewSize.height,
+          moreOrLessEquals(1080 / 1920, epsilon: 0.001),
+        );
+      },
+    );
   });
 
   group('Image quality semantics', () {
@@ -1208,6 +1308,7 @@ CaptureSessionController testController({
   FakeQualityAnalyzer? analyzer,
   InMemoryTemporaryCaptureStore? captureStore,
   CaptureAudioService? audioService,
+  ModelCoverageAnalyzer? modelCoverageAnalyzer,
   Duration? countdownTickDuration,
 }) {
   return CaptureSessionController(
@@ -1216,6 +1317,8 @@ CaptureSessionController testController({
     analyzer: analyzer ?? FakeQualityAnalyzer.pass(),
     captureStore: captureStore ?? InMemoryTemporaryCaptureStore(),
     audioService: audioService ?? const SilentCaptureAudioService(),
+    modelCoverageAnalyzer:
+        modelCoverageAnalyzer ?? const FakeModelCoverageAnalyzer(),
     countdownTickDuration: countdownTickDuration,
   );
 }
@@ -1480,6 +1583,24 @@ class FakeCaptureAudioService implements CaptureAudioService {
   Future<void> stop() async {
     events.add('stop');
   }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class FakeModelCoverageAnalyzer implements ModelCoverageAnalyzer {
+  const FakeModelCoverageAnalyzer([
+    this.result = const ModelCoverageAnalysis.resolved(
+      coverage: ModelCoverage.fullBody,
+      confidence: 0.9,
+      reasonCode: 'MODEL_FULL_BODY_COVERAGE',
+    ),
+  ]);
+
+  final ModelCoverageAnalysis result;
+
+  @override
+  Future<ModelCoverageAnalysis> analyze(File image) async => result;
 
   @override
   Future<void> dispose() async {}
