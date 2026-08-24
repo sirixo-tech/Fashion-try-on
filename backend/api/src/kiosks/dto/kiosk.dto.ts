@@ -179,6 +179,7 @@ export class KioskConfigurationDto {
   assetUpload!: {
     supported: boolean;
     maxImageBytes: number;
+    maxVideoBytes: number;
     supportedContentTypes: string[];
   };
   updatedAt!: string;
@@ -215,7 +216,7 @@ export class KioskConfigurationAssetInputDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(12 * 1024 * 1024)
+  @Max(80 * 1024 * 1024)
   sizeBytes?: number;
 }
 
@@ -226,7 +227,7 @@ export class CreateKioskConfigurationAssetUploadDto {
 
   @IsInt()
   @Min(1)
-  @Max(12 * 1024 * 1024)
+  @Max(80 * 1024 * 1024)
   sizeBytes!: number;
 
   @IsOptional()
@@ -244,6 +245,7 @@ export class KioskConfigurationAssetUploadIntentDto {
   expiresAt!: string;
   headers!: Record<string, string>;
   maxImageBytes!: number;
+  maxVideoBytes!: number;
   supportedContentTypes!: string[];
 }
 

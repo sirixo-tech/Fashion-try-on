@@ -8,7 +8,12 @@ enum RuntimeKioskIdleMode { static, slideshow }
 
 enum RuntimeKioskSoundProfile { selfxSignature, soft, studio, minimal, muted }
 
-enum RuntimeKioskAssetType { bundledImage, remoteImage }
+enum RuntimeKioskAssetType {
+  bundledImage,
+  bundledVideo,
+  remoteImage,
+  remoteVideo,
+}
 
 class KioskRuntimeConfiguration {
   const KioskRuntimeConfiguration({
@@ -171,6 +176,7 @@ class KioskRuntimeAsset {
     required this.label,
     this.url,
     this.bundledAssetKey,
+    this.contentType,
     this.localImagePath,
     this.assetImagePath,
     this.assetVideoPath,
@@ -179,20 +185,34 @@ class KioskRuntimeAsset {
   factory KioskRuntimeAsset.fromJson(Map<String, dynamic> json) {
     final bundledAssetKey = _nullableString(json['bundledAssetKey']);
     final localImagePath = _nullableString(json['localImagePath']);
+    final localVideoPath = _nullableString(json['assetVideoPath']);
+    final contentType = _nullableString(json['contentType']);
     final assetType = json['type'] as String?;
+    final bundledVideo = bundledAssetKey == 'selfx-default-kiosk-video';
+    final uploadedVideo = contentType?.startsWith('video/') ?? false;
+    final runtimeType = assetType == 'REMOTE_VIDEO' || uploadedVideo
+        ? RuntimeKioskAssetType.remoteVideo
+        : assetType == 'REMOTE_IMAGE' || assetType == 'UPLOADED_IMAGE'
+        ? RuntimeKioskAssetType.remoteImage
+        : bundledVideo
+        ? RuntimeKioskAssetType.bundledVideo
+        : RuntimeKioskAssetType.bundledImage;
     return KioskRuntimeAsset(
       id: _string(json, 'id', bundledAssetKey ?? 'presentation-asset'),
-      type: assetType == 'REMOTE_IMAGE' || assetType == 'UPLOADED_IMAGE'
-          ? RuntimeKioskAssetType.remoteImage
-          : RuntimeKioskAssetType.bundledImage,
+      type: runtimeType,
       label: _string(json, 'label', 'Kiosk presentation image'),
       url: _nullableString(json['url']),
       bundledAssetKey: bundledAssetKey,
-      localImagePath: localImagePath,
-      assetImagePath: localImagePath == null
+      contentType: contentType,
+      localImagePath: runtimeType == RuntimeKioskAssetType.remoteImage
+          ? localImagePath
+          : null,
+      assetImagePath: localImagePath == null && runtimeType.isImage
           ? assetPathForBundledKey(bundledAssetKey)
           : null,
-      assetVideoPath: localImagePath == null
+      assetVideoPath: runtimeType == RuntimeKioskAssetType.remoteVideo
+          ? localVideoPath
+          : localVideoPath == null && runtimeType.isVideo
           ? videoPathForBundledKey(bundledAssetKey)
           : null,
     );
@@ -203,32 +223,53 @@ class KioskRuntimeAsset {
   final String label;
   final String? url;
   final String? bundledAssetKey;
+  final String? contentType;
   final String? localImagePath;
   final String? assetImagePath;
   final String? assetVideoPath;
 
-  KioskRuntimeAsset copyWithLocalImagePath(String path) {
+  KioskRuntimeAsset copyWithLocalAssetPath(String path) {
     return KioskRuntimeAsset(
       id: id,
       type: type,
       label: label,
       url: url,
       bundledAssetKey: bundledAssetKey,
-      localImagePath: path,
-      assetVideoPath: assetVideoPath,
+      contentType: contentType,
+      localImagePath: type.isImage ? path : null,
+      assetVideoPath: type.isVideo ? path : assetVideoPath,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'type': type == RuntimeKioskAssetType.remoteImage
-          ? 'REMOTE_IMAGE'
-          : 'BUNDLED_IMAGE',
+      'type': type.apiValue,
       'label': label,
       'url': url,
       'bundledAssetKey': bundledAssetKey,
+      'contentType': contentType,
       'localImagePath': localImagePath,
+      'assetVideoPath': assetVideoPath,
+    };
+  }
+}
+
+extension on RuntimeKioskAssetType {
+  bool get isImage =>
+      this == RuntimeKioskAssetType.bundledImage ||
+      this == RuntimeKioskAssetType.remoteImage;
+
+  bool get isVideo =>
+      this == RuntimeKioskAssetType.bundledVideo ||
+      this == RuntimeKioskAssetType.remoteVideo;
+
+  String get apiValue {
+    return switch (this) {
+      RuntimeKioskAssetType.remoteImage => 'REMOTE_IMAGE',
+      RuntimeKioskAssetType.remoteVideo => 'UPLOADED_IMAGE',
+      RuntimeKioskAssetType.bundledVideo => 'BUNDLED_IMAGE',
+      RuntimeKioskAssetType.bundledImage => 'BUNDLED_IMAGE',
     };
   }
 }
@@ -243,7 +284,7 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
   assets: [
     KioskRuntimeAsset(
       id: 'selfx-default-kiosk-video',
-      type: RuntimeKioskAssetType.bundledImage,
+      type: RuntimeKioskAssetType.bundledVideo,
       label: 'SelfX default video',
       bundledAssetKey: 'selfx-default-kiosk-video',
       assetVideoPath: 'assets/videos/garment-selection-background.mp4',

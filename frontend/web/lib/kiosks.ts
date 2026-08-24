@@ -68,6 +68,7 @@ export type KioskConfiguration = {
   assetUpload: {
     supported: boolean;
     maxImageBytes: number;
+    maxVideoBytes: number;
     supportedContentTypes: string[];
   };
   updatedAt: string;
@@ -216,14 +217,11 @@ export function updateKioskAssignment(
     storeId?: string;
   },
 ): Promise<KioskDevice> {
-  return selfxApi<KioskDevice>(
-    `/api/v1/admin/kiosks/${deviceId}/assignment`,
-    {
-      method: "PATCH",
-      accessToken,
-      body: JSON.stringify(input),
-    },
-  );
+  return selfxApi<KioskDevice>(`/api/v1/admin/kiosks/${deviceId}/assignment`, {
+    method: "PATCH",
+    accessToken,
+    body: JSON.stringify(input),
+  });
 }
 
 export function activateKioskDevice(
@@ -290,6 +288,7 @@ export type KioskConfigurationAssetUploadIntent = {
   expiresAt: string;
   headers: Record<string, string>;
   maxImageBytes: number;
+  maxVideoBytes: number;
   supportedContentTypes: string[];
 };
 

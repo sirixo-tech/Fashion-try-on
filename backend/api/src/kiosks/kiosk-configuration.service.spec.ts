@@ -33,6 +33,9 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     expect(configuration.display.assets[0]?.type).toBe(
       KioskConfigurationAssetType.BUNDLED_IMAGE,
     );
+    expect(configuration.display.assets[0]?.bundledAssetKey).toBe(
+      "selfx-default-kiosk-video",
+    );
     expect(configuration.experience.enabledGarmentIntents).toEqual([
       KioskConfigurationGarmentIntent.TOP,
       KioskConfigurationGarmentIntent.BOTTOM,
@@ -49,7 +52,9 @@ describe("KIOSK-6A remote kiosk configuration", () => {
       requirePermission: vi.fn().mockResolvedValue(undefined),
     };
     const controller = new AdminKioskConfigurationController(
-      { requireAccessUser: vi.fn().mockResolvedValue({ id: "super-user" }) } as never,
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "super-user" }),
+      } as never,
       platformAuthorization as never,
       service as never,
     );
@@ -82,15 +87,19 @@ describe("KIOSK-6A remote kiosk configuration", () => {
   it("rejects non-superadmin configuration updates through platform authorization", async () => {
     const service = { updateAdminConfiguration: vi.fn() };
     const controller = new AdminKioskConfigurationController(
-      { requireAccessUser: vi.fn().mockResolvedValue({ id: "support-user" }) } as never,
       {
-        requirePermission: vi.fn().mockRejectedValue(
-          new ApiErrorException(
-            HttpStatus.FORBIDDEN,
-            "PLATFORM_PERMISSION_DENIED",
-            "Platform permission denied.",
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "support-user" }),
+      } as never,
+      {
+        requirePermission: vi
+          .fn()
+          .mockRejectedValue(
+            new ApiErrorException(
+              HttpStatus.FORBIDDEN,
+              "PLATFORM_PERMISSION_DENIED",
+              "Platform permission denied.",
+            ),
           ),
-        ),
       } as never,
       service as never,
     );
@@ -192,6 +201,28 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     );
   });
 
+  it("creates upload intents for kiosk presentation videos", async () => {
+    const harness = new ConfigurationHarness();
+
+    const intent = await harness.service.createAdminAssetUploadIntent(
+      harness.deviceId,
+      {
+        contentType: "video/mp4",
+        sizeBytes: 4 * 1024 * 1024,
+        fileName: "launch-loop.mp4",
+      },
+    );
+
+    expect(intent.type).toBe(KioskConfigurationAssetType.UPLOADED_IMAGE);
+    expect(intent.label).toBe("launch-loop");
+    expect(intent.maxImageBytes).toBe(12 * 1024 * 1024);
+    expect(intent.maxVideoBytes).toBe(80 * 1024 * 1024);
+    expect(intent.supportedContentTypes).toContain("video/mp4");
+    expect(harness.storage.createUploadUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ contentType: "video/mp4" }),
+    );
+  });
+
   it("rejects dangerous presentation asset references", async () => {
     const harness = new ConfigurationHarness();
     const unsafeUrls = [
@@ -228,7 +259,9 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     const withoutSavedConfiguration = deviceRecord({ configuration: null });
 
     expect(mapDevice(device).latestConfigurationVersion).toBe(9);
-    expect(mapDevice(withoutSavedConfiguration).latestConfigurationVersion).toBe(1);
+    expect(
+      mapDevice(withoutSavedConfiguration).latestConfigurationVersion,
+    ).toBe(1);
   });
 });
 
@@ -240,11 +273,21 @@ class ConfigurationHarness {
   authenticatedDeviceId = this.deviceId;
   deviceAuthError: ApiErrorException | null = null;
   readonly storage = {
-    createUploadUrl: vi.fn(({ key }: { key: string }) => `https://storage.test/${key}`),
-    createReadUrl: vi.fn(({ key }: { key: string }) => `https://storage.test/${key}`),
+    createUploadUrl: vi.fn(
+      ({ key }: { key: string }) => `https://storage.test/${key}`,
+    ),
+    createReadUrl: vi.fn(
+      ({ key }: { key: string }) => `https://storage.test/${key}`,
+    ),
   };
-  private readonly assetsByConfigurationId = new Map<string, Array<Record<string, unknown>>>();
-  private readonly configurationsByDeviceId = new Map<string, Record<string, unknown>>();
+  private readonly assetsByConfigurationId = new Map<
+    string,
+    Array<Record<string, unknown>>
+  >();
+  private readonly configurationsByDeviceId = new Map<
+    string,
+    Record<string, unknown>
+  >();
 
   readonly prisma = {
     kioskDevice: {
@@ -259,13 +302,19 @@ class ConfigurationHarness {
       },
     },
     kioskDeviceConfiguration: {
-      findUnique: async ({ where }: { where: { kioskDeviceId?: string; id?: string } }) => {
+      findUnique: async ({
+        where,
+      }: {
+        where: { kioskDeviceId?: string; id?: string };
+      }) => {
         const configuration = where.id
           ? [...this.configurationsByDeviceId.values()].find(
               (item) => item.id === where.id,
             )
           : this.configurationsByDeviceId.get(where.kioskDeviceId ?? "");
-        return configuration ? this.configurationWithAssets(configuration) : null;
+        return configuration
+          ? this.configurationWithAssets(configuration)
+          : null;
       },
       create: async ({ data }: { data: Record<string, unknown> }) => {
         const configuration = {
@@ -322,7 +371,8 @@ class ConfigurationHarness {
       }) => {
         for (const asset of data) {
           const configurationId = String(asset.configurationId);
-          const current = this.assetsByConfigurationId.get(configurationId) ?? [];
+          const current =
+            this.assetsByConfigurationId.get(configurationId) ?? [];
           current.push({ ...asset, createdAt: new Date() });
           this.assetsByConfigurationId.set(configurationId, current);
         }

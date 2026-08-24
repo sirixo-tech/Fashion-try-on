@@ -138,9 +138,11 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
   ) async {
     final preparedAssets = <KioskRuntimeAsset>[];
     for (final asset in remote.assets) {
-      if (asset.type == RuntimeKioskAssetType.bundledImage) {
+      if (asset.type == RuntimeKioskAssetType.bundledImage ||
+          asset.type == RuntimeKioskAssetType.bundledVideo) {
         final assetPath = assetPathForBundledKey(asset.bundledAssetKey);
-        if (assetPath != null) {
+        final videoPath = videoPathForBundledKey(asset.bundledAssetKey);
+        if (assetPath != null || videoPath != null) {
           preparedAssets.add(
             KioskRuntimeAsset(
               id: asset.id,
@@ -148,7 +150,7 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
               label: asset.label,
               bundledAssetKey: asset.bundledAssetKey,
               assetImagePath: assetPath,
-              assetVideoPath: videoPathForBundledKey(asset.bundledAssetKey),
+              assetVideoPath: videoPath,
             ),
           );
         }
@@ -162,7 +164,7 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
         );
       }
       final localPath = await _downloadAsset(remote.version, asset);
-      preparedAssets.add(asset.copyWithLocalImagePath(localPath));
+      preparedAssets.add(asset.copyWithLocalAssetPath(localPath));
     }
     if (preparedAssets.isEmpty) {
       throw const KioskDeviceException(
@@ -200,10 +202,10 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
       );
     }
     final contentType = response.headers[HttpHeaders.contentTypeHeader] ?? '';
-    if (!contentType.toLowerCase().startsWith('image/')) {
+    if (!_isSupportedDownloadedContentType(contentType)) {
       throw const KioskDeviceException(
         'KIOSK_CONFIGURATION_ASSET_INVALID',
-        'Kiosk presentation asset is not an image.',
+        'Kiosk presentation asset media type is not supported.',
       );
     }
     final directory = await _configurationCacheDirectory();
@@ -274,6 +276,9 @@ class SharedPreferencesKioskRuntimeConfigurationCache
 
 String _extensionForContentType(String contentType) {
   final value = contentType.toLowerCase();
+  if (value.contains('video/mp4')) {
+    return '.mp4';
+  }
   if (value.contains('png')) {
     return '.png';
   }
@@ -281,6 +286,11 @@ String _extensionForContentType(String contentType) {
     return '.webp';
   }
   return '.jpg';
+}
+
+bool _isSupportedDownloadedContentType(String contentType) {
+  final value = contentType.toLowerCase();
+  return value.startsWith('image/') || value.startsWith('video/mp4');
 }
 
 String _safeFilePart(String value) {

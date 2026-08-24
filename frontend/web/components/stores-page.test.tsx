@@ -103,9 +103,9 @@ const configuration = {
       {
         id: "asset-1",
         type: "BUNDLED_IMAGE",
-        label: "SelfX default wallpaper",
+        label: "SelfX default video",
         url: null,
-        bundledAssetKey: "selfx-default-kiosk-wallpaper",
+        bundledAssetKey: "selfx-default-kiosk-video",
         assetRef: null,
         contentType: null,
         sizeBytes: null,
@@ -126,7 +126,13 @@ const configuration = {
   assetUpload: {
     supported: true,
     maxImageBytes: 12 * 1024 * 1024,
-    supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
+    maxVideoBytes: 80 * 1024 * 1024,
+    supportedContentTypes: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "video/mp4",
+    ],
   },
   updatedAt: "2026-08-16T00:00:00.000Z",
 } as const;

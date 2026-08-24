@@ -23,14 +23,15 @@ import {
   type KioskConfigurationDto,
   type UpdateKioskConfigurationDto,
 } from "./dto/kiosk.dto.js";
-import {
-  KIOSK_AUDIT_ACTIONS,
-  KIOSK_ERROR_CODES,
-} from "./kiosk.constants.js";
+import { KIOSK_AUDIT_ACTIONS, KIOSK_ERROR_CODES } from "./kiosk.constants.js";
 import { KioskService } from "./kiosk.service.js";
 
-const fallbackBundledAssetKey = "selfx-default-kiosk-wallpaper";
-const allowedBundledAssetKeys = new Set([fallbackBundledAssetKey]);
+const fallbackBundledAssetKey = "selfx-default-kiosk-video";
+const fallbackBundledImageAssetKey = "selfx-default-kiosk-wallpaper";
+const allowedBundledAssetKeys = new Set([
+  fallbackBundledAssetKey,
+  fallbackBundledImageAssetKey,
+]);
 const allowedAssetTypes = new Set(Object.values(KioskConfigurationAssetType));
 const allowedIdleModes = new Set(Object.values(KioskIdleMode));
 const allowedSoundProfiles = new Set(
@@ -46,11 +47,13 @@ const supportedUploadContentTypes = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  "video/mp4",
 ] as const;
 const supportedUploadContentTypeSet = new Set<string>(
   supportedUploadContentTypes,
 );
 const maxPresentationImageBytes = 12 * 1024 * 1024;
+const maxPresentationVideoBytes = 80 * 1024 * 1024;
 const uploadIntentTtlSeconds = 300;
 const readUrlTtlSeconds = 900;
 
@@ -71,10 +74,12 @@ export class KioskConfigurationService {
     deviceId: string,
   ): Promise<KioskConfigurationDto> {
     await this.requireManageableDevice(deviceId);
-    const configuration = await this.prisma.kioskDeviceConfiguration.findUnique({
-      where: { kioskDeviceId: deviceId },
-      include: { assets: { orderBy: { sortOrder: "asc" } } },
-    });
+    const configuration = await this.prisma.kioskDeviceConfiguration.findUnique(
+      {
+        where: { kioskDeviceId: deviceId },
+        include: { assets: { orderBy: { sortOrder: "asc" } } },
+      },
+    );
     const storeId = await this.storeIdForDevice(deviceId);
     return this.mapConfiguration(configuration, storeId);
   }
@@ -84,16 +89,20 @@ export class KioskConfigurationService {
     input: CreateKioskConfigurationAssetUploadDto,
   ): Promise<KioskConfigurationAssetUploadIntentDto> {
     await this.requireManageableDevice(deviceId);
-    const contentType = normalizeUploadedImageContentType(input.contentType);
-    if (!contentType || input.sizeBytes > maxPresentationImageBytes) {
-      throwConfigurationInvalid("Presentation image upload is invalid.");
+    const contentType = normalizeUploadedContentType(input.contentType);
+    const maxBytes = maxBytesForContentType(contentType);
+    if (!contentType || input.sizeBytes > maxBytes) {
+      throwConfigurationInvalid("Presentation asset upload is invalid.");
     }
-    const objectKey = kioskConfigurationAssetObjectKeyFor(deviceId, contentType);
+    const objectKey = kioskConfigurationAssetObjectKeyFor(
+      deviceId,
+      contentType,
+    );
     const now = new Date();
     return {
       assetRef: encodeAssetRef(objectKey),
       type: KioskConfigurationAssetType.UPLOADED_IMAGE,
-      label: presentationAssetLabel(input.fileName),
+      label: presentationAssetLabel(input.fileName, contentType),
       uploadUrl: this.storage.createUploadUrl({
         key: objectKey,
         contentType,
@@ -105,6 +114,7 @@ export class KioskConfigurationService {
       ).toISOString(),
       headers: { "Content-Type": contentType },
       maxImageBytes: maxPresentationImageBytes,
+      maxVideoBytes: maxPresentationVideoBytes,
       supportedContentTypes: [...supportedUploadContentTypes],
     };
   }
@@ -191,10 +201,12 @@ export class KioskConfigurationService {
     authorization: string | undefined,
   ): Promise<KioskConfigurationDto> {
     const device = await this.kiosks.requireDevice(authorization);
-    const configuration = await this.prisma.kioskDeviceConfiguration.findUnique({
-      where: { kioskDeviceId: device.id },
-      include: { assets: { orderBy: { sortOrder: "asc" } } },
-    });
+    const configuration = await this.prisma.kioskDeviceConfiguration.findUnique(
+      {
+        where: { kioskDeviceId: device.id },
+        include: { assets: { orderBy: { sortOrder: "asc" } } },
+      },
+    );
     return this.mapConfiguration(configuration, device.organizationId);
   }
 
@@ -262,6 +274,7 @@ export class KioskConfigurationService {
       assetUpload: {
         supported: true,
         maxImageBytes: maxPresentationImageBytes,
+        maxVideoBytes: maxPresentationVideoBytes,
         supportedContentTypes: [...supportedUploadContentTypes],
       },
       updatedAt: source.updatedAt.toISOString(),
@@ -308,11 +321,11 @@ function defaultConfiguration(): ConfigurationWithAssets {
 function defaultAssets(): KioskDeviceConfigurationAsset[] {
   return [
     {
-      id: "selfx-default-kiosk-wallpaper",
+      id: "selfx-default-kiosk-video",
       configurationId: "00000000-0000-0000-0000-000000000000",
       sortOrder: 0,
       type: KioskConfigurationAssetType.BUNDLED_IMAGE,
-      label: "SelfX default wallpaper",
+      label: "SelfX default video",
       url: null,
       bundledAssetKey: fallbackBundledAssetKey,
       objectKey: null,
@@ -327,7 +340,11 @@ function normalizeConfigurationInput(
   input: UpdateKioskConfigurationDto,
   deviceId: string,
 ) {
-  assertEnumValue(allowedIdleModes, input.display.idleMode, "Idle mode is invalid.");
+  assertEnumValue(
+    allowedIdleModes,
+    input.display.idleMode,
+    "Idle mode is invalid.",
+  );
   assertIntegerRange(
     input.display.slideDurationSeconds,
     3,
@@ -364,7 +381,9 @@ function normalizeConfigurationInput(
     );
   }
   if (input.display.assets.length < 1 || input.display.assets.length > 12) {
-    throwConfigurationInvalid("Presentation assets must include 1 to 12 items.");
+    throwConfigurationInvalid(
+      "Presentation assets must include 1 to 12 items.",
+    );
   }
   const assets = input.display.assets.map((asset) =>
     normalizeAsset(asset, deviceId),
@@ -432,18 +451,18 @@ function normalizeAsset(
     };
   }
   if (input.type === KioskConfigurationAssetType.UPLOADED_IMAGE) {
-    const contentType = normalizeUploadedImageContentType(input.contentType);
-    if (
-      !contentType ||
-      !input.sizeBytes ||
-      input.sizeBytes > maxPresentationImageBytes
-    ) {
-      throwConfigurationInvalid("Uploaded presentation image is invalid.");
+    const contentType = normalizeUploadedContentType(input.contentType);
+    if (!contentType) {
+      throwConfigurationInvalid("Uploaded presentation asset is invalid.");
+    }
+    const maxBytes = maxBytesForContentType(contentType);
+    if (!input.sizeBytes || input.sizeBytes > maxBytes) {
+      throwConfigurationInvalid("Uploaded presentation asset is too large.");
     }
     const objectKey = decodeAssetRef(input.assetRef);
     if (!objectKey.startsWith(`kiosk-config/${deviceId}/`)) {
       throwConfigurationInvalid(
-        "Uploaded presentation image does not belong to this kiosk.",
+        "Uploaded presentation asset does not belong to this kiosk.",
       );
     }
     return {
@@ -457,7 +476,7 @@ function normalizeAsset(
     };
   }
   const url = input.url?.trim() || "";
-  assertSafeRemoteImageUrl(url);
+  assertSafeRemoteMediaUrl(url);
   return {
     type: input.type,
     label,
@@ -469,18 +488,18 @@ function normalizeAsset(
   };
 }
 
-function assertSafeRemoteImageUrl(value: string): void {
+function assertSafeRemoteMediaUrl(value: string): void {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throwConfigurationInvalid("Presentation image URL is invalid.");
+    throwConfigurationInvalid("Presentation asset URL is invalid.");
   }
   if (url.protocol !== "https:") {
-    throwConfigurationInvalid("Presentation image URL must use HTTPS.");
+    throwConfigurationInvalid("Presentation asset URL must use HTTPS.");
   }
   if (isBlockedHost(url.hostname)) {
-    throwConfigurationInvalid("Presentation image URL host is not allowed.");
+    throwConfigurationInvalid("Presentation asset URL host is not allowed.");
   }
 }
 
@@ -532,11 +551,7 @@ function unique<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
 
-function assertEnumValue<T>(
-  allowed: Set<T>,
-  value: T,
-  message: string,
-): void {
+function assertEnumValue<T>(allowed: Set<T>, value: T, message: string): void {
   if (!allowed.has(value)) {
     throwConfigurationInvalid(message);
   }
@@ -568,7 +583,7 @@ function nullableTrim(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-function normalizeUploadedImageContentType(value?: string): string | null {
+function normalizeUploadedContentType(value?: string): string | null {
   const contentType = value?.toLowerCase().split(";")[0]?.trim();
   if (!contentType || !supportedUploadContentTypeSet.has(contentType)) {
     return null;
@@ -576,16 +591,29 @@ function normalizeUploadedImageContentType(value?: string): string | null {
   return contentType;
 }
 
+function maxBytesForContentType(contentType: string | null): number {
+  if (contentType?.startsWith("video/")) {
+    return maxPresentationVideoBytes;
+  }
+  return maxPresentationImageBytes;
+}
+
 function kioskConfigurationAssetObjectKeyFor(
   deviceId: string,
   contentType: string,
 ): string {
-  return `kiosk-config/${deviceId}/${createSelfxId()}/presentation-image.${extensionForContentType(
+  const prefix = contentType.startsWith("video/")
+    ? "presentation-video"
+    : "presentation-image";
+  return `kiosk-config/${deviceId}/${createSelfxId()}/${prefix}.${extensionForContentType(
     contentType,
   )}`;
 }
 
 function extensionForContentType(contentType: string): string {
+  if (contentType === "video/mp4") {
+    return "mp4";
+  }
   if (contentType === "image/png") {
     return "png";
   }
@@ -612,13 +640,23 @@ function decodeAssetRef(assetRef?: string): string {
     }
     return objectKey;
   } catch {
-    throwConfigurationInvalid("Uploaded presentation image reference is invalid.");
+    throwConfigurationInvalid(
+      "Uploaded presentation image reference is invalid.",
+    );
   }
 }
 
-function presentationAssetLabel(fileName?: string): string {
+function presentationAssetLabel(
+  fileName: string | undefined,
+  contentType: string,
+): string {
   const label = fileName?.replace(/\.[^.]+$/, "").trim();
-  return label ? label.slice(0, 120) : "Kiosk presentation image";
+  if (label) {
+    return label.slice(0, 120);
+  }
+  return contentType.startsWith("video/")
+    ? "Kiosk presentation video"
+    : "Kiosk presentation image";
 }
 
 function throwConfigurationInvalid(message: string): never {

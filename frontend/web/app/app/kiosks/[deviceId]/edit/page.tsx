@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   ArrowLeftIcon,
+  CheckCircleIcon,
   CheckIcon,
   ChevronDownIcon,
   SaveIcon,
@@ -60,7 +61,14 @@ const garmentIntents: KioskConfigurationGarmentIntent[] = [
   "FULL_OUTFIT",
 ];
 const presentationImageTypes = ["image/jpeg", "image/png", "image/webp"];
+const presentationVideoTypes = ["video/mp4"];
+const presentationMediaTypes = [
+  ...presentationImageTypes,
+  ...presentationVideoTypes,
+];
 const maxPresentationImageBytes = 12 * 1024 * 1024;
+const maxPresentationVideoBytes = 80 * 1024 * 1024;
+const bundledDefaultVideoUrl = "/kiosk/default-start-screen.mp4";
 
 type KioskConfigurationForm = {
   idleMode: KioskIdleMode;
@@ -99,9 +107,7 @@ export default function KioskEditPage() {
     organizations: [],
     stores: [],
   });
-  const [form, setForm] = useState<KioskConfigurationForm>(
-    defaultConfigForm(),
-  );
+  const [form, setForm] = useState<KioskConfigurationForm>(defaultConfigForm());
   const [version, setVersion] = useState(1);
   const [displayName, setDisplayName] = useState("");
   const [assignmentStoreId, setAssignmentStoreId] = useState("");
@@ -109,6 +115,15 @@ export default function KioskEditPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!successMessage) {
+      return;
+    }
+    const timeout = window.setTimeout(() => setSuccessMessage(null), 3600);
+    return () => window.clearTimeout(timeout);
+  }, [successMessage]);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -212,6 +227,7 @@ export default function KioskEditPage() {
       setForm(formFromConfiguration(configuration));
       setDisplayName(nextDevice.displayName);
       setAssignmentStoreId(currentAssignmentStoreId(nextDevice));
+      setSuccessMessage("Kiosk configuration saved successfully.");
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -230,16 +246,16 @@ export default function KioskEditPage() {
       form.idleMode === "STATIC" ? 1 : 12 - form.presentationAssets.length;
     const uploadableFiles = files.slice(0, Math.max(0, remainingSlots));
     if (uploadableFiles.length === 0) {
-      setError("Presentation assets are limited to 12 images.");
+      setError("Presentation assets are limited to 12 media files.");
       return;
     }
     const invalid = uploadableFiles.find(
-      (file) =>
-        !presentationImageTypes.includes(file.type) ||
-        file.size > maxPresentationImageBytes,
+      (file) => !isSupportedPresentationFile(file),
     );
     if (invalid) {
-      setError("Upload JPG, PNG or WebP images up to 12 MB.");
+      setError(
+        "Upload JPG, PNG or WebP images up to 12 MB or MP4 videos up to 80 MB.",
+      );
       return;
     }
     setUploading(true);
@@ -312,6 +328,16 @@ export default function KioskEditPage() {
       />
 
       <PageSection>
+        {successMessage ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed right-6 top-6 z-50 flex max-w-sm items-center gap-3 rounded-lg bg-[#FF7119] px-4 py-3 text-sm font-semibold text-white shadow-lg"
+          >
+            <CheckCircleIcon size={18} aria-hidden="true" />
+            {successMessage}
+          </div>
+        ) : null}
         <div className="space-y-4">
           {error ? (
             <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -337,15 +363,11 @@ export default function KioskEditPage() {
                         id="configure-kiosk-name"
                         value={displayName}
                         maxLength={160}
-                        onChange={(event) =>
-                          setDisplayName(event.target.value)
-                        }
+                        onChange={(event) => setDisplayName(event.target.value)}
                       />
                     </div>
                     <div className="space-y-2 text-sm">
-                      <Label htmlFor="store-assignment">
-                        Store Assignment
-                      </Label>
+                      <Label htmlFor="store-assignment">Store Assignment</Label>
                       <select
                         id="store-assignment"
                         className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -568,9 +590,7 @@ export default function KioskEditPage() {
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
-                          sessionIdleTimeoutSeconds: Number(
-                            event.target.value,
-                          ),
+                          sessionIdleTimeoutSeconds: Number(event.target.value),
                         }))
                       }
                     />
@@ -579,7 +599,7 @@ export default function KioskEditPage() {
 
                 <fieldset className="rounded-lg border bg-card/70 p-4 shadow-sm lg:col-span-2">
                   <legend className="px-1 text-sm font-semibold">
-                    Presentation Image
+                    Presentation Media
                   </legend>
                   <PresentationAssetUploader
                     assets={form.presentationAssets}
@@ -633,29 +653,28 @@ function PresentationAssetUploader({
 }) {
   const inputId = "presentation-asset-upload";
   const currentAsset = assets[0] ?? null;
-  const currentPreviewUrl = currentAsset?.url ?? "";
+  const currentPreviewUrl = presentationPreviewUrl(currentAsset);
+  const currentMediaKind = presentationMediaKind(currentAsset);
   const currentDescription = currentAsset
-    ? currentAsset.type === "REMOTE_IMAGE"
-      ? "Hosted image"
-      : formatFileSize(currentAsset.sizeBytes)
-    : "Bundled kiosk image";
+    ? presentationAssetDescription(currentAsset)
+    : "Bundled kiosk video";
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label htmlFor={inputId}>Current wallpaper</Label>
+        <Label htmlFor={inputId}>Current start screen media</Label>
         <label
           htmlFor={inputId}
           className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
         >
           <UploadIcon size={16} aria-hidden="true" />
-          {uploading ? "Uploading" : "Upload Image"}
+          {uploading ? "Uploading" : "Upload / Replace Media"}
         </label>
         <input
           id={inputId}
           className="sr-only"
           type="file"
-          accept={presentationImageTypes.join(",")}
+          accept={presentationMediaTypes.join(",")}
           multiple={idleMode === "SLIDESHOW"}
           disabled={uploading}
           onChange={(event) => {
@@ -669,7 +688,18 @@ function PresentationAssetUploader({
       </div>
       <div className="max-w-xl rounded-lg border bg-background p-2">
         <div className="relative aspect-video overflow-hidden rounded-md border bg-muted">
-          {currentPreviewUrl ? (
+          {currentMediaKind === "video" && currentPreviewUrl ? (
+            <video
+              key={currentPreviewUrl}
+              src={currentPreviewUrl}
+              className="size-full object-cover"
+              autoPlay
+              loop
+              muted
+              playsInline
+              controls
+            />
+          ) : currentPreviewUrl ? (
             <Image
               src={currentPreviewUrl}
               alt=""
@@ -684,7 +714,7 @@ function PresentationAssetUploader({
         </div>
         <div className="mt-2 min-w-0">
           <div className="truncate text-sm font-medium">
-            {currentAsset?.label ?? "SelfX default wallpaper"}
+            {currentAsset?.label ?? "SelfX default video"}
           </div>
           <div className="text-xs text-muted-foreground">
             {currentDescription}
@@ -769,8 +799,8 @@ function configurationAssets(form: KioskConfigurationForm) {
     return [
       {
         type: "BUNDLED_IMAGE" as const,
-        label: "SelfX default wallpaper",
-        bundledAssetKey: "selfx-default-kiosk-wallpaper",
+        label: "SelfX default video",
+        bundledAssetKey: "selfx-default-kiosk-video",
       },
     ];
   }
@@ -778,7 +808,9 @@ function configurationAssets(form: KioskConfigurationForm) {
     type: asset.type,
     label: asset.label,
     ...(asset.url ? { url: asset.url } : {}),
-    ...(asset.bundledAssetKey ? { bundledAssetKey: asset.bundledAssetKey } : {}),
+    ...(asset.bundledAssetKey
+      ? { bundledAssetKey: asset.bundledAssetKey }
+      : {}),
     ...(asset.assetRef ? { assetRef: asset.assetRef } : {}),
     ...(asset.contentType ? { contentType: asset.contentType } : {}),
     ...(asset.sizeBytes ? { sizeBytes: asset.sizeBytes } : {}),
@@ -793,10 +825,7 @@ function assignmentStoreOptions(
   const stores = options.organizations.filter(
     (store) => store.status === "ACTIVE" || store.id === currentStoreId,
   );
-  if (
-    currentStoreId &&
-    !stores.some((store) => store.id === currentStoreId)
-  ) {
+  if (currentStoreId && !stores.some((store) => store.id === currentStoreId)) {
     stores.unshift({
       id: currentStoreId,
       name:
@@ -849,18 +878,16 @@ function formFromConfiguration(
     enabledGarmentIntents: configuration.experience.enabledGarmentIntents,
     sessionIdleTimeoutSeconds:
       configuration.experience.sessionIdleTimeoutSeconds,
-    presentationAssets: configuration.display.assets
-      .filter((asset) => asset.type !== "BUNDLED_IMAGE")
-      .map((asset) => ({
-        id: asset.id,
-        type: asset.type,
-        label: asset.label,
-        url: asset.url,
-        bundledAssetKey: asset.bundledAssetKey,
-        assetRef: asset.assetRef,
-        contentType: asset.contentType,
-        sizeBytes: asset.sizeBytes,
-      })),
+    presentationAssets: configuration.display.assets.map((asset) => ({
+      id: asset.id,
+      type: asset.type,
+      label: asset.label,
+      url: asset.url,
+      bundledAssetKey: asset.bundledAssetKey,
+      assetRef: asset.assetRef,
+      contentType: asset.contentType,
+      sizeBytes: asset.sizeBytes,
+    })),
   };
 }
 
@@ -875,22 +902,77 @@ function validateConfigurationForm(
     return "Slide duration must be between 3 and 60 seconds.";
   }
   if (form.presentationAssets.length > 12) {
-    return "Presentation assets are limited to 12 images.";
+    return "Presentation assets are limited to 12 media files.";
   }
   if (form.idleMode === "SLIDESHOW" && form.presentationAssets.length < 2) {
-    return "Slideshow mode requires at least two uploaded images.";
+    return "Slideshow mode requires at least two presentation media files.";
   }
   return null;
 }
 
 function formatFileSize(sizeBytes?: number | null): string {
   if (!sizeBytes) {
-    return "Uploaded image";
+    return "Uploaded media";
   }
   if (sizeBytes < 1024 * 1024) {
     return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`;
   }
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isSupportedPresentationFile(file: File): boolean {
+  if (presentationImageTypes.includes(file.type)) {
+    return file.size <= maxPresentationImageBytes;
+  }
+  if (presentationVideoTypes.includes(file.type)) {
+    return file.size <= maxPresentationVideoBytes;
+  }
+  return false;
+}
+
+function presentationMediaKind(
+  asset: PresentationAssetFormItem | null,
+): "image" | "video" {
+  if (!asset) {
+    return "video";
+  }
+  return asset.bundledAssetKey === "selfx-default-kiosk-video" ||
+    asset.contentType?.startsWith("video/")
+    ? "video"
+    : "image";
+}
+
+function presentationPreviewUrl(
+  asset: PresentationAssetFormItem | null,
+): string {
+  if (!asset) {
+    return bundledDefaultVideoUrl;
+  }
+  if (asset.url) {
+    return asset.url;
+  }
+  if (asset.bundledAssetKey === "selfx-default-kiosk-video") {
+    return bundledDefaultVideoUrl;
+  }
+  return "";
+}
+
+function presentationAssetDescription(
+  asset: PresentationAssetFormItem,
+): string {
+  if (asset.bundledAssetKey === "selfx-default-kiosk-video") {
+    return "Bundled kiosk video";
+  }
+  if (asset.type === "BUNDLED_IMAGE") {
+    return "Bundled kiosk image";
+  }
+  if (asset.contentType?.startsWith("video/")) {
+    return "Hosted video";
+  }
+  if (asset.type === "REMOTE_IMAGE") {
+    return "Hosted image";
+  }
+  return formatFileSize(asset.sizeBytes);
 }
 
 function localPresentationAssetId(): string {

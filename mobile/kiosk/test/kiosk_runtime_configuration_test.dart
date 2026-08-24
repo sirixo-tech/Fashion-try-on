@@ -222,6 +222,42 @@ void main() {
     },
   );
 
+  test('prepares remote video assets for playback', () async {
+    final temp = await Directory.systemTemp.createTemp('selfx-kiosk-config-');
+    addTearDown(() => temp.delete(recursive: true));
+    final harness = RuntimeConfigHarness(
+      latestConfigurationVersion: 7,
+      cacheDirectory: temp,
+      client: MockClient((request) async {
+        return http.Response.bytes(
+          [0, 0, 0, 24],
+          200,
+          headers: {'content-type': 'video/mp4'},
+        );
+      }),
+    );
+    harness.gateway.remote = _runtimeConfiguration(
+      version: 7,
+      assets: [
+        KioskRuntimeAsset(
+          id: 'hero-video',
+          type: RuntimeKioskAssetType.remoteVideo,
+          label: 'Hero video',
+          url: 'https://cdn.selfx.test/hero.mp4',
+          contentType: 'video/mp4',
+        ),
+      ],
+    );
+
+    await harness.controller.syncIfNeeded();
+
+    final asset = harness.controller.configuration.assets.single;
+    expect(asset.localImagePath, isNull);
+    expect(asset.assetVideoPath, isNotNull);
+    expect(asset.assetVideoPath, endsWith('.mp4'));
+    expect(await File(asset.assetVideoPath!).exists(), isTrue);
+  });
+
   test('allows only one configuration sync at a time', () async {
     final gate = Completer<KioskRuntimeConfiguration>();
     final harness = RuntimeConfigHarness(latestConfigurationVersion: 8);
@@ -663,7 +699,7 @@ Map<String, dynamic> _bundledAssetJson() {
     'id': 'asset-1',
     'type': 'BUNDLED_IMAGE',
     'label': 'Default',
-    'bundledAssetKey': 'selfx-default-kiosk-wallpaper',
+    'bundledAssetKey': 'selfx-default-kiosk-video',
   };
 }
 
