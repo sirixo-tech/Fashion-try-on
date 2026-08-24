@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -667,11 +668,14 @@ function PresentationAssetUploader({
         />
       </div>
       <div className="max-w-xl rounded-lg border bg-background p-2">
-        <div className="aspect-video overflow-hidden rounded-md border bg-muted">
+        <div className="relative aspect-video overflow-hidden rounded-md border bg-muted">
           {currentPreviewUrl ? (
-            <img
+            <Image
               src={currentPreviewUrl}
               alt=""
+              fill
+              sizes="(min-width: 1024px) 36rem, 100vw"
+              unoptimized
               className="size-full object-cover"
             />
           ) : (
