@@ -135,6 +135,84 @@ describe("STORE-1 admin Stores", () => {
     expect(kiosks.pairKiosk).not.toHaveBeenCalled();
   });
 
+  it("archives inactive Stores without hard-deleting their records", async () => {
+    const prisma = createPrismaMock();
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+    );
+    prisma.organization.findUnique.mockResolvedValue(
+      organizationRecord({
+        id: "store-inactive",
+        status: OrganizationStatus.SUSPENDED,
+      }),
+    );
+    prisma.organization.update.mockResolvedValue(
+      organizationRecord({
+        id: "store-inactive",
+        status: OrganizationStatus.ARCHIVED,
+      }),
+    );
+
+    const archived = await service.archiveStore("store-inactive");
+
+    expect(prisma.organization.update).toHaveBeenCalledWith({
+      where: { id: "store-inactive" },
+      data: { status: OrganizationStatus.ARCHIVED },
+    });
+    expect(archived.status).toBe(AdminStoreStatus.INACTIVE);
+  });
+
+  it("rejects Store deletion while the Store is active", async () => {
+    const prisma = createPrismaMock();
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+    );
+    prisma.organization.findUnique.mockResolvedValue(
+      organizationRecord({
+        id: "store-active",
+        status: OrganizationStatus.ACTIVE,
+      }),
+    );
+
+    await expectApiCode(
+      service.archiveStore("store-active"),
+      STORE_ERROR_CODES.storeDeleteRequiresInactive,
+    );
+    expect(prisma.organization.update).not.toHaveBeenCalled();
+  });
+
+  it("excludes archived Stores from normal Store lists", async () => {
+    const prisma = createPrismaMock();
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+    );
+    prisma.organization.count.mockResolvedValue(0);
+    prisma.organization.findMany.mockResolvedValue([]);
+
+    await service.listStores({});
+    await service.listStores({ status: AdminStoreStatus.INACTIVE });
+
+    expect(prisma.organization.count).toHaveBeenNthCalledWith(1, {
+      where: { status: { not: OrganizationStatus.ARCHIVED } },
+    });
+    expect(prisma.organization.count).toHaveBeenNthCalledWith(2, {
+      where: {
+        status: {
+          notIn: [OrganizationStatus.ACTIVE, OrganizationStatus.ARCHIVED],
+        },
+      },
+    });
+  });
+
   it("rejects nested kiosk reads when the kiosk belongs to another Store", async () => {
     const prisma = createPrismaMock();
     const service = new AdminStoresService(

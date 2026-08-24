@@ -8,10 +8,12 @@ import {
   SearchIcon,
   ShieldAlertIcon,
   StoreIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 import {
   Button,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -36,6 +38,7 @@ import { SafeApiError } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import {
   createStore,
+  deleteStore,
   listStores,
   type AdminStore,
   type StoreInput,
@@ -56,6 +59,7 @@ export default function StoresPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [deletingStoreId, setDeletingStoreId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -88,6 +92,25 @@ export default function StoresPage() {
     () => stores.filter((store) => store.status === "ACTIVE").length,
     [stores],
   );
+
+  async function removeStore(storeId: string) {
+    if (!accessToken) {
+      return;
+    }
+    setDeletingStoreId(storeId);
+    setError(null);
+    try {
+      const archived = await deleteStore(accessToken, storeId);
+      setStores((current) =>
+        current.filter((store) => store.id !== archived.id),
+      );
+      setTotal((current) => Math.max(0, current - 1));
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setDeletingStoreId(null);
+    }
+  }
 
   return (
     <PageContainer width="wide">
@@ -209,13 +232,34 @@ export default function StoresPage() {
                     <TableCell>{formatDate(store.lastActivityAt)}</TableCell>
                     <TableCell>{formatDate(store.createdAt)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        render={<Link href={`/app/stores/${store.id}`} />}
-                        variant="outline"
-                        size="sm"
-                      >
-                        View Store
-                      </Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          render={<Link href={`/app/stores/${store.id}`} />}
+                          variant="outline"
+                          size="sm"
+                        >
+                          View Store
+                        </Button>
+                        {store.status === "INACTIVE" ? (
+                          <ConfirmDialog
+                            title="Delete Store?"
+                            description="This archives the inactive Store and removes it from Store lists. Kiosk records, settings, products and audit history are retained."
+                            confirmLabel="Delete"
+                            destructive
+                            onConfirm={() => void removeStore(store.id)}
+                            trigger={
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={deletingStoreId === store.id}
+                              >
+                                <Trash2Icon aria-hidden="true" />
+                                Delete
+                              </Button>
+                            }
+                          />
+                        ) : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

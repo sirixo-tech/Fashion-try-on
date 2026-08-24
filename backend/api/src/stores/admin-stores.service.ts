@@ -21,6 +21,7 @@ import {
   GarmentPreviewSettingsService,
   type StoreGarmentPreviewSettingsDto,
 } from "../try-on/garment-preview-settings.service.js";
+import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-normalization.js";
 import {
   AdminStoreStatus,
   type AdminStoreDetailResponseDto,
@@ -45,6 +46,7 @@ import {
 export const STORE_ERROR_CODES = {
   storeNotFound: "STORE_NOT_FOUND",
   storeInactive: "STORE_INACTIVE",
+  storeDeleteRequiresInactive: "STORE_DELETE_REQUIRES_INACTIVE",
   storeSlugConflict: "STORE_SLUG_CONFLICT",
   storeFeatureUnavailable: "STORE_FEATURE_UNAVAILABLE",
   kioskNotFound: "KIOSK_NOT_FOUND",
@@ -289,6 +291,22 @@ export class AdminStoresService {
     return mapStore(store);
   }
 
+  async archiveStore(storeId: string): Promise<AdminStoreResponseDto> {
+    const existing = await this.findStoreOrThrow(storeId);
+    if (existing.status === OrganizationStatus.ACTIVE) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        STORE_ERROR_CODES.storeDeleteRequiresInactive,
+        "Only inactive Stores can be deleted.",
+      );
+    }
+    const store = await this.prisma.organization.update({
+      where: { id: storeId },
+      data: { status: OrganizationStatus.ARCHIVED },
+    });
+    return mapStore(store);
+  }
+
   async listStoreKiosks(storeId: string) {
     await this.findStoreOrThrow(storeId);
     const data = await this.prisma.kioskDevice.findMany({
@@ -360,6 +378,9 @@ export class AdminStoresService {
       input.priceCurrency,
       await this.garmentPreviewSettings.platformDefaultCurrency(),
     );
+    const garmentCategory = normalizeStoreProductGarmentCategory(
+      input.garmentCategory,
+    );
     try {
       const rows = await this.prisma.$queryRaw<StoreProductRow[]>`
         INSERT INTO products (
@@ -402,7 +423,7 @@ export class AdminStoresService {
           ${price.currency},
           ${nullableTrim(input.productUrl ?? undefined)},
           ${input.garmentIntent?.trim() || "TOP"},
-          ${input.garmentCategory?.trim() || "TOPS"},
+          ${garmentCategory},
           ${input.garmentPhotoType?.trim() || "AUTO"},
           ${image.url},
           ${image.storageKey},
@@ -511,8 +532,11 @@ export class AdminStoresService {
       );
     }
     if (input.garmentCategory !== undefined) {
+      const garmentCategory = normalizeStoreProductGarmentCategory(
+        input.garmentCategory,
+      );
       assignments.push(
-        Prisma.sql`garment_category = ${input.garmentCategory.trim() || "TOPS"}`,
+        Prisma.sql`garment_category = ${garmentCategory}`,
       );
     }
     if (input.garmentPhotoType !== undefined) {
@@ -831,7 +855,7 @@ export class AdminStoresService {
     const store = await this.prisma.organization.findUnique({
       where: { id: storeId },
     });
-    if (!store) {
+    if (!store || store.status === OrganizationStatus.ARCHIVED) {
       throw new ApiErrorException(
         HttpStatus.NOT_FOUND,
         STORE_ERROR_CODES.storeNotFound,
@@ -909,7 +933,7 @@ function storeWhere(
 ): Prisma.OrganizationWhereInput {
   const search = query.search?.trim();
   return {
-    ...(query.status ? { status: organizationStatusFilter(query.status) } : {}),
+    status: organizationStatusFilter(query.status),
     ...(search
       ? {
           OR: [
@@ -978,12 +1002,17 @@ function storeProductSelect(): Prisma.Sql {
 }
 
 function organizationStatusFilter(
-  status: AdminStoreStatus,
+  status: AdminStoreStatus | undefined,
 ): Prisma.EnumOrganizationStatusFilter | OrganizationStatus {
   if (status === AdminStoreStatus.ACTIVE) {
     return OrganizationStatus.ACTIVE;
   }
-  return { not: OrganizationStatus.ACTIVE };
+  if (status === AdminStoreStatus.INACTIVE) {
+    return {
+      notIn: [OrganizationStatus.ACTIVE, OrganizationStatus.ARCHIVED],
+    };
+  }
+  return { not: OrganizationStatus.ARCHIVED };
 }
 
 function storeOrderBy(
@@ -1206,6 +1235,16 @@ function normalizeProductImage(
     width: positiveIntOrNull(image?.width),
     height: positiveIntOrNull(image?.height),
   };
+}
+
+function normalizeStoreProductGarmentCategory(
+  value: string | null | undefined,
+): string {
+  const category = normalizeSelfxGarmentCategory(value);
+  if (!category) {
+    throwProductInvalid("Product garment category is invalid.");
+  }
+  return category;
 }
 
 function normalizePrice(

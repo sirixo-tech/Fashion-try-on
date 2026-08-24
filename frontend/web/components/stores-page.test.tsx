@@ -5,6 +5,7 @@ import StoreDashboardPage from "../app/app/stores/[storeId]/page";
 import StoresPage from "../app/app/stores/page";
 import {
   createStore,
+  deleteStore,
   getEffectiveStorePermissions,
   getStore,
   getStoreKioskConfiguration,
@@ -30,6 +31,7 @@ vi.mock("@/lib/stores", () => ({
   createStore: vi.fn(),
   createStoreKioskConfigurationAssetUploadIntent: vi.fn(),
   deactivateStore: vi.fn(),
+  deleteStore: vi.fn(),
   getEffectiveStorePermissions: vi.fn(),
   getStore: vi.fn(),
   getStoreKioskConfiguration: vi.fn(),
@@ -194,6 +196,10 @@ describe("STORE-1 web Store management", () => {
       },
     } as never);
     vi.mocked(createStore).mockResolvedValue(store as never);
+    vi.mocked(deleteStore).mockResolvedValue({
+      ...store,
+      status: "INACTIVE",
+    } as never);
     vi.mocked(getStore).mockResolvedValue({
       ...store,
       kiosks: { data: [kiosk] },
@@ -268,6 +274,39 @@ describe("STORE-1 web Store management", () => {
     expect(createStore).toHaveBeenCalledWith(
       "staff-token",
       expect.objectContaining({ name: "New Retail Store" }),
+    );
+  });
+
+  it("allows inactive Stores to be deleted from the directory", async () => {
+    vi.mocked(listStores).mockResolvedValue({
+      data: [
+        {
+          ...store,
+          status: "INACTIVE",
+          activeKiosks: 0,
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 25,
+        total: 1,
+        totalPages: 1,
+        hasMore: false,
+      },
+    } as never);
+
+    render(<StoresPage />);
+
+    expect(await screen.findByText("SelfX Demo Store")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
+    fireEvent.click(deleteButtons[deleteButtons.length - 1]!);
+
+    await waitFor(() =>
+      expect(deleteStore).toHaveBeenCalledWith("staff-token", "store-1"),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("SelfX Demo Store")).toBeNull(),
     );
   });
 

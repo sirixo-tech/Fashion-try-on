@@ -20,6 +20,7 @@ import {
 } from "@selfx/shared";
 
 import { CatalogService } from "../catalog/catalog.service.js";
+import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-normalization.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { validateTechnicalImageBuffer } from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -392,6 +393,9 @@ export class KioskTryOnService {
           : device.organizationId,
         payload.productId,
       );
+      const garmentCategory =
+        normalizeSelfxGarmentCategory(product.garmentCategory) ??
+        product.garmentCategory;
       const executionPayload: CreateTryOnLabRunPayload = {
         ...payload,
         personImage,
@@ -403,7 +407,7 @@ export class KioskTryOnService {
           "Invalid catalog garment intent.",
         ),
         category: requireCatalogEnum(
-          product.garmentCategory,
+          garmentCategory,
           SELFX_GARMENT_CATEGORIES,
           "Invalid catalog garment category.",
         ),

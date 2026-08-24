@@ -299,6 +299,16 @@ export function activateStore(
   });
 }
 
+export function deleteStore(
+  accessToken: string,
+  storeId: string,
+): Promise<AdminStore> {
+  return selfxApi<AdminStore>(`/api/v1/admin/stores/${storeId}`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 export function listStoreProducts(
   accessToken: string,
   storeId: string,

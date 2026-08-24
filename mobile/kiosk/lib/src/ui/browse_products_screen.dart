@@ -42,9 +42,23 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   KioskCatalogPagination? _pagination;
   bool _loading = true;
   bool _loadingMore = false;
-  bool _selecting = false;
+  bool _continuing = false;
+  String? _selectedProductId;
   String? _message;
   int _requestSerial = 0;
+
+  KioskCatalogProduct? get _selectedProduct {
+    final selectedId = _selectedProductId;
+    if (selectedId == null) {
+      return null;
+    }
+    for (final product in _products) {
+      if (product.id == selectedId) {
+        return product;
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -99,30 +113,45 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   }
 
   void _selectAudience(KioskCatalogAudience audience) {
-    if (_audience == audience || _selecting) {
+    if (_audience == audience || _continuing) {
       return;
     }
     setState(() {
       _audience = audience;
       _categorySlug = null;
       _categories = const [];
+      _selectedProductId = null;
     });
     unawaited(_load(reset: true));
   }
 
   void _selectCategory(String? slug) {
-    if (_categorySlug == slug || _selecting) {
+    if (_categorySlug == slug || _continuing) {
       return;
     }
-    setState(() => _categorySlug = slug);
+    setState(() {
+      _categorySlug = slug;
+      _selectedProductId = null;
+    });
     unawaited(_load(reset: true));
   }
 
-  Future<void> _tryProduct(KioskCatalogProduct product) async {
-    if (_selecting) {
+  void _selectProduct(KioskCatalogProduct product) {
+    if (_continuing) {
       return;
     }
-    setState(() => _selecting = true);
+    setState(() => _selectedProductId = product.id);
+  }
+
+  Future<void> _continueWithSelectedProduct() async {
+    if (_continuing) {
+      return;
+    }
+    final product = _selectedProduct;
+    if (product == null) {
+      return;
+    }
+    setState(() => _continuing = true);
     widget.tryOnController.selectGarment(product.toGarmentInput());
     if (!mounted) {
       return;
@@ -139,7 +168,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       ),
     );
     if (mounted) {
-      setState(() => _selecting = false);
+      setState(() => _continuing = false);
     }
   }
 
@@ -212,7 +241,9 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
                   final product = _products[index];
                   return _ProductCard(
                     product: product,
-                    onTry: _selecting ? null : () => _tryProduct(product),
+                    selected: product.id == _selectedProductId,
+                    enabled: !_continuing,
+                    onSelected: () => _selectProduct(product),
                   );
                 },
               ),
@@ -236,6 +267,14 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 14),
+            _SelectedProductAction(
+              product: _selectedProduct,
+              continuing: _continuing,
+              onContinue: _selectedProduct == null || _continuing
+                  ? null
+                  : () => unawaited(_continueWithSelectedProduct()),
+            ),
           ],
         );
       },
@@ -312,37 +351,94 @@ class _CategoryStrip extends StatelessWidget {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product, required this.onTry});
+  const _ProductCard({
+    required this.product,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+  });
 
   final KioskCatalogProduct product;
-  final VoidCallback? onTry;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: ColoredBox(
-              color: SelfxKioskTokens.background,
-              child: Image.network(
-                product.image.url!,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) {
-                  return const Center(child: Icon(Icons.broken_image_outlined));
-                },
+    final borderColor = selected
+        ? SelfxKioskTokens.primary
+        : SelfxKioskTokens.border;
+    final imageUrl = product.image.url?.trim();
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: product.name,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: borderColor, width: selected ? 3 : 1),
+        ),
+        child: InkWell(
+          key: Key('catalog-product-${product.id}'),
+          onTap: enabled ? onSelected : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 8,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ColoredBox(
+                      color: SelfxKioskTokens.background,
+                      child: imageUrl == null || imageUrl.isEmpty
+                          ? const Center(
+                              child: Icon(Icons.broken_image_outlined),
+                            )
+                          : Image.network(
+                              imageUrl,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) {
+                                return const Center(
+                                  child: Icon(Icons.broken_image_outlined),
+                                );
+                              },
+                            ),
+                    ),
+                    if (selected)
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: SelfxKioskTokens.primary,
+                            shape: BoxShape.circle,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x33000000),
+                                blurRadius: 10,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(7),
+                            child: Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: 44,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: SizedBox(
+                  height: 40,
                   child: Text(
                     product.name,
                     maxLines: 2,
@@ -351,13 +447,55 @@ class _ProductCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                 ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  key: Key('try-catalog-product-${product.id}'),
-                  onPressed: onTry,
-                  child: const Text('Try'),
-                ),
-              ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedProductAction extends StatelessWidget {
+  const _SelectedProductAction({
+    required this.product,
+    required this.continuing,
+    required this.onContinue,
+  });
+
+  final KioskCatalogProduct? product;
+  final bool continuing;
+  final VoidCallback? onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedName = product?.name;
+    return SafeArea(
+      top: false,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              selectedName ?? 'Select a garment to continue',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            height: 58,
+            width: 220,
+            child: ElevatedButton.icon(
+              key: const Key('continue-selected-product'),
+              onPressed: onContinue,
+              icon: continuing
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check_circle_outline),
+              label: Text(continuing ? 'Starting' : 'Continue'),
             ),
           ),
         ],

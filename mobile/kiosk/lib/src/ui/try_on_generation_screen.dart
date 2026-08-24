@@ -124,7 +124,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
                           label: const Text('Update My Photo'),
                         ),
                         const SizedBox(height: 14),
-                        OutlinedButton.icon(
+                        ElevatedButton.icon(
                           key: const Key('try-on-choose-category'),
                           onPressed: () => _chooseAnotherGarment(context),
                           icon: const Icon(Icons.checkroom_outlined),
@@ -142,18 +142,18 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen> {
                           label: const Text('Try Again'),
                         ),
                         const SizedBox(height: 14),
-                        OutlinedButton.icon(
+                        ElevatedButton.icon(
                           key: const Key('try-on-retake-photo'),
                           onPressed: () => _retakePhoto(context),
                           icon: const Icon(Icons.replay),
                           label: const Text('Retake Photo'),
                         ),
                         const SizedBox(height: 14),
-                        OutlinedButton.icon(
+                        ElevatedButton.icon(
                           key: const Key('try-on-choose-garment'),
                           onPressed: () => _chooseAnotherGarment(context),
                           icon: const Icon(Icons.checkroom_outlined),
-                          label: const Text('Choose Another Garment'),
+                          label: const Text('Try Another Garment'),
                         ),
                       ],
                     ],

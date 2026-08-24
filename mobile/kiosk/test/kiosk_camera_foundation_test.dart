@@ -11,6 +11,8 @@ import 'package:selfx_kiosk/src/camera/camera_models.dart';
 import 'package:selfx_kiosk/src/camera/camera_orientation.dart';
 import 'package:selfx_kiosk/src/camera/camera_preview_viewport.dart';
 import 'package:selfx_kiosk/src/camera/camera_service.dart';
+import 'package:selfx_kiosk/src/catalog/kiosk_catalog_gateway.dart';
+import 'package:selfx_kiosk/src/catalog/kiosk_catalog_models.dart';
 import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_models.dart';
@@ -26,11 +28,13 @@ import 'package:selfx_kiosk/src/session/capture_flow.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/tryon/model_coverage_analyzer.dart';
 import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
+import 'package:selfx_kiosk/src/ui/browse_products_screen.dart';
 import 'package:selfx_kiosk/src/ui/camera_settings_screen.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
@@ -206,6 +210,7 @@ void main() {
 
       expect(accepted.accepted, isFalse);
       expect(controller.acceptedCapture, isNull);
+      expect(controller.imageUsabilityResult?.isUsable, isFalse);
     });
 
     test('Use Photo rejects capture when no model is detected', () async {
@@ -218,6 +223,12 @@ void main() {
       );
       await controller.capturePhoto();
 
+      expect(controller.imageUsabilityResult?.isUsable, isFalse);
+      expect(
+        controller.imageUsabilityResult?.message,
+        "We couldn't detect a person clearly. Please retake your photo.",
+      );
+
       final accepted = await controller.usePhoto();
 
       expect(accepted.accepted, isFalse);
@@ -227,7 +238,7 @@ void main() {
       );
       expect(controller.acceptedCapture, isNull);
       expect(
-        controller.acceptedModelCoverageAnalysis?.reasonCode,
+        controller.pendingModelCoverageAnalysis?.reasonCode,
         'MODEL_PERSON_NOT_DETECTED',
       );
     });
@@ -1026,27 +1037,92 @@ void main() {
 
         expect(find.byKey(const Key('garment-image-path')), findsNothing);
         expect(find.textContaining('KIOSK-3A'), findsNothing);
-        expect(find.text('What are you trying on?'), findsOneWidget);
-        expect(find.text('Top'), findsOneWidget);
-        expect(find.text('Bottom'), findsOneWidget);
-        expect(find.text('Full Outfit'), findsOneWidget);
+        expect(find.text('Choose Your Look'), findsOneWidget);
+        expect(find.byKey(const Key('browse-products-source')), findsOneWidget);
+        expect(find.byKey(const Key('capture-garment-source')), findsOneWidget);
         expect(find.text('Auto photo'), findsNothing);
         expect(find.text('Flat lay'), findsNothing);
         expect(find.text('On model'), findsNothing);
 
-        await tester.tap(find.byKey(const Key('garment-intent-top')));
+        await tester.tap(find.byKey(const Key('capture-garment-source')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        expect(
-          find.byKey(const Key('take-garment-photo-source')),
-          findsOneWidget,
-        );
+        expect(find.byKey(const Key('capture-photo')), findsOneWidget);
         expect(find.byKey(const Key('use-phone-garment-source')), findsNothing);
 
         captureController.dispose();
       },
     );
+
+    testWidgets('catalog product tap selects one garment before continuing', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(630, 1365);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final captureController = testController();
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeKioskTryOnGateway(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BrowseProductsScreen(
+            captureController: captureController,
+            tryOnController: tryOnController,
+            uploadController: testUploadController(
+              captureController.captureStore,
+            ),
+            catalogGateway: FakeKioskCatalogGateway(
+              products: [
+                testCatalogProduct(id: 'product-1', name: 'Formal trouser'),
+                testCatalogProduct(id: 'product-2', name: 'Grey trouser'),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      expect(find.text('Formal trouser'), findsOneWidget);
+      expect(find.text('Grey trouser'), findsOneWidget);
+      expect(find.text('Try'), findsNothing);
+      expect(tryOnController.garmentInput, isNull);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.byKey(const Key('continue-selected-product')),
+            )
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(find.text('Formal trouser'));
+      await tester.pump();
+
+      expect(tryOnController.garmentInput, isNull);
+      expect(find.text('Creating Try-On'), findsNothing);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.byKey(const Key('continue-selected-product')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+
+      await tester.tap(find.text('Grey trouser'));
+      await tester.pump();
+
+      expect(tryOnController.garmentInput, isNull);
+      expect(find.text('Grey trouser'), findsWidgets);
+
+      captureController.dispose();
+    });
   });
 }
 
@@ -1120,6 +1196,72 @@ KioskCustomerUploadController testUploadController(
     gateway: FakeKioskCustomerUploadGateway(),
     captureStore: captureStore,
   );
+}
+
+KioskCatalogProduct testCatalogProduct({
+  required String id,
+  required String name,
+}) {
+  return KioskCatalogProduct(
+    id: id,
+    name: name,
+    audience: KioskCatalogAudience.men.apiValue,
+    category: const KioskCatalogProductCategory(
+      id: 'category-bottoms',
+      name: 'Bottoms',
+      slug: 'bottoms',
+      audience: 'MEN',
+    ),
+    garmentIntent: KioskGarmentIntent.bottom,
+    garmentCategory: 'BOTTOMS',
+    garmentPhotoType: KioskGarmentPhotoType.auto,
+    image: KioskCatalogProductImage(
+      url: 'https://example.test/$id.png',
+      contentType: 'image/png',
+      width: 800,
+      height: 1200,
+    ),
+  );
+}
+
+class FakeKioskCatalogGateway implements KioskCatalogGateway {
+  const FakeKioskCatalogGateway({required this.products});
+
+  final List<KioskCatalogProduct> products;
+
+  @override
+  Future<List<KioskCatalogCategory>> getCatalogCategories({
+    required KioskCatalogAudience audience,
+  }) async {
+    return const [
+      KioskCatalogCategory(
+        id: 'category-bottoms',
+        name: 'Bottoms',
+        slug: 'bottoms',
+        productCount: 2,
+        audience: 'MEN',
+      ),
+    ];
+  }
+
+  @override
+  Future<KioskCatalogPage> getCatalogProducts({
+    required KioskCatalogAudience audience,
+    String? categorySlug,
+    required int page,
+    required int pageSize,
+  }) async {
+    return KioskCatalogPage(
+      products: products,
+      pagination: const KioskCatalogPagination(
+        page: 1,
+        pageSize: 12,
+        total: 2,
+        totalPages: 1,
+        hasMore: false,
+      ),
+    );
+  }
 }
 
 class FakeKioskTryOnGateway implements KioskTryOnGateway {

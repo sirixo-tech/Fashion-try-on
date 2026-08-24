@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -199,6 +200,20 @@ export class AdminStoresController {
   ): Promise<AdminStoreResponseDto> {
     await this.requirePermission(request, PLATFORM_PERMISSIONS.storesUpdate);
     return this.stores.activateStore(storeId);
+  }
+
+  @Delete(":storeId")
+  @ApiOperation({ summary: "Delete an inactive Store" })
+  @ApiOkResponse({ type: AdminStoreResponseDto })
+  async archive(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+  ): Promise<AdminStoreResponseDto> {
+    await this.requirePermission(
+      request,
+      PLATFORM_PERMISSIONS.storesDeactivate,
+    );
+    return this.stores.archiveStore(storeId);
   }
 
   @Get(":storeId/products")

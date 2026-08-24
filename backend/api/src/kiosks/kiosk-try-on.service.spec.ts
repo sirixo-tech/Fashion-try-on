@@ -1,6 +1,7 @@
 import { KioskAssignmentScope } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
+import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-normalization.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import type { CreateKioskTryOnRunPayload } from "./kiosk-try-on.multipart.js";
@@ -113,6 +114,12 @@ describe("KIOSK-4B production Try-On service", () => {
     });
     expect(execution.submissions).toBe(0);
     expect(prisma.createdRuns).toHaveLength(0);
+  });
+
+  it("normalizes plural catalog garment categories to Try-On categories", () => {
+    expect(normalizeSelfxGarmentCategory("TOPS")).toBe("TOP");
+    expect(normalizeSelfxGarmentCategory("bottoms")).toBe("BOTTOM");
+    expect(normalizeSelfxGarmentCategory("dresses")).toBe("ONE_PIECE");
   });
 });
 

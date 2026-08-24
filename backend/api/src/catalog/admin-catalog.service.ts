@@ -7,6 +7,7 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
+import { normalizeSelfxGarmentCategory } from "./garment-category-normalization.js";
 import {
   type CreatePlatformProductDto,
   type CreatePlatformProductImageUploadDto,
@@ -123,6 +124,9 @@ export class AdminCatalogService {
       input.priceCurrency,
       await this.platformSettings.platformDefaultCurrency(),
     );
+    const garmentCategory = normalizePlatformProductGarmentCategory(
+      input.garmentCategory,
+    );
     try {
       await this.prisma.$executeRaw`
         INSERT INTO products (
@@ -165,7 +169,7 @@ export class AdminCatalogService {
           ${price.currency},
           ${nullableTrim(input.productUrl ?? undefined)},
           ${input.garmentIntent?.trim() || "TOP"},
-          ${input.garmentCategory?.trim() || "TOP"},
+          ${garmentCategory},
           ${input.garmentPhotoType?.trim() || "AUTO"},
           ${image.url},
           ${image.storageKey},
@@ -235,8 +239,11 @@ export class AdminCatalogService {
       );
     }
     if (input.garmentCategory !== undefined) {
+      const garmentCategory = normalizePlatformProductGarmentCategory(
+        input.garmentCategory,
+      );
       assignments.push(
-        Prisma.sql`garment_category = ${input.garmentCategory.trim() || "TOP"}`,
+        Prisma.sql`garment_category = ${garmentCategory}`,
       );
     }
     if (input.garmentPhotoType !== undefined) {
@@ -516,6 +523,16 @@ function normalizeProductImage(
     width: positiveIntOrNull(image?.width),
     height: positiveIntOrNull(image?.height),
   };
+}
+
+function normalizePlatformProductGarmentCategory(
+  value: string | null | undefined,
+): string {
+  const category = normalizeSelfxGarmentCategory(value);
+  if (!category) {
+    throwProductInvalid("Product garment category is invalid.");
+  }
+  return category;
 }
 
 function normalizePrice(

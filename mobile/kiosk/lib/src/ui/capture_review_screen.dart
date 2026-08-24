@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../catalog/kiosk_catalog_gateway.dart';
-import '../quality/image_quality.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
@@ -50,7 +50,7 @@ class CaptureReviewScreen extends StatelessWidget {
             return const Center(child: Text('No capture available.'));
           }
 
-          final quality = controller.qualityResult;
+          final usability = controller.imageUsabilityResult;
           return LayoutBuilder(
             builder: (context, constraints) {
               final portrait =
@@ -79,7 +79,7 @@ class CaptureReviewScreen extends StatelessWidget {
                 uploadController: uploadController,
                 catalogGateway: catalogGateway,
                 extractionService: extractionService,
-                quality: quality,
+                usability: usability,
                 compact: compact,
               );
 
@@ -128,7 +128,7 @@ class _ReviewActions extends StatelessWidget {
     required this.uploadController,
     required this.catalogGateway,
     required this.extractionService,
-    required this.quality,
+    required this.usability,
     required this.compact,
   });
 
@@ -137,7 +137,7 @@ class _ReviewActions extends StatelessWidget {
   final KioskCustomerUploadController uploadController;
   final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
-  final ImageQualityResult? quality;
+  final ImageUsabilityResult? usability;
   final bool compact;
 
   @override
@@ -146,9 +146,9 @@ class _ReviewActions extends StatelessWidget {
       mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _QualitySummary(
+        _ImageUsabilityStatement(
           isLoading: controller.isAnalyzingQuality,
-          result: quality,
+          result: usability,
         ),
         if (compact) const SizedBox(height: 20) else const Spacer(),
         OutlinedButton.icon(
@@ -165,7 +165,7 @@ class _ReviewActions extends StatelessWidget {
         const SizedBox(height: 16),
         ElevatedButton.icon(
           key: const Key('use-photo'),
-          onPressed: quality != null && !quality!.isBlocked
+          onPressed: usability?.isUsable == true
               ? () async {
                   final result = await controller.usePhoto();
                   if (!context.mounted) {
@@ -180,23 +180,7 @@ class _ReviewActions extends StatelessWidget {
                     ).showSnackBar(SnackBar(content: Text(message)));
                     return;
                   }
-                  final attached = await tryOnController.attachAcceptedPerson(
-                    controller,
-                  );
-                  if (!context.mounted) {
-                    return;
-                  }
-                  if (!attached) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          tryOnController.sessionMessage ??
-                              'SelfX could not save this photo for reuse.',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
+                  unawaited(tryOnController.attachAcceptedPerson(controller));
                   await Navigator.of(context).pushReplacement(
                     MaterialPageRoute<void>(
                       builder: (_) => GarmentSelectionScreen(
@@ -218,24 +202,24 @@ class _ReviewActions extends StatelessWidget {
   }
 }
 
-class _QualitySummary extends StatelessWidget {
-  const _QualitySummary({required this.isLoading, required this.result});
+class _ImageUsabilityStatement extends StatelessWidget {
+  const _ImageUsabilityStatement({
+    required this.isLoading,
+    required this.result,
+  });
 
   final bool isLoading;
-  final ImageQualityResult? result;
+  final ImageUsabilityResult? result;
 
   @override
   Widget build(BuildContext context) {
     final result = this.result;
-    final status = result?.status;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Photo Review', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
             if (isLoading)
               const Row(
                 children: [
@@ -245,58 +229,35 @@ class _QualitySummary extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 3),
                   ),
                   SizedBox(width: 12),
-                  Text('Checking your photo'),
+                  Expanded(child: Text('Checking image usability...')),
                 ],
               )
             else if (result == null)
-              const Text('Checking your photo before continuing.')
-            else ...[
-              Text(
-                qualityStatusLabel(result.status),
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: _statusColor(result.status),
-                ),
+              const Text('Checking image usability...')
+            else
+              _UsabilityLine(
+                icon: result.isUsable ? Icons.check : Icons.error_outline,
+                color: result.isUsable
+                    ? const Color(0xFF2F855A)
+                    : const Color(0xFFC53030),
+                text: result.message,
               ),
-              const SizedBox(height: 12),
-              _QualityLine(
-                icon: status == ImageQualityStatus.blocked
-                    ? Icons.error_outline
-                    : status == ImageQualityStatus.warning
-                    ? Icons.warning_amber_outlined
-                    : Icons.check,
-                text: _customerMessage(result),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
-
-  Color _statusColor(ImageQualityStatus status) {
-    return switch (status) {
-      ImageQualityStatus.pass => const Color(0xFF2F855A),
-      ImageQualityStatus.warning => const Color(0xFFB7791F),
-      ImageQualityStatus.blocked => const Color(0xFFC53030),
-    };
-  }
-
-  String _customerMessage(ImageQualityResult result) {
-    return switch (result.status) {
-      ImageQualityStatus.pass =>
-        'Image looks good. You can proceed or retake it.',
-      ImageQualityStatus.warning =>
-        'This photo may reduce Try-On quality. Retake for better results, or continue.',
-      ImageQualityStatus.blocked =>
-        'We could not use this photo. Please retake it.',
-    };
-  }
 }
 
-class _QualityLine extends StatelessWidget {
-  const _QualityLine({required this.icon, required this.text});
+class _UsabilityLine extends StatelessWidget {
+  const _UsabilityLine({
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
 
   final IconData icon;
+  final Color color;
   final String text;
 
   @override
@@ -306,9 +267,11 @@ class _QualityLine extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 22),
+          Icon(icon, size: 22, color: color),
           const SizedBox(width: 10),
-          Expanded(child: Text(text)),
+          Expanded(
+            child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+          ),
         ],
       ),
     );
