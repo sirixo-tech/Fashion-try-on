@@ -93,6 +93,19 @@ export class UpdateKioskDeviceDto {
   displayName!: string;
 }
 
+export class UpdateKioskAssignmentDto {
+  @IsEnum(KioskAssignmentScope)
+  assignmentScope!: KioskAssignmentScope;
+
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  storeId?: string;
+}
+
 export class ExchangeKioskProvisioningDto {
   @IsUUID()
   pairingSessionId!: string;

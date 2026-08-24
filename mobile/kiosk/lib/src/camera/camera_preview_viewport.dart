@@ -7,7 +7,7 @@ class CameraPreviewViewport extends StatelessWidget {
     super.key,
     required this.state,
     required this.preview,
-    this.fit = BoxFit.cover,
+    this.fit = BoxFit.contain,
     this.fallbackAspectRatio = 16 / 9,
   });
 

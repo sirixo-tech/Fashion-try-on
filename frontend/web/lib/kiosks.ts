@@ -195,6 +195,25 @@ export function assignKioskDeviceToStore(
   );
 }
 
+export function updateKioskAssignment(
+  accessToken: string,
+  deviceId: string,
+  input: {
+    assignmentScope: KioskAssignmentScope;
+    organizationId?: string;
+    storeId?: string;
+  },
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(
+    `/api/v1/admin/kiosks/${deviceId}/assignment`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export function activateKioskDevice(
   accessToken: string,
   deviceId: string,

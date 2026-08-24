@@ -44,6 +44,7 @@ import {
   type KioskPairingStatusResponseDto,
   type PairKioskDto,
   type RefreshKioskDeviceSessionDto,
+  type UpdateKioskAssignmentDto,
   type UpdateKioskDeviceDto,
 } from "./dto/kiosk.dto.js";
 
@@ -62,6 +63,11 @@ interface RefreshTokenParts {
   sessionId: string;
   secret: string;
 }
+
+type KioskAssignmentInput = Pick<
+  PairKioskDto | UpdateKioskAssignmentDto,
+  "assignmentScope" | "organizationId" | "storeId"
+>;
 
 @Injectable()
 export class KioskService {
@@ -566,6 +572,55 @@ export class KioskService {
     return mapDevice(device);
   }
 
+  async updateAssignment(
+    actorUserId: string,
+    deviceId: string,
+    input: UpdateKioskAssignmentDto,
+  ): Promise<KioskDeviceResponseDto> {
+    const assignment = await this.resolveAssignment(input);
+    const device = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.kioskDevice.findUnique({
+        where: { id: deviceId },
+      });
+      assertManageableDeviceExists(existing);
+
+      const updated = await tx.kioskDevice.update({
+        where: { id: deviceId },
+        data: {
+          assignmentScope: input.assignmentScope,
+          organizationId: assignment.organizationId,
+          storeId: assignment.storeId,
+        },
+        include: assignmentInclude(),
+      });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          action: KIOSK_AUDIT_ACTIONS.reassigned,
+          actorUserId,
+          organizationId: updated.organizationId,
+          storeId: updated.storeId,
+          resourceType: "kiosk_device",
+          resourceId: updated.id,
+          metadata: {
+            previous: {
+              assignment_scope: existing.assignmentScope,
+              organization_id: existing.organizationId,
+              store_id: existing.storeId,
+            },
+            next: {
+              assignment_scope: input.assignmentScope,
+              organization_id: assignment.organizationId,
+              store_id: assignment.storeId,
+            },
+          },
+        },
+      });
+      return updated;
+    });
+    return mapDevice(device);
+  }
+
   async activateDevice(
     actorUserId: string,
     deviceId: string,
@@ -812,7 +867,7 @@ export class KioskService {
     });
   }
 
-  private async resolveAssignment(input: PairKioskDto): Promise<{
+  private async resolveAssignment(input: KioskAssignmentInput): Promise<{
     organizationId: string | null;
     storeId: string | null;
   }> {

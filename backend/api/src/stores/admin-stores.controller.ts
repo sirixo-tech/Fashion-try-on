@@ -47,10 +47,17 @@ import {
   AdminStoreListResponseDto,
   AdminStoreResponseDto,
   CreateAdminStoreDto,
+  CreateStoreProductDto,
+  CreateStoreProductImageUploadDto,
   PairStoreKioskDto,
   StoreKioskDeviceResponseDto,
   StoreKioskPairResponseDto,
+  StoreProductDto,
+  StoreProductImageUploadIntentDto,
+  StoreProductListQueryDto,
+  StoreProductListResponseDto,
   StoreVirtualTryOnSettingsResponseDto,
+  UpdateStoreProductDto,
   UpdateStoreVirtualTryOnSettingsDto,
   UpdateAdminStoreDto,
 } from "./dto/admin-store.dto.js";
@@ -192,6 +199,75 @@ export class AdminStoresController {
   ): Promise<AdminStoreResponseDto> {
     await this.requirePermission(request, PLATFORM_PERMISSIONS.storesUpdate);
     return this.stores.activateStore(storeId);
+  }
+
+  @Get(":storeId/products")
+  @ApiOperation({ summary: "List Store catalog products" })
+  @ApiOkResponse({ type: StoreProductListResponseDto })
+  async listProducts(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Query() query: StoreProductListQueryDto,
+  ): Promise<StoreProductListResponseDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesView,
+      STORE_PERMISSION_CODES.storesView,
+    );
+    return this.stores.listStoreProducts(storeId, query);
+  }
+
+  @Post(":storeId/products")
+  @ApiOperation({ summary: "Create a Store catalog product" })
+  @ApiCreatedResponse({ type: StoreProductDto })
+  async createProduct(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: CreateStoreProductDto,
+  ): Promise<StoreProductDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
+    return this.stores.createStoreProduct(storeId, dto);
+  }
+
+  @Patch(":storeId/products/:productId")
+  @ApiOperation({ summary: "Update a Store catalog product" })
+  @ApiOkResponse({ type: StoreProductDto })
+  async updateProduct(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Param("productId", SelfxUuidParamPipe) productId: string,
+    @Body() dto: UpdateStoreProductDto,
+  ): Promise<StoreProductDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
+    return this.stores.updateStoreProduct(storeId, productId, dto);
+  }
+
+  @Post(":storeId/products/images/upload-intent")
+  @ApiOperation({ summary: "Create a Store product image upload URL" })
+  @ApiOkResponse({ type: StoreProductImageUploadIntentDto })
+  async createProductImageUploadIntent(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: CreateStoreProductImageUploadDto,
+  ): Promise<StoreProductImageUploadIntentDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
+    return this.stores.createStoreProductImageUploadIntent(storeId, dto);
   }
 
   @Get(":storeId/kiosks")

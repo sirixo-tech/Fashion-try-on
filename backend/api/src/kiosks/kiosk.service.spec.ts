@@ -24,7 +24,7 @@ import { loadSelfxEnv } from "../config/load-env.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
-import { KIOSK_ERROR_CODES } from "./kiosk.constants.js";
+import { KIOSK_AUDIT_ACTIONS, KIOSK_ERROR_CODES } from "./kiosk.constants.js";
 import { canonicalPairingCode, KioskService } from "./kiosk.service.js";
 
 loadSelfxEnv();
@@ -202,6 +202,34 @@ describe("KIOSK-4A device provisioning", () => {
     });
     expect(platformDevice.assignment.scope).toBe(KioskAssignmentScope.PLATFORM);
     expect(platformDevice.assignment.organizationId).toBeNull();
+
+    const reassigned = await service.updateAssignment(
+      admin.id,
+      platformDevice.id,
+      {
+        assignmentScope: KioskAssignmentScope.ORGANIZATION,
+        organizationId: org.id,
+      },
+    );
+    expect(reassigned.assignment.scope).toBe(
+      KioskAssignmentScope.ORGANIZATION,
+    );
+    expect(reassigned.assignment.organizationId).toBe(org.id);
+
+    const returned = await service.updateAssignment(admin.id, platformDevice.id, {
+      assignmentScope: KioskAssignmentScope.PLATFORM,
+    });
+    expect(returned.assignment.scope).toBe(KioskAssignmentScope.PLATFORM);
+    expect(returned.assignment.organizationId).toBeNull();
+
+    await expect(
+      prisma.auditLog.findFirstOrThrow({
+        where: {
+          action: KIOSK_AUDIT_ACTIONS.reassigned,
+          resourceId: platformDevice.id,
+        },
+      }),
+    ).resolves.toBeTruthy();
 
     const invalidStoreSession = await createPairingSession({}, "127.0.0.16");
     await expectApiCode(

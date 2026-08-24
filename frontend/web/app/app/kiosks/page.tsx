@@ -54,6 +54,7 @@ import {
   listKioskDevices,
   pairKioskDevice,
   unpairKioskDevice,
+  updateKioskAssignment,
   updateKioskConfiguration,
   updateKioskDevice,
   type KioskConfiguration,
@@ -95,6 +96,8 @@ export default function KiosksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pairOpen, setPairOpen] = useState(false);
+  const [reassignmentDevice, setReassignmentDevice] =
+    useState<KioskDevice | null>(null);
   const [configurationDevice, setConfigurationDevice] =
     useState<KioskDevice | null>(null);
 
@@ -212,6 +215,7 @@ export default function KiosksPage() {
                         onUnpair={() => void unpair(device.id)}
                         onDelete={() => void remove(device.id)}
                         onConfigure={() => setConfigurationDevice(device)}
+                        onReassign={() => setReassignmentDevice(device)}
                       />
                     </TableCell>
                   </TableRow>
@@ -251,6 +255,23 @@ export default function KiosksPage() {
                 : device,
             ),
           );
+        }}
+      />
+      <KioskReassignmentDialog
+        device={reassignmentDevice}
+        options={options}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReassignmentDevice(null);
+          }
+        }}
+        onReassigned={(updated) => {
+          setDevices((current) =>
+            current.map((device) =>
+              device.id === updated.id ? updated : device,
+            ),
+          );
+          setReassignmentDevice(null);
         }}
       />
     </PageContainer>
@@ -294,17 +315,22 @@ function KioskLifecycleActions({
   onUnpair,
   onDelete,
   onConfigure,
+  onReassign,
 }: {
   device: KioskDevice;
   onUnpair: () => void;
   onDelete: () => void;
   onConfigure: () => void;
+  onReassign: () => void;
 }) {
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <Button variant="outline" size="sm" onClick={onConfigure}>
         <SettingsIcon aria-hidden="true" />
         Configure
+      </Button>
+      <Button variant="outline" size="sm" onClick={onReassign}>
+        Reassign
       </Button>
       {device.status !== "REVOKED" ? (
         <ConfirmDialog
@@ -333,6 +359,103 @@ function KioskLifecycleActions({
         }
       />
     </div>
+  );
+}
+
+function KioskReassignmentDialog({
+  device,
+  options,
+  onOpenChange,
+  onReassigned,
+}: {
+  device: KioskDevice | null;
+  options: KioskAssignmentOptions;
+  onOpenChange: (open: boolean) => void;
+  onReassigned: (device: KioskDevice) => void;
+}) {
+  const session = useSession();
+  const open = device !== null;
+  const [assignmentStoreId, setAssignmentStoreId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAssignmentStoreId(currentAssignmentStoreId(device));
+    setError(null);
+  }, [device]);
+
+  const storeOptions = assignmentStoreOptions(options, device);
+  const currentLabel = device ? assignmentLabel(device) : "Platform";
+
+  async function submit() {
+    if (!device || session.status !== "authenticated") {
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const updated = await updateKioskAssignment(
+        session.accessToken,
+        device.id,
+        assignmentStoreId
+          ? {
+              assignmentScope: "ORGANIZATION",
+              organizationId: assignmentStoreId,
+            }
+          : { assignmentScope: "PLATFORM" },
+      );
+      onReassigned(updated);
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reassign Kiosk</DialogTitle>
+          <DialogDescription>
+            {device
+              ? `${device.displayName} is currently assigned to ${currentLabel}.`
+              : "Move this kiosk between the platform fleet and Stores."}
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+        <div className="space-y-2 text-sm">
+          <Label>Assignment</Label>
+          <SelectMenu
+            ariaLabel="Kiosk reassignment"
+            value={assignmentStoreId}
+            options={[
+              { value: "", label: "Platform fleet" },
+              ...storeOptions.map((store) => ({
+                value: store.id,
+                label:
+                  store.status === "ACTIVE"
+                    ? store.name
+                    : `${store.name} (${store.status.toLowerCase()})`,
+              })),
+            ]}
+            onChange={(value) => setAssignmentStoreId(value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={submitting} onClick={() => void submit()}>
+            Save Assignment
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

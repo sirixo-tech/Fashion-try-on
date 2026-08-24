@@ -29,6 +29,7 @@ import {
   KioskDeviceResponseDto,
   KioskProvisioningPairResponseDto,
   PairKioskDto,
+  UpdateKioskAssignmentDto,
   UpdateKioskDeviceDto,
 } from "./dto/kiosk.dto.js";
 import { KioskService } from "./kiosk.service.js";
@@ -117,6 +118,28 @@ export class AdminKiosksController {
       PLATFORM_PERMISSIONS.kiosksUpdate,
     );
     return this.kiosks.updateDevice(user.id, deviceId, dto);
+  }
+
+  @Patch(":deviceId/assignment")
+  @ApiOperation({ summary: "Reassign a kiosk to platform or Store scope" })
+  @ApiOkResponse({ type: KioskDeviceResponseDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async updateAssignment(
+    @Req() request: FastifyRequest,
+    @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
+    @Body() dto: UpdateKioskAssignmentDto,
+  ): Promise<KioskDeviceResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksAssign,
+    );
+    return this.kiosks.updateAssignment(user.id, deviceId, dto);
   }
 
   @Post(":deviceId/revoke")

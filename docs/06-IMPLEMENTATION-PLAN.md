@@ -1405,8 +1405,8 @@ Implemented scope:
   orientation metadata is unavailable or unreliable;
 - local persistence through non-sensitive kiosk settings storage;
 - central camera-service resolver used by garment and model/person capture;
-- aspect-ratio-preserving preview viewport with cover/crop behavior instead of
-  fixed 16:9 stretching;
+- aspect-ratio-preserving preview viewport with contained/letterboxed framing
+  instead of fixed 16:9 stretching or crop-to-fill behavior;
 - manual capture normalization for calibrated external cameras with a single
   reported normalization step;
 - live-frame rotation metadata and TargetSubjectRegion normalized transforms
@@ -1615,20 +1615,30 @@ AUTH-PERSISTENCE-FIX-1 completes the transparent renewal slice:
 
 # 9. Phase 5 — Product & Catalog Domain
 
-**Status:** PLANNED
+**Status:** PARTIAL
 
 ### Goal
 
 Implement the normalized SelfX garment/product model.
 
+STORE-1 includes the native Store product management slice and the SelfX
+platform default catalog slice. Store-scoped catalog products have name,
+category, optional price, product URL, garment image and VTO-ready flags.
+Platform default products are managed by Superadmin-capable platform users and
+serve platform-owned kiosks plus Store fallback catalogs. Product variants,
+product-store availability beyond the current Store owner, and commerce sync
+remain planned.
+
 ### Implement
 
-- products
+- products (native Store slice and platform default slice implemented)
 - product variants
 - product-store availability
 - VTO eligibility/configuration
-- native product management APIs
-- product list/detail web screens
+- native product management APIs (Store and platform default product
+  list/create/update implemented)
+- product list/detail web screens (Store and platform Products managers
+  implemented)
 - pagination/filter/search
 - source type support
 

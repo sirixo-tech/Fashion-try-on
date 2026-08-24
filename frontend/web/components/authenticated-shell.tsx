@@ -13,6 +13,7 @@ import {
   LayoutDashboardIcon,
   LockKeyholeIcon,
   MonitorIcon,
+  PackageIcon,
   SettingsIcon,
   ShieldIcon,
   StoreIcon,
@@ -84,6 +85,7 @@ const navItems: SelfxNavItem[] = [
     icon: SettingsIcon,
     children: [
       { href: "/app/settings", label: "Settings", icon: SettingsIcon },
+      { href: "/app/products", label: "Products", icon: PackageIcon },
       { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },
     ],
   },

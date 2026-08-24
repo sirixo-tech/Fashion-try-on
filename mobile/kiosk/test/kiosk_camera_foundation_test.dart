@@ -674,7 +674,7 @@ void main() {
       expect(result.normalizationDegrees, 90);
     });
 
-    testWidgets('camera preview viewport preserves effective aspect ratio', (
+    testWidgets('camera preview viewport contains effective aspect ratio', (
       tester,
     ) async {
       final state = const CameraState(
@@ -691,28 +691,28 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: SizedBox(
-            width: 400,
-            height: 700,
-            child: CameraPreviewViewport(
-              state: state,
-              preview: const ColoredBox(color: Colors.black),
+          home: Center(
+            child: SizedBox(
+              width: 400,
+              height: 600,
+              child: CameraPreviewViewport(
+                state: state,
+                preview: const ColoredBox(
+                  key: Key('camera-preview-content'),
+                  color: Colors.black,
+                ),
+              ),
             ),
           ),
         ),
       );
 
-      final previewBox = tester.widget<SizedBox>(
-        find
-            .ancestor(
-              of: find.byType(ColoredBox),
-              matching: find.byType(SizedBox),
-            )
-            .first,
+      final previewSize = tester.getSize(
+        find.byKey(const Key('camera-preview-content')),
       );
 
-      expect(previewBox.width, 1080);
-      expect(previewBox.height, 1920);
+      expect(previewSize.width, moreOrLessEquals(337.5));
+      expect(previewSize.height, 600);
     });
   });
 

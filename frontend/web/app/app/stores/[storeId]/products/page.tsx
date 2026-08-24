@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeftIcon,
   Edit3Icon,
   ImageIcon,
   PackageIcon,
@@ -36,15 +39,18 @@ import {
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
-import {
-  createPlatformProduct,
-  createPlatformProductImageUploadIntent,
-  listPlatformProducts,
-  updatePlatformProduct,
-  type PlatformProduct,
-  type PlatformProductInput,
-} from "@/lib/products";
 import { useSession } from "@/lib/session";
+import {
+  createStoreProduct,
+  createStoreProductImageUploadIntent,
+  getEffectiveStorePermissions,
+  getStore,
+  listStoreProducts,
+  updateStoreProduct,
+  type AdminStoreDetail,
+  type StoreProduct,
+  type StoreProductInput,
+} from "@/lib/stores";
 
 const productStatuses = [
   { value: "ALL", label: "All products" },
@@ -69,11 +75,14 @@ const garmentCategories = [
 
 type ProductStatus = (typeof productStatuses)[number]["value"];
 
-export default function ProductsPage() {
+export default function StoreProductsPage() {
+  const params = useParams<{ storeId: string }>();
+  const storeId = params.storeId;
   const session = useSession();
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
-  const [products, setProducts] = useState<PlatformProduct[]>([]);
+  const [store, setStore] = useState<AdminStoreDetail | null>(null);
+  const [products, setProducts] = useState<StoreProduct[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<ProductStatus>("ALL");
   const [page, setPage] = useState(1);
@@ -84,9 +93,10 @@ export default function ProductsPage() {
     totalPages: 1,
     hasMore: false,
   });
+  const [canUpdateProducts, setCanUpdateProducts] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<PlatformProduct | null>(null);
+  const [editing, setEditing] = useState<StoreProduct | null>(null);
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
@@ -96,50 +106,72 @@ export default function ProductsPage() {
     setLoading(true);
     setError(null);
     try {
-      const nextProducts = await listPlatformProducts(accessToken, {
-        page,
-        pageSize: 25,
-        search,
-        status,
-      });
+      const [nextStore, nextPermissions, nextProducts] = await Promise.all([
+        getStore(accessToken, storeId),
+        getEffectiveStorePermissions(accessToken, storeId),
+        listStoreProducts(accessToken, storeId, {
+          page,
+          pageSize: 25,
+          search,
+          status,
+        }),
+      ]);
+      setStore(nextStore);
       setProducts(nextProducts.data);
       setPagination(nextProducts.pagination);
+      setCanUpdateProducts(
+        nextPermissions.platformBypass ||
+          nextPermissions.permissions.includes("stores.update"),
+      );
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
       setLoading(false);
     }
-  }, [accessToken, page, search, status]);
+  }, [accessToken, page, search, status, storeId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const readyCount = useMemo(
-    () =>
-      products.filter((product) => product.active && product.vtoEnabled).length,
+  const activeCount = useMemo(
+    () => products.filter((product) => product.active).length,
     [products],
   );
 
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Platform Catalog"
+        eyebrow="Store Catalog"
         title="Products"
-        description="Default SelfX products for platform kiosks and Store fallback catalogs."
+        description={
+          store
+            ? `${store.name} catalog products for kiosk Try-On.`
+            : "Store catalog products for kiosk Try-On."
+        }
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button
+              render={<Link href={`/app/stores/${storeId}`} />}
+              variant="outline"
+            >
+              <ArrowLeftIcon aria-hidden="true" />
+              Store
+            </Button>
             <Button variant="outline" onClick={() => void load()}>
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button onClick={() => setCreating(true)}>
+            <Button
+              disabled={!canUpdateProducts}
+              onClick={() => setCreating(true)}
+            >
               <PlusIcon aria-hidden="true" />
               Add Product
             </Button>
           </div>
         }
-        status={<StatusBadge status="ACTIVE" label={`${readyCount} ready`} />}
+        status={<StatusBadge status="ACTIVE" label={`${activeCount} active`} />}
       />
 
       {error ? (
@@ -161,7 +193,7 @@ export default function ProductsPage() {
             <Input
               className="pl-9"
               value={search}
-              placeholder="Search platform products..."
+              placeholder="Search products..."
               onChange={(event) => {
                 setPage(1);
                 setSearch(event.target.value);
@@ -187,8 +219,8 @@ export default function ProductsPage() {
 
       <PageSection>
         <TableContainer
-          title="Platform Products"
-          description="These products appear for platform-owned kiosks and act as the fallback catalog when a Store has no active products."
+          title="Store Products"
+          description="Product rows shown here are the Store catalog used by assigned kiosks."
           footer={
             <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
               <span>
@@ -237,7 +269,7 @@ export default function ProductsPage() {
                   <TableCell colSpan={6}>
                     <div className="flex items-center gap-3 py-10 text-muted-foreground">
                       <PackageIcon size={20} aria-hidden="true" />
-                      No platform products match this view.
+                      No products match this view.
                     </div>
                   </TableCell>
                 </TableRow>
@@ -273,6 +305,7 @@ export default function ProductsPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={!canUpdateProducts}
                         onClick={() => setEditing(product)}
                       >
                         <Edit3Icon aria-hidden="true" />
@@ -290,6 +323,7 @@ export default function ProductsPage() {
       <ProductDialog
         open={creating}
         accessToken={accessToken}
+        storeId={storeId}
         onOpenChange={setCreating}
         onSaved={async () => {
           setCreating(false);
@@ -299,6 +333,7 @@ export default function ProductsPage() {
       <ProductDialog
         open={editing !== null}
         accessToken={accessToken}
+        storeId={storeId}
         product={editing}
         onOpenChange={(open) => {
           if (!open) {
@@ -317,13 +352,15 @@ export default function ProductsPage() {
 function ProductDialog({
   open,
   accessToken,
+  storeId,
   product,
   onOpenChange,
   onSaved,
 }: {
   open: boolean;
   accessToken: string | null;
-  product?: PlatformProduct | null;
+  storeId: string;
+  product?: StoreProduct | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => Promise<void>;
 }) {
@@ -366,15 +403,16 @@ function ProductDialog({
     try {
       const image = await resolveImageInput({
         accessToken,
+        storeId,
         file,
         imageUrl: form.imageUrl,
         existingProduct: product ?? null,
       });
       const input = productInputFromForm(form, image);
       if (product) {
-        await updatePlatformProduct(accessToken, product.id, input);
+        await updateStoreProduct(accessToken, storeId, product.id, input);
       } else {
-        await createPlatformProduct(accessToken, input);
+        await createStoreProduct(accessToken, storeId, input);
       }
       await onSaved();
     } catch (caught) {
@@ -392,8 +430,7 @@ function ProductDialog({
         <DialogHeader>
           <DialogTitle>{product ? "Edit Product" : "Add Product"}</DialogTitle>
           <DialogDescription>
-            Manage the default catalog item used by platform kiosks and Store
-            fallbacks.
+            Manage product details and the garment image used for Try-On.
           </DialogDescription>
         </DialogHeader>
         {error ? (
@@ -630,7 +667,7 @@ function ProductDialog({
   );
 }
 
-function ProductThumb({ product }: { product: PlatformProduct }) {
+function ProductThumb({ product }: { product: StoreProduct }) {
   return (
     <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg border bg-muted/30">
       {product.image.url ? (
@@ -661,14 +698,13 @@ type ProductForm = {
   vtoEnabled: boolean;
 };
 
-function formFromProduct(product: PlatformProduct | null): ProductForm {
+function formFromProduct(product: StoreProduct | null): ProductForm {
   return {
     name: product?.name ?? "",
     categoryName: product?.categoryName ?? "Tops",
-    audience: product?.audience ?? "UNISEX",
+    audience: product?.audience ?? "all",
     price:
-      product?.priceAmountCents !== null &&
-      product?.priceAmountCents !== undefined
+      product?.priceAmountCents !== null && product?.priceAmountCents !== undefined
         ? (product.priceAmountCents / 100).toFixed(2)
         : "",
     currency: product?.priceCurrency ?? "USD",
@@ -684,17 +720,15 @@ function formFromProduct(product: PlatformProduct | null): ProductForm {
 
 function productInputFromForm(
   form: ProductForm,
-  image: PlatformProductInput["image"] | undefined,
-): PlatformProductInput {
+  image: StoreProductInput["image"] | undefined,
+): StoreProductInput {
   return {
     name: form.name.trim(),
     categoryName: form.categoryName.trim(),
     description: form.description.trim() || null,
-    audience: form.audience.trim().toUpperCase() || "UNISEX",
+    audience: form.audience.trim() || "all",
     priceAmountCents: priceToCents(form.price),
-    priceCurrency: form.price.trim()
-      ? form.currency.trim().toUpperCase() || "USD"
-      : null,
+    priceCurrency: form.price.trim() ? form.currency.trim().toUpperCase() || "USD" : null,
     productUrl: form.productUrl.trim() || null,
     garmentIntent: form.garmentIntent,
     garmentCategory: form.garmentCategory,
@@ -707,17 +741,19 @@ function productInputFromForm(
 
 async function resolveImageInput({
   accessToken,
+  storeId,
   file,
   imageUrl,
   existingProduct,
 }: {
   accessToken: string;
+  storeId: string;
   file: File | null;
   imageUrl: string;
-  existingProduct: PlatformProduct | null;
-}): Promise<PlatformProductInput["image"] | undefined> {
+  existingProduct: StoreProduct | null;
+}): Promise<StoreProductInput["image"] | undefined> {
   if (file) {
-    const intent = await createPlatformProductImageUploadIntent(accessToken, {
+    const intent = await createStoreProductImageUploadIntent(accessToken, storeId, {
       contentType: file.type,
       sizeBytes: file.size,
       fileName: file.name,
@@ -775,7 +811,7 @@ function priceToCents(value: string): number | null {
   return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) : null;
 }
 
-function formatPrice(product: PlatformProduct): string {
+function formatPrice(product: StoreProduct): string {
   if (product.priceAmountCents === null || !product.priceCurrency) {
     return "-";
   }

@@ -12,6 +12,7 @@ import {
   MailIcon,
   MapPinIcon,
   MonitorIcon,
+  PackageIcon,
   PhoneIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -155,6 +156,13 @@ export default function StoreDashboardPage() {
             <Button variant="outline" onClick={() => void load()}>
               <RefreshCwIcon aria-hidden="true" />
               Refresh
+            </Button>
+            <Button
+              render={<Link href={`/app/stores/${storeId}/products`} />}
+              variant="outline"
+            >
+              <PackageIcon aria-hidden="true" />
+              Products
             </Button>
             <Button
               onClick={() => setPairOpen(true)}

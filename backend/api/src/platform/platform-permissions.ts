@@ -14,6 +14,8 @@ export const PLATFORM_PERMISSIONS = {
   storeUsersManage: "STORE_USERS_MANAGE",
   storeRolesView: "STORE_ROLES_VIEW",
   storeRolesManage: "STORE_ROLES_MANAGE",
+  platformProductsView: "PLATFORM_PRODUCTS_VIEW",
+  platformProductsManage: "PLATFORM_PRODUCTS_MANAGE",
   permissionsView: "PERMISSIONS_VIEW",
   permissionsManage: "PERMISSIONS_MANAGE",
   kiosksView: "KIOSKS_VIEW",
@@ -144,6 +146,22 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
       applicability: "PLATFORM_ONLY",
     },
     {
+      code: PLATFORM_PERMISSIONS.platformProductsView,
+      module: "platform.products",
+      action: "view",
+      label: "View Platform Products",
+      description: "View the SelfX platform default product catalog.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.platformProductsManage,
+      module: "platform.products",
+      action: "manage",
+      label: "Manage Platform Products",
+      description: "Manage SelfX platform default catalog products.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
       code: PLATFORM_PERMISSIONS.permissionsView,
       module: "platform.access",
       action: "view_permissions",
@@ -224,7 +242,9 @@ const STAFF_ADMIN_PERMISSIONS: readonly PlatformPermission[] =
   SUPER_ADMIN_PERMISSIONS.filter(
     (permission) =>
       permission !== PLATFORM_PERMISSIONS.permissionsManage &&
-      permission !== PLATFORM_PERMISSIONS.organizationSuspend,
+      permission !== PLATFORM_PERMISSIONS.organizationSuspend &&
+      permission !== PLATFORM_PERMISSIONS.platformProductsView &&
+      permission !== PLATFORM_PERMISSIONS.platformProductsManage,
   );
 
 const ROLE_PERMISSIONS = {

@@ -436,9 +436,9 @@ Android camera UX:
   immediately, remains available for connected external cameras even when
   sensor orientation metadata is unknown or unreliable, and is never shown in
   customer capture.
-- Camera previews preserve source/effective aspect ratio with cover/crop in
-  portrait viewports. A landscape camera buffer must not be stretched into a
-  portrait camera area.
+- Camera previews preserve source/effective aspect ratio with contained
+  letterboxed framing in portrait viewports. A landscape camera buffer must not
+  be stretched or cropped into a portrait camera area.
 
 Quality UX remains the KIOSK-1 still-capture flow. Whole-frame brightness is
 only an initial quality signal because bright backgrounds can mask a backlit
@@ -1006,11 +1006,15 @@ Use clear warning/confirmation states for access removal or suspension.
 ### Elements
 
 - search
+- Platform Products entry point under Platform for the SelfX default/fallback
+  catalog
+- Store entry point from the Store dashboard
 - source filter: SelfX / Shopify / WooCommerce / API
 - VTO status filter
 - store availability filter
 - product image
 - product name
+- price when available
 - source
 - VTO status
 - stores
@@ -1019,6 +1023,9 @@ Use clear warning/confirmation states for access removal or suspension.
 ### Actions
 
 - create native product
+- create/edit Platform default product for platform-owned kiosks and Store
+  fallback catalogs
+- edit Store product name, category, price, image and VTO readiness
 - open product
 - enable/disable VTO
 - sync/retry where appropriate

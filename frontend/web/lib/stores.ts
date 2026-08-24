@@ -98,6 +98,78 @@ export type StoreVirtualTryOnSettings = {
   effectiveGarmentPreviewEnabled: boolean;
 };
 
+export type StoreProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  audience: string;
+  categoryId: string;
+  categoryName: string;
+  categorySlug: string;
+  active: boolean;
+  vtoEnabled: boolean;
+  priceAmountCents: number | null;
+  priceCurrency: string | null;
+  productUrl: string | null;
+  garmentIntent: string;
+  garmentCategory: string;
+  garmentPhotoType: string;
+  image: {
+    url: string | null;
+    storageKey: string | null;
+    contentType: string | null;
+    width: number | null;
+    height: number | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StoreProductListResponse = {
+  data: StoreProduct[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+};
+
+export type StoreProductInput = {
+  name: string;
+  categoryName: string;
+  slug?: string;
+  description?: string | null;
+  audience?: string;
+  priceAmountCents?: number | null;
+  priceCurrency?: string | null;
+  productUrl?: string | null;
+  garmentIntent?: string;
+  garmentCategory?: string;
+  garmentPhotoType?: string;
+  active?: boolean;
+  vtoEnabled?: boolean;
+  image?: {
+    url?: string | null;
+    storageKey?: string | null;
+    contentType?: string | null;
+    width?: number | null;
+    height?: number | null;
+  } | null;
+};
+
+export type StoreProductImageUploadIntent = {
+  storageKey: string;
+  uploadUrl: string;
+  method: "PUT";
+  expiresAt: string;
+  headers: Record<string, string>;
+  maxImageBytes: number;
+  supportedContentTypes: string[];
+};
+
 export type StoreListResponse = {
   data: AdminStore[];
   pagination: {
@@ -225,6 +297,74 @@ export function activateStore(
     method: "POST",
     accessToken,
   });
+}
+
+export function listStoreProducts(
+  accessToken: string,
+  storeId: string,
+  query: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: "ALL" | "ACTIVE" | "INACTIVE" | "VTO_ENABLED";
+  } = {},
+): Promise<StoreProductListResponse> {
+  const params = new URLSearchParams();
+  params.set("page", String(query.page ?? 1));
+  params.set("pageSize", String(query.pageSize ?? 25));
+  if (query.search) {
+    params.set("search", query.search);
+  }
+  if (query.status && query.status !== "ALL") {
+    params.set("status", query.status);
+  }
+  return selfxApi<StoreProductListResponse>(
+    `/api/v1/admin/stores/${storeId}/products?${params}`,
+    { accessToken },
+  );
+}
+
+export function createStoreProduct(
+  accessToken: string,
+  storeId: string,
+  input: StoreProductInput,
+): Promise<StoreProduct> {
+  return selfxApi<StoreProduct>(`/api/v1/admin/stores/${storeId}/products`, {
+    method: "POST",
+    accessToken,
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateStoreProduct(
+  accessToken: string,
+  storeId: string,
+  productId: string,
+  input: StoreProductInput,
+): Promise<StoreProduct> {
+  return selfxApi<StoreProduct>(
+    `/api/v1/admin/stores/${storeId}/products/${productId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function createStoreProductImageUploadIntent(
+  accessToken: string,
+  storeId: string,
+  input: { contentType: string; sizeBytes: number; fileName?: string },
+): Promise<StoreProductImageUploadIntent> {
+  return selfxApi<StoreProductImageUploadIntent>(
+    `/api/v1/admin/stores/${storeId}/products/images/upload-intent`,
+    {
+      method: "POST",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export function pairStoreKiosk(

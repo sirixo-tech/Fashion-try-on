@@ -875,6 +875,8 @@ Important fields:
 - `organization_id`
 - `name`
 - `description`
+- `price_amount_cents`
+- `price_currency`
 - `status`
 - `source_type`
 - `product_url`
@@ -883,6 +885,15 @@ Important fields:
 - `primary_asset_id`
 - `created_at`
 - `updated_at`
+
+Current STORE-1 catalog foundation stores native Store catalog rows directly in
+`products` with `scope = STORE` and `organization_id = Product Store id`.
+Platform default catalog rows use `scope = PLATFORM_DEFAULT` and
+`organization_id = NULL`; platform-owned kiosks use these rows directly, and
+Store-owned kiosks fall back to them only when the Store has no active,
+VTO-enabled Store catalog products. Managed prices are optional and stored as
+integer cents plus ISO currency code so catalog products remain VTO-focused
+instead of becoming POS inventory.
 
 Possible source types:
 

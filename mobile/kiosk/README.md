@@ -119,8 +119,8 @@ their client-generated boundaries.
   control.
 - Preview, captured stills, live-analysis rotation metadata and
   TargetSubjectRegion coordinate semantics use the same effective orientation.
-  Portrait previews preserve aspect ratio and cover/crop the viewport rather
-  than stretching a landscape buffer.
+  Portrait previews preserve aspect ratio with contained/letterboxed framing so
+  the camera image is not stretched or cropped.
 - Android commercial presentation is portrait-first. The app does not hardcode
   physical 32-inch/42-inch sizes; layouts adapt to logical viewport dimensions
   and aspect ratio.

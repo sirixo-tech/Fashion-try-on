@@ -36,6 +36,7 @@ export const KIOSK_AUDIT_ACTIONS = {
   deleted: "KIOSK_DELETED",
   heartbeat: "KIOSK_HEARTBEAT",
   updated: "KIOSK_UPDATED",
+  reassigned: "KIOSK_REASSIGNED",
   configured: "KIOSK_CONFIGURED",
 } as const;
 

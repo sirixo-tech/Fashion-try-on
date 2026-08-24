@@ -473,6 +473,8 @@ model Product {
   imageContentType String?             @map("image_content_type") @db.VarChar(80)
   imageWidth       Int?                @map("image_width")
   imageHeight      Int?                @map("image_height")
+  priceAmountCents Int?                @map("price_amount_cents")
+  priceCurrency    String?             @map("price_currency") @db.VarChar(3)
   productUrl       String?             @map("product_url") @db.Text
   createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
