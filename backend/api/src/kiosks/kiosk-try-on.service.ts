@@ -172,6 +172,7 @@ export class KioskTryOnService {
       ? await this.prepareSessionRunAssets(device, payload)
       : undefined;
     const executionPayload = sessionRun?.executionPayload ?? requireLegacyPayload(payload);
+    enforceResolvedGarmentIntent(executionPayload);
     enforceModelGarmentCompatibility(executionPayload);
 
     this.execution.assertConfigured();
@@ -612,6 +613,19 @@ export class KioskTryOnService {
     }
     return this.catalog;
   }
+}
+
+function enforceResolvedGarmentIntent(
+  payload: Pick<CreateKioskTryOnRunPayload, "garmentIntent">,
+): void {
+  if (payload.garmentIntent !== "AUTO") {
+    return;
+  }
+  throw new ApiErrorException(
+    HttpStatus.CONFLICT,
+    TRY_ON_LAB_ERROR_CODES.garmentIntentUnresolved,
+    "Garment type must be resolved before generation.",
+  );
 }
 
 function enforceModelGarmentCompatibility(

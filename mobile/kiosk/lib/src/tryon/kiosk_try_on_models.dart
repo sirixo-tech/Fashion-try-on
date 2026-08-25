@@ -28,6 +28,7 @@ enum KioskTryOnFailureCode {
   generationFailed,
   generationTimedOut,
   modelImageIncompatibleWithGarment,
+  garmentIntentUnresolved,
   cancelled,
 }
 

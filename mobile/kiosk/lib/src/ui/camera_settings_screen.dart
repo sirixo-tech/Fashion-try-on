@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -86,7 +85,10 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
             poseAnalyzerLatency: widget.controller.poseAnalyzerLatency,
             imageQualityAnalyzerLatency:
                 widget.controller.imageQualityAnalyzerLatency,
-            preview: _PreviewPanel(controller: widget.controller),
+            preview: _PreviewPanel(
+              state: state,
+              preview: widget.controller.cameraService.buildPreview(context),
+            ),
             onCategoryChanged: (category) {
               setState(() => _selectedCategory = category);
             },
@@ -166,7 +168,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
   final ValueChanged<bool> onCaptureSoundsChanged;
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
   final ValueChanged<CameraOrientationMode> onCameraOrientationChanged;
-  final VoidCallback onPreviewSound;
+  final ValueChanged<CaptureAudioProfile> onPreviewSound;
   final VoidCallback onTestCamera;
   final String configurationStatus;
   final String? configurationErrorCode;
@@ -199,13 +201,10 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
           onTestCamera: onTestCamera,
           configurationStatus: configurationStatus,
           configurationErrorCode: configurationErrorCode,
+          preview: preview,
         );
 
         if (compact) {
-          final previewHeight = math.max(
-            220.0,
-            math.min(360.0, constraints.maxHeight * 0.28),
-          );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -218,11 +217,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      content,
-                      const SizedBox(height: 16),
-                      SizedBox(height: previewHeight, child: preview),
-                    ],
+                    children: [content],
                   ),
                 ),
               ),
@@ -230,10 +225,6 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
           );
         }
 
-        final previewWidth = math.max(
-          300.0,
-          math.min(420.0, constraints.maxWidth * 0.3),
-        );
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -246,18 +237,6 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
             ),
             const SizedBox(width: 18),
             Expanded(child: SingleChildScrollView(child: content)),
-            const SizedBox(width: 18),
-            SizedBox(
-              width: previewWidth,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _CameraSummaryCard(state: state),
-                  const SizedBox(height: 16),
-                  Expanded(child: preview),
-                ],
-              ),
-            ),
           ],
         );
       },
@@ -440,6 +419,7 @@ class _SettingsCategoryContent extends StatelessWidget {
     required this.onTestCamera,
     required this.configurationStatus,
     required this.configurationErrorCode,
+    required this.preview,
   });
 
   final _OperatorSettingsCategory category;
@@ -459,10 +439,11 @@ class _SettingsCategoryContent extends StatelessWidget {
   final ValueChanged<bool> onCaptureSoundsChanged;
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
   final ValueChanged<CameraOrientationMode> onCameraOrientationChanged;
-  final VoidCallback onPreviewSound;
+  final ValueChanged<CaptureAudioProfile> onPreviewSound;
   final VoidCallback onTestCamera;
   final String configurationStatus;
   final String? configurationErrorCode;
+  final Widget preview;
 
   @override
   Widget build(BuildContext context) {
@@ -474,6 +455,7 @@ class _SettingsCategoryContent extends StatelessWidget {
           state: state,
           loading: loading,
           cameraOrientationMode: cameraOrientationMode,
+          preview: preview,
           onRefresh: onRefresh,
           onSelectCamera: onSelectCamera,
           onCameraOrientationChanged: onCameraOrientationChanged,
@@ -514,6 +496,7 @@ class _CameraSection extends StatelessWidget {
     required this.state,
     required this.loading,
     required this.cameraOrientationMode,
+    required this.preview,
     required this.onRefresh,
     required this.onSelectCamera,
     required this.onCameraOrientationChanged,
@@ -522,6 +505,7 @@ class _CameraSection extends StatelessWidget {
   final CameraState state;
   final bool loading;
   final CameraOrientationMode cameraOrientationMode;
+  final Widget preview;
   final VoidCallback onRefresh;
   final ValueChanged<CameraDevice> onSelectCamera;
   final ValueChanged<CameraOrientationMode> onCameraOrientationChanged;
@@ -541,6 +525,8 @@ class _CameraSection extends StatelessWidget {
           tone: _statusTone(state.status),
           description: selectedDevice?.label ?? 'No camera selected',
         ),
+        const SizedBox(height: 20),
+        preview,
         const SizedBox(height: 20),
         if (loading)
           const LinearProgressIndicator()
@@ -834,7 +820,7 @@ class _DisplaySection extends StatelessWidget {
   }
 }
 
-class _AudioSection extends StatelessWidget {
+class _AudioSection extends StatefulWidget {
   const _AudioSection({
     required this.captureSoundsEnabled,
     required this.captureAudioProfile,
@@ -847,7 +833,28 @@ class _AudioSection extends StatelessWidget {
   final CaptureAudioProfile captureAudioProfile;
   final ValueChanged<bool> onCaptureSoundsChanged;
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
-  final VoidCallback onPreviewSound;
+  final ValueChanged<CaptureAudioProfile> onPreviewSound;
+
+  @override
+  State<_AudioSection> createState() => _AudioSectionState();
+}
+
+class _AudioSectionState extends State<_AudioSection> {
+  late CaptureAudioProfile _selectedProfile;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedProfile = widget.captureAudioProfile;
+  }
+
+  @override
+  void didUpdateWidget(_AudioSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.captureAudioProfile != oldWidget.captureAudioProfile) {
+      _selectedProfile = widget.captureAudioProfile;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -863,19 +870,19 @@ class _AudioSection extends StatelessWidget {
             key: const Key('capture-sounds-toggle'),
             contentPadding: EdgeInsets.zero,
             title: const Text('Capture sounds'),
-            subtitle: const Text('Countdown, shutter and success cues'),
-            value: captureSoundsEnabled,
+            subtitle: const Text('Countdown and shutter cues'),
+            value: widget.captureSoundsEnabled,
             activeThumbColor: SelfxKioskTokens.primary,
             activeTrackColor: SelfxKioskTokens.primary.withValues(alpha: 0.36),
             hoverColor: SelfxKioskTokens.primary.withValues(alpha: 0.06),
             selectedTileColor: SelfxKioskTokens.primary.withValues(alpha: 0.08),
-            onChanged: onCaptureSoundsChanged,
+            onChanged: widget.onCaptureSoundsChanged,
           ),
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<CaptureAudioProfile>(
           key: const Key('capture-audio-profile-selector'),
-          initialValue: captureAudioProfile,
+          initialValue: _selectedProfile,
           decoration: const InputDecoration(labelText: 'Current sound profile'),
           items: [
             for (final profile in CaptureAudioProfile.values)
@@ -884,10 +891,11 @@ class _AudioSection extends StatelessWidget {
                 child: Text(profile.label),
               ),
           ],
-          onChanged: captureSoundsEnabled
+          onChanged: widget.captureSoundsEnabled
               ? (profile) {
                   if (profile != null) {
-                    onAudioProfileChanged(profile);
+                    setState(() => _selectedProfile = profile);
+                    widget.onAudioProfileChanged(profile);
                   }
                 }
               : null,
@@ -897,7 +905,9 @@ class _AudioSection extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
             key: const Key('preview-capture-sound'),
-            onPressed: captureSoundsEnabled ? onPreviewSound : null,
+            onPressed: widget.captureSoundsEnabled
+                ? () => widget.onPreviewSound(_selectedProfile)
+                : null,
             icon: const Icon(Icons.volume_up_outlined),
             label: const Text('Preview Sound'),
           ),
@@ -1099,54 +1109,57 @@ class _SystemSection extends StatelessWidget {
 }
 
 class _PreviewPanel extends StatelessWidget {
-  const _PreviewPanel({required this.controller});
+  const _PreviewPanel({required this.state, required this.preview});
 
-  final CaptureSessionController controller;
+  final CameraState state;
+  final Widget preview;
 
   @override
   Widget build(BuildContext context) {
-    final state = controller.cameraService.state.value;
     return _SolidPanel(
       padding: EdgeInsets.zero,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: DecoratedBox(
-          decoration: const BoxDecoration(color: Color(0xFF101828)),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (state.status == CameraStatus.ready ||
-                  state.status == CameraStatus.capturing)
-                CameraPreviewViewport(
-                  state: state,
-                  preview: controller.cameraService.buildPreview(context),
-                  fit: BoxFit.contain,
-                )
-              else
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(18),
-                    child: Text(
-                      'Preview starts when a camera is ready.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
+      child: AspectRatio(
+        aspectRatio: _cameraPreviewAspectRatio(context, state),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(color: Color(0xFF101828)),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (state.status == CameraStatus.ready ||
+                    state.status == CameraStatus.capturing)
+                  CameraPreviewViewport(
+                    state: state,
+                    preview: preview,
+                    fit: BoxFit.cover,
+                  )
+                else
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text(
+                        'Preview starts when a camera is ready.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
+                Positioned(
+                  left: 12,
+                  top: 12,
+                  child: _StatusBadge(
+                    icon: Icons.videocam_outlined,
+                    label: 'Camera preview',
+                    tone: _StatusTone.info,
+                    compact: true,
+                  ),
                 ),
-              Positioned(
-                left: 12,
-                top: 12,
-                child: _StatusBadge(
-                  icon: Icons.videocam_outlined,
-                  label: 'Camera preview',
-                  tone: _StatusTone.info,
-                  compact: true,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1154,38 +1167,22 @@ class _PreviewPanel extends StatelessWidget {
   }
 }
 
-class _CameraSummaryCard extends StatelessWidget {
-  const _CameraSummaryCard({required this.state});
-
-  final CameraState state;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SolidPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _StatusBadge(
-            icon: _statusIcon(state.status),
-            label: _statusLabel(state.status),
-            tone: _statusTone(state.status),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            state.selectedDevice?.label ?? 'No camera selected',
-            style: Theme.of(context).textTheme.titleMedium,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 2,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            state.capabilities.resolutionLabel,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
-      ),
-    );
+double _cameraPreviewAspectRatio(BuildContext context, CameraState state) {
+  final viewport = MediaQuery.sizeOf(context);
+  final viewportIsPortrait = viewport.height > viewport.width;
+  final width = state.capabilities.displayPreviewWidth;
+  final height = state.capabilities.displayPreviewHeight;
+  if (width == null || height == null || width <= 0 || height <= 0) {
+    return viewportIsPortrait ? 9 / 16 : 16 / 9;
   }
+  final rawAspectRatio = width / height;
+  if (viewportIsPortrait && rawAspectRatio > 1) {
+    return 1 / rawAspectRatio;
+  }
+  if (!viewportIsPortrait && rawAspectRatio < 1) {
+    return 1 / rawAspectRatio;
+  }
+  return rawAspectRatio;
 }
 
 class _SettingsSurface extends StatelessWidget {

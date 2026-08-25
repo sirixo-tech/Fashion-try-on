@@ -260,12 +260,14 @@ class CaptureSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> previewCaptureAudioProfile() async {
+  Future<void> previewCaptureAudioProfile([
+    CaptureAudioProfile? profile,
+  ]) async {
     if (!captureSoundsEnabled) {
       return;
     }
     await _ignoreAudioFailure(
-      () => audioService.previewProfile(captureAudioProfile),
+      () => audioService.previewProfile(profile ?? captureAudioProfile),
     );
   }
 
@@ -289,6 +291,9 @@ class CaptureSessionController extends ChangeNotifier {
     captureAudioProfile = profile;
     _currentCountdownSoundsEnabled = soundsEnabled;
     _currentAudioProfile = profile;
+    if (soundsEnabled) {
+      await _ignoreAudioFailure(() => audioService.warmUpProfile(profile));
+    }
     _playAudioIfEnabled(() => audioService.playCountdownStart(profile));
 
     if (liveReadinessEnabled &&
@@ -297,7 +302,7 @@ class CaptureSessionController extends ChangeNotifier {
       return;
     }
 
-    _beginScriptedCountdown(runId, seconds);
+    _beginScriptedCountdown(runId, seconds, playInitialTick: false);
   }
 
   Future<void> cancelCountdown() async {
@@ -357,7 +362,6 @@ class CaptureSessionController extends ChangeNotifier {
       }
       _playAudioIfEnabled(() async {
         await audioService.playShutter(_currentAudioProfile);
-        await audioService.playCaptureSuccess(_currentAudioProfile);
       });
       final previousAcceptedPath = acceptedCapture?.originalPath;
       capture = result;
@@ -769,10 +773,14 @@ class CaptureSessionController extends ChangeNotifier {
     }
   }
 
-  void _beginScriptedCountdown(int runId, int seconds) {
+  void _beginScriptedCountdown(
+    int runId,
+    int seconds, {
+    bool playInitialTick = true,
+  }) {
     _cancelCountdownTimer();
     readinessResult = null;
-    _setCountdownState(runId, seconds);
+    _setCountdownState(runId, seconds, playTick: playInitialTick);
     _countdownTimer = Timer.periodic(countdownTickDuration, (_) {
       _tickCountdown(runId);
     });
@@ -839,11 +847,15 @@ class CaptureSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _setCountdownState(int runId, int secondsRemaining) {
+  void _setCountdownState(
+    int runId,
+    int secondsRemaining, {
+    bool playTick = true,
+  }) {
     if (!_isActiveRun(runId)) {
       return;
     }
-    if (secondsRemaining <= 3) {
+    if (playTick) {
       _playAudioIfEnabled(
         () => audioService.playFinalCountdownTick(
           _currentAudioProfile,
@@ -874,7 +886,8 @@ class CaptureSessionController extends ChangeNotifier {
   Future<void> _ignoreAudioFailure(Future<void> Function() play) async {
     try {
       await play();
-    } catch (_) {
+    } catch (error) {
+      debugPrint('Capture audio playback failed: $error');
       // Capture audio is a convenience cue only; capture continues silently.
     }
   }

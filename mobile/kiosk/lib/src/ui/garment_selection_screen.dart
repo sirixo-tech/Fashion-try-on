@@ -10,6 +10,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
+import 'garment_intent_picker.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_kiosk_button.dart';
 
@@ -37,8 +38,17 @@ class GarmentSelectionScreen extends StatefulWidget {
 }
 
 class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
+  KioskGarmentIntent? _selectedIntent;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIntent = selectedGarmentIntentFor(widget.tryOnController);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selectedIntent = _selectedIntent;
     return KioskScaffold(
       title: 'SelfX Kiosk',
       subtitle: 'Choose garment',
@@ -92,6 +102,15 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                 ),
               ),
               const SizedBox(height: 30),
+              _GarmentIntentSelector(
+                intents: widget.tryOnController.enabledGarmentIntents,
+                selected: selectedIntent,
+                onSelected: (intent) {
+                  widget.tryOnController.selectPendingGarmentIntent(intent);
+                  setState(() => _selectedIntent = intent);
+                },
+              ),
+              const SizedBox(height: 20),
               SelfxKioskButton(
                 key: const Key('browse-products-source'),
                 label: 'Browse Products',
@@ -113,7 +132,9 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
               SelfxKioskButton(
                 key: const Key('capture-garment-source'),
                 label: 'Capture Garment',
-                subtitle: 'Take a quick snapshot',
+                subtitle: selectedIntent == null
+                    ? 'Choose garment type first'
+                    : 'Take a quick snapshot',
                 icon: Icons.camera_alt_outlined,
                 trailing: const Icon(Icons.arrow_forward),
                 variant: SelfxKioskButtonVariant.primary,
@@ -125,7 +146,9 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                   horizontal: 22,
                   vertical: 18,
                 ),
-                onPressed: () => _openCaptureGarment(context),
+                onPressed: selectedIntent == null
+                    ? null
+                    : () => _openCaptureGarment(context, selectedIntent),
               ),
             ],
           ),
@@ -148,7 +171,11 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
     );
   }
 
-  void _openCaptureGarment(BuildContext context) {
+  void _openCaptureGarment(
+    BuildContext context,
+    KioskGarmentIntent garmentIntent,
+  ) {
+    widget.tryOnController.selectPendingGarmentIntent(garmentIntent);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
@@ -157,10 +184,47 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
           purpose: PhotoAcquisitionPurpose.garment,
-          garmentIntent: KioskGarmentIntent.auto,
+          garmentIntent: garmentIntent,
           extractionService: widget.extractionService,
         ),
       ),
+    );
+  }
+}
+
+class _GarmentIntentSelector extends StatelessWidget {
+  const _GarmentIntentSelector({
+    required this.intents,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<KioskGarmentIntent> intents;
+  final KioskGarmentIntent? selected;
+  final ValueChanged<KioskGarmentIntent> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = intents
+        .where((intent) => intent != KioskGarmentIntent.auto)
+        .toList(growable: false);
+    if (visible.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      alignment: WrapAlignment.center,
+      children: [
+        for (final intent in visible)
+          ChoiceChip(
+            key: Key('garment-intent-${intent.apiValue}'),
+            label: Text(intent.customerLabel),
+            selected: selected == intent,
+            onSelected: (_) => onSelected(intent),
+          ),
+      ],
     );
   }
 }

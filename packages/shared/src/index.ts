@@ -201,6 +201,7 @@ export const TRY_ON_LAB_ERROR_CODES = {
   providerRateLimited: "TRYON_PROVIDER_RATE_LIMITED",
   poseNotDetected: "TRYON_POSE_NOT_DETECTED",
   modelImageIncompatibleWithGarment: "MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT",
+  garmentIntentUnresolved: "GARMENT_INTENT_UNRESOLVED",
   moderationRejected: "TRYON_MODERATION_REJECTED",
   failed: "TRYON_FAILED",
   timedOut: "TRYON_TIMED_OUT",

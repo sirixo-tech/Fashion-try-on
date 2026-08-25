@@ -117,10 +117,7 @@ void main() {
     test('creates one canonical run and reaches polling success', () async {
       final harness = await _sessionHarness(
         statuses: [
-          const KioskTryOnRun(
-            id: 'run-1',
-            status: KioskTryOnStatus.processing,
-          ),
+          const KioskTryOnRun(id: 'run-1', status: KioskTryOnStatus.processing),
           const KioskTryOnRun(
             id: 'run-1',
             status: KioskTryOnStatus.succeeded,
@@ -138,8 +135,14 @@ void main() {
       expect(harness.session.status, KioskTryOnStatus.succeeded);
       expect(harness.session.result?.generatedImage, contains('data:image'));
       expect(harness.gateway.lastRequest?.garmentInput.intent.apiValue, 'TOP');
-      expect(harness.gateway.lastRequest?.modelCoverage, ModelCoverage.upperBody);
-      expect(harness.gateway.lastRequest?.targetMetadata.usedTargetRegion, isTrue);
+      expect(
+        harness.gateway.lastRequest?.modelCoverage,
+        ModelCoverage.upperBody,
+      );
+      expect(
+        harness.gateway.lastRequest?.targetMetadata.usedTargetRegion,
+        isTrue,
+      );
     });
 
     test('terminal failure shows safe customer state', () async {
@@ -172,91 +175,135 @@ void main() {
       expect(harness.session.status, KioskTryOnStatus.timedOut);
     });
 
-    test('finish clears ephemeral garment, run and accepted capture state', () async {
-      final harness = await _sessionHarness(
-        createRun: const KioskTryOnRun(
-          id: 'run-done',
-          status: KioskTryOnStatus.succeeded,
-          resultImage: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
-        ),
-      );
-      addTearDown(harness.dispose);
+    test(
+      'finish clears ephemeral garment, run and accepted capture state',
+      () async {
+        final harness = await _sessionHarness(
+          createRun: const KioskTryOnRun(
+            id: 'run-done',
+            status: KioskTryOnStatus.succeeded,
+            resultImage: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+          ),
+        );
+        addTearDown(harness.dispose);
 
-      await harness.session.submitFromCapture(harness.capture);
-      await harness.session.finish(harness.capture);
+        await harness.session.submitFromCapture(harness.capture);
+        await harness.session.finish(harness.capture);
 
-      expect(harness.session.garmentInput, isNull);
-      expect(harness.session.run, isNull);
-      expect(harness.capture.acceptedCapture, isNull);
-      expect(harness.capture.acceptedModelCoverage, isNull);
-      expect(harness.capture.acceptedCaptureTargetMetadata, isNull);
-    });
+        expect(harness.session.garmentInput, isNull);
+        expect(harness.session.run, isNull);
+        expect(harness.capture.acceptedCapture, isNull);
+        expect(harness.capture.acceptedModelCoverage, isNull);
+        expect(harness.capture.acceptedCaptureTargetMetadata, isNull);
+      },
+    );
 
-    test('retake clears stale target region but keeps selected garment', () async {
-      final harness = await _sessionHarness();
-      addTearDown(harness.dispose);
+    test(
+      'retake clears stale target region but keeps selected garment',
+      () async {
+        final harness = await _sessionHarness();
+        addTearDown(harness.dispose);
 
-      await harness.session.retakePhoto(harness.capture);
+        await harness.session.retakePhoto(harness.capture);
 
-      expect(harness.session.garmentInput, isNotNull);
-      expect(harness.capture.acceptedCapture, isNull);
-      expect(harness.capture.acceptedModelCoverage, isNull);
-      expect(harness.capture.acceptedCaptureTargetMetadata, isNull);
-    });
+        expect(harness.session.garmentInput, isNotNull);
+        expect(harness.capture.acceptedCapture, isNull);
+        expect(harness.capture.acceptedModelCoverage, isNull);
+        expect(harness.capture.acceptedCaptureTargetMetadata, isNull);
+      },
+    );
 
-    test('blocks incompatible model coverage before provider submission', () async {
-      final harness = await _sessionHarness(
-        garmentIntent: KioskGarmentIntent.bottom,
-        captureScope: CaptureScope.top,
-      );
-      addTearDown(harness.dispose);
+    test(
+      'blocks incompatible model coverage before provider submission',
+      () async {
+        final harness = await _sessionHarness(
+          garmentIntent: KioskGarmentIntent.bottom,
+          captureScope: CaptureScope.top,
+        );
+        addTearDown(harness.dispose);
 
-      await harness.session.submitFromCapture(harness.capture);
+        await harness.session.submitFromCapture(harness.capture);
 
-      expect(harness.gateway.createCount, 0);
-      expect(
-        harness.session.failureCode,
-        KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
-      );
-      expect(harness.session.customerTitle, 'Update your photo to try bottoms');
-      expect(
-        harness.session.customerMessage,
-        'We need to see more of your lower body for this item.',
-      );
-    });
+        expect(harness.gateway.createCount, 0);
+        expect(
+          harness.session.failureCode,
+          KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+        );
+        expect(
+          harness.session.customerTitle,
+          'Update your photo to try bottoms',
+        );
+        expect(
+          harness.session.customerMessage,
+          'We need to see more of your lower body for this item.',
+        );
+      },
+    );
 
-    test('try another garment retains model coverage and clears run state', () async {
-      final harness = await _sessionHarness(
-        createRun: const KioskTryOnRun(
-          id: 'run-done',
-          status: KioskTryOnStatus.succeeded,
-          resultImage: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
-        ),
-      );
-      addTearDown(harness.dispose);
+    test(
+      'blocks unresolved captured garment before person compatibility',
+      () async {
+        final harness = await _sessionHarness(
+          garmentIntent: KioskGarmentIntent.auto,
+        );
+        addTearDown(harness.dispose);
 
-      await harness.session.submitFromCapture(harness.capture);
-      harness.session.tryAnotherGarment();
+        await harness.session.submitFromCapture(harness.capture);
 
-      expect(harness.capture.acceptedCapture, isNotNull);
-      expect(harness.capture.acceptedModelCoverage, ModelCoverage.upperBody);
-      expect(harness.session.garmentInput, isNull);
-      expect(harness.session.run, isNull);
-      expect(harness.session.result, isNull);
-    });
+        expect(harness.gateway.createCount, 0);
+        expect(
+          harness.session.failureCode,
+          KioskTryOnFailureCode.garmentIntentUnresolved,
+        );
+        expect(harness.session.customerTitle, 'Choose garment type');
+        expect(
+          harness.session.customerMessage,
+          "We couldn't identify which garment type to use. Please choose the garment type or retake the garment photo.",
+        );
+      },
+    );
 
-    test('does not leak provider-specific details into kiosk request domain', () async {
-      final harness = await _sessionHarness();
-      addTearDown(harness.dispose);
+    test(
+      'try another garment retains model coverage and clears run state',
+      () async {
+        final harness = await _sessionHarness(
+          createRun: const KioskTryOnRun(
+            id: 'run-done',
+            status: KioskTryOnStatus.succeeded,
+            resultImage: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+          ),
+        );
+        addTearDown(harness.dispose);
 
-      await harness.session.submitFromCapture(harness.capture);
+        await harness.session.submitFromCapture(harness.capture);
+        harness.session.tryAnotherGarment();
 
-      final request = harness.gateway.lastRequest;
-      expect(request, isNotNull);
-      expect(request!.garmentInput.source, KioskGarmentInputSource.developmentLocalFile);
-      expect(request.clientRequestId, startsWith('kiosk-'));
-      expect(request.toString(), isNot(contains('FASHN')));
-    });
+        expect(harness.capture.acceptedCapture, isNotNull);
+        expect(harness.capture.acceptedModelCoverage, ModelCoverage.upperBody);
+        expect(harness.session.garmentInput, isNull);
+        expect(harness.session.run, isNull);
+        expect(harness.session.result, isNull);
+      },
+    );
+
+    test(
+      'does not leak provider-specific details into kiosk request domain',
+      () async {
+        final harness = await _sessionHarness();
+        addTearDown(harness.dispose);
+
+        await harness.session.submitFromCapture(harness.capture);
+
+        final request = harness.gateway.lastRequest;
+        expect(request, isNotNull);
+        expect(
+          request!.garmentInput.source,
+          KioskGarmentInputSource.developmentLocalFile,
+        );
+        expect(request.clientRequestId, startsWith('kiosk-'));
+        expect(request.toString(), isNot(contains('FASHN')));
+      },
+    );
   });
 }
 
@@ -276,50 +323,52 @@ Future<_SessionHarness> _sessionHarness({
     createRunResult: createRun,
     statuses: statuses,
   );
-  final session = KioskTryOnSessionController(
-    gateway: gateway,
-    targetPreparer: TryOnTargetPreparer(
-      captureStore: TestTemporaryCaptureStore(temp),
-    ),
-    pollInterval: const Duration(milliseconds: 5),
-    pollTimeout: const Duration(milliseconds: 25),
-  )..selectGarment(
-      KioskGarmentInput(
-        source: KioskGarmentInputSource.developmentLocalFile,
-        localPath: garment.path,
-        intent: garmentIntent,
-      ),
-    );
-  final capture = CaptureSessionController(
-    cameraService: FakeCameraService(),
-    settingsStore: InMemoryCameraSettingsStore(),
-    analyzer: FakeQualityAnalyzer(),
-    captureStore: TestTemporaryCaptureStore(temp),
-    audioService: const SilentCaptureAudioService(),
-  )
-    ..captureScope = captureScope
-    ..acceptedModelCoverage = modelCoverageForCaptureScope(captureScope)
-    ..acceptedCapture = CameraCaptureResult(
-      originalPath: person.path,
-      createdAt: DateTime.now(),
-      deviceId: 'test-camera',
-      isTemporary: true,
-    )
-    ..acceptedCaptureTargetMetadata = CaptureTargetMetadata(
-      scope: captureScope,
-      targetRegion: const TargetSubjectRegion(
-        x: 0.22,
-        y: 0.08,
-        width: 0.56,
-        height: 0.52,
-      ),
-      lockState: PrimarySubjectLockState.locked,
-      visualProminenceScore: 0.9,
-      observedFrameCount: 3,
-      analyzerDisplayName: 'Test analyzer',
-      supportsMultiplePeople: true,
-      capturedAt: DateTime.now(),
-    );
+  final session =
+      KioskTryOnSessionController(
+        gateway: gateway,
+        targetPreparer: TryOnTargetPreparer(
+          captureStore: TestTemporaryCaptureStore(temp),
+        ),
+        pollInterval: const Duration(milliseconds: 5),
+        pollTimeout: const Duration(milliseconds: 25),
+      )..selectGarment(
+        KioskGarmentInput(
+          source: KioskGarmentInputSource.developmentLocalFile,
+          localPath: garment.path,
+          intent: garmentIntent,
+        ),
+      );
+  final capture =
+      CaptureSessionController(
+          cameraService: FakeCameraService(),
+          settingsStore: InMemoryCameraSettingsStore(),
+          analyzer: FakeQualityAnalyzer(),
+          captureStore: TestTemporaryCaptureStore(temp),
+          audioService: const SilentCaptureAudioService(),
+        )
+        ..captureScope = captureScope
+        ..acceptedModelCoverage = modelCoverageForCaptureScope(captureScope)
+        ..acceptedCapture = CameraCaptureResult(
+          originalPath: person.path,
+          createdAt: DateTime.now(),
+          deviceId: 'test-camera',
+          isTemporary: true,
+        )
+        ..acceptedCaptureTargetMetadata = CaptureTargetMetadata(
+          scope: captureScope,
+          targetRegion: const TargetSubjectRegion(
+            x: 0.22,
+            y: 0.08,
+            width: 0.56,
+            height: 0.52,
+          ),
+          lockState: PrimarySubjectLockState.locked,
+          visualProminenceScore: 0.9,
+          observedFrameCount: 3,
+          analyzerDisplayName: 'Test analyzer',
+          supportsMultiplePeople: true,
+          capturedAt: DateTime.now(),
+        );
 
   return _SessionHarness(temp, gateway, session, capture);
 }

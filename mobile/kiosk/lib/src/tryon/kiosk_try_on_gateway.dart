@@ -587,6 +587,8 @@ KioskTryOnFailureCode _failureCodeForErrorResponse(http.Response response) {
 
 KioskTryOnFailureCode _failureCodeForApiCode(String? code) {
   return switch (code) {
+    'GARMENT_INTENT_UNRESOLVED' =>
+      KioskTryOnFailureCode.garmentIntentUnresolved,
     'MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT' =>
       KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
     _ => KioskTryOnFailureCode.uploadFailed,
@@ -595,6 +597,8 @@ KioskTryOnFailureCode _failureCodeForApiCode(String? code) {
 
 KioskTryOnFailureCode _failureCodeForRunCode(String code) {
   return switch (code) {
+    'GARMENT_INTENT_UNRESOLVED' =>
+      KioskTryOnFailureCode.garmentIntentUnresolved,
     'MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT' =>
       KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
     _ => KioskTryOnFailureCode.generationFailed,

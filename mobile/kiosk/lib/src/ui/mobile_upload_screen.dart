@@ -12,6 +12,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_models.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
+import 'garment_intent_picker.dart';
 import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
 
@@ -145,14 +146,22 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     if (_continuing) {
       return;
     }
+    final intent =
+        selectedGarmentIntentFor(
+          widget.tryOnController,
+          explicitIntent: widget.garmentIntent,
+        ) ??
+        await chooseGarmentIntent(context, widget.tryOnController);
+    if (intent == null || !mounted) {
+      return;
+    }
+    widget.tryOnController.selectPendingGarmentIntent(intent);
     setState(() {
       _continuing = true;
       _continuingSession = widget.uploadController.session;
     });
 
-    final input = await widget.uploadController.useReadyGarment(
-      intent: widget.garmentIntent ?? KioskGarmentIntent.auto,
-    );
+    final input = await widget.uploadController.useReadyGarment(intent: intent);
     if (input == null || !mounted) {
       _stopContinuing();
       return;
@@ -175,6 +184,11 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     if (!await _acceptReadyModelUpload() || !mounted) {
       return;
     }
+    final intent = await chooseGarmentIntent(context, widget.tryOnController);
+    if (intent == null || !mounted) {
+      return;
+    }
+    widget.tryOnController.selectPendingGarmentIntent(intent);
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
@@ -184,7 +198,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
           catalogGateway: widget.catalogGateway,
           extractionService: widget.extractionService,
           purpose: PhotoAcquisitionPurpose.garment,
-          garmentIntent: KioskGarmentIntent.auto,
+          garmentIntent: intent,
         ),
       ),
     );

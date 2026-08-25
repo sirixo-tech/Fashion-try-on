@@ -87,6 +87,35 @@ describe("KIOSK-4B production Try-On service", () => {
     expect(prisma.createdRuns).toHaveLength(0);
   });
 
+  it("refuses unresolved direct-upload garment intent before provider submission", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const service = new KioskTryOnService(prisma as never, execution as never);
+
+    let thrown: unknown;
+    try {
+      await service.createRun(
+        platformDevice("device-1"),
+        payload({
+          garmentIntent: "AUTO",
+          category: "AUTO",
+          modelCoverage: "FULL_BODY",
+        }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(ApiErrorException);
+    expect((thrown as ApiErrorException).getResponse()).toMatchObject({
+      error: {
+        code: "GARMENT_INTENT_UNRESOLVED",
+      },
+    });
+    expect(execution.submissions).toBe(0);
+    expect(prisma.createdRuns).toHaveLength(0);
+  });
+
   it("keeps UNKNOWN model coverage fail-safe before provider submission", async () => {
     const prisma = new FakePrisma();
     const execution = new FakeExecution();

@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
+import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'capture_review_screen.dart';
+import 'garment_selection_screen.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_result_screen.dart';
 
@@ -82,6 +84,9 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
           final compatibilityFailure =
               widget.tryOnController.failureCode ==
               KioskTryOnFailureCode.modelImageIncompatibleWithGarment;
+          final garmentResolutionFailure =
+              widget.tryOnController.failureCode ==
+              KioskTryOnFailureCode.garmentIntentUnresolved;
           final progress = _progressFor(status);
           return Center(
             child: ConstrainedBox(
@@ -134,10 +139,31 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                 ),
                           ),
                         ),
+                      ] else if (garmentResolutionFailure) ...[
+                        ElevatedButton.icon(
+                          key: const Key('try-on-retake-garment-photo'),
+                          onPressed: () => _chooseAnotherGarment(context),
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('Retake Garment Photo'),
+                        ),
+                        const SizedBox(height: 14),
+                        ElevatedButton.icon(
+                          key: const Key('try-on-choose-garment-type'),
+                          onPressed: () => _chooseGarmentType(context),
+                          icon: const Icon(Icons.checkroom_outlined),
+                          label: const Text('Choose Garment Type'),
+                        ),
                       ] else if (compatibilityFailure) ...[
                         ElevatedButton.icon(
                           key: const Key('try-on-update-photo'),
                           onPressed: () => _retakePhoto(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: SelfxKioskTokens.secondary,
+                            foregroundColor: SelfxKioskTokens.onSecondary,
+                            side: const BorderSide(
+                              color: SelfxKioskTokens.secondary,
+                            ),
+                          ),
                           icon: const Icon(Icons.photo_camera_outlined),
                           label: const Text('Update My Photo'),
                         ),
@@ -238,6 +264,25 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
       MaterialPageRoute<void>(
         builder: (_) => CaptureReviewScreen(
           controller: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+        ),
+      ),
+      (route) => route.isFirst,
+    );
+  }
+
+  Future<void> _chooseGarmentType(BuildContext context) async {
+    widget.tryOnController.tryAnotherGarment();
+    if (!context.mounted) {
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => GarmentSelectionScreen(
+          captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,

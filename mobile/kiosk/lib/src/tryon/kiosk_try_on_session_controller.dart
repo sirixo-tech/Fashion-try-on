@@ -306,6 +306,13 @@ class KioskTryOnSessionController extends ChangeNotifier {
       );
       return;
     }
+    if (garment.intent == KioskGarmentIntent.auto) {
+      _fail(
+        KioskTryOnFailureCode.garmentIntentUnresolved,
+        'Choose the garment type before generating.',
+      );
+      return;
+    }
     final modelCoverage = personPhoto.coverage;
     final compatibility = const ModelGarmentCompatibilityService().check(
       coverage: modelCoverage,
@@ -404,7 +411,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
 
   Future<void> retakePhoto(CaptureSessionController capture) async {
     currentPersonAssetId = null;
-    _clearRunState(keepGarment: false);
+    _clearRunState(keepGarment: true);
     await capture.retake();
     notifyListeners();
   }
@@ -611,6 +618,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
         'SelfX could not be reached. Check the connection and try again.',
       KioskTryOnFailureCode.generationTimedOut =>
         'Try-On generation is taking too long. Please try again.',
+      KioskTryOnFailureCode.garmentIntentUnresolved =>
+        "We couldn't identify which garment type to use. Please choose the garment type or retake the garment photo.",
       KioskTryOnFailureCode.modelImageIncompatibleWithGarment => guidanceFor(
         intent ?? KioskGarmentIntent.auto,
       ).message,
@@ -625,6 +634,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskGarmentIntent? intent,
   ) {
     return switch (code) {
+      KioskTryOnFailureCode.garmentIntentUnresolved => 'Choose garment type',
       KioskTryOnFailureCode.modelImageIncompatibleWithGarment => guidanceFor(
         intent ?? KioskGarmentIntent.auto,
       ).title,

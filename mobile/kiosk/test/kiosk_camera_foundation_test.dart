@@ -450,22 +450,18 @@ void main() {
       expect(find.byIcon(Icons.timer_outlined), findsNothing);
     });
 
-    test(
-      'capture success audio is not played when still capture fails',
-      () async {
-        final camera = readyCamera(failCapture: true);
-        final audioService = FakeCaptureAudioService();
-        final controller = testController(
-          camera: camera,
-          audioService: audioService,
-        );
+    test('shutter audio is not played when still capture fails', () async {
+      final camera = readyCamera(failCapture: true);
+      final audioService = FakeCaptureAudioService();
+      final controller = testController(
+        camera: camera,
+        audioService: audioService,
+      );
 
-        await expectLater(controller.capturePhoto(), throwsA(isA<Exception>()));
+      await expectLater(controller.capturePhoto(), throwsA(isA<Exception>()));
 
-        expect(audioService.events, isNot(contains('success')));
-        expect(audioService.events, isNot(contains('shutter')));
-      },
-    );
+      expect(audioService.events, isNot(contains('shutter')));
+    });
   });
 
   group('Camera orientation calibration', () {
@@ -1176,15 +1172,20 @@ void main() {
         expect(find.text('Choose Your Look'), findsOneWidget);
         expect(find.byKey(const Key('browse-products-source')), findsOneWidget);
         expect(find.byKey(const Key('capture-garment-source')), findsOneWidget);
+        expect(find.byKey(const Key('garment-intent-TOP')), findsOneWidget);
+        expect(find.text('Choose garment type first'), findsOneWidget);
         expect(find.text('Auto photo'), findsNothing);
         expect(find.text('Flat lay'), findsNothing);
         expect(find.text('On model'), findsNothing);
 
+        await tester.tap(find.byKey(const Key('garment-intent-TOP')));
+        await tester.pump();
         await tester.tap(find.byKey(const Key('capture-garment-source')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
         expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+        expect(tryOnController.pendingGarmentIntent, KioskGarmentIntent.top);
         expect(find.byKey(const Key('use-phone-garment-source')), findsNothing);
 
         captureController.dispose();
@@ -1830,6 +1831,11 @@ class FakeCaptureAudioService implements CaptureAudioService {
   final List<String> events = [];
 
   @override
+  Future<void> warmUpProfile(CaptureAudioProfile profile) async {
+    events.add('warm:${profile.name}');
+  }
+
+  @override
   Future<void> playCountdownStart(CaptureAudioProfile profile) async {
     events.add('start:${profile.name}');
   }
@@ -1845,11 +1851,6 @@ class FakeCaptureAudioService implements CaptureAudioService {
   @override
   Future<void> playShutter(CaptureAudioProfile profile) async {
     events.add('shutter');
-  }
-
-  @override
-  Future<void> playCaptureSuccess(CaptureAudioProfile profile) async {
-    events.add('success');
   }
 
   @override

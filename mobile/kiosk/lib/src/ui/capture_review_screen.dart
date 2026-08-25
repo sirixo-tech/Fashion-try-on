@@ -8,11 +8,11 @@ import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
-import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
+import 'garment_intent_picker.dart';
 import 'kiosk_chrome.dart';
 import 'mobile_upload_screen.dart';
 
@@ -298,6 +298,11 @@ class _ReviewActions extends StatelessWidget {
     if (!await _acceptModelPhoto(context) || !context.mounted) {
       return;
     }
+    final intent = await chooseGarmentIntent(context, tryOnController);
+    if (intent == null || !context.mounted) {
+      return;
+    }
+    tryOnController.selectPendingGarmentIntent(intent);
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
@@ -307,7 +312,7 @@ class _ReviewActions extends StatelessWidget {
           catalogGateway: catalogGateway,
           extractionService: extractionService,
           purpose: PhotoAcquisitionPurpose.garment,
-          garmentIntent: KioskGarmentIntent.auto,
+          garmentIntent: intent,
         ),
       ),
     );
