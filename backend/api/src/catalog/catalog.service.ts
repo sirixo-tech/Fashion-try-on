@@ -18,6 +18,8 @@ import {
   type KioskCatalogProductDto,
   type KioskCatalogProductListResponseDto,
   type KioskCatalogQueryDto,
+  type KioskCatalogRevisionDto,
+  type KioskCatalogSnapshotDto,
 } from "./dto/kiosk-catalog.dto.js";
 
 const defaultPage = 1;
@@ -40,6 +42,7 @@ type ProductRow = {
   image_content_type: string | null;
   image_width: number | null;
   image_height: number | null;
+  updated_at: Date;
   category_id: string;
   category_name: string;
   category_slug: string;
@@ -52,6 +55,12 @@ type CategoryRow = {
   slug: string;
   audience: string | null;
   product_count: bigint | number;
+};
+
+type CatalogRevisionStatsRow = {
+  product_count: bigint | number;
+  category_count: bigint | number;
+  updated_at: Date | null;
 };
 
 export interface KioskCatalogProductTryOnImage {
@@ -113,6 +122,7 @@ export class CatalogService {
           p.image_content_type,
           p.image_width,
           p.image_height,
+          p.updated_at,
           c.id AS category_id,
           c.name AS category_name,
           c.slug AS category_slug,
@@ -160,6 +170,68 @@ export class CatalogService {
     return { data: rows.map(mapCategory) };
   }
 
+  async getKioskCatalogRevision(
+    storeTenantId: string | null,
+    syncVersion: number,
+  ): Promise<KioskCatalogRevisionDto> {
+    const context = await this.resolveCatalogContext(storeTenantId);
+    const stats = await this.catalogRevisionStats(context);
+    return mapRevision(context, stats, syncVersion);
+  }
+
+  async getKioskCatalogSnapshot(
+    storeTenantId: string | null,
+    syncVersion: number,
+  ): Promise<KioskCatalogSnapshotDto> {
+    const context = await this.resolveCatalogContext(storeTenantId);
+    const where = productWhere(context, {});
+    const [stats, categories, products] = await Promise.all([
+      this.catalogRevisionStats(context),
+      this.prisma.$queryRaw<CategoryRow[]>`
+        SELECT
+          c.id,
+          c.name,
+          c.slug,
+          c.audience,
+          COUNT(p.id) AS product_count
+        FROM product_categories c
+        INNER JOIN products p ON p.category_id = c.id
+        WHERE ${where}
+        GROUP BY c.id, c.name, c.slug, c.audience, c.sort_order
+        ORDER BY c.sort_order ASC, c.name ASC, c.id ASC
+      `,
+      this.prisma.$queryRaw<ProductRow[]>`
+        SELECT
+          p.id,
+          p.name,
+          p.description,
+          p.audience,
+          p.garment_intent,
+          p.garment_category,
+          p.garment_photo_type,
+          p.image_url,
+          p.image_storage_key,
+          p.image_content_type,
+          p.image_width,
+          p.image_height,
+          p.updated_at,
+          c.id AS category_id,
+          c.name AS category_name,
+          c.slug AS category_slug,
+          c.audience AS category_audience
+        FROM products p
+        INNER JOIN product_categories c ON c.id = p.category_id
+        WHERE ${where}
+        ORDER BY c.sort_order ASC, p.sort_order ASC, p.name ASC, p.id ASC
+      `,
+    ]);
+    return {
+      ...mapRevision(context, stats, syncVersion),
+      categories: categories.map(mapCategory),
+      products: products.map((row) => this.mapProduct(row)),
+    };
+  }
+
   async resolveKioskProductForTryOn(
     storeTenantId: string | null,
     productId: string,
@@ -183,6 +255,7 @@ export class CatalogService {
         p.image_content_type,
         p.image_width,
         p.image_height,
+        p.updated_at,
         c.id AS category_id,
         c.name AS category_name,
         c.slug AS category_slug,
@@ -254,8 +327,26 @@ export class CatalogService {
         contentType: row.image_content_type,
         width: row.image_width,
         height: row.image_height,
+        cacheKey: productImageCacheKey(row),
       },
+      updatedAt: row.updated_at.toISOString(),
     };
+  }
+
+  private async catalogRevisionStats(
+    context: { scope: CatalogScope; storeTenantId: string | null },
+  ): Promise<CatalogRevisionStatsRow> {
+    const where = productWhere(context, {});
+    const rows = await this.prisma.$queryRaw<CatalogRevisionStatsRow[]>`
+      SELECT
+        COUNT(p.id) AS product_count,
+        COUNT(DISTINCT c.id) AS category_count,
+        MAX(GREATEST(p.updated_at, c.updated_at)) AS updated_at
+      FROM products p
+      INNER JOIN product_categories c ON c.id = p.category_id
+      WHERE ${where}
+    `;
+    return rows[0] ?? { product_count: 0, category_count: 0, updated_at: null };
   }
 
   private catalogReadUrl(storageKey: string | null): string | null {
@@ -390,6 +481,44 @@ function mapCategory(row: CategoryRow): KioskCatalogCategoryDto {
     audience: row.audience,
     productCount: Number(row.product_count),
   };
+}
+
+function mapRevision(
+  context: { scope: CatalogScope; storeTenantId: string | null },
+  stats: CatalogRevisionStatsRow,
+  syncVersion: number,
+): KioskCatalogRevisionDto {
+  const productCount = Number(stats.product_count);
+  const categoryCount = Number(stats.category_count);
+  const updatedAt = stats.updated_at?.toISOString() ?? null;
+  return {
+    revision: [
+      context.scope,
+      context.storeTenantId ?? "platform",
+      productCount,
+      categoryCount,
+      updatedAt ?? "empty",
+      `sync-${syncVersion}`,
+    ].join(":"),
+    scope: context.scope,
+    storeTenantId: context.storeTenantId,
+    productCount,
+    categoryCount,
+    updatedAt,
+  };
+}
+
+function productImageCacheKey(
+  row: Pick<
+    ProductRow,
+    "id" | "image_storage_key" | "image_url" | "updated_at"
+  >,
+): string {
+  return [
+    row.id,
+    row.image_storage_key ?? row.image_url ?? "no-image",
+    row.updated_at.toISOString(),
+  ].join(":");
 }
 
 function boundedPositiveInt(value: number | undefined, fallback: number): number {

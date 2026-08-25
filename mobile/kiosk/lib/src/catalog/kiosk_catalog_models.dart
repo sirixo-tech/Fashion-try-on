@@ -44,6 +44,16 @@ class KioskCatalogCategory {
       productCount: _int(json, 'productCount'),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'slug': slug,
+      'audience': audience,
+      'productCount': productCount,
+    };
+  }
 }
 
 class KioskCatalogProductCategory {
@@ -67,30 +77,66 @@ class KioskCatalogProductCategory {
       audience: json['audience'] is String ? json['audience'] as String : null,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'name': name, 'slug': slug, 'audience': audience};
+  }
 }
 
 class KioskCatalogProductImage {
   const KioskCatalogProductImage({
     required this.url,
+    required this.cacheKey,
     this.contentType,
     this.width,
     this.height,
+    this.localPath,
   });
 
   final String? url;
+  final String cacheKey;
   final String? contentType;
   final int? width;
   final int? height;
+  final String? localPath;
 
   factory KioskCatalogProductImage.fromJson(Map<String, dynamic> json) {
     return KioskCatalogProductImage(
       url: json['url'] is String ? json['url'] as String : null,
+      cacheKey: json['cacheKey'] is String
+          ? json['cacheKey'] as String
+          : (json['url'] is String ? json['url'] as String : ''),
       contentType: json['contentType'] is String
           ? json['contentType'] as String
           : null,
       width: json['width'] is num ? (json['width'] as num).toInt() : null,
       height: json['height'] is num ? (json['height'] as num).toInt() : null,
+      localPath: json['localPath'] is String
+          ? json['localPath'] as String
+          : null,
     );
+  }
+
+  KioskCatalogProductImage copyWith({String? localPath}) {
+    return KioskCatalogProductImage(
+      url: url,
+      cacheKey: cacheKey,
+      contentType: contentType,
+      width: width,
+      height: height,
+      localPath: localPath ?? this.localPath,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'url': url,
+      'cacheKey': cacheKey,
+      'contentType': contentType,
+      'width': width,
+      'height': height,
+      'localPath': localPath,
+    };
   }
 }
 
@@ -104,6 +150,7 @@ class KioskCatalogProduct {
     required this.garmentCategory,
     required this.garmentPhotoType,
     required this.image,
+    required this.updatedAt,
     this.description,
   });
 
@@ -116,6 +163,7 @@ class KioskCatalogProduct {
   final String garmentCategory;
   final KioskGarmentPhotoType garmentPhotoType;
   final KioskCatalogProductImage image;
+  final String updatedAt;
 
   bool get hasUsableImage => image.url != null && image.url!.trim().isNotEmpty;
 
@@ -123,7 +171,7 @@ class KioskCatalogProduct {
     return KioskGarmentInput.catalogProduct(
       productId: id,
       name: name,
-      imageUrl: image.url ?? '',
+      imageUrl: image.localPath ?? image.url ?? '',
       intent: garmentIntent,
       photoType: garmentPhotoType,
     );
@@ -152,7 +200,150 @@ class KioskCatalogProduct {
         _string(json, 'garmentPhotoType'),
       ),
       image: KioskCatalogProductImage.fromJson(image),
+      updatedAt: _string(json, 'updatedAt'),
     );
+  }
+
+  KioskCatalogProduct copyWith({KioskCatalogProductImage? image}) {
+    return KioskCatalogProduct(
+      id: id,
+      name: name,
+      description: description,
+      audience: audience,
+      category: category,
+      garmentIntent: garmentIntent,
+      garmentCategory: garmentCategory,
+      garmentPhotoType: garmentPhotoType,
+      image: image ?? this.image,
+      updatedAt: updatedAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'audience': audience,
+      'category': category.toJson(),
+      'garmentIntent': garmentIntent.apiValue,
+      'garmentCategory': garmentCategory,
+      'garmentPhotoType': garmentPhotoType.apiValue,
+      'image': image.toJson(),
+      'updatedAt': updatedAt,
+    };
+  }
+}
+
+class KioskCatalogRevision {
+  const KioskCatalogRevision({
+    required this.revision,
+    required this.scope,
+    required this.productCount,
+    required this.categoryCount,
+    this.storeTenantId,
+    this.updatedAt,
+  });
+
+  final String revision;
+  final String scope;
+  final String? storeTenantId;
+  final int productCount;
+  final int categoryCount;
+  final String? updatedAt;
+
+  factory KioskCatalogRevision.fromJson(Map<String, dynamic> json) {
+    return KioskCatalogRevision(
+      revision: _string(json, 'revision'),
+      scope: _string(json, 'scope'),
+      storeTenantId: json['storeTenantId'] is String
+          ? json['storeTenantId'] as String
+          : null,
+      productCount: _int(json, 'productCount'),
+      categoryCount: _int(json, 'categoryCount'),
+      updatedAt: json['updatedAt'] is String
+          ? json['updatedAt'] as String
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'revision': revision,
+      'scope': scope,
+      'storeTenantId': storeTenantId,
+      'productCount': productCount,
+      'categoryCount': categoryCount,
+      'updatedAt': updatedAt,
+    };
+  }
+}
+
+class KioskCatalogSnapshot extends KioskCatalogRevision {
+  const KioskCatalogSnapshot({
+    required super.revision,
+    required super.scope,
+    required super.productCount,
+    required super.categoryCount,
+    required this.categories,
+    required this.products,
+    super.storeTenantId,
+    super.updatedAt,
+  });
+
+  final List<KioskCatalogCategory> categories;
+  final List<KioskCatalogProduct> products;
+
+  factory KioskCatalogSnapshot.fromJson(Map<String, dynamic> json) {
+    final categories = json['categories'];
+    final products = json['products'];
+    if (categories is! List || products is! List) {
+      throw const KioskCatalogException(
+        'CATALOG_RESPONSE_INVALID',
+        'SelfX returned an unexpected catalog response.',
+      );
+    }
+    final revision = KioskCatalogRevision.fromJson(json);
+    return KioskCatalogSnapshot(
+      revision: revision.revision,
+      scope: revision.scope,
+      storeTenantId: revision.storeTenantId,
+      productCount: revision.productCount,
+      categoryCount: revision.categoryCount,
+      updatedAt: revision.updatedAt,
+      categories: categories
+          .map((item) {
+            if (item is! Map<String, dynamic>) {
+              throw const KioskCatalogException(
+                'CATALOG_RESPONSE_INVALID',
+                'SelfX returned an unexpected catalog response.',
+              );
+            }
+            return KioskCatalogCategory.fromJson(item);
+          })
+          .toList(growable: false),
+      products: products
+          .map((item) {
+            if (item is! Map<String, dynamic>) {
+              throw const KioskCatalogException(
+                'CATALOG_RESPONSE_INVALID',
+                'SelfX returned an unexpected catalog response.',
+              );
+            }
+            return KioskCatalogProduct.fromJson(item);
+          })
+          .where((product) => product.hasUsableImage)
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      ...super.toJson(),
+      'categories': categories.map((category) => category.toJson()).toList(),
+      'products': products.map((product) => product.toJson()).toList(),
+    };
   }
 }
 

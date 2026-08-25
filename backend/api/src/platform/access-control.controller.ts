@@ -32,6 +32,7 @@ import {
   AddPlatformUserDto,
   AssignPlatformRolesDto,
   CreatePlatformRoleDto,
+  CurrentPlatformAccessDto,
   PlatformRoleDto,
   PlatformUserDto,
   ReplacePermissionCodesDto,
@@ -48,6 +49,22 @@ export class AccessControlController {
     private readonly platformAuthorization: PlatformAuthorizationService,
     private readonly accessControl: AccessControlService,
   ) {}
+
+  @Get("me")
+  @ApiOperation({ summary: "Resolve current user's Platform access" })
+  @ApiOkResponse({ type: CurrentPlatformAccessDto })
+  async currentAccess(
+    @Req() request: FastifyRequest,
+  ): Promise<CurrentPlatformAccessDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    const [isSuperadmin, permissions] = await Promise.all([
+      this.platformAuthorization.isSuperadmin(user.id),
+      this.platformAuthorization.allPlatformPermissionsForUser(user.id),
+    ]);
+    return { isSuperadmin, permissions };
+  }
 
   @Get("permissions")
   @ApiOperation({ summary: "List the global SelfX permission registry" })

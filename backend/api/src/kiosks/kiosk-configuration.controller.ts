@@ -24,6 +24,7 @@ import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import {
   CreateKioskConfigurationAssetUploadDto,
+  KioskCatalogSyncResponseDto,
   KioskConfigurationDto,
   KioskConfigurationAssetUploadIntentDto,
   UpdateKioskConfigurationDto,
@@ -80,6 +81,26 @@ export class AdminKioskConfigurationController {
       PLATFORM_PERMISSIONS.kiosksConfigure,
     );
     return this.configurations.updateAdminConfiguration(user.id, deviceId, dto);
+  }
+
+  @Post("catalog/sync")
+  @ApiOperation({
+    summary: "Request active kiosks to refresh their cached product catalog",
+  })
+  @ApiOkResponse({ type: KioskCatalogSyncResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  async requestCatalogSync(
+    @Req() request: FastifyRequest,
+  ): Promise<KioskCatalogSyncResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.kiosksConfigure,
+    );
+    return this.configurations.requestFleetCatalogSync(user.id);
   }
 
   @Post(":deviceId/configuration/assets/upload-intent")

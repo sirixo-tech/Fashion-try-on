@@ -1172,20 +1172,21 @@ void main() {
         expect(find.text('Choose Your Look'), findsOneWidget);
         expect(find.byKey(const Key('browse-products-source')), findsOneWidget);
         expect(find.byKey(const Key('capture-garment-source')), findsOneWidget);
-        expect(find.byKey(const Key('garment-intent-TOP')), findsOneWidget);
-        expect(find.text('Choose garment type first'), findsOneWidget);
+        expect(find.byKey(const Key('garment-intent-TOP')), findsNothing);
+        expect(
+          find.text('SelfX identifies the garment automatically'),
+          findsOneWidget,
+        );
         expect(find.text('Auto photo'), findsNothing);
         expect(find.text('Flat lay'), findsNothing);
         expect(find.text('On model'), findsNothing);
 
-        await tester.tap(find.byKey(const Key('garment-intent-TOP')));
-        await tester.pump();
         await tester.tap(find.byKey(const Key('capture-garment-source')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
         expect(find.byKey(const Key('capture-photo')), findsOneWidget);
-        expect(tryOnController.pendingGarmentIntent, KioskGarmentIntent.top);
+        expect(tryOnController.pendingGarmentIntent, KioskGarmentIntent.auto);
         expect(find.byKey(const Key('use-phone-garment-source')), findsNothing);
 
         captureController.dispose();
@@ -1354,10 +1355,12 @@ KioskCatalogProduct testCatalogProduct({
     garmentPhotoType: KioskGarmentPhotoType.auto,
     image: KioskCatalogProductImage(
       url: 'https://example.test/$id.png',
+      cacheKey: '$id-cache',
       contentType: 'image/png',
       width: 800,
       height: 1200,
     ),
+    updatedAt: '2026-08-25T00:00:00.000Z',
   );
 }
 
@@ -1365,6 +1368,32 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
   const FakeKioskCatalogGateway({required this.products});
 
   final List<KioskCatalogProduct> products;
+
+  @override
+  Future<KioskCatalogRevision> getCatalogRevision() async {
+    return KioskCatalogRevision(
+      revision: 'test-revision-${products.length}',
+      scope: 'STORE',
+      productCount: products.length,
+      categoryCount: 1,
+      updatedAt: '2026-08-25T00:00:00.000Z',
+    );
+  }
+
+  @override
+  Future<KioskCatalogSnapshot> getCatalogSnapshot() async {
+    return KioskCatalogSnapshot(
+      revision: 'test-revision-${products.length}',
+      scope: 'STORE',
+      productCount: products.length,
+      categoryCount: 1,
+      updatedAt: '2026-08-25T00:00:00.000Z',
+      categories: await getCatalogCategories(
+        audience: KioskCatalogAudience.men,
+      ),
+      products: products,
+    );
+  }
 
   @override
   Future<List<KioskCatalogCategory>> getCatalogCategories({

@@ -30,10 +30,8 @@ import {
   type SupportedImageMimeType,
   validateTechnicalImageBuffer,
 } from "../common/image-validation.js";
-import {
-  TRY_ON_LAB_MAX_IMAGE_BYTES,
-  TRY_ON_LAB_MULTIPART_LIMITS,
-} from "../try-on-lab/try-on-lab.constants.js";
+import { TRY_ON_LAB_MULTIPART_LIMITS } from "../try-on-lab/try-on-lab.constants.js";
+import { KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES } from "./kiosk.constants.js";
 
 type MultipartPart = Awaited<ReturnType<FastifyRequest["file"]>>;
 type MultipartIteratorPart = NonNullable<MultipartPart> | MultipartField;
@@ -85,8 +83,13 @@ export interface KioskSessionImagePayload {
   customerUploadSessionId?: string;
 }
 
+interface KioskCaptureMultipartOptions {
+  maxImageBytes?: number;
+}
+
 export async function parseKioskTryOnRunMultipartRequest(
   request: FastifyRequest,
+  options: KioskCaptureMultipartOptions = {},
 ): Promise<CreateKioskTryOnRunPayload> {
   if (!request.isMultipart()) {
     throwImageInvalid("Kiosk Try-On requests must use multipart/form-data.");
@@ -94,10 +97,16 @@ export async function parseKioskTryOnRunMultipartRequest(
 
   const images = new Map<string, KioskTryOnUploadedImage>();
   const fields = new Map<string, string>();
+  const maxImageBytes =
+    options.maxImageBytes ?? KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES;
 
   try {
     for await (const part of request.parts({
-      limits: { ...TRY_ON_LAB_MULTIPART_LIMITS, files: 2 },
+      limits: {
+        ...TRY_ON_LAB_MULTIPART_LIMITS,
+        files: 2,
+        fileSize: maxImageBytes,
+      },
     }) as AsyncIterable<MultipartIteratorPart>) {
       if (part.type === "file") {
         if (
@@ -111,7 +120,13 @@ export async function parseKioskTryOnRunMultipartRequest(
         }
         images.set(
           part.fieldname,
-          validateImage(part.fieldname, part.filename, part.mimetype, await part.toBuffer()),
+          validateImage(
+            part.fieldname,
+            part.filename,
+            part.mimetype,
+            await part.toBuffer(),
+            maxImageBytes,
+          ),
         );
         continue;
       }
@@ -240,6 +255,7 @@ export async function parseKioskTryOnRunMultipartRequest(
 
 export async function parseKioskPersonMultipartRequest(
   request: FastifyRequest,
+  options: KioskCaptureMultipartOptions = {},
 ): Promise<KioskSessionImagePayload> {
   if (!request.isMultipart()) {
     const body = request.body as { customerUploadSessionId?: unknown } | undefined;
@@ -256,10 +272,17 @@ export async function parseKioskPersonMultipartRequest(
 
   let personImage: KioskTryOnUploadedImage | undefined;
   let customerUploadSessionId: string | undefined;
+  const maxImageBytes =
+    options.maxImageBytes ?? KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES;
 
   try {
     for await (const part of request.parts({
-      limits: { files: 1, fileSize: TRY_ON_LAB_MAX_IMAGE_BYTES, fields: 2, parts: 3 },
+      limits: {
+        files: 1,
+        fileSize: maxImageBytes,
+        fields: 2,
+        parts: 3,
+      },
     }) as AsyncIterable<MultipartIteratorPart>) {
       if (part.type === "file") {
         if (part.fieldname !== "personImage") {
@@ -273,6 +296,7 @@ export async function parseKioskPersonMultipartRequest(
           part.filename,
           part.mimetype,
           await part.toBuffer(),
+          maxImageBytes,
         );
         continue;
       }
@@ -289,6 +313,14 @@ export async function parseKioskPersonMultipartRequest(
   } catch (error) {
     if (error instanceof ApiErrorException) {
       throw error;
+    }
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String(error.code).includes("FST_REQ_FILE_TOO_LARGE")
+    ) {
+      throwImageInvalid("Person image exceeds the supported size limit.");
     }
     throwMultipartInvalid("Person image request could not be processed.");
   }
@@ -307,12 +339,13 @@ function validateImage(
   filename: string,
   declaredContentType: string,
   buffer: Buffer,
+  maxImageBytes: number,
 ): KioskTryOnUploadedImage {
   try {
     const metadata = validateTechnicalImageBuffer({
       buffer,
       declaredContentType,
-      maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
+      maxBytes: maxImageBytes,
     });
     return {
       fieldName,

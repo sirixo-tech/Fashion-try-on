@@ -40,6 +40,19 @@ export type StorePermissionGrant = AccessPermission & {
   granted: boolean;
 };
 
+export type CurrentPlatformAccess = {
+  isSuperadmin: boolean;
+  permissions: string[];
+};
+
+export function getCurrentPlatformAccess(
+  accessToken: string,
+): Promise<CurrentPlatformAccess> {
+  return selfxApi<CurrentPlatformAccess>("/api/v1/admin/access/me", {
+    accessToken,
+  });
+}
+
 export function listAccessPermissions(
   accessToken: string,
 ): Promise<{ data: AccessPermission[] }> {

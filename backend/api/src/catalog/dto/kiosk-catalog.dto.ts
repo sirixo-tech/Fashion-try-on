@@ -62,6 +62,7 @@ export class KioskCatalogProductImageDto {
   contentType!: string | null;
   width!: number | null;
   height!: number | null;
+  cacheKey!: string;
 }
 
 export class KioskCatalogProductDto {
@@ -74,6 +75,16 @@ export class KioskCatalogProductDto {
   garmentCategory!: string;
   garmentPhotoType!: string;
   image!: KioskCatalogProductImageDto;
+  updatedAt!: string;
+}
+
+export class KioskCatalogRevisionDto {
+  revision!: string;
+  scope!: string;
+  storeTenantId!: string | null;
+  productCount!: number;
+  categoryCount!: number;
+  updatedAt!: string | null;
 }
 
 export class KioskCatalogPaginationDto {
@@ -91,4 +102,9 @@ export class KioskCatalogProductListResponseDto {
 
 export class KioskCatalogCategoryListResponseDto {
   data!: KioskCatalogCategoryDto[];
+}
+
+export class KioskCatalogSnapshotDto extends KioskCatalogRevisionDto {
+  categories!: KioskCatalogCategoryDto[];
+  products!: KioskCatalogProductDto[];
 }

@@ -30,7 +30,10 @@ import {
   KioskPairingSessionStatus,
 } from "@prisma/client";
 
-import { KIOSK_PAIRING_CODE_PATTERN } from "../kiosk.constants.js";
+import {
+  KIOSK_PAIRING_CODE_PATTERN,
+  PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES,
+} from "../kiosk.constants.js";
 
 export class CreateKioskPairingSessionDto {
   @IsOptional()
@@ -182,6 +185,10 @@ export class KioskConfigurationDto {
     maxVideoBytes: number;
     supportedContentTypes: string[];
   };
+  captureUpload!: {
+    maxImageBytes: number;
+    supportedContentTypes: string[];
+  };
   updatedAt!: string;
 }
 
@@ -216,7 +223,7 @@ export class KioskConfigurationAssetInputDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(80 * 1024 * 1024)
+  @Max(PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES)
   sizeBytes?: number;
 }
 
@@ -227,7 +234,7 @@ export class CreateKioskConfigurationAssetUploadDto {
 
   @IsInt()
   @Min(1)
-  @Max(80 * 1024 * 1024)
+  @Max(PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES)
   sizeBytes!: number;
 
   @IsOptional()
@@ -351,6 +358,11 @@ export class KioskDeviceResponseDto {
 
 export class KioskDeviceListResponseDto {
   data!: KioskDeviceResponseDto[];
+}
+
+export class KioskCatalogSyncResponseDto {
+  updatedDevices!: number;
+  requestedAt!: string;
 }
 
 export class KioskDeviceAuthResponseDto {

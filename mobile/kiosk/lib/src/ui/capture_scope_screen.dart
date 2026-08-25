@@ -9,6 +9,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
+import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
 
 class CaptureScopeScreen extends StatelessWidget {
@@ -36,12 +37,15 @@ class CaptureScopeScreen extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final layout = KioskLayoutMetrics.fromConstraints(constraints);
           return SingleChildScrollView(
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 980),
+                  constraints: BoxConstraints(
+                    maxWidth: layout.portrait ? 1040 : 980,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -51,16 +55,17 @@ class CaptureScopeScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.displaySmall,
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: layout.scaled(10, small: 8)),
                       Text(
                         'Choose the closest clothing area so SelfX can guide the camera framing.',
                         style: Theme.of(context).textTheme.bodyLarge,
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 28),
+                      SizedBox(height: layout.scaled(28, small: 20, large: 36)),
                       for (final scope in CaptureScope.values) ...[
                         _CaptureScopeButton(
                           scope: scope,
+                          layout: layout,
                           selected: scope == controller.captureScope,
                           onPressed: () {
                             controller.selectCaptureScope(scope);
@@ -77,7 +82,7 @@ class CaptureScopeScreen extends StatelessWidget {
                             );
                           },
                         ),
-                        const SizedBox(height: 18),
+                        SizedBox(height: layout.panelGap),
                       ],
                     ],
                   ),
@@ -94,11 +99,13 @@ class CaptureScopeScreen extends StatelessWidget {
 class _CaptureScopeButton extends StatelessWidget {
   const _CaptureScopeButton({
     required this.scope,
+    required this.layout,
     required this.selected,
     required this.onPressed,
   });
 
   final CaptureScope scope;
+  final KioskLayoutMetrics layout;
   final bool selected;
   final VoidCallback onPressed;
 
@@ -117,11 +124,14 @@ class _CaptureScopeButton extends StatelessWidget {
         variant: selected
             ? SelfxKioskButtonVariant.selected
             : SelfxKioskButtonVariant.secondary,
-        minHeight: 76,
+        minHeight: layout.scaled(76, small: 66, large: 88, extraLarge: 100),
         expanded: true,
         textAlign: TextAlign.start,
         crossAxisAlignment: CrossAxisAlignment.start,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: layout.scaled(20, small: 16, large: 24),
+          vertical: layout.scaled(16, small: 12, large: 20),
+        ),
         onPressed: onPressed,
       ),
     );

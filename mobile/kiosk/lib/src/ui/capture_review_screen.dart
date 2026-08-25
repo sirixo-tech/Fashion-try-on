@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -12,9 +11,9 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
-import 'garment_intent_picker.dart';
 import 'kiosk_chrome.dart';
 import 'mobile_upload_screen.dart';
+import 'responsive_kiosk_layout.dart';
 
 class CaptureReviewScreen extends StatelessWidget {
   const CaptureReviewScreen({
@@ -66,12 +65,8 @@ class CaptureReviewScreen extends StatelessWidget {
                   : null);
           return LayoutBuilder(
             builder: (context, constraints) {
-              final portrait =
-                  constraints.maxHeight > constraints.maxWidth * 1.12;
-              final compact =
-                  constraints.maxWidth < 940 ||
-                  constraints.maxHeight < 620 ||
-                  portrait;
+              final layout = KioskLayoutMetrics.fromConstraints(constraints);
+              final compact = layout.stackPanels || layout.tightHeight;
               final imagePreview = Card(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
@@ -98,24 +93,16 @@ class CaptureReviewScreen extends StatelessWidget {
               );
 
               if (compact) {
-                final previewHeight = math.max(
-                  portrait ? 520.0 : 280.0,
-                  math.min(
-                    portrait ? constraints.maxHeight * 0.54 : 480.0,
-                    portrait
-                        ? constraints.maxHeight * 0.6
-                        : constraints.maxWidth * 0.62,
-                  ),
-                );
-                return SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(height: previewHeight, child: imagePreview),
-                      const SizedBox(height: 16),
-                      actions,
-                    ],
-                  ),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: imagePreview),
+                    SizedBox(height: layout.panelGap),
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: SingleChildScrollView(child: actions),
+                    ),
+                  ],
                 );
               }
 
@@ -123,8 +110,11 @@ class CaptureReviewScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(child: imagePreview),
-                  const SizedBox(width: 24),
-                  SizedBox(width: 420, child: actions),
+                  SizedBox(width: layout.panelGap),
+                  SizedBox(
+                    width: layout.sidePanelWidth,
+                    child: SingleChildScrollView(child: actions),
+                  ),
                 ],
               );
             },
@@ -298,11 +288,6 @@ class _ReviewActions extends StatelessWidget {
     if (!await _acceptModelPhoto(context) || !context.mounted) {
       return;
     }
-    final intent = await chooseGarmentIntent(context, tryOnController);
-    if (intent == null || !context.mounted) {
-      return;
-    }
-    tryOnController.selectPendingGarmentIntent(intent);
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
@@ -312,7 +297,6 @@ class _ReviewActions extends StatelessWidget {
           catalogGateway: catalogGateway,
           extractionService: extractionService,
           purpose: PhotoAcquisitionPurpose.garment,
-          garmentIntent: intent,
         ),
       ),
     );

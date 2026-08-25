@@ -362,6 +362,20 @@ export function updateStoreProduct(
   );
 }
 
+export function deleteStoreProduct(
+  accessToken: string,
+  storeId: string,
+  productId: string,
+): Promise<StoreProduct> {
+  return selfxApi<StoreProduct>(
+    `/api/v1/admin/stores/${storeId}/products/${productId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
+}
+
 export function createStoreProductImageUploadIntent(
   accessToken: string,
   storeId: string,

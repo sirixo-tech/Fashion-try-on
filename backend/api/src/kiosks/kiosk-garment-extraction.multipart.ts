@@ -7,7 +7,7 @@ import {
   type SupportedImageMimeType,
   validateTechnicalImageBuffer,
 } from "../common/image-validation.js";
-import { TRY_ON_LAB_MAX_IMAGE_BYTES } from "../try-on-lab/try-on-lab.constants.js";
+import { KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES } from "./kiosk.constants.js";
 
 type MultipartPart = Awaited<ReturnType<FastifyRequest["file"]>>;
 type MultipartIteratorPart = NonNullable<MultipartPart> | MultipartField;
@@ -31,15 +31,13 @@ export interface KioskGarmentExtractionPayload {
   garmentIntent: SelfxGarmentIntent;
 }
 
-const KIOSK_GARMENT_EXTRACTION_LIMITS = {
-  files: 1,
-  fileSize: TRY_ON_LAB_MAX_IMAGE_BYTES,
-  fields: 4,
-  parts: 6,
-} as const;
+interface KioskGarmentExtractionMultipartOptions {
+  maxImageBytes?: number;
+}
 
 export async function parseKioskGarmentExtractionMultipartRequest(
   request: FastifyRequest,
+  options: KioskGarmentExtractionMultipartOptions = {},
 ): Promise<KioskGarmentExtractionPayload> {
   if (!request.isMultipart()) {
     throwMultipartInvalid("Garment extraction requests must use multipart/form-data.");
@@ -47,10 +45,17 @@ export async function parseKioskGarmentExtractionMultipartRequest(
 
   let image: KioskGarmentExtractionImage | undefined;
   const fields = new Map<string, string>();
+  const maxImageBytes =
+    options.maxImageBytes ?? KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES;
 
   try {
     for await (const part of request.parts({
-      limits: KIOSK_GARMENT_EXTRACTION_LIMITS,
+      limits: {
+        files: 1,
+        fileSize: maxImageBytes,
+        fields: 4,
+        parts: 6,
+      },
     }) as AsyncIterable<MultipartIteratorPart>) {
       if (part.type === "file") {
         if (part.fieldname !== "garmentImage") {
@@ -61,7 +66,12 @@ export async function parseKioskGarmentExtractionMultipartRequest(
         }
 
         const buffer = await part.toBuffer();
-        image = validateGarmentImage(part.filename, part.mimetype, buffer);
+        image = validateGarmentImage(
+          part.filename,
+          part.mimetype,
+          buffer,
+          maxImageBytes,
+        );
         continue;
       }
 
@@ -98,12 +108,13 @@ function validateGarmentImage(
   filename: string,
   declaredContentType: string,
   buffer: Buffer,
+  maxImageBytes: number,
 ): KioskGarmentExtractionImage {
   try {
     const metadata = validateTechnicalImageBuffer({
       buffer,
       declaredContentType,
-      maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
+      maxBytes: maxImageBytes,
     });
     return {
       fieldName: "garmentImage",

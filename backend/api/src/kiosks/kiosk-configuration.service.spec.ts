@@ -401,6 +401,13 @@ class ConfigurationHarness {
     {
       resolveGarmentPreviewEnabled: async () => false,
     } as never,
+    {
+      resolveCaptureImageMaxBytes: async () => 10 * 1024 * 1024,
+      resolvePresentationUploadLimits: async () => ({
+        maxImageBytes: 12 * 1024 * 1024,
+        maxVideoBytes: 80 * 1024 * 1024,
+      }),
+    } as never,
   );
 
   private device(id: string): Record<string, unknown> | null {

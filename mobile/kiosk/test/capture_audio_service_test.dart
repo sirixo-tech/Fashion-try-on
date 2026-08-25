@@ -19,7 +19,7 @@ void main() {
 
       expect(preloadedPaths, [
         'audio/capture/soft/start.wav',
-        'audio/capture/soft/tick.wav',
+        'audio/capture/countdown_tick.wav',
         'audio/capture/soft/shutter.wav',
       ]);
       expect(createdPlayers.keys, {
@@ -32,7 +32,7 @@ void main() {
       expect(tickPlayer, isNotNull);
       expect(tickPlayer!.mode, PlayerMode.lowLatency);
       expect(tickPlayer.releaseMode, ReleaseMode.stop);
-      expect(tickPlayer.sourcePath, 'audio/capture/soft/tick.wav');
+      expect(tickPlayer.sourcePath, 'audio/capture/countdown_tick.wav');
       expect(tickPlayer.events, containsAllInOrder(['stop', 'resume']));
     });
 

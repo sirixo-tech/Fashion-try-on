@@ -30,6 +30,7 @@ class KioskRuntimeConfiguration {
     required this.guidanceAudioEnabled,
     required this.enabledGarmentIntents,
     required this.garmentPreviewEnabled,
+    required this.captureUploadMaxImageBytes,
     required this.sessionIdleTimeoutSeconds,
     required this.updatedAt,
   });
@@ -38,6 +39,7 @@ class KioskRuntimeConfiguration {
     final display = _map(json, 'display');
     final capture = _map(json, 'capture');
     final experience = _map(json, 'experience');
+    final captureUpload = _map(json, 'captureUpload');
     final assets = (display['assets'] as List? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(KioskRuntimeAsset.fromJson)
@@ -71,6 +73,11 @@ class KioskRuntimeConfiguration {
       garmentPreviewEnabled: experience['garmentPreviewEnabled'] is bool
           ? experience['garmentPreviewEnabled'] as bool
           : false,
+      captureUploadMaxImageBytes: _int(
+        captureUpload,
+        'maxImageBytes',
+        defaultCaptureUploadMaxImageBytes,
+      ),
       sessionIdleTimeoutSeconds: _int(
         experience,
         'sessionIdleTimeoutSeconds',
@@ -95,6 +102,7 @@ class KioskRuntimeConfiguration {
   final bool guidanceAudioEnabled;
   final List<KioskGarmentIntent> enabledGarmentIntents;
   final bool garmentPreviewEnabled;
+  final int captureUploadMaxImageBytes;
   final int sessionIdleTimeoutSeconds;
   final DateTime updatedAt;
 
@@ -163,6 +171,14 @@ class KioskRuntimeConfiguration {
             .toList(),
         'garmentPreviewEnabled': garmentPreviewEnabled,
         'sessionIdleTimeoutSeconds': sessionIdleTimeoutSeconds,
+      },
+      'captureUpload': {
+        'maxImageBytes': captureUploadMaxImageBytes,
+        'supportedContentTypes': const [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+        ],
       },
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -301,9 +317,12 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
     KioskGarmentIntent.fullOutfit,
   ],
   garmentPreviewEnabled: false,
+  captureUploadMaxImageBytes: defaultCaptureUploadMaxImageBytes,
   sessionIdleTimeoutSeconds: 120,
   updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
 );
+
+const defaultCaptureUploadMaxImageBytes = 10 * 1024 * 1024;
 
 KioskGarmentIntent garmentIntentFromApiValue(String value) {
   return switch (value) {

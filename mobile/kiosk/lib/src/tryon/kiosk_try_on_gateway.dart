@@ -591,6 +591,8 @@ KioskTryOnFailureCode _failureCodeForApiCode(String? code) {
       KioskTryOnFailureCode.garmentIntentUnresolved,
     'MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT' =>
       KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+    'TRYON_IMAGE_INVALID' ||
+    'GARMENT_EXTRACTION_IMAGE_INVALID' => KioskTryOnFailureCode.imageTooLarge,
     _ => KioskTryOnFailureCode.uploadFailed,
   };
 }

@@ -23,6 +23,7 @@ import {
   parseKioskPersonMultipartRequest,
   parseKioskTryOnRunMultipartRequest,
 } from "./kiosk-try-on.multipart.js";
+import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
 
@@ -33,6 +34,7 @@ export class KioskTryOnController {
   constructor(
     private readonly kiosks: KioskService,
     private readonly tryOn: KioskTryOnService,
+    private readonly mediaUploadSettings: MediaUploadSettingsService,
   ) {}
 
   @Post()
@@ -85,7 +87,11 @@ export class KioskTryOnController {
     @Req() request: FastifyRequest,
   ): Promise<KioskTryOnRunResponseDto> {
     const device = await this.kiosks.requireDevice(request.headers.authorization);
-    const payload = await parseKioskTryOnRunMultipartRequest(request);
+    const maxImageBytes =
+      await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
+    const payload = await parseKioskTryOnRunMultipartRequest(request, {
+      maxImageBytes,
+    });
     return this.tryOn.createRun(device, payload);
   }
 
@@ -111,6 +117,7 @@ export class KioskTryOnSessionController {
   constructor(
     private readonly kiosks: KioskService,
     private readonly tryOn: KioskTryOnService,
+    private readonly mediaUploadSettings: MediaUploadSettingsService,
   ) {}
 
   @Post()
@@ -158,7 +165,11 @@ export class KioskTryOnSessionController {
     @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
   ): Promise<KioskTryOnAssetResponseDto> {
     const device = await this.kiosks.requireDevice(request.headers.authorization);
-    const payload = await parseKioskPersonMultipartRequest(request);
+    const maxImageBytes =
+      await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
+    const payload = await parseKioskPersonMultipartRequest(request, {
+      maxImageBytes,
+    });
     return this.tryOn.setCurrentPerson(device, sessionId, payload);
   }
 

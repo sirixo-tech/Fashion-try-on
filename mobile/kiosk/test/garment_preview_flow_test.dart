@@ -141,6 +141,16 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Retake garment photo'), findsOneWidget);
+      expect(
+        find.text(
+          "We couldn't identify the garment clearly. Retake the garment photo or choose from catalog.",
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('browse-catalog-from-garment-review')),
+        findsOneWidget,
+      );
       expect(find.text('Keep the full garment visible'), findsOneWidget);
       expect(find.textContaining('decoder internals'), findsNothing);
     });
@@ -252,11 +262,15 @@ class FakeGarmentExtractionService implements GarmentExtractionService {
 
   int get calls => inputs.length;
 
-  void enqueueSuccess(String previewPath) {
+  void enqueueSuccess(
+    String previewPath, {
+    KioskGarmentIntent? resolvedIntent,
+  }) {
     _results.add(
       GarmentExtractionResult(
         status: GarmentExtractionStatus.succeeded,
         previewPath: previewPath,
+        resolvedIntent: resolvedIntent,
       ),
     );
   }

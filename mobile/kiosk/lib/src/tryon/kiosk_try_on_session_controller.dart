@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import '../session/capture_session_controller.dart';
+import '../config/kiosk_runtime_configuration.dart';
 import 'kiosk_garment_input.dart';
 import 'kiosk_try_on_gateway.dart';
 import 'kiosk_try_on_models.dart';
@@ -32,6 +33,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskGarmentIntent.fullOutfit,
   ];
   bool garmentPreviewEnabled = false;
+  int captureUploadMaxImageBytes = defaultCaptureUploadMaxImageBytes;
   KioskTryOnStatus status = KioskTryOnStatus.idle;
   KioskTryOnRun? run;
   KioskTryOnResult? result;
@@ -124,6 +126,25 @@ class KioskTryOnSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void applyCaptureUploadMaxImageBytes(int maxBytes) {
+    if (maxBytes <= 0 || captureUploadMaxImageBytes == maxBytes) {
+      return;
+    }
+    captureUploadMaxImageBytes = maxBytes;
+    notifyListeners();
+  }
+
+  Future<bool> captureUploadExceedsLimit(String path) async {
+    final file = File(path);
+    if (!await file.exists()) {
+      return false;
+    }
+    return (await file.length()) > captureUploadMaxImageBytes;
+  }
+
+  String get captureUploadTooLargeMessage =>
+      'This photo is too big for SelfX. Retake it or choose a smaller image. Limit: ${_formatMegabytes(captureUploadMaxImageBytes)}.';
+
   Future<bool> createBackendSession() async {
     if (_creatingSession ||
         (activeSessionId != null &&
@@ -157,6 +178,11 @@ class KioskTryOnSessionController extends ChangeNotifier {
     }
     final personPhoto = capture.activeAcceptedPersonPhoto;
     if (personPhoto == null) {
+      return false;
+    }
+    if (await captureUploadExceedsLimit(personPhoto.capture.originalPath)) {
+      sessionMessage = captureUploadTooLargeMessage;
+      notifyListeners();
       return false;
     }
     await createBackendSession();
@@ -313,6 +339,15 @@ class KioskTryOnSessionController extends ChangeNotifier {
       );
       return;
     }
+    if (!garment.isCatalogProduct &&
+        await captureUploadExceedsLimit(garment.localPath)) {
+      _fail(KioskTryOnFailureCode.imageTooLarge, captureUploadTooLargeMessage);
+      return;
+    }
+    if (await captureUploadExceedsLimit(personPhoto.capture.originalPath)) {
+      _fail(KioskTryOnFailureCode.imageTooLarge, captureUploadTooLargeMessage);
+      return;
+    }
     final modelCoverage = personPhoto.coverage;
     final compatibility = const ModelGarmentCompatibilityService().check(
       coverage: modelCoverage,
@@ -349,6 +384,14 @@ class KioskTryOnSessionController extends ChangeNotifier {
       _preparedPersonFile = prepared.file;
       targetMetadata = prepared.metadata;
       final usesStoredPerson = sessionId != null && personAssetId != null;
+      if (!usesStoredPerson &&
+          await captureUploadExceedsLimit(prepared.file.path)) {
+        _fail(
+          KioskTryOnFailureCode.imageTooLarge,
+          captureUploadTooLargeMessage,
+        );
+        return;
+      }
 
       _setStatus(KioskTryOnStatus.uploading, 'Uploading securely to SelfX');
       final created = await gateway.createRun(
@@ -619,7 +662,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
       KioskTryOnFailureCode.generationTimedOut =>
         'Try-On generation is taking too long. Please try again.',
       KioskTryOnFailureCode.garmentIntentUnresolved =>
-        "We couldn't identify which garment type to use. Please choose the garment type or retake the garment photo.",
+        "We couldn't identify the garment clearly. Retake the garment photo or choose from catalog.",
+      KioskTryOnFailureCode.imageTooLarge => fallback,
       KioskTryOnFailureCode.modelImageIncompatibleWithGarment => guidanceFor(
         intent ?? KioskGarmentIntent.auto,
       ).message,
@@ -634,7 +678,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskGarmentIntent? intent,
   ) {
     return switch (code) {
-      KioskTryOnFailureCode.garmentIntentUnresolved => 'Choose garment type',
+      KioskTryOnFailureCode.garmentIntentUnresolved => 'Retake garment photo',
+      KioskTryOnFailureCode.imageTooLarge => 'Photo too large',
       KioskTryOnFailureCode.modelImageIncompatibleWithGarment => guidanceFor(
         intent ?? KioskGarmentIntent.auto,
       ).title,
@@ -680,4 +725,12 @@ Future<void> _deleteIfPresent(String path) async {
 bool _shareIsReusable(KioskTryOnShare share) {
   return share.expiresAt.difference(DateTime.now()) >
       const Duration(minutes: 1);
+}
+
+String _formatMegabytes(int bytes) {
+  final megabytes = bytes / (1024 * 1024);
+  if (megabytes == megabytes.roundToDouble()) {
+    return '${megabytes.toInt()} MB';
+  }
+  return '${megabytes.toStringAsFixed(1)} MB';
 }

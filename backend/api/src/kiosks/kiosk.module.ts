@@ -5,11 +5,13 @@ import { AuthModule } from "../auth/auth.module.js";
 import { CatalogService } from "../catalog/catalog.service.js";
 import { DatabaseModule } from "../database/database.module.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
+import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { TryOnModule } from "../try-on/try-on.module.js";
 import { GarmentPreviewProviderRegistry } from "../ai/garment-preview/garment-preview.registry.js";
 import { GarmentPreviewService } from "../ai/garment-preview/garment-preview.service.js";
 import { FashnGarmentPreviewProvider } from "../ai/garment-preview/providers/fashn-garment-preview.provider.js";
 import { OpenAiGarmentPreviewProvider } from "../ai/garment-preview/providers/openai-garment-preview.provider.js";
+import { GarmentIntentClassifierService } from "../ai/garment-intent/garment-intent-classifier.service.js";
 import { AdminKiosksController } from "./admin-kiosks.controller.js";
 import {
   CustomerUploadCapabilityController,
@@ -71,11 +73,13 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskTryOnShareService,
     CatalogService,
     KioskGarmentExtractionService,
+    GarmentIntentClassifierService,
     GarmentPreviewService,
     GarmentPreviewProviderRegistry,
     FashnGarmentPreviewProvider,
     OpenAiGarmentPreviewProvider,
     KioskConfigurationService,
+    MediaUploadSettingsService,
     ObjectStorageService,
     PlatformAuthorizationService,
     { provide: KIOSK_CONFIG, useFactory: () => loadKioskConfig() },

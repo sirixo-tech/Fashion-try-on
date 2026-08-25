@@ -312,6 +312,19 @@ export class AdminCatalogService {
     };
   }
 
+  async deletePlatformProduct(productId: string): Promise<PlatformProductDto> {
+    const existing = await this.requirePlatformProduct(productId);
+    const deleted = this.mapPlatformProduct(existing);
+    await this.prisma.$executeRaw`
+      DELETE FROM products
+      WHERE id = ${productId}::uuid
+        AND scope::text = 'PLATFORM_DEFAULT'
+        AND organization_id IS NULL
+    `;
+    await this.deleteProductImageIfStored(existing.image_storage_key);
+    return deleted;
+  }
+
   private async getPlatformProduct(
     productId: string,
   ): Promise<PlatformProductDto> {
@@ -408,6 +421,19 @@ export class AdminCatalogService {
       key: storageKey,
       expiresInSeconds: catalogReadUrlTtlSeconds,
     });
+  }
+
+  private async deleteProductImageIfStored(
+    storageKey: string | null,
+  ): Promise<void> {
+    if (!storageKey) {
+      return;
+    }
+    try {
+      await this.storage.deleteObject(storageKey);
+    } catch {
+      // Product deletion must not fail after the database row is gone.
+    }
   }
 }
 

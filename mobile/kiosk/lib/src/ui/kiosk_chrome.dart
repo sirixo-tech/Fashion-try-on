@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../camera/camera_models.dart';
 import '../theme/selfx_kiosk_theme.dart';
+import 'responsive_kiosk_layout.dart';
 import 'selfx_logo.dart';
 
 class KioskScaffold extends StatelessWidget {
@@ -33,9 +34,13 @@ class KioskScaffold extends StatelessWidget {
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxWidth < 720;
+                final layout = KioskLayoutMetrics.fromConstraints(constraints);
                 return Padding(
-                  padding: padding ?? EdgeInsets.all(compact ? 16.0 : 28.0),
+                  padding:
+                      padding ??
+                      EdgeInsets.all(
+                        layout.tightHeight ? 14.0 : layout.pagePadding,
+                      ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -69,10 +74,10 @@ class KioskScaffold extends StatelessWidget {
                             ),
                           ],
                         ),
-                        SizedBox(height: compact ? 18 : 28),
+                        SizedBox(height: layout.panelGap),
                       ] else if (leading != null) ...[
                         Align(alignment: Alignment.centerLeft, child: leading!),
-                        SizedBox(height: compact ? 2 : 4),
+                        SizedBox(height: layout.isSmall ? 2 : 6),
                       ],
                       Expanded(child: child),
                     ],

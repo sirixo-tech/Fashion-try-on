@@ -11,6 +11,7 @@ import {
 import { type FastifyRequest } from "fastify";
 
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
+import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { KioskGarmentExtractionResponseDto } from "./dto/kiosk-garment-extraction.dto.js";
 import { parseKioskGarmentExtractionMultipartRequest } from "./kiosk-garment-extraction.multipart.js";
 import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.service.js";
@@ -23,6 +24,7 @@ export class KioskGarmentExtractionController {
   constructor(
     private readonly kiosks: KioskService,
     private readonly extraction: KioskGarmentExtractionService,
+    private readonly mediaUploadSettings: MediaUploadSettingsService,
   ) {}
 
   @Post()
@@ -55,7 +57,11 @@ export class KioskGarmentExtractionController {
     @Req() request: FastifyRequest,
   ): Promise<KioskGarmentExtractionResponseDto> {
     const device = await this.kiosks.requireDevice(request.headers.authorization);
-    const payload = await parseKioskGarmentExtractionMultipartRequest(request);
+    const maxImageBytes =
+      await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
+    const payload = await parseKioskGarmentExtractionMultipartRequest(request, {
+      maxImageBytes,
+    });
     return this.extraction.extract(device, payload);
   }
 }

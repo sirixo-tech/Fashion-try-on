@@ -10,6 +10,7 @@ import 'camera_capture_screen.dart';
 import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
 import 'my_looks_screen.dart';
+import 'responsive_kiosk_layout.dart';
 
 class TryOnResultScreen extends StatelessWidget {
   const TryOnResultScreen({
@@ -129,14 +130,52 @@ class _ResultPage extends StatelessWidget {
         final viewportWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : 760.0;
-        final compact = viewportWidth < 560;
+        final layout = KioskLayoutMetrics.fromConstraints(constraints);
+        final compact = layout.isSmall || viewportWidth < 560;
         final stackActions = viewportWidth < 440;
-        final horizontalPadding = compact ? 18.0 : 36.0;
-        final maxContentWidth = compact ? 520.0 : 760.0;
-        final imageHeight = (viewportHeight * (compact ? 0.48 : 0.52)).clamp(
-          compact ? 330.0 : 450.0,
-          compact ? 560.0 : 720.0,
+        final horizontalPadding = layout.scaled(
+          30,
+          small: 18,
+          large: 42,
+          extraLarge: 56,
         );
+        final verticalPadding = layout.scaled(
+          30,
+          small: 20,
+          large: 38,
+          extraLarge: 48,
+        );
+        final maxContentWidth = (layout.portrait ? viewportWidth : 1040.0)
+            .clamp(
+              compact ? 520.0 : 760.0,
+              layout.isExtraLarge ? 1180.0 : 960.0,
+            )
+            .toDouble();
+        final headerGap = layout.scaled(22, small: 16, large: 26);
+        final actionGap = layout.scaled(20, small: 14, large: 24);
+        final actionTileHeight = layout.scaled(
+          96,
+          small: 82,
+          large: 112,
+          extraLarge: 124,
+        );
+        final minimumImageHeight = layout.scaled(
+          360,
+          small: 280,
+          large: 620,
+          extraLarge: 820,
+        );
+        final actionRows = stackActions ? 4 : 2;
+        final actionHeight =
+            (actionRows * actionTileHeight) + ((actionRows - 1) * actionGap);
+        final minimumContentHeight =
+            verticalPadding * 2 +
+            layout.scaled(64, small: 50, large: 72) +
+            headerGap +
+            minimumImageHeight +
+            actionGap +
+            actionHeight;
+        final scroll = viewportHeight < minimumContentHeight;
 
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -145,69 +184,89 @@ class _ResultPage extends StatelessWidget {
             borderRadius: BorderRadius.circular(34),
           ),
           child: SingleChildScrollView(
+            physics: scroll ? null : const NeverScrollableScrollPhysics(),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: viewportHeight),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
-                  compact ? 30 : 46,
+                  verticalPadding,
                   horizontalPadding,
-                  compact ? 24 : 36,
+                  verticalPadding,
                 ),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: maxContentWidth),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const _ResultHeader(),
-                        SizedBox(height: compact ? 22 : 30),
-                        SizedBox(
-                          height: imageHeight,
-                          child: _ResultImageCard(imageSrc: imageSrc),
-                        ),
-                        SizedBox(height: compact ? 22 : 30),
-                        _ActionGrid(
-                          stackActions: stackActions,
-                          compact: compact,
-                          topLeft: _ResultTileAction(
-                            key: const Key('try-another-garment'),
-                            icon: Icons.texture_outlined,
-                            iconColor: _ResultTokens.orangeDeep,
-                            title: 'Try Another',
-                            subtitle: 'Choose fabric',
-                            background: _ResultTokens.primarySurface,
-                            onPressed: onTryAnotherGarment,
+                    child: SizedBox(
+                      height: scroll
+                          ? null
+                          : viewportHeight - verticalPadding * 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _ResultHeader(layout: layout),
+                          SizedBox(height: headerGap),
+                          if (scroll)
+                            SizedBox(
+                              height: minimumImageHeight,
+                              child: _ResultImageCard(imageSrc: imageSrc),
+                            )
+                          else
+                            Expanded(
+                              child: _ResultImageCard(imageSrc: imageSrc),
+                            ),
+                          SizedBox(height: actionGap),
+                          _ActionGrid(
+                            stackActions: stackActions,
+                            compact: compact,
+                            gap: actionGap,
+                            topLeft: _ResultTileAction(
+                              key: const Key('try-another-garment'),
+                              icon: Icons.texture_outlined,
+                              iconColor: _ResultTokens.orangeDeep,
+                              title: 'Try Another',
+                              subtitle: 'Choose fabric',
+                              background: _ResultTokens.primarySurface,
+                              height: actionTileHeight,
+                              compact: compact,
+                              onPressed: onTryAnotherGarment,
+                            ),
+                            topRight: _ResultTileAction(
+                              key: const Key('get-my-looks'),
+                              icon: Icons.collections_outlined,
+                              iconColor: _ResultTokens.gold,
+                              title: 'Get My Looks',
+                              subtitle: 'Explore styles',
+                              background: _ResultTokens.looksSurface,
+                              height: actionTileHeight,
+                              compact: compact,
+                              onPressed: onGetMyLooks,
+                            ),
+                            bottomLeft: _ResultTileAction(
+                              key: const Key('result-retake-photo'),
+                              icon: Icons.camera_alt_outlined,
+                              iconColor: _ResultTokens.orangeDeep,
+                              title: 'Retake Photo',
+                              subtitle: 'Capture again',
+                              background: _ResultTokens.retakeSurface,
+                              height: actionTileHeight,
+                              compact: compact,
+                              onPressed: onRetakePhoto,
+                            ),
+                            bottomRight: _ResultTileAction(
+                              key: const Key('finish-try-on'),
+                              icon: Icons.home_outlined,
+                              iconColor: _ResultTokens.ink,
+                              title: 'Finish',
+                              subtitle: 'Go to home',
+                              background: _ResultTokens.finishSurface,
+                              height: actionTileHeight,
+                              compact: compact,
+                              onPressed: onFinish,
+                            ),
                           ),
-                          topRight: _ResultTileAction(
-                            key: const Key('get-my-looks'),
-                            icon: Icons.collections_outlined,
-                            iconColor: _ResultTokens.gold,
-                            title: 'Get My Looks',
-                            subtitle: 'Explore styles',
-                            background: _ResultTokens.looksSurface,
-                            onPressed: onGetMyLooks,
-                          ),
-                          bottomLeft: _ResultTileAction(
-                            key: const Key('result-retake-photo'),
-                            icon: Icons.camera_alt_outlined,
-                            iconColor: _ResultTokens.orangeDeep,
-                            title: 'Retake Photo',
-                            subtitle: 'Capture again',
-                            background: _ResultTokens.retakeSurface,
-                            onPressed: onRetakePhoto,
-                          ),
-                          bottomRight: _ResultTileAction(
-                            key: const Key('finish-try-on'),
-                            icon: Icons.home_outlined,
-                            iconColor: _ResultTokens.ink,
-                            title: 'Finish',
-                            subtitle: 'Go to home',
-                            background: _ResultTokens.finishSurface,
-                            onPressed: onFinish,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -221,10 +280,14 @@ class _ResultPage extends StatelessWidget {
 }
 
 class _ResultHeader extends StatelessWidget {
-  const _ResultHeader();
+  const _ResultHeader({required this.layout});
+
+  final KioskLayoutMetrics layout;
 
   @override
   Widget build(BuildContext context) {
+    final titleSize = layout.scaled(42, small: 32, large: 50, extraLarge: 58);
+    final iconScale = layout.scaled(1, small: 0.72, large: 1.14);
     return Stack(
       alignment: Alignment.topCenter,
       clipBehavior: Clip.none,
@@ -237,35 +300,39 @@ class _ResultHeader extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                 color: _ResultTokens.ink,
-                fontSize: 48,
+                fontSize: titleSize,
                 fontWeight: FontWeight.w900,
                 height: 1,
               ),
             ),
           ],
         ),
-        const Positioned(
+        Positioned(
           top: -6,
           right: 92,
           child: Icon(
             Icons.auto_awesome,
             color: _ResultTokens.orangeDeep,
-            size: 22,
+            size: 22 * iconScale,
           ),
         ),
-        const Positioned(
+        Positioned(
           top: 14,
           right: 48,
           child: Icon(
             Icons.auto_awesome,
             color: _ResultTokens.orangeDeep,
-            size: 32,
+            size: 32 * iconScale,
           ),
         ),
-        const Positioned(
+        Positioned(
           top: 24,
           right: 16,
-          child: Icon(Icons.star, color: _ResultTokens.orangeDeep, size: 12),
+          child: Icon(
+            Icons.star,
+            color: _ResultTokens.orangeDeep,
+            size: 12 * iconScale,
+          ),
         ),
       ],
     );
@@ -309,6 +376,7 @@ class _ActionGrid extends StatelessWidget {
   const _ActionGrid({
     required this.stackActions,
     required this.compact,
+    required this.gap,
     required this.topLeft,
     required this.topRight,
     required this.bottomLeft,
@@ -317,6 +385,7 @@ class _ActionGrid extends StatelessWidget {
 
   final bool stackActions;
   final bool compact;
+  final double gap;
   final Widget topLeft;
   final Widget topRight;
   final Widget bottomLeft;
@@ -328,17 +397,16 @@ class _ActionGrid extends StatelessWidget {
       return Column(
         children: [
           topLeft,
-          const SizedBox(height: 12),
+          SizedBox(height: gap),
           topRight,
-          const SizedBox(height: 12),
+          SizedBox(height: gap),
           bottomLeft,
-          const SizedBox(height: 12),
+          SizedBox(height: gap),
           bottomRight,
         ],
       );
     }
 
-    final gap = compact ? 12.0 : 18.0;
     return Column(
       children: [
         Row(
@@ -369,6 +437,8 @@ class _ResultTileAction extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.background,
+    required this.height,
+    required this.compact,
     required this.onPressed,
   });
 
@@ -377,6 +447,8 @@ class _ResultTileAction extends StatelessWidget {
   final String title;
   final String subtitle;
   final Color background;
+  final double height;
+  final bool compact;
   final VoidCallback onPressed;
 
   @override
@@ -398,13 +470,17 @@ class _ResultTileAction extends StatelessWidget {
           ],
         ),
         child: SizedBox(
-          height: 104,
+          height: height,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 18),
             child: Row(
               children: [
-                _IconBubble(icon: icon, color: iconColor),
-                const SizedBox(width: 14),
+                _IconBubble(
+                  icon: icon,
+                  color: iconColor,
+                  size: compact ? 46 : 54,
+                ),
+                SizedBox(width: compact ? 10 : 14),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -417,7 +493,7 @@ class _ResultTileAction extends StatelessWidget {
                         style: const TextStyle(
                           color: _ResultTokens.ink,
                           fontFamily: 'Manrope',
-                          fontSize: 21,
+                          fontSize: 20,
                           fontWeight: FontWeight.w900,
                           height: 1.05,
                         ),
@@ -430,7 +506,7 @@ class _ResultTileAction extends StatelessWidget {
                         style: const TextStyle(
                           color: _ResultTokens.muted,
                           fontFamily: 'Inter',
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w500,
                           height: 1.05,
                         ),
@@ -448,22 +524,27 @@ class _ResultTileAction extends StatelessWidget {
 }
 
 class _IconBubble extends StatelessWidget {
-  const _IconBubble({required this.icon, required this.color});
+  const _IconBubble({
+    required this.icon,
+    required this.color,
+    required this.size,
+  });
 
   final IconData icon;
   final Color color;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 54,
-      height: 54,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
         color: color.withValues(alpha: 0.08),
       ),
-      child: Icon(icon, color: color, size: 28),
+      child: Icon(icon, color: color, size: size * 0.52),
     );
   }
 }

@@ -15,6 +15,8 @@ import {
   KioskCatalogCategoryQueryDto,
   KioskCatalogProductListResponseDto,
   KioskCatalogQueryDto,
+  KioskCatalogRevisionDto,
+  KioskCatalogSnapshotDto,
 } from "./dto/kiosk-catalog.dto.js";
 
 @ApiTags("Kiosk Catalog")
@@ -39,6 +41,40 @@ export class KioskCatalogController {
   ): Promise<KioskCatalogProductListResponseDto> {
     const device = await this.kiosks.requireDevice(authorization);
     return this.catalog.listKioskProducts(device.organizationId, query);
+  }
+
+  @Get("revision")
+  @ApiOperation({
+    summary: "Return the current catalog revision for the authenticated kiosk",
+  })
+  @ApiOkResponse({ type: KioskCatalogRevisionDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  async revision(
+    @Headers("authorization") authorization: string | undefined,
+  ): Promise<KioskCatalogRevisionDto> {
+    const device = await this.kiosks.requireDevice(authorization);
+    return this.catalog.getKioskCatalogRevision(
+      device.organizationId,
+      device.configuration?.version ?? 1,
+    );
+  }
+
+  @Get("snapshot")
+  @ApiOperation({
+    summary: "Return a cacheable catalog snapshot for the authenticated kiosk",
+  })
+  @ApiOkResponse({ type: KioskCatalogSnapshotDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  async snapshot(
+    @Headers("authorization") authorization: string | undefined,
+  ): Promise<KioskCatalogSnapshotDto> {
+    const device = await this.kiosks.requireDevice(authorization);
+    return this.catalog.getKioskCatalogSnapshot(
+      device.organizationId,
+      device.configuration?.version ?? 1,
+    );
   }
 
   @Get("categories")

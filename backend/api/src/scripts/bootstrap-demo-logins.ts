@@ -16,6 +16,7 @@ import { createSelfxId } from "@selfx/database";
 import { normalizeEmail } from "../auth/auth.service.js";
 import { PasswordService } from "../auth/password.service.js";
 import { loadSelfxEnv } from "../config/load-env.js";
+import { StoreRbacService } from "../rbac/store-rbac.service.js";
 
 loadSelfxEnv();
 
@@ -39,6 +40,11 @@ const PLATFORM_USERS: readonly DemoPlatformUser[] = [
     platformRole: PlatformRole.SELFX_SUPER_ADMIN,
   },
   {
+    email: "platform.staff@selfx.local",
+    displayName: "SelfX Demo Staff Admin",
+    platformRole: PlatformRole.SELFX_STAFF_ADMIN,
+  },
+  {
     email: "platform.support@selfx.local",
     displayName: "SelfX Demo Support Admin",
     platformRole: PlatformRole.SELFX_SUPPORT_ADMIN,
@@ -46,24 +52,6 @@ const PLATFORM_USERS: readonly DemoPlatformUser[] = [
 ];
 
 const MERCHANT_USERS: readonly DemoMerchantUser[] = [
-  {
-    email: "owner@selfx.local",
-    displayName: "Demo Organization Owner",
-    role: OrganizationMembershipRole.ORGANIZATION_OWNER,
-    storeScopeMode: MembershipStoreScopeMode.ALL_STORES,
-  },
-  {
-    email: "org.admin@selfx.local",
-    displayName: "Demo Organization Admin",
-    role: OrganizationMembershipRole.ORGANIZATION_ADMIN,
-    storeScopeMode: MembershipStoreScopeMode.ALL_STORES,
-  },
-  {
-    email: "org.staff@selfx.local",
-    displayName: "Demo Organization Staff",
-    role: OrganizationMembershipRole.ORGANIZATION_STAFF,
-    storeScopeMode: MembershipStoreScopeMode.ALL_STORES,
-  },
   {
     email: "store.owner@selfx.local",
     displayName: "Demo Store Owner",
@@ -82,13 +70,17 @@ const MERCHANT_USERS: readonly DemoMerchantUser[] = [
     role: OrganizationMembershipRole.STORE_STAFF,
     storeScopeMode: MembershipStoreScopeMode.SELECTED_STORES,
   },
-  {
-    email: "kiosk.operator@selfx.local",
-    displayName: "Demo Kiosk Operator",
-    role: OrganizationMembershipRole.KIOSK_OPERATOR,
-    storeScopeMode: MembershipStoreScopeMode.SELECTED_STORES,
-  },
 ];
+
+const STORE_ROLE_BY_MEMBERSHIP_ROLE = {
+  [OrganizationMembershipRole.ORGANIZATION_OWNER]: "store-admin",
+  [OrganizationMembershipRole.ORGANIZATION_ADMIN]: "store-admin",
+  [OrganizationMembershipRole.ORGANIZATION_STAFF]: "staff",
+  [OrganizationMembershipRole.STORE_OWNER]: "manager",
+  [OrganizationMembershipRole.STORE_MANAGER]: "manager",
+  [OrganizationMembershipRole.STORE_STAFF]: "staff",
+  [OrganizationMembershipRole.KIOSK_OPERATOR]: "staff",
+} satisfies Record<OrganizationMembershipRole, string>;
 
 async function main() {
   if (process.env.SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED !== "true") {
@@ -108,6 +100,7 @@ async function main() {
 
   const prisma = new PrismaClient();
   const passwords = new PasswordService();
+  const rbac = new StoreRbacService(prisma as never);
   const passwordHash = await passwords.hashPassword(password);
 
   try {
@@ -147,6 +140,7 @@ async function main() {
           status: StoreStatus.ACTIVE,
         },
       });
+      await rbac.ensureStoreRbacInTransaction(tx, organization.id, true);
 
       for (const demoUser of PLATFORM_USERS) {
         const user = await upsertUser(tx, demoUser, passwordHash);
@@ -173,6 +167,7 @@ async function main() {
 
       for (const demoUser of MERCHANT_USERS) {
         const user = await upsertUser(tx, demoUser, passwordHash);
+        const joinedAt = new Date();
         const membership = await tx.organizationMembership.upsert({
           where: {
             orgId_userId: {
@@ -187,12 +182,14 @@ async function main() {
             role: demoUser.role,
             storeScopeMode: demoUser.storeScopeMode,
             status: MembershipStatus.ACTIVE,
-            joinedAt: new Date(),
+            joinedAt,
+            suspendedAt: null,
           },
           update: {
             role: demoUser.role,
             storeScopeMode: demoUser.storeScopeMode,
             status: MembershipStatus.ACTIVE,
+            joinedAt,
             suspendedAt: null,
           },
         });
@@ -220,6 +217,12 @@ async function main() {
             where: { membershipId: membership.id },
           });
         }
+
+        await assignStoreRoleForMembership(tx, {
+          storeTenantId: organization.id,
+          membershipId: membership.id,
+          systemCode: STORE_ROLE_BY_MEMBERSHIP_ROLE[demoUser.role],
+        });
       }
     });
 
@@ -259,6 +262,50 @@ async function upsertUser(
       status: UserStatus.ACTIVE,
       emailVerifiedAt: new Date(),
     },
+  });
+}
+
+async function assignStoreRoleForMembership(
+  tx: Prisma.TransactionClient,
+  input: {
+    storeTenantId: string;
+    membershipId: string;
+    systemCode: string;
+  },
+) {
+  const role = await tx.storeRole.findUnique({
+    where: {
+      orgId_systemCode: {
+        orgId: input.storeTenantId,
+        systemCode: input.systemCode,
+      },
+    },
+    select: { id: true },
+  });
+  if (!role) {
+    throw new Error(`Demo Store role not found: ${input.systemCode}`);
+  }
+
+  await tx.storeMembershipRole.deleteMany({
+    where: {
+      membershipId: input.membershipId,
+      roleId: { not: role.id },
+    },
+  });
+  await tx.storeMembershipRole.upsert({
+    where: {
+      membershipId_roleId: {
+        membershipId: input.membershipId,
+        roleId: role.id,
+      },
+    },
+    create: {
+      id: createSelfxId(),
+      orgId: input.storeTenantId,
+      membershipId: input.membershipId,
+      roleId: role.id,
+    },
+    update: {},
   });
 }
 

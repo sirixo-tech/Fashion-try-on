@@ -15,6 +15,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'garment_review_screen.dart';
+import 'responsive_kiosk_layout.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -188,7 +189,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         bodyContext: widget.controller.captureTargetMetadata,
       ).photoType,
     );
-    if (widget.tryOnController.garmentPreviewEnabled) {
+    if (widget.tryOnController.garmentPreviewEnabled ||
+        garmentInput.intent == KioskGarmentIntent.auto) {
       return MaterialPageRoute<void>(
         builder: (_) => GarmentReviewScreen(
           captureController: widget.controller,
@@ -345,11 +347,19 @@ class _CaptureControls extends StatelessWidget {
     final leftAction = isCountdown ? onCancelCountdown : onBack;
     final leftIcon = isCountdown ? Icons.close : Icons.arrow_back;
     final leftTooltip = isCountdown ? 'Cancel countdown' : 'Back';
+    final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
+    final primarySize = layout.scaled(66, small: 58, large: 76, extraLarge: 88);
+    final railSize = layout.scaled(54, small: 48, large: 62, extraLarge: 72);
 
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 10, 28, 26),
+        padding: EdgeInsets.fromLTRB(
+          layout.pagePadding,
+          10,
+          layout.pagePadding,
+          layout.scaled(24, small: 16, large: 34, extraLarge: 44),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -377,7 +387,7 @@ class _CaptureControls extends StatelessWidget {
               const SizedBox(height: 12),
             ],
             SizedBox(
-              height: 66,
+              height: primarySize,
               child: Row(
                 children: [
                   Expanded(
@@ -387,6 +397,7 @@ class _CaptureControls extends StatelessWidget {
                         key: const Key('camera-back'),
                         tooltip: leftTooltip,
                         icon: leftIcon,
+                        dimension: railSize,
                         onPressed: leftAction,
                       ),
                     ),
@@ -400,6 +411,7 @@ class _CaptureControls extends StatelessWidget {
                             ? _captureIconFor(stage, canCaptureAnyway)
                             : null,
                         centerText: countdownText,
+                        dimension: primarySize,
                         onPressed: primaryAction,
                       ),
                     ),
@@ -411,6 +423,7 @@ class _CaptureControls extends StatelessWidget {
                         key: const Key('flip-person-camera'),
                         tooltip: 'Flip camera',
                         icon: Icons.cameraswitch_outlined,
+                        dimension: railSize,
                         onPressed: canFlipCamera ? onFlipCamera : null,
                       ),
                     ),
@@ -431,12 +444,14 @@ class _PrimaryCameraActionButton extends StatelessWidget {
     required this.label,
     required this.icon,
     this.centerText,
+    required this.dimension,
     required this.onPressed,
   });
 
   final String label;
   final IconData? icon;
   final String? centerText;
+  final double dimension;
   final VoidCallback? onPressed;
 
   @override
@@ -447,7 +462,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
         button: true,
         label: label,
         child: SizedBox.square(
-          dimension: 66,
+          dimension: dimension,
           child: FilledButton(
             onPressed: onPressed,
             style: FilledButton.styleFrom(
@@ -470,7 +485,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   )
-                : Icon(icon, size: 30),
+                : Icon(icon, size: dimension * 0.45),
           ),
         ),
       ),
@@ -483,11 +498,13 @@ class _CameraRailButton extends StatelessWidget {
     super.key,
     required this.tooltip,
     required this.icon,
+    required this.dimension,
     required this.onPressed,
   });
 
   final String tooltip;
   final IconData icon;
+  final double dimension;
   final VoidCallback? onPressed;
 
   @override
@@ -495,7 +512,7 @@ class _CameraRailButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: SizedBox.square(
-        dimension: 54,
+        dimension: dimension,
         child: IconButton(
           onPressed: onPressed,
           icon: Icon(icon),

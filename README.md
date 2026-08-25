@@ -803,21 +803,25 @@ merchant role explicitly:
 npm run demo:bootstrap
 ```
 
-These accounts all use the local-only `SELFX_DEMO_LOGIN_PASSWORD` from `.env`.
+These accounts all use the controlled testing `SELFX_DEMO_LOGIN_PASSWORD` from `.env`.
 The current local value is `SelfXLocalAdmin123!`.
+Set `NEXT_PUBLIC_SELFX_DEMO_LOGINS_ENABLED=true` and
+`NEXT_PUBLIC_SELFX_DEMO_LOGIN_PASSWORD` to the same local demo password to show
+the guarded quick-access buttons on the login screen. For a temporary deployed
+testing environment, set the same two `NEXT_PUBLIC_` variables in the web
+deployment environment and redeploy the web app. Turn
+`NEXT_PUBLIC_SELFX_DEMO_LOGINS_ENABLED` back to `false` before ending the
+testing period.
 
 | Role                       | Email                             |
 | -------------------------- | --------------------------------- |
 | Existing local super admin | `admin@selfx.local`               |
 | SELFX_SUPER_ADMIN          | `platform.superadmin@selfx.local` |
+| SELFX_STAFF_ADMIN          | `platform.staff@selfx.local`      |
 | SELFX_SUPPORT_ADMIN        | `platform.support@selfx.local`    |
-| ORGANIZATION_OWNER         | `owner@selfx.local`               |
-| ORGANIZATION_ADMIN         | `org.admin@selfx.local`           |
-| ORGANIZATION_STAFF         | `org.staff@selfx.local`           |
 | STORE_OWNER                | `store.owner@selfx.local`         |
 | STORE_MANAGER              | `store.manager@selfx.local`       |
 | STORE_STAFF                | `store.staff@selfx.local`         |
-| KIOSK_OPERATOR             | `kiosk.operator@selfx.local`      |
 
 ## Database
 

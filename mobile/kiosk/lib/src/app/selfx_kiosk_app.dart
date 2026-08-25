@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../camera/camera_plugin_service.dart';
 import '../camera/camera_service.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
+import '../catalog/kiosk_catalog_repository.dart';
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_gateway.dart';
 import '../device/kiosk_device_session_controller.dart';
@@ -54,6 +55,20 @@ class SelfxKioskApp extends StatelessWidget {
       deviceController: deviceController,
       preferences: preferences,
     );
+    final tryOnController = KioskTryOnSessionController(
+      gateway: SelfxKioskTryOnGateway(
+        config: KioskTryOnApiConfig.fromEnvironment(),
+        deviceController: deviceController,
+      ),
+    );
+    final catalogGateway = KioskCatalogRepository(
+      remote: SelfxKioskCatalogGateway(
+        config: KioskCatalogApiConfig.fromEnvironment(),
+        deviceController: deviceController,
+      ),
+      preferences: preferences,
+      canApplyUpdates: () => tryOnController.canActivateRuntimeConfiguration,
+    );
     final captureStore = TemporaryCaptureStore();
     return SelfxKioskApp(
       deviceController: deviceController,
@@ -77,12 +92,7 @@ class SelfxKioskApp extends StatelessWidget {
               ),
         captureStore: captureStore,
       ),
-      tryOnController: KioskTryOnSessionController(
-        gateway: SelfxKioskTryOnGateway(
-          config: KioskTryOnApiConfig.fromEnvironment(),
-          deviceController: deviceController,
-        ),
-      ),
+      tryOnController: tryOnController,
       uploadController: KioskCustomerUploadController(
         deviceController: deviceController,
         gateway: SelfxKioskCustomerUploadGateway(
@@ -90,10 +100,7 @@ class SelfxKioskApp extends StatelessWidget {
         ),
         captureStore: captureStore,
       ),
-      catalogGateway: SelfxKioskCatalogGateway(
-        config: KioskCatalogApiConfig.fromEnvironment(),
-        deviceController: deviceController,
-      ),
+      catalogGateway: catalogGateway,
       extractionService: SelfxGarmentExtractionService(
         config: KioskGarmentExtractionApiConfig.fromEnvironment(),
         deviceController: deviceController,

@@ -71,6 +71,10 @@ export type KioskConfiguration = {
     maxVideoBytes: number;
     supportedContentTypes: string[];
   };
+  captureUpload: {
+    maxImageBytes: number;
+    supportedContentTypes: string[];
+  };
   updatedAt: string;
 };
 
@@ -121,6 +125,18 @@ export async function listKioskDevices(
     { accessToken },
   );
   return response.data;
+}
+
+export function requestKioskCatalogSync(
+  accessToken: string,
+): Promise<{ updatedDevices: number; requestedAt: string }> {
+  return selfxApi<{ updatedDevices: number; requestedAt: string }>(
+    "/api/v1/admin/kiosks/catalog/sync",
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
 }
 
 export function listKioskAssignmentOptions(

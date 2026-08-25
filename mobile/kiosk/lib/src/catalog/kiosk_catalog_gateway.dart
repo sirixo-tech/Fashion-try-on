@@ -9,6 +9,10 @@ import '../device/kiosk_device_session_controller.dart';
 import 'kiosk_catalog_models.dart';
 
 abstract class KioskCatalogGateway {
+  Future<KioskCatalogRevision> getCatalogRevision();
+
+  Future<KioskCatalogSnapshot> getCatalogSnapshot();
+
   Future<List<KioskCatalogCategory>> getCatalogCategories({
     required KioskCatalogAudience audience,
   });
@@ -23,6 +27,22 @@ abstract class KioskCatalogGateway {
 
 class UnavailableKioskCatalogGateway implements KioskCatalogGateway {
   const UnavailableKioskCatalogGateway();
+
+  @override
+  Future<KioskCatalogRevision> getCatalogRevision() {
+    throw const KioskCatalogException(
+      'KIOSK_API_NOT_CONFIGURED',
+      'SelfX catalog is not configured on this kiosk.',
+    );
+  }
+
+  @override
+  Future<KioskCatalogSnapshot> getCatalogSnapshot() {
+    throw const KioskCatalogException(
+      'KIOSK_API_NOT_CONFIGURED',
+      'SelfX catalog is not configured on this kiosk.',
+    );
+  }
 
   @override
   Future<List<KioskCatalogCategory>> getCatalogCategories({
@@ -78,6 +98,26 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
   final KioskDeviceSessionController deviceController;
   final http.Client client;
   final Duration timeout;
+
+  @override
+  Future<KioskCatalogRevision> getCatalogRevision() async {
+    _assertConfigured();
+    final response = await _getWithDeviceAuth(
+      _catalogUri('revision'),
+      forceRefresh: false,
+    );
+    return KioskCatalogRevision.fromJson(_decodeObject(response));
+  }
+
+  @override
+  Future<KioskCatalogSnapshot> getCatalogSnapshot() async {
+    _assertConfigured();
+    final response = await _getWithDeviceAuth(
+      _catalogUri('snapshot'),
+      forceRefresh: false,
+    );
+    return KioskCatalogSnapshot.fromJson(_decodeObject(response));
+  }
 
   @override
   Future<List<KioskCatalogCategory>> getCatalogCategories({

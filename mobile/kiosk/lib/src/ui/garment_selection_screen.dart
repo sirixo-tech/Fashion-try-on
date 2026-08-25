@@ -10,8 +10,8 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
-import 'garment_intent_picker.dart';
 import 'kiosk_chrome.dart';
+import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
 
 const _garmentSelectionBackgroundVideo =
@@ -38,17 +38,8 @@ class GarmentSelectionScreen extends StatefulWidget {
 }
 
 class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
-  KioskGarmentIntent? _selectedIntent;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedIntent = selectedGarmentIntentFor(widget.tryOnController);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final selectedIntent = _selectedIntent;
     return KioskScaffold(
       title: 'SelfX Kiosk',
       subtitle: 'Choose garment',
@@ -59,100 +50,110 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
         color: Colors.white,
         icon: const Icon(Icons.arrow_back),
       ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'Choose Your Look',
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                    color: Colors.white,
-                    fontSize: 46,
-                    fontWeight: FontWeight.w800,
-                    shadows: const [
-                      Shadow(
-                        color: Color(0x99000000),
-                        blurRadius: 24,
-                        offset: Offset(0, 4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = KioskLayoutMetrics.fromConstraints(constraints);
+          final buttonHeight = layout.scaled(
+            92,
+            small: 76,
+            large: 108,
+            extraLarge: 122,
+          );
+          final titleSize = layout.scaled(46, small: 34, large: 54);
+          return SingleChildScrollView(
+            physics: constraints.maxHeight < 520
+                ? null
+                : const NeverScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: layout.portrait ? 820 : 760,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Choose Your Look',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.displaySmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontSize: titleSize,
+                                fontWeight: FontWeight.w800,
+                                shadows: const [
+                                  Shadow(
+                                    color: Color(0x99000000),
+                                    blurRadius: 24,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                        ),
+                      ),
+                      SizedBox(height: layout.scaled(10, small: 8)),
+                      Text(
+                        'How would you like to start?',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          shadows: const [
+                            Shadow(
+                              color: Color(0x99000000),
+                              blurRadius: 18,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: layout.scaled(30, small: 20, large: 40)),
+                      SelfxKioskButton(
+                        key: const Key('browse-products-source'),
+                        label: 'Browse Products',
+                        subtitle: 'Explore available garments',
+                        icon: Icons.checkroom_outlined,
+                        trailing: const Icon(Icons.arrow_forward),
+                        variant: SelfxKioskButtonVariant.primary,
+                        minHeight: buttonHeight,
+                        expanded: true,
+                        textAlign: TextAlign.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: layout.scaled(22, small: 18),
+                          vertical: layout.scaled(18, small: 14),
+                        ),
+                        onPressed: () => _openBrowseProducts(context),
+                      ),
+                      SizedBox(height: layout.panelGap),
+                      SelfxKioskButton(
+                        key: const Key('capture-garment-source'),
+                        label: 'Capture Garment',
+                        subtitle: 'SelfX identifies the garment automatically',
+                        icon: Icons.camera_alt_outlined,
+                        trailing: const Icon(Icons.arrow_forward),
+                        variant: SelfxKioskButtonVariant.primary,
+                        minHeight: buttonHeight,
+                        expanded: true,
+                        textAlign: TextAlign.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: layout.scaled(22, small: 18),
+                          vertical: layout.scaled(18, small: 14),
+                        ),
+                        onPressed: () => _openCaptureGarment(context),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                'How would you like to start?',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.92),
-                  shadows: const [
-                    Shadow(
-                      color: Color(0x99000000),
-                      blurRadius: 18,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
-              _GarmentIntentSelector(
-                intents: widget.tryOnController.enabledGarmentIntents,
-                selected: selectedIntent,
-                onSelected: (intent) {
-                  widget.tryOnController.selectPendingGarmentIntent(intent);
-                  setState(() => _selectedIntent = intent);
-                },
-              ),
-              const SizedBox(height: 20),
-              SelfxKioskButton(
-                key: const Key('browse-products-source'),
-                label: 'Browse Products',
-                subtitle: 'Explore available garments',
-                icon: Icons.checkroom_outlined,
-                trailing: const Icon(Icons.arrow_forward),
-                variant: SelfxKioskButtonVariant.primary,
-                minHeight: 92,
-                expanded: true,
-                textAlign: TextAlign.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 18,
-                ),
-                onPressed: () => _openBrowseProducts(context),
-              ),
-              const SizedBox(height: 18),
-              SelfxKioskButton(
-                key: const Key('capture-garment-source'),
-                label: 'Capture Garment',
-                subtitle: selectedIntent == null
-                    ? 'Choose garment type first'
-                    : 'Take a quick snapshot',
-                icon: Icons.camera_alt_outlined,
-                trailing: const Icon(Icons.arrow_forward),
-                variant: SelfxKioskButtonVariant.primary,
-                minHeight: 92,
-                expanded: true,
-                textAlign: TextAlign.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 18,
-                ),
-                onPressed: selectedIntent == null
-                    ? null
-                    : () => _openCaptureGarment(context, selectedIntent),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -171,11 +172,8 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
     );
   }
 
-  void _openCaptureGarment(
-    BuildContext context,
-    KioskGarmentIntent garmentIntent,
-  ) {
-    widget.tryOnController.selectPendingGarmentIntent(garmentIntent);
+  void _openCaptureGarment(BuildContext context) {
+    widget.tryOnController.selectPendingGarmentIntent(KioskGarmentIntent.auto);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
@@ -184,47 +182,9 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
           purpose: PhotoAcquisitionPurpose.garment,
-          garmentIntent: garmentIntent,
           extractionService: widget.extractionService,
         ),
       ),
-    );
-  }
-}
-
-class _GarmentIntentSelector extends StatelessWidget {
-  const _GarmentIntentSelector({
-    required this.intents,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final List<KioskGarmentIntent> intents;
-  final KioskGarmentIntent? selected;
-  final ValueChanged<KioskGarmentIntent> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = intents
-        .where((intent) => intent != KioskGarmentIntent.auto)
-        .toList(growable: false);
-    if (visible.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      alignment: WrapAlignment.center,
-      children: [
-        for (final intent in visible)
-          ChoiceChip(
-            key: Key('garment-intent-${intent.apiValue}'),
-            label: Text(intent.customerLabel),
-            selected: selected == intent,
-            onSelected: (_) => onSelected(intent),
-          ),
-      ],
     );
   }
 }

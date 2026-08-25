@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../catalog/kiosk_catalog_gateway.dart';
+import '../catalog/kiosk_catalog_repository.dart';
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_session_controller.dart';
 import '../operator/operator_access.dart';
@@ -41,12 +42,23 @@ class KioskStartupScreen extends StatefulWidget {
 
 class _KioskStartupScreenState extends State<KioskStartupScreen> {
   int? _lastRequestedConfigurationVersion;
+  bool _catalogAutoRefreshStarted = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(widget.configurationController.loadCachedOrDefault());
+    final catalogRepository = _catalogRepository;
+    if (catalogRepository != null) {
+      unawaited(catalogRepository.loadCachedOrDefault());
+    }
     unawaited(widget.deviceController.start());
+  }
+
+  @override
+  void dispose() {
+    _catalogRepository?.stopAutoRefresh();
+    super.dispose();
   }
 
   @override
@@ -56,6 +68,7 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
       builder: (context, _) {
         switch (widget.deviceController.state) {
           case KioskStartupState.active:
+            _startCatalogAutoRefresh();
             _syncConfigurationIfNeeded();
             return KioskHomeScreen(
               controller: widget.captureController,
@@ -122,10 +135,31 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
         widget.tryOnController.applyGarmentPreviewEnabled(
           widget.configurationController.configuration.garmentPreviewEnabled,
         );
+        widget.tryOnController.applyCaptureUploadMaxImageBytes(
+          widget
+              .configurationController
+              .configuration
+              .captureUploadMaxImageBytes,
+        );
+        await _catalogRepository?.syncIfNeeded(force: true);
       } catch (_) {
         unawaited(widget.deviceController.handleDeviceAuthRejected());
       }
     }());
+  }
+
+  void _startCatalogAutoRefresh() {
+    if (_catalogAutoRefreshStarted) {
+      return;
+    }
+    _catalogAutoRefreshStarted = true;
+    _catalogRepository?.startAutoRefresh();
+    unawaited(_catalogRepository?.syncIfNeeded());
+  }
+
+  KioskCatalogRepository? get _catalogRepository {
+    final gateway = widget.catalogGateway;
+    return gateway is KioskCatalogRepository ? gateway : null;
   }
 }
 

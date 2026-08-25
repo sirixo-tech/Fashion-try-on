@@ -66,8 +66,6 @@ const presentationMediaTypes = [
   ...presentationImageTypes,
   ...presentationVideoTypes,
 ];
-const maxPresentationImageBytes = 12 * 1024 * 1024;
-const maxPresentationVideoBytes = 80 * 1024 * 1024;
 const bundledDefaultVideoUrl = "/kiosk/default-start-screen.mp4";
 
 type KioskConfigurationForm = {
@@ -111,6 +109,10 @@ export default function KioskEditPage() {
   const [version, setVersion] = useState(1);
   const [displayName, setDisplayName] = useState("");
   const [assignmentStoreId, setAssignmentStoreId] = useState("");
+  const [assetUploadLimits, setAssetUploadLimits] = useState({
+    maxImageBytes: 12 * 1024 * 1024,
+    maxVideoBytes: 80 * 1024 * 1024,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -147,6 +149,10 @@ export default function KioskEditPage() {
       setOptions(nextOptions);
       setVersion(configuration.version);
       setForm(formFromConfiguration(configuration));
+      setAssetUploadLimits({
+        maxImageBytes: configuration.assetUpload.maxImageBytes,
+        maxVideoBytes: configuration.assetUpload.maxVideoBytes,
+      });
       setDisplayName(nextDevice.displayName);
       setAssignmentStoreId(currentAssignmentStoreId(nextDevice));
     } catch (caught) {
@@ -225,6 +231,10 @@ export default function KioskEditPage() {
       });
       setVersion(configuration.version);
       setForm(formFromConfiguration(configuration));
+      setAssetUploadLimits({
+        maxImageBytes: configuration.assetUpload.maxImageBytes,
+        maxVideoBytes: configuration.assetUpload.maxVideoBytes,
+      });
       setDisplayName(nextDevice.displayName);
       setAssignmentStoreId(currentAssignmentStoreId(nextDevice));
       setSuccessMessage("Kiosk configuration saved successfully.");
@@ -250,11 +260,15 @@ export default function KioskEditPage() {
       return;
     }
     const invalid = uploadableFiles.find(
-      (file) => !isSupportedPresentationFile(file),
+      (file) => !isSupportedPresentationFile(file, assetUploadLimits),
     );
     if (invalid) {
       setError(
-        "Upload JPG, PNG or WebP images up to 12 MB or MP4 videos up to 80 MB.",
+        `File is too big or not supported. Upload JPG, PNG or WebP images up to ${formatFileSize(
+          assetUploadLimits.maxImageBytes,
+        )}, or MP4 videos up to ${formatFileSize(
+          assetUploadLimits.maxVideoBytes,
+        )}.`,
       );
       return;
     }
@@ -920,12 +934,15 @@ function formatFileSize(sizeBytes?: number | null): string {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function isSupportedPresentationFile(file: File): boolean {
+function isSupportedPresentationFile(
+  file: File,
+  limits: { maxImageBytes: number; maxVideoBytes: number },
+): boolean {
   if (presentationImageTypes.includes(file.type)) {
-    return file.size <= maxPresentationImageBytes;
+    return file.size <= limits.maxImageBytes;
   }
   if (presentationVideoTypes.includes(file.type)) {
-    return file.size <= maxPresentationVideoBytes;
+    return file.size <= limits.maxVideoBytes;
   }
   return false;
 }

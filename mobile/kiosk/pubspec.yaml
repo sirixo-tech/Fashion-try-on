@@ -72,6 +72,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/audio/capture/countdown_tick.wav
     - assets/audio/capture/soft/
     - assets/audio/capture/classic/
     - assets/audio/capture/digital/

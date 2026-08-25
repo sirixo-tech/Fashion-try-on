@@ -277,6 +277,43 @@ describe("STORE-1 admin Stores", () => {
     expect(moved.latestConfigurationVersion).toBe(7);
   });
 
+  it("deletes only the requested Store product and removes its stored image", async () => {
+    const prisma = createPrismaMock();
+    const storage = {
+      createReadUrl: vi.fn().mockReturnValue("https://cdn.example/product.webp"),
+      deleteObject: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+      storage as never,
+    );
+    prisma.$queryRaw.mockResolvedValue([
+      storeProductRow({
+        id: "product-1",
+        name: "Demo Product",
+        image_storage_key: "stores/store-1/products/product-1.webp",
+      }),
+    ]);
+    prisma.$executeRaw.mockResolvedValue(1);
+
+    const deleted = await service.deleteStoreProduct("store-1", "product-1");
+
+    expect(deleted).toMatchObject({
+      id: "product-1",
+      name: "Demo Product",
+    });
+    expect(String(prisma.$executeRaw.mock.calls[0]?.[0])).toContain(
+      "AND organization_id = ",
+    );
+    expect(prisma.$executeRaw.mock.calls[0]).toContain("store-1");
+    expect(storage.deleteObject).toHaveBeenCalledWith(
+      "stores/store-1/products/product-1.webp",
+    );
+  });
+
   it("maps duplicate internal slugs to a Store slug conflict", async () => {
     const prisma = createPrismaMock();
     const service = new AdminStoresService(
@@ -443,6 +480,8 @@ function createPrismaMock() {
     auditLog: {
       create: vi.fn(),
     },
+    $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
     $transaction: vi.fn(async (callback: (transaction: typeof tx) => unknown) =>
       callback(tx),
     ),
@@ -551,6 +590,41 @@ function deviceRecordBase() {
     organization: { id: "store-1", name: "Demo Store" },
     store: null,
     configuration: { version: 1 },
+  };
+}
+
+function storeProductRow(
+  overrides: Partial<ReturnType<typeof storeProductRowBase>> = {},
+) {
+  return { ...storeProductRowBase(), ...overrides };
+}
+
+function storeProductRowBase() {
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  return {
+    id: "product-1",
+    name: "Demo Product",
+    slug: "demo-product",
+    description: "Demo product",
+    audience: "UNISEX",
+    category_id: "category-1",
+    category_name: "Tops",
+    category_slug: "tops",
+    active: true,
+    vto_enabled: true,
+    price_amount_cents: 1000,
+    price_currency: "INR",
+    product_url: null,
+    garment_intent: "TOP",
+    garment_category: "tops",
+    garment_photo_type: "AUTO",
+    image_url: null,
+    image_storage_key: null as string | null,
+    image_content_type: "image/webp",
+    image_width: 800,
+    image_height: 1200,
+    created_at: now,
+    updated_at: now,
   };
 }
 

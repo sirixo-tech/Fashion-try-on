@@ -268,6 +268,23 @@ export class AdminStoresController {
     return this.stores.updateStoreProduct(storeId, productId, dto);
   }
 
+  @Delete(":storeId/products/:productId")
+  @ApiOperation({ summary: "Delete a Store catalog product" })
+  @ApiOkResponse({ type: StoreProductDto })
+  async deleteProduct(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Param("productId", SelfxUuidParamPipe) productId: string,
+  ): Promise<StoreProductDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
+    return this.stores.deleteStoreProduct(storeId, productId);
+  }
+
   @Post(":storeId/products/images/upload-intent")
   @ApiOperation({ summary: "Create a Store product image upload URL" })
   @ApiOkResponse({ type: StoreProductImageUploadIntentDto })

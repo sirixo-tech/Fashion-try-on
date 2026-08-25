@@ -122,6 +122,19 @@ export function updatePlatformProduct(
   );
 }
 
+export function deletePlatformProduct(
+  accessToken: string,
+  productId: string,
+): Promise<PlatformProduct> {
+  return selfxApi<PlatformProduct>(
+    `/api/v1/admin/catalog/products/${productId}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
+}
+
 export function createPlatformProductImageUploadIntent(
   accessToken: string,
   input: { contentType: string; sizeBytes: number; fileName?: string },

@@ -18,6 +18,7 @@ class GarmentExtractionResult {
   const GarmentExtractionResult({
     required this.status,
     this.previewPath,
+    this.resolvedIntent,
     this.message,
     this.code,
     this.failureKind = GarmentExtractionFailureKind.temporary,
@@ -25,6 +26,7 @@ class GarmentExtractionResult {
 
   final GarmentExtractionStatus status;
   final String? previewPath;
+  final KioskGarmentIntent? resolvedIntent;
   final String? message;
   final String? code;
   final GarmentExtractionFailureKind failureKind;
@@ -153,6 +155,7 @@ class SelfxGarmentExtractionService implements GarmentExtractionService {
       return GarmentExtractionResult(
         status: GarmentExtractionStatus.succeeded,
         previewPath: savedPath,
+        resolvedIntent: _intentFromJson(response.body),
       );
     } on KioskDeviceException catch (error) {
       if (error.isRevoked) {
@@ -311,6 +314,26 @@ String? _errorCode(String body) {
     }
   } catch (_) {}
   return null;
+}
+
+KioskGarmentIntent? _intentFromJson(String body) {
+  try {
+    final json = jsonDecode(body);
+    if (json is Map<String, dynamic>) {
+      return _intentFromApiValue(json['garmentIntent']);
+    }
+  } catch (_) {}
+  return null;
+}
+
+KioskGarmentIntent? _intentFromApiValue(Object? value) {
+  return switch (value) {
+    'TOP' => KioskGarmentIntent.top,
+    'BOTTOM' => KioskGarmentIntent.bottom,
+    'ONE_PIECE' => KioskGarmentIntent.onePiece,
+    'FULL_OUTFIT' => KioskGarmentIntent.fullOutfit,
+    _ => null,
+  };
 }
 
 MediaType _contentTypeFor(String path) {

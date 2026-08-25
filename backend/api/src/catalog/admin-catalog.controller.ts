@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -87,6 +97,23 @@ export class AdminCatalogController {
       PLATFORM_PERMISSIONS.platformProductsManage,
     );
     return this.catalog.updatePlatformProduct(productId, dto);
+  }
+
+  @Delete("products/:productId")
+  @ApiOperation({ summary: "Delete a platform default catalog product" })
+  @ApiOkResponse({ type: PlatformProductDto })
+  async deleteProduct(
+    @Req() request: FastifyRequest,
+    @Param("productId", SelfxUuidParamPipe) productId: string,
+  ): Promise<PlatformProductDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.platformProductsManage,
+    );
+    return this.catalog.deletePlatformProduct(productId);
   }
 
   @Post("products/images/upload-intent")

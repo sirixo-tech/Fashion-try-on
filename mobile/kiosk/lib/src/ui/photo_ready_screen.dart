@@ -1,10 +1,10 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../session/capture_session_controller.dart';
 import 'kiosk_chrome.dart';
+import 'responsive_kiosk_layout.dart';
 
 class PhotoReadyScreen extends StatefulWidget {
   const PhotoReadyScreen({super.key, required this.controller});
@@ -28,12 +28,8 @@ class _PhotoReadyScreenState extends State<PhotoReadyScreen> {
           ? const Center(child: Text('No accepted photo available.'))
           : LayoutBuilder(
               builder: (context, constraints) {
-                final portrait =
-                    constraints.maxHeight > constraints.maxWidth * 1.12;
-                final compact =
-                    constraints.maxWidth < 900 ||
-                    constraints.maxHeight < 620 ||
-                    portrait;
+                final layout = KioskLayoutMetrics.fromConstraints(constraints);
+                final compact = layout.stackPanels || layout.tightHeight;
                 final preview = Card(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -56,24 +52,16 @@ class _PhotoReadyScreenState extends State<PhotoReadyScreen> {
                 );
 
                 if (compact) {
-                  final previewHeight = math.max(
-                    portrait ? 460.0 : 260.0,
-                    math.min(
-                      portrait ? constraints.maxHeight * 0.46 : 430.0,
-                      portrait
-                          ? constraints.maxHeight * 0.52
-                          : constraints.maxWidth * 0.58,
-                    ),
-                  );
-                  return SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(height: previewHeight, child: preview),
-                        const SizedBox(height: 16),
-                        content,
-                      ],
-                    ),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: preview),
+                      SizedBox(height: layout.panelGap),
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: SingleChildScrollView(child: content),
+                      ),
+                    ],
                   );
                 }
 
@@ -81,8 +69,11 @@ class _PhotoReadyScreenState extends State<PhotoReadyScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(child: preview),
-                    const SizedBox(width: 24),
-                    SizedBox(width: 430, child: content),
+                    SizedBox(width: layout.panelGap),
+                    SizedBox(
+                      width: layout.sidePanelWidth,
+                      child: SingleChildScrollView(child: content),
+                    ),
                   ],
                 );
               },

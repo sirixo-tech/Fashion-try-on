@@ -638,6 +638,22 @@ export class AdminStoresService {
     };
   }
 
+  async deleteStoreProduct(
+    storeId: string,
+    productId: string,
+  ): Promise<StoreProductDto> {
+    const existing = await this.requireStoreProductRow(storeId, productId);
+    const deleted = this.mapStoreProduct(existing);
+    await this.prisma.$executeRaw`
+      DELETE FROM products
+      WHERE id = ${productId}::uuid
+        AND scope::text = 'STORE'
+        AND organization_id = ${storeId}::uuid
+    `;
+    await this.deleteProductImageIfStored(existing.image_storage_key);
+    return deleted;
+  }
+
   async pairStoreKiosk(
     actorUserId: string,
     storeId: string,
@@ -766,6 +782,23 @@ export class AdminStoresService {
     }
   }
 
+  private async requireStoreProductRow(
+    storeId: string,
+    productId: string,
+  ): Promise<StoreProductRow> {
+    const rows = await this.prisma.$queryRaw<StoreProductRow[]>`
+      ${storeProductSelect()}
+      WHERE p.id = ${productId}::uuid
+        AND p.scope::text = 'STORE'
+        AND p.organization_id = ${storeId}::uuid
+      LIMIT 1
+    `;
+    if (!rows[0]) {
+      throwStoreProductNotFound();
+    }
+    return rows[0];
+  }
+
   private async ensureStoreProductCategory(
     storeId: string,
     name: string,
@@ -838,6 +871,19 @@ export class AdminStoresService {
       key: storageKey,
       expiresInSeconds: catalogReadUrlTtlSeconds,
     });
+  }
+
+  private async deleteProductImageIfStored(
+    storageKey: string | null,
+  ): Promise<void> {
+    if (!storageKey) {
+      return;
+    }
+    try {
+      await this.requireStorage().deleteObject(storageKey);
+    } catch {
+      // Product deletion must not fail after the database row is gone.
+    }
   }
 
   private requireStorage(): ObjectStorageService {

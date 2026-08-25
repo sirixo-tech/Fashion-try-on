@@ -12,6 +12,7 @@ import {
   RefreshCwIcon,
   SearchIcon,
   ShieldAlertIcon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 
@@ -53,6 +54,7 @@ import { useSession } from "@/lib/session";
 import {
   createStoreProduct,
   createStoreProductImageUploadIntent,
+  deleteStoreProduct,
   getEffectiveStorePermissions,
   getStore,
   listStoreProducts,
@@ -93,6 +95,8 @@ export default function StoreProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<StoreProduct | null>(null);
+  const [deleting, setDeleting] = useState<StoreProduct | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
 
@@ -138,6 +142,23 @@ export default function StoreProductsPage() {
     () => products.filter((product) => product.active).length,
     [products],
   );
+
+  async function confirmDeleteProduct() {
+    if (!accessToken || !deleting) {
+      return;
+    }
+    setDeleteBusy(true);
+    setError(null);
+    try {
+      await deleteStoreProduct(accessToken, storeId, deleting.id);
+      setDeleting(null);
+      await load();
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   return (
     <PageContainer width="wide">
@@ -297,15 +318,27 @@ export default function StoreProductsPage() {
                       />
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!canUpdateProducts}
-                        onClick={() => setEditing(product)}
-                      >
-                        <Edit3Icon aria-hidden="true" />
-                        Edit
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canUpdateProducts}
+                          onClick={() => setEditing(product)}
+                        >
+                          <Edit3Icon aria-hidden="true" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canUpdateProducts}
+                          aria-label={`Delete ${product.name}`}
+                          onClick={() => setDeleting(product)}
+                        >
+                          <Trash2Icon aria-hidden="true" />
+                          Delete
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -342,7 +375,49 @@ export default function StoreProductsPage() {
           await load();
         }}
       />
+      <DeleteProductDialog
+        product={deleting}
+        deleting={deleteBusy}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => void confirmDeleteProduct()}
+      />
     </PageContainer>
+  );
+}
+
+function DeleteProductDialog({
+  product,
+  deleting,
+  onCancel,
+  onConfirm,
+}: {
+  product: StoreProduct | null;
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={product !== null} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete Product</DialogTitle>
+          <DialogDescription>
+            {product
+              ? `Delete ${product.name} from this Store catalog? This removes it from assigned kiosk catalog browsing.`
+              : "Delete this product?"}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" disabled={deleting} onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button disabled={deleting} onClick={onConfirm}>
+            <Trash2Icon aria-hidden="true" />
+            Delete Product
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

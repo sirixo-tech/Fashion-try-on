@@ -134,6 +134,10 @@ const configuration = {
       "video/mp4",
     ],
   },
+  captureUpload: {
+    maxImageBytes: 10 * 1024 * 1024,
+    supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
+  },
   updatedAt: "2026-08-16T00:00:00.000Z",
 } as const;
 

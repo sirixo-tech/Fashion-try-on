@@ -29,6 +29,7 @@ enum KioskTryOnFailureCode {
   generationTimedOut,
   modelImageIncompatibleWithGarment,
   garmentIntentUnresolved,
+  imageTooLarge,
   cancelled,
 }
 

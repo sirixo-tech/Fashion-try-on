@@ -15,15 +15,22 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
 import {
   type CreateKioskConfigurationAssetUploadDto,
+  type KioskCatalogSyncResponseDto,
   type KioskConfigurationAssetUploadIntentDto,
   type KioskConfigurationDto,
   type UpdateKioskConfigurationDto,
 } from "./dto/kiosk.dto.js";
-import { KIOSK_AUDIT_ACTIONS, KIOSK_ERROR_CODES } from "./kiosk.constants.js";
+import {
+  KIOSK_AUDIT_ACTIONS,
+  KIOSK_ERROR_CODES,
+  KIOSK_PRESENTATION_DEFAULT_MAX_IMAGE_BYTES,
+  KIOSK_PRESENTATION_DEFAULT_MAX_VIDEO_BYTES,
+} from "./kiosk.constants.js";
 import { KioskService } from "./kiosk.service.js";
 
 const fallbackBundledAssetKey = "selfx-default-kiosk-video";
@@ -52,8 +59,6 @@ const supportedUploadContentTypes = [
 const supportedUploadContentTypeSet = new Set<string>(
   supportedUploadContentTypes,
 );
-const maxPresentationImageBytes = 12 * 1024 * 1024;
-const maxPresentationVideoBytes = 80 * 1024 * 1024;
 const uploadIntentTtlSeconds = 300;
 const readUrlTtlSeconds = 900;
 
@@ -68,6 +73,7 @@ export class KioskConfigurationService {
     private readonly kiosks: KioskService,
     private readonly storage: ObjectStorageService,
     private readonly garmentPreviewSettings: GarmentPreviewSettingsService,
+    private readonly mediaUploadSettings: MediaUploadSettingsService,
   ) {}
 
   async getAdminConfiguration(
@@ -90,7 +96,9 @@ export class KioskConfigurationService {
   ): Promise<KioskConfigurationAssetUploadIntentDto> {
     await this.requireManageableDevice(deviceId);
     const contentType = normalizeUploadedContentType(input.contentType);
-    const maxBytes = maxBytesForContentType(contentType);
+    const uploadLimits =
+      await this.mediaUploadSettings.resolvePresentationUploadLimits();
+    const maxBytes = maxBytesForContentType(contentType, uploadLimits);
     if (!contentType || input.sizeBytes > maxBytes) {
       throwConfigurationInvalid("Presentation asset upload is invalid.");
     }
@@ -113,8 +121,8 @@ export class KioskConfigurationService {
         now.getTime() + uploadIntentTtlSeconds * 1000,
       ).toISOString(),
       headers: { "Content-Type": contentType },
-      maxImageBytes: maxPresentationImageBytes,
-      maxVideoBytes: maxPresentationVideoBytes,
+      maxImageBytes: uploadLimits.maxImageBytes,
+      maxVideoBytes: uploadLimits.maxVideoBytes,
       supportedContentTypes: [...supportedUploadContentTypes],
     };
   }
@@ -125,7 +133,9 @@ export class KioskConfigurationService {
     input: UpdateKioskConfigurationDto,
   ): Promise<KioskConfigurationDto> {
     await this.requireManageableDevice(deviceId);
-    const normalized = normalizeConfigurationInput(input, deviceId);
+    const uploadLimits =
+      await this.mediaUploadSettings.resolvePresentationUploadLimits();
+    const normalized = normalizeConfigurationInput(input, deviceId, uploadLimits);
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.kioskDeviceConfiguration.findUnique({
         where: { kioskDeviceId: deviceId },
@@ -197,6 +207,59 @@ export class KioskConfigurationService {
     return this.mapConfiguration(updated, storeId);
   }
 
+  async requestFleetCatalogSync(
+    actorUserId: string,
+  ): Promise<KioskCatalogSyncResponseDto> {
+    const requestedAt = new Date();
+    const updatedDevices = await this.prisma.$transaction(async (tx) => {
+      const devices = await tx.kioskDevice.findMany({
+        where: { status: KioskDeviceStatus.ACTIVE },
+        select: {
+          id: true,
+          organizationId: true,
+          storeId: true,
+          configuration: { select: { id: true, version: true } },
+        },
+      });
+      for (const device of devices) {
+        if (device.configuration) {
+          await tx.kioskDeviceConfiguration.update({
+            where: { id: device.configuration.id },
+            data: {
+              version: device.configuration.version + 1,
+              updatedByUserId: actorUserId,
+            },
+          });
+        } else {
+          await tx.kioskDeviceConfiguration.create({
+            data: {
+              id: createSelfxId(),
+              kioskDeviceId: device.id,
+              version: 2,
+              updatedByUserId: actorUserId,
+            },
+          });
+        }
+      }
+      if (devices.length > 0) {
+        await tx.auditLog.createMany({
+          data: devices.map((device) => ({
+            id: createSelfxId(),
+            action: KIOSK_AUDIT_ACTIONS.configured,
+            actorUserId,
+            organizationId: device.organizationId,
+            storeId: device.storeId,
+            resourceType: "kiosk_device",
+            resourceId: device.id,
+            metadata: { catalogSyncRequestedAt: requestedAt.toISOString() },
+          })),
+        });
+      }
+      return devices.length;
+    });
+    return { updatedDevices, requestedAt: requestedAt.toISOString() };
+  }
+
   async getDeviceConfiguration(
     authorization: string | undefined,
   ): Promise<KioskConfigurationDto> {
@@ -240,6 +303,10 @@ export class KioskConfigurationService {
     const assets = source.assets.length > 0 ? source.assets : defaultAssets();
     const garmentPreviewEnabled =
       await this.garmentPreviewSettings.resolveGarmentPreviewEnabled(storeId);
+    const [uploadLimits, captureImageMaxBytes] = await Promise.all([
+      this.mediaUploadSettings.resolvePresentationUploadLimits(),
+      this.mediaUploadSettings.resolveCaptureImageMaxBytes(),
+    ]);
     return {
       version: source.version,
       display: {
@@ -273,9 +340,13 @@ export class KioskConfigurationService {
       },
       assetUpload: {
         supported: true,
-        maxImageBytes: maxPresentationImageBytes,
-        maxVideoBytes: maxPresentationVideoBytes,
+        maxImageBytes: uploadLimits.maxImageBytes,
+        maxVideoBytes: uploadLimits.maxVideoBytes,
         supportedContentTypes: [...supportedUploadContentTypes],
+      },
+      captureUpload: {
+        maxImageBytes: captureImageMaxBytes,
+        supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
       },
       updatedAt: source.updatedAt.toISOString(),
     };
@@ -339,6 +410,7 @@ function defaultAssets(): KioskDeviceConfigurationAsset[] {
 function normalizeConfigurationInput(
   input: UpdateKioskConfigurationDto,
   deviceId: string,
+  uploadLimits: { maxImageBytes: number; maxVideoBytes: number },
 ) {
   assertEnumValue(
     allowedIdleModes,
@@ -386,7 +458,7 @@ function normalizeConfigurationInput(
     );
   }
   const assets = input.display.assets.map((asset) =>
-    normalizeAsset(asset, deviceId),
+    normalizeAsset(asset, deviceId, uploadLimits),
   );
   if (input.display.idleMode === KioskIdleMode.SLIDESHOW && assets.length < 2) {
     throwConfigurationInvalid(
@@ -425,6 +497,7 @@ function normalizeAsset(
     sizeBytes?: number;
   },
   deviceId: string,
+  uploadLimits: { maxImageBytes: number; maxVideoBytes: number },
 ) {
   assertEnumValue(
     allowedAssetTypes,
@@ -455,7 +528,7 @@ function normalizeAsset(
     if (!contentType) {
       throwConfigurationInvalid("Uploaded presentation asset is invalid.");
     }
-    const maxBytes = maxBytesForContentType(contentType);
+    const maxBytes = maxBytesForContentType(contentType, uploadLimits);
     if (!input.sizeBytes || input.sizeBytes > maxBytes) {
       throwConfigurationInvalid("Uploaded presentation asset is too large.");
     }
@@ -591,11 +664,17 @@ function normalizeUploadedContentType(value?: string): string | null {
   return contentType;
 }
 
-function maxBytesForContentType(contentType: string | null): number {
+function maxBytesForContentType(
+  contentType: string | null,
+  limits: { maxImageBytes: number; maxVideoBytes: number } = {
+    maxImageBytes: KIOSK_PRESENTATION_DEFAULT_MAX_IMAGE_BYTES,
+    maxVideoBytes: KIOSK_PRESENTATION_DEFAULT_MAX_VIDEO_BYTES,
+  },
+): number {
   if (contentType?.startsWith("video/")) {
-    return maxPresentationVideoBytes;
+    return limits.maxVideoBytes;
   }
-  return maxPresentationImageBytes;
+  return limits.maxImageBytes;
 }
 
 function kioskConfigurationAssetObjectKeyFor(

@@ -9,4 +9,10 @@ export class KioskGarmentExtractionResponseDto {
 
   @ApiProperty({ example: "image/png" })
   mimeType!: "image/png";
+
+  @ApiProperty({
+    enum: ["TOP", "BOTTOM", "ONE_PIECE", "FULL_OUTFIT"],
+    description: "Resolved garment intent used for preview and Try-On.",
+  })
+  garmentIntent!: "TOP" | "BOTTOM" | "ONE_PIECE" | "FULL_OUTFIT";
 }

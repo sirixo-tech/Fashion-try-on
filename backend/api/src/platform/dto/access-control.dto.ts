@@ -155,3 +155,11 @@ export class StorePermissionGrantDto extends AccessPermissionDto {
   @ApiProperty()
   granted!: boolean;
 }
+
+export class CurrentPlatformAccessDto {
+  @ApiProperty()
+  isSuperadmin!: boolean;
+
+  @ApiProperty({ type: [String] })
+  permissions!: string[];
+}

@@ -29,10 +29,22 @@ import {
 } from "@selfx/ui";
 
 import {
+  getCurrentPlatformAccess,
+  type CurrentPlatformAccess,
+} from "@/lib/access-control";
+import {
+  filterNavigationItems,
+  type NavigationAccess,
+} from "@/lib/navigation-access";
+import {
   listActiveOrganizations,
   type TenantOrganization,
 } from "@/lib/organizations";
 import { useSession } from "@/lib/session";
+import {
+  getEffectiveStorePermissions,
+  type EffectiveStorePermissions,
+} from "@/lib/stores";
 
 const navItems: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
@@ -100,11 +112,21 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     string | null
   >(null);
   const [organizationError, setOrganizationError] = useState(false);
+  const [platformAccess, setPlatformAccess] =
+    useState<CurrentPlatformAccess | null>(null);
+  const [storeAccess, setStoreAccess] =
+    useState<EffectiveStorePermissions | null>(null);
+  const [platformAccessError, setPlatformAccessError] = useState(false);
+  const [storeAccessError, setStoreAccessError] = useState(false);
 
   useEffect(() => {
     if (session.status !== "authenticated") {
       setOrganizations([]);
       setActiveOrganizationId(null);
+      setPlatformAccess(null);
+      setStoreAccess(null);
+      setPlatformAccessError(false);
+      setStoreAccessError(false);
       return;
     }
 
@@ -118,7 +140,11 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
         setOrganizationError(false);
         setOrganizations(data);
-        setActiveOrganizationId((current) => current ?? data[0]?.id ?? null);
+        setActiveOrganizationId((current) =>
+          current && data.some((organization) => organization.id === current)
+            ? current
+            : data[0]?.id ?? null,
+        );
       })
       .catch(() => {
         if (!cancelled) {
@@ -130,6 +156,68 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [session.accessToken, session.status]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") {
+      return;
+    }
+
+    let cancelled = false;
+    setPlatformAccessError(false);
+
+    getCurrentPlatformAccess(session.accessToken)
+      .then((nextAccess) => {
+        if (!cancelled) {
+          setPlatformAccess(nextAccess);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlatformAccessError(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session.accessToken, session.status]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated" || !activeOrganizationId) {
+      setStoreAccess(null);
+      setStoreAccessError(false);
+      return;
+    }
+
+    let cancelled = false;
+    setStoreAccessError(false);
+
+    getEffectiveStorePermissions(session.accessToken, activeOrganizationId)
+      .then((nextAccess) => {
+        if (!cancelled) {
+          setStoreAccess(nextAccess);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStoreAccessError(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId, session.accessToken, session.status]);
+
+  const filteredNavItems = filterNavigationItems(
+    navItems,
+    navigationAccess({
+      sessionHasPlatformAccess: session.user?.hasPlatformAccess ?? false,
+      platformAccess,
+      storeAccess,
+      hasActiveStore: activeOrganizationId !== null,
+    }),
+  );
 
   if (session.status === "loading") {
     return <LoadingState label="Checking session" />;
@@ -149,7 +237,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   return (
     <AppShell
-      navItems={navItems}
+      navItems={filteredNavItems}
       activePath={pathname}
       organizations={organizations}
       activeOrganizationId={activeOrganizationId}
@@ -160,11 +248,11 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         void session.logout().then(() => router.push("/login"));
       }}
     >
-      {organizationError ? (
+      {organizationError || platformAccessError || storeAccessError ? (
         <div className="flex min-h-[calc(100dvh-3.75rem)] items-center justify-center p-4">
           <ErrorState
-            title="Store context unavailable"
-            description="The shell could not load active Stores from SelfX."
+            title="Access context unavailable"
+            description="The shell could not load your current Store and permission context from SelfX."
             action={{ label: "Retry", onClick: () => void session.refresh() }}
           />
         </div>
@@ -173,4 +261,28 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       )}
     </AppShell>
   );
+}
+
+function navigationAccess({
+  sessionHasPlatformAccess,
+  platformAccess,
+  storeAccess,
+  hasActiveStore,
+}: {
+  sessionHasPlatformAccess: boolean;
+  platformAccess: CurrentPlatformAccess | null;
+  storeAccess: EffectiveStorePermissions | null;
+  hasActiveStore: boolean;
+}): NavigationAccess {
+  return {
+    isSuperadmin: platformAccess?.isSuperadmin ?? false,
+    hasPlatformAccess:
+      sessionHasPlatformAccess ||
+      (platformAccess?.permissions.length ?? 0) > 0 ||
+      (platformAccess?.isSuperadmin ?? false),
+    platformPermissions: platformAccess?.permissions ?? [],
+    storePermissions: storeAccess?.permissions ?? [],
+    storePlatformBypass: storeAccess?.platformBypass ?? false,
+    hasActiveStore,
+  };
 }

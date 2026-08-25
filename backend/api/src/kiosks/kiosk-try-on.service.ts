@@ -30,6 +30,8 @@ import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
 import type { CreateTryOnLabRunPayload } from "../try-on-lab/try-on-lab-multipart.js";
 import { TRY_ON_LAB_MAX_IMAGE_BYTES } from "../try-on-lab/try-on-lab.constants.js";
+import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
+import { KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES } from "./kiosk.constants.js";
 import type {
   KioskTryOnAssetResponseDto,
   KioskTryOnLooksResponseDto,
@@ -66,6 +68,7 @@ export class KioskTryOnService {
     @Optional() private readonly storage?: ObjectStorageService,
     @Optional() private readonly customerUploads?: KioskCustomerUploadService,
     @Optional() private readonly catalog?: CatalogService,
+    @Optional() private readonly mediaUploadSettings?: MediaUploadSettingsService,
   ) {}
 
   async createSession(
@@ -510,14 +513,17 @@ export class KioskTryOnService {
     asset: Pick<TryOnAsset, "storageKey" | "contentType">,
     fieldName: "personImage" | "garmentImage",
   ): Promise<KioskTryOnUploadedImage> {
+    const maxImageBytes =
+      (await this.mediaUploadSettings?.resolveCaptureImageMaxBytes()) ??
+      KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES;
     const buffer = await this.requireStorage().readObject(
       asset.storageKey,
-      TRY_ON_LAB_MAX_IMAGE_BYTES,
+      maxImageBytes,
     );
     const metadata = validateTechnicalImageBuffer({
       buffer,
       declaredContentType: asset.contentType,
-      maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
+      maxBytes: maxImageBytes,
     });
     return {
       fieldName,

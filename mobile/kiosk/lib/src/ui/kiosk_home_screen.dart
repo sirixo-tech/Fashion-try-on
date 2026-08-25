@@ -18,6 +18,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'camera_settings_screen.dart';
 import 'mobile_upload_screen.dart';
+import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
 
@@ -226,6 +227,15 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       widget.configurationController?.configuration.garmentPreviewEnabled ??
           false,
     );
+    final captureUploadMaxImageBytes = widget
+        .configurationController
+        ?.configuration
+        .captureUploadMaxImageBytes;
+    if (captureUploadMaxImageBytes != null) {
+      widget.tryOnController.applyCaptureUploadMaxImageBytes(
+        captureUploadMaxImageBytes,
+      );
+    }
     await widget.controller.resetSession();
     final started = await widget.tryOnController.beginCustomerSession();
     if (!mounted) {
@@ -273,6 +283,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     widget.tryOnController.applyGarmentPreviewEnabled(
       activated.garmentPreviewEnabled,
     );
+    widget.tryOnController.applyCaptureUploadMaxImageBytes(
+      activated.captureUploadMaxImageBytes,
+    );
   }
 
   @override
@@ -283,9 +296,20 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
           builder: (context, constraints) {
             final presentation = _presentation;
             final asset = presentation.assetAt(_slideIndex);
-            final portrait = constraints.maxHeight >= constraints.maxWidth;
-            final compact = constraints.maxWidth < 720;
-            final horizontalPadding = compact ? 22.0 : 52.0;
+            final layout = KioskLayoutMetrics.fromConstraints(constraints);
+            final compact = layout.isSmall || constraints.maxWidth < 720;
+            final horizontalPadding = layout.scaled(
+              42,
+              small: 22,
+              large: 64,
+              extraLarge: 92,
+            );
+            final verticalPadding = layout.scaled(
+              34,
+              small: 20,
+              large: 48,
+              extraLarge: 64,
+            );
             return Stack(
               fit: StackFit.expand,
               children: [
@@ -308,90 +332,146 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                 Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: horizontalPadding,
-                    vertical: compact ? 24 : 44,
+                    vertical: verticalPadding,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const _HomeBrand(),
                       Expanded(
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: portrait ? 820 : 760,
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    presentation.title,
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .displayMedium
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontSize: compact ? 42 : 54,
-                                          fontWeight: FontWeight.w900,
-                                          height: 1.04,
+                        child: LayoutBuilder(
+                          builder: (context, bodyConstraints) {
+                            final maxContentWidth = layout.portrait
+                                ? 840.0
+                                : 780.0;
+                            final titleSize = layout.scaled(
+                              50,
+                              small: 36,
+                              large: 60,
+                              extraLarge: 70,
+                            );
+                            final buttonHeight = layout.scaled(
+                              74,
+                              small: 62,
+                              large: 84,
+                              extraLarge: 94,
+                            );
+                            return SingleChildScrollView(
+                              physics: bodyConstraints.maxHeight < 360
+                                  ? null
+                                  : const NeverScrollableScrollPhysics(),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: bodyConstraints.maxHeight,
+                                ),
+                                child: Center(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: maxContentWidth,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            presentation.title,
+                                            textAlign: TextAlign.center,
+                                            maxLines: 1,
+                                            softWrap: false,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .displayMedium
+                                                ?.copyWith(
+                                                  color: Colors.white,
+                                                  fontSize: titleSize,
+                                                  fontWeight: FontWeight.w900,
+                                                  height: 1.04,
+                                                ),
+                                          ),
                                         ),
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                Text(
-                                  presentation.subtitle,
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.9,
+                                        SizedBox(
+                                          height: layout.scaled(
+                                            16,
+                                            small: 10,
+                                            large: 20,
+                                          ),
                                         ),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                                SizedBox(height: compact ? 28 : 36),
-                                SelfxKioskButton(
-                                  key: const Key('upload-from-mobile-start'),
-                                  label: 'Upload From Mobile',
-                                  icon: Icons.file_upload_outlined,
-                                  variant: SelfxKioskButtonVariant.primary,
-                                  backgroundColor: const Color(0xFFFFA21C),
-                                  borderColor: const Color(0xFFFFA21C),
-                                  minHeight: compact ? 66 : 74,
-                                  borderRadius: 999,
-                                  textAlign: TextAlign.center,
-                                  onPressed: _uploadFromMobile,
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: compact ? 30 : 44,
-                                    vertical: compact ? 20 : 26,
+                                        Text(
+                                          presentation.subtitle,
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge
+                                              ?.copyWith(
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.9,
+                                                ),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                        SizedBox(
+                                          height: layout.scaled(
+                                            30,
+                                            small: 20,
+                                            large: 42,
+                                          ),
+                                        ),
+                                        SelfxKioskButton(
+                                          key: const Key(
+                                            'upload-from-mobile-start',
+                                          ),
+                                          label: 'Upload From Mobile',
+                                          icon: Icons.file_upload_outlined,
+                                          variant:
+                                              SelfxKioskButtonVariant.primary,
+                                          backgroundColor: const Color(
+                                            0xFFFFA21C,
+                                          ),
+                                          borderColor: const Color(0xFFFFA21C),
+                                          minHeight: buttonHeight,
+                                          borderRadius: 999,
+                                          textAlign: TextAlign.center,
+                                          onPressed: _uploadFromMobile,
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: compact ? 28 : 44,
+                                            vertical: compact ? 18 : 26,
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          height: layout.scaled(
+                                            14,
+                                            small: 10,
+                                            large: 18,
+                                          ),
+                                        ),
+                                        SelfxKioskButton(
+                                          key: const Key('start-try-on'),
+                                          label: presentation.ctaLabel,
+                                          icon: Icons.auto_awesome_outlined,
+                                          variant:
+                                              SelfxKioskButtonVariant.primary,
+                                          minHeight: buttonHeight,
+                                          borderRadius: 999,
+                                          textAlign: TextAlign.center,
+                                          onPressed: _startTryOn,
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: compact ? 30 : 46,
+                                            vertical: compact ? 18 : 28,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(height: 16),
-                                SelfxKioskButton(
-                                  key: const Key('start-try-on'),
-                                  label: presentation.ctaLabel,
-                                  icon: Icons.auto_awesome_outlined,
-                                  variant: SelfxKioskButtonVariant.primary,
-                                  minHeight: compact ? 70 : 78,
-                                  borderRadius: 999,
-                                  textAlign: TextAlign.center,
-                                  onPressed: _startTryOn,
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: compact ? 32 : 46,
-                                    vertical: compact ? 22 : 28,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      SizedBox(height: compact ? 12 : 20),
+                      SizedBox(height: layout.scaled(14, small: 8, large: 22)),
                     ],
                   ),
                 ),
@@ -772,13 +852,16 @@ class _HomeBrand extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 720;
-        final logoWidth = (constraints.maxWidth * (compact ? 0.64 : 0.54))
-            .clamp(260.0, 520.0)
+        final layout = KioskLayoutMetrics.fromConstraints(constraints);
+        final compact = layout.isSmall || constraints.maxWidth < 720;
+        final logoWidth = (constraints.maxWidth * (compact ? 0.58 : 0.48))
+            .clamp(220.0, layout.isExtraLarge ? 620.0 : 500.0)
             .toDouble();
 
         return Padding(
-          padding: EdgeInsets.only(top: compact ? 24 : 32),
+          padding: EdgeInsets.only(
+            top: layout.scaled(22, small: 12, large: 30),
+          ),
           child: Align(
             alignment: Alignment.topCenter,
             child: Semantics(
@@ -788,28 +871,22 @@ class _HomeBrand extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ClipRect(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        heightFactor: 0.8,
-                        child: Image.asset(
-                          selfxLogoAssetPath,
-                          width: logoWidth,
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                          errorBuilder: (_, _, _) => Text(
-                            'SELFX',
-                            style: Theme.of(context).textTheme.displaySmall
-                                ?.copyWith(
-                                  color: const Color(0xFFFF7119),
-                                  fontWeight: FontWeight.w900,
-                                  height: 0.9,
-                                ),
-                          ),
-                        ),
+                    Image.asset(
+                      selfxLogoAssetPath,
+                      width: logoWidth,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, _, _) => Text(
+                        'SELFX',
+                        style: Theme.of(context).textTheme.displaySmall
+                            ?.copyWith(
+                              color: const Color(0xFFFF7119),
+                              fontWeight: FontWeight.w900,
+                              height: 0.9,
+                            ),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: compact ? 4 : 6),
                     Text(
                       'MAKE YOUR BUSINESS STANDOUT',
                       textAlign: TextAlign.center,

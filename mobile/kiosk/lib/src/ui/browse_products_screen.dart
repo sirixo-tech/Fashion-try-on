@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -369,6 +370,7 @@ class _ProductCard extends StatelessWidget {
         ? SelfxKioskTokens.primary
         : SelfxKioskTokens.border;
     final imageUrl = product.image.url?.trim();
+    final localImagePath = product.image.localPath?.trim();
     return Semantics(
       button: true,
       selected: selected,
@@ -392,19 +394,10 @@ class _ProductCard extends StatelessWidget {
                   children: [
                     ColoredBox(
                       color: SelfxKioskTokens.background,
-                      child: imageUrl == null || imageUrl.isEmpty
-                          ? const Center(
-                              child: Icon(Icons.broken_image_outlined),
-                            )
-                          : Image.network(
-                              imageUrl,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) {
-                                return const Center(
-                                  child: Icon(Icons.broken_image_outlined),
-                                );
-                              },
-                            ),
+                      child: _CatalogProductImage(
+                        localPath: localImagePath,
+                        imageUrl: imageUrl,
+                      ),
                     ),
                     if (selected)
                       Positioned(
@@ -453,6 +446,38 @@ class _ProductCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _CatalogProductImage extends StatelessWidget {
+  const _CatalogProductImage({required this.localPath, required this.imageUrl});
+
+  final String? localPath;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final local = localPath;
+    if (local != null && local.isNotEmpty && File(local).existsSync()) {
+      return Image.file(
+        File(local),
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => _brokenImage(),
+      );
+    }
+    final remote = imageUrl;
+    if (remote != null && remote.isNotEmpty) {
+      return Image.network(
+        remote,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => _brokenImage(),
+      );
+    }
+    return _brokenImage();
+  }
+
+  Widget _brokenImage() {
+    return const Center(child: Icon(Icons.broken_image_outlined));
   }
 }
 

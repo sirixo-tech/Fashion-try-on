@@ -327,7 +327,12 @@ class SilentCaptureAudioService implements CaptureAudioService {
 
 enum _CaptureAudioCue { start, tick, shutter }
 
+const _countdownTickAssetPath = 'audio/capture/countdown_tick.wav';
+
 String _assetPath(CaptureAudioProfile profile, _CaptureAudioCue cue) {
+  if (cue == _CaptureAudioCue.tick) {
+    return _countdownTickAssetPath;
+  }
   return 'audio/capture/${profile.name}/${_fileName(cue)}';
 }
 
