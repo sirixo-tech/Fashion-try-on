@@ -6,36 +6,29 @@ import {
   SELFX_AI_PROVIDER_ERROR_CODES,
   SelfxAiProviderError,
 } from "../ai/provider-errors.js";
-import { GarmentIntentClassifierService } from "../ai/garment-intent/garment-intent-classifier.service.js";
 import { GarmentPreviewService } from "../ai/garment-preview/garment-preview.service.js";
 import { type KioskGarmentExtractionPayload } from "./kiosk-garment-extraction.multipart.js";
-
-type ResolvedKioskGarmentIntent = Exclude<SelfxGarmentIntent, "AUTO">;
 
 export interface KioskGarmentExtractionResponse {
   imageDataUri: string;
   mimeType: "image/png";
-  garmentIntent: ResolvedKioskGarmentIntent;
+  garmentIntent: SelfxGarmentIntent;
 }
 
 @Injectable()
 export class KioskGarmentExtractionService {
-  constructor(
-    private readonly preview: GarmentPreviewService,
-    private readonly classifier: GarmentIntentClassifierService,
-  ) {}
+  constructor(private readonly preview: GarmentPreviewService) {}
 
   async extract(
     _device: unknown,
     payload: KioskGarmentExtractionPayload,
   ): Promise<KioskGarmentExtractionResponse> {
     try {
-      const garmentIntent = await this.resolveGarmentIntent(payload);
       const preview = await this.preview.generatePreview({
         image: payload.garmentImage,
-        garmentIntent,
+        garmentIntent: payload.garmentIntent,
       });
-      return { ...preview, garmentIntent };
+      return { ...preview, garmentIntent: payload.garmentIntent };
     } catch (error) {
       if (error instanceof SelfxAiProviderError) {
         const mapped = mapPreviewError(error);
@@ -47,16 +40,6 @@ export class KioskGarmentExtractionService {
         "SelfX could not prepare the garment image.",
       );
     }
-  }
-
-  private async resolveGarmentIntent(
-    payload: KioskGarmentExtractionPayload,
-  ): Promise<ResolvedKioskGarmentIntent> {
-    if (payload.garmentIntent !== "AUTO") {
-      return payload.garmentIntent;
-    }
-    const classification = await this.classifier.classify(payload.garmentImage);
-    return classification.intent;
   }
 }
 

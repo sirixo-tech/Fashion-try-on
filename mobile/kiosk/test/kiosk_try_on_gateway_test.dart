@@ -16,44 +16,47 @@ import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 
 void main() {
-  test('uses production kiosk endpoint with device session token', () async {
-    final tempDir = await Directory.systemTemp.createTemp('selfx-tryon-');
-    addTearDown(() async {
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
-      }
-    });
-    final request = await tryOnRequest(tempDir);
-    final deviceController = testDeviceController('device-token');
-    final gateway = SelfxKioskTryOnGateway(
-      config: const KioskTryOnApiConfig(apiBaseUrl: 'https://api.selfx.test'),
-      deviceController: deviceController,
-      client: MockClient((http.Request request) async {
-        expect(request.url.path, '/api/v1/kiosk/try-on/runs');
-        expect(
-          request.headers[HttpHeaders.authorizationHeader],
-          'Bearer device-token',
-        );
-        expect(
-          request.headers[HttpHeaders.contentTypeHeader],
-          startsWith('multipart/form-data; boundary='),
-        );
-        final multipartBody = utf8.decode(
-          request.bodyBytes,
-          allowMalformed: true,
-        );
-        expect(multipartBody, contains('original-garment.jpg'));
-        expect(multipartBody, isNot(contains('generated-preview.png')));
-        return jsonResponse({'id': 'run-1', 'status': 'QUEUED'});
-      }),
-    );
+  test(
+    'uses production kiosk endpoint with device session token and preview garment',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp('selfx-tryon-');
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final request = await tryOnRequest(tempDir);
+      final deviceController = testDeviceController('device-token');
+      final gateway = SelfxKioskTryOnGateway(
+        config: const KioskTryOnApiConfig(apiBaseUrl: 'https://api.selfx.test'),
+        deviceController: deviceController,
+        client: MockClient((http.Request request) async {
+          expect(request.url.path, '/api/v1/kiosk/try-on/runs');
+          expect(
+            request.headers[HttpHeaders.authorizationHeader],
+            'Bearer device-token',
+          );
+          expect(
+            request.headers[HttpHeaders.contentTypeHeader],
+            startsWith('multipart/form-data; boundary='),
+          );
+          final multipartBody = utf8.decode(
+            request.bodyBytes,
+            allowMalformed: true,
+          );
+          expect(multipartBody, contains('generated-preview.png'));
+          expect(multipartBody, isNot(contains('original-garment.jpg')));
+          return jsonResponse({'id': 'run-1', 'status': 'QUEUED'});
+        }),
+      );
 
-    final run = await gateway.createRun(request);
+      final run = await gateway.createRun(request);
 
-    expect(run.id, 'run-1');
-    expect(run.status, KioskTryOnStatus.queued);
-    deviceController.dispose();
-  });
+      expect(run.id, 'run-1');
+      expect(run.status, KioskTryOnStatus.queued);
+      deviceController.dispose();
+    },
+  );
 
   test('refreshes device session once on expired access token', () async {
     final tempDir = await Directory.systemTemp.createTemp('selfx-tryon-');

@@ -328,6 +328,7 @@ KioskGarmentIntent? _intentFromJson(String body) {
 
 KioskGarmentIntent? _intentFromApiValue(Object? value) {
   return switch (value) {
+    'AUTO' => KioskGarmentIntent.auto,
     'TOP' => KioskGarmentIntent.top,
     'BOTTOM' => KioskGarmentIntent.bottom,
     'ONE_PIECE' => KioskGarmentIntent.onePiece,

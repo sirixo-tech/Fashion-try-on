@@ -68,7 +68,8 @@ export class KioskTryOnService {
     @Optional() private readonly storage?: ObjectStorageService,
     @Optional() private readonly customerUploads?: KioskCustomerUploadService,
     @Optional() private readonly catalog?: CatalogService,
-    @Optional() private readonly mediaUploadSettings?: MediaUploadSettingsService,
+    @Optional()
+    private readonly mediaUploadSettings?: MediaUploadSettingsService,
   ) {}
 
   async createSession(
@@ -95,11 +96,12 @@ export class KioskTryOnService {
     payload: KioskSessionImagePayload,
   ): Promise<KioskTryOnAssetResponseDto> {
     if (payload.customerUploadSessionId) {
-      const upload = await this.requireCustomerUploads().consumeReadyUploadForAsset(
-        device,
-        payload.customerUploadSessionId,
-        KioskCustomerUploadPurpose.MODEL,
-      );
+      const upload =
+        await this.requireCustomerUploads().consumeReadyUploadForAsset(
+          device,
+          payload.customerUploadSessionId,
+          KioskCustomerUploadPurpose.MODEL,
+        );
       const asset = await this.requireSessionService().attachPersonAsset({
         sessionId,
         kioskDeviceId: device.id,
@@ -174,8 +176,8 @@ export class KioskTryOnService {
     const sessionRun = payload.sessionId
       ? await this.prepareSessionRunAssets(device, payload)
       : undefined;
-    const executionPayload = sessionRun?.executionPayload ?? requireLegacyPayload(payload);
-    enforceResolvedGarmentIntent(executionPayload);
+    const executionPayload =
+      sessionRun?.executionPayload ?? requireLegacyPayload(payload);
     enforceModelGarmentCompatibility(executionPayload);
 
     this.execution.assertConfigured();
@@ -303,11 +305,7 @@ export class KioskTryOnService {
             completedAt: status.completedAt,
           },
         });
-        if (
-          status.status === "COMPLETED" &&
-          status.resultImage &&
-          sessionRun
-        ) {
+        if (status.status === "COMPLETED" && status.resultImage && sessionRun) {
           await this.recordSessionLook(runId, sessionRun, status.resultImage);
         }
       },
@@ -470,7 +468,12 @@ export class KioskTryOnService {
     sessionId: string,
     image: KioskTryOnUploadedImage,
   ): Promise<TryOnAsset> {
-    const key = objectKeyFor(sessionId, createSelfxId(), "person", image.mimeType);
+    const key = objectKeyFor(
+      sessionId,
+      createSelfxId(),
+      "person",
+      image.mimeType,
+    );
     await this.requireStorage().putObject({
       key,
       contentType: image.mimeType,
@@ -492,7 +495,12 @@ export class KioskTryOnService {
     sessionId: string,
     image: KioskTryOnUploadedImage,
   ): Promise<TryOnAsset> {
-    const key = objectKeyFor(sessionId, createSelfxId(), "garment", image.mimeType);
+    const key = objectKeyFor(
+      sessionId,
+      createSelfxId(),
+      "garment",
+      image.mimeType,
+    );
     await this.requireStorage().putObject({
       key,
       contentType: image.mimeType,
@@ -621,19 +629,6 @@ export class KioskTryOnService {
   }
 }
 
-function enforceResolvedGarmentIntent(
-  payload: Pick<CreateKioskTryOnRunPayload, "garmentIntent">,
-): void {
-  if (payload.garmentIntent !== "AUTO") {
-    return;
-  }
-  throw new ApiErrorException(
-    HttpStatus.CONFLICT,
-    TRY_ON_LAB_ERROR_CODES.garmentIntentUnresolved,
-    "Garment type must be resolved before generation.",
-  );
-}
-
 function enforceModelGarmentCompatibility(
   payload: Pick<CreateKioskTryOnRunPayload, "modelCoverage" | "garmentIntent">,
 ): void {
@@ -728,10 +723,17 @@ function toResponse(run: {
   };
 }
 
-function toSessionResponse(session: Pick<
-  TryOnSession,
-  "id" | "status" | "createdAt" | "updatedAt" | "expiresAt" | "currentPersonAssetId"
->): KioskTryOnSessionResponseDto {
+function toSessionResponse(
+  session: Pick<
+    TryOnSession,
+    | "id"
+    | "status"
+    | "createdAt"
+    | "updatedAt"
+    | "expiresAt"
+    | "currentPersonAssetId"
+  >,
+): KioskTryOnSessionResponseDto {
   return {
     sessionId: session.id,
     status: session.status,
@@ -742,16 +744,18 @@ function toSessionResponse(session: Pick<
   };
 }
 
-function toAssetResponse(asset: Pick<
-  TryOnAsset,
-  | "id"
-  | "purpose"
-  | "contentType"
-  | "sizeBytes"
-  | "width"
-  | "height"
-  | "expiresAt"
->): KioskTryOnAssetResponseDto {
+function toAssetResponse(
+  asset: Pick<
+    TryOnAsset,
+    | "id"
+    | "purpose"
+    | "contentType"
+    | "sizeBytes"
+    | "width"
+    | "height"
+    | "expiresAt"
+  >,
+): KioskTryOnAssetResponseDto {
   return {
     assetId: asset.id,
     purpose: asset.purpose,
@@ -807,9 +811,10 @@ async function parseResultImage(resultImage: string): Promise<{
   if (!resultImage.startsWith("data:")) {
     return fetchResultImage(resultImage);
   }
-  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i.exec(
-    resultImage,
-  );
+  const match =
+    /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i.exec(
+      resultImage,
+    );
   if (!match) {
     throw new ApiErrorException(
       HttpStatus.BAD_REQUEST,
@@ -828,9 +833,7 @@ async function parseResultImage(resultImage: string): Promise<{
   }
   return {
     contentType: contentType.toLowerCase() as
-      | "image/jpeg"
-      | "image/png"
-      | "image/webp",
+      "image/jpeg" | "image/png" | "image/webp",
     buffer: Buffer.from(base64Payload, "base64"),
   };
 }
@@ -852,7 +855,10 @@ async function fetchResultImage(resultImage: string): Promise<{
   if (!response.ok) {
     throwInvalidResultImage();
   }
-  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
+  const contentType = response.headers
+    .get("content-type")
+    ?.split(";")[0]
+    ?.trim();
   if (
     contentType !== "image/jpeg" &&
     contentType !== "image/png" &&

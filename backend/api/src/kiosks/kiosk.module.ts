@@ -11,7 +11,6 @@ import { GarmentPreviewProviderRegistry } from "../ai/garment-preview/garment-pr
 import { GarmentPreviewService } from "../ai/garment-preview/garment-preview.service.js";
 import { FashnGarmentPreviewProvider } from "../ai/garment-preview/providers/fashn-garment-preview.provider.js";
 import { OpenAiGarmentPreviewProvider } from "../ai/garment-preview/providers/openai-garment-preview.provider.js";
-import { GarmentIntentClassifierService } from "../ai/garment-intent/garment-intent-classifier.service.js";
 import { AdminKiosksController } from "./admin-kiosks.controller.js";
 import {
   CustomerUploadCapabilityController,
@@ -73,7 +72,6 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskTryOnShareService,
     CatalogService,
     KioskGarmentExtractionService,
-    GarmentIntentClassifierService,
     GarmentPreviewService,
     GarmentPreviewProviderRegistry,
     FashnGarmentPreviewProvider,

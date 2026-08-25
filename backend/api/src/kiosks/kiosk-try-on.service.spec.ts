@@ -14,7 +14,10 @@ describe("KIOSK-4B production Try-On service", () => {
     const execution = new FakeExecution();
     const service = new KioskTryOnService(prisma as never, execution as never);
 
-    const created = await service.createRun(platformDevice("device-1"), payload());
+    const created = await service.createRun(
+      platformDevice("device-1"),
+      payload(),
+    );
     await flushPromises();
 
     expect(created.status).toBe("QUEUED");
@@ -34,8 +37,14 @@ describe("KIOSK-4B production Try-On service", () => {
     const execution = new FakeExecution();
     const service = new KioskTryOnService(prisma as never, execution as never);
 
-    const first = await service.createRun(platformDevice("device-1"), payload());
-    const second = await service.createRun(platformDevice("device-1"), payload());
+    const first = await service.createRun(
+      platformDevice("device-1"),
+      payload(),
+    );
+    const second = await service.createRun(
+      platformDevice("device-1"),
+      payload(),
+    );
     await flushPromises();
 
     expect(second.id).toBe(first.id);
@@ -50,7 +59,10 @@ describe("KIOSK-4B production Try-On service", () => {
       new FakeExecution() as never,
     );
 
-    const created = await service.createRun(platformDevice("device-1"), payload());
+    const created = await service.createRun(
+      platformDevice("device-1"),
+      payload(),
+    );
 
     await expect(
       service.getRun(platformDevice("device-2"), created.id),
@@ -87,7 +99,30 @@ describe("KIOSK-4B production Try-On service", () => {
     expect(prisma.createdRuns).toHaveLength(0);
   });
 
-  it("refuses unresolved direct-upload garment intent before provider submission", async () => {
+  it("allows automatic direct-upload garment category for full-body model coverage", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const service = new KioskTryOnService(prisma as never, execution as never);
+
+    const created = await service.createRun(
+      platformDevice("device-1"),
+      payload({
+        garmentIntent: "AUTO",
+        category: "AUTO",
+        modelCoverage: "FULL_BODY",
+      }),
+    );
+    await flushPromises();
+
+    expect(created.status).toBe("QUEUED");
+    expect(execution.submissions).toBe(1);
+    expect(prisma.createdRuns[0]).toMatchObject({
+      garmentIntent: "AUTO",
+      garmentCategory: "AUTO",
+    });
+  });
+
+  it("refuses automatic direct-upload garment category for partial model coverage", async () => {
     const prisma = new FakePrisma();
     const execution = new FakeExecution();
     const service = new KioskTryOnService(prisma as never, execution as never);
@@ -99,7 +134,7 @@ describe("KIOSK-4B production Try-On service", () => {
         payload({
           garmentIntent: "AUTO",
           category: "AUTO",
-          modelCoverage: "FULL_BODY",
+          modelCoverage: "UPPER_BODY",
         }),
       );
     } catch (error) {
@@ -109,7 +144,7 @@ describe("KIOSK-4B production Try-On service", () => {
     expect(thrown).toBeInstanceOf(ApiErrorException);
     expect((thrown as ApiErrorException).getResponse()).toMatchObject({
       error: {
-        code: "GARMENT_INTENT_UNRESOLVED",
+        code: "MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT",
       },
     });
     expect(execution.submissions).toBe(0);
@@ -214,9 +249,10 @@ async function flushPromises(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-class FakeExecution
-  implements Pick<TryOnExecutionService, "assertConfigured" | "metadata" | "process">
-{
+class FakeExecution implements Pick<
+  TryOnExecutionService,
+  "assertConfigured" | "metadata" | "process"
+> {
   submissions = 0;
 
   assertConfigured(): void {
@@ -257,7 +293,8 @@ class FakePrisma {
     findFirst: vi.fn(async ({ where }: { where: FindFirstWhere }) => {
       return (
         [...this.runs.values()].find(
-          (run) => run.id === where.id && run.kioskDeviceId === where.kioskDeviceId,
+          (run) =>
+            run.id === where.id && run.kioskDeviceId === where.kioskDeviceId,
         ) ?? null
       );
     }),
@@ -279,14 +316,24 @@ class FakePrisma {
       this.createdRuns.push(run);
       return run;
     }),
-    update: vi.fn(async ({ where, data }: { where: { id: string }; data: Partial<FakeRun> }) => {
-      const run = [...this.runs.values()].find((item) => item.id === where.id);
-      if (!run) {
-        throw new Error("run not found");
-      }
-      Object.assign(run, data, { updatedAt: new Date() });
-      return run;
-    }),
+    update: vi.fn(
+      async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<FakeRun>;
+      }) => {
+        const run = [...this.runs.values()].find(
+          (item) => item.id === where.id,
+        );
+        if (!run) {
+          throw new Error("run not found");
+        }
+        Object.assign(run, data, { updatedAt: new Date() });
+        return run;
+      },
+    ),
   };
 }
 

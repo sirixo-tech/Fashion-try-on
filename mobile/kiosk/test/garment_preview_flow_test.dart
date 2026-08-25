@@ -84,6 +84,41 @@ void main() {
       expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
     });
 
+    testWidgets(
+      'successful automatic extraction can continue without classification',
+      (tester) async {
+        final harness = await _ReviewHarness.create();
+        addTearDown(harness.dispose);
+        final extraction = FakeGarmentExtractionService()
+          ..enqueueSuccess(
+            harness.preview.path,
+            resolvedIntent: KioskGarmentIntent.auto,
+          );
+
+        await tester.pumpReview(
+          harness,
+          extraction,
+          input: harness.inputFor(
+            harness.original,
+            intent: KioskGarmentIntent.auto,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Garment looks ready'), findsOneWidget);
+        expect(_continueButton(tester).onPressed, isNotNull);
+
+        await tester.tap(find.byKey(const Key('continue-from-garment-review')));
+        await tester.pumpAndSettle();
+
+        expect(harness.tryOn.garmentInput?.intent, KioskGarmentIntent.auto);
+        expect(
+          harness.tryOn.garmentInput?.extractedPreviewPath,
+          harness.preview.path,
+        );
+      },
+    );
+
     testWidgets('failure hides raw error and retry reuses same original path', (
       tester,
     ) async {
@@ -380,11 +415,12 @@ class _ReviewHarness {
   KioskGarmentInput inputFor(
     File file, {
     KioskGarmentInputSource source = KioskGarmentInputSource.capturedGarment,
+    KioskGarmentIntent intent = KioskGarmentIntent.top,
   }) {
     return KioskGarmentInput(
       source: source,
       localPath: file.path,
-      intent: KioskGarmentIntent.top,
+      intent: intent,
       photoType: KioskGarmentPhotoType.onModel,
     );
   }

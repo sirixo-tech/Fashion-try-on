@@ -250,15 +250,6 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
     if (_previewState != GarmentPreviewState.success) {
       return;
     }
-    if (_displayInput.intent == KioskGarmentIntent.auto) {
-      setState(() {
-        _previewState = GarmentPreviewState.failure;
-        _failureKind = GarmentExtractionFailureKind.image;
-        _failureMessage =
-            "We couldn't identify the garment clearly. Retake the garment photo or choose from catalog.";
-      });
-      return;
-    }
     widget.tryOnController.selectGarment(_displayInput);
     if (widget.pendingCameraCapture) {
       widget.captureController.preservePendingCaptureAsExternalInput();

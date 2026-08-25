@@ -118,7 +118,10 @@ class SelfxKioskTryOnGateway
   @override
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
     _assertConfigured();
-    if (!await request.garmentInput.exists()) {
+    final garmentUploadPath = request.garmentInput.isCatalogProduct
+        ? null
+        : await _garmentUploadPath(request.garmentInput);
+    if (!request.garmentInput.isCatalogProduct && garmentUploadPath == null) {
       throw const KioskTryOnException(
         KioskTryOnFailureCode.garmentMissing,
         'Choose a garment image before generating.',
@@ -153,8 +156,8 @@ class SelfxKioskTryOnGateway
           multipart.files.add(
             await http.MultipartFile.fromPath(
               'garmentImage',
-              request.garmentInput.localPath,
-              contentType: _contentTypeFor(request.garmentInput.localPath),
+              garmentUploadPath!,
+              contentType: _contentTypeFor(garmentUploadPath),
             ),
           );
         }
@@ -162,6 +165,16 @@ class SelfxKioskTryOnGateway
       },
     );
     return _decodeRun(response);
+  }
+
+  Future<String?> _garmentUploadPath(KioskGarmentInput input) async {
+    final previewPath = input.extractedPreviewPath?.trim();
+    if (previewPath != null &&
+        previewPath.isNotEmpty &&
+        await File(previewPath).exists()) {
+      return previewPath;
+    }
+    return await input.exists() ? input.localPath : null;
   }
 
   @override

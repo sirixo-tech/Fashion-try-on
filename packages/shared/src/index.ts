@@ -691,6 +691,7 @@ export function isModelCoverageCompatibleWithGarment(
       return intent === "BOTTOM";
     case "FULL_BODY":
       return (
+        intent === "AUTO" ||
         intent === "TOP" ||
         intent === "BOTTOM" ||
         intent === "FULL_OUTFIT" ||

@@ -53,10 +53,12 @@ class ModelGarmentCompatibilityService {
     return switch (coverage) {
       ModelCoverage.upperBody => intent == KioskGarmentIntent.top,
       ModelCoverage.lowerBody => intent == KioskGarmentIntent.bottom,
-      ModelCoverage.fullBody => intent == KioskGarmentIntent.top ||
-          intent == KioskGarmentIntent.bottom ||
-          intent == KioskGarmentIntent.fullOutfit ||
-          intent == KioskGarmentIntent.onePiece,
+      ModelCoverage.fullBody =>
+        intent == KioskGarmentIntent.auto ||
+            intent == KioskGarmentIntent.top ||
+            intent == KioskGarmentIntent.bottom ||
+            intent == KioskGarmentIntent.fullOutfit ||
+            intent == KioskGarmentIntent.onePiece,
       ModelCoverage.unknown => false,
     };
   }
@@ -68,11 +70,11 @@ CustomerCompatibilityGuidance guidanceFor(KioskGarmentIntent intent) {
       title: 'Update your photo to try bottoms',
       message: 'We need to see more of your lower body for this item.',
     ),
-    KioskGarmentIntent.fullOutfit || KioskGarmentIntent.onePiece =>
-      const CustomerCompatibilityGuidance(
-        title: 'Update your photo to try a full outfit',
-        message: 'We need a full-body photo for this item.',
-      ),
+    KioskGarmentIntent.fullOutfit ||
+    KioskGarmentIntent.onePiece => const CustomerCompatibilityGuidance(
+      title: 'Update your photo to try a full outfit',
+      message: 'We need a full-body photo for this item.',
+    ),
     KioskGarmentIntent.top => const CustomerCompatibilityGuidance(
       title: 'Update your photo to try a top',
       message: 'We need to see more of your upper body for this item.',

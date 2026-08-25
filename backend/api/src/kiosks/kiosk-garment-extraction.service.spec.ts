@@ -13,7 +13,6 @@ describe("KioskGarmentExtractionService", () => {
   it("preserves the existing kiosk garment extraction response contract", async () => {
     const service = new KioskGarmentExtractionService(
       new FakePreviewService() as never,
-      new FakeClassifierService() as never,
     );
 
     await expect(service.extract({}, payload())).resolves.toEqual({
@@ -23,47 +22,16 @@ describe("KioskGarmentExtractionService", () => {
     });
   });
 
-  it("classifies automatic kiosk garment captures before preview generation", async () => {
+  it("preserves automatic kiosk garment captures for provider-routed preview", async () => {
     const preview = new FakePreviewService();
-    const service = new KioskGarmentExtractionService(
-      preview as never,
-      new FakeClassifierService("BOTTOM") as never,
-    );
+    const service = new KioskGarmentExtractionService(preview as never);
 
     await expect(
       service.extract({}, payload({ garmentIntent: "AUTO" })),
     ).resolves.toMatchObject({
-      garmentIntent: "BOTTOM",
+      garmentIntent: "AUTO",
     });
-    expect(preview.lastIntent).toBe("BOTTOM");
-  });
-
-  it("maps failed automatic classification to a garment-specific image error", async () => {
-    const service = new KioskGarmentExtractionService(
-      new FakePreviewService() as never,
-      new FakeClassifierService(
-        new SelfxAiProviderError(
-          SELFX_AI_PROVIDER_ERROR_CODES.garmentNotDetected,
-          "unclear",
-          HttpStatus.BAD_REQUEST,
-        ),
-      ) as never,
-    );
-
-    let thrown: unknown;
-    try {
-      await service.extract({}, payload({ garmentIntent: "AUTO" }));
-    } catch (error) {
-      thrown = error;
-    }
-
-    expect(thrown).toBeInstanceOf(ApiErrorException);
-    expect((thrown as ApiErrorException).getResponse()).toMatchObject({
-      error: {
-        code: "GARMENT_EXTRACTION_GARMENT_UNCLEAR",
-        message: "SelfX could not identify the garment clearly.",
-      },
-    });
+    expect(preview.lastIntent).toBe("AUTO");
   });
 
   it("maps normalized preview provider errors to existing public extraction errors", async () => {
@@ -75,7 +43,6 @@ describe("KioskGarmentExtractionService", () => {
           HttpStatus.BAD_REQUEST,
         ),
       ) as never,
-      new FakeClassifierService() as never,
     );
 
     let thrown: unknown;
@@ -110,17 +77,6 @@ class FakePreviewService {
       imageDataUri: "data:image/png;base64,cHJldmlldw==",
       mimeType: "image/png" as const,
     };
-  }
-}
-
-class FakeClassifierService {
-  constructor(private readonly result: "TOP" | "BOTTOM" | Error = "TOP") {}
-
-  async classify() {
-    if (this.result instanceof Error) {
-      throw this.result;
-    }
-    return { intent: this.result, confidence: 0.9 };
   }
 }
 
