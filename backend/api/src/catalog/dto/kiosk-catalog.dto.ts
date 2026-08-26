@@ -74,6 +74,8 @@ export class KioskCatalogProductDto {
   garmentIntent!: string;
   garmentCategory!: string;
   garmentPhotoType!: string;
+  priceAmountCents!: number | null;
+  priceCurrency!: string | null;
   image!: KioskCatalogProductImageDto;
   updatedAt!: string;
 }

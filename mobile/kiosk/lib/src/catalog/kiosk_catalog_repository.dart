@@ -265,6 +265,9 @@ class KioskCatalogRepository extends ChangeNotifier
   }
 
   bool _matchesAudience(String productAudience, KioskCatalogAudience audience) {
+    if (audience == KioskCatalogAudience.all) {
+      return true;
+    }
     final normalized = productAudience.trim().toUpperCase();
     return normalized == audience.apiValue ||
         normalized == KioskCatalogAudience.unisex.apiValue ||

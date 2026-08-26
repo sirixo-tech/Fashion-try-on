@@ -884,7 +884,7 @@ Implemented scope:
 - customer **Take Photo** starts a countdown, with instant customer
   **Capture Now** removed;
 - countdown duration is a local operator preference with allowed values 5, 10
-  and 15 seconds, defaulting to 10 seconds;
+  and 15 seconds, defaulting to 5 seconds;
 - countdown/shutter/capture-success sounds are enabled by default, locally
   configurable off, output-only and non-blocking if playback fails;
 - scripted countdown guidance appears outside the live preview in
@@ -1032,7 +1032,7 @@ Implemented scope:
   presentation;
 - local provider-neutral idle presentation model supports static/slideshow
   semantics and an offline fallback;
-- bundled SelfX default wallpaper is used as the local fallback until
+- bundled SelfX default video is used as the local fallback until
   organization/kiosk-specific wallpapers are managed from the SaaS dashboard;
 - customer **Start Try-On** routes to CaptureScope selection and then the
   existing KIOSK-2A capture/readiness/review/photo-ready flow;

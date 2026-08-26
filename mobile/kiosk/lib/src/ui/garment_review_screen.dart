@@ -259,24 +259,26 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
     }
     final personPhoto = widget.captureController.activeAcceptedPersonPhoto;
     if (personPhoto != null) {
-      final compatibility = const ModelGarmentCompatibilityService().check(
-        coverage: personPhoto.coverage,
-        intent: _displayInput.intent,
-      );
-      if (!compatibility.supported) {
-        await Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => ModelCompatibilityGuidanceScreen(
-              intent: _displayInput.intent,
-              captureController: widget.captureController,
-              tryOnController: widget.tryOnController,
-              uploadController: widget.uploadController,
-              catalogGateway: widget.catalogGateway,
-              extractionService: widget.extractionService,
-            ),
-          ),
+      if (_requiresKnownCategoryCompatibility(_displayInput)) {
+        final compatibility = const ModelGarmentCompatibilityService().check(
+          coverage: personPhoto.coverage,
+          intent: _displayInput.intent,
         );
-        return;
+        if (!compatibility.supported) {
+          await Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => ModelCompatibilityGuidanceScreen(
+                intent: _displayInput.intent,
+                captureController: widget.captureController,
+                tryOnController: widget.tryOnController,
+                uploadController: widget.uploadController,
+                catalogGateway: widget.catalogGateway,
+                extractionService: widget.extractionService,
+              ),
+            ),
+          );
+          return;
+        }
       }
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
@@ -336,6 +338,10 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
       (route) => route.isFirst,
     );
   }
+}
+
+bool _requiresKnownCategoryCompatibility(KioskGarmentInput input) {
+  return input.intent != KioskGarmentIntent.auto;
 }
 
 class _GarmentPreview extends StatelessWidget {

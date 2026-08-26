@@ -135,7 +135,11 @@ export class KioskConfigurationService {
     await this.requireManageableDevice(deviceId);
     const uploadLimits =
       await this.mediaUploadSettings.resolvePresentationUploadLimits();
-    const normalized = normalizeConfigurationInput(input, deviceId, uploadLimits);
+    const normalized = normalizeConfigurationInput(
+      input,
+      deviceId,
+      uploadLimits,
+    );
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.kioskDeviceConfiguration.findUnique({
         where: { kioskDeviceId: deviceId },
@@ -376,7 +380,7 @@ function defaultConfiguration(): ConfigurationWithAssets {
     title: "SelfX Virtual Try-On",
     subtitle: "Find your perfect fit in seconds.",
     ctaLabel: "Start Try-On",
-    countdownSeconds: 10,
+    countdownSeconds: 5,
     soundEnabled: true,
     soundProfile: KioskConfigurationSoundProfile.SELFX_SIGNATURE,
     guidanceAudioEnabled: false,

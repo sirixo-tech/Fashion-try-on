@@ -122,33 +122,27 @@ describe("KIOSK-4B production Try-On service", () => {
     });
   });
 
-  it("refuses automatic direct-upload garment category for partial model coverage", async () => {
+  it("allows automatic direct-upload garment category for partial model coverage", async () => {
     const prisma = new FakePrisma();
     const execution = new FakeExecution();
     const service = new KioskTryOnService(prisma as never, execution as never);
 
-    let thrown: unknown;
-    try {
-      await service.createRun(
-        platformDevice("device-1"),
-        payload({
-          garmentIntent: "AUTO",
-          category: "AUTO",
-          modelCoverage: "UPPER_BODY",
-        }),
-      );
-    } catch (error) {
-      thrown = error;
-    }
+    const created = await service.createRun(
+      platformDevice("device-1"),
+      payload({
+        garmentIntent: "AUTO",
+        category: "AUTO",
+        modelCoverage: "UPPER_BODY",
+      }),
+    );
+    await flushPromises();
 
-    expect(thrown).toBeInstanceOf(ApiErrorException);
-    expect((thrown as ApiErrorException).getResponse()).toMatchObject({
-      error: {
-        code: "MODEL_IMAGE_INCOMPATIBLE_WITH_GARMENT",
-      },
+    expect(created.status).toBe("QUEUED");
+    expect(execution.submissions).toBe(1);
+    expect(prisma.createdRuns[0]).toMatchObject({
+      garmentIntent: "AUTO",
+      garmentCategory: "AUTO",
     });
-    expect(execution.submissions).toBe(0);
-    expect(prisma.createdRuns).toHaveLength(0);
   });
 
   it("keeps UNKNOWN model coverage fail-safe before provider submission", async () => {
@@ -161,8 +155,8 @@ describe("KIOSK-4B production Try-On service", () => {
       await service.createRun(
         platformDevice("device-1"),
         payload({
-          garmentIntent: "TOP",
-          category: "TOP",
+          garmentIntent: "AUTO",
+          category: "AUTO",
           modelCoverage: "UNKNOWN",
         }),
       );

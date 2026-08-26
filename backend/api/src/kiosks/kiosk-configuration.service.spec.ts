@@ -36,6 +36,7 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     expect(configuration.display.assets[0]?.bundledAssetKey).toBe(
       "selfx-default-kiosk-video",
     );
+    expect(configuration.capture.countdownSeconds).toBe(5);
     expect(configuration.experience.enabledGarmentIntents).toEqual([
       KioskConfigurationGarmentIntent.TOP,
       KioskConfigurationGarmentIntent.BOTTOM,

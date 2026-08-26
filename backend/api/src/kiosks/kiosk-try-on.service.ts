@@ -635,6 +635,16 @@ function enforceModelGarmentCompatibility(
   if (!payload.modelCoverage) {
     return;
   }
+  if (payload.modelCoverage === "UNKNOWN") {
+    throw new ApiErrorException(
+      HttpStatus.CONFLICT,
+      TRY_ON_LAB_ERROR_CODES.modelImageIncompatibleWithGarment,
+      "Model image is not compatible with the selected garment.",
+    );
+  }
+  if (payload.garmentIntent === "AUTO") {
+    return;
+  }
   if (
     isModelCoverageCompatibleWithGarment(
       payload.modelCoverage,

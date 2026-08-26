@@ -9,6 +9,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
+import 'capture_review_screen.dart';
 import 'kiosk_chrome.dart';
 
 class ModelCompatibilityGuidanceScreen extends StatelessWidget {
@@ -75,10 +76,10 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   OutlinedButton.icon(
-                    key: const Key('compatibility-choose-category'),
-                    onPressed: () => Navigator.of(context).pop(),
+                    key: const Key('compatibility-choose-garment'),
+                    onPressed: () => _chooseAnotherGarment(context),
                     icon: const Icon(Icons.checkroom_outlined),
-                    label: const Text('Choose Another Category'),
+                    label: const Text('Try Another Garment'),
                   ),
                 ],
               ),
@@ -103,6 +104,21 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
           catalogGateway: catalogGateway,
           extractionService: extractionService,
           purpose: PhotoAcquisitionPurpose.model,
+        ),
+      ),
+    );
+  }
+
+  void _chooseAnotherGarment(BuildContext context) {
+    tryOnController.tryAnotherGarment();
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => CaptureReviewScreen(
+          controller: captureController,
+          tryOnController: tryOnController,
+          uploadController: uploadController,
+          catalogGateway: catalogGateway,
+          extractionService: extractionService,
         ),
       ),
     );

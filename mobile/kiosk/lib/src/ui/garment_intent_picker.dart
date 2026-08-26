@@ -40,7 +40,7 @@ Future<KioskGarmentIntent?> chooseGarmentIntent(
     context: context,
     builder: (context) {
       return SimpleDialog(
-        title: const Text('Choose garment type'),
+        title: const Text('Select catalog category'),
         children: [
           for (final intent in available)
             SimpleDialogOption(

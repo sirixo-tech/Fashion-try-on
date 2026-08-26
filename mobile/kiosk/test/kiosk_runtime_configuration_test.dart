@@ -381,6 +381,26 @@ void main() {
   });
 
   test(
+    'remote enabled garment intents preserve live captured auto garment',
+    () {
+      final tryOnController =
+          KioskTryOnSessionController(gateway: FakeTryOnGateway())
+            ..selectGarment(
+              const KioskGarmentInput(
+                source: KioskGarmentInputSource.cameraCapture,
+                localPath: 'captured-garment.jpg',
+                intent: KioskGarmentIntent.auto,
+              ),
+            );
+
+      tryOnController.applyEnabledGarmentIntents([KioskGarmentIntent.bottom]);
+
+      expect(tryOnController.garmentInput?.intent, KioskGarmentIntent.auto);
+      expect(tryOnController.pendingGarmentIntent, KioskGarmentIntent.auto);
+    },
+  );
+
+  test(
     'KIOSK-5B compatibility still blocks unsupported filtered categories',
     () {
       final result = const ModelGarmentCompatibilityService().check(
@@ -681,7 +701,7 @@ Map<String, dynamic> _configurationJson({
       'assets': assets ?? [_bundledAssetJson()],
     },
     'capture': {
-      'countdownSeconds': 10,
+      'countdownSeconds': 5,
       'soundEnabled': true,
       'soundProfile': 'SELFX_SIGNATURE',
       'guidanceAudioEnabled': false,

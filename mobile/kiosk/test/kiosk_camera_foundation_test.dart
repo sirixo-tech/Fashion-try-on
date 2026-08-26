@@ -1216,8 +1216,18 @@ void main() {
             ),
             catalogGateway: FakeKioskCatalogGateway(
               products: [
-                testCatalogProduct(id: 'product-1', name: 'Formal trouser'),
-                testCatalogProduct(id: 'product-2', name: 'Grey trouser'),
+                testCatalogProduct(
+                  id: 'product-1',
+                  name: 'Formal trouser',
+                  priceAmountCents: 149900,
+                  priceCurrency: 'INR',
+                ),
+                testCatalogProduct(
+                  id: 'product-2',
+                  name: 'Grey trouser',
+                  priceAmountCents: 89900,
+                  priceCurrency: 'INR',
+                ),
               ],
             ),
           ),
@@ -1228,6 +1238,12 @@ void main() {
 
       expect(find.text('Formal trouser'), findsOneWidget);
       expect(find.text('Grey trouser'), findsOneWidget);
+      expect(find.text('₹1,499'), findsOneWidget);
+      expect(find.text('₹899'), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Men'), findsOneWidget);
+      expect(find.text('Women'), findsOneWidget);
+      expect(find.text('All categories'), findsOneWidget);
       expect(find.text('Try'), findsNothing);
       expect(tryOnController.garmentInput, isNull);
       expect(
@@ -1339,6 +1355,8 @@ KioskCustomerUploadController testUploadController(
 KioskCatalogProduct testCatalogProduct({
   required String id,
   required String name,
+  int? priceAmountCents,
+  String? priceCurrency,
 }) {
   return KioskCatalogProduct(
     id: id,
@@ -1353,6 +1371,8 @@ KioskCatalogProduct testCatalogProduct({
     garmentIntent: KioskGarmentIntent.bottom,
     garmentCategory: 'BOTTOMS',
     garmentPhotoType: KioskGarmentPhotoType.auto,
+    priceAmountCents: priceAmountCents,
+    priceCurrency: priceCurrency,
     image: KioskCatalogProductImage(
       url: 'https://example.test/$id.png',
       cacheKey: '$id-cache',

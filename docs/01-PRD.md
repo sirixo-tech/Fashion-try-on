@@ -965,7 +965,7 @@ KIOSK-1.6 product rules:
   standing full-body framing, distance-readable countdown/guidance in a panel
   below the preview and lower-region touch actions. Countdown/customer guidance
   must not live inside the camera preview.
-- The default countdown is 10 seconds.
+- The default countdown is 5 seconds.
 - Operators may configure the local device countdown to 5, 10 or 15 seconds.
   Customers do not choose this duration during each session.
 - Countdown guidance is scripted and time-based only. It must not imply live

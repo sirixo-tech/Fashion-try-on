@@ -1,10 +1,11 @@
 import '../tryon/kiosk_garment_input.dart';
 
-enum KioskCatalogAudience { men, women, unisex }
+enum KioskCatalogAudience { all, men, women, unisex }
 
 extension KioskCatalogAudienceApi on KioskCatalogAudience {
   String get apiValue {
     return switch (this) {
+      KioskCatalogAudience.all => 'ALL',
       KioskCatalogAudience.men => 'MEN',
       KioskCatalogAudience.women => 'WOMEN',
       KioskCatalogAudience.unisex => 'UNISEX',
@@ -13,6 +14,7 @@ extension KioskCatalogAudienceApi on KioskCatalogAudience {
 
   String get label {
     return switch (this) {
+      KioskCatalogAudience.all => 'ALL',
       KioskCatalogAudience.men => 'MEN',
       KioskCatalogAudience.women => 'WOMEN',
       KioskCatalogAudience.unisex => 'UNISEX',
@@ -152,6 +154,8 @@ class KioskCatalogProduct {
     required this.image,
     required this.updatedAt,
     this.description,
+    this.priceAmountCents,
+    this.priceCurrency,
   });
 
   final String id;
@@ -162,10 +166,27 @@ class KioskCatalogProduct {
   final KioskGarmentIntent garmentIntent;
   final String garmentCategory;
   final KioskGarmentPhotoType garmentPhotoType;
+  final int? priceAmountCents;
+  final String? priceCurrency;
   final KioskCatalogProductImage image;
   final String updatedAt;
 
   bool get hasUsableImage => image.url != null && image.url!.trim().isNotEmpty;
+
+  String? get displayPrice {
+    final amount = priceAmountCents;
+    final currency = priceCurrency?.trim().toUpperCase();
+    if (amount == null || currency == null || currency.isEmpty) {
+      return null;
+    }
+    final whole = amount.abs() ~/ 100;
+    final cents = amount.abs() % 100;
+    final sign = amount < 0 ? '-' : '';
+    final value = cents == 0
+        ? _groupThousands(whole)
+        : '${_groupThousands(whole)}.${cents.toString().padLeft(2, '0')}';
+    return '$sign${_currencySymbol(currency)}$value';
+  }
 
   KioskGarmentInput toGarmentInput() {
     return KioskGarmentInput.catalogProduct(
@@ -199,6 +220,12 @@ class KioskCatalogProduct {
       garmentPhotoType: kioskGarmentPhotoTypeFromApi(
         _string(json, 'garmentPhotoType'),
       ),
+      priceAmountCents: json['priceAmountCents'] is num
+          ? (json['priceAmountCents'] as num).toInt()
+          : null,
+      priceCurrency: json['priceCurrency'] is String
+          ? json['priceCurrency'] as String
+          : null,
       image: KioskCatalogProductImage.fromJson(image),
       updatedAt: _string(json, 'updatedAt'),
     );
@@ -214,6 +241,8 @@ class KioskCatalogProduct {
       garmentIntent: garmentIntent,
       garmentCategory: garmentCategory,
       garmentPhotoType: garmentPhotoType,
+      priceAmountCents: priceAmountCents,
+      priceCurrency: priceCurrency,
       image: image ?? this.image,
       updatedAt: updatedAt,
     );
@@ -229,10 +258,34 @@ class KioskCatalogProduct {
       'garmentIntent': garmentIntent.apiValue,
       'garmentCategory': garmentCategory,
       'garmentPhotoType': garmentPhotoType.apiValue,
+      'priceAmountCents': priceAmountCents,
+      'priceCurrency': priceCurrency,
       'image': image.toJson(),
       'updatedAt': updatedAt,
     };
   }
+}
+
+String _currencySymbol(String currency) {
+  return switch (currency) {
+    'INR' => '₹',
+    'USD' => r'$',
+    'EUR' => '€',
+    'GBP' => '£',
+    _ => '$currency ',
+  };
+}
+
+String _groupThousands(int value) {
+  final raw = value.toString();
+  final buffer = StringBuffer();
+  for (var index = 0; index < raw.length; index += 1) {
+    if (index > 0 && (raw.length - index) % 3 == 0) {
+      buffer.write(',');
+    }
+    buffer.write(raw[index]);
+  }
+  return buffer.toString();
 }
 
 class KioskCatalogRevision {

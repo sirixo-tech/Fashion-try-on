@@ -240,25 +240,37 @@ void main() {
       },
     );
 
+    test('allows automatic captured garment generation', () async {
+      final harness = await _sessionHarness(
+        garmentIntent: KioskGarmentIntent.auto,
+      );
+      addTearDown(harness.dispose);
+
+      await harness.session.submitFromCapture(harness.capture);
+
+      expect(harness.gateway.createCount, 1);
+      expect(
+        harness.gateway.lastRequest?.garmentInput.intent,
+        KioskGarmentIntent.auto,
+      );
+      expect(harness.session.failureCode, isNull);
+    });
+
     test(
-      'blocks unresolved captured garment before person compatibility',
+      'blocks automatic captured garment when person coverage is unknown',
       () async {
         final harness = await _sessionHarness(
           garmentIntent: KioskGarmentIntent.auto,
         );
         addTearDown(harness.dispose);
+        harness.capture.acceptedModelCoverage = ModelCoverage.unknown;
 
         await harness.session.submitFromCapture(harness.capture);
 
         expect(harness.gateway.createCount, 0);
         expect(
           harness.session.failureCode,
-          KioskTryOnFailureCode.garmentIntentUnresolved,
-        );
-        expect(harness.session.customerTitle, 'Choose garment type');
-        expect(
-          harness.session.customerMessage,
-          "We couldn't identify which garment type to use. Please choose the garment type or retake the garment photo.",
+          KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
         );
       },
     );

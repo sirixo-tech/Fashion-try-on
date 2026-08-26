@@ -108,11 +108,14 @@ class KioskTryOnSessionController extends ChangeNotifier {
   void applyEnabledGarmentIntents(List<KioskGarmentIntent> intents) {
     enabledGarmentIntents = intents;
     if (pendingGarmentIntent != null &&
-        !enabledGarmentIntents.contains(pendingGarmentIntent)) {
+        _isDisabledKnownCategory(
+          pendingGarmentIntent!,
+          enabledGarmentIntents,
+        )) {
       pendingGarmentIntent = null;
     }
     if (garmentInput != null &&
-        !enabledGarmentIntents.contains(garmentInput!.intent)) {
+        _isDisabledKnownCategory(garmentInput!.intent, enabledGarmentIntents)) {
       garmentInput = null;
     }
     notifyListeners();
@@ -332,13 +335,6 @@ class KioskTryOnSessionController extends ChangeNotifier {
       );
       return;
     }
-    if (garment.intent == KioskGarmentIntent.auto) {
-      _fail(
-        KioskTryOnFailureCode.garmentIntentUnresolved,
-        'Choose the garment type before generating.',
-      );
-      return;
-    }
     if (!garment.isCatalogProduct &&
         await captureUploadExceedsLimit(garment.localPath)) {
       _fail(KioskTryOnFailureCode.imageTooLarge, captureUploadTooLargeMessage);
@@ -349,18 +345,29 @@ class KioskTryOnSessionController extends ChangeNotifier {
       return;
     }
     final modelCoverage = personPhoto.coverage;
-    final compatibility = const ModelGarmentCompatibilityService().check(
-      coverage: modelCoverage,
-      intent: garment.intent,
-    );
-    if (!compatibility.supported) {
-      final guidance = compatibility.guidance!;
+    if (modelCoverage == ModelCoverage.unknown) {
+      final guidance = guidanceFor(garment.intent);
       _fail(
         KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
         guidance.message,
         title: guidance.title,
       );
       return;
+    }
+    if (_requiresKnownCategoryCompatibility(garment)) {
+      final compatibility = const ModelGarmentCompatibilityService().check(
+        coverage: modelCoverage,
+        intent: garment.intent,
+      );
+      if (!compatibility.supported) {
+        final guidance = compatibility.guidance!;
+        _fail(
+          KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+          guidance.message,
+          title: guidance.title,
+        );
+        return;
+      }
     }
 
     _submitting = true;
@@ -709,6 +716,17 @@ class KioskTryOnSessionController extends ChangeNotifier {
       super.notifyListeners();
     }
   }
+}
+
+bool _requiresKnownCategoryCompatibility(KioskGarmentInput garment) {
+  return garment.intent != KioskGarmentIntent.auto;
+}
+
+bool _isDisabledKnownCategory(
+  KioskGarmentIntent intent,
+  List<KioskGarmentIntent> enabledIntents,
+) {
+  return intent != KioskGarmentIntent.auto && !enabledIntents.contains(intent);
 }
 
 Future<void> _deleteIfPresent(String path) async {

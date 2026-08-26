@@ -36,7 +36,7 @@ class BrowseProductsScreen extends StatefulWidget {
 class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   static const _pageSize = 12;
 
-  KioskCatalogAudience _audience = KioskCatalogAudience.men;
+  KioskCatalogAudience _audience = KioskCatalogAudience.all;
   String? _categorySlug;
   List<KioskCatalogCategory> _categories = const [];
   List<KioskCatalogProduct> _products = const [];
@@ -192,11 +192,11 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 18),
-          _AudienceTabs(selected: _audience, onSelected: _selectAudience),
-          const SizedBox(height: 18),
-          _CategoryStrip(
+          _CatalogFilterBar(
+            audience: _audience,
             categories: _categories,
             selectedSlug: _categorySlug,
+            onAudienceSelected: _selectAudience,
             onSelected: _selectCategory,
           ),
           const SizedBox(height: 18),
@@ -236,7 +236,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
                   crossAxisCount: columns,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 0.72,
+                  childAspectRatio: 0.68,
                 ),
                 itemBuilder: (context, index) {
                   final product = _products[index];
@@ -283,26 +283,74 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   }
 }
 
-class _AudienceTabs extends StatelessWidget {
-  const _AudienceTabs({required this.selected, required this.onSelected});
+class _CatalogFilterBar extends StatelessWidget {
+  const _CatalogFilterBar({
+    required this.audience,
+    required this.categories,
+    required this.selectedSlug,
+    required this.onAudienceSelected,
+    required this.onSelected,
+  });
 
-  final KioskCatalogAudience selected;
-  final ValueChanged<KioskCatalogAudience> onSelected;
+  final KioskCatalogAudience audience;
+  final List<KioskCatalogCategory> categories;
+  final String? selectedSlug;
+  final ValueChanged<KioskCatalogAudience> onAudienceSelected;
+  final ValueChanged<String?> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SegmentedButton<KioskCatalogAudience>(
-        segments: const [
-          ButtonSegment(value: KioskCatalogAudience.men, label: Text('MEN')),
-          ButtonSegment(
-            value: KioskCatalogAudience.women,
-            label: Text('WOMEN'),
-          ),
-        ],
-        selected: {selected},
-        showSelectedIcon: false,
-        onSelectionChanged: (selection) => onSelected(selection.first),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: SelfxKioskTokens.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: SelfxKioskTokens.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.tune,
+                  size: 22,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SegmentedButton<KioskCatalogAudience>(
+                    segments: const [
+                      ButtonSegment(
+                        value: KioskCatalogAudience.all,
+                        label: Text('All'),
+                      ),
+                      ButtonSegment(
+                        value: KioskCatalogAudience.men,
+                        label: Text('Men'),
+                      ),
+                      ButtonSegment(
+                        value: KioskCatalogAudience.women,
+                        label: Text('Women'),
+                      ),
+                    ],
+                    selected: {audience},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (selection) =>
+                        onAudienceSelected(selection.first),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _CategoryStrip(
+              categories: categories,
+              selectedSlug: selectedSlug,
+              onSelected: onSelected,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -322,7 +370,7 @@ class _CategoryStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 46,
+      height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
@@ -330,7 +378,7 @@ class _CategoryStrip extends StatelessWidget {
             padding: const EdgeInsets.only(right: 10),
             child: ChoiceChip(
               key: const Key('catalog-category-all'),
-              label: const Text('All'),
+              label: const Text('All categories'),
               selected: selectedSlug == null,
               onSelected: (_) => onSelected(null),
             ),
@@ -431,13 +479,29 @@ class _ProductCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                 child: SizedBox(
-                  height: 40,
-                  child: Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelLarge,
+                  height: 62,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      if (product.displayPrice != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          product.displayPrice!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(color: SelfxKioskTokens.primary),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -495,16 +559,34 @@ class _SelectedProductAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedName = product?.name;
+    final selectedPrice = product?.displayPrice;
     return SafeArea(
       top: false,
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              selectedName ?? 'Select a garment to continue',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  selectedName ?? 'Select a garment to continue',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (selectedPrice != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    selectedPrice,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: SelfxKioskTokens.primary,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 16),

@@ -1027,7 +1027,7 @@ Customer or authorized kiosk operator validating customer capture UX.
 1. Customer/operator opens the customer camera screen.
 2. The screen shows **Take Photo** and does not show instant **Capture Now**.
 3. Customer/operator presses **Take Photo**.
-4. Kiosk reads the local countdown duration preference, defaulting to 10
+4. Kiosk reads the local countdown duration preference, defaulting to 5
    seconds when unset.
 5. Kiosk shows the live preview with only camera/framing overlays.
 6. Kiosk shows countdown/customer guidance in a separate guidance panel below
@@ -1056,7 +1056,7 @@ Customer or authorized kiosk operator validating customer capture UX.
 
 ### Alternate / Failure Flows
 
-- Countdown preference is missing or unsupported -> kiosk uses 10 seconds.
+- Countdown preference is missing or unsupported -> kiosk uses 5 seconds.
 - Technical invalidity/corrupt capture -> **Use Photo** remains blocked until
   retake.
 - Quality warnings, including analysis unavailable, remain advisory -> customer

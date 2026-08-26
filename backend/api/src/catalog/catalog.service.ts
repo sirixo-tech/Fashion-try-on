@@ -37,6 +37,8 @@ type ProductRow = {
   garment_intent: string;
   garment_category: string;
   garment_photo_type: string;
+  price_amount_cents: number | null;
+  price_currency: string | null;
   image_url: string | null;
   image_storage_key: string | null;
   image_content_type: string | null;
@@ -117,6 +119,8 @@ export class CatalogService {
           p.garment_intent,
           p.garment_category,
           p.garment_photo_type,
+          p.price_amount_cents,
+          p.price_currency,
           p.image_url,
           p.image_storage_key,
           p.image_content_type,
@@ -209,6 +213,8 @@ export class CatalogService {
           p.garment_intent,
           p.garment_category,
           p.garment_photo_type,
+          p.price_amount_cents,
+          p.price_currency,
           p.image_url,
           p.image_storage_key,
           p.image_content_type,
@@ -238,7 +244,10 @@ export class CatalogService {
   ): Promise<KioskCatalogProductForTryOn> {
     const context = await this.resolveCatalogContext(storeTenantId);
     const where = Prisma.join(
-      [...baseProductConditions(context), Prisma.sql`p.id = ${productId}::uuid`],
+      [
+        ...baseProductConditions(context),
+        Prisma.sql`p.id = ${productId}::uuid`,
+      ],
       " AND ",
     );
     const rows = await this.prisma.$queryRaw<ProductRow[]>`
@@ -250,6 +259,8 @@ export class CatalogService {
         p.garment_intent,
         p.garment_category,
         p.garment_photo_type,
+        p.price_amount_cents,
+        p.price_currency,
         p.image_url,
         p.image_storage_key,
         p.image_content_type,
@@ -322,6 +333,8 @@ export class CatalogService {
       garmentIntent: row.garment_intent,
       garmentCategory: row.garment_category,
       garmentPhotoType: row.garment_photo_type,
+      priceAmountCents: row.price_amount_cents,
+      priceCurrency: row.price_currency,
       image: {
         url: row.image_url ?? this.catalogReadUrl(row.image_storage_key),
         contentType: row.image_content_type,
@@ -333,9 +346,10 @@ export class CatalogService {
     };
   }
 
-  private async catalogRevisionStats(
-    context: { scope: CatalogScope; storeTenantId: string | null },
-  ): Promise<CatalogRevisionStatsRow> {
+  private async catalogRevisionStats(context: {
+    scope: CatalogScope;
+    storeTenantId: string | null;
+  }): Promise<CatalogRevisionStatsRow> {
     const where = productWhere(context, {});
     const rows = await this.prisma.$queryRaw<CatalogRevisionStatsRow[]>`
       SELECT
@@ -389,7 +403,10 @@ export class CatalogService {
     storageKey: string,
   ): Promise<{ buffer: Buffer; contentType: string | null }> {
     return {
-      buffer: await this.storage.readObject(storageKey, TRY_ON_LAB_MAX_IMAGE_BYTES),
+      buffer: await this.storage.readObject(
+        storageKey,
+        TRY_ON_LAB_MAX_IMAGE_BYTES,
+      ),
       contentType: null,
     };
   }
@@ -423,7 +440,8 @@ export class CatalogService {
     }
     return {
       buffer,
-      contentType: response.headers.get("content-type")?.split(";")[0]?.trim() ?? null,
+      contentType:
+        response.headers.get("content-type")?.split(";")[0]?.trim() ?? null,
     };
   }
 }
@@ -521,7 +539,10 @@ function productImageCacheKey(
   ].join(":");
 }
 
-function boundedPositiveInt(value: number | undefined, fallback: number): number {
+function boundedPositiveInt(
+  value: number | undefined,
+  fallback: number,
+): number {
   if (!Number.isInteger(value) || value === undefined || value < 1) {
     return fallback;
   }

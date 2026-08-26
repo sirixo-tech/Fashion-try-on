@@ -198,11 +198,11 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                 ),
                                 const SizedBox(height: 14),
                                 ElevatedButton.icon(
-                                  key: const Key('try-on-choose-category'),
+                                  key: const Key('try-on-choose-garment'),
                                   onPressed: () =>
                                       _chooseAnotherGarment(context),
                                   icon: const Icon(Icons.checkroom_outlined),
-                                  label: const Text('Choose Another Category'),
+                                  label: const Text('Try Another Garment'),
                                 ),
                               ] else ...[
                                 ElevatedButton.icon(

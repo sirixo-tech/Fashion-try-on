@@ -131,8 +131,9 @@ their client-generated boundaries.
   single **Start Try-On** action.
 - If no active device refresh credential exists, startup routes to the pairing
   screen instead of this customer home.
-- The bundled `assets/wallpapers/selfx-default-kiosk-wallpaper.png` image is
-  the default local wallpaper when no valid remote configuration/cache exists.
+- The bundled `assets/videos/garment-selection-background.mp4` video is the
+  default local presentation when no valid remote configuration/cache exists,
+  with `assets/wallpapers/selfx-default-kiosk-wallpaper.png` as fallback.
   KIOSK-6A may replace it with SaaS-configured bundled, uploaded or HTTPS
   presentation image references after local validation/download succeeds.
 - Camera Settings is not visible on the home. A hidden top-left double-tap
@@ -278,7 +279,7 @@ their client-generated boundaries.
   supported -> stable final 3/2/1 -> automatic capture. The normal customer flow
   does not show instant **Capture Now**.
 - Countdown duration is a local operator setting: 5, 10 or 15 seconds. Default
-  is 10 seconds.
+  is 5 seconds.
 - Android live readiness is scope-aware and checks the selected PrimarySubject,
   semantic pose/body coverage, target framing, subject lighting, blur/stability
   signals and analyzer availability where supported.

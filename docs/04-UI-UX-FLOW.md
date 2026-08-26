@@ -481,7 +481,7 @@ Customer camera screen:
 
 Local Camera/Operator Settings include a Capture Experience section:
 
-- Countdown: 5 seconds, 10 seconds or 15 seconds; default 10 seconds;
+- Countdown: 5 seconds, 10 seconds or 15 seconds; default 5 seconds;
 - Capture sounds: On/Off; default On;
 - Sound profile: Soft, Classic, Digital or Minimal; default Soft;
 - Preview Sound: operator-only local audio preview.
@@ -1664,7 +1664,7 @@ No checkout button is required.
   **Update your photo to try bottoms** / "We need to see more of your lower
   body for this item." Full Outfit copy: **Update your photo to try a full
   outfit** / "We need a full-body photo for this item." Actions are **Update My
-  Photo** and **Choose Another Category**.
+  Photo** and **Try Another Garment**.
 - UNKNOWN or unavailable phone-upload coverage uses the same update-photo path.
   Do not show a fallback that treats the selected category or CaptureScope as
   sufficient coverage proof.

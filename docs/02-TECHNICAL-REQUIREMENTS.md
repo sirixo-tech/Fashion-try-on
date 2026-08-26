@@ -1247,7 +1247,7 @@ Protected route coverage:
    guidance later without rewriting camera adapters.
 
    KIOSK-1.6 customer capture uses **Take Photo** to start a scripted countdown
-   and removes instant customer **Capture Now**. The countdown defaults to 10
+   and removes instant customer **Capture Now**. The countdown defaults to 5
    seconds and supports only local operator preferences of 5, 10 or 15 seconds.
    Countdown, shutter and capture-success sounds are output-only, enabled by
    default, configurable off locally and must not require microphone permission.
@@ -1355,7 +1355,7 @@ Protected route coverage:
    slideshow semantics, then routes **Start Try-On** to CaptureScope selection
    and the existing capture pipeline. The presentation model is provider-neutral
    and local-first so a future CMS/fleet source can supply assets without
-   rewriting the kiosk home. The bundled SelfX wallpaper is the default local
+   rewriting the kiosk home. The bundled SelfX video is the default local
    asset for all kiosks until organization/kiosk-specific wallpapers are managed
    from the SaaS dashboard and synced to devices.
 

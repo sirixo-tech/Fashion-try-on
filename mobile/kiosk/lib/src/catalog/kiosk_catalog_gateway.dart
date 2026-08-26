@@ -124,11 +124,11 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
     required KioskCatalogAudience audience,
   }) async {
     _assertConfigured();
+    final query = <String, String>{
+      if (audience != KioskCatalogAudience.all) 'audience': audience.apiValue,
+    };
     final response = await _getWithDeviceAuth(
-      _catalogUri(
-        'categories',
-        queryParameters: {'audience': audience.apiValue},
-      ),
+      _catalogUri('categories', queryParameters: query),
       forceRefresh: false,
     );
     final json = _decodeObject(response);
@@ -161,7 +161,7 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
   }) async {
     _assertConfigured();
     final query = {
-      'audience': audience.apiValue,
+      if (audience != KioskCatalogAudience.all) 'audience': audience.apiValue,
       'page': page.toString(),
       'pageSize': pageSize.toString(),
       if (categorySlug != null && categorySlug.trim().isNotEmpty)
