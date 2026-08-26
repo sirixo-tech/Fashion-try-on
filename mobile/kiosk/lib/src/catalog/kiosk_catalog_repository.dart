@@ -190,18 +190,19 @@ class KioskCatalogRepository extends ChangeNotifier
           (categoryCounts[product.category.slug] ?? 0) + 1;
     }
     final categories = snapshot?.categories ?? const <KioskCatalogCategory>[];
-    return categories
-        .where((category) => (categoryCounts[category.slug] ?? 0) > 0)
-        .map(
-          (category) => KioskCatalogCategory(
-            id: category.id,
-            name: category.name,
-            slug: category.slug,
-            audience: category.audience,
-            productCount: categoryCounts[category.slug] ?? 0,
+    return dedupeKioskCatalogCategories(
+      categories
+          .where((category) => (categoryCounts[category.slug] ?? 0) > 0)
+          .map(
+            (category) => KioskCatalogCategory(
+              id: category.id,
+              name: category.name,
+              slug: category.slug,
+              audience: category.audience,
+              productCount: categoryCounts[category.slug] ?? 0,
+            ),
           ),
-        )
-        .toList(growable: false);
+    );
   }
 
   @override

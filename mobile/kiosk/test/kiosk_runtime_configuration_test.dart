@@ -119,6 +119,32 @@ void main() {
     expect(harness.gateway.configurationCalls, 0);
   });
 
+  test('keeps bundled default video playable after cached reload', () async {
+    final cache = MemoryRuntimeConfigurationCache(
+      jsonEncode(
+        _configurationJson(
+          version: 4,
+          assets: [
+            _bundledAssetJson(
+              assetVideoPath: 'assets/videos/garment-selection-background.mp4',
+            ),
+          ],
+        ),
+      ),
+    );
+    final harness = RuntimeConfigHarness(cache: cache);
+
+    await harness.controller.loadCachedOrDefault();
+
+    final asset = harness.controller.configuration.assets.single;
+    expect(asset.type, RuntimeKioskAssetType.bundledVideo);
+    expect(
+      asset.assetVideoPath,
+      'assets/videos/garment-selection-background.mp4',
+    );
+    expect(asset.assetImagePath, isNull);
+  });
+
   test('does not redownload when server and local versions match', () async {
     final harness = RuntimeConfigHarness(
       cache: MemoryRuntimeConfigurationCache(
@@ -387,7 +413,7 @@ void main() {
           KioskTryOnSessionController(gateway: FakeTryOnGateway())
             ..selectGarment(
               const KioskGarmentInput(
-                source: KioskGarmentInputSource.cameraCapture,
+                source: KioskGarmentInputSource.capturedGarment,
                 localPath: 'captured-garment.jpg',
                 intent: KioskGarmentIntent.auto,
               ),
@@ -714,12 +740,13 @@ Map<String, dynamic> _configurationJson({
   };
 }
 
-Map<String, dynamic> _bundledAssetJson() {
+Map<String, dynamic> _bundledAssetJson({String? assetVideoPath}) {
   return {
     'id': 'asset-1',
     'type': 'BUNDLED_IMAGE',
     'label': 'Default',
     'bundledAssetKey': 'selfx-default-kiosk-video',
+    ...?(assetVideoPath == null ? null : {'assetVideoPath': assetVideoPath}),
   };
 }
 

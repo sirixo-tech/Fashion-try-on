@@ -58,6 +58,36 @@ class KioskCatalogCategory {
   }
 }
 
+List<KioskCatalogCategory> dedupeKioskCatalogCategories(
+  Iterable<KioskCatalogCategory> categories,
+) {
+  final byKey = <String, KioskCatalogCategory>{};
+  final countsByKey = <String, int>{};
+  for (final category in categories) {
+    final key = _categoryDedupeKey(category);
+    countsByKey[key] = (countsByKey[key] ?? 0) + category.productCount;
+    byKey.putIfAbsent(key, () => category);
+  }
+  return [
+    for (final entry in byKey.entries)
+      KioskCatalogCategory(
+        id: entry.value.id,
+        name: entry.value.name,
+        slug: entry.value.slug,
+        audience: entry.value.audience,
+        productCount: countsByKey[entry.key] ?? entry.value.productCount,
+      ),
+  ];
+}
+
+String _categoryDedupeKey(KioskCatalogCategory category) {
+  final slug = category.slug.trim().toLowerCase();
+  if (slug.isNotEmpty) {
+    return slug;
+  }
+  return category.name.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '-');
+}
+
 class KioskCatalogProductCategory {
   const KioskCatalogProductCategory({
     required this.id,

@@ -498,7 +498,10 @@ class _ProductCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(color: SelfxKioskTokens.primary),
+                              ?.copyWith(
+                                color: SelfxKioskTokens.primary,
+                                fontWeight: FontWeight.w900,
+                              ),
                         ),
                       ],
                     ],

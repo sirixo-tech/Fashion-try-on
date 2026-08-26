@@ -1,19 +1,19 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
+import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
-import 'kiosk_chrome.dart';
 import 'mobile_upload_screen.dart';
-import 'responsive_kiosk_layout.dart';
 
 class CaptureReviewScreen extends StatelessWidget {
   const CaptureReviewScreen({
@@ -33,25 +33,20 @@ class CaptureReviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KioskScaffold(
-      title: 'Review Capture',
-      subtitle: 'Retake or use this local session photo',
-      leading: IconButton(
-        onPressed: () async {
-          await controller.retake();
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
-        },
-        icon: const Icon(Icons.arrow_back),
-      ),
-      child: AnimatedBuilder(
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
           final acceptedPersonPhoto = controller.activeAcceptedPersonPhoto;
           final capture = controller.capture ?? acceptedPersonPhoto?.capture;
           if (capture == null) {
-            return const Center(child: Text('No capture available.'));
+            return const Center(
+              child: Text(
+                'No capture available.',
+                style: TextStyle(color: Colors.white),
+              ),
+            );
           }
 
           final usingAcceptedPersonPhoto =
@@ -65,55 +60,90 @@ class CaptureReviewScreen extends StatelessWidget {
                   : null);
           return LayoutBuilder(
             builder: (context, constraints) {
-              final layout = KioskLayoutMetrics.fromConstraints(constraints);
-              final compact = layout.stackPanels || layout.tightHeight;
-              final imagePreview = Card(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    File(capture.originalPath),
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) {
-                      return const Center(
-                        child: Text('Captured image unavailable'),
-                      );
-                    },
-                  ),
-                ),
-              );
-              final actions = _ReviewActions(
-                controller: controller,
-                tryOnController: tryOnController,
-                uploadController: uploadController,
-                catalogGateway: catalogGateway,
-                extractionService: extractionService,
-                usability: usability,
-                usingAcceptedPersonPhoto: usingAcceptedPersonPhoto,
-                compact: compact,
-              );
-
-              if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(child: imagePreview),
-                    SizedBox(height: layout.panelGap),
-                    Flexible(
-                      fit: FlexFit.loose,
-                      child: SingleChildScrollView(child: actions),
-                    ),
-                  ],
-                );
-              }
-
-              return Row(
+              final narrow = constraints.maxWidth < 560;
+              final horizontalPadding = narrow ? 20.0 : 36.0;
+              return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: imagePreview),
-                  SizedBox(width: layout.panelGap),
-                  SizedBox(
-                    width: layout.sidePanelWidth,
-                    child: SingleChildScrollView(child: actions),
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ColoredBox(
+                          color: Colors.black,
+                          child: Image.file(
+                            File(capture.originalPath),
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                            errorBuilder: (_, _, _) {
+                              return const Center(
+                                child: Text(
+                                  'Captured image unavailable',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        SafeArea(
+                          bottom: false,
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: horizontalPadding,
+                                top: 12,
+                              ),
+                              child: IconButton.filled(
+                                onPressed: () async {
+                                  await controller.retake();
+                                  if (context.mounted) {
+                                    Navigator.of(context).pop();
+                                  }
+                                },
+                                icon: const Icon(Icons.arrow_back),
+                                color: SelfxKioskTokens.textPrimary,
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.92,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ColoredBox(
+                    color: Colors.black,
+                    child: SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontalPadding,
+                          narrow ? 16 : 22,
+                          horizontalPadding,
+                          narrow ? 18 : 30,
+                        ),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 680),
+                            child: _ReviewActions(
+                              controller: controller,
+                              tryOnController: tryOnController,
+                              uploadController: uploadController,
+                              catalogGateway: catalogGateway,
+                              extractionService: extractionService,
+                              usability: usability,
+                              usingAcceptedPersonPhoto:
+                                  usingAcceptedPersonPhoto,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               );
@@ -134,7 +164,6 @@ class _ReviewActions extends StatelessWidget {
     required this.extractionService,
     required this.usability,
     required this.usingAcceptedPersonPhoto,
-    required this.compact,
   });
 
   final CaptureSessionController controller;
@@ -144,21 +173,20 @@ class _ReviewActions extends StatelessWidget {
   final GarmentExtractionService extractionService;
   final ImageUsabilityResult? usability;
   final bool usingAcceptedPersonPhoto;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final isChecking = controller.isAnalyzingQuality || usability == null;
     final isUsable = usability?.isUsable == true;
     return Column(
-      mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ImageUsabilityStatement(
           isLoading: controller.isAnalyzingQuality,
           result: usability,
         ),
-        if (compact) const SizedBox(height: 20) else const Spacer(),
+        const SizedBox(height: 18),
         if (isChecking) ...[
           OutlinedButton.icon(
             key: const Key('retake-photo'),
@@ -177,9 +205,17 @@ class _ReviewActions extends StatelessWidget {
           Text(
             'Now, show the garment to the camera.',
             textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              shadows: const [
+                Shadow(
+                  color: Color(0x99000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 18),
           ElevatedButton.icon(
@@ -346,7 +382,7 @@ class _ReviewActions extends StatelessWidget {
   }
 }
 
-class _ImageUsabilityStatement extends StatelessWidget {
+class _ImageUsabilityStatement extends StatefulWidget {
   const _ImageUsabilityStatement({
     required this.isLoading,
     required this.result,
@@ -356,15 +392,55 @@ class _ImageUsabilityStatement extends StatelessWidget {
   final ImageUsabilityResult? result;
 
   @override
+  State<_ImageUsabilityStatement> createState() =>
+      _ImageUsabilityStatementState();
+}
+
+class _ImageUsabilityStatementState extends State<_ImageUsabilityStatement> {
+  static final math.Random _random = math.Random();
+
+  _SuccessReviewMessage? _successMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSuccessMessage();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImageUsabilityStatement oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.result?.isUsable != oldWidget.result?.isUsable ||
+        widget.result?.message != oldWidget.result?.message) {
+      _syncSuccessMessage();
+    }
+  }
+
+  void _syncSuccessMessage() {
+    final result = widget.result;
+    if (result?.isUsable != true) {
+      _successMessage = null;
+      return;
+    }
+    _successMessage =
+        _successReviewMessages[_random.nextInt(_successReviewMessages.length)];
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final result = this.result;
-    return Card(
+    final result = widget.result;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.44)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isLoading)
+            if (widget.isLoading)
               const Row(
                 children: [
                   SizedBox(
@@ -380,11 +456,15 @@ class _ImageUsabilityStatement extends StatelessWidget {
               const Text('Checking image usability...')
             else
               _UsabilityLine(
-                icon: result.isUsable ? Icons.check : Icons.error_outline,
-                color: result.isUsable
-                    ? const Color(0xFF2F855A)
+                icon: result.isUsable
+                    ? _successMessage?.icon ?? Icons.check
+                    : Icons.error_outline,
+                backgroundColor: result.isUsable
+                    ? SelfxKioskTokens.primary
                     : const Color(0xFFC53030),
-                text: result.message,
+                text: result.isUsable
+                    ? _successMessage?.text ?? result.message
+                    : result.message,
               ),
           ],
         ),
@@ -393,15 +473,65 @@ class _ImageUsabilityStatement extends StatelessWidget {
   }
 }
 
+class _SuccessReviewMessage {
+  const _SuccessReviewMessage({required this.text, required this.icon});
+
+  final String text;
+  final IconData icon;
+}
+
+const _successReviewMessages = [
+  _SuccessReviewMessage(
+    text: 'Perfect capture - you\'re looking great!',
+    icon: Icons.auto_awesome,
+  ),
+  _SuccessReviewMessage(
+    text: 'Great photo - you\'re ready to shine!',
+    icon: Icons.wb_sunny_outlined,
+  ),
+  _SuccessReviewMessage(
+    text: 'Photo confirmed - looking sharp!',
+    icon: Icons.verified_outlined,
+  ),
+  _SuccessReviewMessage(
+    text: 'Excellent capture - you look amazing!',
+    icon: Icons.stars_outlined,
+  ),
+  _SuccessReviewMessage(
+    text: 'Picture looks perfect - so do you!',
+    icon: Icons.camera_alt_outlined,
+  ),
+  _SuccessReviewMessage(
+    text: 'Great shot - you\'re all set!',
+    icon: Icons.check_circle_outline,
+  ),
+  _SuccessReviewMessage(
+    text: 'Capture approved - looking fantastic!',
+    icon: Icons.task_alt_outlined,
+  ),
+  _SuccessReviewMessage(
+    text: 'Perfect shot - looking your best!',
+    icon: Icons.workspace_premium_outlined,
+  ),
+  _SuccessReviewMessage(
+    text: 'Photo is spot on - you\'re looking great!',
+    icon: Icons.center_focus_strong_outlined,
+  ),
+  _SuccessReviewMessage(
+    text: 'Great capture - ready for your new look!',
+    icon: Icons.checkroom_outlined,
+  ),
+];
+
 class _UsabilityLine extends StatelessWidget {
   const _UsabilityLine({
     required this.icon,
-    required this.color,
+    required this.backgroundColor,
     required this.text,
   });
 
   final IconData icon;
-  final Color color;
+  final Color backgroundColor;
   final String text;
 
   @override
@@ -409,12 +539,29 @@ class _UsabilityLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 22, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(5),
+              child: Icon(icon, size: 18, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: SelfxKioskTokens.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
         ],
       ),

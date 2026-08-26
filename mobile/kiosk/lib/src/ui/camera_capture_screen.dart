@@ -332,7 +332,7 @@ class _CaptureControls extends StatelessWidget {
             : 'Photo in ${flowState.secondsRemaining}',
       CaptureFlowStage.capturing => 'Capturing',
       CaptureFlowStage.analyzing => 'Checking Photo',
-      _ => 'Take Photo',
+      _ => 'Capture',
     };
     final countdownText = isCountdown && flowState.secondsRemaining != null
         ? '${flowState.secondsRemaining}'
@@ -346,7 +346,7 @@ class _CaptureControls extends StatelessWidget {
     };
     final leftAction = isCountdown ? onCancelCountdown : onBack;
     final leftIcon = isCountdown ? Icons.close : Icons.arrow_back;
-    final leftTooltip = isCountdown ? 'Cancel countdown' : 'Back';
+    final leftLabel = isCountdown ? 'Cancel' : 'Back';
     final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
     final primarySize = layout.scaled(66, small: 58, large: 76, extraLarge: 88);
     final railSize = layout.scaled(54, small: 48, large: 62, extraLarge: 72);
@@ -395,7 +395,7 @@ class _CaptureControls extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: _CameraRailButton(
                         key: const Key('camera-back'),
-                        tooltip: leftTooltip,
+                        label: leftLabel,
                         icon: leftIcon,
                         dimension: railSize,
                         onPressed: leftAction,
@@ -421,7 +421,7 @@ class _CaptureControls extends StatelessWidget {
                       alignment: Alignment.centerRight,
                       child: _CameraRailButton(
                         key: const Key('flip-person-camera'),
-                        tooltip: 'Flip camera',
+                        label: 'Flip',
                         icon: Icons.cameraswitch_outlined,
                         dimension: railSize,
                         onPressed: canFlipCamera ? onFlipCamera : null,
@@ -461,8 +461,9 @@ class _PrimaryCameraActionButton extends StatelessWidget {
       child: Semantics(
         button: true,
         label: label,
-        child: SizedBox.square(
-          dimension: dimension,
+        child: SizedBox(
+          height: dimension,
+          width: dimension * 2.35,
           child: FilledButton(
             onPressed: onPressed,
             style: FilledButton.styleFrom(
@@ -485,7 +486,27 @@ class _PrimaryCameraActionButton extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   )
-                : Icon(icon, size: dimension * 0.45),
+                : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon, size: dimension * 0.34),
+                          const SizedBox(width: 8),
+                          Text(
+                            label,
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: SelfxKioskTokens.onPrimary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
           ),
         ),
       ),
@@ -496,13 +517,13 @@ class _PrimaryCameraActionButton extends StatelessWidget {
 class _CameraRailButton extends StatelessWidget {
   const _CameraRailButton({
     super.key,
-    required this.tooltip,
+    required this.label,
     required this.icon,
     required this.dimension,
     required this.onPressed,
   });
 
-  final String tooltip;
+  final String label;
   final IconData icon;
   final double dimension;
   final VoidCallback? onPressed;
@@ -510,18 +531,28 @@ class _CameraRailButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: tooltip,
-      child: SizedBox.square(
-        dimension: dimension,
-        child: IconButton(
+      message: label,
+      child: SizedBox(
+        height: dimension,
+        child: OutlinedButton.icon(
           onPressed: onPressed,
-          icon: Icon(icon),
-          color: SelfxKioskTokens.textPrimary,
-          disabledColor: SelfxKioskTokens.textMuted,
-          style: IconButton.styleFrom(
-            backgroundColor: SelfxKioskTokens.surface,
-            side: const BorderSide(color: SelfxKioskTokens.border),
+          icon: Icon(icon, size: dimension * 0.34),
+          label: Text(label),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: SelfxKioskTokens.onSecondary,
+            disabledForegroundColor: SelfxKioskTokens.onSecondary.withValues(
+              alpha: 0.68,
+            ),
+            backgroundColor: SelfxKioskTokens.secondary,
+            disabledBackgroundColor: SelfxKioskTokens.secondary.withValues(
+              alpha: 0.42,
+            ),
+            side: const BorderSide(color: SelfxKioskTokens.secondary),
             shape: const StadiumBorder(),
+            padding: EdgeInsets.symmetric(horizontal: dimension * 0.34),
+            textStyle: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
         ),
       ),

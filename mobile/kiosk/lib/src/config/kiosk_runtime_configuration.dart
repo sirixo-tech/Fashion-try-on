@@ -201,7 +201,7 @@ class KioskRuntimeAsset {
   factory KioskRuntimeAsset.fromJson(Map<String, dynamic> json) {
     final bundledAssetKey = _nullableString(json['bundledAssetKey']);
     final localImagePath = _nullableString(json['localImagePath']);
-    final localVideoPath = _nullableString(json['assetVideoPath']);
+    final assetVideoPath = _nullableString(json['assetVideoPath']);
     final contentType = _nullableString(json['contentType']);
     final assetType = json['type'] as String?;
     final bundledVideo = bundledAssetKey == 'selfx-default-kiosk-video';
@@ -227,9 +227,9 @@ class KioskRuntimeAsset {
           ? assetPathForBundledKey(bundledAssetKey)
           : null,
       assetVideoPath: runtimeType == RuntimeKioskAssetType.remoteVideo
-          ? localVideoPath
-          : localVideoPath == null && runtimeType.isVideo
-          ? videoPathForBundledKey(bundledAssetKey)
+          ? assetVideoPath
+          : runtimeType == RuntimeKioskAssetType.bundledVideo
+          ? videoPathForBundledKey(bundledAssetKey) ?? assetVideoPath
           : null,
     );
   }

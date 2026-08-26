@@ -38,11 +38,13 @@ import {
 
 import {
   currencySymbolFor,
-  garmentCategoryForProductCategory,
+  garmentCategoryForProductType,
+  garmentIntentForProductType,
+  normalizedProductTypeFor,
   productAudiences,
-  productCategories,
-  productGarmentIntents,
+  productGarmentTypes,
   ProductSelectMenu,
+  ProductStatusToggle,
   ProductToggleCheckbox,
 } from "@/components/product-form-controls";
 import { SafeApiError } from "@/lib/api";
@@ -89,6 +91,9 @@ export default function ProductsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [creating, setCreating] = useState(false);
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
+  const [updatingProductId, setUpdatingProductId] = useState<string | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -140,6 +145,31 @@ export default function ProductsPage() {
       setError(messageFor(caught));
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function updateProductInline(
+    product: PlatformProduct,
+    overrides: Partial<Pick<PlatformProductInput, "active" | "categoryName">>,
+  ) {
+    if (!accessToken || updatingProductId) {
+      return;
+    }
+    setUpdatingProductId(product.id);
+    setError(null);
+    try {
+      const updated = await updatePlatformProduct(
+        accessToken,
+        product.id,
+        productInputFromProduct(product, overrides),
+      );
+      setProducts((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setUpdatingProductId(null);
     }
   }
 
@@ -237,7 +267,7 @@ export default function ProductsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Product</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Garment Type</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Try-On</TableHead>
@@ -272,12 +302,32 @@ export default function ProductsPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{product.categoryName}</TableCell>
+                    <TableCell>
+                      <div className="min-w-40 max-w-52">
+                        <ProductSelectMenu
+                          ariaLabel={`Change garment type for ${product.name}`}
+                          value={normalizedProductTypeFor(
+                            product.categoryName,
+                            product.garmentIntent,
+                          )}
+                          options={productGarmentTypes}
+                          disabled={updatingProductId === product.id}
+                          onChange={(value) =>
+                            void updateProductInline(product, {
+                              categoryName: value,
+                            })
+                          }
+                        />
+                      </div>
+                    </TableCell>
                     <TableCell>{formatPrice(product)}</TableCell>
                     <TableCell>
-                      <StatusBadge
-                        status={product.active ? "ACTIVE" : "INACTIVE"}
-                        label={product.active ? "Active" : "Inactive"}
+                      <ProductStatusToggle
+                        active={product.active}
+                        disabled={updatingProductId === product.id}
+                        onChange={(active) =>
+                          void updateProductInline(product, { active })
+                        }
                       />
                     </TableCell>
                     <TableCell>
@@ -362,7 +412,10 @@ function DeleteProductDialog({
   onConfirm: () => void;
 }) {
   return (
-    <Dialog open={product !== null} onOpenChange={(open) => !open && onCancel()}>
+    <Dialog
+      open={product !== null}
+      onOpenChange={(open) => !open && onCancel()}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delete Product</DialogTitle>
@@ -433,7 +486,7 @@ function ProductDialog({
       return;
     }
     if (!form.name.trim() || !form.categoryName.trim()) {
-      setError("Product name and category are required.");
+      setError("Product name and garment type are required.");
       return;
     }
     setSaving(true);
@@ -499,9 +552,7 @@ function ProductDialog({
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   className="sr-only"
-                  onChange={(event) =>
-                    setFile(event.target.files?.[0] ?? null)
-                  }
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 />
               </label>
             </div>
@@ -536,11 +587,11 @@ function ProductDialog({
                 />
               </label>
               <label className="space-y-2 text-sm">
-                <span>Category *</span>
+                <span>Garment Type *</span>
                 <ProductSelectMenu
-                  ariaLabel="Select product category"
+                  ariaLabel="Select garment type"
                   value={form.categoryName}
-                  options={productCategories}
+                  options={productGarmentTypes}
                   onChange={(value) =>
                     setForm((current) => ({
                       ...current,
@@ -599,23 +650,6 @@ function ProductDialog({
                 }
               />
             </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm">
-                <span>Garment Type</span>
-                <ProductSelectMenu
-                  ariaLabel="Select garment type"
-                  value={form.garmentIntent}
-                  options={productGarmentIntents}
-                  onChange={(value) =>
-                    setForm((current) => ({
-                      ...current,
-                      garmentIntent: value,
-                    }))
-                  }
-                />
-              </label>
-            </div>
 
             <label className="space-y-2 text-sm">
               <span>Product URL</span>
@@ -696,7 +730,6 @@ type ProductForm = {
   description: string;
   productUrl: string;
   imageUrl: string;
-  garmentIntent: string;
   active: boolean;
   vtoEnabled: boolean;
 };
@@ -704,7 +737,10 @@ type ProductForm = {
 function formFromProduct(product: PlatformProduct | null): ProductForm {
   return {
     name: product?.name ?? "",
-    categoryName: product?.categoryName ?? productCategories[0].value,
+    categoryName: normalizedProductTypeFor(
+      product?.categoryName,
+      product?.garmentIntent,
+    ),
     audience: product?.audience ?? "UNISEX",
     price:
       product?.priceAmountCents !== null &&
@@ -713,8 +749,7 @@ function formFromProduct(product: PlatformProduct | null): ProductForm {
         : "",
     description: product?.description ?? "",
     productUrl: product?.productUrl ?? "",
-    imageUrl: product?.image.storageKey ? "" : product?.image.url ?? "",
-    garmentIntent: product?.garmentIntent ?? "TOP",
+    imageUrl: product?.image.storageKey ? "" : (product?.image.url ?? ""),
     active: product?.active ?? true,
     vtoEnabled: product?.vtoEnabled ?? true,
   };
@@ -733,12 +768,35 @@ function productInputFromForm(
     priceAmountCents: priceToCents(form.price),
     priceCurrency: form.price.trim() ? defaultCurrency : null,
     productUrl: form.productUrl.trim() || null,
-    garmentIntent: form.garmentIntent,
-    garmentCategory: garmentCategoryForProductCategory(form.categoryName),
+    garmentIntent: garmentIntentForProductType(form.categoryName),
+    garmentCategory: garmentCategoryForProductType(form.categoryName),
     garmentPhotoType: "AUTO",
     active: form.active,
     vtoEnabled: form.vtoEnabled,
     ...(image !== undefined ? { image } : {}),
+  };
+}
+
+function productInputFromProduct(
+  product: PlatformProduct,
+  overrides: Partial<Pick<PlatformProductInput, "active" | "categoryName">>,
+): PlatformProductInput {
+  const categoryName =
+    overrides.categoryName ??
+    normalizedProductTypeFor(product.categoryName, product.garmentIntent);
+  return {
+    name: product.name,
+    categoryName,
+    description: product.description,
+    audience: product.audience,
+    priceAmountCents: product.priceAmountCents,
+    priceCurrency: product.priceCurrency,
+    productUrl: product.productUrl,
+    garmentIntent: garmentIntentForProductType(categoryName),
+    garmentCategory: garmentCategoryForProductType(categoryName),
+    garmentPhotoType: product.garmentPhotoType || "AUTO",
+    active: overrides.active ?? product.active,
+    vtoEnabled: product.vtoEnabled,
   };
 }
 
@@ -809,7 +867,9 @@ function priceToCents(value: string): number | null {
     return null;
   }
   const amount = Number(normalized);
-  return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) : null;
+  return Number.isFinite(amount) && amount >= 0
+    ? Math.round(amount * 100)
+    : null;
 }
 
 function formatPrice(product: PlatformProduct): string {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../device/kiosk_device_session_controller.dart';
 import 'kiosk_chrome.dart';
+import 'selfx_logo.dart';
 
 class KioskPairingScreen extends StatefulWidget {
   const KioskPairingScreen({super.key, required this.controller});
@@ -38,8 +39,9 @@ class _KioskPairingScreenState extends State<KioskPairingScreen> {
     final session = widget.controller.pairingSession;
     return KioskScaffold(
       title: 'Pair this kiosk',
-      subtitle: 'Use SelfX Admin to connect this physical kiosk.',
-      showBrandHeader: true,
+      subtitle:
+          'Log in to your dashboard, create a device, and enter this code.',
+      showBrandHeader: false,
       child: AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {
@@ -71,76 +73,109 @@ class _KioskPairingScreenState extends State<KioskPairingScreen> {
                     minHeight: compact ? 0 : 500,
                   ),
                   child: SingleChildScrollView(
-                    child: Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(compact ? 28 : 42),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Pairing Code',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 18),
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                current.displayCode,
-                                style: Theme.of(context).textTheme.displayLarge
-                                    ?.copyWith(
-                                      fontSize: compact ? 74 : 104,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 6,
-                                    ),
-                              ),
-                            ),
-                            const SizedBox(height: 22),
-                            LinearProgressIndicator(
-                              value: progress,
-                              minHeight: 12,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            const SizedBox(height: 14),
-                            Text(
-                              '${_formatRemaining(safeRemaining)} remaining',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.headlineSmall,
-                            ),
-                            const SizedBox(height: 28),
-                            Text(
-                              'In SelfX Admin, open Kiosks, choose Pair New Kiosk, then enter this code.',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            if (widget.controller.message != null) ...[
-                              const SizedBox(height: 18),
-                              Text(
-                                widget.controller.message!,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                            const SizedBox(height: 26),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                unawaited(
-                                  widget.controller.requestPairingSession(),
-                                );
-                              },
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Request New Code'),
-                            ),
-                            const SizedBox(height: 18),
-                            Text(
-                              '${widget.controller.platformLabel} / ${widget.controller.appVersion}',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: SelfxLogo(
+                            height: compact ? 54 : 68,
+                            maxWidth: compact ? 200 : 260,
+                          ),
                         ),
-                      ),
+                        SizedBox(height: compact ? 22 : 30),
+                        Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(compact ? 28 : 42),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Pair this kiosk',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Log in to your dashboard, create a device, and enter this code.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                const SizedBox(height: 28),
+                                Text(
+                                  'Pairing Code',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 18),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    current.displayCode,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .displayLarge
+                                        ?.copyWith(
+                                          fontSize: compact ? 74 : 104,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 6,
+                                        ),
+                                  ),
+                                ),
+                                const SizedBox(height: 22),
+                                LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 12,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  '${_formatRemaining(safeRemaining)} remaining',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 28),
+                                Text(
+                                  'In SelfX Admin, open Kiosks, choose Pair New Kiosk, then enter this code.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                if (widget.controller.message != null) ...[
+                                  const SizedBox(height: 18),
+                                  Text(
+                                    widget.controller.message!,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                ],
+                                const SizedBox(height: 26),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    unawaited(
+                                      widget.controller.requestPairingSession(),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Request New Code'),
+                                ),
+                                const SizedBox(height: 18),
+                                Text(
+                                  '${widget.controller.platformLabel} / ${widget.controller.appVersion}',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -95,6 +95,85 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
           final garmentImagePath = _garmentImagePath(garmentInput);
           return LayoutBuilder(
             builder: (context, constraints) {
+              final canShowInputPreview = _canShowInputPreview(
+                personImagePath,
+                garmentImagePath,
+              );
+              final narrow = constraints.maxWidth < 560;
+              final tightHeight = constraints.maxHeight < 720;
+              final pagePadding = narrow ? 14.0 : 22.0;
+              final sectionGap = tightHeight ? 12.0 : 18.0;
+              final motionHeight = tightHeight ? 86.0 : 112.0;
+              if (!failed) {
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1080),
+                    child: SizedBox(
+                      height: constraints.maxHeight,
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: EdgeInsets.all(pagePadding),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _TryOnMotionGraphic(
+                                animation: _motionController,
+                                height: motionHeight,
+                              ),
+                              if (canShowInputPreview) ...[
+                                SizedBox(height: sectionGap),
+                                Expanded(
+                                  child: _GenerationInputPreview(
+                                    personImagePath: personImagePath!,
+                                    garmentImagePath: garmentImagePath!,
+                                    garmentName:
+                                        garmentInput?.displayName ?? 'Garment',
+                                  ),
+                                ),
+                              ] else
+                                const Expanded(child: SizedBox.shrink()),
+                              SizedBox(height: sectionGap),
+                              Text(
+                                _titleFor(status),
+                                style: Theme.of(context).textTheme.displaySmall,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _supportMessageFor(status),
+                                style: Theme.of(context).textTheme.bodyLarge,
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: sectionGap),
+                              _GenerationProgressBar(progress: progress),
+                              const SizedBox(height: 12),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                child: Text(
+                                  _stageFor(status),
+                                  key: ValueKey<KioskTryOnStatus>(status),
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               return SingleChildScrollView(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -114,21 +193,25 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                   size: 78,
                                   color: Theme.of(context).colorScheme.error,
                                 )
-                              else if (_canShowInputPreview(
-                                personImagePath,
-                                garmentImagePath,
-                              ))
-                                _GenerationInputPreview(
-                                  personImagePath: personImagePath!,
-                                  garmentImagePath: garmentImagePath!,
-                                  garmentName:
-                                      garmentInput?.displayName ?? 'Garment',
-                                  animation: _motionController,
-                                )
-                              else
+                              else ...[
                                 _TryOnMotionGraphic(
                                   animation: _motionController,
+                                  height: 132,
                                 ),
+                                if (canShowInputPreview) ...[
+                                  const SizedBox(height: 18),
+                                  SizedBox(
+                                    height: 300,
+                                    child: _GenerationInputPreview(
+                                      personImagePath: personImagePath!,
+                                      garmentImagePath: garmentImagePath!,
+                                      garmentName:
+                                          garmentInput?.displayName ??
+                                          'Garment',
+                                    ),
+                                  ),
+                                ],
+                              ],
                               const SizedBox(height: 22),
                               Text(
                                 failed
@@ -140,8 +223,10 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                               ),
                               const SizedBox(height: 14),
                               Text(
-                                widget.tryOnController.customerMessage ??
-                                    'Preparing your look',
+                                failed
+                                    ? widget.tryOnController.customerMessage ??
+                                          'Please try again.'
+                                    : _supportMessageFor(status),
                                 style: Theme.of(context).textTheme.bodyLarge,
                                 textAlign: TextAlign.center,
                               ),
@@ -153,7 +238,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                   duration: const Duration(milliseconds: 220),
                                   child: Text(
                                     _stageFor(status),
-                                    key: ValueKey<double>(progress),
+                                    key: ValueKey<KioskTryOnStatus>(status),
                                     textAlign: TextAlign.center,
                                     style: Theme.of(context)
                                         .textTheme
@@ -332,12 +417,12 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
 
 String _titleFor(KioskTryOnStatus status) {
   return switch (status) {
-    KioskTryOnStatus.preparing => 'Preparing your look',
-    KioskTryOnStatus.uploading => 'Uploading securely',
-    KioskTryOnStatus.queued => 'Creating your Try-On',
-    KioskTryOnStatus.processing => 'Generating your look',
-    KioskTryOnStatus.succeeded => 'Finishing',
-    _ => 'Preparing your look',
+    KioskTryOnStatus.preparing => 'Preparing your images',
+    KioskTryOnStatus.uploading => 'Sending to SelfX',
+    KioskTryOnStatus.queued => 'Almost your turn',
+    KioskTryOnStatus.processing => 'Creating your look',
+    KioskTryOnStatus.succeeded => 'Try-On ready',
+    _ => 'Starting your Try-On',
   };
 }
 
@@ -353,14 +438,29 @@ double _progressFor(KioskTryOnStatus status) {
   };
 }
 
+String _supportMessageFor(KioskTryOnStatus status) {
+  return switch (status) {
+    KioskTryOnStatus.preparing =>
+      'Checking your photo and garment before generation starts.',
+    KioskTryOnStatus.uploading =>
+      'Uploading both images securely. Please keep this screen open.',
+    KioskTryOnStatus.queued =>
+      'Your request is in line. We will start the fit as soon as the AI is ready.',
+    KioskTryOnStatus.processing =>
+      'Fitting the garment to your photo and refining the final image.',
+    KioskTryOnStatus.succeeded => 'Your result is ready. Opening it now.',
+    _ => 'Getting everything ready for your virtual try-on.',
+  };
+}
+
 String _stageFor(KioskTryOnStatus status) {
   return switch (status) {
-    KioskTryOnStatus.preparing => 'Preparing your photo',
-    KioskTryOnStatus.uploading => 'Analyzing garment',
-    KioskTryOnStatus.queued => 'Generating your look',
-    KioskTryOnStatus.processing => 'Finalizing details',
-    KioskTryOnStatus.succeeded => 'Almost ready',
-    _ => 'Preparing your photo',
+    KioskTryOnStatus.preparing => '18% - Setting your look in motion',
+    KioskTryOnStatus.uploading => '34% - Tailoring your look',
+    KioskTryOnStatus.queued => '52% - Bringing your style to life',
+    KioskTryOnStatus.processing => '78% - Adding the final touch',
+    KioskTryOnStatus.succeeded => '100% - Your look awaits',
+    _ => '6% - Creating the first touch',
   };
 }
 
@@ -394,34 +494,32 @@ class _GenerationInputPreview extends StatelessWidget {
     required this.personImagePath,
     required this.garmentImagePath,
     required this.garmentName,
-    required this.animation,
   });
 
   final String personImagePath;
   final String garmentImagePath;
   final String garmentName;
-  final Animation<double> animation;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stacked = constraints.maxWidth < 660;
+        final stacked = constraints.maxWidth < 320;
         final preview = stacked
             ? Column(
                 children: [
-                  _InputImageCard(
-                    label: 'Your photo',
-                    imagePath: personImagePath,
-                    tilt: -0.015,
+                  Expanded(
+                    child: _InputImageCard(
+                      label: 'Your photo',
+                      imagePath: personImagePath,
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                  _CombiningPulse(animation: animation, compact: true),
-                  const SizedBox(height: 14),
-                  _InputImageCard(
-                    label: garmentName,
-                    imagePath: garmentImagePath,
-                    tilt: 0.015,
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: _InputImageCard(
+                      label: garmentName,
+                      imagePath: garmentImagePath,
+                    ),
                   ),
                 ],
               )
@@ -432,87 +530,69 @@ class _GenerationInputPreview extends StatelessWidget {
                     child: _InputImageCard(
                       label: 'Your photo',
                       imagePath: personImagePath,
-                      tilt: -0.025,
                     ),
                   ),
-                  SizedBox(
-                    width: 112,
-                    child: _CombiningPulse(animation: animation),
-                  ),
+                  const SizedBox(width: 18),
                   Expanded(
                     child: _InputImageCard(
                       label: garmentName,
                       imagePath: garmentImagePath,
-                      tilt: 0.025,
                     ),
                   ),
                 ],
               );
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: stacked ? 520 : 330),
-          child: preview,
-        );
+        return preview;
       },
     );
   }
 }
 
 class _InputImageCard extends StatelessWidget {
-  const _InputImageCard({
-    required this.label,
-    required this.imagePath,
-    required this.tilt,
-  });
+  const _InputImageCard({required this.label, required this.imagePath});
 
   final String label;
   final String imagePath;
-  final double tilt;
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: tilt,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE7EEF8)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1A102033),
-              blurRadius: 22,
-              offset: Offset(0, 12),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE7EEF8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A102033),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: ColoredBox(
+                  color: SelfxKioskTokens.background,
+                  child: _GenerationPreviewImage(imagePath: imagePath),
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: SelfxKioskTokens.textMuted,
+              ),
             ),
           ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: AspectRatio(
-                  aspectRatio: 0.78,
-                  child: ColoredBox(
-                    color: SelfxKioskTokens.background,
-                    child: _GenerationPreviewImage(imagePath: imagePath),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: SelfxKioskTokens.textMuted,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -550,116 +630,6 @@ class _GenerationPreviewImage extends StatelessWidget {
   }
 }
 
-class _CombiningPulse extends StatelessWidget {
-  const _CombiningPulse({required this.animation, this.compact = false});
-
-  final Animation<double> animation;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: compact ? 54 : 150,
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          return CustomPaint(
-            painter: _CombiningPulsePainter(
-              progress: animation.value,
-              color: Theme.of(context).colorScheme.primary,
-              compact: compact,
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _CombiningPulsePainter extends CustomPainter {
-  const _CombiningPulsePainter({
-    required this.progress,
-    required this.color,
-    required this.compact,
-  });
-
-  final double progress;
-  final Color color;
-  final bool compact;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final pulse = 0.5 + 0.5 * math.sin(progress * math.pi * 2);
-    final glow = Paint()
-      ..color = color.withValues(alpha: 0.08 + pulse * 0.08)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, compact ? 24 + pulse * 5 : 34 + pulse * 8, glow);
-
-    final linePaint = Paint()
-      ..color = color.withValues(alpha: 0.34)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    if (compact) {
-      canvas.drawLine(
-        Offset(size.width * 0.24, center.dy),
-        Offset(size.width * 0.76, center.dy),
-        linePaint,
-      );
-    } else {
-      final path = Path()
-        ..moveTo(size.width * 0.08, center.dy)
-        ..cubicTo(
-          size.width * 0.28,
-          center.dy - 28,
-          size.width * 0.72,
-          center.dy + 28,
-          size.width * 0.92,
-          center.dy,
-        );
-      canvas.drawPath(path, linePaint);
-    }
-
-    final sparklePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    _drawSparkle(
-      canvas,
-      center,
-      compact ? 12 + pulse * 3 : 16 + pulse * 5,
-      sparklePaint,
-    );
-    _drawSparkle(
-      canvas,
-      Offset(center.dx + (compact ? 42 : 28), center.dy - (compact ? 6 : 34)),
-      compact ? 7 : 9,
-      sparklePaint..color = color.withValues(alpha: 0.72),
-    );
-  }
-
-  void _drawSparkle(Canvas canvas, Offset center, double size, Paint paint) {
-    final path = Path()
-      ..moveTo(center.dx, center.dy - size)
-      ..lineTo(center.dx + size * 0.28, center.dy - size * 0.28)
-      ..lineTo(center.dx + size, center.dy)
-      ..lineTo(center.dx + size * 0.28, center.dy + size * 0.28)
-      ..lineTo(center.dx, center.dy + size)
-      ..lineTo(center.dx - size * 0.28, center.dy + size * 0.28)
-      ..lineTo(center.dx - size, center.dy)
-      ..lineTo(center.dx - size * 0.28, center.dy - size * 0.28)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CombiningPulsePainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.color != color ||
-        oldDelegate.compact != compact;
-  }
-}
-
 class _GenerationProgressBar extends StatelessWidget {
   const _GenerationProgressBar({required this.progress});
 
@@ -690,14 +660,15 @@ class _GenerationProgressBar extends StatelessWidget {
 }
 
 class _TryOnMotionGraphic extends StatelessWidget {
-  const _TryOnMotionGraphic({required this.animation});
+  const _TryOnMotionGraphic({required this.animation, required this.height});
 
   final Animation<double> animation;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 132,
+      height: height,
       child: AnimatedBuilder(
         animation: animation,
         builder: (context, _) {

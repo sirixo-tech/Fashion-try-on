@@ -18,22 +18,37 @@ export const productAudiences = [
   { value: "KIDS", label: "Kids" },
 ] as const;
 
-export const productCategories = [
-  { value: "Tops", label: "Tops", garmentCategory: "TOPS" },
-  { value: "Bottoms", label: "Bottoms", garmentCategory: "BOTTOMS" },
-  { value: "Dresses", label: "Dresses", garmentCategory: "DRESSES" },
-  { value: "Outerwear", label: "Outerwear", garmentCategory: "OUTERWEAR" },
+export const productGarmentTypes = [
+  {
+    value: "Tops",
+    label: "Tops",
+    garmentIntent: "TOP",
+    garmentCategory: "TOP",
+  },
+  {
+    value: "Bottoms",
+    label: "Bottoms",
+    garmentIntent: "BOTTOM",
+    garmentCategory: "BOTTOM",
+  },
+  {
+    value: "Dresses",
+    label: "Dresses",
+    garmentIntent: "ONE_PIECE",
+    garmentCategory: "ONE_PIECE",
+  },
+  {
+    value: "Outerwear",
+    label: "Outerwear",
+    garmentIntent: "TOP",
+    garmentCategory: "TOP",
+  },
   {
     value: "Full outfit",
     label: "Full outfit",
+    garmentIntent: "FULL_OUTFIT",
     garmentCategory: "FULL_OUTFIT",
   },
-] as const;
-
-export const productGarmentIntents = [
-  { value: "TOP", label: "Top" },
-  { value: "BOTTOM", label: "Bottom" },
-  { value: "FULL_OUTFIT", label: "Full outfit" },
 ] as const;
 
 export const platformCurrencyOptions = [
@@ -56,11 +71,15 @@ export function ProductSelectMenu<T extends string>({
   ariaLabel,
   value,
   options,
+  disabled,
+  className,
   onChange,
 }: {
   ariaLabel: string;
   value: T;
   options: ReadonlyArray<{ value: T; label: string }>;
+  disabled?: boolean;
+  className?: string;
   onChange: (value: T) => void;
 }) {
   const selected = options.find((option) => option.value === value);
@@ -71,7 +90,11 @@ export function ProductSelectMenu<T extends string>({
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-between bg-background font-normal"
+            disabled={disabled}
+            className={cn(
+              "w-full justify-between bg-background font-normal",
+              className,
+            )}
             aria-label={ariaLabel}
           />
         }
@@ -96,6 +119,42 @@ export function ProductSelectMenu<T extends string>({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+export function ProductStatusToggle({
+  active,
+  disabled,
+  onChange,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  onChange: (active: boolean) => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={disabled}
+      aria-pressed={active}
+      className={cn(
+        "min-w-24 justify-center rounded-full border px-3 font-semibold",
+        active
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
+      )}
+      onClick={() => onChange(!active)}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "size-2 rounded-full",
+          active ? "bg-emerald-500" : "bg-rose-500",
+        )}
+      />
+      {active ? "Active" : "Inactive"}
+    </Button>
   );
 }
 
@@ -135,9 +194,70 @@ export function ProductToggleCheckbox({
   );
 }
 
-export function garmentCategoryForProductCategory(categoryName: string): string {
-  return (
-    productCategories.find((category) => category.value === categoryName)
-      ?.garmentCategory ?? "TOPS"
+export function garmentIntentForProductType(typeName: string): string {
+  return productTypeFor(typeName).garmentIntent;
+}
+
+export function garmentCategoryForProductType(typeName: string): string {
+  const category = productTypeFor(typeName).garmentCategory;
+  return category === "FULL_OUTFIT" ? "AUTO" : category;
+}
+
+export function normalizedProductTypeFor(
+  typeName: string | null | undefined,
+  garmentIntent?: string | null,
+): (typeof productGarmentTypes)[number]["value"] {
+  const byName = productTypeForName(typeName ?? "");
+  if (byName) {
+    return byName.value;
+  }
+  const byIntent = productGarmentTypes.find(
+    (type) => type.garmentIntent === garmentIntent,
   );
+  return byIntent?.value ?? productGarmentTypes[0].value;
+}
+
+function productTypeFor(
+  typeName: string,
+): (typeof productGarmentTypes)[number] {
+  return productTypeForName(typeName) ?? productGarmentTypes[0];
+}
+
+function productTypeForName(
+  typeName: string,
+): (typeof productGarmentTypes)[number] | undefined {
+  const normalized = typeName
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "-");
+  switch (normalized) {
+    case "top":
+    case "tops":
+    case "upper":
+    case "upper-body":
+      return productGarmentTypes[0];
+    case "bottom":
+    case "bottoms":
+    case "lower":
+    case "lower-body":
+      return productGarmentTypes[1];
+    case "dress":
+    case "dresses":
+    case "one-piece":
+    case "onepiece":
+      return productGarmentTypes[2];
+    case "outerwear":
+    case "jacket":
+    case "jackets":
+    case "coat":
+    case "coats":
+      return productGarmentTypes[3];
+    case "full-outfit":
+    case "full-outfits":
+    case "outfit":
+    case "outfits":
+      return productGarmentTypes[4];
+    default:
+      return productGarmentTypes.find((type) => type.value === typeName);
+  }
 }

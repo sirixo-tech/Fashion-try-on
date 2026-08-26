@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -11,12 +12,11 @@ import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import '../theme/selfx_kiosk_theme.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'capture_review_screen.dart';
-import 'kiosk_chrome.dart';
 import 'model_compatibility_guidance_screen.dart';
-import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
 import 'try_on_generation_screen.dart';
 
@@ -150,17 +150,12 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return KioskScaffold(
-      title: 'Garment Preview',
-      subtitle: _displayInput.intent.label,
-      leading: IconButton(
-        onPressed: () => _chooseAnother(context),
-        icon: const Icon(Icons.arrow_back),
-      ),
-      child: LayoutBuilder(
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: LayoutBuilder(
         builder: (context, constraints) {
-          final layout = KioskLayoutMetrics.fromConstraints(constraints);
-          final compact = layout.stackPanels || layout.tightHeight;
+          final narrow = constraints.maxWidth < 560;
+          final horizontalPadding = narrow ? 20.0 : 36.0;
           final imagePreview = _GarmentPreview(
             originalPath: _displayInput.localPath,
             path: _displayInput.extractedPreviewPath,
@@ -173,35 +168,67 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
             failureKind: _failureKind,
             failureMessage: _failureMessage,
             sourceLabel: 'Retake',
-            compact: compact,
             onChooseAnother: () => _retakeGarmentPhoto(context),
             onBrowseCatalog: () => _browseCatalog(context),
             onRetry: () => _preparePreview(force: true),
             onContinue: () => _continue(context),
           );
 
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: imagePreview),
-                SizedBox(height: layout.panelGap),
-                Flexible(
-                  fit: FlexFit.loose,
-                  child: SingleChildScrollView(child: actions),
-                ),
-              ],
-            );
-          }
-
-          return Row(
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: imagePreview),
-              SizedBox(width: layout.panelGap),
-              SizedBox(
-                width: layout.sidePanelWidth,
-                child: SingleChildScrollView(child: actions),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    imagePreview,
+                    SafeArea(
+                      bottom: false,
+                      child: Align(
+                        alignment: Alignment.topLeft,
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: horizontalPadding,
+                            top: 12,
+                          ),
+                          child: IconButton.filled(
+                            onPressed: () => _chooseAnother(context),
+                            icon: const Icon(Icons.arrow_back),
+                            color: SelfxKioskTokens.textPrimary,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.92,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ColoredBox(
+                color: Colors.black,
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      narrow ? 16 : 22,
+                      horizontalPadding,
+                      narrow ? 18 : 30,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 720),
+                        child: _GarmentReviewActionDock(
+                          child: SingleChildScrollView(child: actions),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           );
@@ -344,6 +371,24 @@ bool _requiresKnownCategoryCompatibility(KioskGarmentInput input) {
   return input.intent != KioskGarmentIntent.auto;
 }
 
+class _GarmentReviewActionDock extends StatelessWidget {
+  const _GarmentReviewActionDock({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
+      ),
+      child: Padding(padding: const EdgeInsets.all(16), child: child),
+    );
+  }
+}
+
 class _GarmentPreview extends StatelessWidget {
   const _GarmentPreview({
     required this.originalPath,
@@ -362,43 +407,63 @@ class _GarmentPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final previewPath = path;
-    return Card(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (state == GarmentPreviewState.success &&
-                previewPath != null &&
-                previewPath.trim().isNotEmpty)
-              Image.file(
-                File(previewPath),
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) {
-                  return const _GarmentPreviewMessage(
-                    message: 'Garment image unavailable.',
-                  );
-                },
-              )
-            else if (state == GarmentPreviewState.preparing)
-              _PreparingPreview(originalPath: originalPath)
-            else
-              _FailurePreview(
-                failureKind: failureKind,
-                failureMessage: failureMessage,
-              ),
-            if (state == GarmentPreviewState.preparing) const _PreviewSpinner(),
-          ],
-        ),
+    return ColoredBox(
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (state == GarmentPreviewState.success &&
+              previewPath != null &&
+              previewPath.trim().isNotEmpty)
+            Image.file(
+              File(previewPath),
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) {
+                return const _GarmentPreviewMessage(
+                  message: 'Garment image unavailable.',
+                );
+              },
+            )
+          else if (state == GarmentPreviewState.preparing)
+            _PreparingPreview(originalPath: originalPath)
+          else
+            _FailurePreview(
+              failureKind: failureKind,
+              failureMessage: failureMessage,
+            ),
+        ],
       ),
     );
   }
 }
 
-class _PreparingPreview extends StatelessWidget {
+class _PreparingPreview extends StatefulWidget {
   const _PreparingPreview({required this.originalPath});
 
   final String originalPath;
+
+  @override
+  State<_PreparingPreview> createState() => _PreparingPreviewState();
+}
+
+class _PreparingPreviewState extends State<_PreparingPreview>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -406,13 +471,174 @@ class _PreparingPreview extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Image.file(
-          File(originalPath),
-          fit: BoxFit.contain,
-          opacity: const AlwaysStoppedAnimation(0.28),
+          File(widget.originalPath),
+          fit: BoxFit.cover,
+          opacity: const AlwaysStoppedAnimation(0.22),
           errorBuilder: (_, _, _) => const SizedBox.shrink(),
         ),
-        const _GarmentPreviewMessage(message: 'Preparing garment preview...'),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x99000000), Color(0x7AFF6B1A), Color(0xCC000000)],
+              stops: [0, 0.52, 1],
+            ),
+          ),
+        ),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _GarmentPreparingAnimation(animation: _controller),
+                const SizedBox(height: 28),
+                Text(
+                  'Preparing garment preview',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Separating the garment for a clean try-on view',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.86),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _GarmentPreparingAnimation extends StatelessWidget {
+  const _GarmentPreparingAnimation({required this.animation});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 250,
+      height: 156,
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final progress = animation.value;
+          final wave = math.sin(progress * math.pi * 2);
+          final pulse = 0.92 + (0.08 * math.sin(progress * math.pi * 2));
+          final slide = -42.0 + (84.0 * progress);
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned(
+                left: 18,
+                top: 26,
+                child: _AnimatedPreviewIcon(
+                  icon: Icons.person_outline,
+                  size: 78,
+                  scale: 1,
+                  backgroundColor: Colors.white.withValues(alpha: 0.18),
+                ),
+              ),
+              Positioned(
+                right: 18,
+                top: 26,
+                child: _AnimatedPreviewIcon(
+                  icon: Icons.checkroom_outlined,
+                  size: 78,
+                  scale: 1,
+                  backgroundColor: Colors.white.withValues(alpha: 0.18),
+                ),
+              ),
+              Positioned(
+                top: 12 + (wave * 8),
+                child: Transform.translate(
+                  offset: Offset(slide, 0),
+                  child: _AnimatedPreviewIcon(
+                    icon: Icons.checkroom_outlined,
+                    size: 66,
+                    scale: pulse,
+                    backgroundColor: SelfxKioskTokens.primary,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 78,
+                top: 10 + (math.cos(progress * math.pi * 2) * 6),
+                child: Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white.withValues(alpha: 0.88),
+                  size: 28,
+                ),
+              ),
+              Positioned(
+                left: 28,
+                right: 28,
+                bottom: 12,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    value: progress,
+                    backgroundColor: Colors.white.withValues(alpha: 0.22),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      SelfxKioskTokens.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AnimatedPreviewIcon extends StatelessWidget {
+  const _AnimatedPreviewIcon({
+    required this.icon,
+    required this.size,
+    required this.scale,
+    required this.backgroundColor,
+  });
+
+  final IconData icon;
+  final double size;
+  final double scale;
+  final Color backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.scale(
+      scale: scale,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.24),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(size * 0.18),
+          child: Icon(icon, color: Colors.white, size: size * 0.58),
+        ),
+      ),
     );
   }
 }
@@ -429,40 +655,51 @@ class _FailurePreview extends StatelessWidget {
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                imageIssue
-                    ? Icons.image_search_outlined
-                    : Icons.cloud_off_outlined,
-                color: Theme.of(context).colorScheme.primary,
-                size: 58,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    imageIssue
+                        ? Icons.image_search_outlined
+                        : Icons.cloud_off_outlined,
+                    color: SelfxKioskTokens.primary,
+                    size: 58,
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    imageIssue
+                        ? "We couldn't find a clear garment in this photo."
+                        : "We couldn't prepare the garment preview right now.",
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    failureMessage ??
+                        (imageIssue
+                            ? 'Please retake the garment photo with the item clearly visible.'
+                            : 'Please try again in a moment.'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  if (imageIssue && failureMessage == null) ...[
+                    const SizedBox(height: 18),
+                    const _GuidanceLines(),
+                  ],
+                ],
               ),
-              const SizedBox(height: 18),
-              Text(
-                imageIssue
-                    ? "We couldn't find a clear garment in this photo."
-                    : "We couldn't prepare the garment preview right now.",
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                failureMessage ??
-                    (imageIssue
-                        ? 'Please retake the garment photo with the item clearly visible.'
-                        : 'Please try again in a moment.'),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              if (imageIssue && failureMessage == null) ...[
-                const SizedBox(height: 18),
-                const _GuidanceLines(),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -501,23 +738,6 @@ class _GuidanceLines extends StatelessWidget {
   }
 }
 
-class _PreviewSpinner extends StatelessWidget {
-  const _PreviewSpinner();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Positioned(
-      right: 14,
-      top: 14,
-      child: SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(strokeWidth: 3),
-      ),
-    );
-  }
-}
-
 class _GarmentPreviewMessage extends StatelessWidget {
   const _GarmentPreviewMessage({required this.message});
 
@@ -531,7 +751,10 @@ class _GarmentPreviewMessage extends StatelessWidget {
         child: Text(
           message,
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleMedium,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );
@@ -544,7 +767,6 @@ class _GarmentReviewActions extends StatelessWidget {
     required this.failureKind,
     this.failureMessage,
     required this.sourceLabel,
-    required this.compact,
     required this.onChooseAnother,
     required this.onBrowseCatalog,
     required this.onRetry,
@@ -555,7 +777,6 @@ class _GarmentReviewActions extends StatelessWidget {
   final GarmentExtractionFailureKind failureKind;
   final String? failureMessage;
   final String sourceLabel;
-  final bool compact;
   final VoidCallback onChooseAnother;
   final VoidCallback onBrowseCatalog;
   final VoidCallback onRetry;
@@ -564,7 +785,7 @@ class _GarmentReviewActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (state == GarmentPreviewState.success) ...[
@@ -587,7 +808,6 @@ class _GarmentReviewActions extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        if (!compact) const Spacer(),
         if (state == GarmentPreviewState.failure) ...[
           SelfxKioskButton(
             key: const Key('retry-garment-preview'),

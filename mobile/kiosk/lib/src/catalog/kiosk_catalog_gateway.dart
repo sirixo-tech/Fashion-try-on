@@ -139,17 +139,17 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
         'SelfX returned an unexpected catalog response.',
       );
     }
-    return data
-        .map((item) {
-          if (item is! Map<String, dynamic>) {
-            throw const KioskCatalogException(
-              'CATALOG_RESPONSE_INVALID',
-              'SelfX returned an unexpected catalog response.',
-            );
-          }
-          return KioskCatalogCategory.fromJson(item);
-        })
-        .toList(growable: false);
+    return dedupeKioskCatalogCategories(
+      data.map((item) {
+        if (item is! Map<String, dynamic>) {
+          throw const KioskCatalogException(
+            'CATALOG_RESPONSE_INVALID',
+            'SelfX returned an unexpected catalog response.',
+          );
+        }
+        return KioskCatalogCategory.fromJson(item);
+      }),
+    );
   }
 
   @override
