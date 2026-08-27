@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FashnVirtualTryOnProvider } from "./fashn-virtual-try-on.provider.js";
+import { GoogleVirtualTryOnProvider } from "./google-virtual-try-on.provider.js";
 import { readVirtualTryOnProviderName } from "./virtual-try-on.config.js";
 import { VirtualTryOnProviderRegistry } from "./virtual-try-on.registry.js";
 
@@ -8,9 +9,20 @@ describe("VirtualTryOnProviderRegistry", () => {
   it("resolves the FASHN Virtual Try-On provider from configuration", () => {
     const restore = setEnv({ SELFX_TRYON_PROVIDER: "fashn" });
     const fashn = new FashnVirtualTryOnProvider();
-    const registry = new VirtualTryOnProviderRegistry(fashn);
+    const google = new GoogleVirtualTryOnProvider();
+    const registry = new VirtualTryOnProviderRegistry(fashn, google);
 
     expect(registry.resolve()).toBe(fashn);
+    restore();
+  });
+
+  it("resolves the Google Virtual Try-On provider from configuration", () => {
+    const restore = setEnv({ SELFX_TRYON_PROVIDER: "google" });
+    const fashn = new FashnVirtualTryOnProvider();
+    const google = new GoogleVirtualTryOnProvider();
+    const registry = new VirtualTryOnProviderRegistry(fashn, google);
+
+    expect(registry.resolve()).toBe(google);
     restore();
   });
 

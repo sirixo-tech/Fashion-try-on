@@ -216,11 +216,20 @@ Required local settings:
 
 ```text
 TRYON_LAB_ENABLED=true
-FASHN_API_KEY=<server-side local key>
+SELFX_TRYON_PROVIDER=google
+GOOGLE_CLOUD_PROJECT=<google-cloud-project-id>
+GOOGLE_CLOUD_LOCATION=us-central1
+GOOGLE_VTO_MODEL=virtual-try-on-001
 ```
 
-`FASHN_API_KEY` must remain server-side only and must never use a
-`NEXT_PUBLIC_*` variable.
+Set `SELFX_TRYON_PROVIDER=fashn` and `FASHN_API_KEY=<server-side local key>` to
+use the FASHN adapter instead. For local Google development, run
+`gcloud auth application-default login` and let `google-auth-library` discover
+Application Default Credentials. Explicit Google credential variables such as
+`GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_APPLICATION_CREDENTIALS_JSON` or
+`GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64` are optional deployment overrides,
+not local requirements. Google and FASHN credentials must remain server-side
+only and must never use a `NEXT_PUBLIC_*` variable.
 
 The lab uses:
 
@@ -229,7 +238,8 @@ The lab uses:
   lazy-loaded only when a garment image needs direct-upload ambiguity
   resolution;
 - validated multipart uploads to the SelfX API;
-- server-side Base64 data URI transport to FASHN for this development slice;
+- server-side Base64 data URI transport to the selected Try-On provider for
+  this development slice;
 - provider-neutral SelfX run IDs with provider IDs kept server-side;
 - a bounded one-hour in-memory run registry.
 

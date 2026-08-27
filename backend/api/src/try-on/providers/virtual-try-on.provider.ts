@@ -31,7 +31,7 @@ export interface VirtualTryOnProviderMetadata {
   model: string;
 }
 
-export type VirtualTryOnProviderName = "fashn";
+export type VirtualTryOnProviderName = "fashn" | "google";
 
 export interface VirtualTryOnProvider {
   assertConfigured(): void;

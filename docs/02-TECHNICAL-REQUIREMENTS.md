@@ -824,11 +824,14 @@ Protected route coverage:
     capability. `SELFX_GARMENT_PREVIEW_PROVIDER` selects the server-side
     garment-preview adapter and currently supports `fashn` and `openai`.
     `SELFX_TRYON_PROVIDER` selects the Virtual Try-On adapter and currently
-    supports `fashn`. Provider keys are required only for selected providers:
-    FASHN preview or FASHN Try-On requires `FASHN_API_KEY`; OpenAI preview
-    requires `OPENAI_API_KEY` and may use `GARMENT_EXTRACTION_OPENAI_MODEL`.
-    A deployment using FASHN for both preview and Try-On must not require
-    `OPENAI_API_KEY`.
+    supports `fashn` and `google`. Provider keys are required only for selected
+    providers: FASHN preview or FASHN Try-On requires `FASHN_API_KEY`; Google
+    Try-On requires Google Cloud project/location/model configuration and
+    resolves authentication through `google-auth-library` Application Default
+    Credentials, with explicit credential variables remaining optional
+    deployment overrides; OpenAI preview requires `OPENAI_API_KEY` and may use
+    `GARMENT_EXTRACTION_OPENAI_MODEL`. A deployment using FASHN for both
+    preview and Try-On must not require `OPENAI_API_KEY` or Google credentials.
 
     CORE VTO-1 implementation note:
     SelfX intentionally prioritized a guarded internal development Try-On Lab

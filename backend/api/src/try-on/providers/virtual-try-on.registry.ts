@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { FashnVirtualTryOnProvider } from "./fashn-virtual-try-on.provider.js";
+import { GoogleVirtualTryOnProvider } from "./google-virtual-try-on.provider.js";
 import { readVirtualTryOnProviderName } from "./virtual-try-on.config.js";
 import {
   type VirtualTryOnProvider,
@@ -9,7 +10,10 @@ import {
 
 @Injectable()
 export class VirtualTryOnProviderRegistry {
-  constructor(private readonly fashn: FashnVirtualTryOnProvider) {}
+  constructor(
+    private readonly fashn: FashnVirtualTryOnProvider,
+    private readonly google: GoogleVirtualTryOnProvider,
+  ) {}
 
   resolve(
     providerName: VirtualTryOnProviderName = readVirtualTryOnProviderName(),
@@ -17,6 +21,8 @@ export class VirtualTryOnProviderRegistry {
     switch (providerName) {
       case "fashn":
         return this.fashn;
+      case "google":
+        return this.google;
       default:
         return assertNever(providerName);
     }

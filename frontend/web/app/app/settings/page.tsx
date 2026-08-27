@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCwIcon, ShieldAlertIcon } from "lucide-react";
+import { CheckCircleIcon, RefreshCwIcon, ShieldAlertIcon } from "lucide-react";
 
 import {
   Button,
@@ -47,6 +47,15 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!successMessage) {
+      return;
+    }
+    const timeout = window.setTimeout(() => setSuccessMessage(null), 3600);
+    return () => window.clearTimeout(timeout);
+  }, [successMessage]);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -54,6 +63,7 @@ export default function SettingsPage() {
     }
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       const [nextSettings, nextLoginSettings, nextMediaSettings] =
         await Promise.all([
@@ -81,12 +91,14 @@ export default function SettingsPage() {
     }
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       setSettings(
         await updatePlatformVirtualTryOnSettings(accessToken, {
           garmentPreviewEnabled: enabled,
         }),
       );
+      setSuccessMessage("Platform settings saved.");
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -100,12 +112,14 @@ export default function SettingsPage() {
     }
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       setSettings(
         await updatePlatformVirtualTryOnSettings(accessToken, {
           defaultCurrency,
         }),
       );
+      setSuccessMessage("Default currency saved.");
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -119,10 +133,12 @@ export default function SettingsPage() {
     }
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       setLoginSettings(
         await updateLoginPageSettings(accessToken, loginSettings),
       );
+      setSuccessMessage("Login page saved.");
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -143,10 +159,12 @@ export default function SettingsPage() {
     }
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     try {
       setMediaSettings(
         await updatePlatformMediaUploadSettings(accessToken, input),
       );
+      setSuccessMessage("Media upload limits saved.");
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -173,6 +191,17 @@ export default function SettingsPage() {
           </Button>
         }
       />
+
+      {successMessage ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed right-6 top-6 z-50 flex max-w-sm items-center gap-3 rounded-lg bg-[#FF7119] px-4 py-3 text-sm font-semibold text-white shadow-lg"
+        >
+          <CheckCircleIcon size={18} aria-hidden="true" />
+          {successMessage}
+        </div>
+      ) : null}
 
       {error ? (
         <PageSection>
