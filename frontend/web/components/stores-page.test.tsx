@@ -121,6 +121,8 @@ const configuration = {
   },
   experience: {
     enabledGarmentIntents: ["TOP", "BOTTOM", "FULL_OUTFIT"],
+    multiGarmentSelectionEnabled: true,
+    maxTryOnPicks: 5,
     sessionIdleTimeoutSeconds: 120,
   },
   assetUpload: {

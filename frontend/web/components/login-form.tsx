@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRightIcon,
   Building2Icon,
+  EyeIcon,
+  EyeOffIcon,
   LockKeyholeIcon,
   MonitorIcon,
   PlayCircleIcon,
@@ -85,6 +87,7 @@ export function LoginForm() {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -192,16 +195,33 @@ export function LoginForm() {
                 >
                   Password
                 </Label>
-                <Input
-                  id="selfx-login-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  className="h-10 bg-white text-sm"
-                  onChange={(event) => setPassword(event.currentTarget.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="selfx-login-password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    className="h-10 bg-white pr-11 text-sm"
+                    onChange={(event) => setPassword(event.currentTarget.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    aria-pressed={showPassword}
+                    className="absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? (
+                      <EyeOffIcon size={17} aria-hidden="true" />
+                    ) : (
+                      <EyeIcon size={17} aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
               </div>
               {errorCode ? (
                 <Alert variant="destructive">

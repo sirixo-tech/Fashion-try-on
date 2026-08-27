@@ -355,6 +355,87 @@ void main() {
       },
     );
 
+    test('limits picks and advances to the next pick on demand', () async {
+      final harness = await _sessionHarness();
+      addTearDown(harness.dispose);
+      final first = _catalogPick('product-1', 'Linen Shirt');
+      final second = _catalogPick('product-2', 'Denim Jacket');
+      final third = _catalogPick('product-3', 'Black Shirt');
+
+      harness.session.applyMaxTryOnPicks(2);
+
+      expect(harness.session.toggleGarmentPick(first), isTrue);
+      expect(harness.session.toggleGarmentPick(second), isTrue);
+      expect(harness.session.toggleGarmentPick(third), isFalse);
+      expect(harness.session.garmentPicks.map((pick) => pick.id), [
+        'product-1',
+        'product-2',
+      ]);
+
+      expect(harness.session.selectFirstGarmentPick(), isTrue);
+      expect(harness.session.garmentInput?.productId, 'product-1');
+      expect(harness.session.activeGarmentPickId, 'product-1');
+      expect(harness.session.hasNextGarmentPick, isTrue);
+
+      expect(harness.session.selectNextGarmentPick(), isTrue);
+      expect(harness.session.garmentInput?.productId, 'product-2');
+      expect(harness.session.activeGarmentPickId, 'product-2');
+      expect(harness.session.hasNextGarmentPick, isFalse);
+      expect(harness.session.selectNextGarmentPick(), isFalse);
+    });
+
+    test(
+      'can skip an incompatible pick and submit the next remaining pick',
+      () async {
+        final harness = await _sessionHarness(
+          createRun: const KioskTryOnRun(
+            id: 'run-done',
+            status: KioskTryOnStatus.succeeded,
+            resultImage: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+          ),
+          captureScope: CaptureScope.top,
+        );
+        addTearDown(harness.dispose);
+
+        expect(
+          harness.session.toggleGarmentPick(
+            _catalogPick(
+              'product-1',
+              'Formal Trouser',
+              intent: KioskGarmentIntent.bottom,
+            ),
+          ),
+          isTrue,
+        );
+        expect(
+          harness.session.toggleGarmentPick(
+            _catalogPick('product-2', 'Linen Shirt'),
+          ),
+          isTrue,
+        );
+
+        expect(harness.session.selectFirstGarmentPick(), isTrue);
+        await harness.session.submitFromCapture(harness.capture);
+
+        expect(harness.gateway.createCount, 0);
+        expect(
+          harness.session.failureCode,
+          KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
+        );
+        expect(harness.session.hasNextGarmentPick, isTrue);
+
+        expect(harness.session.selectNextGarmentPick(), isTrue);
+        await harness.session.submitFromCapture(harness.capture);
+
+        expect(harness.gateway.createCount, 1);
+        expect(
+          harness.gateway.lastRequest?.garmentInput.productId,
+          'product-2',
+        );
+        expect(harness.session.status, KioskTryOnStatus.succeeded);
+      },
+    );
+
     test(
       'does not leak provider-specific details into kiosk request domain',
       () async {
@@ -440,6 +521,26 @@ Future<_SessionHarness> _sessionHarness({
         );
 
   return _SessionHarness(temp, gateway, session, capture);
+}
+
+KioskTryOnPick _catalogPick(
+  String id,
+  String name, {
+  KioskGarmentIntent intent = KioskGarmentIntent.top,
+}) {
+  return KioskTryOnPick(
+    id: id,
+    displayName: name,
+    displayPrice: 'INR 2,499',
+    imageUrl: 'https://example.com/$id.jpg',
+    garmentInput: KioskGarmentInput.catalogProduct(
+      productId: id,
+      name: name,
+      imageUrl: 'https://example.com/$id.jpg',
+      intent: intent,
+      photoType: KioskGarmentPhotoType.onModel,
+    ),
+  );
 }
 
 Future<File> _writeImage(

@@ -11,6 +11,7 @@ import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
 import 'my_looks_screen.dart';
 import 'responsive_kiosk_layout.dart';
+import 'try_on_generation_screen.dart';
 
 class TryOnResultScreen extends StatelessWidget {
   const TryOnResultScreen({
@@ -38,6 +39,7 @@ class TryOnResultScreen extends StatelessWidget {
             ? const Center(child: Text('Try-On result unavailable.'))
             : _ResultPage(
                 imageSrc: result.generatedImage,
+                hasNextPick: tryOnController.hasNextGarmentPick,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
                 onGetMyLooks: () => _getMyLooks(context),
@@ -48,6 +50,20 @@ class TryOnResultScreen extends StatelessWidget {
   }
 
   void _tryAnotherGarment(BuildContext context) {
+    if (tryOnController.selectNextGarmentPick()) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => TryOnGenerationScreen(
+            captureController: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            catalogGateway: catalogGateway,
+            extractionService: extractionService,
+          ),
+        ),
+      );
+      return;
+    }
     tryOnController.tryAnotherGarment();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
@@ -108,6 +124,7 @@ class TryOnResultScreen extends StatelessWidget {
 class _ResultPage extends StatelessWidget {
   const _ResultPage({
     required this.imageSrc,
+    required this.hasNextPick,
     required this.onTryAnotherGarment,
     required this.onRetakePhoto,
     required this.onGetMyLooks,
@@ -115,6 +132,7 @@ class _ResultPage extends StatelessWidget {
   });
 
   final String imageSrc;
+  final bool hasNextPick;
   final VoidCallback onTryAnotherGarment;
   final VoidCallback onRetakePhoto;
   final VoidCallback onGetMyLooks;
@@ -225,7 +243,9 @@ class _ResultPage extends StatelessWidget {
                               icon: Icons.texture_outlined,
                               iconColor: _ResultTokens.orangeDeep,
                               title: 'Try Another',
-                              subtitle: 'Choose fabric',
+                              subtitle: hasNextPick
+                                  ? 'Next pick'
+                                  : 'Choose fabric',
                               background: _ResultTokens.primarySurface,
                               height: actionTileHeight,
                               compact: compact,

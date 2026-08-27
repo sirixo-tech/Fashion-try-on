@@ -630,6 +630,8 @@ model KioskDeviceConfiguration {
   soundProfile              KioskConfigurationSoundProfile    @default(SELFX_SIGNATURE) @map("sound_profile")
   guidanceAudioEnabled      Boolean                           @default(false) @map("guidance_audio_enabled")
   enabledGarmentIntents     KioskConfigurationGarmentIntent[] @default([TOP, BOTTOM, FULL_OUTFIT]) @map("enabled_garment_intents")
+  multiGarmentSelectionEnabled Boolean                         @default(true) @map("multi_garment_selection_enabled")
+  maxTryOnPicks             Int                               @default(5) @map("max_try_on_picks")
   sessionIdleTimeoutSeconds Int                               @default(120) @map("session_idle_timeout_seconds")
   updatedByUserId           String?                           @map("updated_by_user_id") @db.Uuid
   createdAt                 DateTime                          @default(now()) @map("created_at") @db.Timestamptz(3)

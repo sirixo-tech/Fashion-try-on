@@ -33,6 +33,9 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskGarmentIntent.fullOutfit,
   ];
   bool garmentPreviewEnabled = false;
+  bool multiGarmentSelectionEnabled = true;
+  int maxTryOnPicks = 5;
+  List<KioskTryOnPick> garmentPicks = const [];
   int captureUploadMaxImageBytes = defaultCaptureUploadMaxImageBytes;
   KioskTryOnStatus status = KioskTryOnStatus.idle;
   KioskTryOnRun? run;
@@ -42,6 +45,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   String? customerMessage;
   String? sessionMessage;
   String? activeSessionId;
+  String? activeGarmentPickId;
   String? currentPersonAssetId;
   KioskTryOnSessionStatus? sessionStatus;
   List<KioskTryOnLook> looks = const [];
@@ -67,6 +71,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
       currentPersonAssetId == null &&
       looks.isEmpty &&
       garmentInput == null &&
+      garmentPicks.isEmpty &&
       pendingGarmentIntent == null &&
       run == null &&
       result == null &&
@@ -74,9 +79,12 @@ class KioskTryOnSessionController extends ChangeNotifier {
 
   bool get creatingShare => _creatingShare;
 
+  bool get hasNextGarmentPick => _nextGarmentPick != null;
+
   Future<bool> beginCustomerSession() async {
     if (!customerSessionActive) {
       _clearRunState(keepGarment: false);
+      garmentPicks = const [];
       _clearBackendSessionState();
       customerSessionActive = true;
       notifyListeners();
@@ -94,10 +102,135 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }
 
   void selectGarment(KioskGarmentInput input) {
+    activeGarmentPickId = null;
     garmentInput = input;
     pendingGarmentIntent = input.intent;
     _clearRunState(keepGarment: true);
     notifyListeners();
+  }
+
+  void applyMultiGarmentSelectionEnabled(bool enabled) {
+    if (multiGarmentSelectionEnabled == enabled) {
+      return;
+    }
+    multiGarmentSelectionEnabled = enabled;
+    if (!enabled && garmentPicks.isNotEmpty) {
+      garmentPicks = const [];
+      activeGarmentPickId = null;
+    }
+    notifyListeners();
+  }
+
+  void applyMaxTryOnPicks(int maxPicks) {
+    final nextMax = maxPicks.clamp(1, 20).toInt();
+    if (maxTryOnPicks == nextMax) {
+      return;
+    }
+    maxTryOnPicks = nextMax;
+    if (garmentPicks.length > nextMax) {
+      garmentPicks = garmentPicks.take(nextMax).toList(growable: false);
+      if (activeGarmentPickId != null &&
+          !garmentPicks.any((pick) => pick.id == activeGarmentPickId)) {
+        activeGarmentPickId = null;
+      }
+    }
+    notifyListeners();
+  }
+
+  bool isPicked(String productId) {
+    return garmentPicks.any((pick) => pick.id == productId);
+  }
+
+  bool toggleGarmentPick(KioskTryOnPick pick) {
+    if (!multiGarmentSelectionEnabled) {
+      selectGarment(pick.garmentInput);
+      return true;
+    }
+    final index = garmentPicks.indexWhere((item) => item.id == pick.id);
+    if (index >= 0) {
+      garmentPicks = [
+        ...garmentPicks.take(index),
+        ...garmentPicks.skip(index + 1),
+      ];
+    } else if (garmentPicks.length >= maxTryOnPicks) {
+      sessionMessage = 'You can add up to $maxTryOnPicks picks.';
+      notifyListeners();
+      return false;
+    } else {
+      garmentPicks = [...garmentPicks, pick];
+    }
+    if (garmentInput?.productId == pick.id && index >= 0) {
+      garmentInput = null;
+      pendingGarmentIntent = null;
+    }
+    if (activeGarmentPickId == pick.id && index >= 0) {
+      activeGarmentPickId = null;
+    }
+    sessionMessage = null;
+    notifyListeners();
+    return true;
+  }
+
+  void removeGarmentPick(String productId) {
+    final next = garmentPicks
+        .where((pick) => pick.id != productId)
+        .toList(growable: false);
+    if (next.length == garmentPicks.length) {
+      return;
+    }
+    garmentPicks = next;
+    if (garmentInput?.productId == productId) {
+      garmentInput = null;
+      pendingGarmentIntent = null;
+    }
+    if (activeGarmentPickId == productId) {
+      activeGarmentPickId = null;
+    }
+    notifyListeners();
+  }
+
+  void reorderGarmentPick(int oldIndex, int newIndex) {
+    if (oldIndex < 0 ||
+        oldIndex >= garmentPicks.length ||
+        newIndex < 0 ||
+        newIndex > garmentPicks.length) {
+      return;
+    }
+    final next = [...garmentPicks];
+    final item = next.removeAt(oldIndex);
+    next.insert(newIndex, item);
+    garmentPicks = next;
+    notifyListeners();
+  }
+
+  void clearGarmentPicks() {
+    if (garmentPicks.isEmpty) {
+      return;
+    }
+    garmentPicks = const [];
+    activeGarmentPickId = null;
+    if (garmentInput?.isCatalogProduct == true) {
+      garmentInput = null;
+      pendingGarmentIntent = null;
+    }
+    notifyListeners();
+  }
+
+  bool selectFirstGarmentPick() {
+    if (garmentPicks.isEmpty) {
+      return false;
+    }
+    _selectGarmentPick(garmentPicks.first);
+    return true;
+  }
+
+  bool selectNextGarmentPick() {
+    final next = _nextGarmentPick;
+    if (next == null) {
+      return false;
+    }
+    _selectGarmentPick(next);
+    return true;
   }
 
   void selectPendingGarmentIntent(KioskGarmentIntent intent) {
@@ -117,6 +250,21 @@ class KioskTryOnSessionController extends ChangeNotifier {
     if (garmentInput != null &&
         _isDisabledKnownCategory(garmentInput!.intent, enabledGarmentIntents)) {
       garmentInput = null;
+    }
+    final filteredPicks = garmentPicks
+        .where(
+          (pick) => !_isDisabledKnownCategory(
+            pick.garmentInput.intent,
+            enabledGarmentIntents,
+          ),
+        )
+        .toList(growable: false);
+    if (filteredPicks.length != garmentPicks.length) {
+      garmentPicks = filteredPicks;
+      if (activeGarmentPickId != null &&
+          !garmentPicks.any((pick) => pick.id == activeGarmentPickId)) {
+        activeGarmentPickId = null;
+      }
     }
     notifyListeners();
   }
@@ -469,6 +617,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
   Future<void> finish(CaptureSessionController capture) async {
     await completeBackendSession();
     _clearRunState(keepGarment: false);
+    garmentPicks = const [];
+    activeGarmentPickId = null;
     await capture.resetSession();
     customerSessionActive = false;
     notifyListeners();
@@ -598,6 +748,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     if (!keepGarment) {
       garmentInput = null;
       pendingGarmentIntent = null;
+      activeGarmentPickId = null;
     }
     if (preparedPath != null) {
       unawaited(_deleteIfPresent(preparedPath));
@@ -699,6 +850,29 @@ class KioskTryOnSessionController extends ChangeNotifier {
     return 'kiosk-${DateTime.now().microsecondsSinceEpoch}-$random';
   }
 
+  KioskTryOnPick? get _nextGarmentPick {
+    if (!multiGarmentSelectionEnabled || garmentPicks.isEmpty) {
+      return null;
+    }
+    final activeId = activeGarmentPickId;
+    if (activeId == null) {
+      return garmentPicks.first;
+    }
+    final index = garmentPicks.indexWhere((pick) => pick.id == activeId);
+    if (index < 0 || index + 1 >= garmentPicks.length) {
+      return null;
+    }
+    return garmentPicks[index + 1];
+  }
+
+  void _selectGarmentPick(KioskTryOnPick pick) {
+    garmentInput = pick.garmentInput;
+    pendingGarmentIntent = pick.garmentInput.intent;
+    activeGarmentPickId = pick.id;
+    _clearRunState(keepGarment: true);
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -716,6 +890,24 @@ class KioskTryOnSessionController extends ChangeNotifier {
       super.notifyListeners();
     }
   }
+}
+
+class KioskTryOnPick {
+  const KioskTryOnPick({
+    required this.id,
+    required this.displayName,
+    required this.garmentInput,
+    this.displayPrice,
+    this.imageUrl,
+    this.localImagePath,
+  });
+
+  final String id;
+  final String displayName;
+  final String? displayPrice;
+  final String? imageUrl;
+  final String? localImagePath;
+  final KioskGarmentInput garmentInput;
 }
 
 bool _requiresKnownCategoryCompatibility(KioskGarmentInput garment) {

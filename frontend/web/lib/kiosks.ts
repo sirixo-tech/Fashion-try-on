@@ -62,6 +62,8 @@ export type KioskConfiguration = {
   };
   experience: {
     enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+    multiGarmentSelectionEnabled: boolean;
+    maxTryOnPicks: number;
     sessionIdleTimeoutSeconds: number;
     garmentPreviewEnabled: boolean;
   };
@@ -103,6 +105,8 @@ export type KioskConfigurationUpdateInput = {
   };
   experience: {
     enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+    multiGarmentSelectionEnabled: boolean;
+    maxTryOnPicks: number;
     sessionIdleTimeoutSeconds: number;
   };
 };

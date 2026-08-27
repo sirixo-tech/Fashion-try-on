@@ -191,7 +191,7 @@ export class KioskTryOnShareService {
       },
       select: {
         resultAsset: {
-          select: { storageKey: true, expiresAt: true },
+          select: { storageKey: true, contentType: true, expiresAt: true },
         },
       },
     });
@@ -208,6 +208,11 @@ export class KioskTryOnShareService {
         remainingShareSeconds,
         KIOSK_CUSTOMER_UPLOAD_SIGNED_URL_MAX_TTL_SECONDS,
       ),
+      responseContentDisposition: attachmentDispositionForLook(
+        lookId,
+        look.resultAsset.contentType,
+      ),
+      responseContentType: look.resultAsset.contentType ?? undefined,
     });
   }
 
@@ -284,4 +289,25 @@ function constantTimeEqual(left: string, right: string): boolean {
     leftBytes.length === rightBytes.length &&
     timingSafeEqual(leftBytes, rightBytes)
   );
+}
+
+function attachmentDispositionForLook(
+  lookId: string,
+  contentType: string | null,
+): string {
+  const filename = `selfx-look-${lookId}.${extensionForContentType(contentType)}`;
+  return `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(
+    filename,
+  )}`;
+}
+
+function extensionForContentType(contentType: string | null): string {
+  const normalized = contentType?.toLowerCase().split(";")[0]?.trim();
+  if (normalized === "image/png") {
+    return "png";
+  }
+  if (normalized === "image/webp") {
+    return "webp";
+  }
+  return "jpg";
 }

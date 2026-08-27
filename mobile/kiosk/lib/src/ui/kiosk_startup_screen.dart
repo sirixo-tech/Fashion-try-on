@@ -135,6 +135,15 @@ class _KioskStartupScreenState extends State<KioskStartupScreen> {
         widget.tryOnController.applyGarmentPreviewEnabled(
           widget.configurationController.configuration.garmentPreviewEnabled,
         );
+        widget.tryOnController.applyMultiGarmentSelectionEnabled(
+          widget
+              .configurationController
+              .configuration
+              .multiGarmentSelectionEnabled,
+        );
+        widget.tryOnController.applyMaxTryOnPicks(
+          widget.configurationController.configuration.maxTryOnPicks,
+        );
         widget.tryOnController.applyCaptureUploadMaxImageBytes(
           widget
               .configurationController

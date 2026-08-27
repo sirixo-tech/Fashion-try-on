@@ -973,12 +973,52 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
+      expect(find.text('Consent Required'), findsOneWidget);
+      expect(find.byKey(const Key('capture-photo')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('customer-consent-ok')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
       expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
       expect(find.byKey(const Key('flip-person-camera')), findsOneWidget);
       expect(find.text('How would you like to add your photo?'), findsNothing);
       expect(find.text('What are you trying on?'), findsNothing);
       expect(find.byKey(const Key('garment-image-path')), findsNothing);
+    });
+
+    testWidgets('customer consent cancel blocks start screen navigation', (
+      tester,
+    ) async {
+      await tester.pumpHome(controller: testController());
+
+      await tester.tap(find.byKey(const Key('start-try-on')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Consent Required'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('customer-consent-cancel')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('start-try-on')), findsOneWidget);
+      expect(find.byKey(const Key('capture-photo')), findsNothing);
+    });
+
+    testWidgets('mobile upload from home requires customer consent', (
+      tester,
+    ) async {
+      await tester.pumpHome(controller: testController());
+
+      await tester.tap(find.byKey(const Key('upload-from-mobile-start')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Consent Required'), findsOneWidget);
+      expect(find.text('Scan to add your photo'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('customer-consent-ok')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Scan to add your photo'), findsOneWidget);
     });
 
     testWidgets('hidden top-left double tap reveals operator access briefly', (
@@ -1022,7 +1062,8 @@ void main() {
       await tester.tap(find.byKey(const Key('operator-pin-submit')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Operator Settings'), findsOneWidget);
+      expect(find.text('Try-On Settings'), findsAtLeastNWidgets(1));
+      expect(find.text('KIOSK CONTROL CENTRE'), findsOneWidget);
       expect(access.state.unlocked, isTrue);
 
       await tester.tap(find.byIcon(Icons.arrow_back));
@@ -1071,6 +1112,8 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('start-try-on')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('customer-consent-ok')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
@@ -1485,7 +1528,8 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
   }
 }
 
-class FakeKioskTryOnGateway implements KioskTryOnGateway {
+class FakeKioskTryOnGateway
+    implements KioskTryOnGateway, KioskTryOnSessionGateway {
   @override
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
     return const KioskTryOnRun(id: 'run-test', status: KioskTryOnStatus.queued);
@@ -1494,6 +1538,57 @@ class FakeKioskTryOnGateway implements KioskTryOnGateway {
   @override
   Future<KioskTryOnRun> getRun(String runId) async {
     return KioskTryOnRun(id: runId, status: KioskTryOnStatus.processing);
+  }
+
+  @override
+  Future<KioskTryOnSession> createTryOnSession() async {
+    return KioskTryOnSession(
+      sessionId: 'session-1',
+      status: KioskTryOnSessionStatus.active,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 7)),
+    );
+  }
+
+  @override
+  Future<KioskTryOnAsset> setSessionPerson({
+    required String sessionId,
+    required File personImage,
+  }) async {
+    return KioskTryOnAsset(
+      assetId: 'person-asset',
+      purpose: KioskTryOnAssetPurpose.person,
+      contentType: 'image/jpeg',
+      sizeBytes: 1000,
+      width: 800,
+      height: 1200,
+      expiresAt: DateTime.now().add(const Duration(days: 7)),
+    );
+  }
+
+  @override
+  Future<List<KioskTryOnLook>> getSessionLooks(String sessionId) async {
+    return const [];
+  }
+
+  @override
+  Future<KioskTryOnShare> createSessionShare(String sessionId) async {
+    return KioskTryOnShare(
+      shareUrl: 'https://try.selfx.test/looks/capability',
+      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+    );
+  }
+
+  @override
+  Future<KioskTryOnSession> completeTryOnSession(String sessionId) async {
+    return KioskTryOnSession(
+      sessionId: sessionId,
+      status: KioskTryOnSessionStatus.completed,
+      createdAt: DateTime.now().subtract(const Duration(minutes: 1)),
+      updatedAt: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 7)),
+    );
   }
 }
 

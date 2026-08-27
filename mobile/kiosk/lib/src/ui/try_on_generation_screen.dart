@@ -281,6 +281,17 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                   icon: const Icon(Icons.photo_camera_outlined),
                                   label: const Text('Update My Photo'),
                                 ),
+                                if (widget
+                                    .tryOnController
+                                    .hasNextGarmentPick) ...[
+                                  const SizedBox(height: 14),
+                                  ElevatedButton.icon(
+                                    key: const Key('try-on-skip-current-pick'),
+                                    onPressed: () => _skipCurrentPick(context),
+                                    icon: const Icon(Icons.skip_next_outlined),
+                                    label: const Text('Skip This Item'),
+                                  ),
+                                ],
                                 const SizedBox(height: 14),
                                 ElevatedButton.icon(
                                   key: const Key('try-on-choose-garment'),
@@ -392,6 +403,23 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
         ),
       ),
       (route) => route.isFirst,
+    );
+  }
+
+  void _skipCurrentPick(BuildContext context) {
+    if (!widget.tryOnController.selectNextGarmentPick()) {
+      return;
+    }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => TryOnGenerationScreen(
+          captureController: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+        ),
+      ),
     );
   }
 

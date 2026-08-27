@@ -937,6 +937,9 @@ function configurationUpdateInput(
     },
     experience: {
       enabledGarmentIntents: configuration.experience.enabledGarmentIntents,
+      multiGarmentSelectionEnabled:
+        configuration.experience.multiGarmentSelectionEnabled ?? true,
+      maxTryOnPicks: configuration.experience.maxTryOnPicks ?? 5,
       sessionIdleTimeoutSeconds:
         configuration.experience.sessionIdleTimeoutSeconds,
     },

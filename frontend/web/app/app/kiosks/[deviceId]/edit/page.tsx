@@ -79,6 +79,8 @@ type KioskConfigurationForm = {
   soundProfile: KioskConfigurationSoundProfile;
   guidanceAudioEnabled: boolean;
   enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+  multiGarmentSelectionEnabled: boolean;
+  maxTryOnPicks: number;
   sessionIdleTimeoutSeconds: number;
   presentationAssets: PresentationAssetFormItem[];
 };
@@ -221,6 +223,8 @@ export default function KioskEditPage() {
           },
           experience: {
             enabledGarmentIntents: form.enabledGarmentIntents,
+            multiGarmentSelectionEnabled: form.multiGarmentSelectionEnabled,
+            maxTryOnPicks: form.maxTryOnPicks,
             sessionIdleTimeoutSeconds: form.sessionIdleTimeoutSeconds,
           },
         },
@@ -594,6 +598,46 @@ export default function KioskEditPage() {
                       </label>
                     ))}
                   </div>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={form.multiGarmentSelectionEnabled}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          multiGarmentSelectionEnabled: event.target.checked,
+                        }))
+                      }
+                    />
+                    <span>
+                      <span className="font-medium">
+                        Multi-garment selection
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Let customers add several garments to My Picks before
+                        generating looks one at a time.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="space-y-2 text-sm">
+                    <span>Max Try-On Picks</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={form.maxTryOnPicks}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          maxTryOnPicks: Number(event.target.value),
+                        }))
+                      }
+                    />
+                    <span className="block text-xs text-muted-foreground">
+                      Limits how many garments customers can keep in My Picks.
+                    </span>
+                  </label>
                   <label className="space-y-2 text-sm">
                     <span>Session Idle Timeout</span>
                     <Input
@@ -871,6 +915,8 @@ function defaultConfigForm(): KioskConfigurationForm {
     soundProfile: "SELFX_SIGNATURE",
     guidanceAudioEnabled: false,
     enabledGarmentIntents: ["TOP", "BOTTOM", "FULL_OUTFIT"],
+    multiGarmentSelectionEnabled: true,
+    maxTryOnPicks: 5,
     sessionIdleTimeoutSeconds: 120,
     presentationAssets: [],
   };
@@ -890,6 +936,9 @@ function formFromConfiguration(
     soundProfile: configuration.capture.soundProfile,
     guidanceAudioEnabled: configuration.capture.guidanceAudioEnabled,
     enabledGarmentIntents: configuration.experience.enabledGarmentIntents,
+    multiGarmentSelectionEnabled:
+      configuration.experience.multiGarmentSelectionEnabled ?? true,
+    maxTryOnPicks: configuration.experience.maxTryOnPicks ?? 5,
     sessionIdleTimeoutSeconds:
       configuration.experience.sessionIdleTimeoutSeconds,
     presentationAssets: configuration.display.assets.map((asset) => ({
@@ -917,6 +966,13 @@ function validateConfigurationForm(
   }
   if (form.presentationAssets.length > 12) {
     return "Presentation assets are limited to 12 media files.";
+  }
+  if (
+    !Number.isInteger(form.maxTryOnPicks) ||
+    form.maxTryOnPicks < 1 ||
+    form.maxTryOnPicks > 20
+  ) {
+    return "Max Try-On picks must be between 1 and 20.";
   }
   if (form.idleMode === "SLIDESHOW" && form.presentationAssets.length < 2) {
     return "Slideshow mode requires at least two presentation media files.";

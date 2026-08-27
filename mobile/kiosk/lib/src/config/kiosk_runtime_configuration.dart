@@ -29,6 +29,8 @@ class KioskRuntimeConfiguration {
     required this.soundProfile,
     required this.guidanceAudioEnabled,
     required this.enabledGarmentIntents,
+    required this.multiGarmentSelectionEnabled,
+    required this.maxTryOnPicks,
     required this.garmentPreviewEnabled,
     required this.captureUploadMaxImageBytes,
     required this.sessionIdleTimeoutSeconds,
@@ -70,6 +72,11 @@ class KioskRuntimeConfiguration {
       enabledGarmentIntents: intents.isEmpty
           ? defaultRuntimeConfiguration.enabledGarmentIntents
           : intents,
+      multiGarmentSelectionEnabled:
+          experience['multiGarmentSelectionEnabled'] is bool
+          ? experience['multiGarmentSelectionEnabled'] as bool
+          : true,
+      maxTryOnPicks: _int(experience, 'maxTryOnPicks', 5).clamp(1, 20).toInt(),
       garmentPreviewEnabled: experience['garmentPreviewEnabled'] is bool
           ? experience['garmentPreviewEnabled'] as bool
           : false,
@@ -101,6 +108,8 @@ class KioskRuntimeConfiguration {
   final RuntimeKioskSoundProfile soundProfile;
   final bool guidanceAudioEnabled;
   final List<KioskGarmentIntent> enabledGarmentIntents;
+  final bool multiGarmentSelectionEnabled;
+  final int maxTryOnPicks;
   final bool garmentPreviewEnabled;
   final int captureUploadMaxImageBytes;
   final int sessionIdleTimeoutSeconds;
@@ -169,6 +178,8 @@ class KioskRuntimeConfiguration {
         'enabledGarmentIntents': enabledGarmentIntents
             .map((intent) => intent.apiValue)
             .toList(),
+        'multiGarmentSelectionEnabled': multiGarmentSelectionEnabled,
+        'maxTryOnPicks': maxTryOnPicks,
         'garmentPreviewEnabled': garmentPreviewEnabled,
         'sessionIdleTimeoutSeconds': sessionIdleTimeoutSeconds,
       },
@@ -316,6 +327,8 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
     KioskGarmentIntent.bottom,
     KioskGarmentIntent.fullOutfit,
   ],
+  multiGarmentSelectionEnabled: true,
+  maxTryOnPicks: 5,
   garmentPreviewEnabled: false,
   captureUploadMaxImageBytes: defaultCaptureUploadMaxImageBytes,
   sessionIdleTimeoutSeconds: 120,

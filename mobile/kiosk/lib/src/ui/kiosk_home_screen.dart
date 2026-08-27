@@ -156,6 +156,14 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       return;
     }
     setState(() => _startingTryOn = true);
+    final consented = await _requestCustomerConsent();
+    if (!mounted) {
+      return;
+    }
+    if (!consented) {
+      setState(() => _startingTryOn = false);
+      return;
+    }
     final started = await _prepareCustomerSession();
     if (!mounted) {
       return;
@@ -187,6 +195,14 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       return;
     }
     setState(() => _startingMobileUpload = true);
+    final consented = await _requestCustomerConsent();
+    if (!mounted) {
+      return;
+    }
+    if (!consented) {
+      setState(() => _startingMobileUpload = false);
+      return;
+    }
     final started = await _prepareCustomerSession();
     if (!mounted) {
       return;
@@ -217,6 +233,35 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     }
   }
 
+  Future<bool> _requestCustomerConsent() async {
+    final accepted = await showGeneralDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Customer consent',
+      barrierColor: Colors.black.withValues(alpha: 0.36),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return const _CustomerConsentDialog();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: SlideTransition(
+            position:
+                Tween<Offset>(
+                  begin: const Offset(0, -0.06),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
+                ),
+            child: child,
+          ),
+        );
+      },
+    );
+    return accepted == true;
+  }
+
   Future<bool> _prepareCustomerSession() async {
     final enabledIntents =
         widget.configurationController?.configuration.enabledGarmentIntents;
@@ -226,6 +271,16 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     widget.tryOnController.applyGarmentPreviewEnabled(
       widget.configurationController?.configuration.garmentPreviewEnabled ??
           false,
+    );
+    widget.tryOnController.applyMultiGarmentSelectionEnabled(
+      widget
+              .configurationController
+              ?.configuration
+              .multiGarmentSelectionEnabled ??
+          true,
+    );
+    widget.tryOnController.applyMaxTryOnPicks(
+      widget.configurationController?.configuration.maxTryOnPicks ?? 5,
     );
     final captureUploadMaxImageBytes = widget
         .configurationController
@@ -283,6 +338,10 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     widget.tryOnController.applyGarmentPreviewEnabled(
       activated.garmentPreviewEnabled,
     );
+    widget.tryOnController.applyMultiGarmentSelectionEnabled(
+      activated.multiGarmentSelectionEnabled,
+    );
+    widget.tryOnController.applyMaxTryOnPicks(activated.maxTryOnPicks);
     widget.tryOnController.applyCaptureUploadMaxImageBytes(
       activated.captureUploadMaxImageBytes,
     );
@@ -554,6 +613,111 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomerConsentDialog extends StatelessWidget {
+  const _CustomerConsentDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+          child: Material(
+            color: SelfxKioskTokens.surfaceElevated,
+            elevation: 12,
+            shadowColor: const Color(0x26000000),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(SelfxKioskTokens.cardRadius),
+              side: const BorderSide(color: SelfxKioskTokens.border),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.privacy_tip_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 32,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Consent Required',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'SelfX will use your photo and garment image only for this try-on session. After the session ends, your images are deleted according to SelfX retention rules and are not kept for reuse.',
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SelfxKioskButton(
+                            key: const Key('customer-consent-cancel'),
+                            label: 'Cancel',
+                            variant: SelfxKioskButtonVariant.secondary,
+                            minHeight: 52,
+                            expanded: true,
+                            textAlign: TextAlign.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            onPressed: () => Navigator.of(context).pop(false),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SelfxKioskButton(
+                            key: const Key('customer-consent-ok'),
+                            label: 'OK',
+                            icon: Icons.check,
+                            variant: SelfxKioskButtonVariant.primary,
+                            minHeight: 52,
+                            expanded: true,
+                            textAlign: TextAlign.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            onPressed: () => Navigator.of(context).pop(true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

@@ -23,6 +23,8 @@ export interface ObjectStorage {
   createReadUrl(input: {
     key: string;
     expiresInSeconds: number;
+    responseContentDisposition?: string;
+    responseContentType?: string;
   }): string;
   headObject(key: string): Promise<ObjectStorageHead>;
   readObject(key: string, maxBytes: number): Promise<Buffer>;
@@ -71,8 +73,13 @@ export class ObjectStorageService implements ObjectStorage {
   createReadUrl(input: {
     key: string;
     expiresInSeconds: number;
+    responseContentDisposition?: string;
+    responseContentType?: string;
   }): string {
-    return this.presign("GET", input.key, input.expiresInSeconds);
+    return this.presign("GET", input.key, input.expiresInSeconds, {
+      responseContentDisposition: input.responseContentDisposition,
+      responseContentType: input.responseContentType,
+    });
   }
 
   async headObject(key: string): Promise<ObjectStorageHead> {
@@ -115,6 +122,10 @@ export class ObjectStorageService implements ObjectStorage {
     method: "PUT" | "GET" | "HEAD" | "DELETE",
     key: string,
     expiresInSeconds: number,
+    responseHeaders?: {
+      responseContentDisposition?: string;
+      responseContentType?: string;
+    },
   ): string {
     const config = requireConfiguredStorage(this.config);
     const now = new Date();
@@ -129,6 +140,15 @@ export class ObjectStorageService implements ObjectStorage {
       "X-Amz-Expires": String(Math.max(1, Math.min(expiresInSeconds, 900))),
       "X-Amz-SignedHeaders": "host",
     });
+    if (responseHeaders?.responseContentDisposition) {
+      query.set(
+        "response-content-disposition",
+        responseHeaders.responseContentDisposition,
+      );
+    }
+    if (responseHeaders?.responseContentType) {
+      query.set("response-content-type", responseHeaders.responseContentType);
+    }
 
     const canonicalRequest = [
       method,

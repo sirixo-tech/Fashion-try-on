@@ -42,6 +42,8 @@ describe("KIOSK-6A remote kiosk configuration", () => {
       KioskConfigurationGarmentIntent.BOTTOM,
       KioskConfigurationGarmentIntent.FULL_OUTFIT,
     ]);
+    expect(configuration.experience.multiGarmentSelectionEnabled).toBe(true);
+    expect(configuration.experience.maxTryOnPicks).toBe(5);
   });
 
   it("lets a superadmin read and update kiosk configuration", async () => {
@@ -197,6 +199,15 @@ describe("KIOSK-6A remote kiosk configuration", () => {
         configurationInput({
           enabledGarmentIntents: ["SHOES" as KioskConfigurationGarmentIntent],
         }),
+      ),
+      KIOSK_ERROR_CODES.configurationInvalid,
+    );
+
+    await expectApiCode(
+      harness.service.updateAdminConfiguration(
+        harness.actorUserId,
+        harness.deviceId,
+        configurationInput({ maxTryOnPicks: 0 }),
       ),
       KIOSK_ERROR_CODES.configurationInvalid,
     );
@@ -439,6 +450,7 @@ function configurationInput(
     ctaLabel?: string;
     slideDurationSeconds?: number;
     enabledGarmentIntents?: KioskConfigurationGarmentIntent[];
+    maxTryOnPicks?: number;
     assetUrl?: string;
   } = {},
 ): UpdateKioskConfigurationDto {
@@ -472,6 +484,8 @@ function configurationInput(
       enabledGarmentIntents: overrides.enabledGarmentIntents ?? [
         KioskConfigurationGarmentIntent.TOP,
       ],
+      multiGarmentSelectionEnabled: true,
+      maxTryOnPicks: overrides.maxTryOnPicks ?? 5,
       sessionIdleTimeoutSeconds: 180,
     },
   };

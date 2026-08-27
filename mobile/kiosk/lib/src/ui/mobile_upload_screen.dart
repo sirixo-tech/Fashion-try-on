@@ -14,6 +14,8 @@ import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
+import 'kiosk_attention_animations.dart';
+import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
 import 'try_on_generation_screen.dart';
 
@@ -528,9 +530,11 @@ class _ReadyPhotoPanel extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Chip(
-                avatar: const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF2F855A),
+                avatar: const SelfxSuccessIconPulse(
+                  icon: Icons.check_circle,
+                  backgroundColor: Color(0xFF2F855A),
+                  iconSize: 16,
+                  padding: EdgeInsets.all(3),
                 ),
                 label: const Text('Photo looks good!'),
                 backgroundColor: const Color(0xFFE6F4EA),
@@ -548,13 +552,19 @@ class _ReadyPhotoPanel extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 18),
-              ElevatedButton.icon(
-                key: const Key('take-garment-photo'),
-                onPressed: busy || controller.isBusy
-                    ? null
-                    : () => unawaited(onTakeGarmentPhoto()),
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Take Garment Photo'),
+              SelfxFiveSecondActionPulse(
+                enabled: !busy && !controller.isBusy,
+                child: SelfxKioskButton(
+                  key: const Key('take-garment-photo'),
+                  onPressed: busy || controller.isBusy
+                      ? null
+                      : () => unawaited(onTakeGarmentPhoto()),
+                  icon: Icons.camera_alt_outlined,
+                  label: 'Take Garment Photo',
+                  variant: SelfxKioskButtonVariant.primary,
+                  textAlign: TextAlign.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                ),
               ),
               const SizedBox(height: 14),
               Row(
@@ -565,7 +575,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
                       onPressed: busy || controller.isBusy
                           ? null
                           : () => unawaited(onBrowseCatalog()),
-                      icon: const Icon(Icons.inventory_2_outlined),
+                      icon: const Icon(Icons.checkroom_outlined),
                       label: const FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text('Browse Catalog'),
@@ -600,13 +610,16 @@ class _ReadyPhotoPanel extends StatelessWidget {
               ),
             if (purpose == PhotoAcquisitionPurpose.garment) ...[
               const SizedBox(height: 16),
-              ElevatedButton.icon(
+              SelfxKioskButton(
                 key: const Key('use-mobile-photo'),
                 onPressed: busy || controller.isBusy
                     ? null
                     : () => unawaited(onUseReadyUpload()),
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Continue'),
+                icon: Icons.check_circle_outline,
+                label: 'Continue',
+                variant: SelfxKioskButtonVariant.primary,
+                textAlign: TextAlign.center,
+                mainAxisAlignment: MainAxisAlignment.center,
               ),
             ],
           ],

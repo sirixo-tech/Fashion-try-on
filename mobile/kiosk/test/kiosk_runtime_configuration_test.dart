@@ -51,6 +51,8 @@ void main() {
         },
         'experience': {
           'enabledGarmentIntents': ['TOP', 'FULL_OUTFIT'],
+          'multiGarmentSelectionEnabled': false,
+          'maxTryOnPicks': 7,
           'sessionIdleTimeoutSeconds': 180,
         },
         'updatedAt': '2026-08-16T00:00:00.000Z',
@@ -69,6 +71,8 @@ void main() {
         KioskGarmentIntent.top,
         KioskGarmentIntent.fullOutfit,
       ]);
+      expect(configuration.multiGarmentSelectionEnabled, isFalse);
+      expect(configuration.maxTryOnPicks, 7);
       expect(configuration.sessionIdleTimeoutSeconds, 180);
     },
   );
@@ -94,6 +98,8 @@ void main() {
 
     expect(configuration.effectiveSoundEnabled, isFalse);
     expect(configuration.enabledGarmentIntents, [KioskGarmentIntent.bottom]);
+    expect(configuration.multiGarmentSelectionEnabled, isTrue);
+    expect(configuration.maxTryOnPicks, 5);
   });
 
   test('loads bundled defaults when no cached configuration exists', () async {
@@ -734,6 +740,8 @@ Map<String, dynamic> _configurationJson({
     },
     'experience': {
       'enabledGarmentIntents': intents ?? ['TOP', 'BOTTOM', 'FULL_OUTFIT'],
+      'multiGarmentSelectionEnabled': true,
+      'maxTryOnPicks': 5,
       'sessionIdleTimeoutSeconds': 120,
     },
     'updatedAt': '2026-08-16T00:00:00.000Z',

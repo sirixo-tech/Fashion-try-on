@@ -339,6 +339,9 @@ export class KioskConfigurationService {
       },
       experience: {
         enabledGarmentIntents: [...source.enabledGarmentIntents],
+        multiGarmentSelectionEnabled:
+          source.multiGarmentSelectionEnabled ?? true,
+        maxTryOnPicks: source.maxTryOnPicks ?? 5,
         sessionIdleTimeoutSeconds: source.sessionIdleTimeoutSeconds,
         garmentPreviewEnabled,
       },
@@ -385,6 +388,8 @@ function defaultConfiguration(): ConfigurationWithAssets {
     soundProfile: KioskConfigurationSoundProfile.SELFX_SIGNATURE,
     guidanceAudioEnabled: false,
     enabledGarmentIntents: defaultIntents,
+    multiGarmentSelectionEnabled: true,
+    maxTryOnPicks: 5,
     sessionIdleTimeoutSeconds: 120,
     updatedByUserId: null,
     createdAt: new Date(0),
@@ -443,6 +448,12 @@ function normalizeConfigurationInput(
     900,
     "Session idle timeout must be between 30 and 900 seconds.",
   );
+  assertIntegerRange(
+    input.experience.maxTryOnPicks ?? 5,
+    1,
+    20,
+    "Max Try-On picks must be between 1 and 20.",
+  );
   const requestedIntents = input.experience.enabledGarmentIntents;
   if (
     requestedIntents.some((intent) => !allowedIntents.has(intent)) ||
@@ -484,6 +495,9 @@ function normalizeConfigurationInput(
       soundProfile: input.capture.soundProfile,
       guidanceAudioEnabled: input.capture.guidanceAudioEnabled,
       enabledGarmentIntents: intents,
+      multiGarmentSelectionEnabled:
+        input.experience.multiGarmentSelectionEnabled !== false,
+      maxTryOnPicks: input.experience.maxTryOnPicks ?? 5,
       sessionIdleTimeoutSeconds: input.experience.sessionIdleTimeoutSeconds,
     },
     assets,

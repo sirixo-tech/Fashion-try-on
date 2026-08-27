@@ -11,6 +11,7 @@ import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_chrome.dart';
+import 'selfx_kiosk_button.dart';
 import 'try_on_generation_screen.dart';
 
 class BrowseProductsScreen extends StatefulWidget {
@@ -64,7 +65,20 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   @override
   void initState() {
     super.initState();
+    widget.tryOnController.addListener(_handleTryOnControllerChanged);
     unawaited(_load(reset: true));
+  }
+
+  @override
+  void dispose() {
+    widget.tryOnController.removeListener(_handleTryOnControllerChanged);
+    super.dispose();
+  }
+
+  void _handleTryOnControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _load({required bool reset}) async {
@@ -141,6 +155,26 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     if (_continuing) {
       return;
     }
+    if (widget.tryOnController.multiGarmentSelectionEnabled) {
+      final changed = widget.tryOnController.toggleGarmentPick(
+        _pickFromProduct(product),
+      );
+      if (!changed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.tryOnController.sessionMessage ??
+                  'My Picks is full. Remove one garment to add another.',
+            ),
+          ),
+        );
+        return;
+      }
+      setState(() {
+        _selectedProductId = product.id;
+      });
+      return;
+    }
     setState(() => _selectedProductId = product.id);
   }
 
@@ -148,12 +182,21 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     if (_continuing) {
       return;
     }
+    final multiSelectEnabled =
+        widget.tryOnController.multiGarmentSelectionEnabled;
     final product = _selectedProduct;
-    if (product == null) {
-      return;
+    if (multiSelectEnabled) {
+      if (widget.tryOnController.garmentPicks.isEmpty) {
+        return;
+      }
+      widget.tryOnController.selectFirstGarmentPick();
+    } else {
+      if (product == null) {
+        return;
+      }
+      widget.tryOnController.selectGarment(product.toGarmentInput());
     }
     setState(() => _continuing = true);
-    widget.tryOnController.selectGarment(product.toGarmentInput());
     if (!mounted) {
       return;
     }
@@ -171,6 +214,17 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     if (mounted) {
       setState(() => _continuing = false);
     }
+  }
+
+  KioskTryOnPick _pickFromProduct(KioskCatalogProduct product) {
+    return KioskTryOnPick(
+      id: product.id,
+      displayName: product.name,
+      displayPrice: product.displayPrice,
+      imageUrl: product.image.url,
+      localImagePath: product.image.localPath,
+      garmentInput: product.toGarmentInput(),
+    );
   }
 
   @override
@@ -227,6 +281,10 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
             : constraints.maxWidth >= 760
             ? 3
             : 2;
+        final multiSelectEnabled =
+            widget.tryOnController.multiGarmentSelectionEnabled;
+        final pickCount = widget.tryOnController.garmentPicks.length;
+        final maxPickCount = widget.tryOnController.maxTryOnPicks;
         return Column(
           children: [
             Expanded(
@@ -240,9 +298,14 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
                 ),
                 itemBuilder: (context, index) {
                   final product = _products[index];
+                  final picked = widget.tryOnController.isPicked(product.id);
                   return _ProductCard(
                     product: product,
-                    selected: product.id == _selectedProductId,
+                    selected: multiSelectEnabled
+                        ? picked
+                        : product.id == _selectedProductId,
+                    picked: picked,
+                    multiSelectEnabled: multiSelectEnabled,
                     enabled: !_continuing,
                     onSelected: () => _selectProduct(product),
                   );
@@ -271,14 +334,35 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
             const SizedBox(height: 14),
             _SelectedProductAction(
               product: _selectedProduct,
+              multiSelectEnabled: multiSelectEnabled,
+              pickCount: pickCount,
+              maxPickCount: maxPickCount,
               continuing: _continuing,
-              onContinue: _selectedProduct == null || _continuing
+              onOpenPicks: pickCount == 0 || _continuing
+                  ? null
+                  : () => _openMyPicks(context),
+              onContinue:
+                  ((multiSelectEnabled
+                          ? pickCount == 0
+                          : _selectedProduct == null) ||
+                      _continuing)
                   ? null
                   : () => unawaited(_continueWithSelectedProduct()),
             ),
           ],
         );
       },
+    );
+  }
+
+  void _openMyPicks(BuildContext context) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => _MyPicksSheet(tryOnController: widget.tryOnController),
+      ),
     );
   }
 }
@@ -403,12 +487,16 @@ class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.product,
     required this.selected,
+    required this.picked,
+    required this.multiSelectEnabled,
     required this.enabled,
     required this.onSelected,
   });
 
   final KioskCatalogProduct product;
   final bool selected;
+  final bool picked;
+  final bool multiSelectEnabled;
   final bool enabled;
   final VoidCallback onSelected;
 
@@ -440,63 +528,57 @@ class _ProductCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    ColoredBox(
-                      color: SelfxKioskTokens.background,
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(8),
+                      ),
                       child: _CatalogProductImage(
                         localPath: localImagePath,
                         imageUrl: imageUrl,
                       ),
                     ),
-                    if (selected)
+                    if (multiSelectEnabled)
                       Positioned(
                         top: 10,
                         right: 10,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: SelfxKioskTokens.primary,
-                            shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x33000000),
-                                blurRadius: 10,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(7),
-                            child: Icon(
-                              Icons.check,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
+                        child: _PickToggleButton(
+                          picked: picked,
+                          enabled: enabled,
+                          onPressed: onSelected,
                         ),
-                      ),
+                      )
+                    else if (selected)
+                      Positioned(top: 10, right: 10, child: _SelectedBadge()),
                   ],
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                 child: SizedBox(
-                  height: 62,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  height: 44,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.labelLarge,
+                      Expanded(
+                        child: Text(
+                          product.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.left,
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: SelfxKioskTokens.textPrimary,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
                       ),
                       if (product.displayPrice != null) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(width: 10),
                         Text(
                           product.displayPrice!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
+                          textAlign: TextAlign.right,
                           style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(
                                 color: SelfxKioskTokens.primary,
@@ -528,7 +610,7 @@ class _CatalogProductImage extends StatelessWidget {
     if (local != null && local.isNotEmpty && File(local).existsSync()) {
       return Image.file(
         File(local),
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _brokenImage(),
       );
     }
@@ -536,7 +618,7 @@ class _CatalogProductImage extends StatelessWidget {
     if (remote != null && remote.isNotEmpty) {
       return Image.network(
         remote,
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _brokenImage(),
       );
     }
@@ -548,19 +630,130 @@ class _CatalogProductImage extends StatelessWidget {
   }
 }
 
+class _PickToggleButton extends StatelessWidget {
+  const _PickToggleButton({
+    required this.picked,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool picked;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: picked ? SelfxKioskTokens.primary : Colors.white,
+      elevation: 4,
+      shadowColor: const Color(0x33000000),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: enabled ? onPressed : null,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            picked ? Icons.check : Icons.add,
+            color: picked ? Colors.white : SelfxKioskTokens.primary,
+            size: 21,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: SelfxKioskTokens.primary,
+        shape: BoxShape.circle,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: const Padding(
+        padding: EdgeInsets.all(7),
+        child: Icon(Icons.check, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
 class _SelectedProductAction extends StatelessWidget {
   const _SelectedProductAction({
     required this.product,
+    required this.multiSelectEnabled,
+    required this.pickCount,
+    required this.maxPickCount,
     required this.continuing,
+    required this.onOpenPicks,
     required this.onContinue,
   });
 
   final KioskCatalogProduct? product;
+  final bool multiSelectEnabled;
+  final int pickCount;
+  final int maxPickCount;
   final bool continuing;
+  final VoidCallback? onOpenPicks;
   final VoidCallback? onContinue;
 
   @override
   Widget build(BuildContext context) {
+    if (multiSelectEnabled) {
+      return SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 58,
+                child: OutlinedButton.icon(
+                  key: const Key('open-my-picks'),
+                  onPressed: onOpenPicks,
+                  icon: const Icon(Icons.checkroom_outlined),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('My Picks ($pickCount/$maxPickCount)'),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: SelfxKioskButton(
+                key: const Key('continue-selected-product'),
+                onPressed: onContinue,
+                icon: continuing ? null : Icons.check_circle_outline,
+                trailing: continuing
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : null,
+                label: continuing ? 'Starting' : 'Continue',
+                variant: SelfxKioskButtonVariant.primary,
+                minHeight: 58,
+                textAlign: TextAlign.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final selectedName = product?.name;
     final selectedPrice = product?.displayPrice;
     return SafeArea(
@@ -576,7 +769,9 @@ class _SelectedProductAction extends StatelessWidget {
                   selectedName ?? 'Select a garment to continue',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 if (selectedPrice != null) ...[
                   const SizedBox(height: 2),
@@ -586,6 +781,7 @@ class _SelectedProductAction extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: SelfxKioskTokens.primary,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
@@ -596,19 +792,165 @@ class _SelectedProductAction extends StatelessWidget {
           SizedBox(
             height: 58,
             width: 220,
-            child: ElevatedButton.icon(
+            child: SelfxKioskButton(
               key: const Key('continue-selected-product'),
               onPressed: onContinue,
-              icon: continuing
+              icon: continuing ? null : Icons.check_circle_outline,
+              trailing: continuing
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.check_circle_outline),
-              label: Text(continuing ? 'Starting' : 'Continue'),
+                  : null,
+              label: continuing ? 'Starting' : 'Continue',
+              variant: SelfxKioskButtonVariant.primary,
+              minHeight: 58,
+              textAlign: TextAlign.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MyPicksSheet extends StatelessWidget {
+  const _MyPicksSheet({required this.tryOnController});
+
+  final KioskTryOnSessionController tryOnController;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: tryOnController,
+      builder: (context, _) {
+        final picks = tryOnController.garmentPicks;
+        return SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.74,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'My Picks',
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            '${picks.length} of ${tryOnController.maxTryOnPicks} selected',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: SelfxKioskTokens.textSecondary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (picks.isNotEmpty)
+                      TextButton(
+                        onPressed: tryOnController.clearGarmentPicks,
+                        child: const Text('Clear All'),
+                      ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: picks.isEmpty
+                      ? const Center(
+                          child: Text('No garments added to My Picks yet.'),
+                        )
+                      : ReorderableListView.builder(
+                          itemCount: picks.length,
+                          onReorderItem: tryOnController.reorderGarmentPick,
+                          itemBuilder: (context, index) {
+                            final pick = picks[index];
+                            return _MyPickListItem(
+                              key: ValueKey(pick.id),
+                              pick: pick,
+                              onRemove: () =>
+                                  tryOnController.removeGarmentPick(pick.id),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MyPickListItem extends StatelessWidget {
+  const _MyPickListItem({
+    super.key,
+    required this.pick,
+    required this.onRemove,
+  });
+
+  final KioskTryOnPick pick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 56,
+            height: 64,
+            child: _CatalogProductImage(
+              localPath: pick.localImagePath,
+              imageUrl: pick.imageUrl,
+            ),
+          ),
+        ),
+        title: Text(
+          pick.displayName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        subtitle: pick.displayPrice == null
+            ? null
+            : Text(
+                pick.displayPrice!,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: SelfxKioskTokens.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Remove',
+              onPressed: onRemove,
+              icon: const Icon(Icons.close),
+            ),
+            const Icon(Icons.drag_handle),
+          ],
+        ),
       ),
     );
   }

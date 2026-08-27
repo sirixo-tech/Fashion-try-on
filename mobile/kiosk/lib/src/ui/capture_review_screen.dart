@@ -13,7 +13,9 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
+import 'kiosk_attention_animations.dart';
 import 'mobile_upload_screen.dart';
+import 'selfx_kiosk_button.dart';
 
 class CaptureReviewScreen extends StatelessWidget {
   const CaptureReviewScreen({
@@ -195,11 +197,14 @@ class _ReviewActions extends StatelessWidget {
             label: const Text('Retake'),
           ),
           const SizedBox(height: 16),
-          ElevatedButton.icon(
+          SelfxKioskButton(
             key: const Key('take-garment-photo'),
             onPressed: null,
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('Take Garment Photo'),
+            icon: Icons.camera_alt_outlined,
+            label: 'Take Garment Photo',
+            variant: SelfxKioskButtonVariant.primary,
+            textAlign: TextAlign.center,
+            mainAxisAlignment: MainAxisAlignment.center,
           ),
         ] else if (isUsable) ...[
           Text(
@@ -218,11 +223,16 @@ class _ReviewActions extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          ElevatedButton.icon(
-            key: const Key('take-garment-photo'),
-            onPressed: () => unawaited(_openGarmentCamera(context)),
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('Take Garment Photo'),
+          SelfxFiveSecondActionPulse(
+            child: SelfxKioskButton(
+              key: const Key('take-garment-photo'),
+              onPressed: () => unawaited(_openGarmentCamera(context)),
+              icon: Icons.camera_alt_outlined,
+              label: 'Take Garment Photo',
+              variant: SelfxKioskButtonVariant.primary,
+              textAlign: TextAlign.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+            ),
           ),
           const SizedBox(height: 14),
           Row(
@@ -231,7 +241,7 @@ class _ReviewActions extends StatelessWidget {
                 child: OutlinedButton.icon(
                   key: const Key('browse-catalog'),
                   onPressed: () => unawaited(_openCatalog(context)),
-                  icon: const Icon(Icons.inventory_2_outlined),
+                  icon: const Icon(Icons.checkroom_outlined),
                   label: const FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text('Browse Catalog'),
@@ -260,11 +270,14 @@ class _ReviewActions extends StatelessWidget {
             label: const Text('Retake Photo'),
           ),
           const SizedBox(height: 16),
-          ElevatedButton.icon(
+          SelfxKioskButton(
             key: const Key('upload-model-photo'),
             onPressed: () => unawaited(_uploadModelPhoto(context)),
-            icon: const Icon(Icons.file_upload_outlined),
-            label: const Text('Upload Photo'),
+            icon: Icons.file_upload_outlined,
+            label: 'Upload Photo',
+            variant: SelfxKioskButtonVariant.primary,
+            textAlign: TextAlign.center,
+            mainAxisAlignment: MainAxisAlignment.center,
           ),
         ],
       ],
@@ -459,6 +472,7 @@ class _ImageUsabilityStatementState extends State<_ImageUsabilityStatement> {
                 icon: result.isUsable
                     ? _successMessage?.icon ?? Icons.check
                     : Icons.error_outline,
+                animateIcon: result.isUsable,
                 backgroundColor: result.isUsable
                     ? SelfxKioskTokens.primary
                     : const Color(0xFFC53030),
@@ -526,11 +540,13 @@ const _successReviewMessages = [
 class _UsabilityLine extends StatelessWidget {
   const _UsabilityLine({
     required this.icon,
+    this.animateIcon = false,
     required this.backgroundColor,
     required this.text,
   });
 
   final IconData icon;
+  final bool animateIcon;
   final Color backgroundColor;
   final String text;
 
@@ -542,16 +558,19 @@ class _UsabilityLine extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              shape: BoxShape.circle,
+          if (animateIcon)
+            SelfxSuccessIconPulse(icon: icon, backgroundColor: backgroundColor)
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                shape: BoxShape.circle,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(5),
+                child: Icon(icon, size: 18, color: Colors.white),
+              ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(5),
-              child: Icon(icon, size: 18, color: Colors.white),
-            ),
-          ),
           const SizedBox(width: 12),
           Flexible(
             child: Text(

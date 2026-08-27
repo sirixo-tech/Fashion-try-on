@@ -185,6 +185,8 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
       soundProfile: remote.soundProfile,
       guidanceAudioEnabled: remote.guidanceAudioEnabled,
       enabledGarmentIntents: remote.enabledGarmentIntents,
+      multiGarmentSelectionEnabled: remote.multiGarmentSelectionEnabled,
+      maxTryOnPicks: remote.maxTryOnPicks,
       garmentPreviewEnabled: remote.garmentPreviewEnabled,
       captureUploadMaxImageBytes: remote.captureUploadMaxImageBytes,
       sessionIdleTimeoutSeconds: remote.sessionIdleTimeoutSeconds,

@@ -176,6 +176,8 @@ export class KioskConfigurationDto {
   };
   experience!: {
     enabledGarmentIntents: KioskConfigurationGarmentIntent[];
+    multiGarmentSelectionEnabled: boolean;
+    maxTryOnPicks: number;
     sessionIdleTimeoutSeconds: number;
     garmentPreviewEnabled: boolean;
   };
@@ -309,6 +311,16 @@ export class KioskConfigurationExperienceInputDto {
   @ArrayMaxSize(3)
   @IsEnum(KioskConfigurationGarmentIntent, { each: true })
   enabledGarmentIntents!: KioskConfigurationGarmentIntent[];
+
+  @IsOptional()
+  @IsBoolean()
+  multiGarmentSelectionEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  maxTryOnPicks?: number;
 
   @IsInt()
   @Min(30)
