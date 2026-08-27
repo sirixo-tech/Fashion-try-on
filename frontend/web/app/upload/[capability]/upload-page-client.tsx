@@ -126,11 +126,12 @@ export function CustomerUploadPageClient({
   return (
     <main className="min-h-screen bg-background px-5 py-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center">
-        <div className="mb-8 flex items-center justify-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-lg font-black text-primary-foreground">
-            SX
-          </div>
-          <div className="text-xl font-black">SelfX</div>
+        <div className="mb-8 flex justify-center">
+          <img
+            src="/brand/selfx-logo.png"
+            alt="SelfX"
+            className="h-14 w-auto max-w-48 object-contain"
+          />
         </div>
 
         <Card>

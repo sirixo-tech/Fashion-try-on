@@ -125,6 +125,29 @@ describe("TryOnSessionService", () => {
       storageKey: "try-on/result.png",
     });
   });
+
+  it("revokes active share links when a session is completed", async () => {
+    const prisma = new FakePrisma();
+    const service = new TryOnSessionService(prisma as never);
+    const session = await service.createSession(kioskContext());
+    prisma.seedShare({
+      id: "share-1",
+      sessionId: session.id,
+      revokedAt: null,
+    });
+
+    await service.completeSession({
+      sessionId: session.id,
+      kioskDeviceId: "kiosk-1",
+    });
+
+    expect(prisma.sessions.get(session.id)).toMatchObject({
+      status: TryOnSessionStatus.COMPLETED,
+    });
+    expect(prisma.shareCapabilities.get("share-1")?.revokedAt).toBeInstanceOf(
+      Date,
+    );
+  });
 });
 
 function kioskContext() {
@@ -141,6 +164,7 @@ class FakePrisma {
   readonly assets = new Map<string, FakeAsset>();
   readonly runs = new Map<string, FakeRun>();
   readonly looks = new Map<string, FakeLook>();
+  readonly shareCapabilities = new Map<string, FakeShare>();
 
   readonly $transaction = vi.fn(async (callback: (tx: this) => unknown) =>
     callback(this),
@@ -282,6 +306,26 @@ class FakePrisma {
     ),
   };
 
+  readonly tryOnShareCapability = {
+    updateMany: vi.fn(
+      async ({
+        where,
+        data,
+      }: {
+        where: ShareWhere;
+        data: Partial<FakeShare>;
+      }) => {
+        const matches = [...this.shareCapabilities.values()].filter((share) =>
+          matchesShare(share, where),
+        );
+        for (const share of matches) {
+          Object.assign(share, data);
+        }
+        return { count: matches.length };
+      },
+    ),
+  };
+
   seedRun(input: Partial<FakeRun> & { id: string; kioskDeviceId: string }): void {
     const now = new Date();
     this.runs.set(input.id, {
@@ -292,6 +336,20 @@ class FakePrisma {
       resultAssetId: null,
       createdAt: now,
       updatedAt: now,
+      ...input,
+    });
+  }
+
+  seedShare(input: Partial<FakeShare> & { id: string; sessionId: string }): void {
+    const now = new Date();
+    this.shareCapabilities.set(input.id, {
+      capabilityDigest: "digest",
+      assignmentScope: KioskAssignmentScope.ORGANIZATION,
+      organizationId: "org-1",
+      storeId: null,
+      kioskDeviceId: "kiosk-1",
+      expiresAt: new Date(now.getTime() + 5 * 60 * 1000),
+      revokedAt: null,
       ...input,
     });
   }
@@ -367,6 +425,18 @@ type FakeLook = CreateLookData & {
   updatedAt: Date;
 };
 
+interface FakeShare {
+  id: string;
+  sessionId: string;
+  capabilityDigest: string;
+  assignmentScope: KioskAssignmentScope;
+  organizationId: string | null;
+  storeId: string | null;
+  kioskDeviceId: string | null;
+  expiresAt: Date;
+  revokedAt: Date | null;
+}
+
 interface SessionWhere {
   id: string;
   kioskDeviceId?: string | null;
@@ -387,6 +457,11 @@ interface RunWhere {
   status?: string;
 }
 
+interface ShareWhere {
+  sessionId?: string;
+  revokedAt?: Date | null;
+}
+
 function matchesSession(session: FakeSession, where: SessionWhere): boolean {
   return (
     session.id === where.id &&
@@ -404,5 +479,12 @@ function matchesRun(run: FakeRun, where: RunWhere): boolean {
     (where.tryOnSessionId === undefined ||
       run.tryOnSessionId === where.tryOnSessionId) &&
     (where.status === undefined || run.status === where.status)
+  );
+}
+
+function matchesShare(share: FakeShare, where: ShareWhere): boolean {
+  return (
+    (where.sessionId === undefined || share.sessionId === where.sessionId) &&
+    (where.revokedAt === undefined || share.revokedAt === where.revokedAt)
   );
 }

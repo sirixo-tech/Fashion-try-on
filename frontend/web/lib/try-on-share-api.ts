@@ -1,4 +1,4 @@
-import { selfxApi } from "@/lib/api";
+import { selfxApi, selfxApiUrl } from "@/lib/api";
 
 export interface PublicTryOnShareLook {
   lookId: string;
@@ -19,5 +19,16 @@ export function getPublicTryOnShare(
 ): Promise<PublicTryOnShare> {
   return selfxApi<PublicTryOnShare>(
     `/api/v1/public/try-on-shares/${encodeURIComponent(capability)}`,
+  );
+}
+
+export function publicTryOnLookDownloadUrl(
+  capability: string,
+  lookId: string,
+): string {
+  return selfxApiUrl(
+    `/api/v1/public/try-on-shares/${encodeURIComponent(
+      capability,
+    )}/looks/${encodeURIComponent(lookId)}/download`,
   );
 }

@@ -64,6 +64,9 @@ class _SelfxKioskButtonState extends State<SelfxKioskButton> {
     final border = enabled
         ? widget.borderColor ?? widget.backgroundColor ?? style.border
         : const Color(0xFFD1D5DB);
+    final gradient = enabled && widget.backgroundColor == null
+        ? style.gradient
+        : null;
 
     return Semantics(
       button: true,
@@ -74,6 +77,7 @@ class _SelfxKioskButtonState extends State<SelfxKioskButton> {
         child: _ButtonMaterial(
           animate: widget.animateSurface,
           background: background,
+          gradient: gradient,
           elevation: enabled ? style.elevation : 0,
           shadowColor: style.shadowColor,
           border: border,
@@ -100,6 +104,7 @@ class _ButtonMaterial extends StatelessWidget {
   const _ButtonMaterial({
     required this.animate,
     required this.background,
+    required this.gradient,
     required this.elevation,
     required this.shadowColor,
     required this.border,
@@ -109,6 +114,7 @@ class _ButtonMaterial extends StatelessWidget {
 
   final bool animate;
   final Color background;
+  final Gradient? gradient;
   final double elevation;
   final Color shadowColor;
   final Color border;
@@ -123,20 +129,26 @@ class _ButtonMaterial extends StatelessWidget {
       ),
       side: BorderSide(color: border, width: 1.2),
     );
+    final content = gradient == null
+        ? child
+        : Ink(
+            decoration: ShapeDecoration(gradient: gradient, shape: shape),
+            child: child,
+          );
     final material = Material(
-      color: background,
+      color: gradient == null ? background : Colors.transparent,
       elevation: elevation,
       shadowColor: shadowColor,
       shape: shape,
       clipBehavior: Clip.antiAlias,
       animationDuration: animate ? kThemeChangeDuration : Duration.zero,
-      child: child,
+      child: content,
     );
     if (animate) {
       return material;
     }
     return KeyedSubtree(
-      key: ValueKey<int>(Object.hash(background, border, elevation)),
+      key: ValueKey<int>(Object.hash(background, gradient, border, elevation)),
       child: material,
     );
   }
@@ -222,6 +234,7 @@ class _SolidButtonStyle {
     required this.background,
     required this.foreground,
     required this.border,
+    this.gradient,
     required this.elevation,
     required this.shadowColor,
     required this.hoverColor,
@@ -232,6 +245,7 @@ class _SolidButtonStyle {
   final Color background;
   final Color foreground;
   final Color border;
+  final Gradient? gradient;
   final double elevation;
   final Color shadowColor;
   final Color hoverColor;
@@ -244,6 +258,14 @@ class _SolidButtonStyle {
         background: SelfxKioskTokens.buttonPrimary,
         foreground: SelfxKioskTokens.onPrimary,
         border: SelfxKioskTokens.primary,
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            SelfxKioskTokens.primaryGradientStart,
+            SelfxKioskTokens.primaryGradientEnd,
+          ],
+        ),
         elevation: 3,
         shadowColor: Color(0x30FF7119),
         hoverColor: Color(0x1AFFFFFF),

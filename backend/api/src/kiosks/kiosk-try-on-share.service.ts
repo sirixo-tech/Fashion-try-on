@@ -116,31 +116,7 @@ export class KioskTryOnShareService {
   ): Promise<PublicTryOnShareResponseDto> {
     this.assertPublicAllowed(`looks:${ipAddress}:${this.safeBucket(capability)}`);
     const now = new Date();
-    const digest = this.digestCapability(capability);
-    const share = await this.prisma.tryOnShareCapability.findUnique({
-      where: { capabilityDigest: digest },
-      select: {
-        capabilityDigest: true,
-        sessionId: true,
-        expiresAt: true,
-        revokedAt: true,
-        assignmentScope: true,
-        organizationId: true,
-        storeId: true,
-        kioskDeviceId: true,
-      },
-    });
-
-    if (!share || !constantTimeEqual(share.capabilityDigest, digest)) {
-      throw this.invalidShare();
-    }
-    if (share.revokedAt || share.expiresAt <= now) {
-      throw new ApiErrorException(
-        HttpStatus.GONE,
-        KIOSK_ERROR_CODES.tryOnShareExpired,
-        "This link has expired.",
-      );
-    }
+    const share = await this.requireActiveShare(capability, now);
 
     const looks = await this.prisma.tryOnLook.findMany({
       where: {
@@ -190,6 +166,78 @@ export class KioskTryOnShareService {
         productName: look.product?.name,
       })),
     };
+  }
+
+  async publicLookDownloadUrl(
+    capability: string,
+    lookId: string,
+    ipAddress: string,
+  ): Promise<string> {
+    this.assertPublicAllowed(
+      `looks-download:${ipAddress}:${this.safeBucket(capability)}`,
+    );
+    const now = new Date();
+    const share = await this.requireActiveShare(capability, now);
+    const look = await this.prisma.tryOnLook.findFirst({
+      where: {
+        id: lookId,
+        sessionId: share.sessionId,
+        assignmentScope: share.assignmentScope,
+        organizationId: share.organizationId,
+        storeId: share.storeId,
+        kioskDeviceId: share.kioskDeviceId,
+        expiresAt: { gt: now },
+        resultAsset: { deletedAt: null, expiresAt: { gt: now } },
+      },
+      select: {
+        resultAsset: {
+          select: { storageKey: true, expiresAt: true },
+        },
+      },
+    });
+    if (!look) {
+      throw this.invalidShare();
+    }
+    const remainingShareSeconds = Math.max(
+      1,
+      Math.floor((share.expiresAt.getTime() - now.getTime()) / 1000),
+    );
+    return this.storage.createReadUrl({
+      key: look.resultAsset.storageKey,
+      expiresInSeconds: Math.min(
+        remainingShareSeconds,
+        KIOSK_CUSTOMER_UPLOAD_SIGNED_URL_MAX_TTL_SECONDS,
+      ),
+    });
+  }
+
+  private async requireActiveShare(capability: string, now: Date) {
+    const digest = this.digestCapability(capability);
+    const share = await this.prisma.tryOnShareCapability.findUnique({
+      where: { capabilityDigest: digest },
+      select: {
+        capabilityDigest: true,
+        sessionId: true,
+        expiresAt: true,
+        revokedAt: true,
+        assignmentScope: true,
+        organizationId: true,
+        storeId: true,
+        kioskDeviceId: true,
+      },
+    });
+
+    if (!share || !constantTimeEqual(share.capabilityDigest, digest)) {
+      throw this.invalidShare();
+    }
+    if (share.revokedAt || share.expiresAt <= now) {
+      throw new ApiErrorException(
+        HttpStatus.GONE,
+        KIOSK_ERROR_CODES.tryOnShareExpired,
+        "This link has expired.",
+      );
+    }
+    return share;
   }
 
   private digestCapability(capability: string): string {

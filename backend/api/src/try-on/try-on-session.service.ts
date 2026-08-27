@@ -256,9 +256,18 @@ export class TryOnSessionService {
   async completeSession(input: ScopedSessionInput) {
     const now = new Date();
     const where = scopedSessionWhere(input);
-    const updated = await this.prisma.tryOnSession.updateMany({
-      where: { ...where, status: TryOnSessionStatus.ACTIVE },
-      data: { status: TryOnSessionStatus.COMPLETED, completedAt: now },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.tryOnSession.updateMany({
+        where: { ...where, status: TryOnSessionStatus.ACTIVE },
+        data: { status: TryOnSessionStatus.COMPLETED, completedAt: now },
+      });
+      if (result.count > 0) {
+        await tx.tryOnShareCapability.updateMany({
+          where: { sessionId: input.sessionId, revokedAt: null },
+          data: { revokedAt: now },
+        });
+      }
+      return result;
     });
     if (updated.count === 0) {
       return this.prisma.tryOnSession.findFirstOrThrow({ where });

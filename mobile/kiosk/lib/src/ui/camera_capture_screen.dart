@@ -463,49 +463,75 @@ class _PrimaryCameraActionButton extends StatelessWidget {
         child: SizedBox(
           height: dimension,
           width: dimension * 2.35,
-          child: FilledButton(
-            onPressed: onPressed,
-            style: FilledButton.styleFrom(
-              backgroundColor: SelfxKioskTokens.primary,
-              foregroundColor: SelfxKioskTokens.onPrimary,
-              disabledBackgroundColor: SelfxKioskTokens.primary.withValues(
-                alpha: 0.42,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(
+                SelfxKioskTokens.buttonRadius,
               ),
-              disabledForegroundColor: SelfxKioskTokens.onPrimary.withValues(
-                alpha: 0.72,
-              ),
-              padding: EdgeInsets.zero,
-              shape: const StadiumBorder(),
-            ),
-            child: centerText != null
-                ? Text(
-                    centerText!,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: SelfxKioskTokens.onPrimary,
-                      fontWeight: FontWeight.w900,
+              gradient: onPressed == null
+                  ? null
+                  : const LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        SelfxKioskTokens.primaryGradientStart,
+                        SelfxKioskTokens.primaryGradientEnd,
+                      ],
                     ),
-                  )
-                : FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(icon, size: dimension * 0.34),
-                          const SizedBox(width: 8),
-                          Text(
-                            label,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: SelfxKioskTokens.onPrimary,
-                                  fontWeight: FontWeight.w900,
-                                ),
+            ),
+            child: FilledButton(
+              onPressed: onPressed,
+              style: FilledButton.styleFrom(
+                backgroundColor: onPressed == null
+                    ? SelfxKioskTokens.primaryGradientStart.withValues(
+                        alpha: 0.42,
+                      )
+                    : Colors.transparent,
+                foregroundColor: SelfxKioskTokens.onPrimary,
+                disabledBackgroundColor: SelfxKioskTokens.primaryGradientStart
+                    .withValues(alpha: 0.42),
+                disabledForegroundColor: SelfxKioskTokens.onPrimary.withValues(
+                  alpha: 0.72,
+                ),
+                shadowColor: Colors.transparent,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    SelfxKioskTokens.buttonRadius,
+                  ),
+                ),
+              ),
+              child: centerText != null
+                  ? Text(
+                      centerText!,
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: SelfxKioskTokens.onPrimary,
+                            fontWeight: FontWeight.w900,
                           ),
-                        ],
+                    )
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(icon, size: dimension * 0.34),
+                            const SizedBox(width: 8),
+                            Text(
+                              label,
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    color: SelfxKioskTokens.onPrimary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+            ),
           ),
         ),
       ),
@@ -621,7 +647,7 @@ class _CameraStateView extends StatelessWidget {
                   icon: const Icon(Icons.refresh),
                   label: const Text('Retry'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: SelfxKioskTokens.primary,
+                    backgroundColor: SelfxKioskTokens.primaryGradientStart,
                     foregroundColor: SelfxKioskTokens.onPrimary,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 34,
@@ -629,7 +655,11 @@ class _CameraStateView extends StatelessWidget {
                     ),
                     textStyle: Theme.of(context).textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w800),
-                    shape: const StadiumBorder(),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        SelfxKioskTokens.buttonRadius,
+                      ),
+                    ),
                   ),
                 ),
             ],

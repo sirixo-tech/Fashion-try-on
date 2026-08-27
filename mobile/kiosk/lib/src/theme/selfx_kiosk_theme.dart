@@ -9,6 +9,8 @@ class SelfxKioskTokens {
   static const primary = Color(0xFFFF7119);
   static const primaryHover = Color(0xFFE6600F);
   static const primaryPressed = Color(0xFFC84F0A);
+  static const primaryGradientStart = Color(0xFFFF4B16);
+  static const primaryGradientEnd = Color(0xFFFFA21C);
   static const onPrimary = Color(0xFFFFFFFF);
   static const secondary = Color(0xFFFFA21C);
   static const onSecondary = Color(0xFFFFFFFF);
@@ -39,7 +41,7 @@ class SelfxKioskTokens {
   static const radiusMedium = 10.0;
   static const radiusLarge = 14.0;
   static const cardRadius = radiusMedium;
-  static const buttonRadius = 999.0;
+  static const buttonRadius = 8.0;
   static const spacingSmall = 8.0;
   static const spacingMedium = 16.0;
   static const spacingLarge = 24.0;
@@ -140,9 +142,9 @@ ThemeData buildSelfxKioskTheme() {
       style: FilledButton.styleFrom(
         minimumSize: const Size(180, 56),
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-        backgroundColor: SelfxKioskTokens.primary,
+        backgroundColor: SelfxKioskTokens.primaryGradientStart,
         foregroundColor: SelfxKioskTokens.onPrimary,
-        side: const BorderSide(color: SelfxKioskTokens.primary),
+        side: const BorderSide(color: SelfxKioskTokens.primaryGradientStart),
         disabledBackgroundColor: const Color(0xFFE5E7EB),
         disabledForegroundColor: SelfxKioskTokens.textMuted,
         textStyle: const TextStyle(
@@ -159,9 +161,9 @@ ThemeData buildSelfxKioskTheme() {
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(180, 56),
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-        backgroundColor: SelfxKioskTokens.primary,
+        backgroundColor: SelfxKioskTokens.primaryGradientStart,
         foregroundColor: SelfxKioskTokens.onPrimary,
-        side: const BorderSide(color: SelfxKioskTokens.primary),
+        side: const BorderSide(color: SelfxKioskTokens.primaryGradientStart),
         disabledBackgroundColor: const Color(0xFFE5E7EB),
         disabledForegroundColor: SelfxKioskTokens.textMuted,
         elevation: 0,

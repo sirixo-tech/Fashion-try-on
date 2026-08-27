@@ -866,7 +866,7 @@ function defaultConfigForm(): KioskConfigurationForm {
     title: "SelfX Virtual Try-On",
     subtitle: "Find your perfect fit in seconds.",
     ctaLabel: "Start Try-On",
-    countdownSeconds: 10,
+    countdownSeconds: 5,
     soundEnabled: true,
     soundProfile: "SELFX_SIGNATURE",
     guidanceAudioEnabled: false,

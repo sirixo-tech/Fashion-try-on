@@ -15,6 +15,7 @@ import {
 import { SafeApiError } from "@/lib/api";
 import {
   getPublicTryOnShare,
+  publicTryOnLookDownloadUrl,
   type PublicTryOnShare,
 } from "@/lib/try-on-share-api";
 
@@ -26,6 +27,7 @@ type PageState =
 
 export function LooksSharePageClient({ capability }: { capability: string }) {
   const [state, setState] = useState<PageState>({ status: "LOADING" });
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     let cancelled = false;
@@ -55,14 +57,29 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
     };
   }, [capability]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const remainingSeconds =
+    state.status === "READY"
+      ? Math.max(
+          0,
+          Math.ceil((Date.parse(state.share.expiresAt) - nowMs) / 1000),
+        )
+      : 0;
+  const downloadExpired = state.status === "READY" && remainingSeconds <= 0;
+
   return (
     <main className="min-h-screen bg-background px-4 py-6">
       <div className="mx-auto max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-base font-black text-primary-foreground">
-            SX
-          </div>
-          <div className="text-xl font-black">SelfX</div>
+        <div className="mb-6 flex justify-center">
+          <img
+            src="/brand/selfx-logo.png"
+            alt="SelfX"
+            className="h-14 w-auto max-w-48 object-contain"
+          />
         </div>
 
         {state.status === "LOADING" ? (
@@ -78,7 +95,9 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
             <header className="text-center">
               <h1 className="text-3xl font-black tracking-normal">Your Looks</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Available for a limited time
+                {downloadExpired
+                  ? "Download link expired"
+                  : `Available for ${mmss(remainingSeconds)}`}
               </p>
             </header>
 
@@ -99,12 +118,26 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
                     />
                   </div>
                   <a
-                    className={cn(buttonVariants(), "w-full")}
-                    href={look.imageReadUrl}
+                    className={cn(
+                      buttonVariants(),
+                      "w-full",
+                      downloadExpired && "pointer-events-none opacity-60",
+                    )}
+                    href={
+                      downloadExpired
+                        ? undefined
+                        : publicTryOnLookDownloadUrl(capability, look.lookId)
+                    }
                     download={`selfx-look-${index + 1}`}
+                    aria-disabled={downloadExpired}
                     rel="noreferrer"
+                    onClick={(event) => {
+                      if (downloadExpired) {
+                        event.preventDefault();
+                      }
+                    }}
                   >
-                    Download
+                    {downloadExpired ? "Download Expired" : "Download"}
                   </a>
                 </CardContent>
               </Card>
@@ -114,6 +147,13 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
       </div>
     </main>
   );
+}
+
+function mmss(totalSeconds: number): string {
+  const seconds = Math.max(0, totalSeconds);
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const rest = (seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${rest}`;
 }
 
 function ShareState({ title }: { title: string }) {

@@ -625,7 +625,7 @@ model KioskDeviceConfiguration {
   title                     String?                           @db.VarChar(120)
   subtitle                  String?                           @db.VarChar(180)
   ctaLabel                  String                            @default("Start Try-On") @map("cta_label") @db.VarChar(40)
-  countdownSeconds          Int                               @default(10) @map("countdown_seconds")
+  countdownSeconds          Int                               @default(5) @map("countdown_seconds")
   soundEnabled              Boolean                           @default(true) @map("sound_enabled")
   soundProfile              KioskConfigurationSoundProfile    @default(SELFX_SIGNATURE) @map("sound_profile")
   guidanceAudioEnabled      Boolean                           @default(false) @map("guidance_audio_enabled")

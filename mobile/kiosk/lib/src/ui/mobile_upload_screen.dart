@@ -14,6 +14,7 @@ import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
+import 'selfx_logo.dart';
 import 'try_on_generation_screen.dart';
 
 class MobileUploadScreen extends StatefulWidget {
@@ -313,6 +314,10 @@ class _QrPanel extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const Center(
+                          child: SelfxLogo(height: 44, maxWidth: 160),
+                        ),
+                        SizedBox(height: compact ? 14 : 18),
                         Text(
                           hasValidSession
                               ? purpose.uploadTitle
@@ -411,6 +416,10 @@ class _UploadFailurePanel extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const Center(
+                          child: SelfxLogo(height: 44, maxWidth: 160),
+                        ),
+                        const SizedBox(height: 18),
                         Icon(
                           Icons.wifi_off_outlined,
                           size: 48,
@@ -507,6 +516,8 @@ class _ReadyPhotoPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!compact) const Spacer(),
+            const Center(child: SelfxLogo(height: 44, maxWidth: 160)),
+            const SizedBox(height: 18),
             if (purpose == PhotoAcquisitionPurpose.model) ...[
               Text(
                 "You're Ready",

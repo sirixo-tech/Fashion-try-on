@@ -13,6 +13,9 @@ import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_kiosk_button.dart';
+import 'selfx_logo.dart';
+
+const _downloadWindow = Duration(minutes: 5);
 
 class MyLooksScreen extends StatefulWidget {
   const MyLooksScreen({
@@ -36,19 +39,29 @@ class MyLooksScreen extends StatefulWidget {
 
 class _MyLooksScreenState extends State<MyLooksScreen> {
   late final PageController _pageController;
+  late final DateTime _downloadExpiresAt;
+  Timer? _downloadTimer;
   int _index = 0;
   bool _refreshing = false;
   bool _refreshFailed = false;
+  bool _downloadClosed = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    _downloadExpiresAt = DateTime.now().add(_downloadWindow);
+    _downloadTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     unawaited(_refreshLooks());
   }
 
   @override
   void dispose() {
+    _downloadTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -107,6 +120,8 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
             refreshFailed: _refreshFailed,
             refreshing: _refreshing,
             creatingShare: widget.tryOnController.creatingShare,
+            downloadRemaining: _downloadRemaining,
+            downloadAvailable: _downloadAvailable,
             onPageChanged: (value) => setState(() => _index = value),
             onPrevious: _index > 0 ? _previous : null,
             onNext: _index < looks.length - 1 ? _next : null,
@@ -118,6 +133,19 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
       ),
     );
   }
+
+  Duration get _downloadRemaining {
+    if (_downloadClosed) {
+      return Duration.zero;
+    }
+    final remaining = _downloadExpiresAt.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      return Duration.zero;
+    }
+    return remaining;
+  }
+
+  bool get _downloadAvailable => _downloadRemaining > Duration.zero;
 
   void _previous() {
     _pageController.previousPage(
@@ -150,6 +178,7 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
   }
 
   Future<void> _finish(BuildContext context) async {
+    setState(() => _downloadClosed = true);
     await widget.tryOnController.finish(widget.captureController);
     if (context.mounted) {
       Navigator.of(context).popUntil((route) => route.isFirst);
@@ -157,8 +186,11 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
   }
 
   Future<void> _downloadLooks(BuildContext context) async {
+    if (!_downloadAvailable) {
+      return;
+    }
     final share = await widget.tryOnController.createSessionShare();
-    if (!context.mounted) {
+    if (!context.mounted || !_downloadAvailable) {
       return;
     }
     if (share == null) {
@@ -188,6 +220,8 @@ class _LooksCarousel extends StatelessWidget {
     required this.refreshFailed,
     required this.refreshing,
     required this.creatingShare,
+    required this.downloadRemaining,
+    required this.downloadAvailable,
     required this.onPageChanged,
     required this.onPrevious,
     required this.onNext,
@@ -202,6 +236,8 @@ class _LooksCarousel extends StatelessWidget {
   final bool refreshFailed;
   final bool refreshing;
   final bool creatingShare;
+  final Duration downloadRemaining;
+  final bool downloadAvailable;
   final ValueChanged<int> onPageChanged;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
@@ -237,12 +273,16 @@ class _LooksCarousel extends StatelessWidget {
           },
         );
         final sliderControls = _CarouselControls(
+          count: looks.length,
+          index: index,
           onPrevious: onPrevious,
           onNext: onNext,
         );
         final actions = _MyLooksActions(
           compact: compact,
           creatingShare: creatingShare,
+          downloadRemaining: downloadRemaining,
+          downloadAvailable: downloadAvailable,
           onDownload: creatingShare ? null : onDownload,
           onBack: () => Navigator.of(context).pop(),
           onFinish: onFinish,
@@ -264,8 +304,6 @@ class _LooksCarousel extends StatelessWidget {
               Expanded(child: imageArea),
               const SizedBox(height: 8),
               sliderControls,
-              const SizedBox(height: 8),
-              _Dots(count: looks.length, index: index),
               const SizedBox(height: 12),
               actions,
             ],
@@ -283,8 +321,6 @@ class _LooksCarousel extends StatelessWidget {
                   Expanded(child: imageArea),
                   const SizedBox(height: 10),
                   sliderControls,
-                  const SizedBox(height: 10),
-                  _Dots(count: looks.length, index: index),
                 ],
               ),
             ),
@@ -324,6 +360,8 @@ class _LooksHeader extends StatelessWidget {
             context,
           ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
         ),
+        const SizedBox(height: 8),
+        const Center(child: SelfxLogo(height: 42, maxWidth: 156)),
         const SizedBox(height: 6),
         Text(
           '$current of $total',
@@ -383,26 +421,40 @@ class _Dots extends StatelessWidget {
 }
 
 class _CarouselControls extends StatelessWidget {
-  const _CarouselControls({required this.onPrevious, required this.onNext});
+  const _CarouselControls({
+    required this.count,
+    required this.index,
+    required this.onPrevious,
+    required this.onNext,
+  });
 
+  final int count;
+  final int index;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _CarouselNavButton(
-          icon: Icons.chevron_left,
-          onPressed: onPrevious,
-          tooltip: 'Previous look',
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _CarouselNavButton(
+            icon: Icons.chevron_left,
+            onPressed: onPrevious,
+            tooltip: 'Previous look',
+          ),
         ),
-        const SizedBox(width: 18),
-        _CarouselNavButton(
-          icon: Icons.chevron_right,
-          onPressed: onNext,
-          tooltip: 'Next look',
+        Expanded(
+          child: _Dots(count: count, index: index),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _CarouselNavButton(
+            icon: Icons.chevron_right,
+            onPressed: onNext,
+            tooltip: 'Next look',
+          ),
         ),
       ],
     );
@@ -442,10 +494,56 @@ class _CarouselNavButton extends StatelessWidget {
   }
 }
 
+class _DownloadCountdown extends StatelessWidget {
+  const _DownloadCountdown({required this.remaining});
+
+  final Duration remaining;
+
+  @override
+  Widget build(BuildContext context) {
+    final expired = remaining <= Duration.zero;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              expired ? Icons.lock_clock_outlined : Icons.timer_outlined,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              expired
+                  ? 'Download expired'
+                  : 'Download available ${_mmss(remaining)}',
+              key: const Key('download-my-looks-countdown'),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MyLooksActions extends StatelessWidget {
   const _MyLooksActions({
     required this.compact,
     required this.creatingShare,
+    required this.downloadRemaining,
+    required this.downloadAvailable,
     required this.onDownload,
     required this.onBack,
     required this.onFinish,
@@ -453,6 +551,8 @@ class _MyLooksActions extends StatelessWidget {
 
   final bool compact;
   final bool creatingShare;
+  final Duration downloadRemaining;
+  final bool downloadAvailable;
   final VoidCallback? onDownload;
   final VoidCallback onBack;
   final VoidCallback onFinish;
@@ -464,15 +564,21 @@ class _MyLooksActions extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!compact) const Spacer(),
+        _DownloadCountdown(remaining: downloadRemaining),
+        const SizedBox(height: 10),
         SelfxKioskButton(
           key: const Key('download-my-looks'),
-          label: creatingShare ? 'Preparing...' : 'Download My Looks',
+          label: creatingShare
+              ? 'Preparing...'
+              : downloadAvailable
+              ? 'Download My Looks'
+              : 'Download Expired',
           icon: Icons.file_download_outlined,
           variant: SelfxKioskButtonVariant.primary,
           minHeight: 64,
           textAlign: TextAlign.center,
           mainAxisAlignment: MainAxisAlignment.center,
-          onPressed: onDownload,
+          onPressed: downloadAvailable ? onDownload : null,
         ),
         const SizedBox(height: 12),
         Row(
@@ -729,4 +835,11 @@ class _EmptyLooks extends StatelessWidget {
       ),
     );
   }
+}
+
+String _mmss(Duration duration) {
+  final seconds = duration.inSeconds.clamp(0, _downloadWindow.inSeconds);
+  final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
+  final rest = (seconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$rest';
 }
