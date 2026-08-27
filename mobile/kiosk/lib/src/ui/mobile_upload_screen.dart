@@ -552,51 +552,63 @@ class _ReadyPhotoPanel extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 18),
-              SelfxFiveSecondActionPulse(
-                enabled: !busy && !controller.isBusy,
-                child: SelfxKioskButton(
-                  key: const Key('take-garment-photo'),
-                  onPressed: busy || controller.isBusy
-                      ? null
-                      : () => unawaited(onTakeGarmentPhoto()),
-                  icon: Icons.camera_alt_outlined,
-                  label: 'Take Garment Photo',
-                  variant: SelfxKioskButtonVariant.primary,
-                  textAlign: TextAlign.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
+              Align(
+                alignment: Alignment.center,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SelfxActionPulse(
+                        enabled: !busy && !controller.isBusy,
+                        child: SelfxKioskButton(
+                          key: const Key('take-garment-photo'),
+                          onPressed: busy || controller.isBusy
+                              ? null
+                              : () => unawaited(onTakeGarmentPhoto()),
+                          icon: Icons.camera_alt_outlined,
+                          label: 'Take Garment Photo',
+                          variant: SelfxKioskButtonVariant.primary,
+                          textAlign: TextAlign.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              key: const Key('browse-catalog'),
+                              onPressed: busy || controller.isBusy
+                                  ? null
+                                  : () => unawaited(onBrowseCatalog()),
+                              icon: const Icon(Icons.checkroom_outlined),
+                              label: const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Browse Catalog'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              key: const Key('upload-another-photo'),
+                              onPressed: busy || controller.isBusy
+                                  ? null
+                                  : () => unawaited(controller.uploadAnother()),
+                              icon: const Icon(Icons.qr_code_2),
+                              label: const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Upload Another'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      key: const Key('browse-catalog'),
-                      onPressed: busy || controller.isBusy
-                          ? null
-                          : () => unawaited(onBrowseCatalog()),
-                      icon: const Icon(Icons.checkroom_outlined),
-                      label: const FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text('Browse Catalog'),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      key: const Key('upload-another-photo'),
-                      onPressed: busy || controller.isBusy
-                          ? null
-                          : () => unawaited(controller.uploadAnother()),
-                      icon: const Icon(Icons.qr_code_2),
-                      label: const FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text('Upload Another'),
-                      ),
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(height: 14),
             ] else

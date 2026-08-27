@@ -35,6 +35,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
   bool garmentPreviewEnabled = false;
   bool multiGarmentSelectionEnabled = true;
   int maxTryOnPicks = 5;
+  bool showMyPicksCounter = true;
+  bool saveMyLooksQrEnabled = true;
   List<KioskTryOnPick> garmentPicks = const [];
   int captureUploadMaxImageBytes = defaultCaptureUploadMaxImageBytes;
   KioskTryOnStatus status = KioskTryOnStatus.idle;
@@ -80,6 +82,20 @@ class KioskTryOnSessionController extends ChangeNotifier {
   bool get creatingShare => _creatingShare;
 
   bool get hasNextGarmentPick => _nextGarmentPick != null;
+
+  KioskTryOnPick? get upcomingGarmentPick => _nextGarmentPick;
+
+  int? get upcomingGarmentPickPosition {
+    final pick = _nextGarmentPick;
+    if (pick == null) {
+      return null;
+    }
+    final index = garmentPicks.indexWhere((item) => item.id == pick.id);
+    if (index < 0) {
+      return null;
+    }
+    return index + 1;
+  }
 
   Future<bool> beginCustomerSession() async {
     if (!customerSessionActive) {
@@ -134,6 +150,22 @@ class KioskTryOnSessionController extends ChangeNotifier {
         activeGarmentPickId = null;
       }
     }
+    notifyListeners();
+  }
+
+  void applyShowMyPicksCounter(bool enabled) {
+    if (showMyPicksCounter == enabled) {
+      return;
+    }
+    showMyPicksCounter = enabled;
+    notifyListeners();
+  }
+
+  void applySaveMyLooksQrEnabled(bool enabled) {
+    if (saveMyLooksQrEnabled == enabled) {
+      return;
+    }
+    saveMyLooksQrEnabled = enabled;
     notifyListeners();
   }
 

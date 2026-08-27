@@ -337,6 +337,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
               multiSelectEnabled: multiSelectEnabled,
               pickCount: pickCount,
               maxPickCount: maxPickCount,
+              showPickCounter: widget.tryOnController.showMyPicksCounter,
               continuing: _continuing,
               onOpenPicks: pickCount == 0 || _continuing
                   ? null
@@ -511,86 +512,105 @@ class _ProductCard extends StatelessWidget {
       button: true,
       selected: selected,
       label: product.name,
-      child: Card(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: borderColor, width: selected ? 3 : 1),
-        ),
-        child: InkWell(
-          key: Key('catalog-product-${product.id}'),
-          onTap: enabled ? onSelected : null,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                flex: 8,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8),
-                      ),
-                      child: _CatalogProductImage(
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor, width: selected ? 3 : 1),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x120F172A),
+                blurRadius: 14,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: InkWell(
+            key: Key('catalog-product-${product.id}'),
+            onTap: enabled ? onSelected : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _CatalogProductImage(
                         localPath: localImagePath,
                         imageUrl: imageUrl,
                       ),
-                    ),
-                    if (multiSelectEnabled)
-                      Positioned(
-                        top: 10,
-                        right: 10,
-                        child: _PickToggleButton(
-                          picked: picked,
-                          enabled: enabled,
-                          onPressed: onSelected,
-                        ),
-                      )
-                    else if (selected)
-                      Positioned(top: 10, right: 10, child: _SelectedBadge()),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                child: SizedBox(
-                  height: 44,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.left,
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: SelfxKioskTokens.textPrimary,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                      ),
-                      if (product.displayPrice != null) ...[
-                        const SizedBox(width: 10),
-                        Text(
-                          product.displayPrice!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: SelfxKioskTokens.primary,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                      ],
+                      if (multiSelectEnabled)
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: _PickToggleButton(
+                            picked: picked,
+                            enabled: enabled,
+                            onPressed: onSelected,
+                          ),
+                        )
+                      else if (selected)
+                        Positioned(top: 10, right: 10, child: _SelectedBadge()),
                     ],
                   ),
                 ),
-              ),
-            ],
+                DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFFCF8),
+                    border: Border(
+                      top: BorderSide(color: SelfxKioskTokens.border),
+                    ),
+                  ),
+                  child: SizedBox(
+                    height: 64,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              product.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.left,
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    color: SelfxKioskTokens.textPrimary,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1.08,
+                                  ),
+                            ),
+                          ),
+                          if (product.displayPrice != null) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              flex: 0,
+                              child: Text(
+                                product.displayPrice!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.right,
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(
+                                      color: SelfxKioskTokens.primary,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -693,6 +713,7 @@ class _SelectedProductAction extends StatelessWidget {
     required this.multiSelectEnabled,
     required this.pickCount,
     required this.maxPickCount,
+    required this.showPickCounter,
     required this.continuing,
     required this.onOpenPicks,
     required this.onContinue,
@@ -702,6 +723,7 @@ class _SelectedProductAction extends StatelessWidget {
   final bool multiSelectEnabled;
   final int pickCount;
   final int maxPickCount;
+  final bool showPickCounter;
   final bool continuing;
   final VoidCallback? onOpenPicks;
   final VoidCallback? onContinue;
@@ -722,7 +744,11 @@ class _SelectedProductAction extends StatelessWidget {
                   icon: const Icon(Icons.checkroom_outlined),
                   label: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text('My Picks ($pickCount/$maxPickCount)'),
+                    child: Text(
+                      showPickCounter
+                          ? 'My Picks ($pickCount/$maxPickCount)'
+                          : 'My Picks',
+                    ),
                   ),
                 ),
               ),

@@ -28,6 +28,22 @@ abstract class CameraSettingsStore {
   Future<CameraOrientationMode> readCameraOrientationMode();
 
   Future<void> saveCameraOrientationMode(CameraOrientationMode mode);
+
+  Future<bool> readMultiGarmentSelectionEnabled();
+
+  Future<void> saveMultiGarmentSelectionEnabled(bool enabled);
+
+  Future<int> readMaxTryOnPicks();
+
+  Future<void> saveMaxTryOnPicks(int count);
+
+  Future<bool> readShowMyPicksCounter();
+
+  Future<void> saveShowMyPicksCounter(bool enabled);
+
+  Future<bool> readSaveMyLooksQrEnabled();
+
+  Future<void> saveSaveMyLooksQrEnabled(bool enabled);
 }
 
 class SharedPreferencesCameraSettingsStore implements CameraSettingsStore {
@@ -41,13 +57,25 @@ class SharedPreferencesCameraSettingsStore implements CameraSettingsStore {
       _captureAudioProfileKey =
           'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.captureAudioProfile',
       _cameraOrientationModeKey =
-          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.cameraOrientationMode';
+          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.cameraOrientationMode',
+      _multiGarmentSelectionEnabledKey =
+          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.multiGarmentSelectionEnabled',
+      _maxTryOnPicksKey =
+          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.maxTryOnPicks',
+      _showMyPicksCounterKey =
+          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.showMyPicksCounter',
+      _saveMyLooksQrEnabledKey =
+          'selfx.kiosk.${platformKey ?? Platform.operatingSystem}.saveMyLooksQrEnabled';
 
   final String _preferredCameraIdKey;
   final String _captureCountdownSecondsKey;
   final String _captureSoundsEnabledKey;
   final String _captureAudioProfileKey;
   final String _cameraOrientationModeKey;
+  final String _multiGarmentSelectionEnabledKey;
+  final String _maxTryOnPicksKey;
+  final String _showMyPicksCounterKey;
+  final String _saveMyLooksQrEnabledKey;
 
   final SharedPreferencesAsync _preferences;
 
@@ -111,6 +139,50 @@ class SharedPreferencesCameraSettingsStore implements CameraSettingsStore {
   Future<void> saveCameraOrientationMode(CameraOrientationMode mode) {
     return _preferences.setString(_cameraOrientationModeKey, mode.storageValue);
   }
+
+  @override
+  Future<bool> readMultiGarmentSelectionEnabled() async {
+    return await _preferences.getBool(_multiGarmentSelectionEnabledKey) ?? true;
+  }
+
+  @override
+  Future<void> saveMultiGarmentSelectionEnabled(bool enabled) {
+    return _preferences.setBool(_multiGarmentSelectionEnabledKey, enabled);
+  }
+
+  @override
+  Future<int> readMaxTryOnPicks() async {
+    final value = await _preferences.getInt(_maxTryOnPicksKey);
+    return normalizeMaxTryOnPicks(value);
+  }
+
+  @override
+  Future<void> saveMaxTryOnPicks(int count) {
+    return _preferences.setInt(
+      _maxTryOnPicksKey,
+      normalizeMaxTryOnPicks(count),
+    );
+  }
+
+  @override
+  Future<bool> readShowMyPicksCounter() async {
+    return await _preferences.getBool(_showMyPicksCounterKey) ?? true;
+  }
+
+  @override
+  Future<void> saveShowMyPicksCounter(bool enabled) {
+    return _preferences.setBool(_showMyPicksCounterKey, enabled);
+  }
+
+  @override
+  Future<bool> readSaveMyLooksQrEnabled() async {
+    return await _preferences.getBool(_saveMyLooksQrEnabledKey) ?? true;
+  }
+
+  @override
+  Future<void> saveSaveMyLooksQrEnabled(bool enabled) {
+    return _preferences.setBool(_saveMyLooksQrEnabledKey, enabled);
+  }
 }
 
 class InMemoryCameraSettingsStore implements CameraSettingsStore {
@@ -119,6 +191,10 @@ class InMemoryCameraSettingsStore implements CameraSettingsStore {
   bool? captureSoundsEnabled;
   CaptureAudioProfile? captureAudioProfile;
   CameraOrientationMode? cameraOrientationMode;
+  bool? multiGarmentSelectionEnabled;
+  int? maxTryOnPicks;
+  bool? showMyPicksCounter;
+  bool? saveMyLooksQrEnabled;
 
   @override
   Future<String?> readPreferredCameraId() async => preferredCameraId;
@@ -172,4 +248,48 @@ class InMemoryCameraSettingsStore implements CameraSettingsStore {
   Future<void> saveCameraOrientationMode(CameraOrientationMode mode) async {
     cameraOrientationMode = mode;
   }
+
+  @override
+  Future<bool> readMultiGarmentSelectionEnabled() async {
+    return multiGarmentSelectionEnabled ?? true;
+  }
+
+  @override
+  Future<void> saveMultiGarmentSelectionEnabled(bool enabled) async {
+    multiGarmentSelectionEnabled = enabled;
+  }
+
+  @override
+  Future<int> readMaxTryOnPicks() async {
+    return normalizeMaxTryOnPicks(maxTryOnPicks);
+  }
+
+  @override
+  Future<void> saveMaxTryOnPicks(int count) async {
+    maxTryOnPicks = normalizeMaxTryOnPicks(count);
+  }
+
+  @override
+  Future<bool> readShowMyPicksCounter() async {
+    return showMyPicksCounter ?? true;
+  }
+
+  @override
+  Future<void> saveShowMyPicksCounter(bool enabled) async {
+    showMyPicksCounter = enabled;
+  }
+
+  @override
+  Future<bool> readSaveMyLooksQrEnabled() async {
+    return saveMyLooksQrEnabled ?? true;
+  }
+
+  @override
+  Future<void> saveSaveMyLooksQrEnabled(bool enabled) async {
+    saveMyLooksQrEnabled = enabled;
+  }
+}
+
+int normalizeMaxTryOnPicks(int? count) {
+  return (count ?? 5).clamp(1, 20).toInt();
 }

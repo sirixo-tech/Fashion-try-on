@@ -144,6 +144,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       MaterialPageRoute<void>(
         builder: (_) => CameraSettingsScreen(
           controller: widget.controller,
+          tryOnController: widget.tryOnController,
           configurationController: widget.configurationController,
         ),
       ),
@@ -263,6 +264,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<bool> _prepareCustomerSession() async {
+    await widget.tryOnController.finish(widget.controller);
+    await _activatePendingConfigurationIfSafe();
+
     final enabledIntents =
         widget.configurationController?.configuration.enabledGarmentIntents;
     if (enabledIntents != null) {
@@ -282,6 +286,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     widget.tryOnController.applyMaxTryOnPicks(
       widget.configurationController?.configuration.maxTryOnPicks ?? 5,
     );
+    await _applyLocalTryOnSettings();
     final captureUploadMaxImageBytes = widget
         .configurationController
         ?.configuration
@@ -344,6 +349,23 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     widget.tryOnController.applyMaxTryOnPicks(activated.maxTryOnPicks);
     widget.tryOnController.applyCaptureUploadMaxImageBytes(
       activated.captureUploadMaxImageBytes,
+    );
+    await _applyLocalTryOnSettings();
+  }
+
+  Future<void> _applyLocalTryOnSettings() async {
+    final settings = widget.controller.settingsStore;
+    widget.tryOnController.applyMultiGarmentSelectionEnabled(
+      await settings.readMultiGarmentSelectionEnabled(),
+    );
+    widget.tryOnController.applyMaxTryOnPicks(
+      await settings.readMaxTryOnPicks(),
+    );
+    widget.tryOnController.applyShowMyPicksCounter(
+      await settings.readShowMyPicksCounter(),
+    );
+    widget.tryOnController.applySaveMyLooksQrEnabled(
+      await settings.readSaveMyLooksQrEnabled(),
     );
   }
 
@@ -633,90 +655,193 @@ class _CustomerConsentDialog extends StatelessWidget {
             color: SelfxKioskTokens.surfaceElevated,
             elevation: 12,
             shadowColor: const Color(0x26000000),
+            clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(SelfxKioskTokens.cardRadius),
               side: const BorderSide(color: SelfxKioskTokens.border),
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          SelfxKioskTokens.primaryGradientStart,
+                          SelfxKioskTokens.primaryGradientEnd,
+                        ],
+                      ),
+                    ),
+                    child: SizedBox(height: 6),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Icon(
-                          Icons.privacy_tip_outlined,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 32,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: SelfxKioskTokens.primary.withValues(
+                                  alpha: 0.1,
+                                ),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: SelfxKioskTokens.primary.withValues(
+                                    alpha: 0.22,
+                                  ),
+                                ),
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: Icon(
+                                  Icons.privacy_tip_outlined,
+                                  color: SelfxKioskTokens.primary,
+                                  size: 28,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Before we begin',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: SelfxKioskTokens.primary,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Consent Required',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'SelfX will use your photo and garment image only for this try-on session. After the session ends, your images are deleted and are not kept for reuse.',
+                                    style: Theme.of(context).textTheme.bodyLarge
+                                        ?.copyWith(height: 1.28),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const _ConsentBadge(),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Consent Required',
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(fontWeight: FontWeight.w900),
+                        const SizedBox(height: 22),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                key: const Key('customer-consent-cancel'),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(0, 52),
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: SelfxKioskTokens.textPrimary,
+                                  side: const BorderSide(
+                                    color: SelfxKioskTokens.borderStrong,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      SelfxKioskTokens.buttonRadius,
+                                    ),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontFamily: SelfxKioskTokens.bodyFontFamily,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
+                                child: const Text('Cancel'),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'SelfX will use your photo and garment image only for this try-on session. After the session ends, your images are deleted according to SelfX retention rules and are not kept for reuse.',
-                                style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SelfxKioskButton(
+                                key: const Key('customer-consent-ok'),
+                                label: 'OK',
+                                icon: Icons.check,
+                                variant: SelfxKioskButtonVariant.primary,
+                                minHeight: 52,
+                                expanded: true,
+                                textAlign: TextAlign.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 22),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SelfxKioskButton(
-                            key: const Key('customer-consent-cancel'),
-                            label: 'Cancel',
-                            variant: SelfxKioskButtonVariant.secondary,
-                            minHeight: 52,
-                            expanded: true,
-                            textAlign: TextAlign.center,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            onPressed: () => Navigator.of(context).pop(false),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SelfxKioskButton(
-                            key: const Key('customer-consent-ok'),
-                            label: 'OK',
-                            icon: Icons.check,
-                            variant: SelfxKioskButtonVariant.primary,
-                            minHeight: 52,
-                            expanded: true,
-                            textAlign: TextAlign.center,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            onPressed: () => Navigator.of(context).pop(true),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsentBadge extends StatelessWidget {
+  const _ConsentBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: SelfxKioskTokens.primary.withValues(alpha: 0.08),
+          border: Border.all(
+            color: SelfxKioskTokens.primary.withValues(alpha: 0.18),
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.verified_user_outlined,
+                color: SelfxKioskTokens.primary,
+                size: 18,
+              ),
+              SizedBox(width: 7),
+              Text(
+                'Session-only use',
+                style: TextStyle(
+                  color: SelfxKioskTokens.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
         ),
       ),

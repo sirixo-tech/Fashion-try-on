@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
@@ -40,6 +42,11 @@ class TryOnResultScreen extends StatelessWidget {
             : _ResultPage(
                 imageSrc: result.generatedImage,
                 hasNextPick: tryOnController.hasNextGarmentPick,
+                upcomingPick: tryOnController.upcomingGarmentPick,
+                upcomingPickPosition:
+                    tryOnController.upcomingGarmentPickPosition,
+                totalPickCount: tryOnController.garmentPicks.length,
+                saveMyLooksQrEnabled: tryOnController.saveMyLooksQrEnabled,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
                 onGetMyLooks: () => _getMyLooks(context),
@@ -125,6 +132,10 @@ class _ResultPage extends StatelessWidget {
   const _ResultPage({
     required this.imageSrc,
     required this.hasNextPick,
+    required this.upcomingPick,
+    required this.upcomingPickPosition,
+    required this.totalPickCount,
+    required this.saveMyLooksQrEnabled,
     required this.onTryAnotherGarment,
     required this.onRetakePhoto,
     required this.onGetMyLooks,
@@ -133,6 +144,10 @@ class _ResultPage extends StatelessWidget {
 
   final String imageSrc;
   final bool hasNextPick;
+  final KioskTryOnPick? upcomingPick;
+  final int? upcomingPickPosition;
+  final int totalPickCount;
+  final bool saveMyLooksQrEnabled;
   final VoidCallback onTryAnotherGarment;
   final VoidCallback onRetakePhoto;
   final VoidCallback onGetMyLooks;
@@ -186,12 +201,18 @@ class _ResultPage extends StatelessWidget {
         final actionRows = stackActions ? 4 : 2;
         final actionHeight =
             (actionRows * actionTileHeight) + ((actionRows - 1) * actionGap);
+        final hasUpcomingPick = upcomingPick != null;
+        final upcomingPreviewHeight = hasUpcomingPick
+            ? layout.scaled(82, small: 74, large: 92, extraLarge: 104) +
+                  actionGap
+            : 0.0;
         final minimumContentHeight =
             verticalPadding * 2 +
             layout.scaled(64, small: 50, large: 72) +
             headerGap +
             minimumImageHeight +
             actionGap +
+            upcomingPreviewHeight +
             actionHeight;
         final scroll = viewportHeight < minimumContentHeight;
 
@@ -234,6 +255,15 @@ class _ResultPage extends StatelessWidget {
                               child: _ResultImageCard(imageSrc: imageSrc),
                             ),
                           SizedBox(height: actionGap),
+                          if (hasUpcomingPick) ...[
+                            _UpcomingPickPreview(
+                              pick: upcomingPick!,
+                              position: upcomingPickPosition,
+                              totalCount: totalPickCount,
+                              compact: compact,
+                            ),
+                            SizedBox(height: actionGap),
+                          ],
                           _ActionGrid(
                             stackActions: stackActions,
                             compact: compact,
@@ -256,11 +286,15 @@ class _ResultPage extends StatelessWidget {
                               icon: Icons.collections_outlined,
                               iconColor: _ResultTokens.gold,
                               title: 'Get My Looks',
-                              subtitle: 'Explore styles',
+                              subtitle: saveMyLooksQrEnabled
+                                  ? 'Explore styles'
+                                  : 'QR disabled',
                               background: _ResultTokens.looksSurface,
                               height: actionTileHeight,
                               compact: compact,
-                              onPressed: onGetMyLooks,
+                              onPressed: saveMyLooksQrEnabled
+                                  ? onGetMyLooks
+                                  : null,
                             ),
                             bottomLeft: _ResultTileAction(
                               key: const Key('result-retake-photo'),
@@ -392,6 +426,177 @@ class _ResultImageCard extends StatelessWidget {
   }
 }
 
+class _UpcomingPickPreview extends StatelessWidget {
+  const _UpcomingPickPreview({
+    required this.pick,
+    required this.position,
+    required this.totalCount,
+    required this.compact,
+  });
+
+  final KioskTryOnPick pick;
+  final int? position;
+  final int totalCount;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final indexLabel = position == null || totalCount <= 0
+        ? null
+        : '$position of $totalCount';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        border: Border.all(color: _ResultTokens.tileBorder),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 10 : 12),
+        child: Row(
+          children: [
+            _UpcomingPickThumbnail(pick: pick, size: compact ? 54 : 62),
+            SizedBox(width: compact ? 10 : 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.next_plan_outlined,
+                        size: 15,
+                        color: _ResultTokens.orangeDeep,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Up next',
+                        style: TextStyle(
+                          color: _ResultTokens.orangeDeep,
+                          fontFamily: 'Inter',
+                          fontSize: compact ? 12 : 13,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                      if (indexLabel != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          indexLabel,
+                          style: TextStyle(
+                            color: _ResultTokens.muted,
+                            fontFamily: 'Inter',
+                            fontSize: compact ? 11 : 12,
+                            fontWeight: FontWeight.w700,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          pick.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _ResultTokens.ink,
+                            fontFamily: 'Manrope',
+                            fontSize: compact ? 16 : 18,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                          ),
+                        ),
+                      ),
+                      if (pick.displayPrice != null) ...[
+                        const SizedBox(width: 10),
+                        Text(
+                          pick.displayPrice!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _ResultTokens.orangeDeep,
+                            fontFamily: 'Inter',
+                            fontSize: compact ? 13 : 14,
+                            fontWeight: FontWeight.w900,
+                            height: 1.05,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UpcomingPickThumbnail extends StatelessWidget {
+  const _UpcomingPickThumbnail({required this.pick, required this.size});
+
+  final KioskTryOnPick pick;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final localPath = pick.localImagePath;
+    final imageUrl = pick.imageUrl;
+    Widget child;
+    if (localPath != null && localPath.isNotEmpty) {
+      child = Image.file(
+        File(localPath),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const _UpcomingPickThumbnailFallback(),
+      );
+    } else if (imageUrl != null && imageUrl.isNotEmpty) {
+      child = Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const _UpcomingPickThumbnailFallback(),
+      );
+    } else {
+      child = const _UpcomingPickThumbnailFallback();
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox.square(
+        dimension: size,
+        child: ColoredBox(color: _ResultTokens.finishSurface, child: child),
+      ),
+    );
+  }
+}
+
+class _UpcomingPickThumbnailFallback extends StatelessWidget {
+  const _UpcomingPickThumbnailFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Icon(
+        Icons.checkroom_outlined,
+        color: _ResultTokens.orangeDeep,
+        size: 28,
+      ),
+    );
+  }
+}
+
 class _ActionGrid extends StatelessWidget {
   const _ActionGrid({
     required this.stackActions,
@@ -469,11 +674,11 @@ class _ResultTileAction extends StatelessWidget {
   final Color background;
   final double height;
   final bool compact;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return _ResultPressable(
+    final content = _ResultPressable(
       onPressed: onPressed,
       borderRadius: 26,
       child: DecoratedBox(
@@ -540,6 +745,7 @@ class _ResultTileAction extends StatelessWidget {
         ),
       ),
     );
+    return onPressed == null ? Opacity(opacity: 0.56, child: content) : content;
   }
 }
 
@@ -576,7 +782,7 @@ class _ResultPressable extends StatelessWidget {
     required this.child,
   });
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final double borderRadius;
   final Widget child;
 

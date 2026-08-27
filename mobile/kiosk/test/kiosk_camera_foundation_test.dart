@@ -26,6 +26,7 @@ import 'package:selfx_kiosk/src/quality/image_quality.dart';
 import 'package:selfx_kiosk/src/session/capture_audio_service.dart';
 import 'package:selfx_kiosk/src/session/capture_flow.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
+import 'package:selfx_kiosk/src/session/capture_scope.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
@@ -345,6 +346,31 @@ void main() {
       },
     );
 
+    test('local try-on controls default and persist', () async {
+      final settings = InMemoryCameraSettingsStore();
+
+      expect(await settings.readMultiGarmentSelectionEnabled(), isTrue);
+      expect(await settings.readMaxTryOnPicks(), 5);
+      expect(await settings.readShowMyPicksCounter(), isTrue);
+      expect(await settings.readSaveMyLooksQrEnabled(), isTrue);
+
+      await settings.saveMultiGarmentSelectionEnabled(false);
+      await settings.saveMaxTryOnPicks(8);
+      await settings.saveShowMyPicksCounter(false);
+      await settings.saveSaveMyLooksQrEnabled(false);
+
+      expect(await settings.readMultiGarmentSelectionEnabled(), isFalse);
+      expect(await settings.readMaxTryOnPicks(), 8);
+      expect(await settings.readShowMyPicksCounter(), isFalse);
+      expect(await settings.readSaveMyLooksQrEnabled(), isFalse);
+
+      await settings.saveMaxTryOnPicks(0);
+      expect(await settings.readMaxTryOnPicks(), 1);
+
+      await settings.saveMaxTryOnPicks(99);
+      expect(await settings.readMaxTryOnPicks(), 20);
+    });
+
     test('countdown cancellation prevents delayed capture', () async {
       final camera = readyCamera();
       final settings = InMemoryCameraSettingsStore()
@@ -423,7 +449,9 @@ void main() {
       expect(audioService.events, isEmpty);
     });
 
-    testWidgets('countdown control shows the remaining number', (tester) async {
+    testWidgets('countdown controls defer the number to the preview overlay', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -446,8 +474,80 @@ void main() {
         ),
       );
 
-      expect(find.text('4'), findsOneWidget);
-      expect(find.byIcon(Icons.timer_outlined), findsNothing);
+      expect(find.text('Hold Still'), findsOneWidget);
+      expect(find.text('4'), findsNothing);
+      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+    });
+
+    testWidgets('countdown overlay shows a large remaining number', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CaptureCountdownOverlay(
+              secondsRemaining: 4,
+              guidance: 'Hold still',
+              progress: 0.42,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('camera-countdown-overlay')), findsOneWidget);
+      expect(find.byKey(const Key('camera-countdown-number')), findsOneWidget);
+      expect(find.text('Hold still'), findsOneWidget);
+
+      final number = tester.widget<Text>(
+        find.byKey(const Key('camera-countdown-number')),
+      );
+      expect(number.style?.fontSize, greaterThanOrEqualTo(70));
+    });
+
+    testWidgets('model capture shows scope-aware framing guidance', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 720,
+              height: 1280,
+              child: CaptureFramingGuideOverlay(
+                purpose: PhotoAcquisitionPurpose.model,
+                captureScope: CaptureScope.fullBody,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('camera-framing-guide')), findsOneWidget);
+      expect(find.text('Full body guide'), findsOneWidget);
+      expect(find.text('Frame shoulders to feet'), findsOneWidget);
+    });
+
+    testWidgets('garment capture shows garment framing guidance', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 720,
+              height: 1280,
+              child: CaptureFramingGuideOverlay(
+                purpose: PhotoAcquisitionPurpose.garment,
+                captureScope: CaptureScope.fullBody,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('camera-framing-guide')), findsOneWidget);
+      expect(find.text('Garment guide'), findsOneWidget);
+      expect(find.text('Keep the garment inside the frame'), findsOneWidget);
     });
 
     test('shutter audio is not played when still capture fails', () async {

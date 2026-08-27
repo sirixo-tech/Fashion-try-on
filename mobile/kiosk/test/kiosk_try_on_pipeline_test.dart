@@ -376,11 +376,15 @@ void main() {
       expect(harness.session.garmentInput?.productId, 'product-1');
       expect(harness.session.activeGarmentPickId, 'product-1');
       expect(harness.session.hasNextGarmentPick, isTrue);
+      expect(harness.session.upcomingGarmentPick?.id, 'product-2');
+      expect(harness.session.upcomingGarmentPickPosition, 2);
 
       expect(harness.session.selectNextGarmentPick(), isTrue);
       expect(harness.session.garmentInput?.productId, 'product-2');
       expect(harness.session.activeGarmentPickId, 'product-2');
       expect(harness.session.hasNextGarmentPick, isFalse);
+      expect(harness.session.upcomingGarmentPick, isNull);
+      expect(harness.session.upcomingGarmentPickPosition, isNull);
       expect(harness.session.selectNextGarmentPick(), isFalse);
     });
 

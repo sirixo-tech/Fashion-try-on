@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 class SelfxSuccessIconPulse extends StatefulWidget {
@@ -9,14 +7,12 @@ class SelfxSuccessIconPulse extends StatefulWidget {
     required this.backgroundColor,
     this.iconSize = 18,
     this.padding = const EdgeInsets.all(5),
-    this.activeDuration = const Duration(seconds: 5),
   });
 
   final IconData icon;
   final Color backgroundColor;
   final double iconSize;
   final EdgeInsetsGeometry padding;
-  final Duration activeDuration;
 
   @override
   State<SelfxSuccessIconPulse> createState() => _SelfxSuccessIconPulseState();
@@ -26,7 +22,6 @@ class _SelfxSuccessIconPulseState extends State<SelfxSuccessIconPulse>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _scale;
-  Timer? _stopTimer;
 
   @override
   void initState() {
@@ -55,23 +50,14 @@ class _SelfxSuccessIconPulseState extends State<SelfxSuccessIconPulse>
 
   @override
   void dispose() {
-    _stopTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _start() {
-    _stopTimer?.cancel();
     _controller
       ..reset()
       ..repeat();
-    _stopTimer = Timer(widget.activeDuration, () {
-      if (!mounted) {
-        return;
-      }
-      _controller.stop();
-      _controller.value = 0;
-    });
   }
 
   @override
@@ -92,27 +78,21 @@ class _SelfxSuccessIconPulseState extends State<SelfxSuccessIconPulse>
   }
 }
 
-class SelfxFiveSecondActionPulse extends StatefulWidget {
-  const SelfxFiveSecondActionPulse({
-    super.key,
-    required this.child,
-    this.enabled = true,
-  });
+class SelfxActionPulse extends StatefulWidget {
+  const SelfxActionPulse({super.key, required this.child, this.enabled = true});
 
   final Widget child;
   final bool enabled;
 
   @override
-  State<SelfxFiveSecondActionPulse> createState() =>
-      _SelfxFiveSecondActionPulseState();
+  State<SelfxActionPulse> createState() => _SelfxActionPulseState();
 }
 
-class _SelfxFiveSecondActionPulseState extends State<SelfxFiveSecondActionPulse>
+class _SelfxActionPulseState extends State<SelfxActionPulse>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _scale;
   late final Animation<double> _glow;
-  Timer? _stopTimer;
 
   @override
   void initState() {
@@ -135,7 +115,7 @@ class _SelfxFiveSecondActionPulseState extends State<SelfxFiveSecondActionPulse>
   }
 
   @override
-  void didUpdateWidget(covariant SelfxFiveSecondActionPulse oldWidget) {
+  void didUpdateWidget(covariant SelfxActionPulse oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.enabled != oldWidget.enabled) {
       if (widget.enabled) {
@@ -148,21 +128,17 @@ class _SelfxFiveSecondActionPulseState extends State<SelfxFiveSecondActionPulse>
 
   @override
   void dispose() {
-    _stopTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _start() {
-    _stopTimer?.cancel();
     _controller
       ..reset()
       ..repeat(reverse: true);
-    _stopTimer = Timer(const Duration(seconds: 5), _stop);
   }
 
   void _stop() {
-    _stopTimer?.cancel();
     if (!mounted) {
       return;
     }

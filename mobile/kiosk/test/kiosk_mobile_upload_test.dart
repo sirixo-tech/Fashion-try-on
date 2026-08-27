@@ -1460,6 +1460,30 @@ class FakeSettingsStore implements CameraSettingsStore {
 
   @override
   Future<void> saveCameraOrientationMode(CameraOrientationMode mode) async {}
+
+  @override
+  Future<bool> readMultiGarmentSelectionEnabled() async => true;
+
+  @override
+  Future<void> saveMultiGarmentSelectionEnabled(bool enabled) async {}
+
+  @override
+  Future<int> readMaxTryOnPicks() async => 5;
+
+  @override
+  Future<void> saveMaxTryOnPicks(int count) async {}
+
+  @override
+  Future<bool> readShowMyPicksCounter() async => true;
+
+  @override
+  Future<void> saveShowMyPicksCounter(bool enabled) async {}
+
+  @override
+  Future<bool> readSaveMyLooksQrEnabled() async => true;
+
+  @override
+  Future<void> saveSaveMyLooksQrEnabled(bool enabled) async {}
 }
 
 class FakeQualityAnalyzer implements KioskImageQualityAnalyzer {

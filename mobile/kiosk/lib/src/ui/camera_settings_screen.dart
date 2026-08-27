@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import '../session/capture_flow.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/kiosk_garment_input.dart';
+import '../tryon/kiosk_try_on_session_controller.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_logo.dart';
 
@@ -21,10 +23,12 @@ class CameraSettingsScreen extends StatefulWidget {
   const CameraSettingsScreen({
     super.key,
     required this.controller,
+    this.tryOnController,
     this.configurationController,
   });
 
   final CaptureSessionController controller;
+  final KioskTryOnSessionController? tryOnController;
   final KioskRuntimeConfigurationController? configurationController;
 
   @override
@@ -45,6 +49,7 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
     setState(() => _loading = true);
     try {
       await widget.controller.loadOperatorSettings();
+      await _loadLocalTryOnSettings();
       await widget.controller.refreshCameras();
     } catch (_) {
       // The controller publishes camera failures for the UI to render.
@@ -64,6 +69,7 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
         animation: Listenable.merge([
           widget.controller,
           widget.controller.cameraService.state,
+          if (widget.tryOnController != null) widget.tryOnController!,
           if (widget.configurationController != null)
             widget.configurationController!,
         ]),
@@ -87,26 +93,12 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
                 ?.configuration
                 .enabledGarmentIntents,
             multiGarmentSelectionEnabled:
-                widget
-                    .configurationController
-                    ?.configuration
-                    .multiGarmentSelectionEnabled ??
-                true,
-            maxTryOnPicks:
-                widget.configurationController?.configuration.maxTryOnPicks ??
-                5,
-            garmentPreviewEnabled:
-                widget
-                    .configurationController
-                    ?.configuration
-                    .garmentPreviewEnabled ??
-                false,
-            sessionIdleTimeoutSeconds:
-                widget
-                    .configurationController
-                    ?.configuration
-                    .sessionIdleTimeoutSeconds ??
-                120,
+                widget.tryOnController?.multiGarmentSelectionEnabled ?? true,
+            maxTryOnPicks: widget.tryOnController?.maxTryOnPicks ?? 5,
+            showMyPicksCounter:
+                widget.tryOnController?.showMyPicksCounter ?? true,
+            saveMyLooksQrEnabled:
+                widget.tryOnController?.saveMyLooksQrEnabled ?? true,
             preview: _PreviewPanel(
               state: state,
               preview: widget.controller.cameraService.buildPreview(context),
@@ -123,6 +115,10 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
             onAudioProfileChanged: widget.controller.updateCaptureAudioProfile,
             onCameraOrientationChanged:
                 widget.controller.updateCameraOrientationMode,
+            onMultiGarmentSelectionChanged: _updateMultiGarmentSelectionEnabled,
+            onMaxTryOnPicksChanged: _updateMaxTryOnPicks,
+            onShowMyPicksCounterChanged: _updateShowMyPicksCounter,
+            onSaveMyLooksQrChanged: _updateSaveMyLooksQrEnabled,
             onPreviewSound: widget.controller.previewCaptureAudioProfile,
             onTestCamera: () => Navigator.of(context).pop(),
             configurationStatus:
@@ -143,6 +139,54 @@ class _CameraSettingsScreenState extends State<CameraSettingsScreen> {
       // The controller publishes camera failures for the UI to render.
     }
   }
+
+  Future<void> _loadLocalTryOnSettings() async {
+    final tryOnController = widget.tryOnController;
+    if (tryOnController == null) {
+      return;
+    }
+    final settings = widget.controller.settingsStore;
+    tryOnController.applyMultiGarmentSelectionEnabled(
+      await settings.readMultiGarmentSelectionEnabled(),
+    );
+    tryOnController.applyMaxTryOnPicks(await settings.readMaxTryOnPicks());
+    tryOnController.applyShowMyPicksCounter(
+      await settings.readShowMyPicksCounter(),
+    );
+    tryOnController.applySaveMyLooksQrEnabled(
+      await settings.readSaveMyLooksQrEnabled(),
+    );
+  }
+
+  void _updateMultiGarmentSelectionEnabled(bool enabled) {
+    unawaited(() async {
+      widget.tryOnController?.applyMultiGarmentSelectionEnabled(enabled);
+      await widget.controller.settingsStore.saveMultiGarmentSelectionEnabled(
+        enabled,
+      );
+    }());
+  }
+
+  void _updateMaxTryOnPicks(int count) {
+    unawaited(() async {
+      widget.tryOnController?.applyMaxTryOnPicks(count);
+      await widget.controller.settingsStore.saveMaxTryOnPicks(count);
+    }());
+  }
+
+  void _updateShowMyPicksCounter(bool enabled) {
+    unawaited(() async {
+      widget.tryOnController?.applyShowMyPicksCounter(enabled);
+      await widget.controller.settingsStore.saveShowMyPicksCounter(enabled);
+    }());
+  }
+
+  void _updateSaveMyLooksQrEnabled(bool enabled) {
+    unawaited(() async {
+      widget.tryOnController?.applySaveMyLooksQrEnabled(enabled);
+      await widget.controller.settingsStore.saveSaveMyLooksQrEnabled(enabled);
+    }());
+  }
 }
 
 class _OperatorSettingsWorkspace extends StatelessWidget {
@@ -161,8 +205,8 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
     required this.enabledGarmentIntents,
     required this.multiGarmentSelectionEnabled,
     required this.maxTryOnPicks,
-    required this.garmentPreviewEnabled,
-    required this.sessionIdleTimeoutSeconds,
+    required this.showMyPicksCounter,
+    required this.saveMyLooksQrEnabled,
     required this.preview,
     required this.onBack,
     required this.onCategoryChanged,
@@ -172,6 +216,10 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
     required this.onCaptureSoundsChanged,
     required this.onAudioProfileChanged,
     required this.onCameraOrientationChanged,
+    required this.onMultiGarmentSelectionChanged,
+    required this.onMaxTryOnPicksChanged,
+    required this.onShowMyPicksCounterChanged,
+    required this.onSaveMyLooksQrChanged,
     required this.onPreviewSound,
     required this.onTestCamera,
     required this.configurationStatus,
@@ -192,8 +240,8 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
   final List<KioskGarmentIntent>? enabledGarmentIntents;
   final bool multiGarmentSelectionEnabled;
   final int maxTryOnPicks;
-  final bool garmentPreviewEnabled;
-  final int sessionIdleTimeoutSeconds;
+  final bool showMyPicksCounter;
+  final bool saveMyLooksQrEnabled;
   final Widget preview;
   final VoidCallback onBack;
   final ValueChanged<_OperatorSettingsCategory> onCategoryChanged;
@@ -203,6 +251,10 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
   final ValueChanged<bool> onCaptureSoundsChanged;
   final ValueChanged<CaptureAudioProfile> onAudioProfileChanged;
   final ValueChanged<CameraOrientationMode> onCameraOrientationChanged;
+  final ValueChanged<bool> onMultiGarmentSelectionChanged;
+  final ValueChanged<int> onMaxTryOnPicksChanged;
+  final ValueChanged<bool> onShowMyPicksCounterChanged;
+  final ValueChanged<bool> onSaveMyLooksQrChanged;
   final ValueChanged<CaptureAudioProfile> onPreviewSound;
   final VoidCallback onTestCamera;
   final String configurationStatus;
@@ -239,8 +291,12 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
           enabledGarmentIntents: enabledGarmentIntents,
           multiGarmentSelectionEnabled: multiGarmentSelectionEnabled,
           maxTryOnPicks: maxTryOnPicks,
-          garmentPreviewEnabled: garmentPreviewEnabled,
-          sessionIdleTimeoutSeconds: sessionIdleTimeoutSeconds,
+          showMyPicksCounter: showMyPicksCounter,
+          saveMyLooksQrEnabled: saveMyLooksQrEnabled,
+          onMultiGarmentSelectionChanged: onMultiGarmentSelectionChanged,
+          onMaxTryOnPicksChanged: onMaxTryOnPicksChanged,
+          onShowMyPicksCounterChanged: onShowMyPicksCounterChanged,
+          onSaveMyLooksQrChanged: onSaveMyLooksQrChanged,
           preview: preview,
         );
 
@@ -304,6 +360,7 @@ class _OperatorSettingsWorkspace extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
+      backgroundColor: Colors.transparent,
       builder: (_) => _CategoryMenuSheet(
         selectedCategory: selectedCategory,
         onChanged: (category) {
@@ -328,29 +385,22 @@ class _SettingsNavigationRail extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFF171D24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF111820), Color(0xFF202832)],
+        ),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         boxShadow: SelfxKioskTokens.softShadow,
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: SelfxLogo(height: 34, maxWidth: 128),
-            ),
-            const SizedBox(height: 3),
-            const Text(
-              'Kiosk Control Centre',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 22),
+            const _ControlCentreMenuHeader(compact: false),
+            const SizedBox(height: 18),
             Expanded(
               child: ListView.separated(
                 itemCount: _OperatorSettingsCategory.values.length,
@@ -489,20 +539,79 @@ class _CategoryMenuSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final category in _OperatorSettingsCategory.values)
-            ListTile(
-              leading: Icon(category.icon),
-              title: Text(category.label),
-              selected: category == selectedCategory,
-              selectedColor: SelfxKioskTokens.primary,
-              onTap: () => onChanged(category),
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF111820), Color(0xFF202832)],
+        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _ControlCentreMenuHeader(compact: true),
+              const SizedBox(height: 14),
+              for (final category in _OperatorSettingsCategory.values) ...[
+                _CategoryButton(
+                  category: category,
+                  selected: category == selectedCategory,
+                  onTap: () => onChanged(category),
+                ),
+                const SizedBox(height: 7),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ControlCentreMenuHeader extends StatelessWidget {
+  const _ControlCentreMenuHeader({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 12 : 10,
+          vertical: compact ? 12 : 10,
+        ),
+        child: Row(
+          children: [
+            SelfxLogo(height: compact ? 32 : 28, maxWidth: compact ? 118 : 104),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'KIOSK CONTROL CENTRE',
+                maxLines: compact ? 1 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: compact ? 12 : 10,
+                  fontWeight: FontWeight.w900,
+                  height: 1.05,
+                  letterSpacing: 0,
+                ),
+              ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -521,27 +630,61 @@ class _CategoryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Colors.white : const Color(0xFFD1D7DE);
+    final color = selected
+        ? Colors.white
+        : Colors.white.withValues(alpha: 0.78);
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? SelfxKioskTokens.primary : Colors.transparent,
-          border: Border.all(
-            color: selected ? SelfxKioskTokens.primary : Colors.transparent,
-          ),
+          color: selected ? null : Colors.white.withValues(alpha: 0.035),
+          gradient: selected
+              ? const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    SelfxKioskTokens.primaryGradientStart,
+                    SelfxKioskTokens.primaryGradientEnd,
+                  ],
+                )
+              : null,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           borderRadius: BorderRadius.circular(8),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: SelfxKioskTokens.primary.withValues(alpha: 0.24),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           children: [
-            Icon(category.icon, color: color, size: 22),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: selected
+                    ? Colors.white.withValues(alpha: 0.18)
+                    : Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Icon(category.icon, color: color, size: 20),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 category.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: color,
                   fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
@@ -581,8 +724,12 @@ class _SettingsCategoryContent extends StatelessWidget {
     required this.enabledGarmentIntents,
     required this.multiGarmentSelectionEnabled,
     required this.maxTryOnPicks,
-    required this.garmentPreviewEnabled,
-    required this.sessionIdleTimeoutSeconds,
+    required this.showMyPicksCounter,
+    required this.saveMyLooksQrEnabled,
+    required this.onMultiGarmentSelectionChanged,
+    required this.onMaxTryOnPicksChanged,
+    required this.onShowMyPicksCounterChanged,
+    required this.onSaveMyLooksQrChanged,
     required this.preview,
   });
 
@@ -610,8 +757,12 @@ class _SettingsCategoryContent extends StatelessWidget {
   final List<KioskGarmentIntent>? enabledGarmentIntents;
   final bool multiGarmentSelectionEnabled;
   final int maxTryOnPicks;
-  final bool garmentPreviewEnabled;
-  final int sessionIdleTimeoutSeconds;
+  final bool showMyPicksCounter;
+  final bool saveMyLooksQrEnabled;
+  final ValueChanged<bool> onMultiGarmentSelectionChanged;
+  final ValueChanged<int> onMaxTryOnPicksChanged;
+  final ValueChanged<bool> onShowMyPicksCounterChanged;
+  final ValueChanged<bool> onSaveMyLooksQrChanged;
   final Widget preview;
 
   @override
@@ -642,8 +793,12 @@ class _SettingsCategoryContent extends StatelessWidget {
           enabledGarmentIntents: enabledGarmentIntents,
           multiGarmentSelectionEnabled: multiGarmentSelectionEnabled,
           maxTryOnPicks: maxTryOnPicks,
-          garmentPreviewEnabled: garmentPreviewEnabled,
-          sessionIdleTimeoutSeconds: sessionIdleTimeoutSeconds,
+          showMyPicksCounter: showMyPicksCounter,
+          saveMyLooksQrEnabled: saveMyLooksQrEnabled,
+          onMultiGarmentSelectionChanged: onMultiGarmentSelectionChanged,
+          onMaxTryOnPicksChanged: onMaxTryOnPicksChanged,
+          onShowMyPicksCounterChanged: onShowMyPicksCounterChanged,
+          onSaveMyLooksQrChanged: onSaveMyLooksQrChanged,
           configurationStatus: configurationStatus,
         ),
         _OperatorSettingsCategory.idle => _CaptureSection(
@@ -737,16 +892,24 @@ class _TryOnSettingsSection extends StatelessWidget {
     required this.enabledGarmentIntents,
     required this.multiGarmentSelectionEnabled,
     required this.maxTryOnPicks,
-    required this.garmentPreviewEnabled,
-    required this.sessionIdleTimeoutSeconds,
+    required this.showMyPicksCounter,
+    required this.saveMyLooksQrEnabled,
+    required this.onMultiGarmentSelectionChanged,
+    required this.onMaxTryOnPicksChanged,
+    required this.onShowMyPicksCounterChanged,
+    required this.onSaveMyLooksQrChanged,
     required this.configurationStatus,
   });
 
   final List<KioskGarmentIntent>? enabledGarmentIntents;
   final bool multiGarmentSelectionEnabled;
   final int maxTryOnPicks;
-  final bool garmentPreviewEnabled;
-  final int sessionIdleTimeoutSeconds;
+  final bool showMyPicksCounter;
+  final bool saveMyLooksQrEnabled;
+  final ValueChanged<bool> onMultiGarmentSelectionChanged;
+  final ValueChanged<int> onMaxTryOnPicksChanged;
+  final ValueChanged<bool> onShowMyPicksCounterChanged;
+  final ValueChanged<bool> onSaveMyLooksQrChanged;
   final String configurationStatus;
 
   @override
@@ -758,7 +921,10 @@ class _TryOnSettingsSection extends StatelessWidget {
         _SettingsControlCard(
           title: 'Multi-Garment Selection',
           subtitle: 'Customers can add several garments to My Picks.',
-          trailing: _ReadOnlySwitch(value: multiGarmentSelectionEnabled),
+          trailing: _SettingsSwitch(
+            value: multiGarmentSelectionEnabled,
+            onChanged: onMultiGarmentSelectionChanged,
+          ),
           footer: _InlineStatus(
             enabled: multiGarmentSelectionEnabled,
             label: multiGarmentSelectionEnabled ? 'Enabled' : 'Disabled',
@@ -775,33 +941,30 @@ class _TryOnSettingsSection extends StatelessWidget {
         _SettingsControlCard(
           title: 'My Picks Limit',
           subtitle: 'Maximum items in My Picks',
-          trailing: _DropdownValueBadge(label: '$maxTryOnPicks Items'),
+          trailing: _MaxPicksDropdown(
+            value: maxTryOnPicks,
+            onChanged: onMaxTryOnPicksChanged,
+          ),
         ),
         const SizedBox(height: 12),
         _SettingsControlCard(
           title: 'Show My Picks Counter',
           subtitle: 'Display selected item count to the customer.',
-          trailing: _ReadOnlySwitch(value: multiGarmentSelectionEnabled),
+          trailing: _SettingsSwitch(
+            value: showMyPicksCounter,
+            onChanged: onShowMyPicksCounterChanged,
+          ),
         ),
         const SizedBox(height: 18),
         const _SectionEyebrow('OTHER TRY-ON SETTINGS'),
         const SizedBox(height: 10),
         _SettingsControlCard(
           title: 'Save My Looks (QR)',
-          subtitle: 'Enabled',
-          trailing: const _ReadOnlySwitch(value: true),
-        ),
-        const SizedBox(height: 12),
-        _SettingsControlCard(
-          title: 'Captured Garment Preview',
-          subtitle: garmentPreviewEnabled ? 'Enabled' : 'Disabled',
-          trailing: _ReadOnlySwitch(value: garmentPreviewEnabled),
-        ),
-        const SizedBox(height: 12),
-        _SettingsControlCard(
-          title: 'Auto Clear Session',
-          subtitle: 'After $sessionIdleTimeoutSeconds seconds of inactivity',
-          trailing: const _ReadOnlySwitch(value: true),
+          subtitle: saveMyLooksQrEnabled ? 'Enabled' : 'Disabled',
+          trailing: _SettingsSwitch(
+            value: saveMyLooksQrEnabled,
+            onChanged: onSaveMyLooksQrChanged,
+          ),
         ),
         const SizedBox(height: 18),
         Wrap(
@@ -1737,41 +1900,21 @@ class _SettingsControlCard extends StatelessWidget {
   }
 }
 
-class _ReadOnlySwitch extends StatelessWidget {
-  const _ReadOnlySwitch({required this.value});
+class _SettingsSwitch extends StatelessWidget {
+  const _SettingsSwitch({required this.value, required this.onChanged});
 
   final bool value;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      width: 52,
-      height: 30,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: value ? SelfxKioskTokens.primary : const Color(0xFFE5E7EB),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x240F172A),
-                blurRadius: 6,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const SizedBox(width: 24, height: 24),
-        ),
-      ),
+    return Switch(
+      value: value,
+      onChanged: onChanged,
+      activeThumbColor: Colors.white,
+      activeTrackColor: SelfxKioskTokens.primary,
+      inactiveThumbColor: Colors.white,
+      inactiveTrackColor: const Color(0xFFE5E7EB),
     );
   }
 }
@@ -1809,35 +1952,58 @@ class _InlineStatus extends StatelessWidget {
   }
 }
 
-class _DropdownValueBadge extends StatelessWidget {
-  const _DropdownValueBadge({required this.label});
+class _MaxPicksDropdown extends StatelessWidget {
+  const _MaxPicksDropdown({required this.value, required this.onChanged});
 
-  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        border: Border.all(color: SelfxKioskTokens.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: SelfxKioskTokens.textPrimary,
-                fontWeight: FontWeight.w900,
+    final options = {
+      ...List<int>.generate(10, (index) => index + 1),
+      15,
+      20,
+      value.clamp(1, 20).toInt(),
+    }.toList()..sort();
+    return SizedBox(
+      width: 132,
+      child: DropdownButtonFormField<int>(
+        key: const Key('operator-max-try-on-picks'),
+        initialValue: value.clamp(1, 20).toInt(),
+        isExpanded: true,
+        decoration: InputDecoration(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          filled: true,
+          fillColor: const Color(0xFFF8FAFC),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: SelfxKioskTokens.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: SelfxKioskTokens.border),
+          ),
+        ),
+        items: [
+          for (final option in options)
+            DropdownMenuItem<int>(
+              value: option,
+              child: Text(
+                '$option Items',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w900),
               ),
             ),
-            const SizedBox(width: 14),
-            const Icon(Icons.keyboard_arrow_down, size: 22),
-          ],
-        ),
+        ],
+        onChanged: (next) {
+          if (next != null) {
+            onChanged(next);
+          }
+        },
       ),
     );
   }
@@ -2046,7 +2212,7 @@ extension _OperatorSettingsCategoryInfo on _OperatorSettingsCategory {
       _OperatorSettingsCategory.kiosks =>
         'Camera selection and mounted-device calibration.',
       _OperatorSettingsCategory.tryOn =>
-        'Customer Try-On behavior synced from SelfX.',
+        'Local customer Try-On controls for this kiosk.',
       _OperatorSettingsCategory.content =>
         'Customer home presentation and local media cache.',
       _OperatorSettingsCategory.sounds =>

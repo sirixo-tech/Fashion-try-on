@@ -61,7 +61,7 @@ export class PublicTryOnShareController {
 
   @Get(":capability/looks/:lookId/download")
   @ApiOperation({ summary: "Download one generated Look from a temporary share link" })
-  @ApiResponse({ status: 302 })
+  @ApiOkResponse({ description: "Generated Look image attachment" })
   @ApiResponse({ status: 404, type: ApiErrorResponseDto })
   @ApiResponse({ status: 410, type: ApiErrorResponseDto })
   async download(
@@ -70,11 +70,17 @@ export class PublicTryOnShareController {
     @Param("capability") capability: string,
     @Param("lookId", SelfxUuidParamPipe) lookId: string,
   ): Promise<void> {
-    const url = await this.shares.publicLookDownloadUrl(
+    const download = await this.shares.publicLookDownload(
       capability,
       lookId,
       request.ip,
     );
-    reply.status(302).header("Location", url).send();
+    reply
+      .status(200)
+      .header("Content-Type", download.contentType)
+      .header("Content-Disposition", download.contentDisposition)
+      .header("Content-Length", String(download.contentLength))
+      .header("Cache-Control", "private, no-store")
+      .send(download.body);
   }
 }

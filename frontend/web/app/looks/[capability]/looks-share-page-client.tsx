@@ -92,6 +92,10 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
           <ShareState title="No looks are available." />
         ) : (
           <div className="space-y-4">
+            <FloatingDownloadTimer
+              remainingSeconds={remainingSeconds}
+              expired={downloadExpired}
+            />
             <header className="text-center">
               <h1 className="text-3xl font-black tracking-normal">Your Looks</h1>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -146,6 +150,35 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
         )}
       </div>
     </main>
+  );
+}
+
+function FloatingDownloadTimer({
+  remainingSeconds,
+  expired,
+}: {
+  remainingSeconds: number;
+  expired: boolean;
+}) {
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        "fixed left-3 top-24 z-50 rounded-xl border bg-white/95 px-3 py-2 shadow-lg backdrop-blur",
+        "motion-safe:animate-pulse",
+        expired
+          ? "border-destructive/30 text-destructive"
+          : "border-orange-200 text-orange-700",
+      )}
+    >
+      <div className="text-[11px] font-black uppercase tracking-normal">
+        Downloads
+      </div>
+      <div className="mt-0.5 flex items-center gap-1.5 text-sm font-black">
+        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />
+        <span>{expired ? "Expired" : mmss(remainingSeconds)}</span>
+      </div>
+    </div>
   );
 }
 

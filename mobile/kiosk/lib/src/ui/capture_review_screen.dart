@@ -223,44 +223,56 @@ class _ReviewActions extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SelfxFiveSecondActionPulse(
-            child: SelfxKioskButton(
-              key: const Key('take-garment-photo'),
-              onPressed: () => unawaited(_openGarmentCamera(context)),
-              icon: Icons.camera_alt_outlined,
-              label: 'Take Garment Photo',
-              variant: SelfxKioskButtonVariant.primary,
-              textAlign: TextAlign.center,
-              mainAxisAlignment: MainAxisAlignment.center,
+          Align(
+            alignment: Alignment.center,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SelfxActionPulse(
+                    child: SelfxKioskButton(
+                      key: const Key('take-garment-photo'),
+                      onPressed: () => unawaited(_openGarmentCamera(context)),
+                      icon: Icons.camera_alt_outlined,
+                      label: 'Take Garment Photo',
+                      variant: SelfxKioskButtonVariant.primary,
+                      textAlign: TextAlign.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          key: const Key('browse-catalog'),
+                          onPressed: () => unawaited(_openCatalog(context)),
+                          icon: const Icon(Icons.checkroom_outlined),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Browse Catalog'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          key: const Key('retake-photo'),
+                          onPressed: () => _retake(context),
+                          icon: const Icon(Icons.replay),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Retake Model Photo'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('browse-catalog'),
-                  onPressed: () => unawaited(_openCatalog(context)),
-                  icon: const Icon(Icons.checkroom_outlined),
-                  label: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text('Browse Catalog'),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('retake-photo'),
-                  onPressed: () => _retake(context),
-                  icon: const Icon(Icons.replay),
-                  label: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text('Retake Model Photo'),
-                  ),
-                ),
-              ),
-            ],
           ),
         ] else ...[
           OutlinedButton.icon(

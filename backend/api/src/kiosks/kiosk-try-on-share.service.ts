@@ -14,6 +14,7 @@ import {
   KIOSK_CUSTOMER_UPLOAD_TOKEN_BYTES,
   KIOSK_ERROR_CODES,
   KIOSK_TRY_ON_SHARE_TTL_SECONDS,
+  PLATFORM_IMAGE_UPLOAD_HARD_MAX_BYTES,
 } from "./kiosk.constants.js";
 import type { KioskConfig } from "./kiosk.config.js";
 import type {
@@ -29,6 +30,13 @@ type KioskDeviceContext = Pick<
 interface RateBucket {
   count: number;
   resetAt: number;
+}
+
+export interface PublicTryOnLookDownload {
+  body: Buffer;
+  contentType: string;
+  contentDisposition: string;
+  contentLength: number;
 }
 
 @Injectable()
@@ -168,11 +176,11 @@ export class KioskTryOnShareService {
     };
   }
 
-  async publicLookDownloadUrl(
+  async publicLookDownload(
     capability: string,
     lookId: string,
     ipAddress: string,
-  ): Promise<string> {
+  ): Promise<PublicTryOnLookDownload> {
     this.assertPublicAllowed(
       `looks-download:${ipAddress}:${this.safeBucket(capability)}`,
     );
@@ -191,29 +199,37 @@ export class KioskTryOnShareService {
       },
       select: {
         resultAsset: {
-          select: { storageKey: true, contentType: true, expiresAt: true },
+          select: {
+            storageKey: true,
+            contentType: true,
+            sizeBytes: true,
+            expiresAt: true,
+          },
         },
       },
     });
     if (!look) {
       throw this.invalidShare();
     }
-    const remainingShareSeconds = Math.max(
-      1,
-      Math.floor((share.expiresAt.getTime() - now.getTime()) / 1000),
+    const maxBytes = Math.max(
+      (look.resultAsset.sizeBytes ?? 0) + 1024 * 1024,
+      PLATFORM_IMAGE_UPLOAD_HARD_MAX_BYTES,
     );
-    return this.storage.createReadUrl({
-      key: look.resultAsset.storageKey,
-      expiresInSeconds: Math.min(
-        remainingShareSeconds,
-        KIOSK_CUSTOMER_UPLOAD_SIGNED_URL_MAX_TTL_SECONDS,
-      ),
-      responseContentDisposition: attachmentDispositionForLook(
+    const body = await this.storage.readObject(
+      look.resultAsset.storageKey,
+      maxBytes,
+    );
+    const contentType =
+      look.resultAsset.contentType?.trim() || "application/octet-stream";
+    return {
+      body,
+      contentType,
+      contentDisposition: attachmentDispositionForLook(
         lookId,
-        look.resultAsset.contentType,
+        contentType,
       ),
-      responseContentType: look.resultAsset.contentType ?? undefined,
-    });
+      contentLength: body.length,
+    };
   }
 
   private async requireActiveShare(capability: string, now: Date) {

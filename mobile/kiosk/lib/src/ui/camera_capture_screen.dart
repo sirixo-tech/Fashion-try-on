@@ -6,6 +6,7 @@ import '../camera/camera_preview_viewport.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../live/capture_readiness_engine.dart';
 import '../session/capture_flow.dart';
+import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
@@ -94,6 +95,26 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                 preview: widget.controller.cameraService.buildPreview(context),
                 onRetry: _start,
               ),
+              if (_showFramingGuide(cameraState, flowState))
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CaptureFramingGuideOverlay(
+                      purpose: widget.purpose,
+                      captureScope: widget.controller.captureScope,
+                    ),
+                  ),
+                ),
+              if (flowState.stage == CaptureFlowStage.countdown &&
+                  flowState.secondsRemaining != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CaptureCountdownOverlay(
+                      secondsRemaining: flowState.secondsRemaining!,
+                      guidance: flowState.guidance.message,
+                      progress: flowState.countdownProgress,
+                    ),
+                  ),
+                ),
               Positioned(
                 left: 0,
                 right: 0,
@@ -217,6 +238,17 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   }
 }
 
+bool _showFramingGuide(CameraState cameraState, CaptureFlowState flowState) {
+  final cameraIsLive =
+      cameraState.status == CameraStatus.ready ||
+      cameraState.status == CameraStatus.capturing;
+  final captureIsFraming =
+      flowState.stage == CaptureFlowStage.preview ||
+      flowState.stage == CaptureFlowStage.preparing ||
+      flowState.stage == CaptureFlowStage.countdown;
+  return cameraIsLive && captureIsFraming;
+}
+
 class _PreviewPanel extends StatelessWidget {
   const _PreviewPanel({
     required this.starting,
@@ -250,6 +282,414 @@ class _PreviewPanel extends StatelessWidget {
             ),
     );
   }
+}
+
+class CaptureFramingGuideOverlay extends StatelessWidget {
+  const CaptureFramingGuideOverlay({
+    super.key,
+    required this.purpose,
+    required this.captureScope,
+  });
+
+  final PhotoAcquisitionPurpose purpose;
+  final CaptureScope captureScope;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = purpose == PhotoAcquisitionPurpose.garment
+        ? 'Garment guide'
+        : switch (captureScope) {
+            CaptureScope.top => 'Upper body guide',
+            CaptureScope.bottom => 'Lower body guide',
+            CaptureScope.fullBody => 'Full body guide',
+          };
+    final message = purpose == PhotoAcquisitionPurpose.garment
+        ? 'Keep the garment inside the frame'
+        : switch (captureScope) {
+            CaptureScope.top => 'Frame head, shoulders and torso',
+            CaptureScope.bottom => 'Frame waist, legs and feet',
+            CaptureScope.fullBody => 'Frame shoulders to feet',
+          };
+    final icon = purpose == PhotoAcquisitionPurpose.garment
+        ? Icons.checkroom_outlined
+        : switch (captureScope) {
+            CaptureScope.top => Icons.accessibility_new_outlined,
+            CaptureScope.bottom => Icons.directions_walk_outlined,
+            CaptureScope.fullBody => Icons.person_outline,
+          };
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final layout = KioskLayoutMetrics.fromConstraints(constraints);
+        final bottomPadding = layout.scaled(
+          126,
+          small: 104,
+          large: 148,
+          extraLarge: 174,
+        );
+        final horizontalPadding = layout.scaled(
+          34,
+          small: 18,
+          large: 46,
+          extraLarge: 58,
+        );
+        final topPadding = layout.scaled(
+          34,
+          small: 18,
+          large: 44,
+          extraLarge: 58,
+        );
+        final contentSize = Size(
+          (constraints.maxWidth - (horizontalPadding * 2))
+              .clamp(1, constraints.maxWidth)
+              .toDouble(),
+          (constraints.maxHeight - topPadding - bottomPadding)
+              .clamp(1, constraints.maxHeight)
+              .toDouble(),
+        );
+        final guideRect = _framingGuideRect(
+          contentSize,
+          purpose: purpose,
+          captureScope: captureScope,
+        );
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            topPadding,
+            horizontalPadding,
+            bottomPadding,
+          ),
+          child: Stack(
+            key: const Key('camera-framing-guide'),
+            fit: StackFit.expand,
+            children: [
+              CustomPaint(
+                painter: _FramingGuidePainter(
+                  purpose: purpose,
+                  captureScope: captureScope,
+                ),
+              ),
+              Positioned(
+                left: guideRect.left.clamp(0, contentSize.width - 1).toDouble(),
+                right: (contentSize.width - guideRect.right)
+                    .clamp(0, contentSize.width - 1)
+                    .toDouble(),
+                top: (guideRect.top - layout.scaled(70, small: 58))
+                    .clamp(0, contentSize.height - 1)
+                    .toDouble(),
+                child: Center(
+                  child: _FramingGuideLabel(
+                    icon: icon,
+                    title: title,
+                    message: message,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FramingGuideLabel extends StatelessWidget {
+  const _FramingGuideLabel({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.48),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: layout.scaled(14, small: 11, large: 17, extraLarge: 20),
+          vertical: layout.scaled(9, small: 7, large: 11, extraLarge: 13),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: SelfxKioskTokens.secondary,
+              size: layout.scaled(20, small: 17, large: 23, extraLarge: 27),
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    key: const Key('camera-framing-guide-label'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: SelfxKioskTokens.bodyFontFamily,
+                      fontSize: layout.scaled(
+                        16,
+                        small: 13,
+                        large: 18,
+                        extraLarge: 21,
+                      ),
+                      fontWeight: FontWeight.w900,
+                      height: 1.05,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    message,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.86),
+                      fontFamily: SelfxKioskTokens.bodyFontFamily,
+                      fontSize: layout.scaled(
+                        12,
+                        small: 10,
+                        large: 14,
+                        extraLarge: 16,
+                      ),
+                      fontWeight: FontWeight.w800,
+                      height: 1.05,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FramingGuidePainter extends CustomPainter {
+  const _FramingGuidePainter({
+    required this.purpose,
+    required this.captureScope,
+  });
+
+  final PhotoAcquisitionPurpose purpose;
+  final CaptureScope captureScope;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = _framingGuideRect(
+      size,
+      purpose: purpose,
+      captureScope: captureScope,
+    );
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(28));
+    final whitePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..color = Colors.white.withValues(alpha: 0.76);
+    final orangePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = SelfxKioskTokens.primary.withValues(alpha: 0.92);
+
+    canvas.drawRRect(rrect, whitePaint);
+    _drawGuideCorners(canvas, rect, orangePaint);
+
+    final innerPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = Colors.white.withValues(alpha: 0.54);
+
+    if (purpose == PhotoAcquisitionPurpose.garment) {
+      _drawGarmentGuide(canvas, rect, innerPaint);
+    } else {
+      _drawPersonGuide(canvas, rect, innerPaint, captureScope);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FramingGuidePainter oldDelegate) {
+    return oldDelegate.purpose != purpose ||
+        oldDelegate.captureScope != captureScope;
+  }
+}
+
+Rect _framingGuideRect(
+  Size size, {
+  required PhotoAcquisitionPurpose purpose,
+  required CaptureScope captureScope,
+}) {
+  final widthFactor = purpose == PhotoAcquisitionPurpose.garment
+      ? 0.72
+      : switch (captureScope) {
+          CaptureScope.top => 0.64,
+          CaptureScope.bottom => 0.62,
+          CaptureScope.fullBody => 0.58,
+        };
+  final heightFactor = purpose == PhotoAcquisitionPurpose.garment
+      ? 0.48
+      : switch (captureScope) {
+          CaptureScope.top => 0.56,
+          CaptureScope.bottom => 0.72,
+          CaptureScope.fullBody => 0.84,
+        };
+  final centerYFactor = purpose == PhotoAcquisitionPurpose.garment
+      ? 0.48
+      : switch (captureScope) {
+          CaptureScope.top => 0.43,
+          CaptureScope.bottom => 0.52,
+          CaptureScope.fullBody => 0.52,
+        };
+
+  final guideWidth = size.width * widthFactor;
+  final guideHeight = size.height * heightFactor;
+  final left = (size.width - guideWidth) / 2;
+  final top = (size.height * centerYFactor) - (guideHeight / 2);
+  return Rect.fromLTWH(
+    left,
+    top.clamp(0, size.height - guideHeight).toDouble(),
+    guideWidth,
+    guideHeight,
+  );
+}
+
+void _drawGuideCorners(Canvas canvas, Rect rect, Paint paint) {
+  final corner = (rect.shortestSide * 0.22).clamp(34.0, 78.0);
+  final path = Path()
+    ..moveTo(rect.left, rect.top + corner)
+    ..lineTo(rect.left, rect.top)
+    ..lineTo(rect.left + corner, rect.top)
+    ..moveTo(rect.right - corner, rect.top)
+    ..lineTo(rect.right, rect.top)
+    ..lineTo(rect.right, rect.top + corner)
+    ..moveTo(rect.right, rect.bottom - corner)
+    ..lineTo(rect.right, rect.bottom)
+    ..lineTo(rect.right - corner, rect.bottom)
+    ..moveTo(rect.left + corner, rect.bottom)
+    ..lineTo(rect.left, rect.bottom)
+    ..lineTo(rect.left, rect.bottom - corner);
+  canvas.drawPath(path, paint);
+}
+
+void _drawGarmentGuide(Canvas canvas, Rect rect, Paint paint) {
+  final center = rect.center;
+  final hangerTop = Offset(center.dx, rect.top + rect.height * 0.22);
+  final hangerLeft = Offset(
+    rect.left + rect.width * 0.34,
+    rect.top + rect.height * 0.34,
+  );
+  final hangerRight = Offset(
+    rect.right - rect.width * 0.34,
+    rect.top + rect.height * 0.34,
+  );
+  final garmentTop = rect.top + rect.height * 0.38;
+  final garmentBottom = rect.bottom - rect.height * 0.18;
+  final garmentLeft = rect.left + rect.width * 0.28;
+  final garmentRight = rect.right - rect.width * 0.28;
+  final garmentPath = Path()
+    ..moveTo(hangerLeft.dx, hangerLeft.dy)
+    ..quadraticBezierTo(
+      hangerTop.dx,
+      hangerTop.dy,
+      hangerRight.dx,
+      hangerRight.dy,
+    )
+    ..moveTo(garmentLeft, garmentTop)
+    ..lineTo(rect.left + rect.width * 0.18, garmentTop + rect.height * 0.08)
+    ..lineTo(rect.left + rect.width * 0.25, garmentTop + rect.height * 0.2)
+    ..lineTo(garmentLeft, garmentTop + rect.height * 0.15)
+    ..lineTo(garmentLeft, garmentBottom)
+    ..lineTo(garmentRight, garmentBottom)
+    ..lineTo(garmentRight, garmentTop + rect.height * 0.15)
+    ..lineTo(rect.right - rect.width * 0.25, garmentTop + rect.height * 0.2)
+    ..lineTo(rect.right - rect.width * 0.18, garmentTop + rect.height * 0.08)
+    ..lineTo(garmentRight, garmentTop);
+  canvas.drawPath(garmentPath, paint);
+}
+
+void _drawPersonGuide(
+  Canvas canvas,
+  Rect rect,
+  Paint paint,
+  CaptureScope scope,
+) {
+  final centerX = rect.center.dx;
+  final headRadius = rect.width * (scope == CaptureScope.top ? 0.12 : 0.095);
+  final headCenter = Offset(centerX, rect.top + rect.height * 0.15);
+  canvas.drawCircle(headCenter, headRadius, paint);
+
+  final shoulderY = rect.top + rect.height * 0.3;
+  final waistY =
+      rect.top + rect.height * (scope == CaptureScope.top ? 0.66 : 0.48);
+  final hipY =
+      rect.top + rect.height * (scope == CaptureScope.top ? 0.82 : 0.58);
+  final bodyPath = Path()
+    ..moveTo(rect.left + rect.width * 0.28, shoulderY)
+    ..quadraticBezierTo(
+      centerX,
+      shoulderY - rect.height * 0.05,
+      rect.right - rect.width * 0.28,
+      shoulderY,
+    )
+    ..moveTo(rect.left + rect.width * 0.32, shoulderY)
+    ..lineTo(rect.left + rect.width * 0.38, waistY)
+    ..lineTo(rect.left + rect.width * 0.34, hipY)
+    ..moveTo(rect.right - rect.width * 0.32, shoulderY)
+    ..lineTo(rect.right - rect.width * 0.38, waistY)
+    ..lineTo(rect.right - rect.width * 0.34, hipY);
+  canvas.drawPath(bodyPath, paint);
+
+  if (scope == CaptureScope.top) {
+    return;
+  }
+
+  final footY = rect.bottom - rect.height * 0.07;
+  final leftHip = Offset(rect.left + rect.width * 0.43, hipY);
+  final rightHip = Offset(rect.right - rect.width * 0.43, hipY);
+  final leftKnee = Offset(
+    rect.left + rect.width * 0.39,
+    rect.top + rect.height * 0.74,
+  );
+  final rightKnee = Offset(
+    rect.right - rect.width * 0.39,
+    rect.top + rect.height * 0.74,
+  );
+  final leftFoot = Offset(rect.left + rect.width * 0.34, footY);
+  final rightFoot = Offset(rect.right - rect.width * 0.34, footY);
+  final legPath = Path()
+    ..moveTo(leftHip.dx, leftHip.dy)
+    ..lineTo(leftKnee.dx, leftKnee.dy)
+    ..lineTo(leftFoot.dx, leftFoot.dy)
+    ..moveTo(rightHip.dx, rightHip.dy)
+    ..lineTo(rightKnee.dx, rightKnee.dy)
+    ..lineTo(rightFoot.dx, rightFoot.dy);
+  canvas.drawPath(legPath, paint);
 }
 
 class CaptureGuidancePanel extends StatelessWidget {
@@ -325,17 +765,11 @@ class _CaptureControls extends StatelessWidget {
     final primaryLabel = switch (stage) {
       CaptureFlowStage.preparing =>
         canCaptureAnyway ? 'Capture Anyway' : 'Getting Ready',
-      CaptureFlowStage.countdown =>
-        flowState.secondsRemaining == null
-            ? 'Get Ready'
-            : 'Photo in ${flowState.secondsRemaining}',
+      CaptureFlowStage.countdown => 'Hold Still',
       CaptureFlowStage.capturing => 'Capturing',
       CaptureFlowStage.analyzing => 'Checking Photo',
       _ => 'Capture',
     };
-    final countdownText = isCountdown && flowState.secondsRemaining != null
-        ? '${flowState.secondsRemaining}'
-        : null;
     final primaryAction = switch (stage) {
       CaptureFlowStage.preparing when canCaptureAnyway => onCaptureAnyway,
       CaptureFlowStage.preview
@@ -406,10 +840,8 @@ class _CaptureControls extends StatelessWidget {
                       child: _PrimaryCameraActionButton(
                         key: const Key('capture-photo'),
                         label: primaryLabel,
-                        icon: countdownText == null
-                            ? _captureIconFor(stage, canCaptureAnyway)
-                            : null,
-                        centerText: countdownText,
+                        icon: _captureIconFor(stage, canCaptureAnyway),
+                        centerText: null,
                         dimension: primarySize,
                         onPressed: primaryAction,
                       ),
@@ -431,6 +863,177 @@ class _CaptureControls extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class CaptureCountdownOverlay extends StatelessWidget {
+  const CaptureCountdownOverlay({
+    super.key,
+    required this.secondsRemaining,
+    required this.guidance,
+    required this.progress,
+  });
+
+  final int secondsRemaining;
+  final String guidance;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
+    final badgeSize = layout.scaled(
+      178,
+      small: 136,
+      large: 210,
+      extraLarge: 250,
+    );
+    final numberSize = layout.scaled(
+      96,
+      small: 74,
+      large: 120,
+      extraLarge: 146,
+    );
+    final textWidth = layout.scaled(
+      330,
+      small: 250,
+      large: 410,
+      extraLarge: 500,
+    );
+    final alignment = layout.portrait
+        ? const Alignment(0, -0.34)
+        : const Alignment(0, -0.08);
+
+    return SafeArea(
+      bottom: false,
+      child: Align(
+        alignment: alignment,
+        child: Semantics(
+          key: const Key('camera-countdown-overlay'),
+          label: 'Photo in $secondsRemaining seconds. $guidance.',
+          liveRegion: true,
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey<int>(secondsRemaining),
+            tween: Tween<double>(begin: 0.92, end: 1),
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            builder: (context, scale, child) {
+              return Transform.scale(scale: scale, child: child);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: badgeSize,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black.withValues(alpha: 0.48),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.32),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.28),
+                              blurRadius: 30,
+                              offset: const Offset(0, 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                      CircularProgressIndicator(
+                        value: progress.clamp(0, 1),
+                        strokeWidth: layout.scaled(
+                          7,
+                          small: 5,
+                          large: 8,
+                          extraLarge: 10,
+                        ),
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          SelfxKioskTokens.primary,
+                        ),
+                      ),
+                      Center(
+                        child: Text(
+                          '$secondsRemaining',
+                          key: const Key('camera-countdown-number'),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: numberSize,
+                            fontWeight: FontWeight.w900,
+                            height: 0.92,
+                            letterSpacing: 0,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withValues(alpha: 0.34),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: textWidth),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.44),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: layout.scaled(
+                          18,
+                          small: 14,
+                          large: 22,
+                          extraLarge: 26,
+                        ),
+                        vertical: layout.scaled(
+                          9,
+                          small: 7,
+                          large: 10,
+                          extraLarge: 12,
+                        ),
+                      ),
+                      child: Text(
+                        guidance,
+                        key: const Key('camera-countdown-guidance'),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: layout.scaled(
+                            24,
+                            small: 18,
+                            large: 28,
+                            extraLarge: 34,
+                          ),
+                          fontWeight: FontWeight.w900,
+                          height: 1.08,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
