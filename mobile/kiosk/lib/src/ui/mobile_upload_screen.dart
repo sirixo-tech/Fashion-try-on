@@ -14,6 +14,7 @@ import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
+import 'try_on_generation_screen.dart';
 
 class MobileUploadScreen extends StatefulWidget {
   const MobileUploadScreen({
@@ -155,6 +156,21 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     final input = await widget.uploadController.useReadyGarment(intent: intent);
     if (input == null || !mounted) {
       _stopContinuing();
+      return;
+    }
+    if (!widget.tryOnController.garmentPreviewEnabled) {
+      widget.tryOnController.selectGarment(input.withoutExtractedPreview());
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => TryOnGenerationScreen(
+            captureController: widget.captureController,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
+            extractionService: widget.extractionService,
+          ),
+        ),
+      );
       return;
     }
     await Navigator.of(context).pushReplacement(

@@ -189,8 +189,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         bodyContext: widget.controller.captureTargetMetadata,
       ).photoType,
     );
-    if (widget.tryOnController.garmentPreviewEnabled ||
-        garmentInput.intent == KioskGarmentIntent.auto) {
+    if (widget.tryOnController.garmentPreviewEnabled) {
       return MaterialPageRoute<void>(
         builder: (_) => GarmentReviewScreen(
           captureController: widget.controller,

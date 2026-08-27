@@ -58,6 +58,48 @@ void main() {
     },
   );
 
+  test(
+    'uses original captured garment when no extracted preview exists',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp('selfx-tryon-');
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final requestWithPreview = await tryOnRequest(tempDir);
+      final request = KioskTryOnRequest(
+        clientRequestId: requestWithPreview.clientRequestId,
+        personImage: requestWithPreview.personImage,
+        garmentInput: requestWithPreview.garmentInput.withoutExtractedPreview(),
+        captureScope: requestWithPreview.captureScope,
+        modelCoverage: requestWithPreview.modelCoverage,
+        targetMetadata: requestWithPreview.targetMetadata,
+        sessionId: requestWithPreview.sessionId,
+        personAssetId: requestWithPreview.personAssetId,
+      );
+      final deviceController = testDeviceController('device-token');
+      final gateway = SelfxKioskTryOnGateway(
+        config: const KioskTryOnApiConfig(apiBaseUrl: 'https://api.selfx.test'),
+        deviceController: deviceController,
+        client: MockClient((http.Request request) async {
+          final multipartBody = utf8.decode(
+            request.bodyBytes,
+            allowMalformed: true,
+          );
+          expect(multipartBody, contains('original-garment.jpg'));
+          expect(multipartBody, isNot(contains('generated-preview.png')));
+          return jsonResponse({'id': 'run-1', 'status': 'QUEUED'});
+        }),
+      );
+
+      final run = await gateway.createRun(request);
+
+      expect(run.id, 'run-1');
+      deviceController.dispose();
+    },
+  );
+
   test('refreshes device session once on expired access token', () async {
     final tempDir = await Directory.systemTemp.createTemp('selfx-tryon-');
     addTearDown(() async {

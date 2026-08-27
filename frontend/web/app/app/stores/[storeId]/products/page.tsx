@@ -68,7 +68,6 @@ import {
 
 const productStatuses = [
   { value: "ALL", label: "All products" },
-  { value: "VTO_ENABLED", label: "Try-On ready" },
   { value: "ACTIVE", label: "Active" },
   { value: "INACTIVE", label: "Inactive" },
 ] as const;
@@ -302,18 +301,17 @@ export default function StoreProductsPage() {
                 <TableHead>Garment Type</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Try-On</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6}>Loading products...</TableCell>
+                  <TableCell colSpan={5}>Loading products...</TableCell>
                 </TableRow>
               ) : products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={5}>
                     <div className="flex items-center gap-3 py-10 text-muted-foreground">
                       <PackageIcon size={20} aria-hidden="true" />
                       No products match this view.
@@ -365,12 +363,6 @@ export default function StoreProductsPage() {
                         onChange={(active) =>
                           void updateProductInline(product, { active })
                         }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        status={product.vtoEnabled ? "ACTIVE" : "DRAFT"}
-                        label={product.vtoEnabled ? "Ready" : "Disabled"}
                       />
                     </TableCell>
                     <TableCell className="text-right">

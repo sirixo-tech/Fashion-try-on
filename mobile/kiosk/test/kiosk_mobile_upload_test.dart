@@ -198,6 +198,35 @@ void main() {
     },
   );
 
+  testWidgets('phone garment upload skips preview when disabled', (
+    tester,
+  ) async {
+    final harness = await pumpMobileUploadScreen(
+      tester,
+      gateway: FakeUploadGateway()
+        ..nextSession = readyUploadSession(
+          'garment-upload-session',
+          purpose: PhotoAcquisitionPurpose.garment,
+        ),
+      purpose: PhotoAcquisitionPurpose.garment,
+    );
+
+    await pumpMobileUploadState(tester);
+    await tester.tap(find.byKey(const Key('use-mobile-photo')));
+    await tester.pumpAndSettle();
+
+    expect(
+      harness.tryOnController.garmentInput?.source,
+      KioskGarmentInputSource.phoneUpload,
+    );
+    expect(harness.tryOnController.garmentInput?.extractedPreviewPath, isNull);
+    expect(find.text('Creating Try-On'), findsOneWidget);
+    expect(find.text('Preparing garment preview'), findsNothing);
+
+    harness.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   test('cancel stops active mobile upload polling', () async {
     final gateway = FakeUploadGateway()
       ..nextStatusSession = waitingUploadSession('upload-session');
@@ -1019,6 +1048,8 @@ Future<MobileUploadHarness> pumpMobileUploadScreen(
   WidgetTester tester, {
   required FakeUploadGateway gateway,
   Size size = const Size(900, 700),
+  PhotoAcquisitionPurpose purpose = PhotoAcquisitionPurpose.model,
+  KioskGarmentIntent? garmentIntent,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() async {
@@ -1039,6 +1070,8 @@ Future<MobileUploadHarness> pumpMobileUploadScreen(
         captureController: captureController,
         tryOnController: tryOnController,
         uploadController: uploadController,
+        purpose: purpose,
+        garmentIntent: garmentIntent,
       ),
     ),
   );

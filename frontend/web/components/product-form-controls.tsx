@@ -132,29 +132,31 @@ export function ProductStatusToggle({
   onChange: (active: boolean) => void;
 }) {
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
+      role="switch"
+      aria-checked={active}
+      aria-label={active ? "Deactivate product" : "Activate product"}
       disabled={disabled}
-      aria-pressed={active}
-      className={cn(
-        "min-w-24 justify-center rounded-full border px-3 font-semibold",
-        active
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
-      )}
+      className="inline-flex items-center gap-2 rounded-md text-sm font-medium text-foreground transition-opacity focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       onClick={() => onChange(!active)}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "size-2 rounded-full",
-          active ? "bg-emerald-500" : "bg-rose-500",
+          "relative inline-flex h-6 w-11 shrink-0 rounded-full border transition-colors",
+          active ? "border-primary bg-primary" : "border-input bg-muted",
         )}
-      />
-      {active ? "Active" : "Inactive"}
-    </Button>
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition-transform",
+            active ? "translate-x-5" : "translate-x-0",
+          )}
+        />
+      </span>
+      <span className="min-w-14">{active ? "Active" : "Inactive"}</span>
+    </button>
   );
 }
 

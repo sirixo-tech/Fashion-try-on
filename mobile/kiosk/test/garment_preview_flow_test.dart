@@ -57,6 +57,28 @@ void main() {
       await tester.pump();
     });
 
+    testWidgets('disabled preview uses original garment and skips extraction', (
+      tester,
+    ) async {
+      final harness = await _ReviewHarness.create(garmentPreviewEnabled: false);
+      addTearDown(harness.dispose);
+      final extraction = FakeGarmentExtractionService();
+
+      await tester.pumpReview(harness, extraction);
+      await tester.pumpAndSettle();
+
+      expect(extraction.calls, 0);
+      expect(find.text('Preparing garment preview...'), findsNothing);
+      expect(find.text('Garment looks ready'), findsOneWidget);
+      expect(_continueButton(tester).onPressed, isNotNull);
+
+      await tester.tap(find.byKey(const Key('continue-from-garment-review')));
+      await tester.pumpAndSettle();
+
+      expect(harness.tryOn.garmentInput?.localPath, harness.original.path);
+      expect(harness.tryOn.garmentInput?.extractedPreviewPath, isNull);
+    });
+
     testWidgets('successful extraction displays preview and enables continue', (
       tester,
     ) async {
@@ -374,6 +396,7 @@ class _ReviewHarness {
 
   static Future<_ReviewHarness> create({
     bool withExistingPreview = false,
+    bool garmentPreviewEnabled = true,
   }) async {
     final temp = await Directory.systemTemp.createTemp('selfx-preview-test-');
     final original = await _writePng(temp, 'original-garment.png');
@@ -386,7 +409,8 @@ class _ReviewHarness {
       captureStore: captureStore,
       audioService: const SilentCaptureAudioService(),
     );
-    final tryOn = KioskTryOnSessionController(gateway: _FakeTryOnGateway());
+    final tryOn = KioskTryOnSessionController(gateway: _FakeTryOnGateway())
+      ..applyGarmentPreviewEnabled(garmentPreviewEnabled);
     final upload = KioskCustomerUploadController(
       deviceController: _testDeviceController(),
       gateway: _FakeUploadGateway(),

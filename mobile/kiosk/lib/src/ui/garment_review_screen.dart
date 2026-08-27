@@ -81,6 +81,10 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
     if (_activeExtractionPath == originalPath) {
       return;
     }
+    if (!widget.tryOnController.garmentPreviewEnabled) {
+      await _useOriginalGarmentPreview();
+      return;
+    }
     if (!force && await _hasValidPreview(widget.garmentInput)) {
       if (!mounted) {
         return;
@@ -91,10 +95,7 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
       });
       return;
     }
-    if (!widget.garmentInput.isCatalogProduct &&
-        await widget.tryOnController.captureUploadExceedsLimit(
-          widget.garmentInput.localPath,
-        )) {
+    if (await _originalGarmentUploadExceedsLimit()) {
       setState(() {
         _previewState = GarmentPreviewState.failure;
         _failureKind = GarmentExtractionFailureKind.image;
@@ -140,6 +141,39 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
     });
   }
 
+  Future<void> _useOriginalGarmentPreview() async {
+    if (await _originalGarmentUploadExceedsLimit()) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _previewState = GarmentPreviewState.failure;
+        _failureKind = GarmentExtractionFailureKind.image;
+        _failureMessage = widget.tryOnController.captureUploadTooLargeMessage;
+        _activeExtractionPath = null;
+      });
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _displayInput = widget.garmentInput.withoutExtractedPreview();
+      _previewState = GarmentPreviewState.success;
+      _failureKind = GarmentExtractionFailureKind.temporary;
+      _failureMessage = null;
+      _activeExtractionPath = null;
+    });
+  }
+
+  Future<bool> _originalGarmentUploadExceedsLimit() async {
+    return !widget.garmentInput.isCatalogProduct &&
+        await widget.tryOnController.captureUploadExceedsLimit(
+          widget.garmentInput.localPath,
+        );
+  }
+
   Future<bool> _hasValidPreview(KioskGarmentInput input) async {
     final path = input.extractedPreviewPath;
     if (path == null || path.trim().isEmpty) {
@@ -158,7 +192,7 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
           final horizontalPadding = narrow ? 20.0 : 36.0;
           final imagePreview = _GarmentPreview(
             originalPath: _displayInput.localPath,
-            path: _displayInput.extractedPreviewPath,
+            path: _displayInput.previewPath,
             state: _previewState,
             failureKind: _failureKind,
             failureMessage: _failureMessage,

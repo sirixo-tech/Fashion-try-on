@@ -76,6 +76,18 @@ class KioskGarmentInput {
     );
   }
 
+  KioskGarmentInput withoutExtractedPreview() {
+    return KioskGarmentInput(
+      source: source,
+      localPath: localPath,
+      intent: intent,
+      photoType: photoType,
+      productId: productId,
+      remoteImageUrl: remoteImageUrl,
+      name: name,
+    );
+  }
+
   String get displayName {
     if (name != null && name!.trim().isNotEmpty) {
       return name!;

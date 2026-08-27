@@ -1147,6 +1147,41 @@ void main() {
   });
 
   group('KIOSK-4C.1 garment selection', () {
+    testWidgets('captured auto garment skips preview when disabled', (
+      tester,
+    ) async {
+      final captureController = testController();
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeKioskTryOnGateway(),
+      )..applyGarmentPreviewEnabled(false);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CameraCaptureScreen(
+            controller: captureController,
+            tryOnController: tryOnController,
+            uploadController: testUploadController(
+              captureController.captureStore,
+            ),
+            purpose: PhotoAcquisitionPurpose.garment,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await captureController.capturePhoto();
+      await tester.pumpAndSettle();
+
+      expect(tryOnController.garmentInput?.localPath, 'capture-1.jpg');
+      expect(tryOnController.garmentInput?.intent, KioskGarmentIntent.auto);
+      expect(tryOnController.garmentInput?.extractedPreviewPath, isNull);
+      expect(find.text('Creating Try-On'), findsOneWidget);
+      expect(find.text('Preparing garment preview'), findsNothing);
+
+      captureController.dispose();
+      tryOnController.dispose();
+    });
+
     testWidgets(
       'customer garment screen uses picker preview and camera capture only',
       (tester) async {
