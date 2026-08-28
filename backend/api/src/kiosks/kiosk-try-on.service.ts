@@ -1,8 +1,9 @@
-import { HttpStatus, Injectable, Optional } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger, Optional } from "@nestjs/common";
 import {
   KioskAssignmentScope,
   KioskCustomerUploadPurpose,
   TryOnAssetPurpose,
+  TryOnSessionStatus,
   type KioskDevice,
   type TryOnAsset,
   type TryOnLook,
@@ -30,6 +31,11 @@ import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
 import type { CreateTryOnLabRunPayload } from "../try-on-lab/try-on-lab-multipart.js";
 import { TRY_ON_LAB_MAX_IMAGE_BYTES } from "../try-on-lab/try-on-lab.constants.js";
+import {
+  KIOSK_USAGE_EVENTS,
+  UsageEventService,
+  type RecordKioskUsageEventInput,
+} from "../usage/usage-event.service.js";
 import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES } from "./kiosk.constants.js";
 import type {
@@ -50,6 +56,8 @@ type KioskDeviceContext = Pick<
   "id" | "assignmentScope" | "organizationId" | "storeId"
 >;
 
+export type KioskTryOnSessionCompletionReason = "FINISHED" | "IDLE_TIMEOUT";
+
 interface SessionRunAssets {
   sessionId: string;
   kioskDeviceId: string;
@@ -61,6 +69,8 @@ interface SessionRunAssets {
 
 @Injectable()
 export class KioskTryOnService {
+  private readonly logger = new Logger(KioskTryOnService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly execution: TryOnExecutionService,
@@ -70,6 +80,7 @@ export class KioskTryOnService {
     @Optional() private readonly catalog?: CatalogService,
     @Optional()
     private readonly mediaUploadSettings?: MediaUploadSettingsService,
+    @Optional() private readonly usageEvents?: UsageEventService,
   ) {}
 
   async createSession(
@@ -86,6 +97,13 @@ export class KioskTryOnService {
           ? device.storeId
           : null,
       kioskDeviceId: device.id,
+    });
+    await this.recordUsage(device, {
+      eventName: KIOSK_USAGE_EVENTS.sessionStarted,
+      idempotencyKey: `kiosk-session-started:${session.id}`,
+      tryOnSessionId: session.id,
+      status: session.status,
+      occurredAt: session.createdAt,
     });
     return toSessionResponse(session);
   }
@@ -147,11 +165,29 @@ export class KioskTryOnService {
   async completeSession(
     device: KioskDeviceContext,
     sessionId: string,
+    reason: KioskTryOnSessionCompletionReason = "FINISHED",
   ): Promise<KioskTryOnSessionResponseDto> {
     const session = await this.requireSessionService().completeSession({
       sessionId,
       kioskDeviceId: device.id,
     });
+    await this.recordUsage(device, {
+      eventName: KIOSK_USAGE_EVENTS.sessionCompleted,
+      idempotencyKey: `kiosk-session-completed:${session.id}`,
+      tryOnSessionId: session.id,
+      status: session.status,
+      occurredAt: session.completedAt ?? session.updatedAt,
+      metadata: { reason },
+    });
+    if (reason === "IDLE_TIMEOUT") {
+      await this.recordUsage(device, {
+        eventName: KIOSK_USAGE_EVENTS.sessionIdleExpired,
+        idempotencyKey: `kiosk-session-idle-expired:${session.id}`,
+        tryOnSessionId: session.id,
+        status: session.status,
+        occurredAt: session.completedAt ?? session.updatedAt,
+      });
+    }
     return toSessionResponse(session);
   }
 
@@ -295,6 +331,32 @@ export class KioskTryOnService {
         });
       },
       onStatus: async (status) => {
+        if (status.status === "COMPLETED" && status.resultImage && sessionRun) {
+          const sessionIsStillActive = await this.prisma.tryOnSession.findFirst(
+            {
+              where: {
+                id: sessionRun.sessionId,
+                kioskDeviceId: sessionRun.kioskDeviceId,
+                status: TryOnSessionStatus.ACTIVE,
+                expiresAt: { gt: new Date() },
+              },
+              select: { id: true },
+            },
+          );
+          if (!sessionIsStillActive) {
+            await this.prisma.kioskTryOnRun.update({
+              where: { id: runId },
+              data: {
+                status: status.status,
+                resultImage: null,
+                errorCode: status.errorCode,
+                errorMessage: status.errorMessage,
+                completedAt: status.completedAt,
+              },
+            });
+            return;
+          }
+        }
         await this.prisma.kioskTryOnRun.update({
           where: { id: runId },
           data: {
@@ -567,7 +629,7 @@ export class KioskTryOnService {
       contentType: metadata.mimeType,
       body: result.buffer,
     });
-    await this.requireSessionService().recordLook({
+    const look = await this.requireSessionService().recordLook({
       sessionId: sessionRun.sessionId,
       kioskDeviceId: sessionRun.kioskDeviceId,
       kioskTryOnRunId: runId,
@@ -582,6 +644,49 @@ export class KioskTryOnService {
         height: metadata.height,
       },
     });
+    const run = await this.prisma.kioskTryOnRun.findUnique({
+      where: { id: runId },
+      select: {
+        provider: true,
+        providerModel: true,
+        status: true,
+      },
+    });
+    await this.recordUsage(
+      {
+        id: sessionRun.kioskDeviceId,
+        assignmentScope: look.assignmentScope,
+        organizationId: look.organizationId,
+        storeId: look.storeId,
+      },
+      {
+        eventName: KIOSK_USAGE_EVENTS.tryOnGenerated,
+        idempotencyKey: `kiosk-try-on-generated:${runId}`,
+        tryOnSessionId: sessionRun.sessionId,
+        kioskTryOnRunId: runId,
+        tryOnLookId: look.id,
+        productId: sessionRun.productId,
+        provider: run?.provider,
+        providerModel: run?.providerModel,
+        status: run?.status ?? "COMPLETED",
+      },
+    );
+  }
+
+  private async recordUsage(
+    device: KioskDeviceContext,
+    input: Omit<RecordKioskUsageEventInput, "device">,
+  ): Promise<void> {
+    try {
+      await this.usageEvents?.recordKioskEvent({ ...input, device });
+    } catch (error) {
+      this.logger.warn({
+        event: "kiosk_usage_event_record_failed",
+        usageEventName: input.eventName,
+        kioskDeviceId: device.id,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
 
   private requireSessionService(): TryOnSessionService {

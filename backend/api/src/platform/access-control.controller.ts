@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  HttpStatus,
   Param,
   Patch,
   Post,
@@ -19,14 +18,13 @@ import {
 import { type FastifyRequest } from "fastify";
 
 import { AuthService } from "../auth/auth.service.js";
-import { ApiErrorException } from "../common/api-error.exception.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
-import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
-import { PlatformAuthorizationService } from "./platform-authorization.service.js";
 import {
-  ACCESS_CONTROL_ERROR_CODES,
-  AccessControlService,
-} from "./access-control.service.js";
+  PLATFORM_PERMISSIONS,
+  type PlatformPermission,
+} from "./platform-permissions.js";
+import { PlatformAuthorizationService } from "./platform-authorization.service.js";
+import { AccessControlService } from "./access-control.service.js";
 import {
   AccessPermissionDto,
   AddPlatformUserDto,
@@ -75,10 +73,13 @@ export class AccessControlController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.platformAuthorization.requirePermission(
-      user.id,
+    await this.requireAnyPlatformPermissionForUser(user.id, [
       PLATFORM_PERMISSIONS.permissionsView,
-    );
+      PLATFORM_PERMISSIONS.platformRolesManage,
+      PLATFORM_PERMISSIONS.storeRolesView,
+      PLATFORM_PERMISSIONS.storeRolesManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.listPermissions();
   }
 
@@ -88,7 +89,12 @@ export class AccessControlController {
   async listRoles(
     @Req() request: FastifyRequest,
   ): Promise<{ data: PlatformRoleDto[] }> {
-    await this.requireAccessManager(request);
+    await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.permissionsView,
+      PLATFORM_PERMISSIONS.platformRolesManage,
+      PLATFORM_PERMISSIONS.platformUsersManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.listPlatformRoles();
   }
 
@@ -99,7 +105,10 @@ export class AccessControlController {
     @Req() request: FastifyRequest,
     @Body() dto: CreatePlatformRoleDto,
   ): Promise<PlatformRoleDto> {
-    const user = await this.requireSuperadminAccessManager(request);
+    const user = await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.platformRolesManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.createPlatformRole(user.id, dto);
   }
 
@@ -111,7 +120,10 @@ export class AccessControlController {
     @Param("roleId", SelfxUuidParamPipe) roleId: string,
     @Body() dto: UpdatePlatformRoleDto,
   ): Promise<PlatformRoleDto> {
-    const user = await this.requireSuperadminAccessManager(request);
+    const user = await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.platformRolesManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.updatePlatformRole(user.id, roleId, dto);
   }
 
@@ -123,7 +135,10 @@ export class AccessControlController {
     @Param("roleId", SelfxUuidParamPipe) roleId: string,
     @Body() dto: ReplacePermissionCodesDto,
   ): Promise<PlatformRoleDto> {
-    const user = await this.requireSuperadminAccessManager(request);
+    const user = await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.platformRolesManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.replacePlatformRolePermissions(
       user.id,
       roleId,
@@ -137,7 +152,11 @@ export class AccessControlController {
   async listUsers(
     @Req() request: FastifyRequest,
   ): Promise<{ data: PlatformUserDto[] }> {
-    await this.requireAccessManager(request);
+    await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.permissionsView,
+      PLATFORM_PERMISSIONS.platformUsersManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.listPlatformUsers();
   }
 
@@ -148,7 +167,10 @@ export class AccessControlController {
     @Req() request: FastifyRequest,
     @Body() dto: AddPlatformUserDto,
   ): Promise<PlatformUserDto> {
-    const user = await this.requireSuperadminAccessManager(request);
+    const user = await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.platformUsersManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.addPlatformUser(user.id, dto);
   }
 
@@ -160,7 +182,10 @@ export class AccessControlController {
     @Param("userId", SelfxUuidParamPipe) userId: string,
     @Body() dto: AssignPlatformRolesDto,
   ): Promise<PlatformUserDto> {
-    const user = await this.requireSuperadminAccessManager(request);
+    const user = await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.platformUsersManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.replaceUserPlatformRoles(user.id, userId, dto);
   }
 
@@ -171,7 +196,12 @@ export class AccessControlController {
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
   ): Promise<{ data: StorePermissionGrantDto[] }> {
-    await this.requireAccessManager(request);
+    await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.permissionsView,
+      PLATFORM_PERMISSIONS.storeRolesView,
+      PLATFORM_PERMISSIONS.storeRolesManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.listStorePermissionGrants(storeId);
   }
 
@@ -183,7 +213,10 @@ export class AccessControlController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Body() dto: ReplacePermissionCodesDto,
   ): Promise<{ data: StorePermissionGrantDto[] }> {
-    const user = await this.requireSuperadminAccessManager(request);
+    const user = await this.requireAnyPlatformPermission(request, [
+      PLATFORM_PERMISSIONS.storeRolesManage,
+      PLATFORM_PERMISSIONS.permissionsManage,
+    ]);
     return this.accessControl.replaceStorePermissionGrants(
       user.id,
       storeId,
@@ -191,26 +224,33 @@ export class AccessControlController {
     );
   }
 
-  private async requireAccessManager(request: FastifyRequest) {
+  private async requireAnyPlatformPermission(
+    request: FastifyRequest,
+    permissions: readonly PlatformPermission[],
+  ) {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.platformAuthorization.requirePermission(
-      user.id,
-      PLATFORM_PERMISSIONS.permissionsManage,
-    );
+    await this.requireAnyPlatformPermissionForUser(user.id, permissions);
     return user;
   }
 
-  private async requireSuperadminAccessManager(request: FastifyRequest) {
-    const user = await this.requireAccessManager(request);
-    if (await this.platformAuthorization.isSuperadmin(user.id)) {
-      return user;
+  private async requireAnyPlatformPermissionForUser(
+    userId: string,
+    permissions: readonly PlatformPermission[],
+  ): Promise<void> {
+    const fallbackPermission = permissions[0];
+    if (!fallbackPermission) {
+      throw new Error("At least one Platform permission is required.");
     }
-    throw new ApiErrorException(
-      HttpStatus.FORBIDDEN,
-      ACCESS_CONTROL_ERROR_CODES.protectedSuperadmin,
-      "Only the protected SelfX Superadmin can change global access control.",
+    for (const permission of permissions) {
+      if (await this.platformAuthorization.hasPermission(userId, permission)) {
+        return;
+      }
+    }
+    await this.platformAuthorization.requirePermission(
+      userId,
+      fallbackPermission,
     );
   }
 }

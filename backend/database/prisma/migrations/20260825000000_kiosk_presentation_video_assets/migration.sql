@@ -1,0 +1,2 @@
+-- This migration folder was reserved for kiosk presentation video assets.
+-- No database changes are required by the current schema for this step.

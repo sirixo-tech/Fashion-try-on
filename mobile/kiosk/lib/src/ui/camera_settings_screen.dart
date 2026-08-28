@@ -494,7 +494,11 @@ class _ControlCentreHero extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const SelfxLogo(height: 42, maxWidth: 150),
+            const SelfxLogo(
+              height: 46,
+              maxWidth: 158,
+              taglineColor: Colors.white,
+            ),
             const SizedBox(width: 14),
             const Expanded(
               child: Text(
@@ -594,7 +598,11 @@ class _ControlCentreMenuHeader extends StatelessWidget {
         ),
         child: Row(
           children: [
-            SelfxLogo(height: compact ? 32 : 28, maxWidth: compact ? 118 : 104),
+            SelfxLogo(
+              height: compact ? 36 : 32,
+              maxWidth: compact ? 130 : 116,
+              taglineColor: Colors.white,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

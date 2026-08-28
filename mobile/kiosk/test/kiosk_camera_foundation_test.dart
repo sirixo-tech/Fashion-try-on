@@ -14,6 +14,7 @@ import 'package:selfx_kiosk/src/camera/camera_service.dart';
 import 'package:selfx_kiosk/src/catalog/kiosk_catalog_gateway.dart';
 import 'package:selfx_kiosk/src/catalog/kiosk_catalog_models.dart';
 import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
+import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration_controller.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_gateway.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_models.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_session_controller.dart';
@@ -23,6 +24,7 @@ import 'package:selfx_kiosk/src/live/live_frame.dart';
 import 'package:selfx_kiosk/src/live/person_analysis.dart';
 import 'package:selfx_kiosk/src/operator/operator_access.dart';
 import 'package:selfx_kiosk/src/quality/image_quality.dart';
+import 'package:selfx_kiosk/src/app/selfx_kiosk_app.dart';
 import 'package:selfx_kiosk/src/session/capture_audio_service.dart';
 import 'package:selfx_kiosk/src/session/capture_flow.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
@@ -548,6 +550,26 @@ void main() {
       expect(find.byKey(const Key('camera-framing-guide')), findsOneWidget);
       expect(find.text('Garment guide'), findsOneWidget);
       expect(find.text('Keep the garment inside the frame'), findsOneWidget);
+    });
+
+    test('capture framing guides cover a wider preview area', () {
+      const previewSize = Size(720, 1100);
+
+      final fullBodyGuide = captureFramingGuideRectForTesting(
+        previewSize,
+        purpose: PhotoAcquisitionPurpose.model,
+        captureScope: CaptureScope.fullBody,
+      );
+      final garmentGuide = captureFramingGuideRectForTesting(
+        previewSize,
+        purpose: PhotoAcquisitionPurpose.garment,
+        captureScope: CaptureScope.fullBody,
+      );
+
+      expect(fullBodyGuide.width / previewSize.width, greaterThan(0.8));
+      expect(fullBodyGuide.height / previewSize.height, greaterThan(0.9));
+      expect(garmentGuide.width / previewSize.width, greaterThan(0.85));
+      expect(garmentGuide.height / previewSize.height, greaterThan(0.6));
     });
 
     test('shutter audio is not played when still capture fails', () async {
@@ -1219,6 +1241,99 @@ void main() {
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
       expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
     });
+
+    testWidgets('customer inactivity ends session and returns home', (
+      tester,
+    ) async {
+      final captureController = testController();
+      final tryOnGateway = FakeKioskTryOnGateway();
+      final tryOnController = KioskTryOnSessionController(
+        gateway: tryOnGateway,
+      );
+      final deviceGateway = FakeKioskDeviceGateway();
+      final deviceController = KioskDeviceSessionController(
+        gateway: deviceGateway,
+        store: InMemoryKioskDeviceCredentialStore(),
+        platform: 'android',
+      );
+      final configurationController = KioskRuntimeConfigurationController(
+        gateway: deviceGateway,
+        deviceController: deviceController,
+        cache: InMemoryKioskRuntimeConfigurationCache(),
+      );
+      final uploadController = testUploadController(
+        captureController.captureStore,
+      );
+      addTearDown(() {
+        uploadController.dispose();
+        configurationController.dispose();
+        deviceController.dispose();
+        tryOnController.dispose();
+        captureController.dispose();
+      });
+      final navigatorKey = GlobalKey<NavigatorState>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigatorKey,
+          builder: (context, child) => KioskCustomerSessionIdleGuard(
+            navigatorKey: navigatorKey,
+            captureController: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            configurationController: configurationController,
+            timeoutOverride: const Duration(seconds: 5),
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: KioskHomeScreen(
+            controller: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            catalogGateway: const FakeKioskCatalogGateway(products: []),
+            configurationController: configurationController,
+            operatorAccessController: testOperatorAccessController(),
+            presentation: testIdlePresentation,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      await tester.tap(find.byKey(const Key('start-try-on')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('customer-consent-ok')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+      expect(tryOnController.customerSessionActive, isTrue);
+      tryOnController.toggleGarmentPick(
+        KioskTryOnPick(
+          id: 'product-1',
+          displayName: 'Test shirt',
+          garmentInput: KioskGarmentInput.catalogProduct(
+            productId: 'product-1',
+            name: 'Test shirt',
+            imageUrl: 'https://example.test/product-1.jpg',
+            intent: KioskGarmentIntent.top,
+            photoType: KioskGarmentPhotoType.flatLay,
+          ),
+        ),
+      );
+      expect(tryOnController.garmentPicks, isNotEmpty);
+
+      await tester.pump(const Duration(seconds: 5, milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byKey(const Key('start-try-on')), findsOneWidget);
+      expect(find.byKey(const Key('capture-photo')), findsNothing);
+      expect(tryOnController.customerSessionActive, isFalse);
+      expect(tryOnController.garmentPicks, isEmpty);
+      expect(tryOnGateway.completedSessionIds, ['session-1']);
+      expect(tryOnGateway.completionReasons, [
+        KioskTryOnSessionCompletionReason.idleTimeout,
+      ]);
+    });
   });
 
   group('Model capture review actions', () {
@@ -1455,6 +1570,83 @@ void main() {
 
       captureController.dispose();
     });
+
+    testWidgets('my picks sheet separates close and clear all actions', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(630, 1365);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final captureController = testController();
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeKioskTryOnGateway(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BrowseProductsScreen(
+            captureController: captureController,
+            tryOnController: tryOnController,
+            uploadController: testUploadController(
+              captureController.captureStore,
+            ),
+            catalogGateway: FakeKioskCatalogGateway(
+              products: [
+                testCatalogProduct(
+                  id: 'product-1',
+                  name: 'Formal trouser',
+                  priceAmountCents: 149900,
+                  priceCurrency: 'INR',
+                ),
+                testCatalogProduct(
+                  id: 'product-2',
+                  name: 'Grey trouser',
+                  priceAmountCents: 89900,
+                  priceCurrency: 'INR',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      await tester.tap(find.text('Formal trouser'));
+      await tester.pump();
+      await tester.tap(find.text('Grey trouser'));
+      await tester.pump();
+
+      expect(tryOnController.garmentPicks.length, 2);
+
+      await tester.tap(find.byKey(const Key('open-my-picks')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('close-my-picks')), findsOneWidget);
+      expect(find.byKey(const Key('clear-my-picks')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('clear-my-picks'))).dy,
+        greaterThan(
+          tester.getTopLeft(find.byKey(const Key('close-my-picks'))).dy,
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('close-my-picks')));
+      await tester.pumpAndSettle();
+      expect(tryOnController.garmentPicks.length, 2);
+
+      await tester.tap(find.byKey(const Key('open-my-picks')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('clear-my-picks')));
+      await tester.pumpAndSettle();
+
+      expect(tryOnController.garmentPicks, isEmpty);
+      expect(find.text('No garments added to My Picks yet.'), findsOneWidget);
+
+      captureController.dispose();
+    });
   });
 }
 
@@ -1630,6 +1822,9 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
 
 class FakeKioskTryOnGateway
     implements KioskTryOnGateway, KioskTryOnSessionGateway {
+  final List<String> completedSessionIds = [];
+  final List<KioskTryOnSessionCompletionReason> completionReasons = [];
+
   @override
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
     return const KioskTryOnRun(id: 'run-test', status: KioskTryOnStatus.queued);
@@ -1681,7 +1876,13 @@ class FakeKioskTryOnGateway
   }
 
   @override
-  Future<KioskTryOnSession> completeTryOnSession(String sessionId) async {
+  Future<KioskTryOnSession> completeTryOnSession(
+    String sessionId, {
+    KioskTryOnSessionCompletionReason reason =
+        KioskTryOnSessionCompletionReason.finished,
+  }) async {
+    completedSessionIds.add(sessionId);
+    completionReasons.add(reason);
     return KioskTryOnSession(
       sessionId: sessionId,
       status: KioskTryOnSessionStatus.completed,
@@ -1764,6 +1965,23 @@ class FakeKioskCustomerUploadGateway implements KioskCustomerUploadGateway {
 }
 
 class FakeKioskDeviceGateway implements KioskDeviceGateway {
+  final KioskDeviceIdentity identity = KioskDeviceIdentity(
+    id: 'kiosk-device-1',
+    displayName: 'Test kiosk',
+    status: KioskDeviceStatus.active,
+    assignment: const KioskDeviceAssignment(
+      scope: KioskAssignmentScope.organization,
+      organizationId: 'org-1',
+      organizationName: 'Test store',
+      storeId: null,
+      storeName: null,
+    ),
+    platform: 'android',
+    appVersion: '1.0.0',
+    lastSeenAt: DateTime(2026, 8, 28),
+    latestConfigurationVersion: 1,
+  );
+
   @override
   Future<KioskPairingSession> createPairingSession({
     required String installationId,
@@ -1791,13 +2009,19 @@ class FakeKioskDeviceGateway implements KioskDeviceGateway {
   }
 
   @override
-  Future<KioskDeviceCredentials> refreshSession(String refreshToken) {
-    throw UnimplementedError();
+  Future<KioskDeviceCredentials> refreshSession(String refreshToken) async {
+    return KioskDeviceCredentials(
+      accessToken: 'device-access-token',
+      accessTokenExpiresAt: DateTime.now().add(const Duration(hours: 1)),
+      refreshToken: 'refresh-token',
+      refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 7)),
+      device: identity,
+    );
   }
 
   @override
-  Future<KioskDeviceIdentity> me(String accessToken) {
-    throw UnimplementedError();
+  Future<KioskDeviceIdentity> me(String accessToken) async {
+    return identity;
   }
 
   @override
@@ -1805,13 +2029,26 @@ class FakeKioskDeviceGateway implements KioskDeviceGateway {
     required String accessToken,
     required String platform,
     required String appVersion,
-  }) {
-    throw UnimplementedError();
+  }) async {
+    return identity;
   }
 
   @override
   Future<KioskRuntimeConfiguration> configuration(String accessToken) async {
     return defaultRuntimeConfiguration;
+  }
+}
+
+class InMemoryKioskRuntimeConfigurationCache
+    implements KioskRuntimeConfigurationCache {
+  String? value;
+
+  @override
+  Future<String?> readConfigurationJson() async => value;
+
+  @override
+  Future<void> writeConfigurationJson(String value) async {
+    this.value = value;
   }
 }
 

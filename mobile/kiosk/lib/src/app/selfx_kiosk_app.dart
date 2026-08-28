@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -21,13 +22,14 @@ import '../settings/camera_settings_store.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_gateway.dart';
+import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_coverage_analyzer.dart';
 import '../ui/kiosk_startup_screen.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_gateway.dart';
 
-class SelfxKioskApp extends StatelessWidget {
+class SelfxKioskApp extends StatefulWidget {
   const SelfxKioskApp({
     super.key,
     required this.controller,
@@ -38,6 +40,7 @@ class SelfxKioskApp extends StatelessWidget {
     required this.configurationController,
     this.extractionService = const UnavailableGarmentExtractionService(),
     this.operatorAccessController,
+    this.customerSessionIdleTimeoutOverride,
   });
 
   factory SelfxKioskApp.production() {
@@ -122,6 +125,14 @@ class SelfxKioskApp extends StatelessWidget {
   final GarmentExtractionService extractionService;
   final KioskRuntimeConfigurationController configurationController;
   final OperatorAccessController? operatorAccessController;
+  final Duration? customerSessionIdleTimeoutOverride;
+
+  @override
+  State<SelfxKioskApp> createState() => _SelfxKioskAppState();
+}
+
+class _SelfxKioskAppState extends State<SelfxKioskApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
@@ -129,22 +140,157 @@ class SelfxKioskApp extends StatelessWidget {
       title: 'SelfX Kiosk',
       debugShowCheckedModeBanner: false,
       theme: buildSelfxKioskTheme(),
+      navigatorKey: _navigatorKey,
+      builder: (context, child) => KioskCustomerSessionIdleGuard(
+        navigatorKey: _navigatorKey,
+        captureController: widget.controller,
+        tryOnController: widget.tryOnController,
+        uploadController: widget.uploadController,
+        configurationController: widget.configurationController,
+        timeoutOverride: widget.customerSessionIdleTimeoutOverride,
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: KioskStartupScreen(
-        deviceController: deviceController,
-        captureController: controller,
-        tryOnController: tryOnController,
-        uploadController: uploadController,
-        catalogGateway: catalogGateway,
-        extractionService: extractionService,
-        configurationController: configurationController,
+        deviceController: widget.deviceController,
+        captureController: widget.controller,
+        tryOnController: widget.tryOnController,
+        uploadController: widget.uploadController,
+        catalogGateway: widget.catalogGateway,
+        extractionService: widget.extractionService,
+        configurationController: widget.configurationController,
         operatorAccessController:
-            operatorAccessController ??
+            widget.operatorAccessController ??
             OperatorAccessController(
               verifier: const Sha256OperatorAccessVerifier(
                 expectedDigest: demoOperatorPinSha256Digest,
               ),
             ),
       ),
+    );
+  }
+}
+
+class KioskCustomerSessionIdleGuard extends StatefulWidget {
+  const KioskCustomerSessionIdleGuard({
+    super.key,
+    required this.navigatorKey,
+    required this.captureController,
+    required this.tryOnController,
+    required this.uploadController,
+    required this.configurationController,
+    required this.child,
+    this.timeoutOverride,
+  });
+
+  final GlobalKey<NavigatorState> navigatorKey;
+  final CaptureSessionController captureController;
+  final KioskTryOnSessionController tryOnController;
+  final KioskCustomerUploadController uploadController;
+  final KioskRuntimeConfigurationController configurationController;
+  final Widget child;
+  final Duration? timeoutOverride;
+
+  @override
+  State<KioskCustomerSessionIdleGuard> createState() =>
+      _KioskCustomerSessionIdleGuardState();
+}
+
+class _KioskCustomerSessionIdleGuardState
+    extends State<KioskCustomerSessionIdleGuard> {
+  Timer? _idleTimer;
+  bool _endingSession = false;
+  bool _trackingSession = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.tryOnController.addListener(_syncTimer);
+    _syncTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant KioskCustomerSessionIdleGuard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tryOnController != widget.tryOnController) {
+      oldWidget.tryOnController.removeListener(_syncTimer);
+      widget.tryOnController.addListener(_syncTimer);
+    }
+    _syncTimer();
+  }
+
+  @override
+  void dispose() {
+    widget.tryOnController.removeListener(_syncTimer);
+    _idleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _syncTimer() {
+    if (!widget.tryOnController.customerSessionActive || _endingSession) {
+      _idleTimer?.cancel();
+      _idleTimer = null;
+      _trackingSession = false;
+      return;
+    }
+    if (!_trackingSession) {
+      _trackingSession = true;
+      _restartTimer();
+    }
+  }
+
+  void _recordActivity() {
+    if (!widget.tryOnController.customerSessionActive || _endingSession) {
+      return;
+    }
+    _restartTimer();
+  }
+
+  void _restartTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = Timer(_timeout, () {
+      unawaited(_endIdleSession());
+    });
+  }
+
+  Duration get _timeout =>
+      widget.timeoutOverride ??
+      Duration(
+        seconds: widget
+            .configurationController
+            .configuration
+            .sessionIdleTimeoutSeconds
+            .clamp(30, 900)
+            .toInt(),
+      );
+
+  Future<void> _endIdleSession() async {
+    if (_endingSession || !widget.tryOnController.customerSessionActive) {
+      return;
+    }
+    _endingSession = true;
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    try {
+      await widget.uploadController.cancel();
+      await widget.tryOnController.finish(
+        widget.captureController,
+        reason: KioskTryOnSessionCompletionReason.idleTimeout,
+      );
+      widget.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    } finally {
+      _endingSession = false;
+      _syncTimer();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _recordActivity(),
+      onPointerMove: (_) => _recordActivity(),
+      onPointerSignal: (_) => _recordActivity(),
+      child: widget.child,
     );
   }
 }

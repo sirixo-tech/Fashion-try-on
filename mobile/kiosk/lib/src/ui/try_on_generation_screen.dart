@@ -49,7 +49,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
     super.initState();
     _motionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2600),
+      duration: const Duration(milliseconds: 4200),
     )..repeat();
     widget.tryOnController.addListener(_handleTryOnChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -103,7 +103,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
               final tightHeight = constraints.maxHeight < 720;
               final pagePadding = narrow ? 14.0 : 22.0;
               final sectionGap = tightHeight ? 12.0 : 18.0;
-              final motionHeight = tightHeight ? 86.0 : 112.0;
+              final motionHeight = tightHeight ? 138.0 : 174.0;
               if (!failed) {
                 return Center(
                   child: ConstrainedBox(
@@ -718,89 +718,364 @@ class _TryOnMotionPainter extends CustomPainter {
   final double progress;
   final Color color;
 
+  static const _outfits = [
+    _MotionOutfit(
+      fill: Color(0xFFFF6A1A),
+      accent: Color(0xFFFFC400),
+      style: _MotionGarmentStyle.shirt,
+    ),
+    _MotionOutfit(
+      fill: Color(0xFF243B53),
+      accent: Color(0xFFFF6A1A),
+      style: _MotionGarmentStyle.jacket,
+    ),
+    _MotionOutfit(
+      fill: Color(0xFF01A101),
+      accent: Color(0xFFFFC400),
+      style: _MotionGarmentStyle.top,
+    ),
+    _MotionOutfit(
+      fill: Color(0xFF5B677A),
+      accent: Color(0xFFFF6A1A),
+      style: _MotionGarmentStyle.pants,
+    ),
+  ];
+
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
+    final center = Offset(size.width / 2, size.height * 0.57);
+    final scale = (size.height / 174).clamp(0.72, 1.14).toDouble();
     final pulse = 0.5 + 0.5 * math.sin(progress * math.pi * 2);
-    final sweep = progress * math.pi * 2;
 
-    final glowPaint = Paint()
-      ..color = color.withValues(alpha: 0.08 + pulse * 0.06)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 46 + pulse * 10, glowPaint);
+    _drawQueuePath(canvas, size, scale);
 
-    final ringPaint = Paint()
-      ..color = color.withValues(alpha: 0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: 52),
-      sweep,
-      math.pi * 1.25,
-      false,
-      ringPaint,
-    );
+    var activeApply = 0.0;
+    _MotionOutfit activeOutfit = _outfits.first;
+    for (var i = 0; i < _outfits.length; i++) {
+      final t = (progress + i / _outfits.length) % 1;
+      final apply = _proximity(t, 0.5, 0.18);
+      if (apply > activeApply) {
+        activeApply = apply;
+        activeOutfit = _outfits[i];
+      }
+    }
 
-    final ribbonPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round;
-    final ribbon = Path();
-    for (var i = 0; i <= 64; i++) {
-      final t = i / 64;
-      final x = center.dx - 78 + t * 156;
+    _drawPerson(canvas, center, scale, activeOutfit, activeApply, pulse);
+
+    for (var i = 0; i < _outfits.length; i++) {
+      final t = (progress + i / _outfits.length) % 1;
+      final outfit = _outfits[i];
+      final apply = _proximity(t, 0.5, 0.18);
+      final x = _lerp(-70 * scale, size.width + 70 * scale, _easeInOut(t));
       final y =
-          center.dy +
-          math.sin((t * math.pi * 2) + sweep) * 18 -
-          math.cos((t * math.pi * 4) + sweep) * 5;
-      if (i == 0) {
-        ribbon.moveTo(x, y);
-      } else {
-        ribbon.lineTo(x, y);
-      }
+          center.dy -
+          (math.sin(t * math.pi) * 42 * scale) -
+          8 * scale +
+          math.sin((t + progress) * math.pi * 2) * 4 * scale;
+      final cardScale = 0.78 + apply * 0.2;
+      final alpha = 0.3 + math.sin(t * math.pi) * 0.58;
+      _drawOutfitCard(
+        canvas,
+        Offset(x, y),
+        outfit,
+        scale * cardScale,
+        alpha.clamp(0.24, 0.94).toDouble(),
+      );
     }
-    canvas.drawPath(ribbon, ribbonPaint);
 
-    final ghostPaint = Paint()
-      ..color = color.withValues(alpha: 0.22)
+    if (activeApply > 0.58) {
+      _drawSparkle(
+        canvas,
+        Offset(center.dx + 38 * scale, center.dy - 56 * scale),
+        13 * scale + pulse * 4 * scale,
+        color,
+        activeApply * 0.86,
+      );
+      _drawSparkle(
+        canvas,
+        Offset(center.dx - 44 * scale, center.dy - 14 * scale),
+        10 * scale + (1 - pulse) * 4 * scale,
+        activeOutfit.accent,
+        activeApply * 0.72,
+      );
+    }
+  }
+
+  void _drawQueuePath(Canvas canvas, Size size, double scale) {
+    final center = Offset(size.width / 2, size.height * 0.57);
+    final pathPaint = Paint()
+      ..color = color.withValues(alpha: 0.13)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
+      ..strokeWidth = 2.6 * scale
       ..strokeCap = StrokeCap.round;
-    final ghost = Path();
-    for (var i = 0; i <= 64; i++) {
-      final t = i / 64;
-      final x = center.dx - 64 + t * 128;
-      final y = center.dy + 26 + math.sin((t * math.pi * 2) - sweep) * 9;
-      if (i == 0) {
-        ghost.moveTo(x, y);
-      } else {
-        ghost.lineTo(x, y);
-      }
-    }
-    canvas.drawPath(ghost, ghostPaint);
+    final path = Path()
+      ..moveTo(28 * scale, center.dy - 6 * scale)
+      ..quadraticBezierTo(
+        size.width * 0.28,
+        center.dy - 58 * scale,
+        center.dx - 38 * scale,
+        center.dy - 34 * scale,
+      )
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy - 10 * scale,
+        center.dx + 38 * scale,
+        center.dy - 34 * scale,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.72,
+        center.dy - 58 * scale,
+        size.width - 28 * scale,
+        center.dy - 6 * scale,
+      );
+    canvas.drawPath(path, pathPaint);
 
-    _drawSparkle(
-      canvas,
-      Offset(center.dx - 86, center.dy - 34 + pulse * 8),
-      18 + pulse * 5,
-      color,
-      0.9,
+    final dotPaint = Paint()
+      ..color = color.withValues(alpha: 0.26)
+      ..style = PaintingStyle.fill;
+    for (final point in [
+      Offset(size.width * 0.18, center.dy - 30 * scale),
+      Offset(size.width * 0.36, center.dy - 44 * scale),
+      Offset(size.width * 0.64, center.dy - 44 * scale),
+      Offset(size.width * 0.82, center.dy - 30 * scale),
+    ]) {
+      canvas.drawCircle(point, 3.2 * scale, dotPaint);
+    }
+  }
+
+  void _drawPerson(
+    Canvas canvas,
+    Offset center,
+    double scale,
+    _MotionOutfit activeOutfit,
+    double apply,
+    double pulse,
+  ) {
+    final shadowPaint = Paint()
+      ..color = const Color(0xFF0F172A).withValues(alpha: 0.1)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(center.dx, center.dy + 68 * scale),
+        width: 74 * scale,
+        height: 14 * scale,
+      ),
+      shadowPaint,
     );
-    _drawSparkle(
-      canvas,
-      Offset(center.dx + 84, center.dy - 38 - pulse * 6),
-      14 + (1 - pulse) * 5,
-      color,
-      0.75,
+
+    final guidePaint = Paint()
+      ..color = color.withValues(alpha: 0.1 + pulse * 0.05)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 54 * scale + pulse * 8 * scale, guidePaint);
+
+    final linePaint = Paint()
+      ..color = const Color(0xFF334155).withValues(alpha: 0.86)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2 * scale
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final head = Offset(center.dx, center.dy - 52 * scale);
+    canvas.drawCircle(head, 14 * scale, linePaint);
+    canvas.drawLine(
+      Offset(center.dx, center.dy - 37 * scale),
+      Offset(center.dx, center.dy - 27 * scale),
+      linePaint,
     );
-    _drawSparkle(
-      canvas,
-      Offset(center.dx + 44, center.dy + 36 + pulse * 4),
-      12 + pulse * 4,
-      color,
-      0.65,
+
+    final body = Path()
+      ..moveTo(center.dx - 24 * scale, center.dy - 24 * scale)
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy - 34 * scale,
+        center.dx + 24 * scale,
+        center.dy - 24 * scale,
+      )
+      ..lineTo(center.dx + 19 * scale, center.dy + 28 * scale)
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy + 38 * scale,
+        center.dx - 19 * scale,
+        center.dy + 28 * scale,
+      )
+      ..close();
+    canvas.drawPath(body, linePaint);
+
+    canvas.drawLine(
+      Offset(center.dx - 25 * scale, center.dy - 14 * scale),
+      Offset(center.dx - 42 * scale, center.dy + 34 * scale),
+      linePaint,
     );
+    canvas.drawLine(
+      Offset(center.dx + 25 * scale, center.dy - 14 * scale),
+      Offset(center.dx + 42 * scale, center.dy + 34 * scale),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(center.dx - 11 * scale, center.dy + 36 * scale),
+      Offset(center.dx - 19 * scale, center.dy + 72 * scale),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(center.dx + 11 * scale, center.dy + 36 * scale),
+      Offset(center.dx + 19 * scale, center.dy + 72 * scale),
+      linePaint,
+    );
+
+    if (apply <= 0) {
+      return;
+    }
+
+    final outfitPaint = Paint()
+      ..color = activeOutfit.fill.withValues(alpha: 0.18 + apply * 0.78)
+      ..style = PaintingStyle.fill;
+    final accentPaint = Paint()
+      ..color = activeOutfit.accent.withValues(alpha: apply)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.6 * scale
+      ..strokeCap = StrokeCap.round;
+    final overlay = Path()
+      ..moveTo(center.dx - 23 * scale, center.dy - 23 * scale)
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy - 31 * scale,
+        center.dx + 23 * scale,
+        center.dy - 23 * scale,
+      )
+      ..lineTo(center.dx + 18 * scale, center.dy + 24 * scale)
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy + 32 * scale,
+        center.dx - 18 * scale,
+        center.dy + 24 * scale,
+      )
+      ..close();
+    canvas.drawPath(overlay, outfitPaint);
+    canvas.drawLine(
+      Offset(center.dx, center.dy - 22 * scale),
+      Offset(center.dx, center.dy + 25 * scale),
+      accentPaint,
+    );
+  }
+
+  void _drawOutfitCard(
+    Canvas canvas,
+    Offset center,
+    _MotionOutfit outfit,
+    double scale,
+    double alpha,
+  ) {
+    final rect = Rect.fromCenter(
+      center: center,
+      width: 52 * scale,
+      height: 62 * scale,
+    );
+    final shadowPaint = Paint()
+      ..color = const Color(0xFF0F172A).withValues(alpha: alpha * 0.12)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        rect.translate(0, 6 * scale),
+        Radius.circular(14 * scale),
+      ),
+      shadowPaint,
+    );
+
+    final cardPaint = Paint()
+      ..color = Colors.white.withValues(alpha: alpha)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(14 * scale)),
+      cardPaint,
+    );
+
+    final borderPaint = Paint()
+      ..color = outfit.fill.withValues(alpha: alpha * 0.32)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8 * scale;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(14 * scale)),
+      borderPaint,
+    );
+
+    final iconRect = rect.deflate(12 * scale);
+    _drawGarmentIcon(canvas, iconRect, outfit, alpha);
+  }
+
+  void _drawGarmentIcon(
+    Canvas canvas,
+    Rect rect,
+    _MotionOutfit outfit,
+    double alpha,
+  ) {
+    final fillPaint = Paint()
+      ..color = outfit.fill.withValues(alpha: alpha * 0.92)
+      ..style = PaintingStyle.fill;
+    final accentPaint = Paint()
+      ..color = outfit.accent.withValues(alpha: alpha)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = rect.width * 0.08
+      ..strokeCap = StrokeCap.round;
+
+    switch (outfit.style) {
+      case _MotionGarmentStyle.pants:
+        final pants = Path()
+          ..moveTo(rect.left + rect.width * 0.28, rect.top)
+          ..lineTo(rect.right - rect.width * 0.28, rect.top)
+          ..lineTo(rect.right - rect.width * 0.18, rect.bottom)
+          ..lineTo(rect.center.dx + rect.width * 0.04, rect.bottom)
+          ..lineTo(rect.center.dx, rect.top + rect.height * 0.38)
+          ..lineTo(rect.center.dx - rect.width * 0.04, rect.bottom)
+          ..lineTo(rect.left + rect.width * 0.18, rect.bottom)
+          ..close();
+        canvas.drawPath(pants, fillPaint);
+        canvas.drawLine(
+          Offset(rect.center.dx, rect.top + rect.height * 0.2),
+          Offset(rect.center.dx, rect.bottom - rect.height * 0.08),
+          accentPaint,
+        );
+      case _MotionGarmentStyle.jacket:
+      case _MotionGarmentStyle.shirt:
+      case _MotionGarmentStyle.top:
+        final shirt = Path()
+          ..moveTo(rect.left + rect.width * 0.28, rect.top + rect.height * 0.1)
+          ..lineTo(rect.left, rect.top + rect.height * 0.32)
+          ..lineTo(rect.left + rect.width * 0.18, rect.top + rect.height * 0.5)
+          ..lineTo(rect.left + rect.width * 0.3, rect.top + rect.height * 0.4)
+          ..lineTo(rect.left + rect.width * 0.3, rect.bottom)
+          ..lineTo(rect.right - rect.width * 0.3, rect.bottom)
+          ..lineTo(rect.right - rect.width * 0.3, rect.top + rect.height * 0.4)
+          ..lineTo(rect.right - rect.width * 0.18, rect.top + rect.height * 0.5)
+          ..lineTo(rect.right, rect.top + rect.height * 0.32)
+          ..lineTo(rect.right - rect.width * 0.28, rect.top + rect.height * 0.1)
+          ..quadraticBezierTo(
+            rect.center.dx,
+            rect.top + rect.height * 0.24,
+            rect.left + rect.width * 0.28,
+            rect.top + rect.height * 0.1,
+          )
+          ..close();
+        canvas.drawPath(shirt, fillPaint);
+        if (outfit.style == _MotionGarmentStyle.jacket) {
+          canvas.drawLine(
+            Offset(rect.center.dx, rect.top + rect.height * 0.22),
+            Offset(rect.center.dx, rect.bottom - rect.height * 0.08),
+            accentPaint,
+          );
+        } else {
+          canvas.drawArc(
+            Rect.fromCenter(
+              center: Offset(rect.center.dx, rect.top + rect.height * 0.16),
+              width: rect.width * 0.28,
+              height: rect.height * 0.18,
+            ),
+            0,
+            math.pi,
+            false,
+            accentPaint,
+          );
+        }
+    }
   }
 
   void _drawSparkle(
@@ -830,4 +1105,29 @@ class _TryOnMotionPainter extends CustomPainter {
   bool shouldRepaint(covariant _TryOnMotionPainter oldDelegate) {
     return oldDelegate.progress != progress || oldDelegate.color != color;
   }
+
+  double _easeInOut(double t) => 0.5 - math.cos(t * math.pi) / 2;
+
+  double _lerp(double start, double end, double t) {
+    return start + (end - start) * t;
+  }
+
+  double _proximity(double value, double target, double radius) {
+    final distance = (value - target).abs();
+    return (1 - distance / radius).clamp(0.0, 1.0).toDouble();
+  }
+}
+
+enum _MotionGarmentStyle { shirt, jacket, top, pants }
+
+class _MotionOutfit {
+  const _MotionOutfit({
+    required this.fill,
+    required this.accent,
+    required this.style,
+  });
+
+  final Color fill;
+  final Color accent;
+  final _MotionGarmentStyle style;
 }

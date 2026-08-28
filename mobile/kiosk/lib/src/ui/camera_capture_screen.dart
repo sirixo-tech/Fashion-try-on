@@ -328,10 +328,10 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
           extraLarge: 174,
         );
         final horizontalPadding = layout.scaled(
-          34,
-          small: 18,
-          large: 46,
-          extraLarge: 58,
+          20,
+          small: 12,
+          large: 28,
+          extraLarge: 36,
         );
         final topPadding = layout.scaled(
           34,
@@ -504,11 +504,6 @@ class _FramingGuidePainter extends CustomPainter {
       purpose: purpose,
       captureScope: captureScope,
     );
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(28));
-    final whitePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..color = Colors.white.withValues(alpha: 0.76);
     final orangePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5
@@ -516,7 +511,6 @@ class _FramingGuidePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..color = SelfxKioskTokens.primary.withValues(alpha: 0.92);
 
-    canvas.drawRRect(rrect, whitePaint);
     _drawGuideCorners(canvas, rect, orangePaint);
 
     final innerPaint = Paint()
@@ -546,25 +540,25 @@ Rect _framingGuideRect(
   required CaptureScope captureScope,
 }) {
   final widthFactor = purpose == PhotoAcquisitionPurpose.garment
-      ? 0.72
+      ? 0.9
       : switch (captureScope) {
-          CaptureScope.top => 0.64,
-          CaptureScope.bottom => 0.62,
-          CaptureScope.fullBody => 0.58,
+          CaptureScope.top => 0.84,
+          CaptureScope.bottom => 0.84,
+          CaptureScope.fullBody => 0.86,
         };
   final heightFactor = purpose == PhotoAcquisitionPurpose.garment
-      ? 0.48
+      ? 0.62
       : switch (captureScope) {
-          CaptureScope.top => 0.56,
-          CaptureScope.bottom => 0.72,
-          CaptureScope.fullBody => 0.84,
+          CaptureScope.top => 0.66,
+          CaptureScope.bottom => 0.82,
+          CaptureScope.fullBody => 0.92,
         };
   final centerYFactor = purpose == PhotoAcquisitionPurpose.garment
       ? 0.48
       : switch (captureScope) {
-          CaptureScope.top => 0.43,
-          CaptureScope.bottom => 0.52,
-          CaptureScope.fullBody => 0.52,
+          CaptureScope.top => 0.46,
+          CaptureScope.bottom => 0.51,
+          CaptureScope.fullBody => 0.51,
         };
 
   final guideWidth = size.width * widthFactor;
@@ -577,6 +571,15 @@ Rect _framingGuideRect(
     guideWidth,
     guideHeight,
   );
+}
+
+@visibleForTesting
+Rect captureFramingGuideRectForTesting(
+  Size size, {
+  required PhotoAcquisitionPurpose purpose,
+  required CaptureScope captureScope,
+}) {
+  return _framingGuideRect(size, purpose: purpose, captureScope: captureScope);
 }
 
 void _drawGuideCorners(Canvas canvas, Rect rect, Paint paint) {
@@ -601,17 +604,17 @@ void _drawGarmentGuide(Canvas canvas, Rect rect, Paint paint) {
   final center = rect.center;
   final hangerTop = Offset(center.dx, rect.top + rect.height * 0.22);
   final hangerLeft = Offset(
-    rect.left + rect.width * 0.34,
+    rect.left + rect.width * 0.38,
     rect.top + rect.height * 0.34,
   );
   final hangerRight = Offset(
-    rect.right - rect.width * 0.34,
+    rect.right - rect.width * 0.38,
     rect.top + rect.height * 0.34,
   );
   final garmentTop = rect.top + rect.height * 0.38;
   final garmentBottom = rect.bottom - rect.height * 0.18;
-  final garmentLeft = rect.left + rect.width * 0.28;
-  final garmentRight = rect.right - rect.width * 0.28;
+  final garmentLeft = rect.left + rect.width * 0.34;
+  final garmentRight = rect.right - rect.width * 0.34;
   final garmentPath = Path()
     ..moveTo(hangerLeft.dx, hangerLeft.dy)
     ..quadraticBezierTo(
@@ -621,14 +624,14 @@ void _drawGarmentGuide(Canvas canvas, Rect rect, Paint paint) {
       hangerRight.dy,
     )
     ..moveTo(garmentLeft, garmentTop)
-    ..lineTo(rect.left + rect.width * 0.18, garmentTop + rect.height * 0.08)
-    ..lineTo(rect.left + rect.width * 0.25, garmentTop + rect.height * 0.2)
+    ..lineTo(rect.left + rect.width * 0.25, garmentTop + rect.height * 0.08)
+    ..lineTo(rect.left + rect.width * 0.3, garmentTop + rect.height * 0.2)
     ..lineTo(garmentLeft, garmentTop + rect.height * 0.15)
     ..lineTo(garmentLeft, garmentBottom)
     ..lineTo(garmentRight, garmentBottom)
     ..lineTo(garmentRight, garmentTop + rect.height * 0.15)
-    ..lineTo(rect.right - rect.width * 0.25, garmentTop + rect.height * 0.2)
-    ..lineTo(rect.right - rect.width * 0.18, garmentTop + rect.height * 0.08)
+    ..lineTo(rect.right - rect.width * 0.3, garmentTop + rect.height * 0.2)
+    ..lineTo(rect.right - rect.width * 0.25, garmentTop + rect.height * 0.08)
     ..lineTo(garmentRight, garmentTop);
   canvas.drawPath(garmentPath, paint);
 }
@@ -640,7 +643,7 @@ void _drawPersonGuide(
   CaptureScope scope,
 ) {
   final centerX = rect.center.dx;
-  final headRadius = rect.width * (scope == CaptureScope.top ? 0.12 : 0.095);
+  final headRadius = rect.width * (scope == CaptureScope.top ? 0.085 : 0.07);
   final headCenter = Offset(centerX, rect.top + rect.height * 0.15);
   canvas.drawCircle(headCenter, headRadius, paint);
 
@@ -650,19 +653,19 @@ void _drawPersonGuide(
   final hipY =
       rect.top + rect.height * (scope == CaptureScope.top ? 0.82 : 0.58);
   final bodyPath = Path()
-    ..moveTo(rect.left + rect.width * 0.28, shoulderY)
+    ..moveTo(rect.left + rect.width * 0.36, shoulderY)
     ..quadraticBezierTo(
       centerX,
       shoulderY - rect.height * 0.05,
-      rect.right - rect.width * 0.28,
+      rect.right - rect.width * 0.36,
       shoulderY,
     )
-    ..moveTo(rect.left + rect.width * 0.32, shoulderY)
-    ..lineTo(rect.left + rect.width * 0.38, waistY)
-    ..lineTo(rect.left + rect.width * 0.34, hipY)
-    ..moveTo(rect.right - rect.width * 0.32, shoulderY)
-    ..lineTo(rect.right - rect.width * 0.38, waistY)
-    ..lineTo(rect.right - rect.width * 0.34, hipY);
+    ..moveTo(rect.left + rect.width * 0.38, shoulderY)
+    ..lineTo(rect.left + rect.width * 0.45, waistY)
+    ..lineTo(rect.left + rect.width * 0.42, hipY)
+    ..moveTo(rect.right - rect.width * 0.38, shoulderY)
+    ..lineTo(rect.right - rect.width * 0.45, waistY)
+    ..lineTo(rect.right - rect.width * 0.42, hipY);
   canvas.drawPath(bodyPath, paint);
 
   if (scope == CaptureScope.top) {
@@ -670,18 +673,18 @@ void _drawPersonGuide(
   }
 
   final footY = rect.bottom - rect.height * 0.07;
-  final leftHip = Offset(rect.left + rect.width * 0.43, hipY);
-  final rightHip = Offset(rect.right - rect.width * 0.43, hipY);
+  final leftHip = Offset(rect.left + rect.width * 0.46, hipY);
+  final rightHip = Offset(rect.right - rect.width * 0.46, hipY);
   final leftKnee = Offset(
-    rect.left + rect.width * 0.39,
+    rect.left + rect.width * 0.45,
     rect.top + rect.height * 0.74,
   );
   final rightKnee = Offset(
-    rect.right - rect.width * 0.39,
+    rect.right - rect.width * 0.45,
     rect.top + rect.height * 0.74,
   );
-  final leftFoot = Offset(rect.left + rect.width * 0.34, footY);
-  final rightFoot = Offset(rect.right - rect.width * 0.34, footY);
+  final leftFoot = Offset(rect.left + rect.width * 0.41, footY);
+  final rightFoot = Offset(rect.right - rect.width * 0.41, footY);
   final legPath = Path()
     ..moveTo(leftHip.dx, leftHip.dy)
     ..lineTo(leftKnee.dx, leftKnee.dy)
@@ -1162,6 +1165,7 @@ class _CameraRailButton extends StatelessWidget {
       message: label,
       child: SizedBox(
         height: dimension,
+        width: dimension * 2.35,
         child: OutlinedButton.icon(
           onPressed: onPressed,
           icon: Icon(icon, size: dimension * 0.34),
@@ -1176,8 +1180,12 @@ class _CameraRailButton extends StatelessWidget {
               alpha: 0.42,
             ),
             side: const BorderSide(color: SelfxKioskTokens.secondary),
-            shape: const StadiumBorder(),
-            padding: EdgeInsets.symmetric(horizontal: dimension * 0.34),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                SelfxKioskTokens.buttonRadius,
+              ),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: dimension * 0.24),
             textStyle: Theme.of(
               context,
             ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),

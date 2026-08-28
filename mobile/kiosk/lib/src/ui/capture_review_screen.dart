@@ -454,11 +454,19 @@ class _ImageUsabilityStatementState extends State<_ImageUsabilityStatement> {
   @override
   Widget build(BuildContext context) {
     final result = widget.result;
+    final isSuccess = !widget.isLoading && result?.isUsable == true;
+    const successColor = Color(0xFF01A101);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: isSuccess
+            ? successColor.withValues(alpha: 0.96)
+            : Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.44)),
+        border: Border.all(
+          color: isSuccess
+              ? Colors.white.withValues(alpha: 0.26)
+              : Colors.white.withValues(alpha: 0.44),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -482,12 +490,16 @@ class _ImageUsabilityStatementState extends State<_ImageUsabilityStatement> {
             else
               _UsabilityLine(
                 icon: result.isUsable
-                    ? _successMessage?.icon ?? Icons.check
+                    ? Icons.check_rounded
                     : Icons.error_outline,
                 animateIcon: result.isUsable,
                 backgroundColor: result.isUsable
-                    ? SelfxKioskTokens.primary
+                    ? Colors.white
                     : const Color(0xFFC53030),
+                iconColor: result.isUsable ? successColor : Colors.white,
+                textColor: result.isUsable
+                    ? Colors.white
+                    : SelfxKioskTokens.textPrimary,
                 text: result.isUsable
                     ? _successMessage?.text ?? result.message
                     : result.message,
@@ -500,53 +512,22 @@ class _ImageUsabilityStatementState extends State<_ImageUsabilityStatement> {
 }
 
 class _SuccessReviewMessage {
-  const _SuccessReviewMessage({required this.text, required this.icon});
+  const _SuccessReviewMessage({required this.text});
 
   final String text;
-  final IconData icon;
 }
 
 const _successReviewMessages = [
-  _SuccessReviewMessage(
-    text: 'Perfect capture - you\'re looking great!',
-    icon: Icons.auto_awesome,
-  ),
-  _SuccessReviewMessage(
-    text: 'Great photo - you\'re ready to shine!',
-    icon: Icons.wb_sunny_outlined,
-  ),
-  _SuccessReviewMessage(
-    text: 'Photo confirmed - looking sharp!',
-    icon: Icons.verified_outlined,
-  ),
-  _SuccessReviewMessage(
-    text: 'Excellent capture - you look amazing!',
-    icon: Icons.stars_outlined,
-  ),
-  _SuccessReviewMessage(
-    text: 'Picture looks perfect - so do you!',
-    icon: Icons.camera_alt_outlined,
-  ),
-  _SuccessReviewMessage(
-    text: 'Great shot - you\'re all set!',
-    icon: Icons.check_circle_outline,
-  ),
-  _SuccessReviewMessage(
-    text: 'Capture approved - looking fantastic!',
-    icon: Icons.task_alt_outlined,
-  ),
-  _SuccessReviewMessage(
-    text: 'Perfect shot - looking your best!',
-    icon: Icons.workspace_premium_outlined,
-  ),
-  _SuccessReviewMessage(
-    text: 'Photo is spot on - you\'re looking great!',
-    icon: Icons.center_focus_strong_outlined,
-  ),
-  _SuccessReviewMessage(
-    text: 'Great capture - ready for your new look!',
-    icon: Icons.checkroom_outlined,
-  ),
+  _SuccessReviewMessage(text: 'Perfect capture - you\'re looking great!'),
+  _SuccessReviewMessage(text: 'Great photo - you\'re ready to shine!'),
+  _SuccessReviewMessage(text: 'Photo confirmed - looking sharp!'),
+  _SuccessReviewMessage(text: 'Excellent capture - you look amazing!'),
+  _SuccessReviewMessage(text: 'Picture looks perfect - so do you!'),
+  _SuccessReviewMessage(text: 'Great shot - you\'re all set!'),
+  _SuccessReviewMessage(text: 'Capture approved - looking fantastic!'),
+  _SuccessReviewMessage(text: 'Perfect shot - looking your best!'),
+  _SuccessReviewMessage(text: 'Photo is spot on - you\'re looking great!'),
+  _SuccessReviewMessage(text: 'Great capture - ready for your new look!'),
 ];
 
 class _UsabilityLine extends StatelessWidget {
@@ -554,12 +535,16 @@ class _UsabilityLine extends StatelessWidget {
     required this.icon,
     this.animateIcon = false,
     required this.backgroundColor,
+    required this.iconColor,
+    required this.textColor,
     required this.text,
   });
 
   final IconData icon;
   final bool animateIcon;
   final Color backgroundColor;
+  final Color iconColor;
+  final Color textColor;
   final String text;
 
   @override
@@ -571,7 +556,11 @@ class _UsabilityLine extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (animateIcon)
-            SelfxSuccessIconPulse(icon: icon, backgroundColor: backgroundColor)
+            SelfxSuccessIconPulse(
+              icon: icon,
+              backgroundColor: backgroundColor,
+              iconColor: iconColor,
+            )
           else
             DecoratedBox(
               decoration: BoxDecoration(
@@ -580,7 +569,7 @@ class _UsabilityLine extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(5),
-                child: Icon(icon, size: 18, color: Colors.white),
+                child: Icon(icon, size: 18, color: iconColor),
               ),
             ),
           const SizedBox(width: 12),
@@ -589,7 +578,7 @@ class _UsabilityLine extends StatelessWidget {
               text,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: SelfxKioskTokens.textPrimary,
+                color: textColor,
                 fontWeight: FontWeight.w900,
               ),
             ),

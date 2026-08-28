@@ -88,7 +88,7 @@ class KioskRuntimeConfiguration {
       sessionIdleTimeoutSeconds: _int(
         experience,
         'sessionIdleTimeoutSeconds',
-        120,
+        90,
       ),
       updatedAt:
           DateTime.tryParse(_string(json, 'updatedAt', '')) ??
@@ -331,7 +331,7 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
   maxTryOnPicks: 5,
   garmentPreviewEnabled: false,
   captureUploadMaxImageBytes: defaultCaptureUploadMaxImageBytes,
-  sessionIdleTimeoutSeconds: 120,
+  sessionIdleTimeoutSeconds: 90,
   updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
 );
 

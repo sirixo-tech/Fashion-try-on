@@ -35,6 +35,20 @@ enum KioskTryOnFailureCode {
 
 enum KioskTryOnSessionStatus { active, completed, expired }
 
+enum KioskTryOnSessionCompletionReason {
+  finished,
+  idleTimeout;
+
+  String get apiValue {
+    switch (this) {
+      case KioskTryOnSessionCompletionReason.finished:
+        return 'FINISHED';
+      case KioskTryOnSessionCompletionReason.idleTimeout:
+        return 'IDLE_TIMEOUT';
+    }
+  }
+}
+
 enum KioskTryOnAssetPurpose { person, garment, result }
 
 class KioskTryOnRequest {

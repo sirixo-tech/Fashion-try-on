@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Req,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -12,6 +20,7 @@ import {
 import { type FastifyRequest } from "fastify";
 
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
+import { ApiErrorException } from "../common/api-error.exception.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import {
   KioskTryOnAssetResponseDto,
@@ -24,8 +33,15 @@ import {
   parseKioskTryOnRunMultipartRequest,
 } from "./kiosk-try-on.multipart.js";
 import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
-import { KioskTryOnService } from "./kiosk-try-on.service.js";
+import {
+  KioskTryOnService,
+  type KioskTryOnSessionCompletionReason,
+} from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
+
+interface CompleteKioskTryOnSessionBody {
+  reason?: unknown;
+}
 
 @ApiTags("Kiosk Try-On")
 @ApiBearerAuth()
@@ -55,7 +71,10 @@ export class KioskTryOnController {
         personImage: { type: "string", format: "binary" },
         garmentImage: { type: "string", format: "binary" },
         productId: { type: "string", format: "uuid" },
-        garmentSource: { type: "string", enum: ["DIRECT_UPLOAD", "SELFX_CATALOG"] },
+        garmentSource: {
+          type: "string",
+          enum: ["DIRECT_UPLOAD", "SELFX_CATALOG"],
+        },
         garmentIntent: {
           type: "string",
           enum: ["AUTO", "TOP", "BOTTOM", "ONE_PIECE", "FULL_OUTFIT"],
@@ -86,7 +105,9 @@ export class KioskTryOnController {
   async create(
     @Req() request: FastifyRequest,
   ): Promise<KioskTryOnRunResponseDto> {
-    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    const device = await this.kiosks.requireDevice(
+      request.headers.authorization,
+    );
     const maxImageBytes =
       await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
     const payload = await parseKioskTryOnRunMultipartRequest(request, {
@@ -105,7 +126,9 @@ export class KioskTryOnController {
     @Req() request: FastifyRequest,
     @Param("runId", SelfxUuidParamPipe) runId: string,
   ): Promise<KioskTryOnRunResponseDto> {
-    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    const device = await this.kiosks.requireDevice(
+      request.headers.authorization,
+    );
     return this.tryOn.getRun(device, runId);
   }
 }
@@ -128,12 +151,16 @@ export class KioskTryOnSessionController {
   async create(
     @Req() request: FastifyRequest,
   ): Promise<KioskTryOnSessionResponseDto> {
-    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    const device = await this.kiosks.requireDevice(
+      request.headers.authorization,
+    );
     return this.tryOn.createSession(device);
   }
 
   @Post(":sessionId/person")
-  @ApiOperation({ summary: "Set the current person image for a Try-On session" })
+  @ApiOperation({
+    summary: "Set the current person image for a Try-On session",
+  })
   @ApiConsumes("multipart/form-data", "application/json")
   @ApiBody({
     schema: {
@@ -164,7 +191,9 @@ export class KioskTryOnSessionController {
     @Req() request: FastifyRequest,
     @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
   ): Promise<KioskTryOnAssetResponseDto> {
-    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    const device = await this.kiosks.requireDevice(
+      request.headers.authorization,
+    );
     const maxImageBytes =
       await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
     const payload = await parseKioskPersonMultipartRequest(request, {
@@ -174,7 +203,9 @@ export class KioskTryOnSessionController {
   }
 
   @Get(":sessionId/looks")
-  @ApiOperation({ summary: "List successful customer looks for a Try-On session" })
+  @ApiOperation({
+    summary: "List successful customer looks for a Try-On session",
+  })
   @ApiOkResponse({ type: KioskTryOnLooksResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
@@ -183,12 +214,26 @@ export class KioskTryOnSessionController {
     @Req() request: FastifyRequest,
     @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
   ): Promise<KioskTryOnLooksResponseDto> {
-    const device = await this.kiosks.requireDevice(request.headers.authorization);
+    const device = await this.kiosks.requireDevice(
+      request.headers.authorization,
+    );
     return this.tryOn.getSessionLooks(device, sessionId);
   }
 
   @Post(":sessionId/complete")
   @ApiOperation({ summary: "Complete a kiosk customer Try-On session" })
+  @ApiBody({
+    required: false,
+    schema: {
+      type: "object",
+      properties: {
+        reason: {
+          type: "string",
+          enum: ["FINISHED", "IDLE_TIMEOUT"],
+        },
+      },
+    },
+  })
   @ApiOkResponse({ type: KioskTryOnSessionResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
@@ -196,8 +241,35 @@ export class KioskTryOnSessionController {
   async complete(
     @Req() request: FastifyRequest,
     @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
+    @Body() body?: CompleteKioskTryOnSessionBody,
   ): Promise<KioskTryOnSessionResponseDto> {
-    const device = await this.kiosks.requireDevice(request.headers.authorization);
-    return this.tryOn.completeSession(device, sessionId);
+    const device = await this.kiosks.requireDevice(
+      request.headers.authorization,
+    );
+    return this.tryOn.completeSession(
+      device,
+      sessionId,
+      parseCompletionReason(body),
+    );
   }
+}
+
+function parseCompletionReason(
+  body?: CompleteKioskTryOnSessionBody,
+): KioskTryOnSessionCompletionReason {
+  if (
+    body?.reason === undefined ||
+    body.reason === null ||
+    body.reason === ""
+  ) {
+    return "FINISHED";
+  }
+  if (body.reason === "FINISHED" || body.reason === "IDLE_TIMEOUT") {
+    return body.reason;
+  }
+  throw new ApiErrorException(
+    HttpStatus.BAD_REQUEST,
+    "KIOSK_TRY_ON_SESSION_COMPLETION_REASON_INVALID",
+    "Try-On session completion reason is invalid.",
+  );
 }

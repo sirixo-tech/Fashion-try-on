@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { DatabaseModule } from "../database/database.module.js";
+import { ObjectStorageService } from "../storage/object-storage.js";
 import { GarmentPreviewSettingsService } from "./garment-preview-settings.service.js";
 import { FashnVirtualTryOnProvider } from "./providers/fashn-virtual-try-on.provider.js";
 import { GoogleVirtualTryOnProvider } from "./providers/google-virtual-try-on.provider.js";
@@ -18,6 +19,7 @@ import { TryOnSessionService } from "./try-on-session.service.js";
     TryOnExecutionService,
     TryOnSessionService,
     GarmentPreviewSettingsService,
+    ObjectStorageService,
     {
       provide: TRY_ON_PROVIDER,
       useFactory: (registry: VirtualTryOnProviderRegistry) =>

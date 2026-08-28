@@ -120,6 +120,34 @@ describe("RBAC-2 global access control", () => {
     );
   });
 
+  it("blocks non-Superadmin actors from assigning Superadmin-only permissions", async () => {
+    const actor = await createUser("staff-actor");
+    await assignBootstrapRole(actor.id, PlatformRole.SELFX_STAFF_ADMIN);
+
+    await expectApiCode(
+      accessControl.createPlatformRole(actor.id, {
+        name: `Protected Access ${createSelfxId()}`,
+        permissionCodes: [PLATFORM_PERMISSIONS.permissionsManage],
+      }),
+      "SELFX_SUPERADMIN_PROTECTED",
+    );
+  });
+
+  it("allows non-Superadmin actors to assign permissions they already hold", async () => {
+    const actor = await createUser("delegated-actor");
+    await assignBootstrapRole(actor.id, PlatformRole.SELFX_STAFF_ADMIN);
+
+    const role = await accessControl.createPlatformRole(actor.id, {
+      name: `Delegated Store Roles ${createSelfxId()}`,
+      permissionCodes: [PLATFORM_PERMISSIONS.storeRolesManage],
+    });
+    platformRoleIds.push(role.id);
+
+    expect(role.permissions.map((permission) => permission.code)).toContain(
+      PLATFORM_PERMISSIONS.storeRolesManage,
+    );
+  });
+
   async function createUser(label: string) {
     const id = createSelfxId();
     userIds.push(id);

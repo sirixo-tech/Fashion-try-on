@@ -1,13 +1,27 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-import { HttpStatus, Inject, Injectable } from "@nestjs/common";
-import { KioskAssignmentScope, TryOnSessionStatus, type KioskDevice } from "@prisma/client";
+import {
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from "@nestjs/common";
+import {
+  KioskAssignmentScope,
+  TryOnSessionStatus,
+  type KioskDevice,
+} from "@prisma/client";
 
 import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import {
+  KIOSK_USAGE_EVENTS,
+  UsageEventService,
+} from "../usage/usage-event.service.js";
 import {
   KIOSK_CONFIG,
   KIOSK_CUSTOMER_UPLOAD_SIGNED_URL_MAX_TTL_SECONDS,
@@ -41,12 +55,14 @@ export interface PublicTryOnLookDownload {
 
 @Injectable()
 export class KioskTryOnShareService {
+  private readonly logger = new Logger(KioskTryOnShareService.name);
   private readonly publicBuckets = new Map<string, RateBucket>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: ObjectStorageService,
     @Inject(KIOSK_CONFIG) private readonly config: KioskConfig,
+    @Optional() private readonly usageEvents?: UsageEventService,
   ) {}
 
   async createForDevice(
@@ -95,7 +111,9 @@ export class KioskTryOnShareService {
     const capability = randomBytes(KIOSK_CUSTOMER_UPLOAD_TOKEN_BYTES).toString(
       "base64url",
     );
-    const expiresAt = new Date(now.getTime() + KIOSK_TRY_ON_SHARE_TTL_SECONDS * 1000);
+    const expiresAt = new Date(
+      now.getTime() + KIOSK_TRY_ON_SHARE_TTL_SECONDS * 1000,
+    );
     await this.prisma.tryOnShareCapability.create({
       data: {
         id: createSelfxId(),
@@ -122,7 +140,9 @@ export class KioskTryOnShareService {
     capability: string,
     ipAddress: string,
   ): Promise<PublicTryOnShareResponseDto> {
-    this.assertPublicAllowed(`looks:${ipAddress}:${this.safeBucket(capability)}`);
+    this.assertPublicAllowed(
+      `looks:${ipAddress}:${this.safeBucket(capability)}`,
+    );
     const now = new Date();
     const share = await this.requireActiveShare(capability, now);
 
@@ -198,6 +218,17 @@ export class KioskTryOnShareService {
         resultAsset: { deletedAt: null, expiresAt: { gt: now } },
       },
       select: {
+        id: true,
+        sessionId: true,
+        kioskTryOnRunId: true,
+        productId: true,
+        kioskTryOnRun: {
+          select: {
+            provider: true,
+            providerModel: true,
+            status: true,
+          },
+        },
         resultAsset: {
           select: {
             storageKey: true,
@@ -219,15 +250,13 @@ export class KioskTryOnShareService {
       look.resultAsset.storageKey,
       maxBytes,
     );
+    await this.recordLookDownloaded(share, look);
     const contentType =
       look.resultAsset.contentType?.trim() || "application/octet-stream";
     return {
       body,
       contentType,
-      contentDisposition: attachmentDispositionForLook(
-        lookId,
-        contentType,
-      ),
+      contentDisposition: attachmentDispositionForLook(lookId, contentType),
       contentLength: body.length,
     };
   }
@@ -245,13 +274,24 @@ export class KioskTryOnShareService {
         organizationId: true,
         storeId: true,
         kioskDeviceId: true,
+        session: {
+          select: {
+            status: true,
+            expiresAt: true,
+          },
+        },
       },
     });
 
     if (!share || !constantTimeEqual(share.capabilityDigest, digest)) {
       throw this.invalidShare();
     }
-    if (share.revokedAt || share.expiresAt <= now) {
+    if (
+      share.revokedAt ||
+      share.expiresAt <= now ||
+      share.session.status !== TryOnSessionStatus.ACTIVE ||
+      share.session.expiresAt <= now
+    ) {
       throw new ApiErrorException(
         HttpStatus.GONE,
         KIOSK_ERROR_CODES.tryOnShareExpired,
@@ -295,6 +335,56 @@ export class KioskTryOnShareService {
       KIOSK_ERROR_CODES.tryOnShareInvalid,
       "This link has expired or is invalid.",
     );
+  }
+
+  private async recordLookDownloaded(
+    share: {
+      sessionId: string;
+      assignmentScope: KioskAssignmentScope;
+      organizationId: string | null;
+      storeId: string | null;
+      kioskDeviceId: string | null;
+    },
+    look: {
+      id: string;
+      kioskTryOnRunId: string;
+      productId: string | null;
+      kioskTryOnRun: {
+        provider: string;
+        providerModel: string;
+        status: string;
+      };
+    },
+  ): Promise<void> {
+    if (!share.kioskDeviceId) {
+      return;
+    }
+    try {
+      await this.usageEvents?.recordKioskEvent({
+        eventName: KIOSK_USAGE_EVENTS.downloadCompleted,
+        idempotencyKey: `kiosk-look-downloaded:${look.id}`,
+        device: {
+          id: share.kioskDeviceId,
+          assignmentScope: share.assignmentScope,
+          organizationId: share.organizationId,
+          storeId: share.storeId,
+        },
+        tryOnSessionId: share.sessionId,
+        kioskTryOnRunId: look.kioskTryOnRunId,
+        tryOnLookId: look.id,
+        productId: look.productId,
+        provider: look.kioskTryOnRun.provider,
+        providerModel: look.kioskTryOnRun.providerModel,
+        status: look.kioskTryOnRun.status,
+      });
+    } catch (error) {
+      this.logger.warn({
+        event: "kiosk_usage_event_record_failed",
+        usageEventName: KIOSK_USAGE_EVENTS.downloadCompleted,
+        kioskDeviceId: share.kioskDeviceId,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
 }
 

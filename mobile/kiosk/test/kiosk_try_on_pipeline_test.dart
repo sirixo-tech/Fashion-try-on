@@ -663,7 +663,11 @@ class FakeKioskTryOnGateway
   }
 
   @override
-  Future<KioskTryOnSession> completeTryOnSession(String sessionId) async {
+  Future<KioskTryOnSession> completeTryOnSession(
+    String sessionId, {
+    KioskTryOnSessionCompletionReason reason =
+        KioskTryOnSessionCompletionReason.finished,
+  }) async {
     completeCount += 1;
     return KioskTryOnSession(
       sessionId: sessionId,

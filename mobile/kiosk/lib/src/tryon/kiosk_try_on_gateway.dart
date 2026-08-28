@@ -29,7 +29,11 @@ abstract class KioskTryOnSessionGateway {
 
   Future<KioskTryOnShare> createSessionShare(String sessionId);
 
-  Future<KioskTryOnSession> completeTryOnSession(String sessionId);
+  Future<KioskTryOnSession> completeTryOnSession(
+    String sessionId, {
+    KioskTryOnSessionCompletionReason reason =
+        KioskTryOnSessionCompletionReason.finished,
+  });
 }
 
 class KioskTryOnApiConfig {
@@ -213,14 +217,20 @@ class SelfxKioskTryOnGateway
   }
 
   @override
-  Future<KioskTryOnSession> completeTryOnSession(String sessionId) async {
+  Future<KioskTryOnSession> completeTryOnSession(
+    String sessionId, {
+    KioskTryOnSessionCompletionReason reason =
+        KioskTryOnSessionCompletionReason.finished,
+  }) async {
     _assertConfigured();
     final response = await _requestWithDeviceAuth(
       forceRefresh: false,
       requestFactory: (accessToken) {
         return http.Request('POST', _sessionsUri('$sessionId/complete'))
           ..headers[HttpHeaders.authorizationHeader] =
-              'Bearer ${accessToken.trim()}';
+              'Bearer ${accessToken.trim()}'
+          ..headers[HttpHeaders.contentTypeHeader] = 'application/json'
+          ..body = jsonEncode({'reason': reason.apiValue});
       },
     );
     return _decodeSession(response);

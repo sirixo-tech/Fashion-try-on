@@ -16,8 +16,11 @@ export const PLATFORM_PERMISSIONS = {
   storeRolesManage: "STORE_ROLES_MANAGE",
   platformProductsView: "PLATFORM_PRODUCTS_VIEW",
   platformProductsManage: "PLATFORM_PRODUCTS_MANAGE",
+  usageView: "USAGE_VIEW",
   permissionsView: "PERMISSIONS_VIEW",
   permissionsManage: "PERMISSIONS_MANAGE",
+  platformRolesManage: "PLATFORM_ROLES_MANAGE",
+  platformUsersManage: "PLATFORM_USERS_MANAGE",
   kiosksView: "KIOSKS_VIEW",
   kiosksPair: "KIOSKS_PAIR",
   kiosksUpdate: "KIOSKS_UPDATE",
@@ -162,6 +165,14 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
       applicability: "PLATFORM_ONLY",
     },
     {
+      code: PLATFORM_PERMISSIONS.usageView,
+      module: "platform.usage",
+      action: "view",
+      label: "View Usage & Billing",
+      description: "View privacy-safe usage and billing rollups.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
       code: PLATFORM_PERMISSIONS.permissionsView,
       module: "platform.access",
       action: "view_permissions",
@@ -172,10 +183,28 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
     {
       code: PLATFORM_PERMISSIONS.permissionsManage,
       module: "platform.access",
-      action: "manage_permissions",
-      label: "Manage Access Control",
+      action: "manage_protected_access",
+      label: "Manage Protected Access Control",
       description:
-        "Manage platform roles, platform users and Store permission ceilings.",
+        "Manage protected Superadmin-level access control authorities.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.platformRolesManage,
+      module: "platform.access",
+      action: "manage_platform_roles",
+      label: "Manage Platform Roles",
+      description:
+        "Create and update non-protected SelfX Platform roles and their permissions.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.platformUsersManage,
+      module: "platform.access",
+      action: "manage_platform_users",
+      label: "Manage Platform Users",
+      description:
+        "Assign non-protected SelfX Platform roles to Platform users.",
       applicability: "PLATFORM_ONLY",
     },
     {

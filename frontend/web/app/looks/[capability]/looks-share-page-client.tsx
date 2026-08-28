@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  buttonVariants,
   cn,
 } from "@selfx/ui";
 
@@ -28,6 +28,9 @@ type PageState =
 export function LooksSharePageClient({ capability }: { capability: string }) {
   const [state, setState] = useState<PageState>({ status: "LOADING" });
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [downloadingLookId, setDownloadingLookId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +73,37 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
         )
       : 0;
   const downloadExpired = state.status === "READY" && remainingSeconds <= 0;
+
+  async function downloadLook(
+    look: PublicTryOnShare["looks"][number],
+    index: number,
+  ) {
+    if (downloadExpired || downloadingLookId) {
+      return;
+    }
+    const url = publicTryOnLookDownloadUrl(capability, look.lookId);
+    setDownloadingLookId(look.lookId);
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Download request failed.");
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `selfx-look-${index + 1}${extensionFor(blob.type)}`;
+      anchor.rel = "noreferrer";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      window.location.assign(url);
+    } finally {
+      setDownloadingLookId(null);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-background px-4 py-6">
@@ -121,28 +155,23 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
                       className="max-h-[72vh] w-full object-contain"
                     />
                   </div>
-                  <a
+                  <Button
                     className={cn(
-                      buttonVariants(),
                       "w-full",
                       downloadExpired && "pointer-events-none opacity-60",
                     )}
-                    href={
-                      downloadExpired
-                        ? undefined
-                        : publicTryOnLookDownloadUrl(capability, look.lookId)
-                    }
-                    download={`selfx-look-${index + 1}`}
+                    disabled={downloadExpired || downloadingLookId !== null}
                     aria-disabled={downloadExpired}
-                    rel="noreferrer"
-                    onClick={(event) => {
-                      if (downloadExpired) {
-                        event.preventDefault();
-                      }
+                    onClick={() => {
+                      void downloadLook(look, index);
                     }}
                   >
-                    {downloadExpired ? "Download Expired" : "Download"}
-                  </a>
+                    {downloadExpired
+                      ? "Download Expired"
+                      : downloadingLookId === look.lookId
+                        ? "Preparing..."
+                        : "Download"}
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -151,6 +180,17 @@ export function LooksSharePageClient({ capability }: { capability: string }) {
       </div>
     </main>
   );
+}
+
+function extensionFor(contentType: string): string {
+  const normalized = contentType.toLowerCase();
+  if (normalized.includes("png")) {
+    return ".png";
+  }
+  if (normalized.includes("webp")) {
+    return ".webp";
+  }
+  return ".jpg";
 }
 
 function FloatingDownloadTimer({

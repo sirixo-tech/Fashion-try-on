@@ -9,6 +9,7 @@ import { OrganizationsModule } from "./organizations/organizations.module.js";
 import { RbacModule } from "./rbac/rbac.module.js";
 import { StoresModule } from "./stores/stores.module.js";
 import { TryOnLabModule } from "./try-on-lab/try-on-lab.module.js";
+import { UsageModule } from "./usage/usage.module.js";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TryOnLabModule } from "./try-on-lab/try-on-lab.module.js";
     CatalogModule,
     TryOnLabModule,
     KioskModule,
+    UsageModule,
   ],
   controllers: [HealthController],
 })

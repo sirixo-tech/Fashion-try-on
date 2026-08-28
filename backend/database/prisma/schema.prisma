@@ -632,7 +632,7 @@ model KioskDeviceConfiguration {
   enabledGarmentIntents     KioskConfigurationGarmentIntent[] @default([TOP, BOTTOM, FULL_OUTFIT]) @map("enabled_garment_intents")
   multiGarmentSelectionEnabled Boolean                         @default(true) @map("multi_garment_selection_enabled")
   maxTryOnPicks             Int                               @default(5) @map("max_try_on_picks")
-  sessionIdleTimeoutSeconds Int                               @default(120) @map("session_idle_timeout_seconds")
+  sessionIdleTimeoutSeconds Int                               @default(90) @map("session_idle_timeout_seconds")
   updatedByUserId           String?                           @map("updated_by_user_id") @db.Uuid
   createdAt                 DateTime                          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                 DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -922,6 +922,39 @@ model TryOnShareCapability {
   @@index([expiresAt])
   @@index([revokedAt])
   @@map("try_on_share_capabilities")
+}
+
+model UsageEvent {
+  id              String                @id @db.Uuid
+  idempotencyKey  String                @unique @map("idempotency_key") @db.VarChar(180)
+  eventName       String                @map("event_name") @db.VarChar(80)
+  channel         String                @db.VarChar(40)
+  assignmentScope KioskAssignmentScope? @map("assignment_scope")
+  organizationId  String?               @map("organization_id") @db.Uuid
+  storeId         String?               @map("store_id") @db.Uuid
+  kioskDeviceId   String?               @map("kiosk_device_id") @db.Uuid
+  tryOnSessionId  String?               @map("try_on_session_id") @db.Uuid
+  kioskTryOnRunId String?               @map("kiosk_try_on_run_id") @db.Uuid
+  tryOnLookId     String?               @map("try_on_look_id") @db.Uuid
+  productId       String?               @map("product_id") @db.Uuid
+  provider        String?               @db.VarChar(80)
+  providerModel   String?               @map("provider_model") @db.VarChar(120)
+  status          String?               @db.VarChar(80)
+  quantity        Int                   @default(1)
+  metadata        Json?                 @map("metadata_json")
+  occurredAt      DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([eventName, occurredAt])
+  @@index([channel, occurredAt])
+  @@index([organizationId, occurredAt])
+  @@index([storeId, occurredAt])
+  @@index([kioskDeviceId, occurredAt])
+  @@index([tryOnSessionId, occurredAt])
+  @@index([kioskTryOnRunId])
+  @@index([tryOnLookId])
+  @@index([productId, occurredAt])
+  @@map("usage_events")
 }
 
 model AuditLog {

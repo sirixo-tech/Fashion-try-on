@@ -14,10 +14,26 @@ const platformPermissionsByHref: Record<string, string[]> = {
   "/app/onboarding": ["ORGANIZATION_APPLICATION_REVIEW"],
   "/app/products": ["PLATFORM_PRODUCTS_VIEW", "PLATFORM_PRODUCTS_MANAGE"],
   "/app/kiosks": ["KIOSKS_VIEW"],
+  "/app/billing": ["USAGE_VIEW"],
   "/app/staff": ["STORE_USERS_VIEW", "STORE_USERS_MANAGE"],
-  "/app/permissions": ["PERMISSIONS_VIEW", "PERMISSIONS_MANAGE"],
-  "/app/roles": ["PERMISSIONS_MANAGE"],
-  "/app/users": ["PERMISSIONS_MANAGE"],
+  "/app/permissions": [
+    "PERMISSIONS_VIEW",
+    "PERMISSIONS_MANAGE",
+    "PLATFORM_ROLES_MANAGE",
+    "STORE_ROLES_VIEW",
+    "STORE_ROLES_MANAGE",
+  ],
+  "/app/roles": [
+    "PERMISSIONS_MANAGE",
+    "PERMISSIONS_VIEW",
+    "PLATFORM_ROLES_MANAGE",
+    "PLATFORM_USERS_MANAGE",
+  ],
+  "/app/users": [
+    "PERMISSIONS_MANAGE",
+    "PERMISSIONS_VIEW",
+    "PLATFORM_USERS_MANAGE",
+  ],
   "/app/settings": ["PERMISSIONS_MANAGE"],
   "/app/platform": [
     "ORGANIZATION_APPLICATION_REVIEW",
@@ -31,15 +47,12 @@ const platformPermissionsByHref: Record<string, string[]> = {
 const storePermissionsByHref: Record<string, string[]> = {
   "/app/staff": ["users.view"],
   "/app/analytics": ["analytics.view"],
+  "/app/billing": ["analytics.view"],
   "/app/integrations/shopify": ["integrations.view"],
   "/app/integrations/woocommerce": ["integrations.view"],
 };
 
-const platformOnlyHrefs = new Set([
-  "/app/developer",
-  "/app/try-on-lab",
-  "/app/billing",
-]);
+const platformOnlyHrefs = new Set(["/app/developer", "/app/try-on-lab"]);
 
 const alwaysVisibleHrefs = new Set(["/app/dashboard", "/app/activity"]);
 

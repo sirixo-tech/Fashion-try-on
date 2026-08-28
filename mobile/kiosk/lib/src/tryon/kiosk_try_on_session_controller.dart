@@ -472,7 +472,10 @@ class KioskTryOnSessionController extends ChangeNotifier {
     }
   }
 
-  Future<void> completeBackendSession() async {
+  Future<void> completeBackendSession({
+    KioskTryOnSessionCompletionReason reason =
+        KioskTryOnSessionCompletionReason.finished,
+  }) async {
     if (_completingSession) {
       return;
     }
@@ -484,7 +487,10 @@ class KioskTryOnSessionController extends ChangeNotifier {
     }
     _completingSession = true;
     try {
-      final session = await _sessionGateway.completeTryOnSession(sessionId);
+      final session = await _sessionGateway.completeTryOnSession(
+        sessionId,
+        reason: reason,
+      );
       _applySession(session);
     } catch (_) {
       // Finish must still clear local kiosk state even if the network is down.
@@ -646,8 +652,12 @@ class KioskTryOnSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> finish(CaptureSessionController capture) async {
-    await completeBackendSession();
+  Future<void> finish(
+    CaptureSessionController capture, {
+    KioskTryOnSessionCompletionReason reason =
+        KioskTryOnSessionCompletionReason.finished,
+  }) async {
+    await completeBackendSession(reason: reason);
     _clearRunState(keepGarment: false);
     garmentPicks = const [];
     activeGarmentPickId = null;

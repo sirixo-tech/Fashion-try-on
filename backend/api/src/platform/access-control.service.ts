@@ -18,6 +18,7 @@ import {
   STORE_PERMISSION_SET,
 } from "../rbac/store-permissions.js";
 import {
+  PLATFORM_PERMISSIONS,
   PLATFORM_PERMISSION_REGISTRY,
   permissionsForPlatformRole,
 } from "./platform-permissions.js";
@@ -37,11 +38,17 @@ export const ACCESS_CONTROL_ERROR_CODES = {
   roleNotFound: "PLATFORM_ROLE_NOT_FOUND",
   roleConflict: "PLATFORM_ROLE_CONFLICT",
   permissionInvalid: "GLOBAL_PERMISSION_INVALID",
+  permissionDenied: "PLATFORM_PERMISSION_DENIED",
   userNotFound: "PLATFORM_USER_NOT_FOUND",
   invitationDeferred: "PLATFORM_USER_INVITATION_DEFERRED",
   protectedSuperadmin: "SELFX_SUPERADMIN_PROTECTED",
   storeNotFound: "STORE_NOT_FOUND",
 } as const;
+
+const SUPERADMIN_ONLY_PERMISSION_CODES = new Set<string>([
+  PLATFORM_PERMISSIONS.permissionsManage,
+  PLATFORM_PERMISSIONS.organizationSuspend,
+]);
 
 const PLATFORM_ACCESS_AUDIT_ACTIONS = {
   platformRoleCreated: "PLATFORM_ROLE_CREATED",
@@ -103,6 +110,10 @@ export class AccessControlService {
     input: CreatePlatformRoleDto,
   ): Promise<PlatformRoleDto> {
     await this.ensureGlobalPermissionCatalog();
+    await this.assertActorCanManagePermissionCodes(
+      actorUserId,
+      input.permissionCodes ?? [],
+    );
     const permissionIds = await this.platformPermissionIdsForCodes(
       input.permissionCodes ?? [],
     );
@@ -184,6 +195,7 @@ export class AccessControlService {
   ): Promise<PlatformRoleDto> {
     await this.findPlatformRoleOrThrow(roleId);
     const uniqueCodes = [...new Set(input.permissionCodes)];
+    await this.assertActorCanManagePermissionCodes(actorUserId, uniqueCodes);
     const permissionIds = await this.platformPermissionIdsForCodes(uniqueCodes);
     const role = await this.prisma.$transaction(async (tx) => {
       await tx.platformAccessRolePermission.deleteMany({ where: { roleId } });
@@ -547,6 +559,91 @@ export class AccessControlService {
         "SelfX Superadmin bootstrap authority cannot be changed here.",
       );
     }
+  }
+
+  private async assertActorCanManagePermissionCodes(
+    actorUserId: string,
+    permissionCodes: readonly string[],
+  ): Promise<void> {
+    const uniqueCodes = [...new Set(permissionCodes)];
+    if (uniqueCodes.length === 0) {
+      return;
+    }
+    if (await this.actorIsProtectedSuperadmin(actorUserId)) {
+      return;
+    }
+    if (uniqueCodes.some((code) => SUPERADMIN_ONLY_PERMISSION_CODES.has(code))) {
+      throw new ApiErrorException(
+        HttpStatus.FORBIDDEN,
+        ACCESS_CONTROL_ERROR_CODES.protectedSuperadmin,
+        "Only the protected SelfX Superadmin can assign Superadmin-only permissions.",
+      );
+    }
+    const actorPermissions =
+      await this.platformPermissionCodesForUser(actorUserId);
+    const unassignableCodes = uniqueCodes.filter(
+      (code) => !actorPermissions.has(code),
+    );
+    if (unassignableCodes.length === 0) {
+      return;
+    }
+    throw new ApiErrorException(
+      HttpStatus.FORBIDDEN,
+      ACCESS_CONTROL_ERROR_CODES.permissionDenied,
+      "Platform role managers can assign only permissions they already hold.",
+    );
+  }
+
+  private async actorIsProtectedSuperadmin(
+    actorUserId: string,
+  ): Promise<boolean> {
+    const superadmin = await this.prisma.platformRoleAssignment.findFirst({
+      where: {
+        userId: actorUserId,
+        role: PlatformRole.SELFX_SUPER_ADMIN,
+        status: PlatformRoleAssignmentStatus.ACTIVE,
+      },
+      select: { id: true },
+    });
+    return Boolean(superadmin);
+  }
+
+  private async platformPermissionCodesForUser(
+    userId: string,
+  ): Promise<Set<string>> {
+    const [staticAssignments, dynamicAssignments] = await Promise.all([
+      this.prisma.platformRoleAssignment.findMany({
+        where: {
+          userId,
+          status: PlatformRoleAssignmentStatus.ACTIVE,
+        },
+        select: { role: true },
+      }),
+      this.prisma.platformUserAccessRole.findMany({
+        where: {
+          userId,
+          status: PlatformRoleAssignmentStatus.ACTIVE,
+          role: { isActive: true },
+        },
+        select: {
+          role: {
+            select: {
+              permissions: {
+                select: { permission: { select: { code: true } } },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+    return new Set([
+      ...staticAssignments.flatMap((assignment) =>
+        permissionsForPlatformRole(assignment.role),
+      ),
+      ...dynamicAssignments.flatMap((assignment) =>
+        assignment.role.permissions.map((entry) => entry.permission.code),
+      ),
+    ]);
   }
 
   private async assertStoreExists(storeId: string): Promise<void> {

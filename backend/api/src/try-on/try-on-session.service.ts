@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Optional } from "@nestjs/common";
 import {
   KioskAssignmentScope,
   Prisma,
@@ -10,6 +10,7 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { ObjectStorageService } from "../storage/object-storage.js";
 import { TRY_ON_RESULT_RETENTION_MS } from "./try-on.constants.js";
 
 export interface TryOnSessionTenantContext {
@@ -39,7 +40,10 @@ export interface ScopedSessionInput {
 
 @Injectable()
 export class TryOnSessionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly storage?: ObjectStorageService,
+  ) {}
 
   async createSession(input: CreateTryOnSessionInput) {
     return this.prisma.tryOnSession.create({
@@ -256,22 +260,44 @@ export class TryOnSessionService {
   async completeSession(input: ScopedSessionInput) {
     const now = new Date();
     const where = scopedSessionWhere(input);
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const completed = await this.prisma.$transaction(async (tx) => {
+      const assets = await tx.tryOnAsset.findMany({
+        where: { sessionId: input.sessionId, deletedAt: null },
+        select: { storageKey: true },
+      });
       const result = await tx.tryOnSession.updateMany({
         where: { ...where, status: TryOnSessionStatus.ACTIVE },
-        data: { status: TryOnSessionStatus.COMPLETED, completedAt: now },
+        data: {
+          status: TryOnSessionStatus.COMPLETED,
+          completedAt: now,
+          currentPersonAssetId: null,
+        },
       });
       if (result.count > 0) {
         await tx.tryOnShareCapability.updateMany({
           where: { sessionId: input.sessionId, revokedAt: null },
           data: { revokedAt: now },
         });
+        await tx.tryOnLook.updateMany({
+          where: { sessionId: input.sessionId, expiresAt: { gt: now } },
+          data: { expiresAt: now },
+        });
+        await tx.kioskTryOnRun.updateMany({
+          where: { tryOnSessionId: input.sessionId },
+          data: { resultImage: null },
+        });
+        await tx.tryOnAsset.updateMany({
+          where: { sessionId: input.sessionId, deletedAt: null },
+          data: { deletedAt: now, expiresAt: now },
+        });
       }
-      return result;
+      return { result, storageKeys: assets.map((asset) => asset.storageKey) };
     });
-    if (updated.count === 0) {
+
+    if (completed.result.count === 0) {
       return this.prisma.tryOnSession.findFirstOrThrow({ where });
     }
+    await this.deleteStorageObjects(completed.storageKeys);
     return this.prisma.tryOnSession.findFirstOrThrow({ where });
   }
 
@@ -305,7 +331,10 @@ export class TryOnSessionService {
     input: ScopedSessionInput,
   ): Promise<SessionScope> {
     const session = await this.requireSession(tx, input);
-    if (session.status !== TryOnSessionStatus.ACTIVE) {
+    if (
+      session.status !== TryOnSessionStatus.ACTIVE ||
+      session.expiresAt <= new Date()
+    ) {
       throw new ApiErrorException(
         HttpStatus.CONFLICT,
         "TRY_ON_SESSION_NOT_ACTIVE",
@@ -313,6 +342,16 @@ export class TryOnSessionService {
       );
     }
     return session;
+  }
+
+  private async deleteStorageObjects(storageKeys: string[]): Promise<void> {
+    if (!this.storage || storageKeys.length === 0) {
+      return;
+    }
+    const uniqueKeys = [...new Set(storageKeys)];
+    await Promise.allSettled(
+      uniqueKeys.map((storageKey) => this.storage!.deleteObject(storageKey)),
+    );
   }
 
   private async requireSession(
@@ -360,6 +399,7 @@ const sessionScopeSelect = {
   storeId: true,
   kioskDeviceId: true,
   currentPersonAssetId: true,
+  expiresAt: true,
 } satisfies Prisma.TryOnSessionSelect;
 
 type SessionScope = Prisma.TryOnSessionGetPayload<{

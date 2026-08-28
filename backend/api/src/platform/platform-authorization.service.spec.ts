@@ -68,6 +68,18 @@ describe("RBAC-1.1 platform authority boundaries", () => {
       ),
       "PLATFORM_PERMISSION_DENIED",
     );
+    await expect(
+      authorization.requirePermission(
+        staffAdmin.id,
+        PLATFORM_PERMISSIONS.platformRolesManage,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      authorization.requirePermission(
+        staffAdmin.id,
+        PLATFORM_PERMISSIONS.platformUsersManage,
+      ),
+    ).resolves.toBeUndefined();
     await expectApiCode(
       authorization.requirePermission(
         staffAdmin.id,

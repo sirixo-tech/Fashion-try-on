@@ -390,7 +390,7 @@ function defaultConfiguration(): ConfigurationWithAssets {
     enabledGarmentIntents: defaultIntents,
     multiGarmentSelectionEnabled: true,
     maxTryOnPicks: 5,
-    sessionIdleTimeoutSeconds: 120,
+    sessionIdleTimeoutSeconds: 90,
     updatedByUserId: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),

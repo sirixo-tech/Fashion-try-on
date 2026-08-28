@@ -5,12 +5,14 @@ class SelfxSuccessIconPulse extends StatefulWidget {
     super.key,
     required this.icon,
     required this.backgroundColor,
+    this.iconColor = Colors.white,
     this.iconSize = 18,
     this.padding = const EdgeInsets.all(5),
   });
 
   final IconData icon;
   final Color backgroundColor;
+  final Color iconColor;
   final double iconSize;
   final EdgeInsetsGeometry padding;
 
@@ -43,7 +45,8 @@ class _SelfxSuccessIconPulseState extends State<SelfxSuccessIconPulse>
   void didUpdateWidget(covariant SelfxSuccessIconPulse oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.icon != oldWidget.icon ||
-        widget.backgroundColor != oldWidget.backgroundColor) {
+        widget.backgroundColor != oldWidget.backgroundColor ||
+        widget.iconColor != oldWidget.iconColor) {
       _start();
     }
   }
@@ -71,7 +74,11 @@ class _SelfxSuccessIconPulseState extends State<SelfxSuccessIconPulse>
         ),
         child: Padding(
           padding: widget.padding,
-          child: Icon(widget.icon, size: widget.iconSize, color: Colors.white),
+          child: Icon(
+            widget.icon,
+            size: widget.iconSize,
+            color: widget.iconColor,
+          ),
         ),
       ),
     );

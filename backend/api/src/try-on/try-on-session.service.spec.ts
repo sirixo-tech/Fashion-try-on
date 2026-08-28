@@ -128,8 +128,27 @@ describe("TryOnSessionService", () => {
 
   it("revokes active share links when a session is completed", async () => {
     const prisma = new FakePrisma();
-    const service = new TryOnSessionService(prisma as never);
+    const storage = new FakeStorage();
+    const service = new TryOnSessionService(prisma as never, storage as never);
     const session = await service.createSession(kioskContext());
+    const person = await service.attachPersonAsset({
+      sessionId: session.id,
+      kioskDeviceId: "kiosk-1",
+      storageKey: "try-on/person.jpg",
+    });
+    const result = await service.attachGarmentAsset({
+      sessionId: session.id,
+      kioskDeviceId: "kiosk-1",
+      storageKey: "try-on/result.jpg",
+    });
+    prisma.seedRun({
+      id: "run-1",
+      kioskDeviceId: "kiosk-1",
+      tryOnSessionId: session.id,
+      personAssetId: person.id,
+      resultAssetId: result.id,
+      resultImage: "data:image/jpeg;base64,cmVzdWx0",
+    });
     prisma.seedShare({
       id: "share-1",
       sessionId: session.id,
@@ -147,6 +166,14 @@ describe("TryOnSessionService", () => {
     expect(prisma.shareCapabilities.get("share-1")?.revokedAt).toBeInstanceOf(
       Date,
     );
+    expect(prisma.sessions.get(session.id)?.currentPersonAssetId).toBeNull();
+    expect(prisma.runs.get("run-1")?.resultImage).toBeNull();
+    expect(prisma.assets.get(person.id)?.deletedAt).toBeInstanceOf(Date);
+    expect(prisma.assets.get(result.id)?.deletedAt).toBeInstanceOf(Date);
+    expect(storage.deletedKeys).toEqual([
+      "try-on/person.jpg",
+      "try-on/result.jpg",
+    ]);
   });
 });
 
@@ -251,6 +278,28 @@ class FakePrisma {
         ) ?? null
       );
     }),
+    findMany: vi.fn(async ({ where }: { where: AssetManyWhere }) => {
+      return [...this.assets.values()]
+        .filter((asset) => matchesAssetMany(asset, where))
+        .map((asset) => ({ storageKey: asset.storageKey }));
+    }),
+    updateMany: vi.fn(
+      async ({
+        where,
+        data,
+      }: {
+        where: AssetManyWhere;
+        data: Partial<FakeAsset>;
+      }) => {
+        const matches = [...this.assets.values()].filter((asset) =>
+          matchesAssetMany(asset, where),
+        );
+        for (const asset of matches) {
+          Object.assign(asset, data, { updatedAt: new Date() });
+        }
+        return { count: matches.length };
+      },
+    ),
   };
 
   readonly kioskTryOnRun = {
@@ -304,6 +353,23 @@ class FakePrisma {
     findMany: vi.fn(async ({ where }: { where: { sessionId: string } }) =>
       [...this.looks.values()].filter((look) => look.sessionId === where.sessionId),
     ),
+    updateMany: vi.fn(
+      async ({
+        where,
+        data,
+      }: {
+        where: LookManyWhere;
+        data: Partial<FakeLook>;
+      }) => {
+        const matches = [...this.looks.values()].filter((look) =>
+          matchesLookMany(look, where),
+        );
+        for (const look of matches) {
+          Object.assign(look, data, { updatedAt: new Date() });
+        }
+        return { count: matches.length };
+      },
+    ),
   };
 
   readonly tryOnShareCapability = {
@@ -334,6 +400,8 @@ class FakePrisma {
       personAssetId: null,
       garmentAssetId: null,
       resultAssetId: null,
+      resultImage: null,
+      expiresAt: new Date(now.getTime() + 5 * 60 * 1000),
       createdAt: now,
       updatedAt: now,
       ...input,
@@ -402,6 +470,8 @@ interface FakeRun {
   personAssetId: string | null;
   garmentAssetId: string | null;
   resultAssetId: string | null;
+  resultImage: string | null;
+  expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -450,11 +520,21 @@ interface AssetWhere {
   deletedAt: null;
 }
 
+interface AssetManyWhere {
+  sessionId: string;
+  deletedAt?: null;
+}
+
 interface RunWhere {
-  id: string;
+  id?: string;
   kioskDeviceId?: string;
   tryOnSessionId?: string;
   status?: string;
+}
+
+interface LookManyWhere {
+  sessionId: string;
+  expiresAt?: { gt: Date };
 }
 
 interface ShareWhere {
@@ -473,7 +553,7 @@ function matchesSession(session: FakeSession, where: SessionWhere): boolean {
 
 function matchesRun(run: FakeRun, where: RunWhere): boolean {
   return (
-    run.id === where.id &&
+    (where.id === undefined || run.id === where.id) &&
     (where.kioskDeviceId === undefined ||
       run.kioskDeviceId === where.kioskDeviceId) &&
     (where.tryOnSessionId === undefined ||
@@ -482,9 +562,31 @@ function matchesRun(run: FakeRun, where: RunWhere): boolean {
   );
 }
 
+function matchesAssetMany(asset: FakeAsset, where: AssetManyWhere): boolean {
+  return (
+    asset.sessionId === where.sessionId &&
+    (where.deletedAt === undefined || asset.deletedAt === where.deletedAt)
+  );
+}
+
+function matchesLookMany(look: FakeLook, where: LookManyWhere): boolean {
+  return (
+    look.sessionId === where.sessionId &&
+    (where.expiresAt?.gt === undefined || look.expiresAt > where.expiresAt.gt)
+  );
+}
+
 function matchesShare(share: FakeShare, where: ShareWhere): boolean {
   return (
     (where.sessionId === undefined || share.sessionId === where.sessionId) &&
     (where.revokedAt === undefined || share.revokedAt === where.revokedAt)
   );
+}
+
+class FakeStorage {
+  readonly deletedKeys: string[] = [];
+
+  async deleteObject(key: string): Promise<void> {
+    this.deletedKeys.push(key);
+  }
 }

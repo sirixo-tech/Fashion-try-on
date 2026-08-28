@@ -882,14 +882,17 @@ class _MyPicksSheet extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (picks.isNotEmpty)
-                      TextButton(
-                        onPressed: tryOnController.clearGarmentPicks,
-                        child: const Text('Clear All'),
+                    Material(
+                      color: SelfxKioskTokens.primary,
+                      borderRadius: BorderRadius.circular(8),
+                      clipBehavior: Clip.antiAlias,
+                      child: IconButton(
+                        key: const Key('close-my-picks'),
+                        tooltip: 'Close My Picks',
+                        onPressed: () => Navigator.of(context).pop(),
+                        color: Colors.white,
+                        icon: const Icon(Icons.close),
                       ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close),
                     ),
                   ],
                 ),
@@ -913,6 +916,27 @@ class _MyPicksSheet extends StatelessWidget {
                           },
                         ),
                 ),
+                if (picks.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      key: const Key('clear-my-picks'),
+                      onPressed: tryOnController.clearGarmentPicks,
+                      style: TextButton.styleFrom(
+                        foregroundColor: SelfxKioskTokens.danger,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        textStyle: Theme.of(context).textTheme.labelLarge
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Clear All'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

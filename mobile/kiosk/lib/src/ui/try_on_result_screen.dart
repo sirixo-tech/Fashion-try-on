@@ -678,21 +678,33 @@ class _ResultTileAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final foreground = enabled ? Colors.white : _ResultTokens.muted;
+    final subtitleColor = enabled
+        ? Colors.white.withValues(alpha: 0.84)
+        : _ResultTokens.muted.withValues(alpha: 0.86);
     final content = _ResultPressable(
       onPressed: onPressed,
       borderRadius: 26,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: background,
-          border: Border.all(color: _ResultTokens.tileBorder),
+          color: enabled ? null : background,
+          gradient: enabled ? _ResultTokens.primaryButtonGradient : null,
+          border: Border.all(
+            color: enabled
+                ? _ResultTokens.primaryButtonBorder
+                : _ResultTokens.tileBorder,
+          ),
           borderRadius: BorderRadius.circular(26),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D0F172A),
-              blurRadius: 14,
-              offset: Offset(0, 6),
-            ),
-          ],
+          boxShadow: enabled
+              ? _ResultTokens.primaryButtonShadow
+              : const [
+                  BoxShadow(
+                    color: Color(0x0D0F172A),
+                    blurRadius: 14,
+                    offset: Offset(0, 6),
+                  ),
+                ],
         ),
         child: SizedBox(
           height: height,
@@ -702,7 +714,7 @@ class _ResultTileAction extends StatelessWidget {
               children: [
                 _IconBubble(
                   icon: icon,
-                  color: iconColor,
+                  color: enabled ? Colors.white : iconColor,
                   size: compact ? 46 : 54,
                 ),
                 SizedBox(width: compact ? 10 : 14),
@@ -716,12 +728,11 @@ class _ResultTileAction extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: _ResultTokens.ink,
                           fontFamily: 'Manrope',
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
                           height: 1.05,
-                        ),
+                        ).copyWith(color: foreground),
                       ),
                       const SizedBox(height: 7),
                       Text(
@@ -729,12 +740,11 @@ class _ResultTileAction extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: _ResultTokens.muted,
                           fontFamily: 'Inter',
                           fontSize: 15,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
                           height: 1.05,
-                        ),
+                        ).copyWith(color: subtitleColor),
                       ),
                     ],
                   ),
@@ -811,4 +821,13 @@ class _ResultTokens {
   static const looksSurface = Color(0xFFFFF1D9);
   static const finishSurface = Color(0xFFFFF7F0);
   static const tileBorder = Color(0xFFF4DED0);
+  static const primaryButtonBorder = Color(0xFFFFB55D);
+  static const primaryButtonGradient = LinearGradient(
+    colors: [Color(0xFFFF4B16), Color(0xFFFFA21C)],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+  static const primaryButtonShadow = [
+    BoxShadow(color: Color(0x33FF7119), blurRadius: 18, offset: Offset(0, 8)),
+  ];
 }

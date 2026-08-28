@@ -39,6 +39,7 @@ import { KioskTryOnShareService } from "./kiosk-try-on-share.service.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import { UsageModule } from "../usage/usage.module.js";
 import {
   AdminKioskConfigurationController,
   KioskConfigurationController,
@@ -48,7 +49,13 @@ import { KioskGarmentExtractionController } from "./kiosk-garment-extraction.con
 import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.service.js";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, JwtModule.register({}), TryOnModule],
+  imports: [
+    AuthModule,
+    DatabaseModule,
+    JwtModule.register({}),
+    TryOnModule,
+    UsageModule,
+  ],
   controllers: [
     AdminKiosksController,
     KioskProvisioningController,
