@@ -21,6 +21,7 @@ class KioskGarmentInput {
     this.productId,
     this.remoteImageUrl,
     this.name,
+    this.displayPrice,
     this.extractedPreviewPath,
   });
 
@@ -30,11 +31,13 @@ class KioskGarmentInput {
     required String imageUrl,
     required KioskGarmentIntent intent,
     required KioskGarmentPhotoType photoType,
+    String? displayPrice,
   }) : this(
          source: KioskGarmentInputSource.catalogProduct,
          localPath: '',
          productId: productId,
          name: name,
+         displayPrice: displayPrice,
          remoteImageUrl: imageUrl,
          intent: intent,
          photoType: photoType,
@@ -47,6 +50,7 @@ class KioskGarmentInput {
   final String? productId;
   final String? remoteImageUrl;
   final String? name;
+  final String? displayPrice;
   final String? extractedPreviewPath;
 
   String get previewPath => extractedPreviewPath ?? localPath;
@@ -62,6 +66,7 @@ class KioskGarmentInput {
     String? productId,
     String? remoteImageUrl,
     String? name,
+    String? displayPrice,
     String? extractedPreviewPath,
   }) {
     return KioskGarmentInput(
@@ -72,6 +77,7 @@ class KioskGarmentInput {
       productId: productId ?? this.productId,
       remoteImageUrl: remoteImageUrl ?? this.remoteImageUrl,
       name: name ?? this.name,
+      displayPrice: displayPrice ?? this.displayPrice,
       extractedPreviewPath: extractedPreviewPath ?? this.extractedPreviewPath,
     );
   }
@@ -85,6 +91,7 @@ class KioskGarmentInput {
       productId: productId,
       remoteImageUrl: remoteImageUrl,
       name: name,
+      displayPrice: displayPrice,
     );
   }
 

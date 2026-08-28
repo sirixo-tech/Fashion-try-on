@@ -17,6 +17,7 @@ import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'capture_review_screen.dart';
 import 'model_compatibility_guidance_screen.dart';
+import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'try_on_generation_screen.dart';
 
@@ -843,15 +844,14 @@ class _GarmentReviewActions extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         if (state == GarmentPreviewState.failure) ...[
-          SelfxKioskButton(
+          SelfxKioskActionCard(
             key: const Key('retry-garment-preview'),
             label: 'Retry Preview',
             onPressed: onRetry,
             icon: Icons.refresh,
-            variant: SelfxKioskButtonVariant.primary,
+            iconColor: const Color(0xFFE86610),
+            subtitle: 'Try again',
             minHeight: 64,
-            textAlign: TextAlign.center,
-            mainAxisAlignment: MainAxisAlignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
           const SizedBox(height: 10),
@@ -859,15 +859,14 @@ class _GarmentReviewActions extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: SelfxKioskButton(
+              child: SelfxKioskActionCard(
                 key: const Key('choose-another-garment'),
                 label: sourceLabel,
                 onPressed: onChooseAnother,
                 icon: Icons.replay,
-                variant: SelfxKioskButtonVariant.secondary,
+                iconColor: const Color(0xFF2384D6),
+                subtitle: 'Change item',
                 minHeight: 64,
-                textAlign: TextAlign.center,
-                mainAxisAlignment: MainAxisAlignment.center,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 12,
@@ -879,15 +878,14 @@ class _GarmentReviewActions extends StatelessWidget {
               child:
                   state == GarmentPreviewState.failure &&
                       failureKind == GarmentExtractionFailureKind.image
-                  ? SelfxKioskButton(
+                  ? SelfxKioskActionCard(
                       key: const Key('browse-catalog-from-garment-review'),
                       label: 'Browse Catalog',
                       onPressed: onBrowseCatalog,
                       icon: Icons.shopping_bag_outlined,
-                      variant: SelfxKioskButtonVariant.primary,
+                      iconColor: const Color(0xFFE86610),
+                      subtitle: 'Choose item',
                       minHeight: 64,
-                      textAlign: TextAlign.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 12,

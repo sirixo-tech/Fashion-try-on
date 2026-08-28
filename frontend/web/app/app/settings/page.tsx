@@ -38,12 +38,14 @@ export default function SettingsPage() {
   const session = useSession();
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
-  const [settings, setSettings] =
-    useState<PlatformVirtualTryOnSettings | null>(null);
+  const [settings, setSettings] = useState<PlatformVirtualTryOnSettings | null>(
+    null,
+  );
   const [mediaSettings, setMediaSettings] =
     useState<PlatformMediaUploadSettings | null>(null);
-  const [loginSettings, setLoginSettings] =
-    useState<LoginPageSettings | null>(null);
+  const [loginSettings, setLoginSettings] = useState<LoginPageSettings | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,9 +151,7 @@ export default function SettingsPage() {
   async function saveMediaSettings(
     input: Pick<
       PlatformMediaUploadSettings,
-      | "captureImageMaxMb"
-      | "presentationImageMaxMb"
-      | "presentationVideoMaxMb"
+      "captureImageMaxMb" | "presentationImageMaxMb" | "presentationVideoMaxMb"
     >,
   ) {
     if (!accessToken || !mediaSettings) {
@@ -351,9 +351,7 @@ export default function SettingsPage() {
                     ariaLabel="Select login page media type"
                     value={loginSettings.mediaType}
                     options={loginMediaTypeOptions}
-                    onChange={(value) =>
-                      updateLoginDraft({ mediaType: value })
-                    }
+                    onChange={(value) => updateLoginDraft({ mediaType: value })}
                   />
                 </div>
               </div>
@@ -369,6 +367,22 @@ export default function SettingsPage() {
                     })
                   }
                 />
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border p-4 text-sm">
+                <ProductToggleCheckbox
+                  checked={loginSettings.mediaMuted === false}
+                  disabled={saving || loginSettings.mediaType !== "VIDEO"}
+                  onChange={(checked) =>
+                    updateLoginDraft({ mediaMuted: !checked })
+                  }
+                />
+                <span>
+                  <span className="block font-medium">Login Video Sound</span>
+                  <span className="block text-muted-foreground">
+                    Keep off for reliable autoplay. Turn on only when the login
+                    video should play with sound.
+                  </span>
+                </span>
               </label>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
                 <label className="space-y-2 text-sm">

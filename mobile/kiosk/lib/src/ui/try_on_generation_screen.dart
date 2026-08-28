@@ -17,6 +17,7 @@ import 'capture_review_screen.dart';
 import 'browse_products_screen.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_result_screen.dart';
+import 'selfx_kiosk_action_card.dart';
 
 class TryOnGenerationScreen extends StatefulWidget {
   const TryOnGenerationScreen({
@@ -92,6 +93,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
           final progress = _progressFor(status);
           final personImagePath = _personImagePath(widget.captureController);
           final garmentInput = widget.tryOnController.garmentInput;
+          final currentPick = _currentGarmentPick(widget.tryOnController);
           final garmentImagePath = _garmentImagePath(garmentInput);
           return LayoutBuilder(
             builder: (context, constraints) {
@@ -103,6 +105,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
               final tightHeight = constraints.maxHeight < 720;
               final pagePadding = narrow ? 14.0 : 22.0;
               final sectionGap = tightHeight ? 12.0 : 18.0;
+              final statusGap = tightHeight ? 6.0 : 10.0;
               final motionHeight = tightHeight ? 138.0 : 174.0;
               if (!failed) {
                 return Center(
@@ -129,23 +132,26 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                     garmentImagePath: garmentImagePath!,
                                     garmentName:
                                         garmentInput?.displayName ?? 'Garment',
+                                    garmentPrice:
+                                        currentPick?.displayPrice ??
+                                        garmentInput?.displayPrice,
                                   ),
                                 ),
                               ] else
                                 const Expanded(child: SizedBox.shrink()),
-                              SizedBox(height: sectionGap),
+                              SizedBox(height: statusGap),
                               Text(
                                 _titleFor(status),
                                 style: Theme.of(context).textTheme.displaySmall,
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               Text(
                                 _supportMessageFor(status),
                                 style: Theme.of(context).textTheme.bodyLarge,
                                 textAlign: TextAlign.center,
                               ),
-                              SizedBox(height: sectionGap),
+                              SizedBox(height: statusGap),
                               _GenerationProgressBar(progress: progress),
                               const SizedBox(height: 12),
                               AnimatedSwitcher(
@@ -208,6 +214,9 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                       garmentName:
                                           garmentInput?.displayName ??
                                           'Garment',
+                                      garmentPrice:
+                                          currentPick?.displayPrice ??
+                                          garmentInput?.displayPrice,
                                     ),
                                   ),
                                 ],
@@ -252,56 +261,63 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                   ),
                                 ),
                               ] else if (garmentResolutionFailure) ...[
-                                ElevatedButton.icon(
+                                SelfxKioskActionCard(
                                   key: const Key('try-on-retake-garment-photo'),
                                   onPressed: () =>
                                       _chooseAnotherGarment(context),
-                                  icon: const Icon(Icons.camera_alt_outlined),
-                                  label: const Text('Retake Garment Photo'),
+                                  icon: Icons.camera_alt_outlined,
+                                  iconColor: const Color(0xFF2384D6),
+                                  label: 'Retake Garment Photo',
+                                  subtitle: 'Capture item again',
+                                  minHeight: 76,
                                 ),
                                 const SizedBox(height: 14),
-                                ElevatedButton.icon(
+                                SelfxKioskActionCard(
                                   key: const Key('try-on-browse-catalog'),
                                   onPressed: () => _browseCatalog(context),
-                                  icon: const Icon(Icons.shopping_bag_outlined),
-                                  label: const Text('Browse Catalog'),
+                                  icon: Icons.shopping_bag_outlined,
+                                  iconColor: const Color(0xFFE86610),
+                                  label: 'Browse Catalog',
+                                  subtitle: 'Choose item',
+                                  minHeight: 76,
                                 ),
                               ] else if (compatibilityFailure) ...[
-                                ElevatedButton.icon(
+                                SelfxKioskActionCard(
                                   key: const Key('try-on-update-photo'),
                                   onPressed: () => _retakePhoto(context),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: SelfxKioskTokens.secondary,
-                                    foregroundColor:
-                                        SelfxKioskTokens.onSecondary,
-                                    side: const BorderSide(
-                                      color: SelfxKioskTokens.secondary,
-                                    ),
-                                  ),
-                                  icon: const Icon(Icons.photo_camera_outlined),
-                                  label: const Text('Update My Photo'),
+                                  icon: Icons.photo_camera_outlined,
+                                  iconColor: const Color(0xFF2384D6),
+                                  label: 'Update My Photo',
+                                  subtitle: 'Retake model photo',
+                                  minHeight: 76,
                                 ),
                                 if (widget
                                     .tryOnController
                                     .hasNextGarmentPick) ...[
                                   const SizedBox(height: 14),
-                                  ElevatedButton.icon(
+                                  SelfxKioskActionCard(
                                     key: const Key('try-on-skip-current-pick'),
                                     onPressed: () => _skipCurrentPick(context),
-                                    icon: const Icon(Icons.skip_next_outlined),
-                                    label: const Text('Skip This Item'),
+                                    icon: Icons.skip_next_outlined,
+                                    iconColor: const Color(0xFFC88913),
+                                    label: 'Skip This Item',
+                                    subtitle: 'Try next pick',
+                                    minHeight: 76,
                                   ),
                                 ],
                                 const SizedBox(height: 14),
-                                ElevatedButton.icon(
+                                SelfxKioskActionCard(
                                   key: const Key('try-on-choose-garment'),
                                   onPressed: () =>
                                       _chooseAnotherGarment(context),
-                                  icon: const Icon(Icons.checkroom_outlined),
-                                  label: const Text('Try Another Garment'),
+                                  icon: Icons.checkroom_outlined,
+                                  iconColor: const Color(0xFFE86610),
+                                  label: 'Try Another Garment',
+                                  subtitle: 'Choose item',
+                                  minHeight: 76,
                                 ),
                               ] else ...[
-                                ElevatedButton.icon(
+                                SelfxKioskActionCard(
                                   key: const Key('try-on-retry-polling'),
                                   onPressed: widget.tryOnController.run != null
                                       ? widget.tryOnController.retryPolling
@@ -309,23 +325,32 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                             .submitFromCapture(
                                               widget.captureController,
                                             ),
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Try Again'),
+                                  icon: Icons.refresh,
+                                  iconColor: const Color(0xFFE86610),
+                                  label: 'Try Again',
+                                  subtitle: 'Restart generation',
+                                  minHeight: 76,
                                 ),
                                 const SizedBox(height: 14),
-                                ElevatedButton.icon(
+                                SelfxKioskActionCard(
                                   key: const Key('try-on-retake-photo'),
                                   onPressed: () => _retakePhoto(context),
-                                  icon: const Icon(Icons.replay),
-                                  label: const Text('Retake Photo'),
+                                  icon: Icons.replay,
+                                  iconColor: const Color(0xFF2384D6),
+                                  label: 'Retake Photo',
+                                  subtitle: 'Capture again',
+                                  minHeight: 76,
                                 ),
                                 const SizedBox(height: 14),
-                                ElevatedButton.icon(
+                                SelfxKioskActionCard(
                                   key: const Key('try-on-choose-garment'),
                                   onPressed: () =>
                                       _chooseAnotherGarment(context),
-                                  icon: const Icon(Icons.checkroom_outlined),
-                                  label: const Text('Try Another Garment'),
+                                  icon: Icons.checkroom_outlined,
+                                  iconColor: const Color(0xFFE86610),
+                                  label: 'Try Another Garment',
+                                  subtitle: 'Choose item',
+                                  minHeight: 76,
                                 ),
                               ],
                             ],
@@ -447,7 +472,7 @@ String _titleFor(KioskTryOnStatus status) {
   return switch (status) {
     KioskTryOnStatus.preparing => 'Preparing your images',
     KioskTryOnStatus.uploading => 'Sending to SelfX',
-    KioskTryOnStatus.queued => 'Almost your turn',
+    KioskTryOnStatus.queued => 'Creating your look',
     KioskTryOnStatus.processing => 'Creating your look',
     KioskTryOnStatus.succeeded => 'Try-On ready',
     _ => 'Starting your Try-On',
@@ -472,10 +497,8 @@ String _supportMessageFor(KioskTryOnStatus status) {
       'Checking your photo and garment before generation starts.',
     KioskTryOnStatus.uploading =>
       'Uploading both images securely. Please keep this screen open.',
-    KioskTryOnStatus.queued =>
-      'Your request is in line. We will start the fit as soon as the AI is ready.',
-    KioskTryOnStatus.processing =>
-      'Fitting the garment to your photo and refining the final image.',
+    KioskTryOnStatus.queued => 'SelfX is fitting this style to your photo.',
+    KioskTryOnStatus.processing => 'SelfX is fitting this style to your photo.',
     KioskTryOnStatus.succeeded => 'Your result is ready. Opening it now.',
     _ => 'Getting everything ready for your virtual try-on.',
   };
@@ -510,6 +533,19 @@ String? _garmentImagePath(KioskGarmentInput? input) {
   return remote == null || remote.isEmpty ? null : remote;
 }
 
+KioskTryOnPick? _currentGarmentPick(KioskTryOnSessionController controller) {
+  final activeId = controller.activeGarmentPickId;
+  if (activeId == null) {
+    return null;
+  }
+  for (final pick in controller.garmentPicks) {
+    if (pick.id == activeId) {
+      return pick;
+    }
+  }
+  return null;
+}
+
 bool _canShowInputPreview(String? personImagePath, String? garmentImagePath) {
   return personImagePath != null &&
       personImagePath.trim().isNotEmpty &&
@@ -522,11 +558,13 @@ class _GenerationInputPreview extends StatelessWidget {
     required this.personImagePath,
     required this.garmentImagePath,
     required this.garmentName,
+    this.garmentPrice,
   });
 
   final String personImagePath;
   final String garmentImagePath;
   final String garmentName;
+  final String? garmentPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -546,6 +584,7 @@ class _GenerationInputPreview extends StatelessWidget {
                   Expanded(
                     child: _InputImageCard(
                       label: garmentName,
+                      price: garmentPrice,
                       imagePath: garmentImagePath,
                     ),
                   ),
@@ -564,6 +603,7 @@ class _GenerationInputPreview extends StatelessWidget {
                   Expanded(
                     child: _InputImageCard(
                       label: garmentName,
+                      price: garmentPrice,
                       imagePath: garmentImagePath,
                     ),
                   ),
@@ -576,10 +616,15 @@ class _GenerationInputPreview extends StatelessWidget {
 }
 
 class _InputImageCard extends StatelessWidget {
-  const _InputImageCard({required this.label, required this.imagePath});
+  const _InputImageCard({
+    required this.label,
+    required this.imagePath,
+    this.price,
+  });
 
   final String label;
   final String imagePath;
+  final String? price;
 
   @override
   Widget build(BuildContext context) {
@@ -587,37 +632,61 @@ class _InputImageCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE7EEF8)),
+        border: Border.all(color: const Color(0xFFDCE6F2)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x1A102033),
-            blurRadius: 18,
-            offset: Offset(0, 8),
+            blurRadius: 16,
+            offset: Offset(0, 7),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: ColoredBox(
-                  color: SelfxKioskTokens.background,
-                  child: _GenerationPreviewImage(imagePath: imagePath),
-                ),
+            Expanded(child: _GenerationPreviewImage(imagePath: imagePath)),
+            DecoratedBox(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Color(0xFFE7EEF8))),
               ),
-            ),
-            const SizedBox(height: 9),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: SelfxKioskTokens.textMuted,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: SelfxKioskTokens.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          height: 1.05,
+                        ),
+                      ),
+                    ),
+                    if (price != null && price!.trim().isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      Text(
+                        price!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: SelfxKioskTokens.primary,
+                              fontWeight: FontWeight.w900,
+                              height: 1.05,
+                            ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -638,7 +707,7 @@ class _GenerationPreviewImage extends StatelessWidget {
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
       return Image.network(
         imagePath,
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _placeholder(),
       );
     }
@@ -646,7 +715,7 @@ class _GenerationPreviewImage extends StatelessWidget {
     if (file.existsSync()) {
       return Image.file(
         file,
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         errorBuilder: (_, _, _) => _placeholder(),
       );
     }

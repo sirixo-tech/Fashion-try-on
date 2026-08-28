@@ -30,6 +30,7 @@ export type LoginPageSettings = {
   mediaType: LoginPageMediaType;
   mediaUrl: string;
   mediaPosterUrl: string | null;
+  mediaMuted: boolean;
   cards: LoginPageCard[];
   bullets: string[];
 };
@@ -99,9 +100,7 @@ export function updatePlatformMediaUploadSettings(
   accessToken: string,
   input: Pick<
     PlatformMediaUploadSettings,
-    | "captureImageMaxMb"
-    | "presentationImageMaxMb"
-    | "presentationVideoMaxMb"
+    "captureImageMaxMb" | "presentationImageMaxMb" | "presentationVideoMaxMb"
   >,
 ): Promise<PlatformMediaUploadSettings> {
   return selfxApi<PlatformMediaUploadSettings>(

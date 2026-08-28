@@ -10,7 +10,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
 import 'responsive_kiosk_layout.dart';
-import 'selfx_kiosk_button.dart';
+import 'selfx_kiosk_action_card.dart';
 
 class CaptureScopeScreen extends StatelessWidget {
   const CaptureScopeScreen({
@@ -111,29 +111,20 @@ class _CaptureScopeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(SelfxKioskTokens.radiusLarge),
-        boxShadow: SelfxKioskTokens.softShadow,
+    return SelfxKioskActionCard(
+      label: scope.label.toUpperCase(),
+      subtitle: scope.description,
+      icon: _iconFor(scope),
+      iconColor: _colorFor(scope),
+      minHeight: layout.scaled(76, small: 66, large: 88, extraLarge: 100),
+      backgroundColor: selected
+          ? const Color(0xFFFFF3E9)
+          : const Color(0xFFFFFCF8),
+      padding: EdgeInsets.symmetric(
+        horizontal: layout.scaled(20, small: 16, large: 24),
+        vertical: layout.scaled(16, small: 12, large: 20),
       ),
-      child: SelfxKioskButton(
-        label: scope.label.toUpperCase(),
-        subtitle: scope.description,
-        icon: _iconFor(scope),
-        trailing: const Icon(Icons.arrow_forward),
-        variant: selected
-            ? SelfxKioskButtonVariant.selected
-            : SelfxKioskButtonVariant.secondary,
-        minHeight: layout.scaled(76, small: 66, large: 88, extraLarge: 100),
-        expanded: true,
-        textAlign: TextAlign.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        padding: EdgeInsets.symmetric(
-          horizontal: layout.scaled(20, small: 16, large: 24),
-          vertical: layout.scaled(16, small: 12, large: 20),
-        ),
-        onPressed: onPressed,
-      ),
+      onPressed: onPressed,
     );
   }
 
@@ -142,6 +133,14 @@ class _CaptureScopeButton extends StatelessWidget {
       CaptureScope.top => Icons.checkroom_outlined,
       CaptureScope.bottom => Icons.accessibility_new_outlined,
       CaptureScope.fullBody => Icons.person_outline,
+    };
+  }
+
+  Color _colorFor(CaptureScope scope) {
+    return switch (scope) {
+      CaptureScope.top => SelfxKioskTokens.primaryHover,
+      CaptureScope.bottom => const Color(0xFF2384D6),
+      CaptureScope.fullBody => const Color(0xFF2FAE75),
     };
   }
 }

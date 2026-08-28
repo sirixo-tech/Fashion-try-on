@@ -13,6 +13,7 @@ import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
 import 'my_looks_screen.dart';
 import 'responsive_kiosk_layout.dart';
+import 'selfx_kiosk_action_card.dart';
 import 'try_on_generation_screen.dart';
 
 class TryOnResultScreen extends StatelessWidget {
@@ -268,54 +269,54 @@ class _ResultPage extends StatelessWidget {
                             stackActions: stackActions,
                             compact: compact,
                             gap: actionGap,
-                            topLeft: _ResultTileAction(
+                            topLeft: SelfxKioskActionCard(
                               key: const Key('try-another-garment'),
-                              icon: Icons.texture_outlined,
-                              iconColor: _ResultTokens.orangeDeep,
-                              title: 'Try Another',
+                              icon: Icons.shuffle_rounded,
+                              iconColor: _ResultTokens.gold,
+                              label: 'Try Another',
                               subtitle: hasNextPick
                                   ? 'Next pick'
                                   : 'Choose fabric',
-                              background: _ResultTokens.primarySurface,
-                              height: actionTileHeight,
-                              compact: compact,
+                              disabledBackgroundColor:
+                                  _ResultTokens.primarySurface,
+                              minHeight: actionTileHeight,
                               onPressed: onTryAnotherGarment,
                             ),
-                            topRight: _ResultTileAction(
+                            topRight: SelfxKioskActionCard(
                               key: const Key('get-my-looks'),
-                              icon: Icons.collections_outlined,
-                              iconColor: _ResultTokens.gold,
-                              title: 'Get My Looks',
+                              icon: Icons.checkroom_outlined,
+                              iconColor: _ResultTokens.orangeDeep,
+                              label: 'Get My Looks',
                               subtitle: saveMyLooksQrEnabled
                                   ? 'Explore styles'
                                   : 'QR disabled',
-                              background: _ResultTokens.looksSurface,
-                              height: actionTileHeight,
-                              compact: compact,
+                              disabledBackgroundColor:
+                                  _ResultTokens.looksSurface,
+                              minHeight: actionTileHeight,
                               onPressed: saveMyLooksQrEnabled
                                   ? onGetMyLooks
                                   : null,
                             ),
-                            bottomLeft: _ResultTileAction(
+                            bottomLeft: SelfxKioskActionCard(
                               key: const Key('result-retake-photo'),
                               icon: Icons.camera_alt_outlined,
-                              iconColor: _ResultTokens.orangeDeep,
-                              title: 'Retake Photo',
+                              iconColor: _ResultTokens.blue,
+                              label: 'Retake Photo',
                               subtitle: 'Capture again',
-                              background: _ResultTokens.retakeSurface,
-                              height: actionTileHeight,
-                              compact: compact,
+                              disabledBackgroundColor:
+                                  _ResultTokens.retakeSurface,
+                              minHeight: actionTileHeight,
                               onPressed: onRetakePhoto,
                             ),
-                            bottomRight: _ResultTileAction(
+                            bottomRight: SelfxKioskActionCard(
                               key: const Key('finish-try-on'),
                               icon: Icons.home_outlined,
-                              iconColor: _ResultTokens.ink,
-                              title: 'Finish',
+                              iconColor: _ResultTokens.green,
+                              label: 'Finish',
                               subtitle: 'Go to home',
-                              background: _ResultTokens.finishSurface,
-                              height: actionTileHeight,
-                              compact: compact,
+                              disabledBackgroundColor:
+                                  _ResultTokens.finishSurface,
+                              minHeight: actionTileHeight,
                               onPressed: onFinish,
                             ),
                           ),
@@ -654,159 +655,6 @@ class _ActionGrid extends StatelessWidget {
   }
 }
 
-class _ResultTileAction extends StatelessWidget {
-  const _ResultTileAction({
-    super.key,
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.background,
-    required this.height,
-    required this.compact,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final Color background;
-  final double height;
-  final bool compact;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null;
-    final foreground = enabled ? Colors.white : _ResultTokens.muted;
-    final subtitleColor = enabled
-        ? Colors.white.withValues(alpha: 0.84)
-        : _ResultTokens.muted.withValues(alpha: 0.86);
-    final content = _ResultPressable(
-      onPressed: onPressed,
-      borderRadius: 26,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: enabled ? null : background,
-          gradient: enabled ? _ResultTokens.primaryButtonGradient : null,
-          border: Border.all(
-            color: enabled
-                ? _ResultTokens.primaryButtonBorder
-                : _ResultTokens.tileBorder,
-          ),
-          borderRadius: BorderRadius.circular(26),
-          boxShadow: enabled
-              ? _ResultTokens.primaryButtonShadow
-              : const [
-                  BoxShadow(
-                    color: Color(0x0D0F172A),
-                    blurRadius: 14,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-        ),
-        child: SizedBox(
-          height: height,
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 18),
-            child: Row(
-              children: [
-                _IconBubble(
-                  icon: icon,
-                  color: enabled ? Colors.white : iconColor,
-                  size: compact ? 46 : 54,
-                ),
-                SizedBox(width: compact ? 10 : 14),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Manrope',
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          height: 1.05,
-                        ).copyWith(color: foreground),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          height: 1.05,
-                        ).copyWith(color: subtitleColor),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    return onPressed == null ? Opacity(opacity: 0.56, child: content) : content;
-  }
-}
-
-class _IconBubble extends StatelessWidget {
-  const _IconBubble({
-    required this.icon,
-    required this.color,
-    required this.size,
-  });
-
-  final IconData icon;
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        color: color.withValues(alpha: 0.08),
-      ),
-      child: Icon(icon, color: color, size: size * 0.52),
-    );
-  }
-}
-
-class _ResultPressable extends StatelessWidget {
-  const _ResultPressable({
-    required this.onPressed,
-    required this.borderRadius,
-    required this.child,
-  });
-
-  final VoidCallback? onPressed;
-  final double borderRadius;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(borderRadius),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(onTap: onPressed, child: child),
-    );
-  }
-}
-
 class _ResultTokens {
   const _ResultTokens._();
 
@@ -816,18 +664,11 @@ class _ResultTokens {
   static const muted = Color(0xFF5D6169);
   static const orangeDeep = Color(0xFFE86610);
   static const gold = Color(0xFFC88913);
+  static const blue = Color(0xFF2384D6);
+  static const green = Color(0xFF2FAE75);
   static const primarySurface = Color(0xFFFFE7DA);
   static const retakeSurface = Color(0xFFFFEEE6);
   static const looksSurface = Color(0xFFFFF1D9);
   static const finishSurface = Color(0xFFFFF7F0);
   static const tileBorder = Color(0xFFF4DED0);
-  static const primaryButtonBorder = Color(0xFFFFB55D);
-  static const primaryButtonGradient = LinearGradient(
-    colors: [Color(0xFFFF4B16), Color(0xFFFFA21C)],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
-  static const primaryButtonShadow = [
-    BoxShadow(color: Color(0x33FF7119), blurRadius: 18, offset: Offset(0, 8)),
-  ];
 }

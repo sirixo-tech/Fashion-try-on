@@ -19,6 +19,8 @@ export const STORE_PERMISSION_CODES = {
   tryOnGarmentPreview: "tryon.garment_preview",
   analyticsView: "analytics.view",
   integrationsView: "integrations.view",
+  developerApiView: "developer_api.view",
+  developerApiManage: "developer_api.manage",
 } as const;
 
 export type StorePermissionCode =
@@ -194,6 +196,22 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     label: "View Integrations",
     description:
       "View Store integration status when integrations are implemented.",
+    applicability: "STORE",
+  },
+  {
+    code: STORE_PERMISSION_CODES.developerApiView,
+    module: "developer_api",
+    action: "view",
+    label: "View Developer API",
+    description: "View Store API keys for external integrations.",
+    applicability: "STORE",
+  },
+  {
+    code: STORE_PERMISSION_CODES.developerApiManage,
+    module: "developer_api",
+    action: "manage",
+    label: "Manage Developer API",
+    description: "Create and revoke Store API keys for external integrations.",
     applicability: "STORE",
   },
 ] as const;

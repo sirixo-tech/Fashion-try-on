@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
+import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
@@ -12,7 +13,7 @@ import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
 import 'responsive_kiosk_layout.dart';
-import 'selfx_kiosk_button.dart';
+import 'selfx_kiosk_action_card.dart';
 
 const _garmentSelectionBackgroundVideo =
     'assets/videos/garment-selection-background.mp4';
@@ -112,17 +113,13 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                         ),
                       ),
                       SizedBox(height: layout.scaled(30, small: 20, large: 40)),
-                      SelfxKioskButton(
+                      SelfxKioskActionCard(
                         key: const Key('browse-products-source'),
                         label: 'Browse Products',
                         subtitle: 'Explore available garments',
                         icon: Icons.checkroom_outlined,
-                        trailing: const Icon(Icons.arrow_forward),
-                        variant: SelfxKioskButtonVariant.primary,
+                        iconColor: SelfxKioskTokens.primaryHover,
                         minHeight: buttonHeight,
-                        expanded: true,
-                        textAlign: TextAlign.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         padding: EdgeInsets.symmetric(
                           horizontal: layout.scaled(22, small: 18),
                           vertical: layout.scaled(18, small: 14),
@@ -130,17 +127,13 @@ class _GarmentSelectionScreenState extends State<GarmentSelectionScreen> {
                         onPressed: () => _openBrowseProducts(context),
                       ),
                       SizedBox(height: layout.panelGap),
-                      SelfxKioskButton(
+                      SelfxKioskActionCard(
                         key: const Key('capture-garment-source'),
                         label: 'Capture Garment',
                         subtitle: 'SelfX identifies the garment automatically',
                         icon: Icons.camera_alt_outlined,
-                        trailing: const Icon(Icons.arrow_forward),
-                        variant: SelfxKioskButtonVariant.primary,
+                        iconColor: const Color(0xFF2384D6),
                         minHeight: buttonHeight,
-                        expanded: true,
-                        textAlign: TextAlign.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         padding: EdgeInsets.symmetric(
                           horizontal: layout.scaled(22, small: 18),
                           vertical: layout.scaled(18, small: 14),

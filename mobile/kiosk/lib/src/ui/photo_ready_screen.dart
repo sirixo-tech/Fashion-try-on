@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../session/capture_session_controller.dart';
 import 'kiosk_chrome.dart';
 import 'responsive_kiosk_layout.dart';
+import 'selfx_kiosk_action_card.dart';
 
 class PhotoReadyScreen extends StatefulWidget {
   const PhotoReadyScreen({super.key, required this.controller});
@@ -135,18 +136,24 @@ class _PhotoReadyActions extends StatelessWidget {
           ),
         ),
         if (compact) const SizedBox(height: 20) else const Spacer(),
-        OutlinedButton.icon(
+        SelfxKioskActionCard(
           key: const Key('photo-ready-retake'),
           onPressed: onRetake,
-          icon: const Icon(Icons.replay),
-          label: const Text('Retake'),
+          icon: Icons.replay,
+          iconColor: const Color(0xFF2384D6),
+          label: 'Retake',
+          subtitle: 'Capture again',
+          minHeight: 76,
         ),
         const SizedBox(height: 16),
-        ElevatedButton.icon(
+        SelfxKioskActionCard(
           key: const Key('photo-ready-continue'),
           onPressed: continued ? null : onContinue,
-          icon: const Icon(Icons.arrow_forward),
-          label: const Text('Continue'),
+          icon: Icons.arrow_forward,
+          iconColor: const Color(0xFFE86610),
+          label: 'Continue',
+          subtitle: continued ? 'Saved' : 'Next step',
+          minHeight: 76,
         ),
       ],
     );

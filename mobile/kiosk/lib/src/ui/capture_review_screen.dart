@@ -15,6 +15,7 @@ import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'kiosk_attention_animations.dart';
 import 'mobile_upload_screen.dart';
+import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 
 class CaptureReviewScreen extends StatelessWidget {
@@ -190,11 +191,14 @@ class _ReviewActions extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         if (isChecking) ...[
-          OutlinedButton.icon(
+          SelfxKioskActionCard(
             key: const Key('retake-photo'),
             onPressed: null,
-            icon: const Icon(Icons.replay),
-            label: const Text('Retake'),
+            icon: Icons.replay,
+            iconColor: const Color(0xFF2384D6),
+            label: 'Retake',
+            subtitle: 'Checking photo',
+            minHeight: 64,
           ),
           const SizedBox(height: 16),
           SelfxKioskButton(
@@ -246,25 +250,33 @@ class _ReviewActions extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: SelfxKioskActionCard(
                           key: const Key('browse-catalog'),
                           onPressed: () => unawaited(_openCatalog(context)),
-                          icon: const Icon(Icons.checkroom_outlined),
-                          label: const FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text('Browse Catalog'),
+                          icon: Icons.checkroom_outlined,
+                          iconColor: const Color(0xFFE86610),
+                          label: 'Browse Catalog',
+                          subtitle: 'Choose item',
+                          minHeight: 70,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: SelfxKioskActionCard(
                           key: const Key('retake-photo'),
                           onPressed: () => _retake(context),
-                          icon: const Icon(Icons.replay),
-                          label: const FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text('Retake Model Photo'),
+                          icon: Icons.replay,
+                          iconColor: const Color(0xFF2384D6),
+                          label: 'Retake Model Photo',
+                          subtitle: 'Capture again',
+                          minHeight: 70,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
                         ),
                       ),
@@ -275,11 +287,14 @@ class _ReviewActions extends StatelessWidget {
             ),
           ),
         ] else ...[
-          OutlinedButton.icon(
+          SelfxKioskActionCard(
             key: const Key('retake-photo'),
             onPressed: () => _retake(context),
-            icon: const Icon(Icons.replay),
-            label: const Text('Retake Photo'),
+            icon: Icons.replay,
+            iconColor: const Color(0xFF2384D6),
+            label: 'Retake Photo',
+            subtitle: 'Capture again',
+            minHeight: 64,
           ),
           const SizedBox(height: 16),
           SelfxKioskButton(

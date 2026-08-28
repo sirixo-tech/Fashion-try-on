@@ -17,8 +17,9 @@ const defaultLoginPageSettings: LoginPageSettingsResponseDto = {
   headline: "Bring every fitting room to life",
   body: "Manage Stores, kiosks, catalog products and Try-On operations from one SelfX control center.",
   mediaType: "VIDEO",
-  mediaUrl: "/kiosk/default-start-screen.mp4",
+  mediaUrl: "/login-default-video.mp4",
   mediaPosterUrl: null,
+  mediaMuted: true,
   cards: [
     {
       title: "Store control",
@@ -88,6 +89,10 @@ function sanitizeLoginPageSettings(
     mediaType: cleanMediaType(value.mediaType),
     mediaUrl: cleanMediaUrl(value.mediaUrl),
     mediaPosterUrl: cleanNullableUrl(value.mediaPosterUrl),
+    mediaMuted:
+      typeof value.mediaMuted === "boolean"
+        ? value.mediaMuted
+        : defaultLoginPageSettings.mediaMuted,
     cards: cleanCards(value.cards),
     bullets: cleanBullets(value.bullets),
   };
@@ -109,7 +114,11 @@ function cleanMediaType(value: string | undefined): LoginPageMediaType {
 }
 
 function cleanMediaUrl(value: string | undefined): string {
-  return cleanNullableUrl(value) ?? defaultLoginPageSettings.mediaUrl;
+  const cleaned = cleanNullableUrl(value);
+  if (cleaned === "/kiosk/default-start-screen.mp4") {
+    return defaultLoginPageSettings.mediaUrl;
+  }
+  return cleaned ?? defaultLoginPageSettings.mediaUrl;
 }
 
 function cleanNullableUrl(value: string | null | undefined): string | null {
@@ -149,7 +158,9 @@ function cleanCards(value: unknown): LoginPageCardDto[] {
 }
 
 function cleanBullets(value: unknown): string[] {
-  const source = Array.isArray(value) ? value : defaultLoginPageSettings.bullets;
+  const source = Array.isArray(value)
+    ? value
+    : defaultLoginPageSettings.bullets;
   const bullets = source
     .filter((entry): entry is string => typeof entry === "string")
     .map((entry) => entry.trim().slice(0, 120))

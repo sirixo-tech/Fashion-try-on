@@ -11,6 +11,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'capture_review_screen.dart';
 import 'kiosk_chrome.dart';
+import 'selfx_kiosk_action_card.dart';
 
 class ModelCompatibilityGuidanceScreen extends StatelessWidget {
   const ModelCompatibilityGuidanceScreen({
@@ -68,18 +69,24 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 28),
-                  ElevatedButton.icon(
+                  SelfxKioskActionCard(
                     key: const Key('compatibility-update-photo'),
                     onPressed: () => _updatePhoto(context),
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    label: const Text('Update My Photo'),
+                    icon: Icons.photo_camera_outlined,
+                    iconColor: const Color(0xFF2384D6),
+                    label: 'Update My Photo',
+                    subtitle: 'Capture again',
+                    minHeight: 76,
                   ),
                   const SizedBox(height: 14),
-                  OutlinedButton.icon(
+                  SelfxKioskActionCard(
                     key: const Key('compatibility-choose-garment'),
                     onPressed: () => _chooseAnotherGarment(context),
-                    icon: const Icon(Icons.checkroom_outlined),
-                    label: const Text('Try Another Garment'),
+                    icon: Icons.checkroom_outlined,
+                    iconColor: const Color(0xFFE86610),
+                    label: 'Try Another Garment',
+                    subtitle: 'Choose item',
+                    minHeight: 76,
                   ),
                 ],
               ),

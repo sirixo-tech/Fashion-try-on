@@ -11,6 +11,7 @@ import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_chrome.dart';
+import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'try_on_generation_screen.dart';
 
@@ -1022,10 +1023,16 @@ class _CatalogMessage extends StatelessWidget {
           Text(title, style: Theme.of(context).textTheme.titleLarge),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 18),
-            ElevatedButton.icon(
-              onPressed: onAction,
-              icon: const Icon(Icons.refresh),
-              label: Text(actionLabel!),
+            SizedBox(
+              width: 280,
+              child: SelfxKioskActionCard(
+                minHeight: 76,
+                onPressed: onAction,
+                icon: Icons.refresh,
+                iconColor: const Color(0xFFE86610),
+                label: actionLabel!,
+                subtitle: 'Try again',
+              ),
             ),
           ],
         ],

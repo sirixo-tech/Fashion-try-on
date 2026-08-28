@@ -12,6 +12,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
 import 'kiosk_chrome.dart';
+import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
 
@@ -584,14 +585,13 @@ class _MyLooksActions extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: SelfxKioskButton(
+              child: SelfxKioskActionCard(
                 key: const Key('back-to-result'),
                 label: 'Back to Result',
                 icon: Icons.arrow_back,
-                variant: SelfxKioskButtonVariant.secondary,
+                iconColor: const Color(0xFF2384D6),
+                subtitle: 'View look',
                 minHeight: 64,
-                textAlign: TextAlign.center,
-                mainAxisAlignment: MainAxisAlignment.center,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 12,
@@ -601,14 +601,13 @@ class _MyLooksActions extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: SelfxKioskButton(
+              child: SelfxKioskActionCard(
                 key: const Key('finish-from-my-looks'),
                 label: 'Finish',
                 icon: Icons.home_outlined,
-                variant: SelfxKioskButtonVariant.secondary,
+                iconColor: const Color(0xFF2FAE75),
+                subtitle: 'Go home',
                 minHeight: 64,
-                textAlign: TextAlign.center,
-                mainAxisAlignment: MainAxisAlignment.center,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 12,

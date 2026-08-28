@@ -15,6 +15,7 @@ import 'camera_capture_screen.dart';
 import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
 import 'kiosk_attention_animations.dart';
+import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
 import 'try_on_generation_screen.dart';
@@ -449,20 +450,26 @@ class _UploadFailurePanel extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: 24),
-                        ElevatedButton.icon(
+                        SelfxKioskActionCard(
                           key: const Key('retry-mobile-upload'),
                           onPressed: controller.isBusy
                               ? null
                               : () => unawaited(onRetry()),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Try Again'),
+                          icon: Icons.refresh,
+                          iconColor: const Color(0xFFE86610),
+                          label: 'Try Again',
+                          subtitle: 'Restart upload',
+                          minHeight: 76,
                         ),
                         const SizedBox(height: 14),
-                        OutlinedButton.icon(
+                        SelfxKioskActionCard(
                           key: const Key('cancel-mobile-upload'),
                           onPressed: () => unawaited(onCancel()),
-                          icon: const Icon(Icons.close),
-                          label: const Text('Cancel'),
+                          icon: Icons.close,
+                          iconColor: const Color(0xFF5D6169),
+                          label: 'Cancel',
+                          subtitle: 'Go back',
+                          minHeight: 76,
                         ),
                       ],
                     ),
@@ -578,29 +585,37 @@ class _ReadyPhotoPanel extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton.icon(
+                            child: SelfxKioskActionCard(
                               key: const Key('browse-catalog'),
                               onPressed: busy || controller.isBusy
                                   ? null
                                   : () => unawaited(onBrowseCatalog()),
-                              icon: const Icon(Icons.checkroom_outlined),
-                              label: const FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text('Browse Catalog'),
+                              icon: Icons.checkroom_outlined,
+                              iconColor: const Color(0xFFE86610),
+                              label: 'Browse Catalog',
+                              subtitle: 'Choose item',
+                              minHeight: 70,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
                               ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: OutlinedButton.icon(
+                            child: SelfxKioskActionCard(
                               key: const Key('upload-another-photo'),
                               onPressed: busy || controller.isBusy
                                   ? null
                                   : () => unawaited(controller.uploadAnother()),
-                              icon: const Icon(Icons.qr_code_2),
-                              label: const FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text('Upload Another'),
+                              icon: Icons.qr_code_2,
+                              iconColor: const Color(0xFFC88913),
+                              label: 'Upload Another',
+                              subtitle: 'Use phone',
+                              minHeight: 70,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
                               ),
                             ),
                           ),
@@ -612,13 +627,16 @@ class _ReadyPhotoPanel extends StatelessWidget {
               ),
               const SizedBox(height: 14),
             ] else
-              OutlinedButton.icon(
+              SelfxKioskActionCard(
                 key: const Key('upload-another-photo'),
                 onPressed: busy || controller.isBusy
                     ? null
                     : () => unawaited(controller.uploadAnother()),
-                icon: const Icon(Icons.qr_code_2),
-                label: const Text('Upload Another'),
+                icon: Icons.qr_code_2,
+                iconColor: const Color(0xFFC88913),
+                label: 'Upload Another',
+                subtitle: 'Use phone',
+                minHeight: 76,
               ),
             if (purpose == PhotoAcquisitionPurpose.garment) ...[
               const SizedBox(height: 16),

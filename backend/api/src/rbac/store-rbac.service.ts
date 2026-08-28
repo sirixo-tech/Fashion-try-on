@@ -94,6 +94,8 @@ const DEFAULT_ROLE_DEFINITIONS = [
       "kiosks.revoke",
       "analytics.view",
       "integrations.view",
+      "developer_api.view",
+      "developer_api.manage",
     ],
   },
   {
@@ -107,6 +109,8 @@ const DEFAULT_ROLE_DEFINITIONS = [
       "kiosks.view",
       "kiosks.configure",
       "analytics.view",
+      "developer_api.view",
+      "developer_api.manage",
     ],
   },
   {

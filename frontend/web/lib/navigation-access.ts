@@ -15,6 +15,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
   "/app/products": ["PLATFORM_PRODUCTS_VIEW", "PLATFORM_PRODUCTS_MANAGE"],
   "/app/kiosks": ["KIOSKS_VIEW"],
   "/app/billing": ["USAGE_VIEW"],
+  "/app/developer": ["DEVELOPER_API_VIEW", "DEVELOPER_API_MANAGE"],
   "/app/staff": ["STORE_USERS_VIEW", "STORE_USERS_MANAGE"],
   "/app/permissions": [
     "PERMISSIONS_VIEW",
@@ -48,11 +49,12 @@ const storePermissionsByHref: Record<string, string[]> = {
   "/app/staff": ["users.view"],
   "/app/analytics": ["analytics.view"],
   "/app/billing": ["analytics.view"],
+  "/app/developer": ["developer_api.view", "developer_api.manage"],
   "/app/integrations/shopify": ["integrations.view"],
   "/app/integrations/woocommerce": ["integrations.view"],
 };
 
-const platformOnlyHrefs = new Set(["/app/developer", "/app/try-on-lab"]);
+const platformOnlyHrefs = new Set(["/app/try-on-lab"]);
 
 const alwaysVisibleHrefs = new Set(["/app/dashboard", "/app/activity"]);
 

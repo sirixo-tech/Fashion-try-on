@@ -3,6 +3,7 @@ import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -45,6 +46,9 @@ export class LoginPageSettingsResponseDto {
   @ApiPropertyOptional({ nullable: true })
   mediaPosterUrl!: string | null;
 
+  @ApiProperty()
+  mediaMuted!: boolean;
+
   @ApiProperty({ type: [LoginPageCardDto] })
   cards!: LoginPageCardDto[];
 
@@ -81,6 +85,10 @@ export class UpdateLoginPageSettingsDto {
   @IsString()
   @MaxLength(2048)
   mediaPosterUrl?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  mediaMuted?: boolean;
 
   @IsOptional()
   @IsArray()

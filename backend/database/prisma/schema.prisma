@@ -183,6 +183,7 @@ model User {
   sessions                      UserSession[]
   kioskPairingClaims            KioskPairingSession[]               @relation("KioskPairingClaimedBy")
   kioskConfigurationsUpdated    KioskDeviceConfiguration[]          @relation("KioskConfigurationUpdatedBy")
+  apiKeysCreated                ApiKey[]                            @relation("ApiKeyCreatedByUser")
 
   @@map("users")
 }
@@ -225,6 +226,7 @@ model Organization {
   tryOnAssets            TryOnAsset[]
   tryOnLooks             TryOnLook[]
   tryOnShareCapabilities TryOnShareCapability[]
+  apiKeys                ApiKey[]
   productCategories      ProductCategory[]
   products               Product[]
 
@@ -309,23 +311,23 @@ model OrganizationActivationRequirement {
 }
 
 model Store {
-  id           String                 @id @db.Uuid
-  orgId        String                 @map("organization_id") @db.Uuid
-  name         String                 @db.VarChar(200)
-  code         String?                @db.VarChar(80)
-  status       StoreStatus            @default(ACTIVE)
-  timezone     String                 @default("UTC") @db.VarChar(64)
-  addressJson  Json?                  @map("address_json")
-  settings     Json?
-  createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
-  auditLogs    AuditLog[]
-  kioskDevices KioskDevice[]
-  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  storeScopes  MembershipStoreScope[]
-  tryOnSessions TryOnSession[]
-  tryOnAssets   TryOnAsset[]
-  tryOnLooks    TryOnLook[]
+  id                     String                 @id @db.Uuid
+  orgId                  String                 @map("organization_id") @db.Uuid
+  name                   String                 @db.VarChar(200)
+  code                   String?                @db.VarChar(80)
+  status                 StoreStatus            @default(ACTIVE)
+  timezone               String                 @default("UTC") @db.VarChar(64)
+  addressJson            Json?                  @map("address_json")
+  settings               Json?
+  createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  auditLogs              AuditLog[]
+  kioskDevices           KioskDevice[]
+  organization           Organization           @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  storeScopes            MembershipStoreScope[]
+  tryOnSessions          TryOnSession[]
+  tryOnAssets            TryOnAsset[]
+  tryOnLooks             TryOnLook[]
   tryOnShareCapabilities TryOnShareCapability[]
 
   @@unique([orgId, id])
@@ -617,28 +619,28 @@ model KioskDevice {
 }
 
 model KioskDeviceConfiguration {
-  id                        String                            @id @db.Uuid
-  kioskDeviceId             String                            @unique @map("kiosk_device_id") @db.Uuid
-  version                   Int                               @default(1)
-  idleMode                  KioskIdleMode                     @default(STATIC) @map("idle_mode")
-  slideDurationSeconds      Int                               @default(6) @map("slide_duration_seconds")
-  title                     String?                           @db.VarChar(120)
-  subtitle                  String?                           @db.VarChar(180)
-  ctaLabel                  String                            @default("Start Try-On") @map("cta_label") @db.VarChar(40)
-  countdownSeconds          Int                               @default(5) @map("countdown_seconds")
-  soundEnabled              Boolean                           @default(true) @map("sound_enabled")
-  soundProfile              KioskConfigurationSoundProfile    @default(SELFX_SIGNATURE) @map("sound_profile")
-  guidanceAudioEnabled      Boolean                           @default(false) @map("guidance_audio_enabled")
-  enabledGarmentIntents     KioskConfigurationGarmentIntent[] @default([TOP, BOTTOM, FULL_OUTFIT]) @map("enabled_garment_intents")
-  multiGarmentSelectionEnabled Boolean                         @default(true) @map("multi_garment_selection_enabled")
-  maxTryOnPicks             Int                               @default(5) @map("max_try_on_picks")
-  sessionIdleTimeoutSeconds Int                               @default(90) @map("session_idle_timeout_seconds")
-  updatedByUserId           String?                           @map("updated_by_user_id") @db.Uuid
-  createdAt                 DateTime                          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                 DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(3)
-  kioskDevice               KioskDevice                       @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
-  updatedBy                 User?                             @relation("KioskConfigurationUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  assets                    KioskDeviceConfigurationAsset[]
+  id                           String                            @id @db.Uuid
+  kioskDeviceId                String                            @unique @map("kiosk_device_id") @db.Uuid
+  version                      Int                               @default(1)
+  idleMode                     KioskIdleMode                     @default(STATIC) @map("idle_mode")
+  slideDurationSeconds         Int                               @default(6) @map("slide_duration_seconds")
+  title                        String?                           @db.VarChar(120)
+  subtitle                     String?                           @db.VarChar(180)
+  ctaLabel                     String                            @default("Start Try-On") @map("cta_label") @db.VarChar(40)
+  countdownSeconds             Int                               @default(5) @map("countdown_seconds")
+  soundEnabled                 Boolean                           @default(true) @map("sound_enabled")
+  soundProfile                 KioskConfigurationSoundProfile    @default(SELFX_SIGNATURE) @map("sound_profile")
+  guidanceAudioEnabled         Boolean                           @default(false) @map("guidance_audio_enabled")
+  enabledGarmentIntents        KioskConfigurationGarmentIntent[] @default([TOP, BOTTOM, FULL_OUTFIT]) @map("enabled_garment_intents")
+  multiGarmentSelectionEnabled Boolean                           @default(true) @map("multi_garment_selection_enabled")
+  maxTryOnPicks                Int                               @default(5) @map("max_try_on_picks")
+  sessionIdleTimeoutSeconds    Int                               @default(90) @map("session_idle_timeout_seconds")
+  updatedByUserId              String?                           @map("updated_by_user_id") @db.Uuid
+  createdAt                    DateTime                          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                    DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  kioskDevice                  KioskDevice                       @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+  updatedBy                    User?                             @relation("KioskConfigurationUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  assets                       KioskDeviceConfigurationAsset[]
 
   @@index([kioskDeviceId, version])
   @@index([updatedByUserId])
@@ -793,22 +795,22 @@ model KioskTryOnRun {
 }
 
 model TryOnSession {
-  id                   String               @id @db.Uuid
-  status               TryOnSessionStatus   @default(ACTIVE)
-  assignmentScope      KioskAssignmentScope @map("assignment_scope")
-  organizationId       String?              @map("organization_id") @db.Uuid
-  storeId              String?              @map("store_id") @db.Uuid
-  kioskDeviceId        String?              @map("kiosk_device_id") @db.Uuid
-  currentPersonAssetId String?              @map("current_person_asset_id") @db.Uuid
-  completedAt          DateTime?            @map("completed_at") @db.Timestamptz(3)
-  expiresAt            DateTime             @map("expires_at") @db.Timestamptz(3)
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization         Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  store                Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
-  kioskDevice          KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
-  currentPersonAsset   TryOnAsset?          @relation("TryOnSessionCurrentPersonAsset", fields: [currentPersonAssetId], references: [id], onDelete: SetNull)
-  assets               TryOnAsset[]         @relation("TryOnSessionAssets")
+  id                   String                 @id @db.Uuid
+  status               TryOnSessionStatus     @default(ACTIVE)
+  assignmentScope      KioskAssignmentScope   @map("assignment_scope")
+  organizationId       String?                @map("organization_id") @db.Uuid
+  storeId              String?                @map("store_id") @db.Uuid
+  kioskDeviceId        String?                @map("kiosk_device_id") @db.Uuid
+  currentPersonAssetId String?                @map("current_person_asset_id") @db.Uuid
+  completedAt          DateTime?              @map("completed_at") @db.Timestamptz(3)
+  expiresAt            DateTime               @map("expires_at") @db.Timestamptz(3)
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization         Organization?          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store                Store?                 @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  kioskDevice          KioskDevice?           @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+  currentPersonAsset   TryOnAsset?            @relation("TryOnSessionCurrentPersonAsset", fields: [currentPersonAssetId], references: [id], onDelete: SetNull)
+  assets               TryOnAsset[]           @relation("TryOnSessionAssets")
   runs                 KioskTryOnRun[]
   looks                TryOnLook[]
   shareCapabilities    TryOnShareCapability[]
@@ -823,33 +825,33 @@ model TryOnSession {
 }
 
 model TryOnAsset {
-  id                         String               @id @db.Uuid
-  sessionId                  String               @map("try_on_session_id") @db.Uuid
-  purpose                    TryOnAssetPurpose
-  assignmentScope            KioskAssignmentScope @map("assignment_scope")
-  organizationId             String?              @map("organization_id") @db.Uuid
-  storeId                    String?              @map("store_id") @db.Uuid
-  kioskDeviceId              String?              @map("kiosk_device_id") @db.Uuid
-  storageKey                 String               @unique @map("storage_key") @db.VarChar(512)
-  contentType                String?              @map("content_type") @db.VarChar(80)
-  sizeBytes                  Int?                 @map("size_bytes")
-  width                      Int?
-  height                     Int?
-  expiresAt                  DateTime             @map("expires_at") @db.Timestamptz(3)
-  deletedAt                  DateTime?            @map("deleted_at") @db.Timestamptz(3)
-  createdAt                  DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  session                    TryOnSession         @relation("TryOnSessionAssets", fields: [sessionId], references: [id], onDelete: Cascade)
-  currentForSessions         TryOnSession[]       @relation("TryOnSessionCurrentPersonAsset")
-  organization               Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  store                      Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
-  kioskDevice                KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
-  personForRuns             KioskTryOnRun[]       @relation("KioskTryOnRunPersonAsset")
-  garmentForRuns            KioskTryOnRun[]       @relation("KioskTryOnRunGarmentAsset")
-  resultForRuns             KioskTryOnRun[]       @relation("KioskTryOnRunResultAsset")
-  personForLooks            TryOnLook[]           @relation("TryOnLookPersonAsset")
-  garmentForLooks           TryOnLook[]           @relation("TryOnLookGarmentAsset")
-  resultForLooks            TryOnLook[]           @relation("TryOnLookResultAsset")
+  id                 String               @id @db.Uuid
+  sessionId          String               @map("try_on_session_id") @db.Uuid
+  purpose            TryOnAssetPurpose
+  assignmentScope    KioskAssignmentScope @map("assignment_scope")
+  organizationId     String?              @map("organization_id") @db.Uuid
+  storeId            String?              @map("store_id") @db.Uuid
+  kioskDeviceId      String?              @map("kiosk_device_id") @db.Uuid
+  storageKey         String               @unique @map("storage_key") @db.VarChar(512)
+  contentType        String?              @map("content_type") @db.VarChar(80)
+  sizeBytes          Int?                 @map("size_bytes")
+  width              Int?
+  height             Int?
+  expiresAt          DateTime             @map("expires_at") @db.Timestamptz(3)
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(3)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session            TryOnSession         @relation("TryOnSessionAssets", fields: [sessionId], references: [id], onDelete: Cascade)
+  currentForSessions TryOnSession[]       @relation("TryOnSessionCurrentPersonAsset")
+  organization       Organization?        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  store              Store?               @relation(fields: [organizationId, storeId], references: [orgId, id], onDelete: Restrict)
+  kioskDevice        KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: SetNull)
+  personForRuns      KioskTryOnRun[]      @relation("KioskTryOnRunPersonAsset")
+  garmentForRuns     KioskTryOnRun[]      @relation("KioskTryOnRunGarmentAsset")
+  resultForRuns      KioskTryOnRun[]      @relation("KioskTryOnRunResultAsset")
+  personForLooks     TryOnLook[]          @relation("TryOnLookPersonAsset")
+  garmentForLooks    TryOnLook[]          @relation("TryOnLookGarmentAsset")
+  resultForLooks     TryOnLook[]          @relation("TryOnLookResultAsset")
 
   @@index([sessionId, purpose, createdAt])
   @@index([kioskDeviceId, purpose, createdAt])
@@ -955,6 +957,29 @@ model UsageEvent {
   @@index([tryOnLookId])
   @@index([productId, occurredAt])
   @@map("usage_events")
+}
+
+model ApiKey {
+  id              String       @id @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  name            String       @db.VarChar(120)
+  keyPrefix       String       @map("key_prefix") @db.VarChar(40)
+  secretHash      String       @map("secret_hash") @db.VarChar(128)
+  environment     String       @db.VarChar(20)
+  status          String       @default("ACTIVE") @db.VarChar(20)
+  scopes          Json         @map("scopes_json")
+  expiresAt       DateTime?    @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt      DateTime?    @map("last_used_at") @db.Timestamptz(3)
+  createdByUserId String       @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt       DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser   User         @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([keyPrefix])
+  @@index([organizationId, status])
+  @@map("api_keys")
 }
 
 model AuditLog {

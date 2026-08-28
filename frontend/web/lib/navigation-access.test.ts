@@ -32,6 +32,7 @@ const items: SelfxNavItem[] = [
     ],
   },
   { href: "/app/staff", label: "Staff" },
+  { href: "/app/developer", label: "Developer / API" },
   { href: "/app/activity", label: "Activity" },
   { href: "/app/unknown", label: "Unknown" },
 ];
@@ -55,7 +56,11 @@ describe("permission-aware navigation", () => {
       labelsFor({
         ...baseAccess,
         hasActiveStore: true,
-        storePermissions: ["users.view", "integrations.view"],
+        storePermissions: [
+          "users.view",
+          "integrations.view",
+          "developer_api.view",
+        ],
       }),
     ).toEqual([
       "Dashboard",
@@ -63,6 +68,7 @@ describe("permission-aware navigation", () => {
       "Shopify",
       "WooCommerce",
       "Staff",
+      "Developer / API",
       "Activity",
     ]);
   });
@@ -72,9 +78,20 @@ describe("permission-aware navigation", () => {
       labelsFor({
         ...baseAccess,
         hasPlatformAccess: true,
-        platformPermissions: ["STORES_VIEW", "KIOSKS_VIEW"],
+        platformPermissions: [
+          "STORES_VIEW",
+          "KIOSKS_VIEW",
+          "DEVELOPER_API_VIEW",
+        ],
       }),
-    ).toEqual(["Dashboard", "Stores", "Stores", "Kiosks", "Activity"]);
+    ).toEqual([
+      "Dashboard",
+      "Stores",
+      "Stores",
+      "Kiosks",
+      "Developer / API",
+      "Activity",
+    ]);
   });
 
   it("does not let Store platform bypass reveal unrelated platform modules", () => {
@@ -90,6 +107,7 @@ describe("permission-aware navigation", () => {
       "Shopify",
       "WooCommerce",
       "Staff",
+      "Developer / API",
       "Activity",
     ]);
   });
@@ -109,6 +127,7 @@ describe("permission-aware navigation", () => {
       "Permissions",
       "Roles",
       "Staff",
+      "Developer / API",
       "Activity",
       "Unknown",
     ]);

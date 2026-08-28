@@ -15,13 +15,7 @@ import {
   SparklesIcon,
 } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Input,
-  Label,
-} from "@selfx/ui";
+import { Alert, AlertDescription, Button, Input, Label } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
 import {
@@ -60,8 +54,9 @@ const fallbackLoginPageSettings: LoginPageSettings = {
   headline: "Bring every fitting room to life",
   body: "Manage Stores, kiosks, catalog products and Try-On operations from one SelfX control center.",
   mediaType: "VIDEO",
-  mediaUrl: "/kiosk/default-start-screen.mp4",
+  mediaUrl: "/login-default-video.mp4",
   mediaPosterUrl: null,
+  mediaMuted: true,
   cards: [
     {
       title: "Store control",
@@ -235,7 +230,9 @@ export function LoginForm() {
                 disabled={submitting}
                 className="h-11 w-full justify-between bg-slate-950 px-5 text-sm font-semibold hover:bg-slate-800"
               >
-                <span>{submitting ? "Signing in" : "Sign in to dashboard"}</span>
+                <span>
+                  {submitting ? "Signing in" : "Sign in to dashboard"}
+                </span>
                 <ArrowRightIcon size={18} aria-hidden="true" />
               </Button>
             </form>
@@ -421,7 +418,7 @@ function LoginMedia({ settings }: { settings: LoginPageSettings }) {
         src={settings.mediaUrl}
         poster={settings.mediaPosterUrl ?? undefined}
         autoPlay
-        muted
+        muted={settings.mediaMuted !== false}
         loop
         playsInline
       />

@@ -225,6 +225,7 @@ class KioskCatalogProduct {
       imageUrl: image.localPath ?? image.url ?? '',
       intent: garmentIntent,
       photoType: garmentPhotoType,
+      displayPrice: displayPrice,
     );
   }
 
