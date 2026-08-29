@@ -31,6 +31,7 @@ import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/session/capture_scope.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
+import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
@@ -43,6 +44,7 @@ import 'package:selfx_kiosk/src/ui/camera_settings_screen.dart';
 import 'package:selfx_kiosk/src/ui/capture_review_screen.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
+import 'package:selfx_kiosk/src/ui/try_on_generation_screen.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_gateway.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_models.dart';
@@ -479,6 +481,136 @@ void main() {
       expect(find.text('Hold Still'), findsOneWidget);
       expect(find.text('4'), findsNothing);
       expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+    });
+
+    testWidgets('camera controls use the pill button shape', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildSelfxKioskTheme(),
+          home: Scaffold(
+            body: CaptureGuidancePanel(
+              state: const CameraState(status: CameraStatus.ready),
+              flowState: const CaptureFlowState(
+                stage: CaptureFlowStage.preview,
+              ),
+              readinessResult: null,
+              onBack: () {},
+              onCapture: () {},
+              onCancelCountdown: () {},
+              onCaptureAnyway: () {},
+              canFlipCamera: true,
+              onFlipCamera: () {},
+            ),
+          ),
+        ),
+      );
+
+      final expectedRadius = BorderRadius.circular(999);
+      final backMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('camera-back')),
+          matching: find.byType(Material),
+        ),
+      );
+      final captureButton = tester.widget<FilledButton>(
+        find.descendant(
+          of: find.byKey(const Key('capture-photo')),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      final flipMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('flip-person-camera')),
+          matching: find.byType(Material),
+        ),
+      );
+
+      expect(
+        (backMaterial.shape! as RoundedRectangleBorder).borderRadius,
+        expectedRadius,
+      );
+      expect(
+        (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
+            .borderRadius,
+        expectedRadius,
+      );
+      expect(
+        captureButton.style!.backgroundColor!.resolve({}),
+        Colors.transparent,
+      );
+      expect(
+        (flipMaterial.shape! as RoundedRectangleBorder).borderRadius,
+        expectedRadius,
+      );
+    });
+
+    testWidgets('garment capture uses the same camera button treatment', (
+      tester,
+    ) async {
+      final captureController = testController();
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeKioskTryOnGateway(),
+      );
+      final uploadController = testUploadController(
+        captureController.captureStore,
+      );
+      addTearDown(() {
+        uploadController.dispose();
+        tryOnController.dispose();
+        captureController.dispose();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildSelfxKioskTheme(),
+          home: CameraCaptureScreen(
+            controller: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            purpose: PhotoAcquisitionPurpose.garment,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      final expectedRadius = BorderRadius.circular(999);
+      final backMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('camera-back')),
+          matching: find.byType(Material),
+        ),
+      );
+      final captureButton = tester.widget<FilledButton>(
+        find.descendant(
+          of: find.byKey(const Key('capture-photo')),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      final flipMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('flip-person-camera')),
+          matching: find.byType(Material),
+        ),
+      );
+
+      expect(
+        (backMaterial.shape! as RoundedRectangleBorder).borderRadius,
+        expectedRadius,
+      );
+      expect(
+        (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
+            .borderRadius,
+        expectedRadius,
+      );
+      expect(
+        captureButton.style!.backgroundColor!.resolve({}),
+        Colors.transparent,
+      );
+      expect(
+        (flipMaterial.shape! as RoundedRectangleBorder).borderRadius,
+        expectedRadius,
+      );
     });
 
     testWidgets('countdown overlay shows a large remaining number', (
@@ -1405,6 +1537,34 @@ void main() {
   });
 
   group('KIOSK-4C.1 garment selection', () {
+    test(
+      'generation screen uses balanced sections and non-cropping previews',
+      () {
+        expect(
+          generationScreenSectionFlexesForTesting(
+            tightHeight: false,
+            canShowInputPreview: true,
+          ),
+          [30, 42, 28],
+        );
+        expect(
+          generationScreenSectionFlexesForTesting(
+            tightHeight: true,
+            canShowInputPreview: true,
+          ),
+          [28, 44, 28],
+        );
+        expect(
+          generationScreenSectionFlexesForTesting(
+            tightHeight: false,
+            canShowInputPreview: false,
+          ),
+          [30, 0, 70],
+        );
+        expect(generationInputPreviewImageFitForTesting, BoxFit.contain);
+      },
+    );
+
     testWidgets('captured auto garment skips preview when disabled', (
       tester,
     ) async {
@@ -1620,6 +1780,17 @@ void main() {
       await tester.pump();
 
       expect(tryOnController.garmentPicks.length, 2);
+      final myPicksMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('open-my-picks')),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(myPicksMaterial.color, SelfxKioskTokens.secondary);
+      expect(
+        (myPicksMaterial.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(999),
+      );
 
       await tester.tap(find.byKey(const Key('open-my-picks')));
       await tester.pumpAndSettle();

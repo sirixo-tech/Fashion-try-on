@@ -17,6 +17,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'garment_review_screen.dart';
 import 'responsive_kiosk_layout.dart';
+import 'selfx_kiosk_button.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -1061,6 +1062,9 @@ class _PrimaryCameraActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(_cameraControlButtonRadius),
+    );
     return Tooltip(
       message: label,
       child: Semantics(
@@ -1071,9 +1075,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
           width: dimension * 2.35,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(
-                SelfxKioskTokens.buttonRadius,
-              ),
+              borderRadius: BorderRadius.circular(_cameraControlButtonRadius),
               gradient: onPressed == null
                   ? null
                   : const LinearGradient(
@@ -1101,11 +1103,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
                 ),
                 shadowColor: Colors.transparent,
                 padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    SelfxKioskTokens.buttonRadius,
-                  ),
-                ),
+                shape: shape,
               ),
               child: centerText != null
                   ? Text(
@@ -1166,35 +1164,23 @@ class _CameraRailButton extends StatelessWidget {
       child: SizedBox(
         height: dimension,
         width: dimension * 2.35,
-        child: OutlinedButton.icon(
+        child: SelfxKioskButton(
+          label: label,
           onPressed: onPressed,
-          icon: Icon(icon, size: dimension * 0.34),
-          label: Text(label),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: SelfxKioskTokens.onSecondary,
-            disabledForegroundColor: SelfxKioskTokens.onSecondary.withValues(
-              alpha: 0.68,
-            ),
-            backgroundColor: SelfxKioskTokens.secondary,
-            disabledBackgroundColor: SelfxKioskTokens.secondary.withValues(
-              alpha: 0.42,
-            ),
-            side: const BorderSide(color: SelfxKioskTokens.secondary),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(
-                SelfxKioskTokens.buttonRadius,
-              ),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: dimension * 0.24),
-            textStyle: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
-          ),
+          icon: icon,
+          variant: SelfxKioskButtonVariant.secondary,
+          minHeight: dimension,
+          borderRadius: _cameraControlButtonRadius,
+          textAlign: TextAlign.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          padding: EdgeInsets.symmetric(horizontal: dimension * 0.22),
         ),
       ),
     );
   }
 }
+
+const _cameraControlButtonRadius = 999.0;
 
 IconData _captureIconFor(CaptureFlowStage stage, bool canCaptureAnyway) {
   return switch (stage) {

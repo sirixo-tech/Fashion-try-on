@@ -104,9 +104,14 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
               final narrow = constraints.maxWidth < 560;
               final tightHeight = constraints.maxHeight < 720;
               final pagePadding = narrow ? 14.0 : 22.0;
-              final sectionGap = tightHeight ? 12.0 : 18.0;
               final statusGap = tightHeight ? 6.0 : 10.0;
-              final motionHeight = tightHeight ? 138.0 : 174.0;
+              final sectionFlexes = generationScreenSectionFlexesForTesting(
+                tightHeight: tightHeight,
+                canShowInputPreview: canShowInputPreview,
+              );
+              final motionFlex = sectionFlexes[0];
+              final previewFlex = sectionFlexes[1];
+              final statusFlex = sectionFlexes[2];
               if (!failed) {
                 return Center(
                   child: ConstrainedBox(
@@ -120,55 +125,42 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _TryOnMotionGraphic(
-                                animation: _motionController,
-                                height: motionHeight,
-                              ),
-                              if (canShowInputPreview) ...[
-                                SizedBox(height: sectionGap),
-                                Expanded(
-                                  child: _GenerationInputPreview(
-                                    personImagePath: personImagePath!,
-                                    garmentImagePath: garmentImagePath!,
-                                    garmentName:
-                                        garmentInput?.displayName ?? 'Garment',
-                                    garmentPrice:
-                                        currentPick?.displayPrice ??
-                                        garmentInput?.displayPrice,
+                              Expanded(
+                                key: const Key('generation-animation-section'),
+                                flex: motionFlex,
+                                child: _GenerationSection(
+                                  child: _TryOnMotionGraphic(
+                                    animation: _motionController,
                                   ),
                                 ),
-                              ] else
-                                const Expanded(child: SizedBox.shrink()),
-                              SizedBox(height: statusGap),
-                              Text(
-                                _titleFor(status),
-                                style: Theme.of(context).textTheme.displaySmall,
-                                textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _supportMessageFor(status),
-                                style: Theme.of(context).textTheme.bodyLarge,
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: statusGap),
-                              _GenerationProgressBar(progress: progress),
-                              const SizedBox(height: 12),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 220),
-                                child: Text(
-                                  _stageFor(status),
-                                  key: ValueKey<KioskTryOnStatus>(status),
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                        fontWeight: FontWeight.w900,
-                                      ),
+                              if (canShowInputPreview) ...[
+                                Expanded(
+                                  key: const Key('generation-preview-section'),
+                                  flex: previewFlex,
+                                  child: _GenerationSection(
+                                    child: _GenerationInputPreview(
+                                      personImagePath: personImagePath!,
+                                      garmentImagePath: garmentImagePath!,
+                                      garmentName:
+                                          garmentInput?.displayName ??
+                                          'Garment',
+                                      garmentPrice:
+                                          currentPick?.displayPrice ??
+                                          garmentInput?.displayPrice,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              Expanded(
+                                key: const Key('generation-status-section'),
+                                flex: statusFlex,
+                                child: _GenerationSection(
+                                  child: _GenerationStatusContent(
+                                    status: status,
+                                    progress: progress,
+                                    statusGap: statusGap,
+                                  ),
                                 ),
                               ),
                             ],
@@ -615,6 +607,124 @@ class _GenerationInputPreview extends StatelessWidget {
   }
 }
 
+@visibleForTesting
+const generationInputPreviewImageFitForTesting = BoxFit.contain;
+
+@visibleForTesting
+List<int> generationScreenSectionFlexesForTesting({
+  required bool tightHeight,
+  required bool canShowInputPreview,
+}) {
+  final motionFlex = tightHeight ? 28 : 30;
+  if (!canShowInputPreview) {
+    return [motionFlex, 0, 100 - motionFlex];
+  }
+  final previewFlex = tightHeight ? 44 : 42;
+  return [motionFlex, previewFlex, 100 - motionFlex - previewFlex];
+}
+
+class _GenerationSection extends StatelessWidget {
+  const _GenerationSection({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: child,
+    );
+  }
+}
+
+class _GenerationStatusContent extends StatelessWidget {
+  const _GenerationStatusContent({
+    required this.status,
+    required this.progress,
+    required this.statusGap,
+  });
+
+  final KioskTryOnStatus status;
+  final double progress;
+  final double statusGap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.clamp(1.0, 760.0).toDouble();
+        return Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: width,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _titleFor(status),
+                    style: Theme.of(context).textTheme.displaySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _supportMessageFor(status),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: statusGap),
+                  _GenerationProgressBar(progress: progress),
+                  const SizedBox(height: 12),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: Text(
+                      _stageFor(status),
+                      key: ValueKey<KioskTryOnStatus>(status),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TryOnMotionGraphic extends StatelessWidget {
+  const _TryOnMotionGraphic({required this.animation, this.height});
+
+  final Animation<double> animation;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    final paint = AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _TryOnMotionPainter(
+            progress: animation.value,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      },
+    );
+    if (height == null) {
+      return SizedBox.expand(child: paint);
+    }
+    return SizedBox(height: height, child: paint);
+  }
+}
+
 class _InputImageCard extends StatelessWidget {
   const _InputImageCard({
     required this.label,
@@ -707,7 +817,7 @@ class _GenerationPreviewImage extends StatelessWidget {
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
       return Image.network(
         imagePath,
-        fit: BoxFit.cover,
+        fit: generationInputPreviewImageFitForTesting,
         errorBuilder: (_, _, _) => _placeholder(),
       );
     }
@@ -715,7 +825,7 @@ class _GenerationPreviewImage extends StatelessWidget {
     if (file.existsSync()) {
       return Image.file(
         file,
-        fit: BoxFit.cover,
+        fit: generationInputPreviewImageFitForTesting,
         errorBuilder: (_, _, _) => _placeholder(),
       );
     }
@@ -752,31 +862,6 @@ class _GenerationProgressBar extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _TryOnMotionGraphic extends StatelessWidget {
-  const _TryOnMotionGraphic({required this.animation, required this.height});
-
-  final Animation<double> animation;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, _) {
-          return CustomPaint(
-            painter: _TryOnMotionPainter(
-              progress: animation.value,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          );
-        },
-      ),
     );
   }
 }

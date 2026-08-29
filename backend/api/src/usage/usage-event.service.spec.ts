@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   KIOSK_USAGE_EVENTS,
+  PUBLIC_API_USAGE_EVENTS,
   UsageEventService,
 } from "./usage-event.service.js";
 
@@ -102,6 +103,40 @@ describe("UsageEventService", () => {
     expect(second).toBe(first);
     expect(prisma.createdEvents).toHaveLength(1);
   });
+
+  it("records privacy-safe Public API usage with API key attribution", async () => {
+    const prisma = new FakePrisma();
+    const service = new UsageEventService(prisma as never);
+
+    await service.recordPublicApiEvent({
+      eventName: PUBLIC_API_USAGE_EVENTS.downloadCompleted,
+      idempotencyKey: "public-api-result-downloaded:api-key-1:run-1",
+      apiKeyId: "api-key-1",
+      organizationId: "store-1",
+      tryOnSessionId: "session-1",
+      kioskTryOnRunId: "run-1",
+      tryOnLookId: "look-1",
+      provider: "fashn",
+      providerModel: "tryon-v1.6",
+      status: "COMPLETED",
+    });
+
+    expect(prisma.createdEvents[0]).toMatchObject({
+      eventName: PUBLIC_API_USAGE_EVENTS.downloadCompleted,
+      channel: "PUBLIC_API",
+      apiKeyId: "api-key-1",
+      assignmentScope: KioskAssignmentScope.ORGANIZATION,
+      organizationId: "store-1",
+      storeId: null,
+      kioskDeviceId: null,
+      tryOnSessionId: "session-1",
+      kioskTryOnRunId: "run-1",
+      tryOnLookId: "look-1",
+      provider: "fashn",
+      providerModel: "tryon-v1.6",
+      status: "COMPLETED",
+    });
+  });
 });
 
 class FakePrisma {
@@ -143,10 +178,11 @@ interface FakeUsageEventInput {
   idempotencyKey: string;
   eventName: string;
   channel: string;
+  apiKeyId?: string | null;
   assignmentScope: KioskAssignmentScope | null;
   organizationId: string | null;
   storeId: string | null;
-  kioskDeviceId: string;
+  kioskDeviceId: string | null;
   tryOnSessionId?: string | null;
   kioskTryOnRunId?: string | null;
   tryOnLookId?: string | null;

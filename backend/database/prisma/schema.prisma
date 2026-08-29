@@ -227,6 +227,8 @@ model Organization {
   tryOnLooks             TryOnLook[]
   tryOnShareCapabilities TryOnShareCapability[]
   apiKeys                ApiKey[]
+  webhookEndpoints       WebhookEndpoint[]
+  webhookDeliveries      WebhookDelivery[]
   productCategories      ProductCategory[]
   products               Product[]
 
@@ -742,7 +744,8 @@ model KioskCustomerUploadSession {
 
 model KioskTryOnRun {
   id                   String               @id @db.Uuid
-  kioskDeviceId        String               @map("kiosk_device_id") @db.Uuid
+  kioskDeviceId        String?              @map("kiosk_device_id") @db.Uuid
+  apiKeyId             String?              @map("api_key_id") @db.Uuid
   tryOnSessionId       String?              @map("try_on_session_id") @db.Uuid
   clientRequestId      String               @map("client_request_id") @db.VarChar(160)
   status               String               @default("QUEUED") @db.VarChar(24)
@@ -771,7 +774,8 @@ model KioskTryOnRun {
   expiresAt            DateTime             @map("expires_at") @db.Timestamptz(3)
   createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  kioskDevice          KioskDevice          @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+  kioskDevice          KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+  apiKey               ApiKey?              @relation("ApiKeyTryOnRuns", fields: [apiKeyId], references: [id], onDelete: SetNull)
   tryOnSession         TryOnSession?        @relation(fields: [tryOnSessionId], references: [id], onDelete: SetNull)
   personAsset          TryOnAsset?          @relation("KioskTryOnRunPersonAsset", fields: [personAssetId], references: [id], onDelete: SetNull)
   garmentAsset         TryOnAsset?          @relation("KioskTryOnRunGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: SetNull)
@@ -780,8 +784,10 @@ model KioskTryOnRun {
   look                 TryOnLook?
 
   @@unique([kioskDeviceId, clientRequestId])
+  @@unique([apiKeyId, clientRequestId])
   @@index([kioskDeviceId, createdAt])
   @@index([kioskDeviceId, status])
+  @@index([apiKeyId, createdAt])
   @@index([tryOnSessionId, createdAt])
   @@index([personAssetId])
   @@index([garmentAssetId])
@@ -931,6 +937,7 @@ model UsageEvent {
   idempotencyKey  String                @unique @map("idempotency_key") @db.VarChar(180)
   eventName       String                @map("event_name") @db.VarChar(80)
   channel         String                @db.VarChar(40)
+  apiKeyId        String?               @map("api_key_id") @db.Uuid
   assignmentScope KioskAssignmentScope? @map("assignment_scope")
   organizationId  String?               @map("organization_id") @db.Uuid
   storeId         String?               @map("store_id") @db.Uuid
@@ -946,9 +953,11 @@ model UsageEvent {
   metadata        Json?                 @map("metadata_json")
   occurredAt      DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(3)
   createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  apiKey          ApiKey?               @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
 
   @@index([eventName, occurredAt])
   @@index([channel, occurredAt])
+  @@index([apiKeyId, occurredAt])
   @@index([organizationId, occurredAt])
   @@index([storeId, occurredAt])
   @@index([kioskDeviceId, occurredAt])
@@ -960,26 +969,71 @@ model UsageEvent {
 }
 
 model ApiKey {
-  id              String       @id @db.Uuid
-  organizationId  String       @map("organization_id") @db.Uuid
-  name            String       @db.VarChar(120)
-  keyPrefix       String       @map("key_prefix") @db.VarChar(40)
-  secretHash      String       @map("secret_hash") @db.VarChar(128)
-  environment     String       @db.VarChar(20)
-  status          String       @default("ACTIVE") @db.VarChar(20)
-  scopes          Json         @map("scopes_json")
-  expiresAt       DateTime?    @map("expires_at") @db.Timestamptz(3)
-  lastUsedAt      DateTime?    @map("last_used_at") @db.Timestamptz(3)
-  createdByUserId String       @map("created_by_user_id") @db.Uuid
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  revokedAt       DateTime?    @map("revoked_at") @db.Timestamptz(3)
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByUser   User         @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  id              String          @id @db.Uuid
+  organizationId  String          @map("organization_id") @db.Uuid
+  name            String          @db.VarChar(120)
+  keyPrefix       String          @map("key_prefix") @db.VarChar(40)
+  secretHash      String          @map("secret_hash") @db.VarChar(128)
+  environment     String          @db.VarChar(20)
+  status          String          @default("ACTIVE") @db.VarChar(20)
+  scopes          Json            @map("scopes_json")
+  expiresAt       DateTime?       @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt      DateTime?       @map("last_used_at") @db.Timestamptz(3)
+  createdByUserId String          @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt       DateTime?       @map("revoked_at") @db.Timestamptz(3)
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser   User            @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  tryOnRuns       KioskTryOnRun[] @relation("ApiKeyTryOnRuns")
+  usageEvents     UsageEvent[]
 
   @@index([organizationId])
   @@index([keyPrefix])
   @@index([organizationId, status])
   @@map("api_keys")
+}
+
+model WebhookEndpoint {
+  id               String            @id @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  url              String            @db.VarChar(2048)
+  status           String            @default("ACTIVE") @db.VarChar(20)
+  secretReference  String            @default("derived:v1") @map("secret_reference") @db.VarChar(160)
+  subscribedEvents Json              @map("subscribed_events_json")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deliveries       WebhookDelivery[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id                String          @id @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  webhookEndpointId String          @map("webhook_endpoint_id") @db.Uuid
+  eventId           String          @map("event_id") @db.Uuid
+  eventType         String          @map("event_type") @db.VarChar(80)
+  attemptNumber     Int             @default(1) @map("attempt_number")
+  status            String          @default("PENDING") @db.VarChar(20)
+  httpStatus        Int?            @map("http_status")
+  errorMessage      String?         @map("error_message") @db.Text
+  nextRetryAt       DateTime?       @map("next_retry_at") @db.Timestamptz(3)
+  deliveredAt       DateTime?       @map("delivered_at") @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  webhookEndpoint   WebhookEndpoint @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
+
+  @@unique([webhookEndpointId, eventId, attemptNumber])
+  @@index([organizationId, createdAt])
+  @@index([webhookEndpointId, createdAt])
+  @@index([eventId])
+  @@index([eventType, createdAt])
+  @@index([status, nextRetryAt])
+  @@map("webhook_deliveries")
 }
 
 model AuditLog {

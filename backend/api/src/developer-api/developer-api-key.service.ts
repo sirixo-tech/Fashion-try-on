@@ -33,6 +33,8 @@ const DEVELOPER_API_AUDIT_ACTIONS = {
   keyRevoked: "DEVELOPER_API_KEY_REVOKED",
 } as const;
 
+export const DEVELOPER_API_KEY_PREFIX_LENGTH = 24;
+
 const defaultPage = 1;
 const defaultPageSize = 25;
 const maxPageSize = 100;
@@ -90,7 +92,7 @@ export class DeveloperApiKeyService {
     await this.assertActiveStore(input.storeId);
 
     const secret = createRawApiKey(environment);
-    const keyPrefix = secret.slice(0, 24);
+    const keyPrefix = secret.slice(0, DEVELOPER_API_KEY_PREFIX_LENGTH);
     const secretHash = hashApiKeySecret(secret);
 
     const apiKey = await this.prisma.$transaction(async (tx) => {

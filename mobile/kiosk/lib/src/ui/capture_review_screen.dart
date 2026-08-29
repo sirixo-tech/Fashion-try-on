@@ -271,7 +271,7 @@ class _ReviewActions extends StatelessWidget {
                           onPressed: () => _retake(context),
                           icon: Icons.replay,
                           iconColor: const Color(0xFF2384D6),
-                          label: 'Retake Model Photo',
+                          label: 'Retake Photo',
                           subtitle: 'Capture again',
                           minHeight: 70,
                           padding: const EdgeInsets.symmetric(

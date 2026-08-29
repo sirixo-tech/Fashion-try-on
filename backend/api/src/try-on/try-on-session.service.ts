@@ -36,6 +36,8 @@ export interface CreateTryOnSessionInput extends TryOnSessionTenantContext {
 export interface ScopedSessionInput {
   sessionId: string;
   kioskDeviceId?: string | null;
+  organizationId?: string | null;
+  storeId?: string | null;
 }
 
 @Injectable()
@@ -68,7 +70,12 @@ export class TryOnSessionService {
   async attachPersonAsset(input: ScopedSessionInput & TryOnAssetStorageInput) {
     return this.prisma.$transaction(async (tx) => {
       const session = await this.requireActiveSession(tx, input);
-      const asset = await this.createAsset(tx, session, TryOnAssetPurpose.PERSON, input);
+      const asset = await this.createAsset(
+        tx,
+        session,
+        TryOnAssetPurpose.PERSON,
+        input,
+      );
       await tx.tryOnSession.update({
         where: { id: session.id },
         data: { currentPersonAssetId: asset.id },
@@ -84,7 +91,9 @@ export class TryOnSessionService {
     });
   }
 
-  async setCurrentPerson(input: ScopedSessionInput & { personAssetId: string }) {
+  async setCurrentPerson(
+    input: ScopedSessionInput & { personAssetId: string },
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const session = await this.requireActiveSession(tx, input);
       await this.requireSessionAsset(tx, {
@@ -202,7 +211,9 @@ export class TryOnSessionService {
         },
       });
       if (!run) {
-        throw notFound("A completed Try-On run was not found for this session.");
+        throw notFound(
+          "A completed Try-On run was not found for this session.",
+        );
       }
 
       await this.requireSessionAsset(tx, {
@@ -412,11 +423,16 @@ const lookIncludes = {
   resultAsset: true,
 } satisfies Prisma.TryOnLookInclude;
 
-function scopedSessionWhere(input: ScopedSessionInput): Prisma.TryOnSessionWhereInput {
+function scopedSessionWhere(
+  input: ScopedSessionInput,
+): Prisma.TryOnSessionWhereInput {
   return {
     id: input.sessionId,
     kioskDeviceId:
       input.kioskDeviceId === undefined ? undefined : input.kioskDeviceId,
+    organizationId:
+      input.organizationId === undefined ? undefined : input.organizationId,
+    storeId: input.storeId === undefined ? undefined : input.storeId,
   };
 }
 

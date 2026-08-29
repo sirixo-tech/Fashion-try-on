@@ -234,7 +234,13 @@ class FakePrisma {
       },
     ),
     updateMany: vi.fn(
-      async ({ where, data }: { where: SessionWhere; data: Partial<FakeSession> }) => {
+      async ({
+        where,
+        data,
+      }: {
+        where: SessionWhere;
+        data: Partial<FakeSession>;
+      }) => {
         const matches = [...this.sessions.values()].filter((session) =>
           matchesSession(session, where),
         );
@@ -246,8 +252,9 @@ class FakePrisma {
     ),
     findFirstOrThrow: vi.fn(async ({ where }: { where: SessionWhere }) => {
       const session =
-        [...this.sessions.values()].find((item) => matchesSession(item, where)) ??
-        null;
+        [...this.sessions.values()].find((item) =>
+          matchesSession(item, where),
+        ) ?? null;
       if (!session) {
         throw new Error("session not found");
       }
@@ -322,10 +329,18 @@ class FakePrisma {
       return run;
     }),
     findFirst: vi.fn(async ({ where }: { where: RunWhere }) => {
-      return [...this.runs.values()].find((run) => matchesRun(run, where)) ?? null;
+      return (
+        [...this.runs.values()].find((run) => matchesRun(run, where)) ?? null
+      );
     }),
     update: vi.fn(
-      async ({ where, data }: { where: { id: string }; data: Partial<FakeRun> }) => {
+      async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<FakeRun>;
+      }) => {
         const run = this.runs.get(where.id);
         if (!run) {
           throw new Error("run not found");
@@ -337,13 +352,15 @@ class FakePrisma {
   };
 
   readonly tryOnLook = {
-    findUnique: vi.fn(async ({ where }: { where: { kioskTryOnRunId: string } }) => {
-      return (
-        [...this.looks.values()].find(
-          (look) => look.kioskTryOnRunId === where.kioskTryOnRunId,
-        ) ?? null
-      );
-    }),
+    findUnique: vi.fn(
+      async ({ where }: { where: { kioskTryOnRunId: string } }) => {
+        return (
+          [...this.looks.values()].find(
+            (look) => look.kioskTryOnRunId === where.kioskTryOnRunId,
+          ) ?? null
+        );
+      },
+    ),
     create: vi.fn(async ({ data }: { data: CreateLookData }) => {
       const now = new Date();
       const look: FakeLook = { ...data, createdAt: now, updatedAt: now };
@@ -351,7 +368,9 @@ class FakePrisma {
       return look;
     }),
     findMany: vi.fn(async ({ where }: { where: { sessionId: string } }) =>
-      [...this.looks.values()].filter((look) => look.sessionId === where.sessionId),
+      [...this.looks.values()].filter(
+        (look) => look.sessionId === where.sessionId,
+      ),
     ),
     updateMany: vi.fn(
       async ({
@@ -392,7 +411,9 @@ class FakePrisma {
     ),
   };
 
-  seedRun(input: Partial<FakeRun> & { id: string; kioskDeviceId: string }): void {
+  seedRun(
+    input: Partial<FakeRun> & { id: string; kioskDeviceId: string },
+  ): void {
     const now = new Date();
     this.runs.set(input.id, {
       status: "QUEUED",
@@ -408,7 +429,9 @@ class FakePrisma {
     });
   }
 
-  seedShare(input: Partial<FakeShare> & { id: string; sessionId: string }): void {
+  seedShare(
+    input: Partial<FakeShare> & { id: string; sessionId: string },
+  ): void {
     const now = new Date();
     this.shareCapabilities.set(input.id, {
       capabilityDigest: "digest",
@@ -510,6 +533,8 @@ interface FakeShare {
 interface SessionWhere {
   id: string;
   kioskDeviceId?: string | null;
+  organizationId?: string | null;
+  storeId?: string | null;
   status?: TryOnSessionStatus;
 }
 
@@ -547,6 +572,9 @@ function matchesSession(session: FakeSession, where: SessionWhere): boolean {
     session.id === where.id &&
     (where.kioskDeviceId === undefined ||
       session.kioskDeviceId === where.kioskDeviceId) &&
+    (where.organizationId === undefined ||
+      session.organizationId === where.organizationId) &&
+    (where.storeId === undefined || session.storeId === where.storeId) &&
     (where.status === undefined || session.status === where.status)
   );
 }

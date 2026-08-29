@@ -739,17 +739,21 @@ class _SelectedProductAction extends StatelessWidget {
             Expanded(
               child: SizedBox(
                 height: 58,
-                child: OutlinedButton.icon(
+                child: SelfxKioskButton(
                   key: const Key('open-my-picks'),
                   onPressed: onOpenPicks,
-                  icon: const Icon(Icons.checkroom_outlined),
-                  label: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      showPickCounter
-                          ? 'My Picks ($pickCount/$maxPickCount)'
-                          : 'My Picks',
-                    ),
+                  icon: Icons.checkroom_outlined,
+                  label: showPickCounter
+                      ? 'My Picks ($pickCount/$maxPickCount)'
+                      : 'My Picks',
+                  variant: SelfxKioskButtonVariant.secondary,
+                  minHeight: 58,
+                  borderRadius: 999,
+                  textAlign: TextAlign.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
                   ),
                 ),
               ),

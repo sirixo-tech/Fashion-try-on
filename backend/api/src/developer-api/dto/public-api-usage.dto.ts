@@ -1,0 +1,107 @@
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from "class-validator";
+
+export class PublicApiUsageQueryDto {
+  @ApiPropertyOptional({
+    enum: ["today", "7d", "30d", "90d", "custom"],
+    example: "7d",
+  })
+  @IsOptional()
+  @IsIn(["today", "7d", "30d", "90d", "custom"])
+  range?: "today" | "7d" | "30d" | "90d" | "custom";
+
+  @ApiPropertyOptional({ example: "2026-08-22T12:00:00.000Z" })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ example: "2026-08-29T12:00:00.000Z" })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 20, example: 10 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  limit?: number;
+}
+
+export class PublicApiUsageRangeDto {
+  @ApiProperty({ enum: ["today", "7d", "30d", "90d", "custom"], example: "7d" })
+  preset!: "today" | "7d" | "30d" | "90d" | "custom";
+
+  @ApiProperty({ example: "2026-08-22T12:00:00.000Z" })
+  from!: string;
+
+  @ApiProperty({ example: "2026-08-29T12:00:00.000Z" })
+  to!: string;
+}
+
+export class PublicApiUsageStoreDto {
+  @ApiProperty({ example: "0198a9b3-d0bc-7000-8000-000000000001" })
+  id!: string;
+
+  @ApiProperty({ example: "Demo Store" })
+  name!: string;
+}
+
+export class PublicApiUsageTotalsDto {
+  @ApiProperty({ example: 42 })
+  runsCreated!: number;
+
+  @ApiProperty({ example: 1 })
+  queuedRuns!: number;
+
+  @ApiProperty({ example: 2 })
+  processingRuns!: number;
+
+  @ApiProperty({ example: 37 })
+  completedRuns!: number;
+
+  @ApiProperty({ example: 2 })
+  failedRuns!: number;
+
+  @ApiProperty({ example: 37 })
+  generatedLooks!: number;
+
+  @ApiProperty({ example: 8 })
+  downloadsCompleted!: number;
+}
+
+export class PublicApiProviderUsageRowDto {
+  @ApiProperty({ example: "fashn" })
+  provider!: string;
+
+  @ApiPropertyOptional({ nullable: true, example: "tryon-v1.6" })
+  providerModel!: string | null;
+
+  @ApiProperty({ example: 42 })
+  runsCreated!: number;
+
+  @ApiProperty({ example: 37 })
+  completedRuns!: number;
+
+  @ApiProperty({ example: 2 })
+  failedRuns!: number;
+}
+
+export class PublicApiUsageResponseDto {
+  @ApiProperty({ type: PublicApiUsageRangeDto })
+  range!: PublicApiUsageRangeDto;
+
+  @ApiProperty({ type: PublicApiUsageStoreDto })
+  store!: PublicApiUsageStoreDto;
+
+  @ApiProperty({ example: "selfx_test_abcd1234" })
+  keyPrefix!: string;
+
+  @ApiProperty({ type: PublicApiUsageTotalsDto })
+  totals!: PublicApiUsageTotalsDto;
+
+  @ApiProperty({ type: [PublicApiProviderUsageRowDto] })
+  providerUsage!: PublicApiProviderUsageRowDto[];
+}
