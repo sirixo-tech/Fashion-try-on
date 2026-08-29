@@ -123,9 +123,14 @@ export default function DeveloperPage() {
     platformAccess?.isSuperadmin ||
     platformAccess?.permissions.includes("DEVELOPER_API_MANAGE"),
   );
+  const canManageSelectedDeveloperApi = Boolean(
+    canManagePlatformDeveloperApi ||
+      (!hasPlatformDeveloperAccess && selectedStoreId),
+  );
   const selectedStoreName =
     storeOptions.find((store) => store.id === selectedStoreId)?.name ?? "";
-  const canCreate = Boolean(selectedStoreId) && !saving;
+  const canCreate =
+    Boolean(selectedStoreId) && canManageSelectedDeveloperApi && !saving;
 
   const loadAccess = useCallback(async () => {
     if (!accessToken) {
@@ -199,7 +204,7 @@ export default function DeveloperPage() {
   );
 
   async function createKey() {
-    if (!accessToken || !selectedStoreId) {
+    if (!accessToken || !selectedStoreId || !canManageSelectedDeveloperApi) {
       return;
     }
     setSaving(true);
@@ -227,7 +232,7 @@ export default function DeveloperPage() {
   }
 
   async function revokeKey(keyId: string) {
-    if (!accessToken) {
+    if (!accessToken || !canManageSelectedDeveloperApi) {
       return;
     }
     setSaving(true);
@@ -274,7 +279,15 @@ export default function DeveloperPage() {
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button disabled={!canCreate} onClick={() => setCreateOpen(true)}>
+            <Button
+              disabled={!canCreate}
+              onClick={() => setCreateOpen(true)}
+              title={
+                canManageSelectedDeveloperApi
+                  ? undefined
+                  : "Developer API manage permission is required."
+              }
+            >
               <PlusIcon aria-hidden="true" />
               Create API Key
             </Button>
@@ -399,7 +412,8 @@ export default function DeveloperPage() {
                         <StatusBadge status={key.status} />
                       </TableCell>
                       <TableCell className="text-right">
-                        {key.status === "ACTIVE" ? (
+                        {key.status === "ACTIVE" &&
+                        canManageSelectedDeveloperApi ? (
                           <ConfirmDialog
                             title="Revoke API key?"
                             description={`Revoke ${key.name}? Existing integrations using this key will stop working.`}
@@ -419,7 +433,7 @@ export default function DeveloperPage() {
                           />
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            Revoked
+                            {key.status === "ACTIVE" ? "View only" : "Revoked"}
                           </span>
                         )}
                       </TableCell>
