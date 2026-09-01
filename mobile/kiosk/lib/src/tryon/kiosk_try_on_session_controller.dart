@@ -118,6 +118,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }
 
   void selectGarment(KioskGarmentInput input) {
+    garmentPicks = const [];
     activeGarmentPickId = null;
     garmentInput = input;
     pendingGarmentIntent = input.intent;
@@ -735,6 +736,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   void _handleTerminal(KioskTryOnRun terminalRun) {
     if (terminalRun.status == KioskTryOnStatus.succeeded &&
         terminalRun.resultImage != null) {
+      _consumeActiveGarmentPick();
       result = KioskTryOnResult(
         run: terminalRun,
         generatedImage: terminalRun.resultImage!,
@@ -905,6 +907,20 @@ class KioskTryOnSessionController extends ChangeNotifier {
       return null;
     }
     return garmentPicks[index + 1];
+  }
+
+  void _consumeActiveGarmentPick() {
+    final activeId = activeGarmentPickId;
+    if (activeId == null) {
+      return;
+    }
+    final next = garmentPicks
+        .where((pick) => pick.id != activeId)
+        .toList(growable: false);
+    if (next.length != garmentPicks.length) {
+      garmentPicks = next;
+    }
+    activeGarmentPickId = null;
   }
 
   void _selectGarmentPick(KioskTryOnPick pick) {

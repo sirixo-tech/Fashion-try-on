@@ -131,6 +131,12 @@ describe("PublicApiWebhookService", () => {
       expect.objectContaining({
         webhookEndpointId: "endpoint-1",
         eventType: "try_on.completed",
+        payload: expect.objectContaining({
+          type: "try_on.completed",
+          data: expect.objectContaining({
+            run: expect.objectContaining({ id: "run-1" }),
+          }),
+        }),
         status: "DELIVERED",
         httpStatus: 204,
       }),
@@ -279,6 +285,7 @@ type CreateDeliveryData = Pick<
   | "webhookEndpointId"
   | "eventId"
   | "eventType"
+  | "payload"
   | "attemptNumber"
   | "status"
 >;
@@ -300,6 +307,7 @@ interface FakeDelivery {
   webhookEndpointId: string;
   eventId: string;
   eventType: string;
+  payload: unknown;
   attemptNumber: number;
   status: string;
   httpStatus: number | null;

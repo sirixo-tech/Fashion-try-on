@@ -55,6 +55,17 @@ export const SELFX_GARMENT_SOURCES = [
 
 export type SelfxGarmentSource = (typeof SELFX_GARMENT_SOURCES)[number];
 
+export const SELFX_CATALOG_SOURCES = [
+  "SELFX_CATALOG",
+  "STORE_CATALOG",
+  "SHOPIFY",
+  "WOOCOMMERCE",
+  "CUSTOM_API",
+  "PUBLIC_API",
+] as const;
+
+export type SelfxCatalogSource = (typeof SELFX_CATALOG_SOURCES)[number];
+
 export const SELFX_GARMENT_BODY_COVERAGES = [
   "NO_PERSON",
   "UPPER_BODY_MODEL",

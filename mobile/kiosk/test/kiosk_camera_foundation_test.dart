@@ -44,6 +44,8 @@ import 'package:selfx_kiosk/src/ui/camera_settings_screen.dart';
 import 'package:selfx_kiosk/src/ui/capture_review_screen.dart';
 import 'package:selfx_kiosk/src/ui/garment_selection_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
+import 'package:selfx_kiosk/src/ui/selfx_kiosk_action_card.dart';
+import 'package:selfx_kiosk/src/ui/selfx_kiosk_button.dart';
 import 'package:selfx_kiosk/src/ui/try_on_generation_screen.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_gateway.dart';
@@ -505,7 +507,7 @@ void main() {
         ),
       );
 
-      final expectedRadius = BorderRadius.circular(999);
+      final expectedRadius = BorderRadius.circular(26);
       final backMaterial = tester.widget<Material>(
         find.descendant(
           of: find.byKey(const Key('camera-back')),
@@ -524,11 +526,7 @@ void main() {
           matching: find.byType(Material),
         ),
       );
-
-      expect(
-        (backMaterial.shape! as RoundedRectangleBorder).borderRadius,
-        expectedRadius,
-      );
+      expect(backMaterial.borderRadius, expectedRadius);
       expect(
         (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
             .borderRadius,
@@ -538,10 +536,7 @@ void main() {
         captureButton.style!.backgroundColor!.resolve({}),
         Colors.transparent,
       );
-      expect(
-        (flipMaterial.shape! as RoundedRectangleBorder).borderRadius,
-        expectedRadius,
-      );
+      expect(flipMaterial.borderRadius, expectedRadius);
     });
 
     testWidgets('garment capture uses the same camera button treatment', (
@@ -574,7 +569,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
 
-      final expectedRadius = BorderRadius.circular(999);
+      final expectedRadius = BorderRadius.circular(26);
       final backMaterial = tester.widget<Material>(
         find.descendant(
           of: find.byKey(const Key('camera-back')),
@@ -593,11 +588,7 @@ void main() {
           matching: find.byType(Material),
         ),
       );
-
-      expect(
-        (backMaterial.shape! as RoundedRectangleBorder).borderRadius,
-        expectedRadius,
-      );
+      expect(backMaterial.borderRadius, expectedRadius);
       expect(
         (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
             .borderRadius,
@@ -607,10 +598,7 @@ void main() {
         captureButton.style!.backgroundColor!.resolve({}),
         Colors.transparent,
       );
-      expect(
-        (flipMaterial.shape! as RoundedRectangleBorder).borderRadius,
-        expectedRadius,
-      );
+      expect(flipMaterial.borderRadius, expectedRadius);
     });
 
     testWidgets('countdown overlay shows a large remaining number', (
@@ -1499,6 +1487,52 @@ void main() {
       tryOnController.dispose();
     });
 
+    testWidgets('back from garment capture returns to accepted model review', (
+      tester,
+    ) async {
+      final captureController = testController();
+      final tryOnController = KioskTryOnSessionController(
+        gateway: FakeKioskTryOnGateway(),
+      );
+      final uploadController = testUploadController(
+        captureController.captureStore,
+      );
+      addTearDown(() {
+        uploadController.dispose();
+        tryOnController.dispose();
+        captureController.dispose();
+      });
+      await captureController.capturePhoto();
+      final accepted = await captureController.usePhoto();
+      expect(accepted.accepted, isTrue);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CameraCaptureScreen(
+            controller: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            purpose: PhotoAcquisitionPurpose.garment,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(captureController.capturePurpose, PhotoAcquisitionPurpose.garment);
+      expect(find.byKey(const Key('camera-back')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('camera-back')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(captureController.capturePurpose, PhotoAcquisitionPurpose.model);
+      expect(captureController.flowState.stage, CaptureFlowStage.preview);
+      expect(captureController.activeAcceptedPersonPhoto, isNotNull);
+      expect(find.byKey(const Key('take-garment-photo')), findsOneWidget);
+      expect(find.byKey(const Key('browse-catalog')), findsOneWidget);
+      expect(find.byKey(const Key('capture-photo')), findsNothing);
+    });
+
     testWidgets('failed model detection offers retake and upload replacement', (
       tester,
     ) async {
@@ -1530,6 +1564,20 @@ void main() {
       expect(find.byKey(const Key('upload-model-photo')), findsOneWidget);
       expect(find.byKey(const Key('take-garment-photo')), findsNothing);
       expect(find.byKey(const Key('browse-catalog')), findsNothing);
+      final retakeAction = tester.widget<SelfxKioskActionCard>(
+        find.byKey(const Key('retake-photo')),
+      );
+      expect(retakeAction.minHeight, 64);
+      expect(retakeAction.textAlign, TextAlign.center);
+      expect(retakeAction.crossAxisAlignment, CrossAxisAlignment.center);
+      expect(
+        tester
+            .widget<SelfxKioskButton>(
+              find.byKey(const Key('upload-model-photo')),
+            )
+            .borderRadius,
+        26,
+      );
 
       captureController.dispose();
       tryOnController.dispose();

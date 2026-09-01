@@ -295,6 +295,8 @@ class _ReviewActions extends StatelessWidget {
             label: 'Retake Photo',
             subtitle: 'Capture again',
             minHeight: 64,
+            textAlign: TextAlign.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
           ),
           const SizedBox(height: 16),
           SelfxKioskButton(
@@ -305,6 +307,7 @@ class _ReviewActions extends StatelessWidget {
             variant: SelfxKioskButtonVariant.primary,
             textAlign: TextAlign.center,
             mainAxisAlignment: MainAxisAlignment.center,
+            borderRadius: 26,
           ),
         ],
       ],

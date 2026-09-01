@@ -1792,6 +1792,22 @@ Potential API capabilities include:
 
 Exact API endpoints and payloads belong in Technical Requirements.
 
+## PRD-API-002
+
+Public API and Store-owned kiosk integrations must not require merchants to
+move their product catalog into SelfX before using Try-On.
+
+SelfX may accept and persist lightweight product reference metadata on a
+Try-On run, including catalog source, external product ID, external variant ID,
+SKU, product name, display price and currency. This metadata supports
+analytics, support, reporting, webhooks and usage review only. Authorization
+must still come from the SelfX credential, Store context and server-side
+permissions, not from a client-supplied product reference.
+
+Platform-owned demo kiosks may use the SelfX catalog. Store-owned kiosks may
+use the Store's own catalog system and should pass product reference metadata
+when available.
+
 ---
 
 # 37. Mobile Application

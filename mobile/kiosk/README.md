@@ -131,7 +131,7 @@ their client-generated boundaries.
   single **Start Try-On** action.
 - If no active device refresh credential exists, startup routes to the pairing
   screen instead of this customer home.
-- The bundled `assets/videos/garment-selection-background.mp4` video is the
+- The bundled `assets/videos/selfx-default-kiosk-video.mp4` video is the
   default local presentation when no valid remote configuration/cache exists,
   with `assets/wallpapers/selfx-default-kiosk-wallpaper.png` as fallback.
   KIOSK-6A may replace it with SaaS-configured bundled, uploaded or HTTPS

@@ -916,6 +916,11 @@ Indexes:
 - `(organization_id, status)`
 - `(organization_id, vto_status)`
 
+Product catalog rows are optional for Public API and externally managed Store
+catalogs. Those channels may instead attach lightweight product reference
+metadata to each Try-On run. A client-supplied reference does not prove product
+ownership and must not be used as an authorization boundary.
+
 ---
 
 ## 8.2 `product_variants`
@@ -1328,6 +1333,16 @@ Important fields:
 - `assignment_scope` (`PLATFORM`, `ORGANIZATION`, `STORE`)
 - `organization_id` nullable
 - `store_id` nullable
+- `person_asset_id`
+- `garment_asset_id`
+- `product_id`
+- `catalog_source`
+- `external_product_id`
+- `external_variant_id`
+- `external_sku`
+- `external_product_name`
+- `external_product_price`
+- `external_currency`
 - `provider`
 - `provider_display_name`
 - `provider_model`
@@ -1353,6 +1368,8 @@ Indexes:
 - `(kiosk_device_id, created_at)`
 - `(kiosk_device_id, status)`
 - `(organization_id, created_at)`
+- `(organization_id, catalog_source, created_at)`
+- `(organization_id, external_product_id)`
 - `(store_id, created_at)`
 - `(status, expires_at)`
 - `expires_at`
@@ -1370,6 +1387,13 @@ Rules:
   not expose provider prediction IDs to Flutter customer UI;
 - raw person and garment input bytes are not stored in PostgreSQL by this
   model;
+- `product_id` references a SelfX-managed product when one exists. Optional
+  `catalog_source` and external product fields are metadata for Store/external
+  catalog traceability and must not grant authorization by themselves;
+- platform-owned kiosks may use `SELFX_CATALOG`; Store-owned kiosks default to
+  `STORE_CATALOG` when a Store product is referenced and may record
+  `SHOPIFY`, `WOOCOMMERCE`, `CUSTOM_API` or `PUBLIC_API` metadata where the
+  source is known;
 - generated results are customer-sensitive and expire no later than seven days
   through `expires_at` and service cleanup;
 - `TRYON_LAB_ENABLED` is unrelated to this production table. The internal

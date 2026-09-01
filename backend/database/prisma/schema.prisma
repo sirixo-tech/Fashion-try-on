@@ -755,6 +755,13 @@ model KioskTryOnRun {
   personAssetId        String?              @map("person_asset_id") @db.Uuid
   garmentAssetId       String?              @map("garment_asset_id") @db.Uuid
   productId            String?              @map("product_id") @db.Uuid
+  catalogSource        String?              @map("catalog_source") @db.VarChar(40)
+  externalProductId    String?              @map("external_product_id") @db.VarChar(160)
+  externalVariantId    String?              @map("external_variant_id") @db.VarChar(160)
+  externalSku          String?              @map("external_sku") @db.VarChar(160)
+  externalProductName  String?              @map("external_product_name") @db.VarChar(240)
+  externalProductPrice Decimal?             @map("external_product_price") @db.Decimal(12, 2)
+  externalCurrency     String?              @map("external_currency") @db.VarChar(3)
   resultAssetId        String?              @map("result_asset_id") @db.Uuid
   provider             String               @db.VarChar(80)
   providerDisplayName  String               @map("provider_display_name") @db.VarChar(120)
@@ -792,6 +799,8 @@ model KioskTryOnRun {
   @@index([personAssetId])
   @@index([garmentAssetId])
   @@index([productId])
+  @@index([organizationId, catalogSource, createdAt])
+  @@index([organizationId, externalProductId])
   @@index([resultAssetId])
   @@index([organizationId, createdAt])
   @@index([storeId, createdAt])
@@ -969,28 +978,46 @@ model UsageEvent {
 }
 
 model ApiKey {
-  id              String          @id @db.Uuid
-  organizationId  String          @map("organization_id") @db.Uuid
-  name            String          @db.VarChar(120)
-  keyPrefix       String          @map("key_prefix") @db.VarChar(40)
-  secretHash      String          @map("secret_hash") @db.VarChar(128)
-  environment     String          @db.VarChar(20)
-  status          String          @default("ACTIVE") @db.VarChar(20)
-  scopes          Json            @map("scopes_json")
-  expiresAt       DateTime?       @map("expires_at") @db.Timestamptz(3)
-  lastUsedAt      DateTime?       @map("last_used_at") @db.Timestamptz(3)
-  createdByUserId String          @map("created_by_user_id") @db.Uuid
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  revokedAt       DateTime?       @map("revoked_at") @db.Timestamptz(3)
-  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByUser   User            @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  tryOnRuns       KioskTryOnRun[] @relation("ApiKeyTryOnRuns")
-  usageEvents     UsageEvent[]
+  id               String               @id @db.Uuid
+  organizationId   String               @map("organization_id") @db.Uuid
+  name             String               @db.VarChar(120)
+  keyPrefix        String               @map("key_prefix") @db.VarChar(40)
+  secretHash       String               @map("secret_hash") @db.VarChar(128)
+  environment      String               @db.VarChar(20)
+  status           String               @default("ACTIVE") @db.VarChar(20)
+  scopes           Json                 @map("scopes_json")
+  expiresAt        DateTime?            @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime?            @map("last_used_at") @db.Timestamptz(3)
+  createdByUserId  String               @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt        DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser    User                 @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  tryOnRuns        KioskTryOnRun[]      @relation("ApiKeyTryOnRuns")
+  usageEvents      UsageEvent[]
+  rateLimitBuckets ApiRateLimitBucket[]
 
   @@index([organizationId])
   @@index([keyPrefix])
   @@index([organizationId, status])
   @@map("api_keys")
+}
+
+model ApiRateLimitBucket {
+  id             String   @id @db.Uuid
+  apiKeyId       String   @map("api_key_id") @db.Uuid
+  routeBucket    String   @map("route_bucket") @db.VarChar(80)
+  windowSeconds  Int      @map("window_seconds")
+  windowStartsAt DateTime @map("window_starts_at") @db.Timestamptz(3)
+  requestCount   Int      @default(0) @map("request_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  apiKey         ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, routeBucket, windowSeconds, windowStartsAt])
+  @@index([apiKeyId, routeBucket, windowStartsAt])
+  @@index([windowStartsAt])
+  @@map("api_rate_limit_buckets")
 }
 
 model WebhookEndpoint {
@@ -1016,6 +1043,7 @@ model WebhookDelivery {
   webhookEndpointId String          @map("webhook_endpoint_id") @db.Uuid
   eventId           String          @map("event_id") @db.Uuid
   eventType         String          @map("event_type") @db.VarChar(80)
+  payload           Json?           @map("payload_json")
   attemptNumber     Int             @default(1) @map("attempt_number")
   status            String          @default("PENDING") @db.VarChar(20)
   httpStatus        Int?            @map("http_status")

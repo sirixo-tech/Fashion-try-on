@@ -965,9 +965,14 @@ Protected route coverage:
     source, trusted metadata, direct-upload body-coverage analysis, explicit
     user disambiguation and internal Lab overrides into SelfX category, garment
     photo type and generation profile. Only `DIRECT_UPLOAD` is active in this
-    slice. Future trusted source concepts are `SELFX_CATALOG`, `SHOPIFY`,
-    `WOOCOMMERCE` and `PUBLIC_API`; only trusted server-side catalog or
-    integration metadata may bypass direct-upload ambiguity analysis. Direct
+    slice. `garmentSource` describes how the generation input was supplied
+    (`DIRECT_UPLOAD`, `SELFX_CATALOG`, `SHOPIFY`, `WOOCOMMERCE`,
+    `PUBLIC_API`), while `catalogSource` describes the merchant/catalog
+    reference attached to the run (`SELFX_CATALOG`, `STORE_CATALOG`,
+    `SHOPIFY`, `WOOCOMMERCE`, `CUSTOM_API`, `PUBLIC_API`). Only trusted
+    server-side catalog or integration metadata may bypass direct-upload
+    ambiguity analysis. Client-supplied catalog references are metadata and
+    must not grant authorization or cross-Store access. Direct
     uploads that look upper-body on-model resolve to TOP/ON_MODEL, lower-body
     on-model resolves to BOTTOM/ON_MODEL, product-only resolves to AUTO/AUTO,
     and full-body on-model asks one focused disambiguation question. Low
@@ -1749,6 +1754,16 @@ Protected route coverage:
     product status
     SelfX stores the normalized representation required for VTO and mapping.
     SelfX is not initially a full POS, inventory, checkout, order, tax, or shipping system.
+
+    Store catalog independence:
+    SelfX must support Stores whose product systems live outside SelfX,
+    including custom applications and future Shopify/WooCommerce integrations.
+    Platform kiosks registered under SelfX may use the platform SelfX catalog.
+    A kiosk assigned to a Store uses that Store's catalog context and may pass
+    optional product reference metadata with each Try-On run. Public API clients
+    may also pass optional product reference metadata. This avoids forcing a
+    tight coupling to SelfX catalog IDs while still preserving usage, support
+    and reporting traceability.
 
 ---
 

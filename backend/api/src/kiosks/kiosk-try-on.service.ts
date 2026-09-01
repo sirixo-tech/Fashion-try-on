@@ -17,6 +17,7 @@ import {
   SELFX_GARMENT_PHOTO_TYPES,
   TRY_ON_LAB_ERROR_CODES,
   isModelCoverageCompatibleWithGarment,
+  type SelfxCatalogSource,
   type SelfxTryOnRunStatus,
 } from "@selfx/shared";
 
@@ -65,6 +66,16 @@ interface SessionRunAssets {
   garmentAssetId: string | null;
   productId: string | null;
   executionPayload: CreateTryOnLabRunPayload;
+}
+
+interface KioskTryOnProductReference {
+  catalogSource: SelfxCatalogSource | null;
+  externalProductId: string | null;
+  externalVariantId: string | null;
+  externalSku: string | null;
+  externalProductName: string | null;
+  externalProductPrice: string | null;
+  externalCurrency: string | null;
 }
 
 @Injectable()
@@ -221,6 +232,7 @@ export class KioskTryOnService {
     const now = new Date();
     const created = await this.createNewRun(
       device,
+      payload,
       executionPayload,
       clientRequestId,
       providerMetadata,
@@ -236,7 +248,8 @@ export class KioskTryOnService {
 
   private async createNewRun(
     device: KioskDeviceContext,
-    payload: CreateTryOnLabRunPayload,
+    requestPayload: CreateKioskTryOnRunPayload,
+    executionPayload: CreateTryOnLabRunPayload,
     clientRequestId: string,
     providerMetadata: ReturnType<TryOnExecutionService["metadata"]>,
     now: Date,
@@ -261,15 +274,16 @@ export class KioskTryOnService {
               : null,
           personAssetId: sessionRun?.personAssetId,
           garmentAssetId: sessionRun?.garmentAssetId,
-          productId: sessionRun?.productId,
+          productId: sessionRun?.productId ?? requestPayload.productId ?? null,
+          ...kioskProductReferenceData(device, requestPayload, sessionRun),
           provider: providerMetadata.provider,
           providerDisplayName: providerMetadata.providerDisplayName,
           providerModel: providerMetadata.model,
-          garmentSource: payload.garmentSource,
-          garmentIntent: payload.garmentIntent,
-          garmentCategory: payload.category,
-          garmentPhotoType: payload.garmentPhotoType,
-          generationProfile: payload.generationProfile,
+          garmentSource: executionPayload.garmentSource,
+          garmentIntent: executionPayload.garmentIntent,
+          garmentCategory: executionPayload.category,
+          garmentPhotoType: executionPayload.garmentPhotoType,
+          generationProfile: executionPayload.generationProfile,
           expiresAt: new Date(now.getTime() + TRY_ON_RESULT_RETENTION_MS),
         },
       });
@@ -813,6 +827,29 @@ function requireClientRequestId(value: string | undefined): string {
     );
   }
   return value;
+}
+
+function kioskProductReferenceData(
+  device: KioskDeviceContext,
+  payload: CreateKioskTryOnRunPayload,
+  sessionRun: SessionRunAssets | undefined,
+): KioskTryOnProductReference {
+  const catalogSource =
+    payload.catalogSource ??
+    (sessionRun?.productId
+      ? device.assignmentScope === KioskAssignmentScope.PLATFORM
+        ? "SELFX_CATALOG"
+        : "STORE_CATALOG"
+      : null);
+  return {
+    catalogSource,
+    externalProductId: payload.externalProductId ?? null,
+    externalVariantId: payload.externalVariantId ?? null,
+    externalSku: payload.sku ?? null,
+    externalProductName: payload.productName ?? null,
+    externalProductPrice: payload.price ?? null,
+    externalCurrency: payload.currency?.trim().toUpperCase() ?? null,
+  };
 }
 
 function toResponse(run: {

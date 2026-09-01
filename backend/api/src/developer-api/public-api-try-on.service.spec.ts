@@ -42,6 +42,22 @@ describe("PublicApiTryOnService", () => {
       garmentIntent: "TOP",
       garmentCategory: "TOP",
       garmentPhotoType: "FLAT_LAY",
+      catalogSource: "SHOPIFY",
+      externalProductId: "shopify-product-1",
+      externalVariantId: "variant-blue-xl",
+      externalSku: "LINEN-BLUE-XL",
+      externalProductName: "Blue Linen Shirt",
+      externalProductPrice: "2499.00",
+      externalCurrency: "INR",
+    });
+    expect(created.productReference).toEqual({
+      catalogSource: "SHOPIFY",
+      externalProductId: "shopify-product-1",
+      externalVariantId: "variant-blue-xl",
+      sku: "LINEN-BLUE-XL",
+      productName: "Blue Linen Shirt",
+      price: "2499.00",
+      currency: "INR",
     });
     expect(sessions.getSessionAsset).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -392,6 +408,13 @@ class FakePrisma {
       garmentCategory: "AUTO",
       garmentPhotoType: "AUTO",
       generationProfile: "BALANCED",
+      catalogSource: null,
+      externalProductId: null,
+      externalVariantId: null,
+      externalSku: null,
+      externalProductName: null,
+      externalProductPrice: null,
+      externalCurrency: null,
       resultImage: null,
       errorCode: null,
       errorMessage: null,
@@ -435,6 +458,13 @@ interface CreateRunData {
   personAssetId: string;
   garmentAssetId: string;
   productId: string | null;
+  catalogSource: string | null;
+  externalProductId: string | null;
+  externalVariantId: string | null;
+  externalSku: string | null;
+  externalProductName: string | null;
+  externalProductPrice: string | null;
+  externalCurrency: string | null;
   provider: string;
   providerDisplayName: string;
   providerModel: string;
@@ -501,6 +531,13 @@ function createInput() {
     category: "TOP" as const,
     garmentPhotoType: "FLAT_LAY" as const,
     generationProfile: "BALANCED" as const,
+    catalogSource: "SHOPIFY" as const,
+    externalProductId: "shopify-product-1",
+    externalVariantId: "variant-blue-xl",
+    sku: "LINEN-BLUE-XL",
+    productName: "Blue Linen Shirt",
+    price: "2499.00",
+    currency: "INR",
   };
 }
 

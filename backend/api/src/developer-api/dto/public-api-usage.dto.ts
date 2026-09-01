@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from "class-validator";
+import {
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from "class-validator";
+
+import { SELFX_CATALOG_SOURCES, type SelfxCatalogSource } from "@selfx/shared";
 
 export class PublicApiUsageQueryDto {
   @ApiPropertyOptional({
@@ -28,6 +39,21 @@ export class PublicApiUsageQueryDto {
   @Min(1)
   @Max(20)
   limit?: number;
+
+  @ApiPropertyOptional({ enum: SELFX_CATALOG_SOURCES, example: "SHOPIFY" })
+  @IsOptional()
+  @IsIn(SELFX_CATALOG_SOURCES)
+  catalogSource?: SelfxCatalogSource;
+
+  @ApiPropertyOptional({
+    example: "LINEN-BLUE",
+    description:
+      "Searches product name, SKU, external product ID and external variant ID.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  productQuery?: string;
 }
 
 export class PublicApiUsageRangeDto {
@@ -89,6 +115,67 @@ export class PublicApiProviderUsageRowDto {
   failedRuns!: number;
 }
 
+export class PublicApiCatalogSourceUsageRowDto {
+  @ApiPropertyOptional({ enum: SELFX_CATALOG_SOURCES, nullable: true })
+  catalogSource!: SelfxCatalogSource | null;
+
+  @ApiProperty({ example: 24 })
+  runsCreated!: number;
+
+  @ApiProperty({ example: 20 })
+  completedRuns!: number;
+
+  @ApiProperty({ example: 1 })
+  failedRuns!: number;
+
+  @ApiProperty({ example: 20 })
+  generatedLooks!: number;
+
+  @ApiProperty({ example: 6 })
+  downloadsCompleted!: number;
+}
+
+export class PublicApiProductUsageRowDto {
+  @ApiPropertyOptional({ nullable: true })
+  selfxProductId?: string;
+
+  @ApiPropertyOptional({ enum: SELFX_CATALOG_SOURCES, nullable: true })
+  catalogSource?: SelfxCatalogSource;
+
+  @ApiPropertyOptional({ example: "gid://shopify/Product/1001" })
+  externalProductId?: string;
+
+  @ApiPropertyOptional({ example: "gid://shopify/ProductVariant/2001" })
+  externalVariantId?: string;
+
+  @ApiPropertyOptional({ example: "LINEN-BLUE-XL" })
+  sku?: string;
+
+  @ApiPropertyOptional({ example: "Blue Linen Shirt" })
+  productName?: string;
+
+  @ApiPropertyOptional({ example: "2499.00" })
+  price?: string;
+
+  @ApiPropertyOptional({ example: "INR" })
+  currency?: string;
+
+  @ApiProperty({ example: 12 })
+  runsCreated!: number;
+
+  @ApiProperty({ example: 11 })
+  completedRuns!: number;
+
+  @ApiProperty({ example: 1 })
+  failedRuns!: number;
+
+  @ApiProperty({ example: 11 })
+  generatedLooks!: number;
+
+  @ApiProperty({ example: 4 })
+  downloadsCompleted!: number;
+}
+
 export class PublicApiUsageResponseDto {
   @ApiProperty({ type: PublicApiUsageRangeDto })
   range!: PublicApiUsageRangeDto;
@@ -104,4 +191,10 @@ export class PublicApiUsageResponseDto {
 
   @ApiProperty({ type: [PublicApiProviderUsageRowDto] })
   providerUsage!: PublicApiProviderUsageRowDto[];
+
+  @ApiProperty({ type: [PublicApiCatalogSourceUsageRowDto] })
+  catalogSourceUsage!: PublicApiCatalogSourceUsageRowDto[];
+
+  @ApiProperty({ type: [PublicApiProductUsageRowDto] })
+  productUsage!: PublicApiProductUsageRowDto[];
 }

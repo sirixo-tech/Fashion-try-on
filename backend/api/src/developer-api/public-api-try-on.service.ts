@@ -8,6 +8,8 @@ import {
 import { createSelfxId } from "@selfx/database";
 import {
   TRY_ON_LAB_ERROR_CODES,
+  SELFX_CATALOG_SOURCES,
+  type SelfxCatalogSource,
   isModelCoverageCompatibleWithGarment,
   type SelfxGarmentCategory,
   type SelfxGarmentIntent,
@@ -41,6 +43,16 @@ interface PublicRunAssets {
   personAssetId: string;
   garmentAssetId: string;
   executionPayload: CreateTryOnLabRunPayload;
+}
+
+interface TryOnProductReference {
+  catalogSource: SelfxCatalogSource | null;
+  externalProductId: string | null;
+  externalVariantId: string | null;
+  sku: string | null;
+  productName: string | null;
+  price: string | null;
+  currency: string | null;
 }
 
 export interface PublicApiTryOnResultDownload {
@@ -93,6 +105,7 @@ export class PublicApiTryOnService {
       clientRequestId,
       providerMetadata,
       runAssets,
+      normalizeProductReference(input),
       now,
     );
 
@@ -180,6 +193,7 @@ export class PublicApiTryOnService {
     clientRequestId: string,
     providerMetadata: ReturnType<TryOnExecutionService["metadata"]>,
     runAssets: PublicRunAssets,
+    productReference: TryOnProductReference,
     now: Date,
   ): Promise<{ run: PublicRunRecord; isNew: boolean }> {
     try {
@@ -197,6 +211,13 @@ export class PublicApiTryOnService {
           personAssetId: runAssets.personAssetId,
           garmentAssetId: runAssets.garmentAssetId,
           productId: null,
+          catalogSource: productReference.catalogSource,
+          externalProductId: productReference.externalProductId,
+          externalVariantId: productReference.externalVariantId,
+          externalSku: productReference.sku,
+          externalProductName: productReference.productName,
+          externalProductPrice: productReference.price,
+          externalCurrency: productReference.currency,
           provider: providerMetadata.provider,
           providerDisplayName: providerMetadata.providerDisplayName,
           providerModel: providerMetadata.model,
@@ -477,9 +498,7 @@ export class PublicApiTryOnService {
         provider: run.provider,
         providerModel: run.providerModel,
         status: run.status,
-        metadata: {
-          result_asset_id: run.resultAssetId,
-        },
+        metadata: downloadUsageMetadata(run),
       });
     } catch (error) {
       this.logger.warn({
@@ -504,6 +523,7 @@ export class PublicApiTryOnService {
       sessionId: run.tryOnSessionId ?? "",
       personAssetId: run.personAssetId ?? undefined,
       garmentAssetId: run.garmentAssetId ?? undefined,
+      productReference: responseProductReference(run),
       createdAt: run.createdAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),
       result: run.resultAsset
@@ -586,6 +606,122 @@ function normalizeClientRequestId(value: string): string {
     );
   }
   return normalized;
+}
+
+function normalizeProductReference(
+  input: CreatePublicApiTryOnDto,
+): TryOnProductReference {
+  const externalProductId = optionalText(input.externalProductId);
+  const externalVariantId = optionalText(input.externalVariantId);
+  const sku = optionalText(input.sku);
+  const productName = optionalText(input.productName);
+  const price = optionalPrice(input.price);
+  const currency = optionalCurrency(input.currency);
+  const hasReference = Boolean(
+    externalProductId ||
+    externalVariantId ||
+    sku ||
+    productName ||
+    price ||
+    currency,
+  );
+  return {
+    catalogSource: input.catalogSource ?? (hasReference ? "PUBLIC_API" : null),
+    externalProductId,
+    externalVariantId,
+    sku,
+    productName,
+    price,
+    currency,
+  };
+}
+
+function optionalText(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function optionalPrice(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(trimmed)) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "PUBLIC_API_TRYON_INVALID_PRODUCT_REFERENCE",
+      "price must be a positive decimal string with up to 2 decimal places.",
+    );
+  }
+  return trimmed;
+}
+
+function optionalCurrency(value: string | undefined): string | null {
+  const trimmed = value?.trim().toUpperCase();
+  return trimmed ? trimmed : null;
+}
+
+function responseProductReference(run: {
+  catalogSource?: string | null;
+  externalProductId?: string | null;
+  externalVariantId?: string | null;
+  externalSku?: string | null;
+  externalProductName?: string | null;
+  externalProductPrice?: { toString(): string } | string | number | null;
+  externalCurrency?: string | null;
+}): PublicApiTryOnRunResponseDto["productReference"] {
+  const catalogSource = validCatalogSource(run.catalogSource);
+  const reference = {
+    catalogSource: catalogSource ?? undefined,
+    externalProductId: run.externalProductId ?? undefined,
+    externalVariantId: run.externalVariantId ?? undefined,
+    sku: run.externalSku ?? undefined,
+    productName: run.externalProductName ?? undefined,
+    price: run.externalProductPrice?.toString() ?? undefined,
+    currency: run.externalCurrency ?? undefined,
+  };
+  return Object.values(reference).some((value) => value !== undefined)
+    ? reference
+    : undefined;
+}
+
+function productReferenceMetadata(run: {
+  catalogSource?: string | null;
+  externalProductId?: string | null;
+  externalVariantId?: string | null;
+  externalSku?: string | null;
+  externalProductName?: string | null;
+  externalProductPrice?: { toString(): string } | string | number | null;
+  externalCurrency?: string | null;
+}): Prisma.InputJsonObject | null {
+  const reference = responseProductReference(run);
+  return reference ? (reference as Prisma.InputJsonObject) : null;
+}
+
+function downloadUsageMetadata(run: {
+  resultAssetId: string | null;
+  catalogSource?: string | null;
+  externalProductId?: string | null;
+  externalVariantId?: string | null;
+  externalSku?: string | null;
+  externalProductName?: string | null;
+  externalProductPrice?: { toString(): string } | string | number | null;
+  externalCurrency?: string | null;
+}): Prisma.InputJsonObject {
+  const productReference = productReferenceMetadata(run);
+  return {
+    ...(run.resultAssetId ? { result_asset_id: run.resultAssetId } : {}),
+    ...(productReference ? { product_reference: productReference } : {}),
+  };
+}
+
+function validCatalogSource(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  return SELFX_CATALOG_SOURCES.includes(value as SelfxCatalogSource)
+    ? (value as SelfxCatalogSource)
+    : null;
 }
 
 function categoryFromIntent(intent: SelfxGarmentIntent): SelfxGarmentCategory {

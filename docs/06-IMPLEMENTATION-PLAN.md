@@ -2148,10 +2148,13 @@ Release the first external developer-facing SelfX integration surface.
 - Public API routes
 - upload authorization
 - Try-On creation/status
+- optional catalog/product reference metadata for externally managed products
 - usage endpoint where approved
+- catalog-source and product-reference usage rollups for Public API and
+  Developer Console visibility
 - webhook endpoints
 - webhook signing/retry/delivery tracking
-- public OpenAPI documentation
+- public OpenAPI documentation with a Public API-only machine-readable contract
 - sandbox/production-ready credential model
 
 ### Database Changes
@@ -2161,6 +2164,7 @@ Implement:
 - api_keys
 - webhook_endpoints
 - webhook_deliveries
+- kiosk_try_on_runs product reference metadata columns
 
 ### Tests
 
@@ -2169,7 +2173,10 @@ Implement:
 - rate limit
 - webhook signatures
 - duplicate webhook handling
+- product reference metadata persistence
 - API backward compatibility
+- Public API readiness smoke flow from credential inspection through upload,
+  Try-On creation/status, result download, usage and webhook management
 
 ### Stop Condition
 

@@ -197,6 +197,7 @@ export class PublicApiWebhookService {
     signingKey: string,
   ): Promise<void> {
     const deliveryId = createSelfxId();
+    const payloadJson = toPrismaJsonObject(payload);
     await this.prisma.webhookDelivery.create({
       data: {
         id: deliveryId,
@@ -204,12 +205,13 @@ export class PublicApiWebhookService {
         webhookEndpointId: endpoint.id,
         eventId: payload.id,
         eventType: payload.type,
+        payload: payloadJson,
         attemptNumber: 1,
         status: "PENDING",
       },
     });
 
-    const body = JSON.stringify(payload);
+    const body = JSON.stringify(payloadJson);
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const endpointSecret = deriveEndpointSecret(endpoint.id, signingKey);
     const signature = signWebhookPayload(endpointSecret, timestamp, body);
@@ -265,6 +267,12 @@ export class PublicApiWebhookService {
       },
     });
   }
+}
+
+function toPrismaJsonObject(
+  value: PublicApiWebhookPayload,
+): Prisma.InputJsonObject {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
 }
 
 function mapEndpoint(endpoint: WebhookEndpoint): PublicApiWebhookEndpointDto {

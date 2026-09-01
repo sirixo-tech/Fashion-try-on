@@ -3,6 +3,7 @@ import { type FastifyRequest } from "fastify";
 
 import {
   IMAGE_QUALITY_ISSUE_CODES,
+  SELFX_CATALOG_SOURCES,
   SELFX_GARMENT_ANALYSIS_REASON_CODES,
   SELFX_GARMENT_BODY_COVERAGES,
   SELFX_GARMENT_CATEGORIES,
@@ -14,6 +15,7 @@ import {
   SELFX_MODEL_COVERAGES,
   TRY_ON_LAB_ERROR_CODES,
   type ImageQualityIssueCode,
+  type SelfxCatalogSource,
   type SelfxGarmentAnalysisReasonCode,
   type SelfxGarmentBodyCoverage,
   type SelfxGarmentCategory,
@@ -60,6 +62,13 @@ export interface CreateKioskTryOnRunPayload {
   personImage?: KioskTryOnUploadedImage;
   garmentImage?: KioskTryOnUploadedImage;
   productId?: string;
+  catalogSource?: SelfxCatalogSource;
+  externalProductId?: string;
+  externalVariantId?: string;
+  sku?: string;
+  productName?: string;
+  price?: string;
+  currency?: string;
   garmentSource: SelfxGarmentSource;
   garmentIntent: SelfxGarmentIntent;
   category: SelfxGarmentCategory;
@@ -147,13 +156,20 @@ export async function parseKioskTryOnRunMultipartRequest(
     ) {
       throwImageInvalid("One or more images exceeds the supported size limit.");
     }
-    throwMultipartInvalid("Kiosk Try-On multipart request could not be processed.");
+    throwMultipartInvalid(
+      "Kiosk Try-On multipart request could not be processed.",
+    );
   }
 
-  const sessionId = parseOptionalUuid(fields.get("sessionId"), "Invalid session ID.");
+  const sessionId = parseOptionalUuid(
+    fields.get("sessionId"),
+    "Invalid session ID.",
+  );
   const personImage = images.get("personImage");
   if (!personImage && !sessionId) {
-    throwMultipartInvalid("Person image is required for legacy Try-On requests.");
+    throwMultipartInvalid(
+      "Person image is required for legacy Try-On requests.",
+    );
   }
   const garmentImage = images.get("garmentImage");
   const productId = parseOptionalUuid(
@@ -167,19 +183,26 @@ export async function parseKioskTryOnRunMultipartRequest(
     throwMultipartInvalid("Garment image or catalog product is required.");
   }
   const garmentSource = parseEnum(
-    fields.get("garmentSource") ?? (productId ? "SELFX_CATALOG" : "DIRECT_UPLOAD"),
+    fields.get("garmentSource") ??
+      (productId ? "SELFX_CATALOG" : "DIRECT_UPLOAD"),
     SELFX_GARMENT_SOURCES,
     "Invalid garment source.",
   );
   if (productId && garmentSource !== "SELFX_CATALOG") {
-    throwResolutionMetadataInvalid("Catalog product requires SelfX catalog source.");
+    throwResolutionMetadataInvalid(
+      "Catalog product requires SelfX catalog source.",
+    );
   }
   if (garmentImage && garmentSource === "SELFX_CATALOG") {
-    throwResolutionMetadataInvalid("SelfX catalog source requires a product ID.");
+    throwResolutionMetadataInvalid(
+      "SelfX catalog source requires a product ID.",
+    );
   }
 
   return {
-    clientRequestId: parseOptionalClientRequestId(fields.get("clientRequestId")),
+    clientRequestId: parseOptionalClientRequestId(
+      fields.get("clientRequestId"),
+    ),
     sessionId,
     personAssetId: parseOptionalUuid(
       fields.get("personAssetId"),
@@ -188,6 +211,29 @@ export async function parseKioskTryOnRunMultipartRequest(
     personImage,
     garmentImage,
     productId,
+    catalogSource: parseOptionalEnum(
+      fields.get("catalogSource"),
+      SELFX_CATALOG_SOURCES,
+      "Invalid catalog source.",
+    ),
+    externalProductId: parseOptionalText(
+      fields.get("externalProductId"),
+      160,
+      "Invalid external product ID.",
+    ),
+    externalVariantId: parseOptionalText(
+      fields.get("externalVariantId"),
+      160,
+      "Invalid external variant ID.",
+    ),
+    sku: parseOptionalText(fields.get("sku"), 160, "Invalid SKU."),
+    productName: parseOptionalText(
+      fields.get("productName"),
+      240,
+      "Invalid product name.",
+    ),
+    price: parseOptionalPrice(fields.get("price")),
+    currency: parseOptionalCurrency(fields.get("currency")),
     garmentSource,
     garmentIntent: parseEnum(
       fields.get("garmentIntent") ?? fields.get("category") ?? "AUTO",
@@ -258,7 +304,8 @@ export async function parseKioskPersonMultipartRequest(
   options: KioskCaptureMultipartOptions = {},
 ): Promise<KioskSessionImagePayload> {
   if (!request.isMultipart()) {
-    const body = request.body as { customerUploadSessionId?: unknown } | undefined;
+    const body = request.body as
+      { customerUploadSessionId?: unknown } | undefined;
     if (typeof body?.customerUploadSessionId === "string") {
       return {
         customerUploadSessionId: parseOptionalUuid(
@@ -267,7 +314,9 @@ export async function parseKioskPersonMultipartRequest(
         ),
       };
     }
-    throwMultipartInvalid("Person image or customer upload session is required.");
+    throwMultipartInvalid(
+      "Person image or customer upload session is required.",
+    );
   }
 
   let personImage: KioskTryOnUploadedImage | undefined;
@@ -326,10 +375,14 @@ export async function parseKioskPersonMultipartRequest(
   }
 
   if (personImage && customerUploadSessionId) {
-    throwMultipartInvalid("Provide either a person image or a customer upload session.");
+    throwMultipartInvalid(
+      "Provide either a person image or a customer upload session.",
+    );
   }
   if (!personImage && !customerUploadSessionId) {
-    throwMultipartInvalid("Person image or customer upload session is required.");
+    throwMultipartInvalid(
+      "Person image or customer upload session is required.",
+    );
   }
   return { personImage, customerUploadSessionId };
 }
@@ -362,7 +415,9 @@ function validateImage(
   }
 }
 
-function parseOptionalClientRequestId(value: string | undefined): string | undefined {
+function parseOptionalClientRequestId(
+  value: string | undefined,
+): string | undefined {
   if (!value) {
     return undefined;
   }
@@ -373,7 +428,10 @@ function parseOptionalClientRequestId(value: string | undefined): string | undef
   return trimmed;
 }
 
-function parseOptionalUuid(value: string | undefined, message: string): string | undefined {
+function parseOptionalUuid(
+  value: string | undefined,
+  message: string,
+): string | undefined {
   if (!value) {
     return undefined;
   }
@@ -386,6 +444,51 @@ function parseOptionalUuid(value: string | undefined, message: string): string |
     throwResolutionMetadataInvalid(message);
   }
   return trimmed;
+}
+
+function parseOptionalText(
+  value: string | undefined,
+  maxLength: number,
+  message: string,
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (trimmed.length > maxLength) {
+    throwResolutionMetadataInvalid(message);
+  }
+  return trimmed;
+}
+
+function parseOptionalPrice(value: string | undefined): string | undefined {
+  const trimmed = parseOptionalText(value, 32, "Invalid product price.");
+  if (!trimmed) {
+    return undefined;
+  }
+  if (!/^\d{1,10}(?:\.\d{1,2})?$/.test(trimmed)) {
+    throwResolutionMetadataInvalid(
+      "Product price must be a positive decimal string with up to 2 decimal places.",
+    );
+  }
+  return trimmed;
+}
+
+function parseOptionalCurrency(value: string | undefined): string | undefined {
+  const trimmed = parseOptionalText(value, 3, "Invalid product currency.");
+  if (!trimmed) {
+    return undefined;
+  }
+  const normalized = trimmed.toUpperCase();
+  if (!/^[A-Z]{3}$/.test(normalized)) {
+    throwResolutionMetadataInvalid(
+      "Product currency must be a 3-letter ISO code.",
+    );
+  }
+  return normalized;
 }
 
 function parseEnum<const TValue extends readonly string[]>(
@@ -410,7 +513,9 @@ function parseOptionalEnum<const TValue extends readonly string[]>(
   return parseEnum(value, allowed, message);
 }
 
-function parseOptionalConfidence(value: string | undefined): number | undefined {
+function parseOptionalConfidence(
+  value: string | undefined,
+): number | undefined {
   if (!value) {
     return undefined;
   }

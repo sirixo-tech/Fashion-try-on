@@ -314,7 +314,7 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
       type: RuntimeKioskAssetType.bundledVideo,
       label: 'SelfX default video',
       bundledAssetKey: 'selfx-default-kiosk-video',
-      assetVideoPath: 'assets/videos/garment-selection-background.mp4',
+      assetVideoPath: 'assets/videos/selfx-default-kiosk-video.mp4',
       assetImagePath: 'assets/wallpapers/selfx-default-kiosk-wallpaper.png',
     ),
   ],
@@ -359,7 +359,7 @@ String? assetPathForBundledKey(String? key) {
 String? videoPathForBundledKey(String? key) {
   return switch (key) {
     'selfx-default-kiosk-video' =>
-      'assets/videos/garment-selection-background.mp4',
+      'assets/videos/selfx-default-kiosk-video.mp4',
     _ => null,
   };
 }

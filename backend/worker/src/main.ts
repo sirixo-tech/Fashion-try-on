@@ -7,7 +7,7 @@ import { WorkerModule } from "./worker.module.js";
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(WorkerModule);
 
-  console.log("SelfX worker placeholder started.");
+  console.log("SelfX worker application context started.");
 
   if (process.env.SELFX_WORKER_SELF_CHECK === "true") {
     await app.close();

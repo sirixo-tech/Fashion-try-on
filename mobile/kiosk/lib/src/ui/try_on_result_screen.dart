@@ -413,14 +413,11 @@ class _ResultImageCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: ColoredBox(
-            color: Colors.white,
-            child: GeneratedTryOnImage(src: imageSrc),
-          ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: ColoredBox(
+          color: Colors.white,
+          child: GeneratedTryOnImage(src: imageSrc),
         ),
       ),
     );

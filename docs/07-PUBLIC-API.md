@@ -18,6 +18,24 @@ All endpoints below are versioned under:
 /api/v1/public
 ```
 
+## OpenAPI Contract
+
+The Public API exposes a machine-readable OpenAPI contract for SDK generation,
+API client import and compatibility checks:
+
+```text
+/api/v1/public/openapi.json
+```
+
+Interactive Public API docs are available at:
+
+```text
+/api/v1/public/docs
+```
+
+These public docs include only external developer-facing Public API routes. The
+internal SelfX dashboard/admin API remains separate.
+
 ## Authentication
 
 Send the API key on every request using the preferred header:
@@ -34,6 +52,24 @@ Authorization: Bearer selfx_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 API keys are scoped and tied to one Store. A key can only access sessions, uploads, runs and usage for its Store.
+
+## Rate Limits
+
+SelfX applies rate limits per API key and per route category. These buckets are separate, so frequent status polling does not consume the Try-On creation limit.
+
+Default limits:
+
+| Category | Routes | Limit |
+| --- | --- | --- |
+| Identity | `GET /me` | `60/min`, `600/hour` |
+| Uploads | `POST /uploads` | `30/min`, `300/hour` |
+| Try-On create | `POST /try-ons` | `10/min`, `100/hour` |
+| Try-On status | `GET /try-ons/:runId` | `120/min`, `2000/hour` |
+| Downloads | `GET /try-ons/:runId/download` | `60/min`, `300/hour` |
+| Usage | `GET /usage` | `30/min`, `300/hour` |
+| Webhook management | `GET/POST/PATCH/DELETE /webhooks` | `30/min`, `300/hour` |
+
+When a key exceeds a bucket, SelfX returns `429 Too Many Requests` with `Retry-After` plus rate-limit headers such as `X-RateLimit-Bucket`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-RateLimit-Remaining-Minute` and `X-RateLimit-Remaining-Hour`.
 
 ## Scopes
 
@@ -160,7 +196,14 @@ curl -sS \
     "garmentIntent": "TOP",
     "category": "TOP",
     "garmentPhotoType": "FLAT_LAY",
-    "generationProfile": "BALANCED"
+    "generationProfile": "BALANCED",
+    "catalogSource": "SHOPIFY",
+    "externalProductId": "gid://shopify/Product/1001",
+    "externalVariantId": "gid://shopify/ProductVariant/2001",
+    "sku": "LINEN-BLUE-XL",
+    "productName": "Blue Linen Shirt",
+    "price": "2499.00",
+    "currency": "INR"
   }' \
   https://api.selfx.example/api/v1/public/try-ons
 ```
@@ -174,6 +217,15 @@ Example queued response:
   "sessionId": "0198a9b3-d0bc-7000-8000-000000000101",
   "personAssetId": "0198a9b3-d0bc-7000-8000-000000000201",
   "garmentAssetId": "0198a9b3-d0bc-7000-8000-000000000202",
+  "productReference": {
+    "catalogSource": "SHOPIFY",
+    "externalProductId": "gid://shopify/Product/1001",
+    "externalVariantId": "gid://shopify/ProductVariant/2001",
+    "sku": "LINEN-BLUE-XL",
+    "productName": "Blue Linen Shirt",
+    "price": "2499.00",
+    "currency": "INR"
+  },
   "createdAt": "2026-08-29T12:02:00.000Z",
   "updatedAt": "2026-08-29T12:02:00.000Z"
 }
@@ -188,6 +240,22 @@ Optional generation fields:
 | `garmentPhotoType` | `AUTO`, `FLAT_LAY`, `ON_MODEL` | `AUTO` |
 | `generationProfile` | `PERFORMANCE`, `BALANCED`, `QUALITY` | `BALANCED` |
 | `modelCoverage` | `UPPER_BODY`, `LOWER_BODY`, `FULL_BODY`, `UNKNOWN` | omitted |
+
+Optional product reference fields:
+
+| Field | Meaning |
+| --- | --- |
+| `catalogSource` | `SELFX_CATALOG`, `STORE_CATALOG`, `SHOPIFY`, `WOOCOMMERCE`, `CUSTOM_API` or `PUBLIC_API` |
+| `externalProductId` | Product identifier from the merchant's catalog system |
+| `externalVariantId` | Variant identifier from the merchant's catalog system |
+| `sku` | Merchant SKU |
+| `productName` | Display product name for support/reporting |
+| `price` | Display price as a decimal string with up to 2 decimal places |
+| `currency` | 3-letter currency code; SelfX stores it uppercase |
+
+These fields are metadata only. They help SelfX report usage, debug support
+cases and send useful webhook payloads without forcing the Store to use SelfX
+catalog IDs. The API key's Store scope remains the authorization boundary.
 
 ## 5. Poll Try-On Status
 
@@ -208,6 +276,15 @@ Example completed response:
   "sessionId": "0198a9b3-d0bc-7000-8000-000000000101",
   "personAssetId": "0198a9b3-d0bc-7000-8000-000000000201",
   "garmentAssetId": "0198a9b3-d0bc-7000-8000-000000000202",
+  "productReference": {
+    "catalogSource": "SHOPIFY",
+    "externalProductId": "gid://shopify/Product/1001",
+    "externalVariantId": "gid://shopify/ProductVariant/2001",
+    "sku": "LINEN-BLUE-XL",
+    "productName": "Blue Linen Shirt",
+    "price": "2499.00",
+    "currency": "INR"
+  },
   "createdAt": "2026-08-29T12:02:00.000Z",
   "updatedAt": "2026-08-29T12:02:18.000Z",
   "result": {
@@ -277,6 +354,40 @@ Example response:
       "completedRuns": 37,
       "failedRuns": 2
     }
+  ],
+  "catalogSourceUsage": [
+    {
+      "catalogSource": "SHOPIFY",
+      "runsCreated": 28,
+      "completedRuns": 25,
+      "failedRuns": 1,
+      "generatedLooks": 25,
+      "downloadsCompleted": 5
+    },
+    {
+      "catalogSource": "CUSTOM_API",
+      "runsCreated": 14,
+      "completedRuns": 12,
+      "failedRuns": 1,
+      "generatedLooks": 12,
+      "downloadsCompleted": 3
+    }
+  ],
+  "productUsage": [
+    {
+      "catalogSource": "SHOPIFY",
+      "externalProductId": "gid://shopify/Product/1001",
+      "externalVariantId": "gid://shopify/ProductVariant/2001",
+      "sku": "LINEN-BLUE-XL",
+      "productName": "Blue Linen Shirt",
+      "price": "2499.00",
+      "currency": "INR",
+      "runsCreated": 12,
+      "completedRuns": 11,
+      "failedRuns": 1,
+      "generatedLooks": 11,
+      "downloadsCompleted": 4
+    }
   ]
 }
 ```
@@ -289,6 +400,12 @@ Supported usage query parameters:
 | `from` | ISO timestamp, required for complete custom ranges |
 | `to` | ISO timestamp, required for complete custom ranges |
 | `limit` | 1 to 20 provider rows |
+| `catalogSource` | Optional source filter, such as `SHOPIFY`, `CUSTOM_API` or `STORE_CATALOG` |
+| `productQuery` | Optional product-name, SKU, external product ID or external variant ID search |
+
+The usage response includes catalog-source and product-reference rollups when
+Try-On runs carry product metadata. These are operational analytics only;
+pricing and invoicing remain separate.
 
 ## 7. Manage Webhooks
 
@@ -384,6 +501,15 @@ Example payload:
       "sessionId": "0198a9b3-d0bc-7000-8000-000000000101",
       "personAssetId": "0198a9b3-d0bc-7000-8000-000000000201",
       "garmentAssetId": "0198a9b3-d0bc-7000-8000-000000000202",
+      "productReference": {
+        "catalogSource": "SHOPIFY",
+        "externalProductId": "gid://shopify/Product/1001",
+        "externalVariantId": "gid://shopify/ProductVariant/2001",
+        "sku": "LINEN-BLUE-XL",
+        "productName": "Blue Linen Shirt",
+        "price": "2499.00",
+        "currency": "INR"
+      },
       "createdAt": "2026-08-29T12:02:00.000Z",
       "updatedAt": "2026-08-29T12:02:18.000Z",
       "result": {
@@ -415,6 +541,23 @@ selfx-timestamp + "." + raw_request_body
 ```
 
 The result must match the hex value after `v1=` in `selfx-signature`.
+
+Webhook delivery is retried by the SelfX worker when a merchant endpoint is
+temporarily unavailable or returns a non-2xx response. Retries resend the same
+event payload with the same `selfx-event-id`; they do not create another Try-On,
+call the AI provider again or create additional provider cost.
+
+Default retry behavior:
+
+| Setting | Default |
+| --- | --- |
+| `SELFX_WEBHOOK_RETRY_ENABLED` | `true` |
+| `SELFX_WEBHOOK_RETRY_INTERVAL_MS` | `60000` |
+| `SELFX_WEBHOOK_RETRY_MAX_ATTEMPTS` | `5` |
+| `SELFX_WEBHOOK_RETRY_BATCH_SIZE` | `25` |
+
+Receivers should treat `selfx-event-id` as the idempotency key and safely ignore
+duplicate events they have already processed.
 
 ## Result Downloads
 
@@ -458,6 +601,7 @@ Common error cases:
 | 401 | `PUBLIC_API_KEY_EXPIRED` | API key expired |
 | 403 | `PUBLIC_API_SCOPE_DENIED` | Key lacks the required scope |
 | 403 | `PUBLIC_API_STORE_INACTIVE` | Store is not active |
+| 429 | `PUBLIC_API_RATE_LIMIT_EXCEEDED` | API key exceeded the route-category rate limit |
 | 400 | `PUBLIC_API_UPLOAD_MULTIPART_INVALID` | Upload request shape is invalid |
 | 400 | `PUBLIC_API_UPLOAD_IMAGE_INVALID` | Image failed technical validation |
 | 400 | `PUBLIC_API_WEBHOOK_URL_INVALID` | Webhook URL is not a valid HTTPS URL |
@@ -498,7 +642,14 @@ curl -sS -X POST \
     \"garmentIntent\": \"TOP\",
     \"category\": \"TOP\",
     \"garmentPhotoType\": \"FLAT_LAY\",
-    \"generationProfile\": \"BALANCED\"
+    \"generationProfile\": \"BALANCED\",
+    \"catalogSource\": \"CUSTOM_API\",
+    \"externalProductId\": \"merchant-product-1001\",
+    \"externalVariantId\": \"blue-xl\",
+    \"sku\": \"LINEN-BLUE-XL\",
+    \"productName\": \"Blue Linen Shirt\",
+    \"price\": \"2499.00\",
+    \"currency\": \"INR\"
   }" \
   "$SELFX_API_BASE/api/v1/public/try-ons"
 
@@ -516,5 +667,5 @@ curl -sS -H "x-selfx-api-key: $SELFX_API_KEY" \
 ## Current Limitations
 
 - Public API usage reports operational counts only. Pricing, invoices and billing calculations are intentionally deferred.
-- Public API product/catalog references are not exposed yet; this first surface uses uploaded person and garment assets.
-- Webhook delivery records failed attempts and `nextRetryAt`, but an automatic retry worker is still deferred.
+- SelfX catalog lookup by Public API is not exposed yet. Public API Try-On creation uses uploaded person and garment assets plus optional product reference metadata.
+- Webhook retries require the SelfX worker process to be running.

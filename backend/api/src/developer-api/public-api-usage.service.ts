@@ -9,6 +9,11 @@ import {
   type PublicApiUsageResponseDto,
 } from "./dto/public-api-usage.dto.js";
 import { type PublicApiCredentialContext } from "./public-api-key-auth.service.js";
+import {
+  buildPublicApiUsageReferenceRollups,
+  type PublicApiUsageDownloadGroup,
+  type PublicApiUsageReferenceRun,
+} from "./public-api-usage-rollups.js";
 
 type PublicApiUsageRangePreset = NonNullable<PublicApiUsageQueryDto["range"]>;
 
@@ -28,7 +33,7 @@ export class PublicApiUsageService {
   ): Promise<PublicApiUsageResponseDto> {
     const range = resolveRange(input);
     const limit = input.limit ?? 10;
-    const baseWhere = publicRunWhere(credential, range);
+    const baseWhere = publicRunWhere(credential, range, input);
 
     const [
       runsCreated,
@@ -39,6 +44,7 @@ export class PublicApiUsageService {
       generatedLooks,
       downloadsCompleted,
       providerUsage,
+      referenceRuns,
     ] = await Promise.all([
       this.countRuns(baseWhere),
       this.countRuns({ ...baseWhere, status: "QUEUED" }),
@@ -48,7 +54,22 @@ export class PublicApiUsageService {
       this.countRuns({ ...baseWhere, resultAssetId: { not: null } }),
       this.countDownloads(credential, range),
       this.providerUsage(baseWhere, limit),
+      this.referenceRuns(baseWhere),
     ]);
+    const referenceDownloads = await this.referenceDownloads(
+      credential,
+      range,
+      referenceRuns.map((run) => run.id),
+    );
+    const { catalogSourceUsage, productUsage } =
+      buildPublicApiUsageReferenceRollups(
+        referenceRuns,
+        referenceDownloads,
+        limit,
+      );
+    const filteredDownloadsCompleted = hasReferenceFilters(input)
+      ? sumDownloadGroups(referenceDownloads)
+      : downloadsCompleted;
 
     return {
       range: {
@@ -68,9 +89,11 @@ export class PublicApiUsageService {
         completedRuns,
         failedRuns,
         generatedLooks,
-        downloadsCompleted,
+        downloadsCompleted: filteredDownloadsCompleted,
       },
       providerUsage,
+      catalogSourceUsage,
+      productUsage,
     };
   }
 
@@ -92,33 +115,115 @@ export class PublicApiUsageService {
     return foldProviderUsage(rows).slice(0, limit);
   }
 
+  private async referenceRuns(
+    baseWhere: Prisma.KioskTryOnRunWhereInput,
+  ): Promise<PublicApiUsageReferenceRun[]> {
+    return this.prisma.kioskTryOnRun.findMany({
+      where: baseWhere,
+      select: {
+        id: true,
+        productId: true,
+        status: true,
+        resultAssetId: true,
+        catalogSource: true,
+        externalProductId: true,
+        externalVariantId: true,
+        externalSku: true,
+        externalProductName: true,
+        externalProductPrice: true,
+        externalCurrency: true,
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+  }
+
   private async countDownloads(
     credential: PublicApiCredentialContext,
     range: ResolvedPublicApiUsageRange,
   ): Promise<number> {
     const result = await this.prisma.usageEvent.aggregate({
-      where: {
-        channel: "PUBLIC_API",
-        apiKeyId: credential.apiKeyId,
-        organizationId: credential.storeId,
-        eventName: PUBLIC_API_USAGE_EVENTS.downloadCompleted,
-        occurredAt: { gte: range.from, lte: range.to },
-      },
+      where: publicDownloadWhere(credential, range),
       _sum: { quantity: true },
     });
     return result._sum.quantity ?? 0;
+  }
+
+  private async referenceDownloads(
+    credential: PublicApiCredentialContext,
+    range: ResolvedPublicApiUsageRange,
+    runIds: string[],
+  ): Promise<PublicApiUsageDownloadGroup[]> {
+    if (runIds.length === 0) {
+      return [];
+    }
+    const rows = await this.prisma.usageEvent.groupBy({
+      by: ["kioskTryOnRunId"],
+      where: {
+        ...publicDownloadWhere(credential, range),
+        kioskTryOnRunId: { in: runIds },
+      },
+      _sum: { quantity: true },
+    });
+    return rows.map((row) => ({
+      kioskTryOnRunId: row.kioskTryOnRunId,
+      _sum: { quantity: row._sum.quantity ?? 0 },
+    }));
   }
 }
 
 function publicRunWhere(
   credential: PublicApiCredentialContext,
   range: ResolvedPublicApiUsageRange,
+  input: PublicApiUsageQueryDto,
 ): Prisma.KioskTryOnRunWhereInput {
-  return {
+  const where: Prisma.KioskTryOnRunWhereInput = {
     apiKeyId: credential.apiKeyId,
     organizationId: credential.storeId,
     createdAt: { gte: range.from, lte: range.to },
   };
+  applyProductFilters(where, input);
+  return where;
+}
+
+function publicDownloadWhere(
+  credential: PublicApiCredentialContext,
+  range: ResolvedPublicApiUsageRange,
+): Prisma.UsageEventWhereInput {
+  return {
+    channel: "PUBLIC_API",
+    apiKeyId: credential.apiKeyId,
+    organizationId: credential.storeId,
+    eventName: PUBLIC_API_USAGE_EVENTS.downloadCompleted,
+    occurredAt: { gte: range.from, lte: range.to },
+  };
+}
+
+function applyProductFilters(
+  where: Prisma.KioskTryOnRunWhereInput,
+  input: Pick<PublicApiUsageQueryDto, "catalogSource" | "productQuery">,
+): void {
+  if (input.catalogSource) {
+    where.catalogSource = input.catalogSource;
+  }
+  const productQuery = input.productQuery?.trim();
+  if (productQuery) {
+    where.OR = [
+      { externalProductId: { contains: productQuery, mode: "insensitive" } },
+      { externalVariantId: { contains: productQuery, mode: "insensitive" } },
+      { externalSku: { contains: productQuery, mode: "insensitive" } },
+      { externalProductName: { contains: productQuery, mode: "insensitive" } },
+    ];
+  }
+}
+
+function hasReferenceFilters(
+  input: Pick<PublicApiUsageQueryDto, "catalogSource" | "productQuery">,
+): boolean {
+  return Boolean(input.catalogSource || input.productQuery?.trim());
+}
+
+function sumDownloadGroups(rows: PublicApiUsageDownloadGroup[]): number {
+  return rows.reduce((sum, row) => sum + (row._sum.quantity ?? 0), 0);
 }
 
 function resolveRange(

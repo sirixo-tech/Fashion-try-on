@@ -6,7 +6,6 @@ import {
   FastifyAdapter,
   type NestFastifyApplication,
 } from "@nestjs/platform-fastify";
-import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import fastifyCookie from "@fastify/cookie";
 import fastifyCors from "@fastify/cors";
 import fastifyMultipart from "@fastify/multipart";
@@ -18,6 +17,7 @@ import { ApiErrorException } from "./common/api-error.exception.js";
 import { PrismaExceptionFilter } from "./common/prisma-exception.filter.js";
 import { loadApiServerConfig } from "./config/api-server.config.js";
 import { loadSelfxEnv } from "./config/load-env.js";
+import { setupOpenApiDocs } from "./openapi.js";
 import { TRY_ON_LAB_MULTIPART_LIMITS } from "./try-on-lab/try-on-lab.constants.js";
 
 loadSelfxEnv();
@@ -54,14 +54,7 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new PrismaExceptionFilter());
 
-  const openApiConfig = new DocumentBuilder()
-    .setTitle("SelfX API")
-    .setDescription("SelfX Virtual Try-On API")
-    .setVersion("1.0")
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, openApiConfig);
-  SwaggerModule.setup("api/docs", app, document);
+  setupOpenApiDocs(app);
 
   await app.listen(serverConfig.port, "0.0.0.0");
 

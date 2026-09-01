@@ -1,12 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
+import {
+  IsIn,
+  IsNumberString,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+} from "class-validator";
 
 import {
+  SELFX_CATALOG_SOURCES,
   SELFX_GARMENT_CATEGORIES,
   SELFX_GARMENT_INTENTS,
   SELFX_GARMENT_PHOTO_TYPES,
   SELFX_GENERATION_PROFILES,
   SELFX_MODEL_COVERAGES,
+  type SelfxCatalogSource,
   type SelfxGarmentCategory,
   type SelfxGarmentIntent,
   type SelfxGarmentPhotoType,
@@ -67,6 +77,79 @@ export class CreatePublicApiTryOnDto {
   @IsOptional()
   @IsIn(SELFX_MODEL_COVERAGES)
   modelCoverage?: SelfxModelCoverage;
+
+  @ApiPropertyOptional({
+    enum: SELFX_CATALOG_SOURCES,
+    example: "SHOPIFY",
+    description:
+      "Optional source of the product reference. This is metadata only and is not used for authorization.",
+  })
+  @IsOptional()
+  @IsIn(SELFX_CATALOG_SOURCES)
+  catalogSource?: SelfxCatalogSource;
+
+  @ApiPropertyOptional({ example: "shopify-product-123" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  externalProductId?: string;
+
+  @ApiPropertyOptional({ example: "variant-blue-xl" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  externalVariantId?: string;
+
+  @ApiPropertyOptional({ example: "LINEN-BLUE-XL" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  sku?: string;
+
+  @ApiPropertyOptional({ example: "Blue Linen Shirt" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  productName?: string;
+
+  @ApiPropertyOptional({
+    example: "2499.00",
+    description:
+      "Optional display price supplied by the external catalog. Send as a decimal string.",
+  })
+  @IsOptional()
+  @IsNumberString()
+  @MaxLength(32)
+  price?: string;
+
+  @ApiPropertyOptional({ example: "INR" })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]{3}$/)
+  currency?: string;
+}
+
+export class PublicApiTryOnProductReferenceDto {
+  @ApiPropertyOptional({ enum: SELFX_CATALOG_SOURCES, example: "SHOPIFY" })
+  catalogSource?: SelfxCatalogSource;
+
+  @ApiPropertyOptional({ example: "shopify-product-123" })
+  externalProductId?: string;
+
+  @ApiPropertyOptional({ example: "variant-blue-xl" })
+  externalVariantId?: string;
+
+  @ApiPropertyOptional({ example: "LINEN-BLUE-XL" })
+  sku?: string;
+
+  @ApiPropertyOptional({ example: "Blue Linen Shirt" })
+  productName?: string;
+
+  @ApiPropertyOptional({ example: "2499.00" })
+  price?: string;
+
+  @ApiPropertyOptional({ example: "INR" })
+  currency?: string;
 }
 
 export class PublicApiTryOnResultDto {
@@ -113,6 +196,9 @@ export class PublicApiTryOnRunResponseDto {
 
   @ApiPropertyOptional({ example: "0198a9b3-d0bc-7000-8000-000000000202" })
   garmentAssetId?: string;
+
+  @ApiPropertyOptional({ type: PublicApiTryOnProductReferenceDto })
+  productReference?: PublicApiTryOnProductReferenceDto;
 
   @ApiProperty({ example: "2026-08-29T12:02:00.000Z" })
   createdAt!: string;

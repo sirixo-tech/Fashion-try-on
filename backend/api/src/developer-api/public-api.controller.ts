@@ -14,16 +14,19 @@ import {
 import {
   ApiBody,
   ApiConsumes,
+  ApiCreatedResponse,
   ApiHeader,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiSecurity,
   ApiTags,
 } from "@nestjs/swagger";
 import { type FastifyReply, type FastifyRequest } from "fastify";
 
 import {
   PublicApiCredential,
+  PublicApiRateLimit,
   RequirePublicApiScopes,
 } from "./public-api-key.decorators.js";
 import { type PublicApiCredentialContext } from "./public-api-key-auth.service.js";
@@ -54,6 +57,7 @@ import { PublicApiWebhookService } from "./public-api-webhook.service.js";
 import { parsePublicApiUploadMultipartRequest } from "./public-api-upload.multipart.js";
 
 @ApiTags("Public API")
+@ApiSecurity("SelfXApiKey")
 @Controller("api/v1/public")
 export class PublicApiController {
   constructor(
@@ -65,6 +69,7 @@ export class PublicApiController {
 
   @Get("me")
   @RequirePublicApiScopes()
+  @PublicApiRateLimit("identity")
   @ApiOperation({
     summary: "Inspect the current Public API credential",
     description:
@@ -95,6 +100,7 @@ export class PublicApiController {
 
   @Post("uploads")
   @RequirePublicApiScopes("tryon:create")
+  @PublicApiRateLimit("upload")
   @ApiOperation({
     summary: "Upload a person or garment image for a Public API Try-On session",
     description:
@@ -108,7 +114,7 @@ export class PublicApiController {
   })
   @ApiConsumes("multipart/form-data")
   @ApiBody({ type: PublicApiUploadRequestDto })
-  @ApiOkResponse({ type: PublicApiUploadResponseDto })
+  @ApiCreatedResponse({ type: PublicApiUploadResponseDto })
   async upload(
     @Req() request: FastifyRequest,
     @PublicApiCredential() credential: PublicApiCredentialContext,
@@ -119,6 +125,7 @@ export class PublicApiController {
 
   @Post("try-ons")
   @RequirePublicApiScopes("tryon:create")
+  @PublicApiRateLimit("try_on_create")
   @ApiOperation({
     summary: "Create a Public API Try-On run",
     description:
@@ -144,11 +151,18 @@ export class PublicApiController {
           category: "TOP",
           garmentPhotoType: "FLAT_LAY",
           generationProfile: "BALANCED",
+          catalogSource: "SHOPIFY",
+          externalProductId: "gid://shopify/Product/1001",
+          externalVariantId: "gid://shopify/ProductVariant/2001",
+          sku: "LINEN-BLUE-XL",
+          productName: "Blue Linen Shirt",
+          price: "2499.00",
+          currency: "INR",
         },
       },
     },
   })
-  @ApiOkResponse({ type: PublicApiTryOnRunResponseDto })
+  @ApiCreatedResponse({ type: PublicApiTryOnRunResponseDto })
   async createTryOn(
     @Body() body: CreatePublicApiTryOnDto,
     @PublicApiCredential() credential: PublicApiCredentialContext,
@@ -158,10 +172,11 @@ export class PublicApiController {
 
   @Get("try-ons/:runId")
   @RequirePublicApiScopes("tryon:read")
+  @PublicApiRateLimit("try_on_read")
   @ApiOperation({
     summary: "Get a Public API Try-On run status",
     description:
-      "Requires tryon:read. Poll until the run is COMPLETED or FAILED. Completed runs return a short-lived SelfX signed read URL.",
+      "Requires tryon:read. Poll until the run is COMPLETED or FAILED. Completed runs return a SelfX result download URL.",
   })
   @ApiHeader({
     name: "x-selfx-api-key",
@@ -179,6 +194,7 @@ export class PublicApiController {
 
   @Get("try-ons/:runId/download")
   @RequirePublicApiScopes("tryon:read")
+  @PublicApiRateLimit("download")
   @ApiOperation({
     summary: "Download a completed Public API Try-On result",
     description:
@@ -208,6 +224,7 @@ export class PublicApiController {
 
   @Get("usage")
   @RequirePublicApiScopes("usage:read")
+  @PublicApiRateLimit("usage")
   @ApiOperation({
     summary: "Read Public API usage for the current API key",
     description:
@@ -229,6 +246,7 @@ export class PublicApiController {
 
   @Get("webhooks")
   @RequirePublicApiScopes("webhooks:manage")
+  @PublicApiRateLimit("webhook_manage")
   @ApiOperation({
     summary: "List Public API webhook endpoints",
     description:
@@ -249,6 +267,7 @@ export class PublicApiController {
 
   @Post("webhooks")
   @RequirePublicApiScopes("webhooks:manage")
+  @PublicApiRateLimit("webhook_manage")
   @ApiOperation({
     summary: "Create a Public API webhook endpoint",
     description:
@@ -272,7 +291,7 @@ export class PublicApiController {
       },
     },
   })
-  @ApiOkResponse({ type: CreatePublicApiWebhookEndpointResponseDto })
+  @ApiCreatedResponse({ type: CreatePublicApiWebhookEndpointResponseDto })
   async createWebhook(
     @Body() body: CreatePublicApiWebhookEndpointDto,
     @PublicApiCredential() credential: PublicApiCredentialContext,
@@ -282,6 +301,7 @@ export class PublicApiController {
 
   @Patch("webhooks/:endpointId")
   @RequirePublicApiScopes("webhooks:manage")
+  @PublicApiRateLimit("webhook_manage")
   @ApiOperation({
     summary: "Update a Public API webhook endpoint",
     description:
@@ -305,6 +325,7 @@ export class PublicApiController {
   @Delete("webhooks/:endpointId")
   @HttpCode(204)
   @RequirePublicApiScopes("webhooks:manage")
+  @PublicApiRateLimit("webhook_manage")
   @ApiOperation({
     summary: "Disable a Public API webhook endpoint",
     description:

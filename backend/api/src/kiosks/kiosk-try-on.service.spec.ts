@@ -32,6 +32,40 @@ describe("KIOSK-4B production Try-On service", () => {
     restore();
   });
 
+  it("records store catalog reference metadata for Store-owned kiosk runs", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const service = new KioskTryOnService(prisma as never, execution as never);
+
+    await service.createRun(
+      storeDevice("device-1", "store-1"),
+      payload({
+        productId: "0198a9b3-d0bc-7000-8000-000000000701",
+        catalogSource: "SHOPIFY",
+        externalProductId: "shopify-product-1",
+        externalVariantId: "variant-blue-xl",
+        sku: "LINEN-BLUE-XL",
+        productName: "Blue Linen Shirt",
+        price: "2499.00",
+        currency: "inr",
+      }),
+    );
+
+    expect(prisma.createdRuns[0]).toMatchObject({
+      assignmentScope: KioskAssignmentScope.ORGANIZATION,
+      organizationId: "store-1",
+      storeId: null,
+      productId: "0198a9b3-d0bc-7000-8000-000000000701",
+      catalogSource: "SHOPIFY",
+      externalProductId: "shopify-product-1",
+      externalVariantId: "variant-blue-xl",
+      externalSku: "LINEN-BLUE-XL",
+      externalProductName: "Blue Linen Shirt",
+      externalProductPrice: "2499.00",
+      externalCurrency: "INR",
+    });
+  });
+
   it("returns the existing run for the same device and clientRequestId", async () => {
     const prisma = new FakePrisma();
     const execution = new FakeExecution();
@@ -227,6 +261,15 @@ function platformDevice(id: string) {
   };
 }
 
+function storeDevice(id: string, organizationId: string) {
+  return {
+    id,
+    assignmentScope: KioskAssignmentScope.ORGANIZATION,
+    organizationId,
+    storeId: null,
+  };
+}
+
 function setLabEnabled(enabled: boolean): () => void {
   const previous = process.env.TRYON_LAB_ENABLED;
   process.env.TRYON_LAB_ENABLED = enabled ? "true" : "false";
@@ -351,6 +394,16 @@ interface CreateRunData {
   assignmentScope: KioskAssignmentScope;
   organizationId: string | null;
   storeId: string | null;
+  personAssetId?: string;
+  garmentAssetId?: string;
+  productId?: string | null;
+  catalogSource?: string | null;
+  externalProductId?: string | null;
+  externalVariantId?: string | null;
+  externalSku?: string | null;
+  externalProductName?: string | null;
+  externalProductPrice?: string | null;
+  externalCurrency?: string | null;
   provider: string;
   providerDisplayName: string;
   providerModel: string;

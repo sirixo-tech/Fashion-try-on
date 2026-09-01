@@ -54,7 +54,7 @@ const fallbackIdleAsset = KioskIdleAsset(
   id: 'selfx-fallback',
   label: 'SelfX default video',
   colors: [Color(0xFF102A43), Color(0xFF0F766E), Color(0xFFBAE6FD)],
-  assetVideoPath: 'assets/videos/garment-selection-background.mp4',
+  assetVideoPath: 'assets/videos/selfx-default-kiosk-video.mp4',
   assetImagePath: 'assets/wallpapers/selfx-default-kiosk-wallpaper.png',
 );
 

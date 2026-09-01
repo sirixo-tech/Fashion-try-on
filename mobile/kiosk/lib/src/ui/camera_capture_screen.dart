@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
@@ -17,7 +19,6 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'garment_review_screen.dart';
 import 'responsive_kiosk_layout.dart';
-import 'selfx_kiosk_button.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -47,6 +48,7 @@ class CameraCaptureScreen extends StatefulWidget {
 class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   bool _starting = true;
   bool _switchingCamera = false;
+  bool _handlingBack = false;
   String? _reviewCapturePath;
 
   @override
@@ -77,72 +79,119 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: AnimatedBuilder(
-        animation: Listenable.merge([
-          widget.controller,
-          widget.controller.cameraService.state,
-        ]),
-        builder: (context, _) {
-          final cameraState = widget.controller.cameraService.state.value;
-          final flowState = widget.controller.flowState;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              _PreviewPanel(
-                starting: _starting,
-                state: cameraState,
-                preview: widget.controller.cameraService.buildPreview(context),
-                onRetry: _start,
-              ),
-              if (_showFramingGuide(cameraState, flowState))
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CaptureFramingGuideOverlay(
-                      purpose: widget.purpose,
-                      captureScope: widget.controller.captureScope,
-                    ),
-                  ),
-                ),
-              if (flowState.stage == CaptureFlowStage.countdown &&
-                  flowState.secondsRemaining != null)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CaptureCountdownOverlay(
-                      secondsRemaining: flowState.secondsRemaining!,
-                      guidance: flowState.guidance.message,
-                      progress: flowState.countdownProgress,
-                    ),
-                  ),
-                ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: CaptureGuidancePanel(
+    final returnsToAcceptedPersonReview =
+        widget.purpose == PhotoAcquisitionPurpose.garment &&
+        widget.controller.activeAcceptedPersonPhoto != null;
+    return PopScope<void>(
+      canPop: !returnsToAcceptedPersonReview,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && returnsToAcceptedPersonReview) {
+          unawaited(_returnToAcceptedPersonReview());
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: AnimatedBuilder(
+          animation: Listenable.merge([
+            widget.controller,
+            widget.controller.cameraService.state,
+          ]),
+          builder: (context, _) {
+            final cameraState = widget.controller.cameraService.state.value;
+            final flowState = widget.controller.flowState;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                _PreviewPanel(
+                  starting: _starting,
                   state: cameraState,
-                  flowState: flowState,
-                  readinessResult: widget.controller.readinessResult,
-                  onBack: () => Navigator.of(context).pop(),
-                  onCapture: _capture,
-                  onCancelCountdown: widget.controller.cancelCountdown,
-                  onCaptureAnyway: widget.controller.captureAnyway,
-                  canFlipCamera:
-                      widget.purpose == PhotoAcquisitionPurpose.model &&
-                      widget.controller.canFlipCamera,
-                  onFlipCamera:
-                      widget.purpose == PhotoAcquisitionPurpose.model &&
-                          cameraState.status == CameraStatus.ready &&
-                          flowState.stage == CaptureFlowStage.preview &&
-                          !_switchingCamera
-                      ? _flipCamera
-                      : null,
+                  preview: widget.controller.cameraService.buildPreview(
+                    context,
+                  ),
+                  onRetry: _start,
                 ),
-              ),
-            ],
-          );
-        },
+                if (_showFramingGuide(cameraState, flowState))
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CaptureFramingGuideOverlay(
+                        purpose: widget.purpose,
+                        captureScope: widget.controller.captureScope,
+                      ),
+                    ),
+                  ),
+                if (flowState.stage == CaptureFlowStage.countdown &&
+                    flowState.secondsRemaining != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CaptureCountdownOverlay(
+                        secondsRemaining: flowState.secondsRemaining!,
+                        guidance: flowState.guidance.message,
+                        progress: flowState.countdownProgress,
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: CaptureGuidancePanel(
+                    state: cameraState,
+                    flowState: flowState,
+                    readinessResult: widget.controller.readinessResult,
+                    onBack: () => unawaited(_handleBack()),
+                    onCapture: _capture,
+                    onCancelCountdown: widget.controller.cancelCountdown,
+                    onCaptureAnyway: widget.controller.captureAnyway,
+                    canFlipCamera:
+                        widget.purpose == PhotoAcquisitionPurpose.model &&
+                        widget.controller.canFlipCamera,
+                    onFlipCamera:
+                        widget.purpose == PhotoAcquisitionPurpose.model &&
+                            cameraState.status == CameraStatus.ready &&
+                            flowState.stage == CaptureFlowStage.preview &&
+                            !_switchingCamera
+                        ? _flipCamera
+                        : null,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleBack() async {
+    if (widget.purpose == PhotoAcquisitionPurpose.garment &&
+        widget.controller.activeAcceptedPersonPhoto != null) {
+      await _returnToAcceptedPersonReview();
+      return;
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _returnToAcceptedPersonReview() async {
+    if (_handlingBack) {
+      return;
+    }
+    _handlingBack = true;
+    await widget.controller.discardPendingCapture();
+    widget.controller.selectCapturePurpose(PhotoAcquisitionPurpose.model);
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => CaptureReviewScreen(
+          controller: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+        ),
       ),
     );
   }
@@ -834,6 +883,7 @@ class _CaptureControls extends StatelessWidget {
                         key: const Key('camera-back'),
                         label: leftLabel,
                         icon: leftIcon,
+                        iconColor: const Color(0xFF2384D6),
                         dimension: railSize,
                         onPressed: leftAction,
                       ),
@@ -858,6 +908,7 @@ class _CaptureControls extends StatelessWidget {
                         key: const Key('flip-person-camera'),
                         label: 'Flip',
                         icon: Icons.cameraswitch_outlined,
+                        iconColor: SelfxKioskTokens.secondary,
                         dimension: railSize,
                         onPressed: canFlipCamera ? onFlipCamera : null,
                       ),
@@ -1148,39 +1199,125 @@ class _CameraRailButton extends StatelessWidget {
     super.key,
     required this.label,
     required this.icon,
+    required this.iconColor,
     required this.dimension,
     required this.onPressed,
   });
 
   final String label;
   final IconData icon;
+  final Color iconColor;
   final double dimension;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final radius = BorderRadius.circular(_cameraControlButtonRadius);
+    final foreground = enabled
+        ? SelfxKioskTokens.primaryHover
+        : SelfxKioskTokens.textMuted;
+    final effectiveIconColor = enabled ? iconColor : SelfxKioskTokens.textMuted;
+    final iconSize = dimension * 0.66;
+
     return Tooltip(
       message: label,
       child: SizedBox(
-        height: dimension,
         width: dimension * 2.35,
-        child: SelfxKioskButton(
-          label: label,
-          onPressed: onPressed,
-          icon: icon,
-          variant: SelfxKioskButtonVariant.secondary,
-          minHeight: dimension,
-          borderRadius: _cameraControlButtonRadius,
-          textAlign: TextAlign.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          padding: EdgeInsets.symmetric(horizontal: dimension * 0.22),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: enabled
+                    ? const Color(0xFFFFFCF8).withValues(alpha: 0.94)
+                    : const Color(0xFFFFF7F0).withValues(alpha: 0.82),
+                borderRadius: radius,
+                border: Border.all(
+                  color: enabled
+                      ? effectiveIconColor.withValues(alpha: 0.34)
+                      : SelfxKioskTokens.border,
+                ),
+                boxShadow: enabled
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x1A0F172A),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ]
+                    : const [
+                        BoxShadow(
+                          color: Color(0x0F0F172A),
+                          blurRadius: 12,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: dimension),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: dimension * 0.16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: iconSize,
+                        height: iconSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: enabled
+                              ? effectiveIconColor
+                              : effectiveIconColor.withValues(alpha: 0.14),
+                          boxShadow: enabled
+                              ? [
+                                  BoxShadow(
+                                    color: effectiveIconColor.withValues(
+                                      alpha: 0.24,
+                                    ),
+                                    blurRadius: 13,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Icon(
+                          icon,
+                          color: enabled ? Colors.white : effectiveIconColor,
+                          size: iconSize * 0.52,
+                        ),
+                      ),
+                      SizedBox(width: dimension * 0.14),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: foreground,
+                                fontWeight: FontWeight.w900,
+                                height: 1.05,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-const _cameraControlButtonRadius = 999.0;
+const _cameraControlButtonRadius = 26.0;
 
 IconData _captureIconFor(CaptureFlowStage stage, bool canCaptureAnyway) {
   return switch (stage) {

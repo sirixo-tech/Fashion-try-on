@@ -132,7 +132,7 @@ void main() {
           version: 4,
           assets: [
             _bundledAssetJson(
-              assetVideoPath: 'assets/videos/garment-selection-background.mp4',
+              assetVideoPath: 'assets/videos/selfx-default-kiosk-video.mp4',
             ),
           ],
         ),
@@ -144,10 +144,7 @@ void main() {
 
     final asset = harness.controller.configuration.assets.single;
     expect(asset.type, RuntimeKioskAssetType.bundledVideo);
-    expect(
-      asset.assetVideoPath,
-      'assets/videos/garment-selection-background.mp4',
-    );
+    expect(asset.assetVideoPath, 'assets/videos/selfx-default-kiosk-video.mp4');
     expect(asset.assetImagePath, isNull);
   });
 
