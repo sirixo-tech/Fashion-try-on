@@ -55,6 +55,8 @@ export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Progress } from "./components/progress";
 export { Separator } from "./components/separator";
+export { SelectMenu } from "./components/select-menu";
+export type { SelectMenuOption } from "./components/select-menu";
 export {
   Sheet,
   SheetClose,

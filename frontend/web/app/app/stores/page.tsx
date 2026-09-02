@@ -24,6 +24,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
+  SelectMenu,
   StatusBadge,
   Table,
   TableBody,
@@ -160,20 +161,19 @@ export default function StoresPage() {
             </label>
             <label className="space-y-2 text-sm">
               <span className="font-medium">Status</span>
-              <select
-                className="h-10 min-w-40 rounded-md border bg-background px-3 text-sm"
+              <SelectMenu
+                ariaLabel="Status"
                 value={status}
-                onChange={(event) => {
+                options={statusOptions.map((option) => ({
+                  value: option,
+                  label: option === "ALL" ? "All Stores" : option,
+                }))}
+                className="min-w-40"
+                onChange={(value) => {
                   setPage(1);
-                  setStatus(event.target.value as StoreStatus | "ALL");
+                  setStatus(value);
                 }}
-              >
-                {statusOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "ALL" ? "All Stores" : option}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
           </div>
 

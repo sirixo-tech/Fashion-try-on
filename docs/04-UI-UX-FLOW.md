@@ -950,6 +950,16 @@ Recommended tabs:
 
 # 10. Staff Management
 
+The `/app/staff` workspace is hierarchical:
+
+- SelfX Platform users with Platform staff permissions may view Platform staff
+  and, when authorized, assign non-protected Platform roles.
+- Platform users with Store user permissions may select a Store and manage that
+  Store's staff according to Store-scoped permissions.
+- Store users see only their permitted Store scope and must not see staff from
+  other Stores.
+- Store staff actions must use Store roles from the selected Store only.
+
 ## 10.1 Staff List
 
 ### Elements
@@ -1212,6 +1222,15 @@ Raw provider credentials and sensitive customer data must never appear.
 - kiosk utilization
 - usage against allowance
 
+The Analytics screen must be hierarchical:
+
+- SelfX platform users with usage visibility see platform totals, store-wise
+  usage, channel split, provider health and kiosk activity.
+- Store users with analytics visibility see only their Store scope, including
+  product usage, category usage, kiosk activity and channel split.
+- Kiosk analytics must show operational counts and product references only, not
+  customer source images or generated image assets.
+
 SelfX Super Admin may additionally see:
 
 - provider distribution
@@ -1399,6 +1418,11 @@ Actions appear only with explicit platform permissions:
 ---
 
 # 19. SelfX Platform Dashboard
+
+The `/app/dashboard` workspace must resolve the current RBAC scope before
+loading data. Platform roles may see platform-wide usage and Store summaries
+only when they hold the required Platform permissions. Store roles see only
+their selected Store's permitted staff, product, kiosk and usage snapshots.
 
 Recommended high-level widgets:
 

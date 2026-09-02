@@ -1737,6 +1737,10 @@ Data visibility must follow access scope.
 
 Platform-wide visibility.
 
+Platform roles with the appropriate usage/analytics permission may see
+platform-wide totals and store-wise breakdowns, but must not receive raw
+customer images through analytics.
+
 ### Organization
 
 Organization-level and permitted store data.
@@ -1744,6 +1748,21 @@ Organization-level and permitted store data.
 ### Store
 
 Permitted store data only.
+
+Store analytics should prioritize product-specific, category-specific, kiosk and
+channel usage for that Store.
+
+Kiosk analytics are count-based because kiosk customers are unauthenticated.
+SelfX may store session counts, generated-look counts, download counts, run
+status, provider/model usage and product references, but kiosk customer source
+photos, physical-session garment captures and generated assets must follow the
+approved temporary retention rules rather than becoming permanent analytics
+assets.
+
+The Staff and Dashboard workspaces must be hierarchical. SelfX Platform roles
+may see platform-wide staff, Store staff or dashboard summaries only through
+explicit Platform permissions. Store users may see only the staff, products,
+kiosks and usage data permitted inside their own Store scope.
 
 ---
 
@@ -1807,6 +1826,14 @@ permissions, not from a client-supplied product reference.
 Platform-owned demo kiosks may use the SelfX catalog. Store-owned kiosks may
 use the Store's own catalog system and should pass product reference metadata
 when available.
+
+Developer API administration must follow the same Store tenant boundary as
+analytics. Store users may view or manage only API keys, API usage, webhook
+endpoints, webhook deliveries and Try-On runs that belong to Stores where they
+hold the required Store permission. Platform roles may view or manage
+cross-Store Developer API resources only through explicit platform permissions.
+If a request combines filters from different Stores, SelfX must reject the
+request instead of silently mixing scopes.
 
 ---
 

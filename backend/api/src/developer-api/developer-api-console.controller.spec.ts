@@ -52,6 +52,60 @@ describe("DeveloperApiConsoleController", () => {
     );
   });
 
+  it("rejects usage when apiKeyId and storeId point to different Stores", async () => {
+    const consoleService = {
+      usageSummary: vi.fn(),
+    };
+    const controller = new DeveloperApiConsoleController(
+      auth(),
+      platformAuthorization(false) as never,
+      rbac() as never,
+      apiKeys() as never,
+      consoleService as never,
+      webhooks() as never,
+    );
+
+    await expect(
+      controller.usage(request(), { apiKeyId: "key-1", storeId: "store-b" }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: "DEVELOPER_API_SCOPE_MISMATCH",
+        }),
+      }),
+    });
+    expect(consoleService.usageSummary).not.toHaveBeenCalled();
+  });
+
+  it("rejects another Store's API-key usage for Store users", async () => {
+    const storeRbac = rbacReject();
+    const consoleService = {
+      usageSummary: vi.fn(),
+    };
+    const controller = new DeveloperApiConsoleController(
+      auth(),
+      platformAuthorization(false) as never,
+      storeRbac as never,
+      apiKeys() as never,
+      consoleService as never,
+      webhooks() as never,
+    );
+
+    await expect(
+      controller.usage(request(), { apiKeyId: "key-1" }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({ code: "STORE_PERMISSION_DENIED" }),
+      }),
+    });
+    expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
+      "user-1",
+      "store-1",
+      STORE_PERMISSION_CODES.developerApiView,
+    );
+    expect(consoleService.usageSummary).not.toHaveBeenCalled();
+  });
+
   it("allows Store users with manage permission to create webhooks", async () => {
     const storeRbac = rbac();
     const consoleService = {
@@ -150,6 +204,94 @@ describe("DeveloperApiConsoleController", () => {
     );
     expect(consoleService.listWebhookEndpoints).not.toHaveBeenCalled();
   });
+
+  it("rejects another Store's webhook listing for Store users", async () => {
+    const storeRbac = rbacReject();
+    const consoleService = { listWebhookEndpoints: vi.fn() };
+    const controller = new DeveloperApiConsoleController(
+      auth(),
+      platformAuthorization(false) as never,
+      storeRbac as never,
+      apiKeys() as never,
+      consoleService as never,
+      webhooks() as never,
+    );
+
+    await expect(
+      controller.listWebhooks(request(), { storeId: "store-b" }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({ code: "STORE_PERMISSION_DENIED" }),
+      }),
+    });
+    expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
+      "user-1",
+      "store-b",
+      STORE_PERMISSION_CODES.developerApiView,
+    );
+    expect(consoleService.listWebhookEndpoints).not.toHaveBeenCalled();
+  });
+
+  it("rejects webhook delivery filters with mismatched Store and endpoint", async () => {
+    const consoleService = {
+      storeIdForWebhookEndpoint: vi.fn().mockResolvedValue("store-1"),
+      listWebhookDeliveries: vi.fn(),
+    };
+    const controller = new DeveloperApiConsoleController(
+      auth(),
+      platformAuthorization(false) as never,
+      rbac() as never,
+      apiKeys() as never,
+      consoleService as never,
+      webhooks() as never,
+    );
+
+    await expect(
+      controller.listWebhookDeliveries(request(), {
+        endpointId: "endpoint-1",
+        storeId: "store-b",
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: "DEVELOPER_API_SCOPE_MISMATCH",
+        }),
+      }),
+    });
+    expect(consoleService.listWebhookDeliveries).not.toHaveBeenCalled();
+  });
+
+  it("rejects updating another Store's webhook for Store users", async () => {
+    const storeRbac = rbacReject();
+    const consoleService = {
+      storeIdForWebhookEndpoint: vi.fn().mockResolvedValue("store-b"),
+      credentialForStore: vi.fn(),
+      webhookEndpoint: vi.fn(),
+    };
+    const webhookService = { updateEndpoint: vi.fn() };
+    const controller = new DeveloperApiConsoleController(
+      auth(),
+      platformAuthorization(false) as never,
+      storeRbac as never,
+      apiKeys() as never,
+      consoleService as never,
+      webhookService as never,
+    );
+
+    await expect(
+      controller.updateWebhook(request(), "endpoint-b", { enabled: false }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({ code: "STORE_PERMISSION_DENIED" }),
+      }),
+    });
+    expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
+      "user-1",
+      "store-b",
+      STORE_PERMISSION_CODES.developerApiManage,
+    );
+    expect(webhookService.updateEndpoint).not.toHaveBeenCalled();
+  });
 });
 
 function auth() {
@@ -175,6 +317,18 @@ function platformAuthorization(hasPermission: boolean) {
 
 function rbac() {
   return { requireStorePermission: vi.fn() };
+}
+
+function rbacReject() {
+  return {
+    requireStorePermission: vi.fn().mockRejectedValue(
+      new ApiErrorException(
+        HttpStatus.FORBIDDEN,
+        "STORE_PERMISSION_DENIED",
+        "Store permission denied.",
+      ),
+    ),
+  };
 }
 
 function apiKeys() {

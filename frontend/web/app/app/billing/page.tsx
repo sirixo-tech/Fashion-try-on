@@ -25,6 +25,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
+  SelectMenu,
   StatCard,
   StatGrid,
   Table,
@@ -185,37 +186,32 @@ export default function BillingPage() {
         <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-[12rem_minmax(0,18rem)_1fr]">
           <label className="grid gap-2 text-sm font-medium">
             Date range
-            <select
-              className="h-11 rounded-lg border bg-background px-3 text-sm"
+            <SelectMenu
+              ariaLabel="Date range"
               value={range}
-              onChange={(event) =>
-                setRange(event.target.value as UsageRangePreset)
-              }
-            >
-              {ranges.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={ranges}
+              className="h-11"
+              onChange={setRange}
+            />
           </label>
           <label className="grid gap-2 text-sm font-medium">
             Store
-            <select
-              className="h-11 rounded-lg border bg-background px-3 text-sm"
+            <SelectMenu
+              ariaLabel="Store"
               value={storeId}
               disabled={storeOptions.length === 0}
-              onChange={(event) => setStoreId(event.target.value)}
-            >
-              {hasPlatformUsageAccess ? (
-                <option value="">All Stores</option>
-              ) : null}
-              {storeOptions.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...(hasPlatformUsageAccess
+                  ? [{ value: "", label: "All Stores" }]
+                  : []),
+                ...storeOptions.map((store) => ({
+                  value: store.id,
+                  label: store.name,
+                })),
+              ]}
+              className="h-11"
+              onChange={setStoreId}
+            />
           </label>
           <div className="flex items-end text-sm text-muted-foreground">
             {summary

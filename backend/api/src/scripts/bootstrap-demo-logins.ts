@@ -31,21 +31,22 @@ type DemoMerchantUser = {
   displayName: string;
   role: OrganizationMembershipRole;
   storeScopeMode: MembershipStoreScopeMode;
+  storeRoleSystemCode: string;
 };
 
 const PLATFORM_USERS: readonly DemoPlatformUser[] = [
   {
-    email: "platform.superadmin@selfx.local",
+    email: "super-admin@selfx.local",
     displayName: "SelfX Demo Super Admin",
     platformRole: PlatformRole.SELFX_SUPER_ADMIN,
   },
   {
-    email: "platform.staff@selfx.local",
+    email: "platform-staff-admin@selfx.local",
     displayName: "SelfX Demo Staff Admin",
     platformRole: PlatformRole.SELFX_STAFF_ADMIN,
   },
   {
-    email: "platform.support@selfx.local",
+    email: "support-admin@selfx.local",
     displayName: "SelfX Demo Support Admin",
     platformRole: PlatformRole.SELFX_SUPPORT_ADMIN,
   },
@@ -53,34 +54,34 @@ const PLATFORM_USERS: readonly DemoPlatformUser[] = [
 
 const MERCHANT_USERS: readonly DemoMerchantUser[] = [
   {
-    email: "store.owner@selfx.local",
+    email: "store-owner@selfx.local",
     displayName: "Demo Store Owner",
-    role: OrganizationMembershipRole.STORE_OWNER,
-    storeScopeMode: MembershipStoreScopeMode.SELECTED_STORES,
+    role: OrganizationMembershipRole.ORGANIZATION_OWNER,
+    storeScopeMode: MembershipStoreScopeMode.ALL_STORES,
+    storeRoleSystemCode: "store-admin",
   },
   {
-    email: "store.manager@selfx.local",
+    email: "store-admin@selfx.local",
+    displayName: "Demo Store Admin",
+    role: OrganizationMembershipRole.ORGANIZATION_ADMIN,
+    storeScopeMode: MembershipStoreScopeMode.ALL_STORES,
+    storeRoleSystemCode: "store-admin",
+  },
+  {
+    email: "store-manager@selfx.local",
     displayName: "Demo Store Manager",
     role: OrganizationMembershipRole.STORE_MANAGER,
     storeScopeMode: MembershipStoreScopeMode.SELECTED_STORES,
+    storeRoleSystemCode: "manager",
   },
   {
-    email: "store.staff@selfx.local",
+    email: "store-staff@selfx.local",
     displayName: "Demo Store Staff",
     role: OrganizationMembershipRole.STORE_STAFF,
     storeScopeMode: MembershipStoreScopeMode.SELECTED_STORES,
+    storeRoleSystemCode: "staff",
   },
 ];
-
-const STORE_ROLE_BY_MEMBERSHIP_ROLE = {
-  [OrganizationMembershipRole.ORGANIZATION_OWNER]: "store-admin",
-  [OrganizationMembershipRole.ORGANIZATION_ADMIN]: "store-admin",
-  [OrganizationMembershipRole.ORGANIZATION_STAFF]: "staff",
-  [OrganizationMembershipRole.STORE_OWNER]: "manager",
-  [OrganizationMembershipRole.STORE_MANAGER]: "manager",
-  [OrganizationMembershipRole.STORE_STAFF]: "staff",
-  [OrganizationMembershipRole.KIOSK_OPERATOR]: "staff",
-} satisfies Record<OrganizationMembershipRole, string>;
 
 async function main() {
   if (process.env.SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED !== "true") {
@@ -221,13 +222,13 @@ async function main() {
         await assignStoreRoleForMembership(tx, {
           storeTenantId: organization.id,
           membershipId: membership.id,
-          systemCode: STORE_ROLE_BY_MEMBERSHIP_ROLE[demoUser.role],
+          systemCode: demoUser.storeRoleSystemCode,
         });
       }
     });
 
     console.log("Demo logins bootstrapped.");
-    console.log(`Password: ${password}`);
+    console.log("All demo accounts use SELFX_DEMO_LOGIN_PASSWORD.");
     for (const user of PLATFORM_USERS) {
       console.log(`${user.platformRole}: ${user.email}`);
     }

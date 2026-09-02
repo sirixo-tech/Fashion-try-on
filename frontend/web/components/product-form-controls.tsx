@@ -1,15 +1,10 @@
 "use client";
 
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  cn,
-} from "@selfx/ui";
+import { cn } from "@selfx/ui";
+
+export { SelectMenu as ProductSelectMenu } from "@selfx/ui";
 
 export const productAudiences = [
   { value: "UNISEX", label: "Unisex" },
@@ -64,61 +59,6 @@ export function currencySymbolFor(currency: string): string {
     platformCurrencyOptions
       .find((option) => option.value === currency)
       ?.label.split(" ")[0] ?? currency
-  );
-}
-
-export function ProductSelectMenu<T extends string>({
-  ariaLabel,
-  value,
-  options,
-  disabled,
-  className,
-  onChange,
-}: {
-  ariaLabel: string;
-  value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
-  disabled?: boolean;
-  className?: string;
-  onChange: (value: T) => void;
-}) {
-  const selected = options.find((option) => option.value === value);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            className={cn(
-              "w-full justify-between bg-background font-normal",
-              className,
-            )}
-            aria-label={ariaLabel}
-          />
-        }
-      >
-        <span className="truncate">{selected?.label ?? value}</span>
-        <ChevronDownIcon aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="rounded-xl p-1">
-        {options.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            className="gap-2 rounded-lg px-3 py-2"
-            onClick={() => onChange(option.value)}
-          >
-            <span className="grid size-4 place-items-center">
-              {option.value === value ? (
-                <CheckIcon size={14} aria-hidden="true" />
-              ) : null}
-            </span>
-            {option.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

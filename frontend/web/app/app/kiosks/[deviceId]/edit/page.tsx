@@ -7,8 +7,6 @@ import { useParams } from "next/navigation";
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
-  CheckIcon,
-  ChevronDownIcon,
   SaveIcon,
   ShieldAlertIcon,
   UploadIcon,
@@ -17,15 +15,12 @@ import {
 
 import {
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Input,
   Label,
   PageContainer,
   PageHeader,
   PageSection,
+  SelectMenu,
   StatusBadge,
 } from "@selfx/ui";
 
@@ -386,23 +381,22 @@ export default function KioskEditPage() {
                     </div>
                     <div className="space-y-2 text-sm">
                       <Label htmlFor="store-assignment">Store Assignment</Label>
-                      <select
+                      <SelectMenu
                         id="store-assignment"
-                        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                        ariaLabel="Store assignment"
                         value={assignmentStoreId}
-                        onChange={(event) =>
-                          setAssignmentStoreId(event.target.value)
-                        }
-                      >
-                        <option value="">Platform fleet</option>
-                        {storeOptions.map((store) => (
-                          <option key={store.id} value={store.id}>
-                            {store.status === "ACTIVE"
-                              ? store.name
-                              : `${store.name} (${store.status.toLowerCase()})`}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "", label: "Platform fleet" },
+                          ...storeOptions.map((store) => ({
+                            value: store.id,
+                            label:
+                              store.status === "ACTIVE"
+                                ? store.name
+                                : `${store.name} (${store.status.toLowerCase()})`,
+                          })),
+                        ]}
+                        onChange={setAssignmentStoreId}
+                      />
                       <p className="text-xs text-muted-foreground">
                         {currentStoreName
                           ? `Currently assigned to ${currentStoreName}.`
@@ -780,53 +774,6 @@ function PresentationAssetUploader({
         </div>
       </div>
     </div>
-  );
-}
-
-function SelectMenu<T extends string>({
-  ariaLabel,
-  value,
-  options,
-  onChange,
-}: {
-  ariaLabel: string;
-  value: T;
-  options: Array<{ value: T; label: string }>;
-  onChange: (value: T) => void;
-}) {
-  const selected = options.find((option) => option.value === value);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-between bg-background font-normal"
-            aria-label={ariaLabel}
-          />
-        }
-      >
-        <span className="truncate">{selected?.label ?? value}</span>
-        <ChevronDownIcon aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="rounded-xl p-1">
-        {options.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            className="gap-2 rounded-lg px-3 py-2"
-            onClick={() => onChange(option.value)}
-          >
-            <span className="grid size-4 place-items-center">
-              {option.value === value ? (
-                <CheckIcon size={14} aria-hidden="true" />
-              ) : null}
-            </span>
-            {option.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

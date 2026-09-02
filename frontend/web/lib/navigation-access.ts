@@ -14,9 +14,14 @@ const platformPermissionsByHref: Record<string, string[]> = {
   "/app/onboarding": ["ORGANIZATION_APPLICATION_REVIEW"],
   "/app/products": ["PLATFORM_PRODUCTS_VIEW", "PLATFORM_PRODUCTS_MANAGE"],
   "/app/kiosks": ["KIOSKS_VIEW"],
+  "/app/analytics": ["USAGE_VIEW"],
   "/app/billing": ["USAGE_VIEW"],
   "/app/developer": ["DEVELOPER_API_VIEW", "DEVELOPER_API_MANAGE"],
-  "/app/staff": ["STORE_USERS_VIEW", "STORE_USERS_MANAGE"],
+  "/app/staff": [
+    "PLATFORM_USERS_MANAGE",
+    "STORE_USERS_VIEW",
+    "STORE_USERS_MANAGE",
+  ],
   "/app/permissions": [
     "PERMISSIONS_VIEW",
     "PERMISSIONS_MANAGE",

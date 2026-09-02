@@ -3,8 +3,8 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
   HttpStatus,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -24,6 +24,7 @@ import { type FastifyRequest } from "fastify";
 
 import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
+import { ApiErrorException } from "../common/api-error.exception.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import {
   PLATFORM_PERMISSIONS,
@@ -73,11 +74,17 @@ export class DeveloperApiConsoleController {
     @Req() request: FastifyRequest,
     @Query() query: AdminDeveloperApiUsageQueryDto,
   ): Promise<AdminDeveloperApiUsageResponseDto> {
-    const storeId =
-      query.storeId ??
-      (query.apiKeyId
-        ? await this.apiKeys.storeIdForKey(query.apiKeyId)
-        : undefined);
+    const apiKeyStoreId = query.apiKeyId
+      ? await this.apiKeys.storeIdForKey(query.apiKeyId)
+      : undefined;
+    if (query.storeId && apiKeyStoreId && query.storeId !== apiKeyStoreId) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        "DEVELOPER_API_SCOPE_MISMATCH",
+        "API key does not belong to the selected Store.",
+      );
+    }
+    const storeId = query.storeId ?? apiKeyStoreId;
     await this.requirePlatformOrStorePermission(
       request,
       storeId,
@@ -188,10 +195,18 @@ export class DeveloperApiConsoleController {
     @Req() request: FastifyRequest,
     @Query() query: AdminDeveloperWebhookDeliveryListQueryDto,
   ): Promise<AdminDeveloperWebhookDeliveryListResponseDto> {
-    const storeId =
+    const endpointStoreId =
       query.endpointId !== undefined
         ? await this.console.storeIdForWebhookEndpoint(query.endpointId)
-        : query.storeId;
+        : undefined;
+    if (query.storeId && endpointStoreId && query.storeId !== endpointStoreId) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        "DEVELOPER_API_SCOPE_MISMATCH",
+        "Webhook endpoint does not belong to the selected Store.",
+      );
+    }
+    const storeId = query.storeId ?? endpointStoreId;
     await this.requirePlatformOrStorePermission(
       request,
       storeId,

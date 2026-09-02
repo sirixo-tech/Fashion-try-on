@@ -806,15 +806,15 @@ Same-origin proxy production verification remains pending until the deployed
 browser Network tab confirms login and refresh use the web origin rather than
 localhost or the API Railway host.
 
-Create/update temporary local demo logins for each current platform and
-merchant role explicitly:
+Create/update temporary local demo logins for each current platform and Store
+role explicitly:
 
 ```bash
 npm run demo:bootstrap
 ```
 
-These accounts all use the controlled testing `SELFX_DEMO_LOGIN_PASSWORD` from `.env`.
-The current local value is `SelfXLocalAdmin123!`.
+These accounts all use the controlled testing `SELFX_DEMO_LOGIN_PASSWORD` from
+the local environment.
 Set `NEXT_PUBLIC_SELFX_DEMO_LOGINS_ENABLED=true` and
 `NEXT_PUBLIC_SELFX_DEMO_LOGIN_PASSWORD` to the same local demo password to show
 the guarded quick-access buttons on the login screen. For a temporary deployed
@@ -823,15 +823,15 @@ deployment environment and redeploy the web app. Turn
 `NEXT_PUBLIC_SELFX_DEMO_LOGINS_ENABLED` back to `false` before ending the
 testing period.
 
-| Role                       | Email                             |
-| -------------------------- | --------------------------------- |
-| Existing local super admin | `admin@selfx.local`               |
-| SELFX_SUPER_ADMIN          | `platform.superadmin@selfx.local` |
-| SELFX_STAFF_ADMIN          | `platform.staff@selfx.local`      |
-| SELFX_SUPPORT_ADMIN        | `platform.support@selfx.local`    |
-| STORE_OWNER                | `store.owner@selfx.local`         |
-| STORE_MANAGER              | `store.manager@selfx.local`       |
-| STORE_STAFF                | `store.staff@selfx.local`         |
+| Role                 | Email                              |
+| -------------------- | ---------------------------------- |
+| Super Admin          | `super-admin@selfx.local`          |
+| Platform Staff Admin | `platform-staff-admin@selfx.local` |
+| Support Admin        | `support-admin@selfx.local`        |
+| Store Owner          | `store-owner@selfx.local`          |
+| Store Admin          | `store-admin@selfx.local`          |
+| Store Manager        | `store-manager@selfx.local`        |
+| Store Staff          | `store-staff@selfx.local`          |
 
 ## Database
 

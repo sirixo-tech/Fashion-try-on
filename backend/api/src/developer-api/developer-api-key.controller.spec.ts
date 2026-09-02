@@ -96,6 +96,57 @@ describe("DeveloperApiKeyController", () => {
     );
     expect(apiKeys.listKeys).not.toHaveBeenCalled();
   });
+
+  it("rejects listing another Store's API keys for Store users", async () => {
+    const apiKeys = { listKeys: vi.fn() };
+    const storeRbac = rbacReject();
+    const controller = new DeveloperApiKeyController(
+      auth(),
+      platformAuthorization(false) as never,
+      storeRbac as never,
+      apiKeys as never,
+    );
+
+    await expect(
+      controller.list(request(), { storeId: "store-b" }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({ code: "STORE_PERMISSION_DENIED" }),
+      }),
+    });
+    expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
+      "user-1",
+      "store-b",
+      STORE_PERMISSION_CODES.developerApiView,
+    );
+    expect(apiKeys.listKeys).not.toHaveBeenCalled();
+  });
+
+  it("rejects revoking another Store's API key for Store users", async () => {
+    const apiKeys = {
+      storeIdForKey: vi.fn().mockResolvedValue("store-b"),
+      revokeKey: vi.fn(),
+    };
+    const storeRbac = rbacReject();
+    const controller = new DeveloperApiKeyController(
+      auth(),
+      platformAuthorization(false) as never,
+      storeRbac as never,
+      apiKeys as never,
+    );
+
+    await expect(controller.revoke(request(), "key-b")).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({ code: "STORE_PERMISSION_DENIED" }),
+      }),
+    });
+    expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
+      "user-1",
+      "store-b",
+      STORE_PERMISSION_CODES.developerApiManage,
+    );
+    expect(apiKeys.revokeKey).not.toHaveBeenCalled();
+  });
 });
 
 function auth() {
@@ -121,6 +172,18 @@ function platformAuthorization(hasPermission: boolean) {
 
 function rbac() {
   return { requireStorePermission: vi.fn() };
+}
+
+function rbacReject() {
+  return {
+    requireStorePermission: vi.fn().mockRejectedValue(
+      new ApiErrorException(
+        HttpStatus.FORBIDDEN,
+        "STORE_PERMISSION_DENIED",
+        "Store permission denied.",
+      ),
+    ),
+  };
 }
 
 function request() {

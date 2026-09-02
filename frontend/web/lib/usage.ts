@@ -1,6 +1,16 @@
 import { selfxApi } from "@/lib/api";
 
 export type UsageRangePreset = "today" | "7d" | "30d" | "90d" | "custom";
+export type UsageChannelFilter = "ALL" | "KIOSK" | "PUBLIC_API";
+
+type UsageCountRow = {
+  sessionsStarted: number;
+  runsCreated: number;
+  completedRuns: number;
+  failedRuns: number;
+  tryOnsGenerated: number;
+  downloadsCompleted: number;
+};
 
 export type UsageSummary = {
   range: {
@@ -8,41 +18,59 @@ export type UsageSummary = {
     from: string;
     to: string;
   };
+  scope: {
+    mode: "PLATFORM" | "STORE";
+    storeId?: string;
+    storeName?: string;
+  };
   totals: {
     sessionsStarted: number;
     sessionsCompleted: number;
     sessionsIdleExpired: number;
+    runsCreated: number;
+    queuedRuns: number;
+    processingRuns: number;
+    completedRuns: number;
+    failedRuns: number;
     tryOnsGenerated: number;
     downloadsCompleted: number;
     downloadRate: number;
+    successRate: number;
   };
-  providerUsage: Array<{
+  providerUsage: Array<
+    Omit<UsageCountRow, "sessionsStarted"> & {
     provider: string;
     providerModel: string | null;
-    tryOnsGenerated: number;
-  }>;
-  stores: Array<{
+    }
+  >;
+  stores: Array<
+    UsageCountRow & {
     storeId: string | null;
     storeName: string;
-    sessionsStarted: number;
-    tryOnsGenerated: number;
-    downloadsCompleted: number;
-  }>;
-  kiosks: Array<{
+    }
+  >;
+  kiosks: Array<
+    UsageCountRow & {
     kioskDeviceId: string;
     displayName: string;
     storeId: string | null;
     storeName: string | null;
-    sessionsStarted: number;
-    tryOnsGenerated: number;
-    downloadsCompleted: number;
-  }>;
-  products: Array<{
-    productId: string;
+    }
+  >;
+  products: Array<
+    UsageCountRow & {
+    productId: string | null;
     name: string;
-    tryOnsGenerated: number;
-    downloadsCompleted: number;
-  }>;
+    category?: string;
+    catalogSource?: string | null;
+    externalProductId?: string;
+    externalVariantId?: string;
+    sku?: string;
+    }
+  >;
+  categories: Array<UsageCountRow & { category: string }>;
+  channels: Array<UsageCountRow & { channel: "KIOSK" | "PUBLIC_API" }>;
+  daily: Array<UsageCountRow & { date: string }>;
 };
 
 export function getUsageSummary(
@@ -51,6 +79,7 @@ export function getUsageSummary(
     range?: UsageRangePreset;
     storeId?: string;
     kioskDeviceId?: string;
+    channel?: UsageChannelFilter;
     limit?: number;
   } = {},
 ): Promise<UsageSummary> {
@@ -62,6 +91,9 @@ export function getUsageSummary(
   }
   if (query.kioskDeviceId) {
     params.set("kioskDeviceId", query.kioskDeviceId);
+  }
+  if (query.channel) {
+    params.set("channel", query.channel);
   }
   return selfxApi<UsageSummary>(`/api/v1/admin/usage/summary?${params}`, {
     accessToken,

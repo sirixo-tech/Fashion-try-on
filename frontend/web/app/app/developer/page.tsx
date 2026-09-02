@@ -29,6 +29,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
+  SelectMenu,
   StatusBadge,
   Table,
   TableBody,
@@ -66,7 +67,12 @@ import {
 } from "@/lib/developer-api";
 import { listActiveOrganizations } from "@/lib/organizations";
 import { useSession } from "@/lib/session";
-import { listStores, type AdminStore } from "@/lib/stores";
+import {
+  getEffectiveStorePermissions,
+  listStores,
+  type AdminStore,
+  type EffectiveStorePermissions,
+} from "@/lib/stores";
 
 const apiKeyScopes: Array<{
   value: DeveloperApiKeyScope;
@@ -149,6 +155,8 @@ export default function DeveloperPage() {
     session.status === "authenticated" ? session.accessToken : null;
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
+  const [selectedStoreAccess, setSelectedStoreAccess] =
+    useState<EffectiveStorePermissions | null>(null);
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
   const [keys, setKeys] = useState<DeveloperApiKey[]>([]);
@@ -194,7 +202,14 @@ export default function DeveloperPage() {
   );
   const canManageSelectedDeveloperApi = Boolean(
     canManagePlatformDeveloperApi ||
-    (!hasPlatformDeveloperAccess && selectedStoreId),
+      selectedStoreAccess?.platformBypass ||
+      selectedStoreAccess?.permissions.includes("developer_api.manage"),
+  );
+  const canViewSelectedDeveloperApi = Boolean(
+    hasPlatformDeveloperAccess ||
+      selectedStoreAccess?.platformBypass ||
+      selectedStoreAccess?.permissions.includes("developer_api.view") ||
+      selectedStoreAccess?.permissions.includes("developer_api.manage"),
   );
   const selectedStoreName =
     storeOptions.find((store) => store.id === selectedStoreId)?.name ?? "";
@@ -236,11 +251,35 @@ export default function DeveloperPage() {
     }
   }, [accessToken]);
 
+  useEffect(() => {
+    if (!accessToken || !selectedStoreId) {
+      setSelectedStoreAccess(null);
+      return;
+    }
+
+    let cancelled = false;
+    getEffectiveStorePermissions(accessToken, selectedStoreId)
+      .then((nextAccess) => {
+        if (!cancelled) {
+          setSelectedStoreAccess(nextAccess);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSelectedStoreAccess(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, selectedStoreId]);
+
   const loadKeys = useCallback(async () => {
     if (!accessToken) {
       return;
     }
-    if (!hasPlatformDeveloperAccess && !selectedStoreId) {
+    if (!hasPlatformDeveloperAccess && (!selectedStoreId || !canViewSelectedDeveloperApi)) {
       setKeys([]);
       setLoading(false);
       return;
@@ -259,13 +298,18 @@ export default function DeveloperPage() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken, hasPlatformDeveloperAccess, selectedStoreId]);
+  }, [
+    accessToken,
+    canViewSelectedDeveloperApi,
+    hasPlatformDeveloperAccess,
+    selectedStoreId,
+  ]);
 
   const loadConsole = useCallback(async () => {
     if (!accessToken) {
       return;
     }
-    if (!hasPlatformDeveloperAccess && !selectedStoreId) {
+    if (!hasPlatformDeveloperAccess && (!selectedStoreId || !canViewSelectedDeveloperApi)) {
       setUsage(null);
       setWebhooks([]);
       setDeliveries([]);
@@ -304,6 +348,7 @@ export default function DeveloperPage() {
     }
   }, [
     accessToken,
+    canViewSelectedDeveloperApi,
     hasPlatformDeveloperAccess,
     selectedStoreId,
     usageCatalogSource,
@@ -542,56 +587,46 @@ export default function DeveloperPage() {
             <div className="space-y-4">
               <label className="space-y-2 text-sm">
                 <span className="font-medium">Store</span>
-                <select
+                <SelectMenu
+                  ariaLabel="Store"
                   value={selectedStoreId}
-                  onChange={(event) => setSelectedStoreId(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/35"
-                >
-                  {hasPlatformDeveloperAccess ? (
-                    <option value="">All Stores</option>
-                  ) : null}
-                  {storeOptions.map((store) => (
-                    <option key={store.id} value={store.id}>
-                      {store.name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ...(hasPlatformDeveloperAccess
+                      ? [{ value: "", label: "All Stores" }]
+                      : []),
+                    ...storeOptions.map((store) => ({
+                      value: store.id,
+                      label: store.name,
+                    })),
+                  ]}
+                  onChange={setSelectedStoreId}
+                />
               </label>
               <label className="space-y-2 text-sm">
                 <span className="font-medium">Usage range</span>
-                <select
+                <SelectMenu
+                  ariaLabel="Usage range"
                   value={usageRange}
-                  onChange={(event) =>
-                    setUsageRange(
-                      event.target.value as DeveloperApiUsageRangePreset,
-                    )
-                  }
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/35"
-                >
-                  <option value="today">Today</option>
-                  <option value="7d">Last 7 days</option>
-                  <option value="30d">Last 30 days</option>
-                  <option value="90d">Last 90 days</option>
-                </select>
+                  options={[
+                    { value: "today", label: "Today" },
+                    { value: "7d", label: "Last 7 days" },
+                    { value: "30d", label: "Last 30 days" },
+                    { value: "90d", label: "Last 90 days" },
+                  ]}
+                  onChange={setUsageRange}
+                />
               </label>
               <label className="space-y-2 text-sm">
                 <span className="font-medium">Catalog source</span>
-                <select
+                <SelectMenu
+                  ariaLabel="Catalog source"
                   value={usageCatalogSource}
-                  onChange={(event) =>
-                    setUsageCatalogSource(
-                      event.target.value as DeveloperApiCatalogSource | "",
-                    )
-                  }
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/35"
-                >
-                  <option value="">All sources</option>
-                  {catalogSources.map((source) => (
-                    <option key={source.value} value={source.value}>
-                      {source.label}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All sources" },
+                    ...catalogSources,
+                  ]}
+                  onChange={setUsageCatalogSource}
+                />
               </label>
               <label className="space-y-2 text-sm">
                 <span className="font-medium">Product search</span>

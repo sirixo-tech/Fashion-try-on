@@ -25,6 +25,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
+  SelectMenu,
   StatusBadge,
   Table,
   TableBody,
@@ -413,38 +414,36 @@ function PairKioskDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="assignment-scope">Assignment Scope</Label>
-            <select
+            <SelectMenu
               id="assignment-scope"
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              ariaLabel="Assignment scope"
               value={assignmentScope}
-              onChange={(event) => {
-                setAssignmentScope(event.target.value as KioskAssignmentScope);
+              options={assignmentScopes.map((scope) => ({
+                value: scope,
+                label: scope === "ORGANIZATION" ? "STORE" : scope,
+              }))}
+              onChange={(value) => {
+                setAssignmentScope(value);
                 setOrganizationId("");
               }}
-            >
-              {assignmentScopes.map((scope) => (
-                <option key={scope} value={scope}>
-                  {scope === "ORGANIZATION" ? "STORE" : scope}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           {assignmentScope !== "PLATFORM" ? (
             <div className="space-y-2">
               <Label htmlFor="organization">Store</Label>
-              <select
+              <SelectMenu
                 id="organization"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                ariaLabel="Store"
                 value={organizationId}
-                onChange={(event) => setOrganizationId(event.target.value)}
-              >
-                <option value="">Select Store</option>
-                {stores.map((store) => (
-                  <option key={store.id} value={store.id}>
-                    {store.name}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "Select Store" },
+                  ...stores.map((store) => ({
+                    value: store.id,
+                    label: store.name,
+                  })),
+                ]}
+                onChange={setOrganizationId}
+              />
             </div>
           ) : null}
         </div>

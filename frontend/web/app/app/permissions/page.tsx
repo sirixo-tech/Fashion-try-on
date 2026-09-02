@@ -15,6 +15,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
+  SelectMenu,
   Table,
   TableBody,
   TableCell,
@@ -140,30 +141,32 @@ export default function PermissionsPage() {
                 aria-hidden="true"
                 className="size-4 text-muted-foreground"
               />
-              <select
+              <SelectMenu
+                ariaLabel="Permission module filter"
                 value={moduleFilter}
-                className={selectClassName}
-                onChange={(event) => setModuleFilter(event.target.value)}
-              >
-                <option value="all">All modules</option>
-                {modules.map((module) => (
-                  <option key={module} value={module}>
-                    {module}
-                  </option>
-                ))}
-              </select>
-              <select
+                className="h-8 min-w-36 rounded-lg px-2.5 py-1 text-sm"
+                options={[
+                  { value: "all", label: "All modules" },
+                  ...modules.map((module) => ({
+                    value: module,
+                    label: module,
+                  })),
+                ]}
+                onChange={setModuleFilter}
+              />
+              <SelectMenu
+                ariaLabel="Permission action filter"
                 value={actionFilter}
-                className={selectClassName}
-                onChange={(event) => setActionFilter(event.target.value)}
-              >
-                <option value="all">All actions</option>
-                {actions.map((action) => (
-                  <option key={action} value={action}>
-                    {action}
-                  </option>
-                ))}
-              </select>
+                className="h-8 min-w-36 rounded-lg px-2.5 py-1 text-sm"
+                options={[
+                  { value: "all", label: "All actions" },
+                  ...actions.map((action) => ({
+                    value: action,
+                    label: action,
+                  })),
+                ]}
+                onChange={setActionFilter}
+              />
               {hasFilters ? (
                 <Button
                   variant="ghost"
@@ -224,9 +227,6 @@ export default function PermissionsPage() {
     </PageContainer>
   );
 }
-
-const selectClassName =
-  "h-8 min-w-36 rounded-lg border border-input bg-background px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50";
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));

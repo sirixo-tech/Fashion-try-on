@@ -406,6 +406,17 @@ export function pairStoreKiosk(
   ).then((response) => response.device);
 }
 
+export async function listStoreKiosks(
+  accessToken: string,
+  storeId: string,
+): Promise<KioskDevice[]> {
+  const response = await selfxApi<{ data: KioskDevice[] }>(
+    `/api/v1/admin/stores/${storeId}/kiosks`,
+    { accessToken },
+  );
+  return response.data;
+}
+
 export function getStoreKioskConfiguration(
   accessToken: string,
   storeId: string,

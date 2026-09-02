@@ -32,7 +32,7 @@ export class UsageSummaryController {
   ) {}
 
   @Get("summary")
-  @ApiOperation({ summary: "Read privacy-safe kiosk usage rollups" })
+  @ApiOperation({ summary: "Read privacy-safe usage and analytics rollups" })
   @ApiOkResponse({ type: UsageSummaryResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
