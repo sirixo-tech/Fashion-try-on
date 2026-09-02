@@ -87,6 +87,7 @@ async function main() {
   if (process.env.SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED !== "true") {
     throw new Error("SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED must be true");
   }
+
   if (
     process.env.NODE_ENV === "production" &&
     process.env.SELFX_ALLOW_DEPLOYED_DEMO_LOGINS !== "true"
@@ -97,151 +98,176 @@ async function main() {
   }
 
   const password = required("SELFX_DEMO_LOGIN_PASSWORD");
+
   const organizationName =
     process.env.SELFX_DEMO_ORGANIZATION_NAME ?? "SelfX Demo Retail";
+
   const organizationSlug =
     process.env.SELFX_DEMO_ORGANIZATION_SLUG ?? "selfx-demo-retail";
+
   const storeName = process.env.SELFX_DEMO_STORE_NAME ?? "SelfX Demo Store";
+
   const storeCode = process.env.SELFX_DEMO_STORE_CODE ?? "main";
 
   const prisma = new PrismaClient();
   const passwords = new PasswordService();
   const rbac = new StoreRbacService(prisma as never);
+
   const passwordHash = await passwords.hashPassword(password);
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const organization = await tx.organization.upsert({
-        where: { slug: organizationSlug },
-        create: {
-          id: createSelfxId(),
-          name: organizationName,
-          slug: organizationSlug,
-          status: OrganizationStatus.ACTIVE,
-          settings: { demo: true },
-        },
-        update: {
-          name: organizationName,
-          status: OrganizationStatus.ACTIVE,
-          settings: { demo: true },
-        },
-      });
-
-      const store = await tx.store.upsert({
-        where: {
-          orgId_code: {
-            orgId: organization.id,
-            code: storeCode,
-          },
-        },
-        create: {
-          id: createSelfxId(),
-          orgId: organization.id,
-          name: storeName,
-          code: storeCode,
-          status: StoreStatus.ACTIVE,
-        },
-        update: {
-          name: storeName,
-          status: StoreStatus.ACTIVE,
-        },
-      });
-      await rbac.ensureStoreRbacInTransaction(tx, organization.id, true);
-
-      for (const demoUser of PLATFORM_USERS) {
-        const user = await upsertUser(tx, demoUser, passwordHash);
-
-        await tx.platformRoleAssignment.upsert({
+    await prisma.$transaction(
+      async (tx) => {
+        const organization = await tx.organization.upsert({
           where: {
-            userId_role: {
+            slug: organizationSlug,
+          },
+          create: {
+            id: createSelfxId(),
+            name: organizationName,
+            slug: organizationSlug,
+            status: OrganizationStatus.ACTIVE,
+            settings: {
+              demo: true,
+            },
+          },
+          update: {
+            name: organizationName,
+            status: OrganizationStatus.ACTIVE,
+            settings: {
+              demo: true,
+            },
+          },
+        });
+
+        const store = await tx.store.upsert({
+          where: {
+            orgId_code: {
+              orgId: organization.id,
+              code: storeCode,
+            },
+          },
+          create: {
+            id: createSelfxId(),
+            orgId: organization.id,
+            name: storeName,
+            code: storeCode,
+            status: StoreStatus.ACTIVE,
+          },
+          update: {
+            name: storeName,
+            status: StoreStatus.ACTIVE,
+          },
+        });
+
+        await rbac.ensureStoreRbacInTransaction(tx, organization.id, true);
+
+        for (const demoUser of PLATFORM_USERS) {
+          const user = await upsertUser(tx, demoUser, passwordHash);
+
+          await tx.platformRoleAssignment.upsert({
+            where: {
+              userId_role: {
+                userId: user.id,
+                role: demoUser.platformRole,
+              },
+            },
+            create: {
+              id: createSelfxId(),
               userId: user.id,
               role: demoUser.platformRole,
+              status: PlatformRoleAssignmentStatus.ACTIVE,
             },
-          },
-          create: {
-            id: createSelfxId(),
-            userId: user.id,
-            role: demoUser.platformRole,
-            status: PlatformRoleAssignmentStatus.ACTIVE,
-          },
-          update: {
-            status: PlatformRoleAssignmentStatus.ACTIVE,
-            revokedAt: null,
-          },
-        });
-      }
-
-      for (const demoUser of MERCHANT_USERS) {
-        const user = await upsertUser(tx, demoUser, passwordHash);
-        const joinedAt = new Date();
-        const membership = await tx.organizationMembership.upsert({
-          where: {
-            orgId_userId: {
-              orgId: organization.id,
-              userId: user.id,
+            update: {
+              status: PlatformRoleAssignmentStatus.ACTIVE,
+              revokedAt: null,
             },
-          },
-          create: {
-            id: createSelfxId(),
-            orgId: organization.id,
-            userId: user.id,
-            role: demoUser.role,
-            storeScopeMode: demoUser.storeScopeMode,
-            status: MembershipStatus.ACTIVE,
-            joinedAt,
-            suspendedAt: null,
-          },
-          update: {
-            role: demoUser.role,
-            storeScopeMode: demoUser.storeScopeMode,
-            status: MembershipStatus.ACTIVE,
-            joinedAt,
-            suspendedAt: null,
-          },
-        });
+          });
+        }
 
-        if (
-          demoUser.storeScopeMode === MembershipStoreScopeMode.SELECTED_STORES
-        ) {
-          await tx.membershipStoreScope.upsert({
+        for (const demoUser of MERCHANT_USERS) {
+          const user = await upsertUser(tx, demoUser, passwordHash);
+
+          const joinedAt = new Date();
+
+          const membership = await tx.organizationMembership.upsert({
             where: {
-              membershipId_storeId: {
-                membershipId: membership.id,
-                storeId: store.id,
+              orgId_userId: {
+                orgId: organization.id,
+                userId: user.id,
               },
             },
             create: {
               id: createSelfxId(),
               orgId: organization.id,
-              membershipId: membership.id,
-              storeId: store.id,
+              userId: user.id,
+              role: demoUser.role,
+              storeScopeMode: demoUser.storeScopeMode,
+              status: MembershipStatus.ACTIVE,
+              joinedAt,
+              suspendedAt: null,
             },
-            update: {},
+            update: {
+              role: demoUser.role,
+              storeScopeMode: demoUser.storeScopeMode,
+              status: MembershipStatus.ACTIVE,
+              joinedAt,
+              suspendedAt: null,
+            },
           });
-        } else {
-          await tx.membershipStoreScope.deleteMany({
-            where: { membershipId: membership.id },
+
+          if (
+            demoUser.storeScopeMode === MembershipStoreScopeMode.SELECTED_STORES
+          ) {
+            await tx.membershipStoreScope.upsert({
+              where: {
+                membershipId_storeId: {
+                  membershipId: membership.id,
+                  storeId: store.id,
+                },
+              },
+              create: {
+                id: createSelfxId(),
+                orgId: organization.id,
+                membershipId: membership.id,
+                storeId: store.id,
+              },
+              update: {},
+            });
+          } else {
+            await tx.membershipStoreScope.deleteMany({
+              where: {
+                membershipId: membership.id,
+              },
+            });
+          }
+
+          await assignStoreRoleForMembership(tx, {
+            storeTenantId: organization.id,
+            membershipId: membership.id,
+            systemCode: demoUser.storeRoleSystemCode,
           });
         }
-
-        await assignStoreRoleForMembership(tx, {
-          storeTenantId: organization.id,
-          membershipId: membership.id,
-          systemCode: demoUser.storeRoleSystemCode,
-        });
-      }
-    });
+      },
+      {
+        maxWait: 15_000,
+        timeout: 120_000,
+      },
+    );
 
     console.log("Demo logins bootstrapped.");
     console.log("All demo accounts use SELFX_DEMO_LOGIN_PASSWORD.");
+
     if (process.env.NODE_ENV === "production") {
       console.log(
         "Production demo override was enabled. Disable SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED and SELFX_ALLOW_DEPLOYED_DEMO_LOGINS after verification.",
       );
     }
+
     for (const user of PLATFORM_USERS) {
       console.log(`${user.platformRole}: ${user.email}`);
     }
+
     for (const user of MERCHANT_USERS) {
       console.log(`${user.role}: ${user.email}`);
     }
@@ -252,13 +278,18 @@ async function main() {
 
 async function upsertUser(
   tx: Prisma.TransactionClient,
-  input: { email: string; displayName: string },
+  input: {
+    email: string;
+    displayName: string;
+  },
   passwordHash: string,
 ) {
   const email = normalizeEmail(input.email);
 
   return tx.user.upsert({
-    where: { email },
+    where: {
+      email,
+    },
     create: {
       id: createSelfxId(),
       email,
@@ -291,8 +322,11 @@ async function assignStoreRoleForMembership(
         systemCode: input.systemCode,
       },
     },
-    select: { id: true },
+    select: {
+      id: true,
+    },
   });
+
   if (!role) {
     throw new Error(`Demo Store role not found: ${input.systemCode}`);
   }
@@ -300,9 +334,12 @@ async function assignStoreRoleForMembership(
   await tx.storeMembershipRole.deleteMany({
     where: {
       membershipId: input.membershipId,
-      roleId: { not: role.id },
+      roleId: {
+        not: role.id,
+      },
     },
   });
+
   await tx.storeMembershipRole.upsert({
     where: {
       membershipId_roleId: {
@@ -322,9 +359,11 @@ async function assignStoreRoleForMembership(
 
 function required(key: string): string {
   const value = process.env[key];
+
   if (!value) {
     throw new Error(`${key} is required`);
   }
+
   return value;
 }
 
