@@ -815,6 +815,9 @@ npm run demo:bootstrap
 
 These accounts all use the controlled testing `SELFX_DEMO_LOGIN_PASSWORD` from
 the local environment.
+Production-like deployed environments must also set
+`SELFX_ALLOW_DEPLOYED_DEMO_LOGINS=true` before running the command. Disable
+both bootstrap flags again immediately after the temporary accounts are created.
 Set `NEXT_PUBLIC_SELFX_DEMO_LOGINS_ENABLED=true` and
 `NEXT_PUBLIC_SELFX_DEMO_LOGIN_PASSWORD` to the same local demo password to show
 the guarded quick-access buttons on the login screen. For a temporary deployed

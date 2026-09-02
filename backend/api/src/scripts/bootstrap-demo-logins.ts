@@ -87,8 +87,13 @@ async function main() {
   if (process.env.SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED !== "true") {
     throw new Error("SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED must be true");
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Demo login bootstrap is not allowed in production");
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.SELFX_ALLOW_DEPLOYED_DEMO_LOGINS !== "true"
+  ) {
+    throw new Error(
+      "Demo login bootstrap is not allowed in production unless SELFX_ALLOW_DEPLOYED_DEMO_LOGINS is true",
+    );
   }
 
   const password = required("SELFX_DEMO_LOGIN_PASSWORD");
@@ -229,6 +234,11 @@ async function main() {
 
     console.log("Demo logins bootstrapped.");
     console.log("All demo accounts use SELFX_DEMO_LOGIN_PASSWORD.");
+    if (process.env.NODE_ENV === "production") {
+      console.log(
+        "Production demo override was enabled. Disable SELFX_DEMO_LOGINS_BOOTSTRAP_ENABLED and SELFX_ALLOW_DEPLOYED_DEMO_LOGINS after verification.",
+      );
+    }
     for (const user of PLATFORM_USERS) {
       console.log(`${user.platformRole}: ${user.email}`);
     }
