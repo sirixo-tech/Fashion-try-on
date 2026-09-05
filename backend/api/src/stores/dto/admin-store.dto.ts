@@ -2,8 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { KioskAssignmentScope } from "@prisma/client";
 import { Type } from "class-transformer";
 import {
+  ArrayMinSize,
+  ArrayUnique,
   IsEmail,
   IsEnum,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -24,10 +27,25 @@ import {
   KioskProvisioningPairResponseDto,
   PairKioskDto,
 } from "../../kiosks/dto/kiosk.dto.js";
+import {
+  JEWELLERY_TYPES,
+  PRODUCT_VERTICALS,
+  type JewelleryType,
+  type ProductVertical,
+} from "../../catalog/product-kind.js";
+import {
+  STORE_TRY_ON_CAPABILITIES,
+  type StoreTryOnCapability,
+} from "../../try-on/store-try-on-capabilities.js";
 
 export enum AdminStoreStatus {
   ACTIVE = "ACTIVE",
   INACTIVE = "INACTIVE",
+}
+
+export class RequestStoreCatalogSyncDto {
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical!: ProductVertical;
 }
 
 export class AdminStoreListQueryDto {
@@ -209,6 +227,10 @@ export class StoreProductListQueryDto {
   @IsOptional()
   @IsIn(["ALL", "ACTIVE", "INACTIVE", "VTO_ENABLED"])
   status?: "ALL" | "ACTIVE" | "INACTIVE" | "VTO_ENABLED";
+
+  @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical?: ProductVertical;
 }
 
 export class StoreProductImageInputDto {
@@ -282,6 +304,14 @@ export class CreateStoreProductDto {
   productUrl?: string | null;
 
   @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical?: ProductVertical;
+
+  @IsOptional()
+  @IsIn(JEWELLERY_TYPES)
+  jewelleryType?: JewelleryType | null;
+
+  @IsOptional()
   @IsString()
   @MaxLength(40)
   garmentIntent?: string;
@@ -351,6 +381,14 @@ export class UpdateStoreProductDto {
   @IsUrl({ require_protocol: true, protocols: ["https", "http"] })
   @MaxLength(2048)
   productUrl?: string | null;
+
+  @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical?: ProductVertical;
+
+  @IsOptional()
+  @IsIn(JEWELLERY_TYPES)
+  jewelleryType?: JewelleryType | null;
 
   @IsOptional()
   @IsString()
@@ -515,6 +553,12 @@ export class StoreProductDto {
   @ApiPropertyOptional({ nullable: true })
   productUrl!: string | null;
 
+  @ApiProperty({ enum: PRODUCT_VERTICALS })
+  productVertical!: ProductVertical;
+
+  @ApiPropertyOptional({ enum: JEWELLERY_TYPES, nullable: true })
+  jewelleryType!: JewelleryType | null;
+
   @ApiProperty()
   garmentIntent!: string;
 
@@ -584,8 +628,16 @@ export class StoreKioskDeviceResponseDto extends KioskDeviceResponseDto {}
 export class StoreKioskConfigurationResponseDto extends KioskConfigurationDto {}
 
 export class UpdateStoreVirtualTryOnSettingsDto {
+  @IsOptional()
   @IsBoolean()
-  garmentPreviewEnabled!: boolean;
+  garmentPreviewEnabled?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsIn(STORE_TRY_ON_CAPABILITIES, { each: true })
+  enabledTryOnCapabilities?: StoreTryOnCapability[];
 }
 
 export class StoreVirtualTryOnSettingsResponseDto {
@@ -593,6 +645,9 @@ export class StoreVirtualTryOnSettingsResponseDto {
   storeHasGarmentPreviewPermission!: boolean;
   storeGarmentPreviewEnabled!: boolean;
   effectiveGarmentPreviewEnabled!: boolean;
+  enabledTryOnCapabilities!: StoreTryOnCapability[];
+  garmentTryOnEnabled!: boolean;
+  jewelleryTryOnEnabled!: boolean;
 }
 
 export function pairStoreKioskToPairKioskDto(

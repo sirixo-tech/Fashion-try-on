@@ -79,6 +79,7 @@ class CaptureSessionController extends ChangeNotifier {
   String? preferredCameraId;
   PhotoAcquisitionPurpose capturePurpose = PhotoAcquisitionPurpose.model;
   CaptureScope captureScope = defaultCaptureScope;
+  bool modelCoverageValidationEnabled = true;
   int captureCountdownSeconds = defaultCaptureCountdownSeconds;
   bool captureSoundsEnabled = true;
   CaptureAudioProfile captureAudioProfile = defaultCaptureAudioProfile;
@@ -179,6 +180,21 @@ class CaptureSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void configureModelCapture({
+    required bool validateModelCoverage,
+    CaptureScope? scope,
+  }) {
+    modelCoverageValidationEnabled = validateModelCoverage;
+    if (scope != null) {
+      captureScope = scope;
+    }
+    liveFrameAnalyzer.resetSubjectLock();
+    primarySubject = null;
+    readinessResult = null;
+    captureTargetMetadata = null;
+    notifyListeners();
+  }
+
   void selectCapturePurpose(PhotoAcquisitionPurpose purpose) {
     final previousCapture = capture;
     capturePurpose = purpose;
@@ -271,7 +287,7 @@ class CaptureSessionController extends ChangeNotifier {
     );
   }
 
-  Future<void> beginAssistedCapture() async {
+  Future<void> beginAssistedCapture({bool useLiveReadiness = true}) async {
     if (!flowState.canBeginCapture ||
         _captureInProgress ||
         !cameraService.state.value.canCapture) {
@@ -296,7 +312,8 @@ class CaptureSessionController extends ChangeNotifier {
     }
     _playAudioIfEnabled(() => audioService.playCountdownStart(profile));
 
-    if (liveReadinessEnabled &&
+    if (useLiveReadiness &&
+        liveReadinessEnabled &&
         cameraService.state.value.capabilities.supportsLiveFrames) {
       await _beginLiveReadinessCapture(runId);
       return;
@@ -626,6 +643,7 @@ class CaptureSessionController extends ChangeNotifier {
     imageUsabilityResult = null;
     pendingModelCoverage = null;
     pendingModelCoverageAnalysis = null;
+    modelCoverageValidationEnabled = true;
     _clearAcceptedPersonPhoto();
     primarySubject = null;
     liveFrameAnalyzer.resetSubjectLock();
@@ -653,6 +671,15 @@ class CaptureSessionController extends ChangeNotifier {
       return;
     }
     if (!isModelCapture) {
+      imageUsabilityResult = const ImageUsabilityResult.usable(
+        'Photo looks good!',
+      );
+      return;
+    }
+
+    if (!modelCoverageValidationEnabled) {
+      pendingModelCoverage = modelCoverageForCaptureScope(captureScope);
+      pendingModelCoverageAnalysis = null;
       imageUsabilityResult = const ImageUsabilityResult.usable(
         'Photo looks good!',
       );

@@ -185,6 +185,120 @@ export const SELFX_TRY_ON_RUN_STATUSES = [
 
 export type SelfxTryOnRunStatus = (typeof SELFX_TRY_ON_RUN_STATUSES)[number];
 
+export const SELFX_JEWELLERY_TYPES = [
+  "RING",
+  "BRACELET",
+  "NECKLACE",
+  "EARRING",
+] as const;
+
+export type SelfxJewelleryType = (typeof SELFX_JEWELLERY_TYPES)[number];
+
+export const SELFX_JEWELLERY_CAPTURE_CHANNELS = [
+  "KIOSK",
+  "WEB",
+  "MOBILE",
+  "PUBLIC_API",
+  "TRY_ON_LAB",
+] as const;
+
+export type SelfxJewelleryCaptureChannel =
+  (typeof SELFX_JEWELLERY_CAPTURE_CHANNELS)[number];
+
+export const SELFX_JEWELLERY_PERSON_INPUT_METHODS = [
+  "CAPTURE",
+  "UPLOAD",
+] as const;
+
+export type SelfxJewelleryPersonInputMethod =
+  (typeof SELFX_JEWELLERY_PERSON_INPUT_METHODS)[number];
+
+export const SELFX_JEWELLERY_CAPTURE_TARGET_REGIONS = [
+  "HAND",
+  "WRIST_AND_LOWER_FOREARM",
+  "NECK_SHOULDERS_AND_UPPER_CHEST",
+  "FACE_AND_EARS",
+] as const;
+
+export type SelfxJewelleryCaptureTargetRegion =
+  (typeof SELFX_JEWELLERY_CAPTURE_TARGET_REGIONS)[number];
+
+export const SELFX_JEWELLERY_CAPTURE_GUIDES = [
+  "HAND_CLOSE_UP",
+  "WRIST_CLOSE_UP",
+  "NECK_AND_UPPER_CHEST",
+  "FACE_AND_EARS",
+] as const;
+
+export type SelfxJewelleryCaptureGuide =
+  (typeof SELFX_JEWELLERY_CAPTURE_GUIDES)[number];
+
+export const SELFX_JEWELLERY_PERSON_CHECKS = [
+  "TECHNICAL_IMAGE_VALIDITY",
+  "MINIMUM_RESOLUTION",
+  "SHARPNESS",
+  "EXPOSURE",
+  "CAPTURE_SUBJECT_PRESENT",
+  "REQUIRED_REGION_VISIBLE",
+  "FRONT_FACING",
+  "RELEVANT_REGION_UNOBSTRUCTED",
+] as const;
+
+export type SelfxJewelleryPersonCheck =
+  (typeof SELFX_JEWELLERY_PERSON_CHECKS)[number];
+
+export interface SelfxJewelleryCaptureRequirements {
+  schemaVersion: 1;
+  tryOnVertical: "JEWELLERY";
+  jewelleryType: SelfxJewelleryType;
+  channel: SelfxJewelleryCaptureChannel;
+  productId?: string;
+  personInputMethods: SelfxJewelleryPersonInputMethod[];
+  targetRegion: SelfxJewelleryCaptureTargetRegion;
+  guide: SelfxJewelleryCaptureGuide;
+  title: string;
+  instruction: string;
+  checklist: string[];
+  requiredChecks: SelfxJewelleryPersonCheck[];
+}
+
+export const SELFX_JEWELLERY_SEMANTIC_ANALYZERS = [
+  "MEDIAPIPE_HAND_LANDMARKER",
+  "MEDIAPIPE_POSE_LANDMARKER",
+] as const;
+
+export type SelfxJewellerySemanticAnalyzer =
+  (typeof SELFX_JEWELLERY_SEMANTIC_ANALYZERS)[number];
+
+export interface SelfxJewelleryPersonSemanticEvidence {
+  analyzer: SelfxJewellerySemanticAnalyzer;
+  analysisAvailable: boolean;
+  subjectPresent: boolean;
+  requiredRegionVisible: boolean;
+  frontFacing: boolean | null;
+  relevantRegionUnobstructed: boolean | null;
+  confidence: number | null;
+}
+
+export const SELFX_JEWELLERY_PERSON_PREFLIGHT_REASON_CODES = [
+  "JEWELLERY_PERSON_IMAGE_INVALID",
+  "JEWELLERY_PERSON_ANALYSIS_UNAVAILABLE",
+  "JEWELLERY_PERSON_SUBJECT_NOT_DETECTED",
+  "JEWELLERY_PERSON_REQUIRED_REGION_NOT_VISIBLE",
+  "JEWELLERY_PERSON_NOT_FRONT_FACING",
+  "JEWELLERY_PERSON_REGION_OBSTRUCTED",
+] as const;
+
+export type SelfxJewelleryPersonPreflightReasonCode =
+  (typeof SELFX_JEWELLERY_PERSON_PREFLIGHT_REASON_CODES)[number];
+
+export interface SelfxJewelleryPersonPreflightResult {
+  canProceed: boolean;
+  outcome: "PROCEED" | "RETAKE_OR_UPLOAD";
+  reasonCode?: SelfxJewelleryPersonPreflightReasonCode;
+  message?: string;
+}
+
 export const SELFX_TRY_ON_SESSION_STATUSES = [
   "ACTIVE",
   "COMPLETED",
@@ -828,4 +942,38 @@ export interface TryOnLabRunResponse {
   errorCode?: TryOnLabErrorCode;
   errorMessage?: string;
   telemetry: SelfxTryOnTelemetry;
+}
+
+export interface JewelleryTryOnLabTelemetry {
+  selfxRunId: string;
+  channel: SelfxTryOnChannel;
+  provider: string;
+  providerDisplayName: string;
+  model: string;
+  jewelleryType: SelfxJewelleryType;
+  productReference?: {
+    productId?: string;
+    productName?: string;
+    sku?: string;
+  };
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  elapsedMs?: number;
+  status: SelfxTryOnRunStatus;
+  failureCode?: TryOnLabErrorCode;
+}
+
+export interface JewelleryTryOnLabRunResponse {
+  id: string;
+  status: SelfxTryOnRunStatus;
+  tryOnVertical: "JEWELLERY";
+  jewelleryType: SelfxJewelleryType;
+  productReference?: JewelleryTryOnLabTelemetry["productReference"];
+  createdAt: string;
+  updatedAt: string;
+  resultImage?: string;
+  errorCode?: TryOnLabErrorCode;
+  errorMessage?: string;
+  telemetry: JewelleryTryOnLabTelemetry;
 }

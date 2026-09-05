@@ -9,6 +9,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import 'kiosk_catalog_gateway.dart';
 import 'kiosk_catalog_models.dart';
 
@@ -157,16 +158,23 @@ class KioskCatalogRepository extends ChangeNotifier
   }
 
   @override
-  Future<KioskCatalogRevision> getCatalogRevision() async {
+  Future<KioskCatalogRevision> getCatalogRevision({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) async {
     final current = snapshot;
-    if (current != null) {
+    if (productVertical == KioskProductVertical.garment && current != null) {
       return current;
     }
-    return remote.getCatalogRevision();
+    return remote.getCatalogRevision(productVertical: productVertical);
   }
 
   @override
-  Future<KioskCatalogSnapshot> getCatalogSnapshot() async {
+  Future<KioskCatalogSnapshot> getCatalogSnapshot({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) async {
+    if (productVertical != KioskProductVertical.garment) {
+      return remote.getCatalogSnapshot(productVertical: productVertical);
+    }
     await _ensureSnapshot();
     final current = snapshot;
     if (current == null) {
@@ -181,9 +189,19 @@ class KioskCatalogRepository extends ChangeNotifier
   @override
   Future<List<KioskCatalogCategory>> getCatalogCategories({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
   }) async {
+    if (productVertical != KioskProductVertical.garment) {
+      return remote.getCatalogCategories(
+        audience: audience,
+        productVertical: productVertical,
+      );
+    }
     await _ensureSnapshot();
-    final products = _filteredProducts(audience: audience);
+    final products = _filteredProducts(
+      audience: audience,
+      productVertical: productVertical,
+    );
     final categoryCounts = <String, int>{};
     for (final product in products) {
       categoryCounts[product.category.slug] =
@@ -208,13 +226,24 @@ class KioskCatalogRepository extends ChangeNotifier
   @override
   Future<KioskCatalogPage> getCatalogProducts({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
     String? categorySlug,
     required int page,
     required int pageSize,
   }) async {
+    if (productVertical != KioskProductVertical.garment) {
+      return remote.getCatalogProducts(
+        audience: audience,
+        productVertical: productVertical,
+        categorySlug: categorySlug,
+        page: page,
+        pageSize: pageSize,
+      );
+    }
     await _ensureSnapshot();
     final products = _filteredProducts(
       audience: audience,
+      productVertical: productVertical,
       categorySlug: categorySlug,
     );
     final boundedPage = page < 1 ? 1 : page;
@@ -238,6 +267,13 @@ class KioskCatalogRepository extends ChangeNotifier
     );
   }
 
+  @override
+  Future<KioskJewelleryCaptureRequirements> getJewelleryCaptureRequirements(
+    String productId,
+  ) {
+    return remote.getJewelleryCaptureRequirements(productId);
+  }
+
   Future<void> _ensureSnapshot() async {
     if (snapshot != null) {
       return;
@@ -247,12 +283,16 @@ class KioskCatalogRepository extends ChangeNotifier
 
   List<KioskCatalogProduct> _filteredProducts({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
     String? categorySlug,
   }) {
     final products = snapshot?.products ?? const <KioskCatalogProduct>[];
     return products
         .where((product) {
           if (!_matchesAudience(product.audience, audience)) {
+            return false;
+          }
+          if (product.productVertical != productVertical) {
             return false;
           }
           if (categorySlug != null &&

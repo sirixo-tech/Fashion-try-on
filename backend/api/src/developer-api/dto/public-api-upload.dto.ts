@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
-export const publicApiUploadPurposeOptions = ["PERSON", "GARMENT"] as const;
+export const publicApiUploadPurposeOptions = [
+  "PERSON",
+  "GARMENT",
+  "JEWELLERY",
+] as const;
 export type PublicApiUploadPurpose =
   (typeof publicApiUploadPurposeOptions)[number];
 
@@ -9,7 +13,7 @@ export class PublicApiUploadRequestDto {
     enum: publicApiUploadPurposeOptions,
     example: "PERSON",
     description:
-      "Upload purpose. PERSON starts or updates the session person image; GARMENT adds a garment input.",
+      "Upload purpose. PERSON starts or updates the session person image; GARMENT adds a garment input; JEWELLERY adds a jewellery input.",
   })
   purpose!: PublicApiUploadPurpose;
 

@@ -6,14 +6,17 @@ import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
+import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
 import 'my_looks_screen.dart';
 import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_action_card.dart';
+import 'try_on_experience_config.dart';
 import 'try_on_generation_screen.dart';
 
 class TryOnResultScreen extends StatelessWidget {
@@ -48,6 +51,7 @@ class TryOnResultScreen extends StatelessWidget {
                     tryOnController.upcomingGarmentPickPosition,
                 totalPickCount: tryOnController.garmentPicks.length,
                 saveMyLooksQrEnabled: tryOnController.saveMyLooksQrEnabled,
+                activeTryOnVertical: tryOnController.activeTryOnVertical,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
                 onGetMyLooks: () => _getMyLooks(context),
@@ -73,6 +77,23 @@ class TryOnResultScreen extends StatelessWidget {
       return;
     }
     tryOnController.tryAnotherGarment();
+    final experience = tryOnExperienceFor(tryOnController.activeTryOnVertical);
+    if (!experience.supportsPhysicalProductCapture) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) => BrowseProductsScreen(
+            captureController: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            catalogGateway: catalogGateway,
+            extractionService: extractionService,
+            productVertical: experience.productVertical,
+          ),
+        ),
+        (route) => route.isFirst,
+      );
+      return;
+    }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
         builder: (_) => CaptureReviewScreen(
@@ -137,6 +158,7 @@ class _ResultPage extends StatelessWidget {
     required this.upcomingPickPosition,
     required this.totalPickCount,
     required this.saveMyLooksQrEnabled,
+    required this.activeTryOnVertical,
     required this.onTryAnotherGarment,
     required this.onRetakePhoto,
     required this.onGetMyLooks,
@@ -149,6 +171,7 @@ class _ResultPage extends StatelessWidget {
   final int? upcomingPickPosition;
   final int totalPickCount;
   final bool saveMyLooksQrEnabled;
+  final KioskTryOnVertical activeTryOnVertical;
   final VoidCallback onTryAnotherGarment;
   final VoidCallback onRetakePhoto;
   final VoidCallback onGetMyLooks;
@@ -203,6 +226,7 @@ class _ResultPage extends StatelessWidget {
         final actionHeight =
             (actionRows * actionTileHeight) + ((actionRows - 1) * actionGap);
         final hasUpcomingPick = upcomingPick != null;
+        final experience = tryOnExperienceFor(activeTryOnVertical);
         final upcomingPreviewHeight = hasUpcomingPick
             ? layout.scaled(82, small: 74, large: 92, extraLarge: 104) +
                   actionGap
@@ -276,7 +300,7 @@ class _ResultPage extends StatelessWidget {
                               label: 'Try Another',
                               subtitle: hasNextPick
                                   ? 'Next pick'
-                                  : 'Choose fabric',
+                                  : experience.resultSelectionSubtitle,
                               disabledBackgroundColor:
                                   _ResultTokens.primarySurface,
                               minHeight: actionTileHeight,

@@ -87,6 +87,42 @@ describe("PublicApiUploadService", () => {
     });
   });
 
+  it("attaches a jewellery image using the shared input asset storage", async () => {
+    const storage = new FakeStorage();
+    const sessions = new FakeTryOnSessions();
+    const service = new PublicApiUploadService(
+      storage as never,
+      sessions as never,
+    );
+
+    const response = await service.uploadImage(credential(), {
+      purpose: "JEWELLERY",
+      sessionId: "11111111-1111-4111-8111-111111111111",
+      image: uploadImage(),
+    });
+
+    expect(storage.putObject).toHaveBeenCalledWith({
+      key: expect.stringMatching(
+        /^public-api\/store-1\/11111111-1111-4111-8111-111111111111\/jewellery-[\w-]+\.png$/,
+      ),
+      contentType: "image/png",
+      body: expect.any(Buffer),
+    });
+    expect(sessions.attachGarmentAsset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "11111111-1111-4111-8111-111111111111",
+        organizationId: "store-1",
+        storeId: null,
+        kioskDeviceId: null,
+      }),
+    );
+    expect(response).toMatchObject({
+      sessionId: "11111111-1111-4111-8111-111111111111",
+      assetId: "asset-garment",
+      purpose: "JEWELLERY",
+    });
+  });
+
   it("deletes the stored object when session attachment fails", async () => {
     const storage = new FakeStorage();
     const sessions = new FakeTryOnSessions();

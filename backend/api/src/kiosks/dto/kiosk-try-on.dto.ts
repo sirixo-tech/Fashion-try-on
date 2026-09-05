@@ -7,12 +7,25 @@ import type {
   TryOnLabErrorCode,
 } from "@selfx/shared";
 
+import {
+  JEWELLERY_TYPES,
+  PRODUCT_VERTICALS,
+  type JewelleryType,
+  type ProductVertical,
+} from "../../catalog/product-kind.js";
+
 export class KioskTryOnRunResponseDto {
   @ApiProperty()
   id!: string;
 
   @ApiProperty({ enum: ["QUEUED", "PROCESSING", "COMPLETED", "FAILED"] })
   status!: SelfxTryOnRunStatus;
+
+  @ApiProperty({ enum: PRODUCT_VERTICALS })
+  tryOnVertical!: ProductVertical;
+
+  @ApiPropertyOptional({ enum: JEWELLERY_TYPES })
+  jewelleryType?: JewelleryType;
 
   @ApiProperty()
   createdAt!: string;

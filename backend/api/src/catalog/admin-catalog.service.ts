@@ -9,6 +9,14 @@ import { ObjectStorageService } from "../storage/object-storage.js";
 import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
 import { normalizeSelfxGarmentCategory } from "./garment-category-normalization.js";
 import {
+  assertJewelleryProductImageDimensions,
+  jewelleryLegacyGarmentFields,
+  resolveCreateProductKind,
+  resolveUpdateProductKind,
+  type JewelleryType,
+  type ProductVertical,
+} from "./product-kind.js";
+import {
   type CreatePlatformProductDto,
   type CreatePlatformProductImageUploadDto,
   type PlatformProductDto,
@@ -38,6 +46,8 @@ type PlatformProductRow = {
   price_amount_cents: number | null;
   price_currency: string | null;
   product_url: string | null;
+  product_vertical: ProductVertical;
+  jewellery_type: JewelleryType | null;
   garment_intent: string;
   garment_category: string;
   garment_photo_type: string;
@@ -118,15 +128,28 @@ export class AdminCatalogService {
     );
     const productId = createSelfxId();
     const slug = normalizeProductSlug(input.slug ?? slugFromName(input.name));
+    const productKind = resolveCreateProductKind(input, throwProductInvalid);
     const image = normalizeProductImage(input.image);
+    assertJewelleryProductImageDimensions(
+      productKind,
+      image,
+      throwProductInvalid,
+    );
     const price = normalizePrice(
       input.priceAmountCents,
       input.priceCurrency,
       await this.platformSettings.platformDefaultCurrency(),
     );
-    const garmentCategory = normalizePlatformProductGarmentCategory(
-      input.garmentCategory,
-    );
+    const generationFields =
+      productKind.productVertical === "JEWELLERY"
+        ? jewelleryLegacyGarmentFields(productKind.jewelleryType)
+        : {
+            garmentIntent: input.garmentIntent?.trim() || "TOP",
+            garmentCategory: normalizePlatformProductGarmentCategory(
+              input.garmentCategory,
+            ),
+            garmentPhotoType: input.garmentPhotoType?.trim() || "AUTO",
+          };
     try {
       await this.prisma.$executeRaw`
         INSERT INTO products (
@@ -144,6 +167,8 @@ export class AdminCatalogService {
           price_amount_cents,
           price_currency,
           product_url,
+          product_vertical,
+          jewellery_type,
           garment_intent,
           garment_category,
           garment_photo_type,
@@ -168,9 +193,11 @@ export class AdminCatalogService {
           ${price.amountCents},
           ${price.currency},
           ${nullableTrim(input.productUrl ?? undefined)},
-          ${input.garmentIntent?.trim() || "TOP"},
-          ${garmentCategory},
-          ${input.garmentPhotoType?.trim() || "AUTO"},
+          ${productVerticalSql(productKind.productVertical)},
+          ${jewelleryTypeSql(productKind.jewelleryType)},
+          ${generationFields.garmentIntent},
+          ${generationFields.garmentCategory},
+          ${generationFields.garmentPhotoType},
           ${image.url},
           ${image.storageKey},
           ${image.contentType},
@@ -193,6 +220,25 @@ export class AdminCatalogService {
   ): Promise<PlatformProductDto> {
     const existing = await this.requirePlatformProduct(productId);
     const audience = input.audience?.trim().toUpperCase() || existing.audience;
+    const productKind = resolveUpdateProductKind(
+      existing,
+      input,
+      throwProductInvalid,
+    );
+    if (
+      input.image === undefined &&
+      productKind.productVertical === "JEWELLERY" &&
+      (input.productVertical !== undefined ||
+        input.jewelleryType !== undefined ||
+        input.active === true ||
+        input.vtoEnabled === true)
+    ) {
+      assertJewelleryProductImageDimensions(
+        productKind,
+        { width: existing.image_width, height: existing.image_height },
+        throwProductInvalid,
+      );
+    }
     const assignments: Prisma.Sql[] = [];
     if (input.name !== undefined) {
       assignments.push(Prisma.sql`name = ${input.name.trim()}`);
@@ -217,7 +263,10 @@ export class AdminCatalogService {
         Prisma.sql`description = ${nullableTrim(input.description ?? undefined)}`,
       );
     }
-    if (input.priceAmountCents !== undefined || input.priceCurrency !== undefined) {
+    if (
+      input.priceAmountCents !== undefined ||
+      input.priceCurrency !== undefined
+    ) {
       const price = normalizePrice(
         input.priceAmountCents,
         input.priceCurrency,
@@ -233,23 +282,53 @@ export class AdminCatalogService {
         Prisma.sql`product_url = ${nullableTrim(input.productUrl ?? undefined)}`,
       );
     }
-    if (input.garmentIntent !== undefined) {
+    if (
+      input.productVertical !== undefined ||
+      input.jewelleryType !== undefined
+    ) {
       assignments.push(
-        Prisma.sql`garment_intent = ${input.garmentIntent.trim() || "TOP"}`,
-      );
-    }
-    if (input.garmentCategory !== undefined) {
-      const garmentCategory = normalizePlatformProductGarmentCategory(
-        input.garmentCategory,
+        Prisma.sql`product_vertical = ${productVerticalSql(productKind.productVertical)}`,
       );
       assignments.push(
-        Prisma.sql`garment_category = ${garmentCategory}`,
+        Prisma.sql`jewellery_type = ${jewelleryTypeSql(productKind.jewelleryType)}`,
       );
-    }
-    if (input.garmentPhotoType !== undefined) {
-      assignments.push(
-        Prisma.sql`garment_photo_type = ${input.garmentPhotoType.trim() || "AUTO"}`,
-      );
+      if (productKind.productVertical === "JEWELLERY") {
+        const fields = jewelleryLegacyGarmentFields(productKind.jewelleryType);
+        assignments.push(Prisma.sql`garment_intent = ${fields.garmentIntent}`);
+        assignments.push(
+          Prisma.sql`garment_category = ${fields.garmentCategory}`,
+        );
+        assignments.push(
+          Prisma.sql`garment_photo_type = ${fields.garmentPhotoType}`,
+        );
+      } else if (existing.product_vertical === "JEWELLERY") {
+        assignments.push(
+          Prisma.sql`garment_intent = ${input.garmentIntent?.trim() || "TOP"}`,
+        );
+        assignments.push(
+          Prisma.sql`garment_category = ${normalizePlatformProductGarmentCategory(input.garmentCategory)}`,
+        );
+        assignments.push(
+          Prisma.sql`garment_photo_type = ${input.garmentPhotoType?.trim() || "AUTO"}`,
+        );
+      }
+    } else if (existing.product_vertical === "GARMENT") {
+      if (input.garmentIntent !== undefined) {
+        assignments.push(
+          Prisma.sql`garment_intent = ${input.garmentIntent.trim() || "TOP"}`,
+        );
+      }
+      if (input.garmentCategory !== undefined) {
+        const garmentCategory = normalizePlatformProductGarmentCategory(
+          input.garmentCategory,
+        );
+        assignments.push(Prisma.sql`garment_category = ${garmentCategory}`);
+      }
+      if (input.garmentPhotoType !== undefined) {
+        assignments.push(
+          Prisma.sql`garment_photo_type = ${input.garmentPhotoType.trim() || "AUTO"}`,
+        );
+      }
     }
     if (input.active !== undefined) {
       assignments.push(Prisma.sql`active = ${input.active}`);
@@ -259,6 +338,11 @@ export class AdminCatalogService {
     }
     if (input.image !== undefined) {
       const image = normalizeProductImage(input.image);
+      assertJewelleryProductImageDimensions(
+        productKind,
+        image,
+        throwProductInvalid,
+      );
       assignments.push(Prisma.sql`image_url = ${image.url}`);
       assignments.push(Prisma.sql`image_storage_key = ${image.storageKey}`);
       assignments.push(Prisma.sql`image_content_type = ${image.contentType}`);
@@ -328,7 +412,9 @@ export class AdminCatalogService {
   private async getPlatformProduct(
     productId: string,
   ): Promise<PlatformProductDto> {
-    return this.mapPlatformProduct(await this.requirePlatformProduct(productId));
+    return this.mapPlatformProduct(
+      await this.requirePlatformProduct(productId),
+    );
   }
 
   private async requirePlatformProduct(
@@ -398,6 +484,8 @@ export class AdminCatalogService {
       priceAmountCents: row.price_amount_cents,
       priceCurrency: row.price_currency,
       productUrl: row.product_url,
+      productVertical: row.product_vertical,
+      jewelleryType: row.jewellery_type,
       garmentIntent: row.garment_intent,
       garmentCategory: row.garment_category,
       garmentPhotoType: row.garment_photo_type,
@@ -456,6 +544,11 @@ function platformProductWhere(query: PlatformProductListQueryDto): Prisma.Sql {
     conditions.push(Prisma.sql`p.active = true`);
     conditions.push(Prisma.sql`p.vto_enabled = true`);
   }
+  if (query.productVertical) {
+    conditions.push(
+      Prisma.sql`p.product_vertical::text = ${query.productVertical}`,
+    );
+  }
   return Prisma.join(conditions, " AND ");
 }
 
@@ -475,6 +568,8 @@ function platformProductSelect(): Prisma.Sql {
       p.price_amount_cents,
       p.price_currency,
       p.product_url,
+      p.product_vertical,
+      p.jewellery_type,
       p.garment_intent,
       p.garment_category,
       p.garment_photo_type,
@@ -490,7 +585,10 @@ function platformProductSelect(): Prisma.Sql {
   `;
 }
 
-function boundedPositiveInt(value: number | undefined, fallback: number): number {
+function boundedPositiveInt(
+  value: number | undefined,
+  fallback: number,
+): number {
   return Number.isInteger(value) && value && value > 0 ? value : fallback;
 }
 
@@ -540,7 +638,9 @@ function normalizeProductImage(
     throwProductInvalid("Product image is required.");
   }
   if (storageKey && !storageKey.startsWith("catalog/platform/")) {
-    throwProductInvalid("Product image upload does not belong to the platform catalog.");
+    throwProductInvalid(
+      "Product image upload does not belong to the platform catalog.",
+    );
   }
   return {
     url,
@@ -559,6 +659,14 @@ function normalizePlatformProductGarmentCategory(
     throwProductInvalid("Product garment category is invalid.");
   }
   return category;
+}
+
+function productVerticalSql(value: ProductVertical): Prisma.Sql {
+  return Prisma.sql`${value}::"ProductVertical"`;
+}
+
+function jewelleryTypeSql(value: JewelleryType | null): Prisma.Sql {
+  return value ? Prisma.sql`${value}::"JewelleryType"` : Prisma.sql`NULL`;
 }
 
 function normalizePrice(

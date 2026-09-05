@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../session/capture_session_controller.dart';
 import '../config/kiosk_runtime_configuration.dart';
 import 'kiosk_garment_input.dart';
+import 'kiosk_jewellery_capture_requirements.dart';
 import 'kiosk_try_on_gateway.dart';
 import 'kiosk_try_on_models.dart';
 import 'model_garment_compatibility.dart';
@@ -26,6 +27,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
   final Duration pollTimeout;
 
   KioskGarmentInput? garmentInput;
+  KioskJewelleryCaptureRequirements? jewelleryCaptureRequirements;
+  KioskTryOnVertical activeTryOnVertical = KioskTryOnVertical.garment;
   KioskGarmentIntent? pendingGarmentIntent;
   List<KioskGarmentIntent> enabledGarmentIntents = const [
     KioskGarmentIntent.top,
@@ -97,8 +100,11 @@ class KioskTryOnSessionController extends ChangeNotifier {
     return index + 1;
   }
 
-  Future<bool> beginCustomerSession() async {
+  Future<bool> beginCustomerSession({
+    KioskTryOnVertical vertical = KioskTryOnVertical.garment,
+  }) async {
     if (!customerSessionActive) {
+      activeTryOnVertical = vertical;
       _clearRunState(keepGarment: false);
       garmentPicks = const [];
       _clearBackendSessionState();
@@ -118,10 +124,36 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }
 
   void selectGarment(KioskGarmentInput input) {
+    activeTryOnVertical = input.tryOnVertical;
     garmentPicks = const [];
     activeGarmentPickId = null;
     garmentInput = input;
+    jewelleryCaptureRequirements = null;
     pendingGarmentIntent = input.intent;
+    _clearRunState(keepGarment: true);
+    notifyListeners();
+  }
+
+  void selectJewelleryProduct(
+    KioskGarmentInput input,
+    KioskJewelleryCaptureRequirements requirements,
+  ) {
+    if (input.tryOnVertical != KioskTryOnVertical.jewellery ||
+        input.productId == null ||
+        input.productId != requirements.productId) {
+      throw ArgumentError(
+        'Jewellery capture requirements must match the selected product.',
+      );
+    }
+    final resolvedInput = input.copyWith(
+      jewelleryType: requirements.jewelleryType,
+    );
+    activeTryOnVertical = KioskTryOnVertical.jewellery;
+    garmentPicks = const [];
+    activeGarmentPickId = null;
+    garmentInput = resolvedInput;
+    jewelleryCaptureRequirements = requirements;
+    pendingGarmentIntent = resolvedInput.intent;
     _clearRunState(keepGarment: true);
     notifyListeners();
   }
@@ -281,6 +313,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
       pendingGarmentIntent = null;
     }
     if (garmentInput != null &&
+        garmentInput!.tryOnVertical == KioskTryOnVertical.garment &&
         _isDisabledKnownCategory(garmentInput!.intent, enabledGarmentIntents)) {
       garmentInput = null;
     }
@@ -509,9 +542,10 @@ class KioskTryOnSessionController extends ChangeNotifier {
     final garment = garmentInput;
     final personPhoto = capture.activeAcceptedPersonPhoto;
     if (garment == null) {
+      final label = activeTryOnVertical.itemLabel;
       _fail(
         KioskTryOnFailureCode.garmentMissing,
-        'Choose a garment image before generating.',
+        'Choose a $label before generating.',
       );
       return;
     }
@@ -532,7 +566,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
       return;
     }
     final modelCoverage = personPhoto.coverage;
-    if (modelCoverage == ModelCoverage.unknown) {
+    if (garment.tryOnVertical == KioskTryOnVertical.garment &&
+        modelCoverage == ModelCoverage.unknown) {
       final guidance = guidanceFor(garment.intent);
       _fail(
         KioskTryOnFailureCode.modelImageIncompatibleWithGarment,
@@ -659,6 +694,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
         KioskTryOnSessionCompletionReason.finished,
   }) async {
     await completeBackendSession(reason: reason);
+    activeTryOnVertical = KioskTryOnVertical.garment;
     _clearRunState(keepGarment: false);
     garmentPicks = const [];
     activeGarmentPickId = null;
@@ -791,6 +827,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     _preparedPersonFile = null;
     if (!keepGarment) {
       garmentInput = null;
+      jewelleryCaptureRequirements = null;
       pendingGarmentIntent = null;
       activeGarmentPickId = null;
     }
@@ -854,7 +891,9 @@ class KioskTryOnSessionController extends ChangeNotifier {
       KioskTryOnFailureCode.deviceAuthenticationRejected =>
         'This kiosk needs to be paired again before Try-On can continue.',
       KioskTryOnFailureCode.garmentMissing =>
-        'Choose a garment image before generating.',
+        activeTryOnVertical == KioskTryOnVertical.jewellery
+            ? 'Choose a jewellery item before generating.'
+            : 'Choose a garment image before generating.',
       KioskTryOnFailureCode.personMissing =>
         'Retake your photo before generating.',
       KioskTryOnFailureCode.imagePreparationFailed =>
@@ -924,6 +963,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }
 
   void _selectGarmentPick(KioskTryOnPick pick) {
+    activeTryOnVertical = pick.garmentInput.tryOnVertical;
     garmentInput = pick.garmentInput;
     pendingGarmentIntent = pick.garmentInput.intent;
     activeGarmentPickId = pick.id;
@@ -969,7 +1009,8 @@ class KioskTryOnPick {
 }
 
 bool _requiresKnownCategoryCompatibility(KioskGarmentInput garment) {
-  return garment.intent != KioskGarmentIntent.auto;
+  return garment.tryOnVertical == KioskTryOnVertical.garment &&
+      garment.intent != KioskGarmentIntent.auto;
 }
 
 bool _isDisabledKnownCategory(

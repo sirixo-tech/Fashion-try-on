@@ -100,6 +100,7 @@ describe("PublicApiWebhookService", () => {
     await service.deliverTryOnRunTerminalEvent("store-1", {
       id: "run-1",
       status: "COMPLETED",
+      tryOnVertical: "GARMENT",
       sessionId: "session-1",
       createdAt: "2026-08-29T12:00:00.000Z",
       updatedAt: "2026-08-29T12:00:02.000Z",
@@ -154,6 +155,7 @@ describe("PublicApiWebhookService", () => {
     await service.deliverTryOnRunTerminalEvent("store-1", {
       id: "run-1",
       status: "COMPLETED",
+      tryOnVertical: "GARMENT",
       sessionId: "session-1",
       createdAt: "2026-08-29T12:00:00.000Z",
       updatedAt: "2026-08-29T12:00:02.000Z",

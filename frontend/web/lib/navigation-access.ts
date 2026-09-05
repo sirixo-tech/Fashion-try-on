@@ -59,7 +59,11 @@ const storePermissionsByHref: Record<string, string[]> = {
   "/app/integrations/woocommerce": ["integrations.view"],
 };
 
-const platformOnlyHrefs = new Set(["/app/try-on-lab"]);
+const platformOnlyHrefs = new Set([
+  "/app/try-on-lab",
+  "/app/try-on-lab/garments",
+  "/app/try-on-lab/jewellery",
+]);
 
 const alwaysVisibleHrefs = new Set(["/app/dashboard", "/app/activity"]);
 
@@ -96,15 +100,16 @@ function filterNavigationItem(
 }
 
 function canSeeHref(href: string, access: NavigationAccess): boolean {
-  if (alwaysVisibleHrefs.has(href)) {
+  const route = normalizeAccessRoute(href);
+  if (alwaysVisibleHrefs.has(route)) {
     return true;
   }
-  if (platformOnlyHrefs.has(href)) {
+  if (platformOnlyHrefs.has(route)) {
     return access.hasPlatformAccess;
   }
 
-  const platformPermissions = platformPermissionsByHref[href] ?? [];
-  const storePermissions = storePermissionsByHref[href] ?? [];
+  const platformPermissions = platformPermissionsByHref[route] ?? [];
+  const storePermissions = storePermissionsByHref[route] ?? [];
   const hasStoreRule = storePermissions.length > 0;
 
   return (
@@ -114,6 +119,17 @@ function canSeeHref(href: string, access: NavigationAccess): boolean {
       (access.storePlatformBypass ||
         hasAny(access.storePermissions, storePermissions)))
   );
+}
+
+function normalizeAccessRoute(href: string): string {
+  const route = href.split("?")[0] ?? href;
+  if (
+    route === "/app/products/garments" ||
+    route === "/app/products/jewellery"
+  ) {
+    return "/app/products";
+  }
+  return route;
 }
 
 function hasAny(actual: string[], required: string[]): boolean {

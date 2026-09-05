@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 
 import {
-  Badge,
   Button,
   PageContainer,
   PageHeader,
@@ -492,24 +491,6 @@ export default function DashboardPage() {
                   ])
             }
           />
-        </div>
-      </PageSection>
-
-      <PageSection>
-        <div className="rounded-lg border bg-card p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Access Scope</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {isStoreScope
-                  ? "This dashboard is constrained to the selected Store and its granted permissions."
-                  : "This dashboard is showing platform-wide rollups available to the current platform role."}
-              </p>
-            </div>
-            <Badge variant="outline">
-              {isStoreScope ? "Store RBAC" : "Platform RBAC"}
-            </Badge>
-          </div>
         </div>
       </PageSection>
     </PageContainer>

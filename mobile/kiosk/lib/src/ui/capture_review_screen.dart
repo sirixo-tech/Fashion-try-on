@@ -9,6 +9,7 @@ import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
+import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
@@ -17,6 +18,8 @@ import 'kiosk_attention_animations.dart';
 import 'mobile_upload_screen.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
+import 'try_on_experience_config.dart';
+import 'try_on_generation_screen.dart';
 
 class CaptureReviewScreen extends StatelessWidget {
   const CaptureReviewScreen({
@@ -181,6 +184,7 @@ class _ReviewActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final isChecking = controller.isAnalyzingQuality || usability == null;
     final isUsable = usability?.isUsable == true;
+    final experience = tryOnExperienceFor(tryOnController.activeTryOnVertical);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -204,15 +208,17 @@ class _ReviewActions extends StatelessWidget {
           SelfxKioskButton(
             key: const Key('take-garment-photo'),
             onPressed: null,
-            icon: Icons.camera_alt_outlined,
-            label: 'Take Garment Photo',
+            icon: experience.supportsPhysicalProductCapture
+                ? Icons.camera_alt_outlined
+                : experience.icon,
+            label: experience.reviewWaitingActionLabel,
             variant: SelfxKioskButtonVariant.primary,
             textAlign: TextAlign.center,
             mainAxisAlignment: MainAxisAlignment.center,
           ),
         ] else if (isUsable) ...[
           Text(
-            'Now, show the garment to the camera.',
+            experience.reviewInstruction,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Colors.white,
@@ -235,27 +241,43 @@ class _ReviewActions extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SelfxActionPulse(
-                    child: SelfxKioskButton(
-                      key: const Key('take-garment-photo'),
-                      onPressed: () => unawaited(_openGarmentCamera(context)),
-                      icon: Icons.camera_alt_outlined,
-                      label: 'Take Garment Photo',
-                      variant: SelfxKioskButtonVariant.primary,
-                      textAlign: TextAlign.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  if (experience.supportsPhysicalProductCapture) ...[
+                    SelfxActionPulse(
+                      child: SelfxKioskButton(
+                        key: const Key('take-garment-photo'),
+                        onPressed: () => unawaited(_openGarmentCamera(context)),
+                        icon: Icons.camera_alt_outlined,
+                        label: 'Take Garment Photo',
+                        variant: SelfxKioskButtonVariant.primary,
+                        textAlign: TextAlign.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 14),
+                  ] else ...[
+                    SelfxActionPulse(
+                      child: SelfxKioskButton(
+                        key: const Key('continue-jewellery-try-on'),
+                        onPressed: () =>
+                            unawaited(_continueJewelleryTryOn(context)),
+                        icon: Icons.play_arrow_rounded,
+                        label: experience.reviewWaitingActionLabel,
+                        variant: SelfxKioskButtonVariant.primary,
+                        textAlign: TextAlign.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   Row(
                     children: [
                       Expanded(
                         child: SelfxKioskActionCard(
                           key: const Key('browse-catalog'),
                           onPressed: () => unawaited(_openCatalog(context)),
-                          icon: Icons.checkroom_outlined,
+                          icon: experience.icon,
                           iconColor: const Color(0xFFE86610),
-                          label: 'Browse Catalog',
+                          label: experience.reviewCatalogActionLabel,
                           subtitle: 'Choose item',
                           minHeight: 70,
                           padding: const EdgeInsets.symmetric(
@@ -382,12 +404,45 @@ class _ReviewActions extends StatelessWidget {
   }
 
   Future<void> _openCatalog(BuildContext context) async {
+    if (tryOnController.activeTryOnVertical == KioskTryOnVertical.jewellery) {
+      await controller.retake();
+      tryOnController.tryAnotherGarment();
+      if (!context.mounted) {
+        return;
+      }
+      await _replaceWithCatalog(context);
+      return;
+    }
+    if (!await _acceptModelPhoto(context) || !context.mounted) {
+      return;
+    }
+    await _replaceWithCatalog(context);
+  }
+
+  Future<void> _replaceWithCatalog(BuildContext context) async {
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => BrowseProductsScreen(
+          captureController: controller,
+          tryOnController: tryOnController,
+          uploadController: uploadController,
+          catalogGateway: catalogGateway,
+          extractionService: extractionService,
+          productVertical: tryOnExperienceFor(
+            tryOnController.activeTryOnVertical,
+          ).productVertical,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _continueJewelleryTryOn(BuildContext context) async {
     if (!await _acceptModelPhoto(context) || !context.mounted) {
       return;
     }
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => BrowseProductsScreen(
+        builder: (_) => TryOnGenerationScreen(
           captureController: controller,
           tryOnController: tryOnController,
           uploadController: uploadController,

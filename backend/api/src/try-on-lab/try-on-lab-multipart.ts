@@ -44,8 +44,13 @@ interface MultipartField {
   value: unknown;
 }
 
+export type TryOnLabImageFieldName =
+  | "personImage"
+  | "garmentImage"
+  | "jewelleryImage";
+
 export interface TryOnLabUploadedImage {
-  fieldName: "personImage" | "garmentImage";
+  fieldName: TryOnLabImageFieldName;
   filename: string;
   mimeType: "image/jpeg" | "image/png" | "image/webp";
   sizeBytes: number;
@@ -103,7 +108,7 @@ export async function parseTryOnLabMultipartRequest(
         const buffer = await part.toBuffer();
         images.set(
           part.fieldname,
-          validateUploadedImage(
+            validateTryOnLabUploadedImage(
             part.fieldname,
             part.filename,
             part.mimetype,
@@ -227,8 +232,8 @@ function parseOptionalClientRequestId(value: string | undefined): string | undef
   return trimmed;
 }
 
-function validateUploadedImage(
-  fieldName: "personImage" | "garmentImage",
+export function validateTryOnLabUploadedImage(
+  fieldName: TryOnLabImageFieldName,
   filename: string,
   mimetype: string,
   buffer: Buffer,

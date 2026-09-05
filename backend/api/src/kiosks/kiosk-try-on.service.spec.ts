@@ -5,6 +5,8 @@ import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-norma
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import type { CreateKioskTryOnRunPayload } from "./kiosk-try-on.multipart.js";
+import type { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
+import type { JewelleryTryOnService } from "../try-on/jewellery/jewellery-try-on.service.js";
 import type { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 
 describe("KIOSK-4B production Try-On service", () => {
@@ -84,6 +86,79 @@ describe("KIOSK-4B production Try-On service", () => {
     expect(second.id).toBe(first.id);
     expect(execution.submissions).toBe(1);
     expect(prisma.createdRuns).toHaveLength(1);
+  });
+
+  it("creates a Store jewellery run through the jewellery provider path", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const jewelleryTryOn = new FakeJewelleryTryOnService();
+    const jewelleryExecution = new FakeJewelleryExecution();
+    const service = new KioskTryOnService(
+      prisma as never,
+      execution as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      jewelleryTryOn as never,
+      jewelleryExecution as never,
+    );
+
+    const created = await service.createRun(
+      storeDevice("device-1", "store-1"),
+      jewelleryPayload(),
+    );
+    await flushPromises();
+
+    expect(created).toMatchObject({
+      status: "QUEUED",
+      tryOnVertical: "JEWELLERY",
+      jewelleryType: "RING",
+    });
+    expect(jewelleryTryOn.preparedStoreIds).toEqual(["store-1"]);
+    expect(jewelleryExecution.submissions).toBe(1);
+    expect(execution.submissions).toBe(0);
+    expect(prisma.createdRuns[0]).toMatchObject({
+      kioskDeviceId: "device-1",
+      assignmentScope: KioskAssignmentScope.ORGANIZATION,
+      organizationId: "store-1",
+      tryOnVertical: "JEWELLERY",
+      jewelleryType: "RING",
+      garmentSource: "DIRECT_UPLOAD",
+      garmentIntent: "JEWELLERY",
+      garmentCategory: "RING",
+      garmentPhotoType: "PRODUCT",
+      provider: "perfect-corp",
+    });
+  });
+
+  it("rejects jewellery Try-On for platform-only kiosks", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const jewelleryTryOn = new FakeJewelleryTryOnService();
+    const jewelleryExecution = new FakeJewelleryExecution();
+    const service = new KioskTryOnService(
+      prisma as never,
+      execution as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      jewelleryTryOn as never,
+      jewelleryExecution as never,
+    );
+
+    await expect(
+      service.createRun(platformDevice("device-1"), jewelleryPayload()),
+    ).rejects.toBeInstanceOf(ApiErrorException);
+
+    expect(jewelleryTryOn.preparedStoreIds).toEqual([]);
+    expect(jewelleryExecution.submissions).toBe(0);
+    expect(prisma.createdRuns).toHaveLength(0);
   });
 
   it("does not allow one kiosk device to read another device run", async () => {
@@ -220,6 +295,7 @@ function payload(
 ): CreateKioskTryOnRunPayload {
   return {
     clientRequestId: "attempt-1",
+    tryOnVertical: "GARMENT",
     personImage: uploadedImage("personImage"),
     garmentImage: uploadedImage("garmentImage"),
     garmentSource: "DIRECT_UPLOAD",
@@ -239,7 +315,35 @@ function payload(
   };
 }
 
-function uploadedImage(fieldName: "personImage" | "garmentImage") {
+function jewelleryPayload(
+  overrides: Partial<CreateKioskTryOnRunPayload> = {},
+): CreateKioskTryOnRunPayload {
+  return {
+    clientRequestId: "attempt-1",
+    tryOnVertical: "JEWELLERY",
+    personImage: uploadedImage("personImage"),
+    jewelleryImage: uploadedImage("jewelleryImage"),
+    jewelleryType: "RING",
+    garmentSource: "DIRECT_UPLOAD",
+    garmentIntent: "JEWELLERY" as never,
+    category: "AUTO",
+    garmentPhotoType: "PRODUCT" as never,
+    generationProfile: "BALANCED",
+    categoryResolutionSource: "SELFX_CATALOG_METADATA",
+    photoTypeResolutionSource: "SELFX_CATALOG_METADATA",
+    profileResolutionSource: "PLATFORM_DEFAULT",
+    disambiguationRequired: false,
+    disambiguationResolved: true,
+    garmentAnalysisReasonCodes: [],
+    qualityWarningCodes: [],
+    qualityOverrideAccepted: false,
+    ...overrides,
+  };
+}
+
+function uploadedImage<
+  TFieldName extends "personImage" | "garmentImage" | "jewelleryImage",
+>(fieldName: TFieldName) {
   return {
     fieldName,
     filename: `${fieldName}.jpg`,
@@ -311,6 +415,59 @@ class FakeExecution implements Pick<
     this.submissions += 1;
     await observer.onStarted(new Date());
     await observer.onSubmitted(`provider-${this.submissions}`);
+  }
+}
+
+class FakeJewelleryTryOnService implements Pick<
+  JewelleryTryOnService,
+  "prepareRunFoundation"
+> {
+  readonly preparedStoreIds: string[] = [];
+
+  async prepareRunFoundation(
+    input: Parameters<JewelleryTryOnService["prepareRunFoundation"]>[0],
+  ): Promise<
+    Awaited<ReturnType<JewelleryTryOnService["prepareRunFoundation"]>>
+  > {
+    this.preparedStoreIds.push(input.storeId);
+    return {
+      vertical: "JEWELLERY",
+      jewelleryType: input.jewelleryType,
+      provider: {
+        provider: "perfect-corp",
+        providerDisplayName: "Perfect Corp",
+        model: "perfect-corp-jewellery-v1",
+      },
+      productReference: input.productReference,
+    };
+  }
+}
+
+class FakeJewelleryExecution implements Pick<
+  JewelleryTryOnExecutionService,
+  "metadata" | "assertConfigured" | "process"
+> {
+  submissions = 0;
+
+  assertConfigured(): void {
+    return undefined;
+  }
+
+  metadata() {
+    return {
+      provider: "perfect-corp" as const,
+      providerDisplayName: "Perfect Corp",
+      model: "perfect-corp-jewellery-v1",
+    };
+  }
+
+  async process(
+    _payload: Parameters<JewelleryTryOnExecutionService["process"]>[0],
+    observer: Parameters<JewelleryTryOnExecutionService["process"]>[1],
+  ): Promise<void> {
+    this.submissions += 1;
+    await observer.onStarted(new Date());
+    await observer.onSubmitted(`jewellery-provider-${this.submissions}`);
   }
 }
 
@@ -407,6 +564,8 @@ interface CreateRunData {
   provider: string;
   providerDisplayName: string;
   providerModel: string;
+  tryOnVertical: string;
+  jewelleryType?: string | null;
   garmentSource: string;
   garmentIntent: string;
   garmentCategory: string;

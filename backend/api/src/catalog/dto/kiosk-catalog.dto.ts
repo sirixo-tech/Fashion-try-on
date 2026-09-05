@@ -9,10 +9,20 @@ import {
   Min,
 } from "class-validator";
 
+import {
+  PRODUCT_VERTICALS,
+  type JewelleryType,
+  type ProductVertical,
+} from "../product-kind.js";
+
 export const CATALOG_AUDIENCES = ["MEN", "WOMEN", "UNISEX"] as const;
 export type CatalogAudience = (typeof CATALOG_AUDIENCES)[number];
 
 export class KioskCatalogQueryDto {
+  @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical?: ProductVertical;
+
   @IsOptional()
   @IsIn(CATALOG_AUDIENCES)
   audience?: CatalogAudience;
@@ -37,6 +47,10 @@ export class KioskCatalogQueryDto {
 }
 
 export class KioskCatalogCategoryQueryDto {
+  @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical?: ProductVertical;
+
   @IsOptional()
   @IsIn(CATALOG_AUDIENCES)
   audience?: CatalogAudience;
@@ -69,6 +83,8 @@ export class KioskCatalogProductDto {
   id!: string;
   name!: string;
   description!: string | null;
+  productVertical!: ProductVertical;
+  jewelleryType!: JewelleryType | null;
   audience!: string;
   category!: KioskCatalogProductCategoryDto;
   garmentIntent!: string;

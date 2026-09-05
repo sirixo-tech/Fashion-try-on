@@ -13,14 +13,17 @@ import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
+import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'camera_settings_screen.dart';
 import 'mobile_upload_screen.dart';
 import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
+import 'try_on_experience_config.dart';
 
 class KioskHomeScreen extends StatefulWidget {
   const KioskHomeScreen({
@@ -91,6 +94,22 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   KioskIdlePresentation get _presentation =>
       widget.configurationController?.configuration.toIdlePresentation() ??
       widget.presentation;
+
+  bool get _garmentTryOnEnabled {
+    final configuration = widget.configurationController?.configuration;
+    if (configuration == null) {
+      return true;
+    }
+    return configuration.garmentTryOnEnabled ||
+        !configuration.jewelleryTryOnEnabled;
+  }
+
+  bool get _jewelleryTryOnEnabled =>
+      widget.configurationController?.configuration.jewelleryTryOnEnabled ??
+      false;
+
+  bool get _multipleTryOnModesEnabled =>
+      _garmentTryOnEnabled && _jewelleryTryOnEnabled;
 
   void _configurationChanged() {
     if (!mounted) {
@@ -191,6 +210,47 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     }
   }
 
+  Future<void> _startJewelleryTryOn() async {
+    if (_startingTryOn || _startingMobileUpload) {
+      return;
+    }
+    setState(() => _startingTryOn = true);
+    final consented = await _requestCustomerConsent();
+    if (!mounted) {
+      return;
+    }
+    if (!consented) {
+      setState(() => _startingTryOn = false);
+      return;
+    }
+    final started = await _prepareCustomerSession(
+      vertical: KioskTryOnVertical.jewellery,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!started) {
+      setState(() => _startingTryOn = false);
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BrowseProductsScreen(
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+          productVertical: jewelleryTryOnExperience.productVertical,
+        ),
+      ),
+    );
+    await _handleReturnedHome();
+    if (mounted) {
+      setState(() => _startingTryOn = false);
+    }
+  }
+
   Future<void> _uploadFromMobile() async {
     if (_startingTryOn || _startingMobileUpload) {
       return;
@@ -263,7 +323,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     return accepted == true;
   }
 
-  Future<bool> _prepareCustomerSession() async {
+  Future<bool> _prepareCustomerSession({
+    KioskTryOnVertical vertical = KioskTryOnVertical.garment,
+  }) async {
     await widget.tryOnController.finish(widget.controller);
     await _activatePendingConfigurationIfSafe();
 
@@ -297,7 +359,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       );
     }
     await widget.controller.resetSession();
-    final started = await widget.tryOnController.beginCustomerSession();
+    final started = await widget.tryOnController.beginCustomerSession(
+      vertical: vertical,
+    );
     if (!mounted) {
       return false;
     }
@@ -461,6 +525,11 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                               large: 46,
                               extraLarge: 64,
                             );
+                            final garmentTryOnEnabled = _garmentTryOnEnabled;
+                            final jewelleryTryOnEnabled =
+                                _jewelleryTryOnEnabled;
+                            final multipleTryOnModesEnabled =
+                                _multipleTryOnModesEnabled;
 
                             Widget buildUploadButton() => SizedBox(
                               width: buttonWidth,
@@ -486,8 +555,10 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                               width: buttonWidth,
                               child: SelfxKioskButton(
                                 key: const Key('start-try-on'),
-                                label: presentation.ctaLabel,
-                                icon: Icons.auto_awesome_outlined,
+                                label: multipleTryOnModesEnabled
+                                    ? garmentTryOnExperience.multiModeHomeLabel
+                                    : presentation.ctaLabel,
+                                icon: garmentTryOnExperience.icon,
                                 variant: SelfxKioskButtonVariant.primary,
                                 minHeight: buttonHeight,
                                 borderRadius: 999,
@@ -499,6 +570,68 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                 ),
                               ),
                             );
+
+                            Widget buildJewelleryButton() => SizedBox(
+                              width: buttonWidth,
+                              child: SelfxKioskButton(
+                                key: const Key('start-jewellery-try-on'),
+                                label: multipleTryOnModesEnabled
+                                    ? jewelleryTryOnExperience
+                                          .multiModeHomeLabel
+                                    : 'Start Try-On',
+                                icon: jewelleryTryOnExperience.icon,
+                                variant: SelfxKioskButtonVariant.primary,
+                                minHeight: buttonHeight,
+                                borderRadius: 999,
+                                textAlign: TextAlign.center,
+                                onPressed: _startJewelleryTryOn,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: compact ? 24 : 36,
+                                  vertical: compact ? 18 : 28,
+                                ),
+                              ),
+                            );
+
+                            final actionButtons = <Widget>[
+                              if (garmentTryOnEnabled) buildUploadButton(),
+                              if (garmentTryOnEnabled) buildStartButton(),
+                              if (jewelleryTryOnEnabled) buildJewelleryButton(),
+                            ];
+
+                            Widget buildActionButtons() {
+                              if (useButtonRow) {
+                                return Wrap(
+                                  alignment: WrapAlignment.center,
+                                  spacing: buttonGap,
+                                  runSpacing: layout.scaled(
+                                    14,
+                                    small: 10,
+                                    large: 18,
+                                  ),
+                                  children: actionButtons,
+                                );
+                              }
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (
+                                    var index = 0;
+                                    index < actionButtons.length;
+                                    index++
+                                  ) ...[
+                                    if (index > 0)
+                                      SizedBox(
+                                        height: layout.scaled(
+                                          14,
+                                          small: 10,
+                                          large: 18,
+                                        ),
+                                      ),
+                                    actionButtons[index],
+                                  ],
+                                ],
+                              );
+                            }
 
                             return SingleChildScrollView(
                               physics: bodyConstraints.maxHeight < 360
@@ -567,28 +700,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                               large: 42,
                                             ),
                                           ),
-                                          if (useButtonRow)
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                buildUploadButton(),
-                                                SizedBox(width: buttonGap),
-                                                buildStartButton(),
-                                              ],
-                                            )
-                                          else ...[
-                                            buildUploadButton(),
-                                            SizedBox(
-                                              height: layout.scaled(
-                                                14,
-                                                small: 10,
-                                                large: 18,
-                                              ),
-                                            ),
-                                            buildStartButton(),
-                                          ],
+                                          buildActionButtons(),
                                         ],
                                       ),
                                     ),

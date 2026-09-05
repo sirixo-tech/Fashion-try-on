@@ -144,7 +144,7 @@ function parsePurpose(value: string | undefined): PublicApiUploadPurpose {
   ) {
     return normalized as PublicApiUploadPurpose;
   }
-  throwMultipartInvalid("Upload purpose must be PERSON or GARMENT.");
+  throwMultipartInvalid("Upload purpose must be PERSON, GARMENT or JEWELLERY.");
 }
 
 function parseOptionalSessionId(value: string | undefined): string | undefined {

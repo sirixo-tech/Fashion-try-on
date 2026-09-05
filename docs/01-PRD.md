@@ -708,7 +708,13 @@ SelfX must clearly disclose applicable merchant access in the customer privacy/c
 
 ## PRD-PRODUCT-001
 
-SelfX must manage product information necessary for Virtual Try-On.
+SelfX must manage product information necessary for Virtual Try-On across the
+supported product verticals.
+
+Initial product verticals:
+
+- Garments.
+- Jewellery.
 
 SelfX is not intended to become a complete inventory/POS platform.
 
@@ -745,6 +751,47 @@ External Product
 ↔ SelfX Product
 
 Detailed synchronization and ownership rules belong in Technical Requirements.
+
+---
+
+## PRD-PRODUCT-005
+
+Garment and jewellery products share the Products domain but have different VTO
+configuration rules.
+
+Garment categories such as tops, bottoms and full outfit are primarily catalog,
+filtering and customer-selection concepts. They may inform internal garment
+policy resolution but customers must not choose provider-specific garment
+parameters.
+
+Jewellery products must have an explicit jewellery type before VTO is exposed:
+
+- Ring.
+- Bracelet.
+- Necklace.
+- Earring.
+
+The jewellery type is operationally required because it selects the correct
+jewellery capture guidance, validation expectations and provider adapter route.
+SelfX must not rely on provider-side image guessing as the authoritative
+jewellery type.
+
+Jewellery customer flows must select the jewellery product before requesting a
+person image. SelfX resolves the selected product's trusted jewellery type and
+returns the corresponding person-image framing, guidance, permitted input
+methods and validation expectations. Customers must not choose or override the
+technical jewellery type during this flow.
+
+Person-image preflight has two customer-facing outcomes: proceed with the
+preview, or retake/upload another image with one clear corrective reason.
+Detailed checks and metrics remain internal diagnostics and must not introduce
+a third technical quality level into the customer flow.
+
+Store Try-On capabilities are configured at the Store business level, not per
+kiosk. A Store may enable garment Try-On, jewellery Try-On or both. Kiosks
+assigned to that Store inherit these capabilities from Store settings; kiosk
+settings remain limited to device/runtime behavior such as camera, countdown,
+audio, idle presentation and local capture controls.
 
 ---
 
@@ -1826,6 +1873,13 @@ permissions, not from a client-supplied product reference.
 Platform-owned demo kiosks may use the SelfX catalog. Store-owned kiosks may
 use the Store's own catalog system and should pass product reference metadata
 when available.
+
+Authorized product managers must be able to explicitly request a catalog
+refresh after changing garment or jewellery products. A Store catalog refresh
+targets only active kiosks assigned to that Store. A platform catalog refresh
+targets platform-owned kiosks and Store kiosks currently using that product
+vertical as their platform fallback. Offline kiosks keep their valid cache and
+apply the refresh after reconnecting.
 
 Developer API administration must follow the same Store tenant boundary as
 analytics. Store users may view or manage only API keys, API usage, webhook

@@ -34,6 +34,7 @@ import {
   KIOSK_PAIRING_CODE_PATTERN,
   PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES,
 } from "../kiosk.constants.js";
+import { type StoreTryOnCapability } from "../../try-on/store-try-on-capabilities.js";
 
 export class CreateKioskPairingSessionDto {
   @IsOptional()
@@ -175,6 +176,7 @@ export class KioskConfigurationDto {
     guidanceAudioEnabled: boolean;
   };
   experience!: {
+    enabledTryOnCapabilities: StoreTryOnCapability[];
     enabledGarmentIntents: KioskConfigurationGarmentIntent[];
     multiGarmentSelectionEnabled: boolean;
     maxTryOnPicks: number;

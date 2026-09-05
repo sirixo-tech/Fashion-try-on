@@ -18,6 +18,7 @@ import { PrismaService } from "../database/prisma.service.js";
 import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
+import type { ProductVertical } from "../catalog/product-kind.js";
 import {
   type CreateKioskConfigurationAssetUploadDto,
   type KioskCatalogSyncResponseDto,
@@ -214,9 +215,48 @@ export class KioskConfigurationService {
   async requestFleetCatalogSync(
     actorUserId: string,
   ): Promise<KioskCatalogSyncResponseDto> {
+    return this.requestCatalogSync(actorUserId, {
+      scope: "FLEET",
+      productVertical: null,
+    });
+  }
+
+  async requestPlatformCatalogSync(
+    actorUserId: string,
+    productVertical: ProductVertical,
+  ): Promise<KioskCatalogSyncResponseDto> {
+    return this.requestCatalogSync(actorUserId, {
+      scope: "PLATFORM",
+      productVertical,
+    });
+  }
+
+  async requestStoreCatalogSync(
+    actorUserId: string,
+    storeId: string,
+    productVertical: ProductVertical,
+  ): Promise<KioskCatalogSyncResponseDto> {
+    return this.requestCatalogSync(actorUserId, {
+      scope: "STORE",
+      storeId,
+      productVertical,
+    });
+  }
+
+  private async requestCatalogSync(
+    actorUserId: string,
+    target:
+      | { scope: "FLEET"; productVertical: null }
+      | { scope: "PLATFORM"; productVertical: ProductVertical }
+      | {
+          scope: "STORE";
+          storeId: string;
+          productVertical: ProductVertical;
+        },
+  ): Promise<KioskCatalogSyncResponseDto> {
     const requestedAt = new Date();
     const updatedDevices = await this.prisma.$transaction(async (tx) => {
-      const devices = await tx.kioskDevice.findMany({
+      const activeDevices = await tx.kioskDevice.findMany({
         where: { status: KioskDeviceStatus.ACTIVE },
         select: {
           id: true,
@@ -225,6 +265,34 @@ export class KioskConfigurationService {
           configuration: { select: { id: true, version: true } },
         },
       });
+      let devices = activeDevices;
+      if (target.scope === "STORE") {
+        devices = activeDevices.filter(
+          (device) => device.organizationId === target.storeId,
+        );
+      } else if (target.scope === "PLATFORM") {
+        const storeCatalogs = await tx.$queryRaw<
+          Array<{ organization_id: string }>
+        >`
+          SELECT DISTINCT p.organization_id
+          FROM products p
+          INNER JOIN product_categories c ON c.id = p.category_id
+          WHERE p.scope::text = 'STORE'
+            AND p.organization_id IS NOT NULL
+            AND p.active = true
+            AND p.vto_enabled = true
+            AND p.product_vertical::text = ${target.productVertical}
+            AND c.active = true
+        `;
+        const storesWithOwnCatalog = new Set(
+          storeCatalogs.map((row) => row.organization_id),
+        );
+        devices = activeDevices.filter(
+          (device) =>
+            device.organizationId === null ||
+            !storesWithOwnCatalog.has(device.organizationId),
+        );
+      }
       for (const device of devices) {
         if (device.configuration) {
           await tx.kioskDeviceConfiguration.update({
@@ -255,7 +323,11 @@ export class KioskConfigurationService {
             storeId: device.storeId,
             resourceType: "kiosk_device",
             resourceId: device.id,
-            metadata: { catalogSyncRequestedAt: requestedAt.toISOString() },
+            metadata: {
+              catalogSyncRequestedAt: requestedAt.toISOString(),
+              catalogScope: target.scope,
+              productVertical: target.productVertical,
+            },
           })),
         });
       }
@@ -305,9 +377,14 @@ export class KioskConfigurationService {
   ): Promise<KioskConfigurationDto> {
     const source = configuration ?? defaultConfiguration();
     const assets = source.assets.length > 0 ? source.assets : defaultAssets();
-    const garmentPreviewEnabled =
-      await this.garmentPreviewSettings.resolveGarmentPreviewEnabled(storeId);
-    const [uploadLimits, captureImageMaxBytes] = await Promise.all([
+    const [
+      garmentPreviewEnabled,
+      enabledTryOnCapabilities,
+      uploadLimits,
+      captureImageMaxBytes,
+    ] = await Promise.all([
+      this.garmentPreviewSettings.resolveGarmentPreviewEnabled(storeId),
+      this.garmentPreviewSettings.resolveStoreTryOnCapabilities(storeId),
       this.mediaUploadSettings.resolvePresentationUploadLimits(),
       this.mediaUploadSettings.resolveCaptureImageMaxBytes(),
     ]);
@@ -338,6 +415,7 @@ export class KioskConfigurationService {
         guidanceAudioEnabled: source.guidanceAudioEnabled,
       },
       experience: {
+        enabledTryOnCapabilities,
         enabledGarmentIntents: [...source.enabledGarmentIntents],
         multiGarmentSelectionEnabled:
           source.multiGarmentSelectionEnabled ?? true,

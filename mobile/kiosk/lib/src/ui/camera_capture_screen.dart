@@ -14,6 +14,7 @@ import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/garment_reference_profile.dart';
 import '../tryon/kiosk_garment_input.dart';
+import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
@@ -99,6 +100,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
           builder: (context, _) {
             final cameraState = widget.controller.cameraService.state.value;
             final flowState = widget.controller.flowState;
+            final jewelleryRequirements =
+                widget.purpose == PhotoAcquisitionPurpose.model
+                ? widget.tryOnController.jewelleryCaptureRequirements
+                : null;
             return Stack(
               fit: StackFit.expand,
               children: [
@@ -116,6 +121,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                       child: CaptureFramingGuideOverlay(
                         purpose: widget.purpose,
                         captureScope: widget.controller.captureScope,
+                        jewelleryRequirements: jewelleryRequirements,
                       ),
                     ),
                   ),
@@ -125,7 +131,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                     child: IgnorePointer(
                       child: CaptureCountdownOverlay(
                         secondsRemaining: flowState.secondsRemaining!,
-                        guidance: flowState.guidance.message,
+                        guidance:
+                            jewelleryRequirements?.instruction ??
+                            flowState.guidance.message,
                         progress: flowState.countdownProgress,
                       ),
                     ),
@@ -197,7 +205,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   }
 
   Future<void> _capture() {
-    return widget.controller.beginAssistedCapture();
+    return widget.controller.beginAssistedCapture(
+      useLiveReadiness:
+          widget.tryOnController.jewelleryCaptureRequirements == null,
+    );
   }
 
   Future<void> _flipCamera() async {
@@ -339,34 +350,42 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
     super.key,
     required this.purpose,
     required this.captureScope,
+    this.jewelleryRequirements,
   });
 
   final PhotoAcquisitionPurpose purpose;
   final CaptureScope captureScope;
+  final KioskJewelleryCaptureRequirements? jewelleryRequirements;
 
   @override
   Widget build(BuildContext context) {
-    final title = purpose == PhotoAcquisitionPurpose.garment
-        ? 'Garment guide'
-        : switch (captureScope) {
-            CaptureScope.top => 'Upper body guide',
-            CaptureScope.bottom => 'Lower body guide',
-            CaptureScope.fullBody => 'Full body guide',
-          };
-    final message = purpose == PhotoAcquisitionPurpose.garment
-        ? 'Keep the garment inside the frame'
-        : switch (captureScope) {
-            CaptureScope.top => 'Frame head, shoulders and torso',
-            CaptureScope.bottom => 'Frame waist, legs and feet',
-            CaptureScope.fullBody => 'Frame shoulders to feet',
-          };
-    final icon = purpose == PhotoAcquisitionPurpose.garment
-        ? Icons.checkroom_outlined
-        : switch (captureScope) {
-            CaptureScope.top => Icons.accessibility_new_outlined,
-            CaptureScope.bottom => Icons.directions_walk_outlined,
-            CaptureScope.fullBody => Icons.person_outline,
-          };
+    final title =
+        jewelleryRequirements?.title ??
+        (purpose == PhotoAcquisitionPurpose.garment
+            ? 'Garment guide'
+            : switch (captureScope) {
+                CaptureScope.top => 'Upper body guide',
+                CaptureScope.bottom => 'Lower body guide',
+                CaptureScope.fullBody => 'Full body guide',
+              });
+    final message =
+        jewelleryRequirements?.instruction ??
+        (purpose == PhotoAcquisitionPurpose.garment
+            ? 'Keep the garment inside the frame'
+            : switch (captureScope) {
+                CaptureScope.top => 'Frame head, shoulders and torso',
+                CaptureScope.bottom => 'Frame waist, legs and feet',
+                CaptureScope.fullBody => 'Frame shoulders to feet',
+              });
+    final icon = jewelleryRequirements == null
+        ? (purpose == PhotoAcquisitionPurpose.garment
+              ? Icons.checkroom_outlined
+              : switch (captureScope) {
+                  CaptureScope.top => Icons.accessibility_new_outlined,
+                  CaptureScope.bottom => Icons.directions_walk_outlined,
+                  CaptureScope.fullBody => Icons.person_outline,
+                })
+        : _iconForJewelleryGuide(jewelleryRequirements!.guide);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -401,6 +420,7 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
           contentSize,
           purpose: purpose,
           captureScope: captureScope,
+          jewelleryGuide: jewelleryRequirements?.guide,
         );
 
         return Padding(
@@ -418,6 +438,7 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
                 painter: _FramingGuidePainter(
                   purpose: purpose,
                   captureScope: captureScope,
+                  jewelleryGuide: jewelleryRequirements?.guide,
                 ),
               ),
               Positioned(
@@ -542,10 +563,12 @@ class _FramingGuidePainter extends CustomPainter {
   const _FramingGuidePainter({
     required this.purpose,
     required this.captureScope,
+    this.jewelleryGuide,
   });
 
   final PhotoAcquisitionPurpose purpose;
   final CaptureScope captureScope;
+  final KioskJewelleryCaptureGuide? jewelleryGuide;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -553,6 +576,7 @@ class _FramingGuidePainter extends CustomPainter {
       size,
       purpose: purpose,
       captureScope: captureScope,
+      jewelleryGuide: jewelleryGuide,
     );
     final orangePaint = Paint()
       ..style = PaintingStyle.stroke
@@ -570,7 +594,9 @@ class _FramingGuidePainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round
       ..color = Colors.white.withValues(alpha: 0.54);
 
-    if (purpose == PhotoAcquisitionPurpose.garment) {
+    if (jewelleryGuide != null) {
+      _drawJewelleryGuide(canvas, rect, innerPaint, jewelleryGuide!);
+    } else if (purpose == PhotoAcquisitionPurpose.garment) {
       _drawGarmentGuide(canvas, rect, innerPaint);
     } else {
       _drawPersonGuide(canvas, rect, innerPaint, captureScope);
@@ -580,7 +606,8 @@ class _FramingGuidePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _FramingGuidePainter oldDelegate) {
     return oldDelegate.purpose != purpose ||
-        oldDelegate.captureScope != captureScope;
+        oldDelegate.captureScope != captureScope ||
+        oldDelegate.jewelleryGuide != jewelleryGuide;
   }
 }
 
@@ -588,7 +615,11 @@ Rect _framingGuideRect(
   Size size, {
   required PhotoAcquisitionPurpose purpose,
   required CaptureScope captureScope,
+  KioskJewelleryCaptureGuide? jewelleryGuide,
 }) {
+  if (jewelleryGuide != null) {
+    return _jewelleryGuideRect(size, jewelleryGuide);
+  }
   final widthFactor = purpose == PhotoAcquisitionPurpose.garment
       ? 0.9
       : switch (captureScope) {
@@ -628,8 +659,14 @@ Rect captureFramingGuideRectForTesting(
   Size size, {
   required PhotoAcquisitionPurpose purpose,
   required CaptureScope captureScope,
+  KioskJewelleryCaptureGuide? jewelleryGuide,
 }) {
-  return _framingGuideRect(size, purpose: purpose, captureScope: captureScope);
+  return _framingGuideRect(
+    size,
+    purpose: purpose,
+    captureScope: captureScope,
+    jewelleryGuide: jewelleryGuide,
+  );
 }
 
 void _drawGuideCorners(Canvas canvas, Rect rect, Paint paint) {
@@ -648,6 +685,173 @@ void _drawGuideCorners(Canvas canvas, Rect rect, Paint paint) {
     ..lineTo(rect.left, rect.bottom)
     ..lineTo(rect.left, rect.bottom - corner);
   canvas.drawPath(path, paint);
+}
+
+IconData _iconForJewelleryGuide(KioskJewelleryCaptureGuide guide) {
+  return switch (guide) {
+    KioskJewelleryCaptureGuide.handCloseUp => Icons.back_hand_outlined,
+    KioskJewelleryCaptureGuide.wristCloseUp => Icons.watch_outlined,
+    KioskJewelleryCaptureGuide.neckAndUpperChest => Icons.diamond_outlined,
+    KioskJewelleryCaptureGuide.faceAndEars => Icons.face_outlined,
+  };
+}
+
+Rect _jewelleryGuideRect(Size size, KioskJewelleryCaptureGuide guide) {
+  final (widthFactor, heightFactor, centerYFactor) = switch (guide) {
+    KioskJewelleryCaptureGuide.handCloseUp => (0.74, 0.54, 0.5),
+    KioskJewelleryCaptureGuide.wristCloseUp => (0.84, 0.48, 0.52),
+    KioskJewelleryCaptureGuide.neckAndUpperChest => (0.86, 0.66, 0.48),
+    KioskJewelleryCaptureGuide.faceAndEars => (0.72, 0.68, 0.45),
+  };
+  final guideWidth = size.width * widthFactor;
+  final guideHeight = size.height * heightFactor;
+  final left = (size.width - guideWidth) / 2;
+  final top = (size.height * centerYFactor) - (guideHeight / 2);
+  return Rect.fromLTWH(
+    left,
+    top.clamp(0, size.height - guideHeight).toDouble(),
+    guideWidth,
+    guideHeight,
+  );
+}
+
+void _drawJewelleryGuide(
+  Canvas canvas,
+  Rect rect,
+  Paint paint,
+  KioskJewelleryCaptureGuide guide,
+) {
+  switch (guide) {
+    case KioskJewelleryCaptureGuide.handCloseUp:
+      _drawHandGuide(canvas, rect, paint);
+    case KioskJewelleryCaptureGuide.wristCloseUp:
+      _drawWristGuide(canvas, rect, paint);
+    case KioskJewelleryCaptureGuide.neckAndUpperChest:
+      _drawNeckGuide(canvas, rect, paint);
+    case KioskJewelleryCaptureGuide.faceAndEars:
+      _drawFaceAndEarsGuide(canvas, rect, paint);
+  }
+}
+
+void _drawHandGuide(Canvas canvas, Rect rect, Paint paint) {
+  final palm = RRect.fromRectAndRadius(
+    Rect.fromCenter(
+      center: Offset(rect.center.dx, rect.top + rect.height * 0.61),
+      width: rect.width * 0.34,
+      height: rect.height * 0.42,
+    ),
+    Radius.circular(rect.width * 0.13),
+  );
+  canvas.drawRRect(palm, paint);
+
+  final fingerTop = rect.top + rect.height * 0.14;
+  final fingerBottom = rect.top + rect.height * 0.44;
+  for (final factor in const [0.38, 0.46, 0.54, 0.62]) {
+    final x = rect.left + rect.width * factor;
+    canvas.drawLine(Offset(x, fingerBottom), Offset(x, fingerTop), paint);
+  }
+  canvas.drawArc(
+    Rect.fromCenter(
+      center: Offset(rect.left + rect.width * 0.34, rect.center.dy),
+      width: rect.width * 0.2,
+      height: rect.height * 0.26,
+    ),
+    -1.2,
+    2.2,
+    false,
+    paint,
+  );
+}
+
+void _drawWristGuide(Canvas canvas, Rect rect, Paint paint) {
+  final leftTop = Offset(rect.left + rect.width * 0.31, rect.top);
+  final rightTop = Offset(rect.right - rect.width * 0.31, rect.top);
+  final leftBottom = Offset(rect.left + rect.width * 0.4, rect.bottom);
+  final rightBottom = Offset(rect.right - rect.width * 0.4, rect.bottom);
+  canvas.drawLine(leftTop, leftBottom, paint);
+  canvas.drawLine(rightTop, rightBottom, paint);
+  canvas.drawOval(
+    Rect.fromCenter(
+      center: Offset(rect.center.dx, rect.top + rect.height * 0.58),
+      width: rect.width * 0.36,
+      height: rect.height * 0.16,
+    ),
+    paint,
+  );
+}
+
+void _drawNeckGuide(Canvas canvas, Rect rect, Paint paint) {
+  final headCenter = Offset(rect.center.dx, rect.top + rect.height * 0.2);
+  canvas.drawCircle(headCenter, rect.width * 0.09, paint);
+
+  final neckTop = rect.top + rect.height * 0.29;
+  final neckBottom = rect.top + rect.height * 0.46;
+  final leftNeck = rect.center.dx - rect.width * 0.08;
+  final rightNeck = rect.center.dx + rect.width * 0.08;
+  final shoulderY = rect.top + rect.height * 0.57;
+  final bodyPath = Path()
+    ..moveTo(leftNeck, neckTop)
+    ..lineTo(leftNeck, neckBottom)
+    ..quadraticBezierTo(
+      rect.center.dx - rect.width * 0.22,
+      shoulderY,
+      rect.left + rect.width * 0.18,
+      shoulderY + rect.height * 0.08,
+    )
+    ..moveTo(rightNeck, neckTop)
+    ..lineTo(rightNeck, neckBottom)
+    ..quadraticBezierTo(
+      rect.center.dx + rect.width * 0.22,
+      shoulderY,
+      rect.right - rect.width * 0.18,
+      shoulderY + rect.height * 0.08,
+    );
+  canvas.drawPath(bodyPath, paint);
+  canvas.drawArc(
+    Rect.fromCenter(
+      center: Offset(rect.center.dx, rect.top + rect.height * 0.55),
+      width: rect.width * 0.38,
+      height: rect.height * 0.28,
+    ),
+    0.12,
+    2.9,
+    false,
+    paint,
+  );
+}
+
+void _drawFaceAndEarsGuide(Canvas canvas, Rect rect, Paint paint) {
+  final faceRect = Rect.fromCenter(
+    center: Offset(rect.center.dx, rect.top + rect.height * 0.42),
+    width: rect.width * 0.46,
+    height: rect.height * 0.56,
+  );
+  canvas.drawOval(faceRect, paint);
+  final earWidth = rect.width * 0.12;
+  final earHeight = rect.height * 0.18;
+  final earY = faceRect.center.dy;
+  canvas.drawArc(
+    Rect.fromCenter(
+      center: Offset(faceRect.left - earWidth * 0.18, earY),
+      width: earWidth,
+      height: earHeight,
+    ),
+    1.35,
+    3.6,
+    false,
+    paint,
+  );
+  canvas.drawArc(
+    Rect.fromCenter(
+      center: Offset(faceRect.right + earWidth * 0.18, earY),
+      width: earWidth,
+      height: earHeight,
+    ),
+    -1.8,
+    3.6,
+    false,
+    paint,
+  );
 }
 
 void _drawGarmentGuide(Canvas canvas, Rect rect, Paint paint) {

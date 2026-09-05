@@ -1554,12 +1554,27 @@ Customer cannot proceed to capture without required consent.
 
 # 26. Kiosk Try-On Type Selection
 
-Where Scenario 2 is enabled:
+The Store-level capability list determines the visible primary choices:
+
+- **Try On Garments**
+- **Try On Jewellery**
+
+When garment Try-On is selected and physical capture is enabled:
 
 - **Choose From Store Catalog**
 - **Capture Physical Garment**
 
 If physical garment capture is disabled, skip this screen.
+
+Jewellery Try-On always opens jewellery selection before person capture. The
+customer does not select a technical jewellery type.
+
+Garment and Jewellery use the same kiosk layout, controls, preview geometry,
+review/result surfaces and interaction conventions. The active Try-On vertical
+supplies labels, icons, permitted product acquisition, capture-guide family and
+generation-visual family through one shared presentation configuration. This
+keeps the established garment UI intact while allowing jewellery-specific
+guidance and motion without creating a second visual system.
 
 ---
 
@@ -1583,6 +1598,54 @@ If physical garment capture is disabled, skip this screen.
 - back to catalog
 
 No checkout button is required.
+
+For Jewellery, selecting a product requests its person-capture requirements
+from SelfX and then opens a type-specific capture screen. Ring, bracelet,
+necklace and earring products may use different target-region guides and
+instructions. Kiosk offers Take Photo; supported web/mobile screens may offer
+Take Photo and Upload Photo.
+
+The Flutter kiosk implements this as a single-selection flow: jewellery catalog
+-> selected-product capture requirements -> static type-specific camera guide
+-> assisted countdown -> photo preview -> Continue -> generation. Choosing a
+different jewellery item from Preview discards the current close-up because the
+next product may require a different body region. These guides are framing aids,
+not claims of live region detection.
+
+Person-image preflight shows only two outcomes:
+
+- accepted -> Preview with the action to continue;
+- rejected -> correction screen with Retake Photo or Upload Another Photo and
+  one primary corrective message.
+
+The internal Jewellery Lab implements the same ordering for development:
+jewellery type/product image first, followed by the person image. Type-specific
+MediaPipe framing checks run before submission, and the SelfX backend performs
+the final technical-validity check before creating provider work. Jewellery
+quality characteristics do not add warning prompts or block this flow.
+
+The Jewellery Lab presents this order as a three-step workspace: Upload
+Jewellery, Upload Person, and Review & Run. Jewellery-type selection, resolved
+capture guidance and the two image inputs remain in the primary work area;
+the generated output remains visible in a separate Try-On result rail. The
+normal Lab interface does not disclose provider identity, model names, request
+identifiers, timestamps or raw failure codes. Idle status describes missing
+inputs rather than claiming provider readiness, and Reset clears local previews,
+validation state and the current ephemeral lab run.
+
+Jewellery catalog create/edit forms verify image dimensions before upload.
+Images below 640 x 640 pixels or above 4096 x 4096 pixels show one direct error
+and are not saved. During generation, SelfX may resize a usable person photo to
+the provider minimum without showing a quality warning; a technically unusable
+person image or undersized direct jewellery reference returns the normal
+corrective error state.
+
+The internal Jewellery Lab shows the supported format, file-size and resolution
+requirements beside each upload. After selection it displays the measured image
+resolution and one technical status: ready, ready with SelfX resizing, or image
+too small/invalid. Continue is disabled for a blocking technical status. These
+messages explain provider compatibility only and must not introduce blur,
+lighting or subjective image-quality warnings.
 
 ---
 

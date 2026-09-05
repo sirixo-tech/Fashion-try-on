@@ -43,7 +43,6 @@ import {
   listKioskDevices,
   pairExistingKioskDevice,
   pairKioskDevice,
-  requestKioskCatalogSync,
   unpairKioskDevice,
   type KioskAssignmentOptions,
   type KioskAssignmentScope,
@@ -91,18 +90,6 @@ export default function KiosksPage() {
     void load();
   }, [load]);
 
-  const refreshAndSyncCatalog = useCallback(async () => {
-    if (!accessToken) {
-      return;
-    }
-    try {
-      await requestKioskCatalogSync(accessToken);
-    } catch {
-      // Some operators can view kiosks without catalog-sync permission.
-    }
-    await load();
-  }, [accessToken, load]);
-
   const activeCount = devices.filter(
     (device) => device.status === "ACTIVE",
   ).length;
@@ -115,10 +102,7 @@ export default function KiosksPage() {
         description="Pair and manage SelfX kiosk devices before production device-authenticated Try-On endpoints arrive."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => void refreshAndSyncCatalog()}
-            >
+            <Button variant="outline" onClick={() => void load()}>
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
@@ -225,9 +209,7 @@ export default function KiosksPage() {
         onPaired={(updatedDevice) => {
           setDevices((current) =>
             current.map((device) =>
-              device.id === updatedDevice.id
-                ? updatedDevice
-                : device,
+              device.id === updatedDevice.id ? updatedDevice : device,
             ),
           );
           setPairingDevice(null);

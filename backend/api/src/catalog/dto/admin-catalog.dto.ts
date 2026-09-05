@@ -14,6 +14,13 @@ import {
   Min,
 } from "class-validator";
 
+import {
+  JEWELLERY_TYPES,
+  PRODUCT_VERTICALS,
+  type JewelleryType,
+  type ProductVertical,
+} from "../product-kind.js";
+
 export class PlatformProductListQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -36,6 +43,15 @@ export class PlatformProductListQueryDto {
   @IsOptional()
   @IsIn(["ALL", "ACTIVE", "INACTIVE", "VTO_ENABLED"])
   status?: "ALL" | "ACTIVE" | "INACTIVE" | "VTO_ENABLED";
+
+  @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical?: ProductVertical;
+}
+
+export class RequestPlatformCatalogSyncDto {
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical!: ProductVertical;
 }
 
 export class PlatformProductImageInputDto {
@@ -107,6 +123,14 @@ export class CreatePlatformProductDto {
   @IsUrl({ require_protocol: true, protocols: ["https", "http"] })
   @MaxLength(2048)
   productUrl?: string | null;
+
+  @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical?: ProductVertical;
+
+  @IsOptional()
+  @IsIn(JEWELLERY_TYPES)
+  jewelleryType?: JewelleryType | null;
 
   @IsOptional()
   @IsString()
@@ -212,6 +236,12 @@ export class PlatformProductDto {
 
   @ApiPropertyOptional({ nullable: true })
   productUrl!: string | null;
+
+  @ApiProperty({ enum: PRODUCT_VERTICALS })
+  productVertical!: ProductVertical;
+
+  @ApiPropertyOptional({ enum: JEWELLERY_TYPES, nullable: true })
+  jewelleryType!: JewelleryType | null;
 
   @ApiProperty()
   garmentIntent!: string;

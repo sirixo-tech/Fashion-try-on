@@ -833,6 +833,105 @@ Protected route coverage:
     `GARMENT_EXTRACTION_OPENAI_MODEL`. A deployment using FASHN for both
     preview and Try-On must not require `OPENAI_API_KEY` or Google credentials.
 
+    Jewellery Try-On uses a separate provider-neutral adapter boundary.
+    `SELFX_JEWELLERY_TRY_ON_PROVIDER` selects the jewellery Try-On adapter and
+    initially supports `perfect-corp`. Kiosk, Store dashboard and Public API
+    clients must talk only to SelfX contracts. Jewellery provider inputs include
+    the person image, jewellery product image/reference and explicit
+    `jewelleryType`; SelfX must not select the jewellery route by guessing the
+    type from product images. The Perfect Corp adapter uses the provider's
+    type-specific 2D VTO file/task routes, uploads person and jewellery images
+    through provider-issued signed upload requests, submits the asynchronous
+    task and polls it through the existing SelfX execution boundary. Provider
+    API keys remain server-side. Web, kiosk and Public API clients receive only
+    SelfX statuses and stable SelfX error codes. Provider result URLs are
+    temporary transport inputs and production kiosk results must be copied into
+    SelfX-controlled storage before the customer session result is retained.
+
+    Jewellery person capture requirements are a versioned, provider-neutral
+    SelfX API contract resolved from the selected catalog product's stored
+    `jewelleryType`. The contract identifies the target body region, framing
+    guide, customer instruction, checklist, permitted person-input methods and
+    required validation checks. Initial mappings are ring -> hand, bracelet ->
+    wrist/lower forearm, necklace -> neck/shoulders/upper chest and earring ->
+    face/ears. Kiosk allows camera capture, customer web/mobile may allow camera
+    capture or upload, and Public API/internal Lab inputs are uploads.
+
+    The authenticated kiosk product route
+    `GET /api/v1/kiosk/catalog/products/:productId/capture-requirements` must
+    resolve catalog ownership/fallback server-side and derive requirements from
+    the stored product type. The internal Lab type route is
+    `GET /api/v1/try-on-lab/jewellery/capture-requirements/:jewelleryType` and
+    uses the same resolver. This contract defines required future checks but
+    does not itself claim that OpenCV, landmarks or semantic validation has
+    already run. Clients must not infer capture readiness from guidance alone.
+
+    The production Flutter kiosk implements the selected-product portion of
+    this contract: it fetches the authenticated product requirements before
+    person capture, renders the matching static hand, wrist, neckline or
+    face/ears guide, and preserves the selected product and type through
+    generation. Jewellery capture uses the existing assisted countdown and
+    technical image-validity checks, without applying garment body-coverage
+    readiness rules to a jewellery close-up. Automatic required-region
+    detection remains a separate semantic-validation milestone.
+
+    The Flutter kiosk uses one shared Try-On screen family for garment and
+    jewellery experiences. A centralized, provider-neutral presentation
+    configuration resolves the active vertical's catalog mapping, customer
+    nouns, icons, actions, physical-product-capture support and future capture
+    guide/generation-visual family. Screens must consume that configuration
+    rather than duplicating garment and jewellery pages or scattering vertical
+    conditionals through the UI. This presentation configuration does not
+    replace Store capability enforcement, selected-product capture requirements
+    or backend provider routing.
+
+    Jewellery person-image preflight uses a provider-neutral two-outcome
+    contract: `PROCEED` or `RETAKE_OR_UPLOAD`. The backend independently enforces
+    technical image validity before provider submission. Controlled SelfX
+    clients may send compact semantic evidence produced from the resolved
+    jewellery requirements: hand landmarks for rings/bracelets and pose
+    landmarks for necklaces/earrings.
+    Semantic evidence contains booleans, analyzer identity and bounded
+    confidence only; clients must never upload raw landmarks or pose histories.
+    The backend validates this evidence, selects one prioritized corrective
+    reason and fails closed when required analysis is unavailable. The internal
+    Jewellery Lab is the first integration of this gate. Kiosk integration must
+    use the same contract with the existing on-device analysis boundary before
+    jewellery provider execution is considered complete for production.
+    Blur, recommended resolution, brightness and contrast are not customer-facing
+    jewellery gates: they must not block submission or produce warning prompts.
+    Customers may judge the normal preview and retake or upload another photo.
+
+    Perfect Corp transport requirements remain technical validation rather than
+    subjective quality scoring. Provider inputs must be decodable JPG, PNG or
+    WebP images no larger than 10 MB, with each final image side between 640 and
+    4096 pixels. SelfX may preserve aspect ratio and modestly upscale a person
+    image whose shortest source edge is at least 480 pixels. Smaller person
+    images must be rejected with a corrective error. Jewellery product images
+    must already be at least 640 x 640 pixels when added to either the platform
+    or Store catalog; SelfX must not enlarge low-resolution jewellery references
+    because invented or softened product detail reduces Try-On fidelity. WebP,
+    oversized and resized provider inputs are normalized server-side to JPEG.
+
+    Perfect Corp execution is enabled only when
+    `SELFX_PERFECT_CORP_JEWELLERY_TRY_ON_ENABLED=true` and
+    `PERFECT_CORP_API_KEY` is configured. `PERFECT_CORP_API_BASE_URL` defaults
+    to the official server, while `PERFECT_CORP_HTTP_TIMEOUT_MS` bounds each
+    provider HTTP operation. A disabled, missing or invalid configuration must
+    fail closed rather than routing jewellery requests through the garment
+    provider.
+
+    Production kiosk Try-On run contract:
+    `/api/v1/kiosk/try-on/runs` is a shared endpoint for supported Try-On
+    verticals. Existing clients may omit `tryOnVertical`, which defaults to
+    `GARMENT` and keeps the existing `garmentImage` or catalog `productId`
+    behavior. Jewellery requests must set `tryOnVertical=JEWELLERY` and provide
+    either `jewelleryImage` plus explicit `jewelleryType`, or a jewellery catalog
+    `productId` whose type is already configured in SelfX. Jewellery runs are
+    allowed only for Store-owned kiosks whose Store capability list includes
+    `JEWELLERY_TRY_ON`; platform-only/default kiosks must not execute jewellery
+    Try-On unless a future approved SelfX demo capability is introduced.
+
     CORE VTO-1 implementation note:
     SelfX intentionally prioritized a guarded internal development Try-On Lab
     before Product Catalog implementation to prove the core person-image plus
@@ -1730,9 +1829,10 @@ Protected route coverage:
 ---
 
 31. Product and Commerce Domain
-    All product sources normalize into the common SelfX product/garment domain.
+    All product sources normalize into the common SelfX product domain. The
+    initial verticals are `GARMENT` and `JEWELLERY`.
     "Store product", "site product" and "catalog product" refer to the same
-    canonical SelfX product/garment concept whether the record is SelfX-native,
+    canonical SelfX product concept whether the record is SelfX-native,
     synchronized from a future Shopify integration, synchronized from a future
     WooCommerce integration, or created through a future approved API. CORE
     VTO-1.2 only defines these source semantics for Try-On policy resolution;
@@ -1755,6 +1855,13 @@ Protected route coverage:
     SelfX stores the normalized representation required for VTO and mapping.
     SelfX is not initially a full POS, inventory, checkout, order, tax, or shipping system.
 
+    Garment product categories are catalog-facing sorting/filtering semantics
+    and may feed provider-neutral garment policy resolution. Jewellery products
+    require `jewelleryType` (`RING`, `BRACELET`, `NECKLACE`, `EARRING`) because
+    the type selects the jewellery capture guidance and future Perfect Corp
+    provider route. Jewellery type is explicit Store/admin configuration, not
+    authoritative provider-side image classification.
+
     Store catalog independence:
     SelfX must support Stores whose product systems live outside SelfX,
     including custom applications and future Shopify/WooCommerce integrations.
@@ -1764,6 +1871,27 @@ Protected route coverage:
     may also pass optional product reference metadata. This avoids forcing a
     tight coupling to SelfX catalog IDs while still preserving usage, support
     and reporting traceability.
+
+    Store Try-On capabilities:
+    Store settings must expose provider-neutral business capabilities for
+    `GARMENT_TRY_ON` and `JEWELLERY_TRY_ON`. At least one capability must remain
+    enabled. Kiosk runtime configuration inherits the Store capability list and
+    must not allow a kiosk-local override for whether the Store offers garment
+    or jewellery Try-On. Captured garment preview can only be effective when
+    `GARMENT_TRY_ON` is enabled.
+
+    Catalog refresh signaling:
+    Product managers may request a cache-bypassing refresh independently for
+    the garment or jewellery catalog. The backend must resolve the target
+    devices server-side. Store requests target only active kiosks whose
+    `organizationId` is that Store tenant. Platform requests target active
+    platform-owned kiosks plus Store kiosks that do not have an active Store
+    catalog for the selected vertical and therefore consume the platform
+    fallback. The request advances each target device's monotonic discovery
+    version and writes an attributable audit record. Online kiosks discover the
+    change through heartbeat and fetch a fresh snapshot; offline kiosks retain
+    their last valid cache and refresh after reconnecting. The action does not
+    push image bytes through the admin request or weaken kiosk device auth.
 
 ---
 

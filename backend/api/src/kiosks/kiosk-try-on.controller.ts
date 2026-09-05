@@ -68,8 +68,18 @@ export class KioskTryOnController {
         clientRequestId: { type: "string" },
         sessionId: { type: "string", format: "uuid" },
         personAssetId: { type: "string", format: "uuid" },
+        tryOnVertical: {
+          type: "string",
+          enum: ["GARMENT", "JEWELLERY"],
+          default: "GARMENT",
+        },
         personImage: { type: "string", format: "binary" },
         garmentImage: { type: "string", format: "binary" },
+        jewelleryImage: { type: "string", format: "binary" },
+        jewelleryType: {
+          type: "string",
+          enum: ["RING", "BRACELET", "NECKLACE", "EARRING"],
+        },
         productId: { type: "string", format: "uuid" },
         garmentSource: {
           type: "string",

@@ -6,6 +6,10 @@ import {
   type KioskDevice,
 } from "@/lib/kiosks";
 
+export type ProductVertical = "GARMENT" | "JEWELLERY";
+export type JewelleryType = "RING" | "BRACELET" | "NECKLACE" | "EARRING";
+export type StoreTryOnCapability = "GARMENT_TRY_ON" | "JEWELLERY_TRY_ON";
+
 export type StoreStatus = "ACTIVE" | "INACTIVE";
 
 export type AdminStore = {
@@ -96,6 +100,9 @@ export type StoreVirtualTryOnSettings = {
   storeHasGarmentPreviewPermission: boolean;
   storeGarmentPreviewEnabled: boolean;
   effectiveGarmentPreviewEnabled: boolean;
+  enabledTryOnCapabilities: StoreTryOnCapability[];
+  garmentTryOnEnabled: boolean;
+  jewelleryTryOnEnabled: boolean;
 };
 
 export type StoreProduct = {
@@ -112,6 +119,8 @@ export type StoreProduct = {
   priceAmountCents: number | null;
   priceCurrency: string | null;
   productUrl: string | null;
+  productVertical: ProductVertical;
+  jewelleryType: JewelleryType | null;
   garmentIntent: string;
   garmentCategory: string;
   garmentPhotoType: string;
@@ -146,6 +155,8 @@ export type StoreProductInput = {
   priceAmountCents?: number | null;
   priceCurrency?: string | null;
   productUrl?: string | null;
+  productVertical?: ProductVertical;
+  jewelleryType?: JewelleryType | null;
   garmentIntent?: string;
   garmentCategory?: string;
   garmentPhotoType?: string;
@@ -267,7 +278,10 @@ export function getStoreVirtualTryOnSettings(
 export function updateStoreVirtualTryOnSettings(
   accessToken: string,
   storeId: string,
-  input: { garmentPreviewEnabled: boolean },
+  input: {
+    garmentPreviewEnabled?: boolean;
+    enabledTryOnCapabilities?: StoreTryOnCapability[];
+  },
 ): Promise<StoreVirtualTryOnSettings> {
   return selfxApi<StoreVirtualTryOnSettings>(
     `/api/v1/admin/stores/${storeId}/virtual-try-on-settings`,
@@ -317,6 +331,7 @@ export function listStoreProducts(
     pageSize?: number;
     search?: string;
     status?: "ALL" | "ACTIVE" | "INACTIVE" | "VTO_ENABLED";
+    productVertical?: ProductVertical;
   } = {},
 ): Promise<StoreProductListResponse> {
   const params = new URLSearchParams();
@@ -327,6 +342,9 @@ export function listStoreProducts(
   }
   if (query.status && query.status !== "ALL") {
     params.set("status", query.status);
+  }
+  if (query.productVertical) {
+    params.set("productVertical", query.productVertical);
   }
   return selfxApi<StoreProductListResponse>(
     `/api/v1/admin/stores/${storeId}/products?${params}`,
@@ -387,6 +405,21 @@ export function createStoreProductImageUploadIntent(
       method: "POST",
       accessToken,
       body: JSON.stringify(input),
+    },
+  );
+}
+
+export function requestStoreCatalogSync(
+  accessToken: string,
+  storeId: string,
+  productVertical: ProductVertical,
+): Promise<{ updatedDevices: number; requestedAt: string }> {
+  return selfxApi<{ updatedDevices: number; requestedAt: string }>(
+    `/api/v1/admin/stores/${storeId}/products/sync`,
+    {
+      method: "POST",
+      accessToken,
+      body: JSON.stringify({ productVertical }),
     },
   );
 }

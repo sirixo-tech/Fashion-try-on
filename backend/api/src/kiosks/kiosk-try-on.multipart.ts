@@ -27,6 +27,12 @@ import {
   type SelfxModelCoverage,
 } from "@selfx/shared";
 
+import {
+  JEWELLERY_TYPES,
+  PRODUCT_VERTICALS,
+  type JewelleryType,
+  type ProductVertical,
+} from "../catalog/product-kind.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import {
   type SupportedImageMimeType,
@@ -45,7 +51,7 @@ interface MultipartField {
 }
 
 export interface KioskTryOnUploadedImage {
-  fieldName: "personImage" | "garmentImage";
+  fieldName: KioskTryOnImageFieldName;
   filename: string;
   mimeType: SupportedImageMimeType;
   sizeBytes: number;
@@ -55,12 +61,27 @@ export interface KioskTryOnUploadedImage {
   height: number;
 }
 
+type KioskTryOnImageFieldName =
+  "personImage" | "garmentImage" | "jewelleryImage";
+export type KioskTryOnPersonImage = KioskTryOnUploadedImage & {
+  fieldName: "personImage";
+};
+export type KioskTryOnGarmentImage = KioskTryOnUploadedImage & {
+  fieldName: "garmentImage";
+};
+export type KioskTryOnJewelleryImage = KioskTryOnUploadedImage & {
+  fieldName: "jewelleryImage";
+};
+
 export interface CreateKioskTryOnRunPayload {
   clientRequestId?: string;
   sessionId?: string;
   personAssetId?: string;
-  personImage?: KioskTryOnUploadedImage;
-  garmentImage?: KioskTryOnUploadedImage;
+  tryOnVertical: ProductVertical;
+  personImage?: KioskTryOnPersonImage;
+  garmentImage?: KioskTryOnGarmentImage;
+  jewelleryImage?: KioskTryOnJewelleryImage;
+  jewelleryType?: JewelleryType;
   productId?: string;
   catalogSource?: SelfxCatalogSource;
   externalProductId?: string;
@@ -120,7 +141,8 @@ export async function parseKioskTryOnRunMultipartRequest(
       if (part.type === "file") {
         if (
           part.fieldname !== "personImage" &&
-          part.fieldname !== "garmentImage"
+          part.fieldname !== "garmentImage" &&
+          part.fieldname !== "jewelleryImage"
         ) {
           throwMultipartInvalid("Unexpected image field.");
         }
@@ -165,17 +187,116 @@ export async function parseKioskTryOnRunMultipartRequest(
     fields.get("sessionId"),
     "Invalid session ID.",
   );
-  const personImage = images.get("personImage");
+  const tryOnVertical = parseEnum(
+    fields.get("tryOnVertical") ?? "GARMENT",
+    PRODUCT_VERTICALS,
+    "Invalid Try-On vertical.",
+  );
+  const personImage = images.get("personImage") as
+    KioskTryOnPersonImage | undefined;
   if (!personImage && !sessionId) {
     throwMultipartInvalid(
       "Person image is required for legacy Try-On requests.",
     );
   }
-  const garmentImage = images.get("garmentImage");
+  const garmentImage = images.get("garmentImage") as
+    KioskTryOnGarmentImage | undefined;
+  const jewelleryImage = images.get("jewelleryImage") as
+    KioskTryOnJewelleryImage | undefined;
   const productId = parseOptionalUuid(
     fields.get("productId"),
     "Invalid catalog product ID.",
   );
+  if (tryOnVertical === "JEWELLERY") {
+    if (garmentImage) {
+      throwMultipartInvalid(
+        "Use jewelleryImage for jewellery Try-On requests.",
+      );
+    }
+    if (jewelleryImage && productId) {
+      throwMultipartInvalid(
+        "Provide either a jewellery image or catalog product.",
+      );
+    }
+    if (!jewelleryImage && !productId) {
+      throwMultipartInvalid("Jewellery image or catalog product is required.");
+    }
+    const jewelleryType = parseOptionalEnum(
+      fields.get("jewelleryType"),
+      JEWELLERY_TYPES,
+      "Invalid jewellery type.",
+    );
+    if (jewelleryImage && !jewelleryType) {
+      throwMultipartInvalid(
+        "Jewellery type is required for direct jewellery image Try-On.",
+      );
+    }
+
+    return {
+      clientRequestId: parseOptionalClientRequestId(
+        fields.get("clientRequestId"),
+      ),
+      sessionId,
+      personAssetId: parseOptionalUuid(
+        fields.get("personAssetId"),
+        "Invalid person asset ID.",
+      ),
+      tryOnVertical,
+      personImage,
+      jewelleryImage,
+      jewelleryType,
+      productId,
+      catalogSource: parseOptionalEnum(
+        fields.get("catalogSource"),
+        SELFX_CATALOG_SOURCES,
+        "Invalid catalog source.",
+      ),
+      externalProductId: parseOptionalText(
+        fields.get("externalProductId"),
+        160,
+        "Invalid external product ID.",
+      ),
+      externalVariantId: parseOptionalText(
+        fields.get("externalVariantId"),
+        160,
+        "Invalid external variant ID.",
+      ),
+      sku: parseOptionalText(fields.get("sku"), 160, "Invalid SKU."),
+      productName: parseOptionalText(
+        fields.get("productName"),
+        240,
+        "Invalid product name.",
+      ),
+      price: parseOptionalPrice(fields.get("price")),
+      currency: parseOptionalCurrency(fields.get("currency")),
+      garmentSource: productId ? "SELFX_CATALOG" : "DIRECT_UPLOAD",
+      garmentIntent: "JEWELLERY" as SelfxGarmentIntent,
+      category: "AUTO",
+      garmentPhotoType: "PRODUCT" as SelfxGarmentPhotoType,
+      generationProfile: parseEnum(
+        fields.get("generationProfile") ?? "BALANCED",
+        SELFX_GENERATION_PROFILES,
+        "Invalid generation profile.",
+      ),
+      categoryResolutionSource: "SELFX_CATALOG_METADATA",
+      photoTypeResolutionSource: "SELFX_CATALOG_METADATA",
+      profileResolutionSource: "PLATFORM_DEFAULT",
+      disambiguationRequired: false,
+      disambiguationResolved: true,
+      garmentAnalysisReasonCodes: [],
+      qualityWarningCodes: parseStringArray(
+        fields.get("qualityWarningCodes"),
+        IMAGE_QUALITY_ISSUE_CODES,
+        "Invalid quality warning codes.",
+      ),
+      qualityOverrideAccepted: fields.get("qualityOverrideAccepted") === "true",
+    };
+  }
+  if (jewelleryImage) {
+    throwMultipartInvalid(
+      "Jewellery image is only valid for jewellery Try-On.",
+    );
+  }
   if (garmentImage && productId) {
     throwMultipartInvalid("Provide either a garment image or catalog product.");
   }
@@ -208,6 +329,7 @@ export async function parseKioskTryOnRunMultipartRequest(
       fields.get("personAssetId"),
       "Invalid person asset ID.",
     ),
+    tryOnVertical,
     personImage,
     garmentImage,
     productId,
@@ -387,13 +509,13 @@ export async function parseKioskPersonMultipartRequest(
   return { personImage, customerUploadSessionId };
 }
 
-function validateImage(
-  fieldName: "personImage" | "garmentImage",
+function validateImage<TFieldName extends KioskTryOnImageFieldName>(
+  fieldName: TFieldName,
   filename: string,
   declaredContentType: string,
   buffer: Buffer,
   maxImageBytes: number,
-): KioskTryOnUploadedImage {
+): KioskTryOnUploadedImage & { fieldName: TFieldName } {
   try {
     const metadata = validateTechnicalImageBuffer({
       buffer,

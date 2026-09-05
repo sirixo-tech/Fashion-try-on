@@ -152,6 +152,14 @@ Current persistence mapping:
   for explicit Store deactivation.
 - Product Store profile fields that do not yet have first-class columns are
   stored under `organizations.settings.storeProfile`.
+- Store Try-On business capabilities are stored under
+  `organizations.settings.virtualTryOn.enabledTryOnCapabilities` as
+  `GARMENT_TRY_ON`, `JEWELLERY_TRY_ON` or both. Existing Stores default to
+  `GARMENT_TRY_ON` when the setting is absent.
+- Captured garment preview remains a Store setting under
+  `organizations.settings.virtualTryOn.capturedGarmentPreviewEnabled`, but it
+  can only become effective when `GARMENT_TRY_ON` is enabled and the platform
+  permission/global controls allow it.
 - Store-owned kiosks are stored as `kiosk_devices.assignment_scope =
   ORGANIZATION`, `kiosk_devices.organization_id = product Store id` and
   `kiosk_devices.store_id = null`.
@@ -881,6 +889,8 @@ Important fields:
 - `source_type`
 - `product_url`
 - `vto_status`
+- `product_vertical`
+- `jewellery_type`
 - `garment_category`
 - `primary_asset_id`
 - `created_at`
@@ -895,6 +905,12 @@ VTO-enabled Store catalog products. Managed prices are optional and stored as
 integer cents plus ISO currency code so catalog products remain VTO-focused
 instead of becoming POS inventory. New product prices inherit the platform
 default currency stored in `platform_settings`.
+
+`product_vertical` distinguishes `GARMENT` from `JEWELLERY`. Existing and
+legacy catalog behavior defaults to `GARMENT`. `jewellery_type` is nullable for
+garments and required for jewellery products. Supported jewellery types are
+`RING`, `BRACELET`, `NECKLACE` and `EARRING`; this field is provider-routing
+critical for jewellery Try-On rather than a display-only category.
 
 Possible source types:
 
@@ -1347,6 +1363,8 @@ Important fields:
 - `provider_display_name`
 - `provider_model`
 - `provider_prediction_id`
+- `try_on_vertical` (`GARMENT`, `JEWELLERY`)
+- `jewellery_type` nullable (`RING`, `BRACELET`, `NECKLACE`, `EARRING`)
 - `garment_source`
 - `garment_intent`
 - `garment_category`
@@ -1370,6 +1388,8 @@ Indexes:
 - `(organization_id, created_at)`
 - `(organization_id, catalog_source, created_at)`
 - `(organization_id, external_product_id)`
+- `(organization_id, try_on_vertical, created_at)`
+- `(organization_id, jewellery_type, created_at)`
 - `(store_id, created_at)`
 - `(status, expires_at)`
 - `expires_at`
@@ -1387,6 +1407,9 @@ Rules:
   not expose provider prediction IDs to Flutter customer UI;
 - raw person and garment input bytes are not stored in PostgreSQL by this
   model;
+- `try_on_vertical` defaults to `GARMENT` for existing and legacy runs.
+  Jewellery runs must set `try_on_vertical = JEWELLERY` and a non-null
+  `jewellery_type`; garment runs must keep `jewellery_type = NULL`;
 - `product_id` references a SelfX-managed product when one exists. Optional
   `catalog_source` and external product fields are metadata for Store/external
   catalog traceability and must not grant authorization by themselves;

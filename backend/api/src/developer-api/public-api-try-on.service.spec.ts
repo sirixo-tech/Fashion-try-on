@@ -2,6 +2,8 @@ import { KioskAssignmentScope, TryOnAssetPurpose } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import type { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
+import type { JewelleryTryOnService } from "../try-on/jewellery/jewellery-try-on.service.js";
 import type { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import type { PublicApiCredentialContext } from "./public-api-key-auth.service.js";
 import { PublicApiTryOnService } from "./public-api-try-on.service.js";
@@ -49,6 +51,8 @@ describe("PublicApiTryOnService", () => {
       externalProductName: "Blue Linen Shirt",
       externalProductPrice: "2499.00",
       externalCurrency: "INR",
+      tryOnVertical: "GARMENT",
+      jewelleryType: null,
     });
     expect(created.productReference).toEqual({
       catalogSource: "SHOPIFY",
@@ -102,6 +106,99 @@ describe("PublicApiTryOnService", () => {
         sessionId: "0198a9b3-d0bc-7000-8000-000000000001",
       }),
     );
+  });
+
+  it("creates a public API jewellery Try-On run through the jewellery provider path", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const jewelleryTryOn = new FakeJewelleryTryOn();
+    const jewelleryExecution = new FakeJewelleryExecution();
+    const sessions = new FakeTryOnSessions();
+    const service = new PublicApiTryOnService(
+      prisma as never,
+      execution as never,
+      sessions as never,
+      new FakeStorage() as never,
+      new FakeWebhooks() as never,
+      new FakeUsageEvents() as never,
+      jewelleryTryOn as never,
+      jewelleryExecution as never,
+    );
+
+    const created = await service.createRun(
+      credential(),
+      jewelleryCreateInput(),
+    );
+    await flushPromises();
+
+    expect(created).toMatchObject({
+      status: "QUEUED",
+      tryOnVertical: "JEWELLERY",
+      personAssetId: "person-asset",
+      jewelleryAssetId: "garment-asset",
+      jewelleryType: "RING",
+    });
+    expect(created.garmentAssetId).toBeUndefined();
+    expect(prisma.createdRuns[0]).toMatchObject({
+      tryOnVertical: "JEWELLERY",
+      jewelleryType: "RING",
+      garmentIntent: "JEWELLERY",
+      garmentCategory: "RING",
+      garmentPhotoType: "PRODUCT",
+      provider: "perfect-corp",
+      providerDisplayName: "Perfect Corp",
+    });
+    expect(jewelleryTryOn.prepareRunFoundation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        storeId: "store-1",
+        jewelleryType: "RING",
+        productReference: {
+          productId: "merchant-ring-1",
+          productName: "Gold Ring",
+          sku: "RING-GOLD",
+        },
+      }),
+    );
+    expect(jewelleryExecution.submissions).toBe(1);
+    expect(execution.submissions).toBe(0);
+    expect(sessions.recordLook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personAssetId: "person-asset",
+        garmentAssetId: "garment-asset",
+      }),
+    );
+  });
+
+  it("requires jewellery asset and type for public API jewellery Try-On", async () => {
+    const service = new PublicApiTryOnService(
+      new FakePrisma() as never,
+      new FakeExecution() as never,
+      new FakeTryOnSessions() as never,
+      new FakeStorage() as never,
+      new FakeWebhooks() as never,
+      new FakeUsageEvents() as never,
+      new FakeJewelleryTryOn() as never,
+      new FakeJewelleryExecution() as never,
+    );
+
+    await expect(
+      service.createRun(credential(), {
+        ...jewelleryCreateInput(),
+        jewelleryAssetId: undefined,
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: "PUBLIC_API_TRYON_INVALID" } },
+    });
+
+    await expect(
+      service.createRun(credential(), {
+        ...jewelleryCreateInput(),
+        clientRequestId: "request-missing-type",
+        jewelleryType: undefined,
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: "PUBLIC_API_TRYON_INVALID" } },
+    });
   });
 
   it("returns an existing run for the same API key and client request ID", async () => {
@@ -225,6 +322,7 @@ describe("PublicApiTryOnService", () => {
       status: "COMPLETED",
       metadata: {
         result_asset_id: "result-asset",
+        try_on_vertical: "GARMENT",
       },
     });
   });
@@ -279,6 +377,64 @@ class FakeExecution implements Pick<
     this.submissions += 1;
     await observer.onStarted(new Date("2026-08-29T00:00:00.000Z"));
     await observer.onSubmitted(`provider-${this.submissions}`);
+    await observer.onStatus({
+      status: "COMPLETED",
+      resultImage: `data:image/png;base64,${pngBuffer().toString("base64")}`,
+      completedAt: new Date("2026-08-29T00:00:02.000Z"),
+    });
+  }
+}
+
+class FakeJewelleryTryOn implements Pick<
+  JewelleryTryOnService,
+  "prepareRunFoundation"
+> {
+  readonly prepareRunFoundation = vi.fn(
+    async (input: {
+      jewelleryType: "RING" | "BRACELET" | "NECKLACE" | "EARRING";
+      productReference?: {
+        productId?: string;
+        productName?: string;
+        sku?: string;
+      };
+    }) => ({
+      vertical: "JEWELLERY" as const,
+      jewelleryType: input.jewelleryType,
+      provider: {
+        provider: "perfect-corp" as const,
+        providerDisplayName: "Perfect Corp",
+        model: "perfect-corp-jewellery-v1",
+      },
+      productReference: input.productReference,
+    }),
+  );
+}
+
+class FakeJewelleryExecution implements Pick<
+  JewelleryTryOnExecutionService,
+  "assertConfigured" | "metadata" | "process"
+> {
+  submissions = 0;
+
+  assertConfigured(): void {
+    return undefined;
+  }
+
+  metadata() {
+    return {
+      provider: "perfect-corp" as const,
+      providerDisplayName: "Perfect Corp",
+      model: "perfect-corp-jewellery-v1",
+    };
+  }
+
+  async process(
+    _payload: Parameters<JewelleryTryOnExecutionService["process"]>[0],
+    observer: Parameters<JewelleryTryOnExecutionService["process"]>[1],
+  ): Promise<void> {
+    this.submissions += 1;
+    await observer.onStarted(new Date("2026-08-29T00:00:00.000Z"));
+    await observer.onSubmitted(`jewellery-provider-${this.submissions}`);
     await observer.onStatus({
       status: "COMPLETED",
       resultImage: `data:image/png;base64,${pngBuffer().toString("base64")}`,
@@ -408,6 +564,8 @@ class FakePrisma {
       garmentCategory: "AUTO",
       garmentPhotoType: "AUTO",
       generationProfile: "BALANCED",
+      tryOnVertical: input.tryOnVertical ?? "GARMENT",
+      jewelleryType: input.jewelleryType ?? null,
       catalogSource: null,
       externalProductId: null,
       externalVariantId: null,
@@ -468,6 +626,8 @@ interface CreateRunData {
   provider: string;
   providerDisplayName: string;
   providerModel: string;
+  tryOnVertical: "GARMENT" | "JEWELLERY";
+  jewelleryType: "RING" | "BRACELET" | "NECKLACE" | "EARRING" | null;
   garmentSource: string;
   garmentIntent: string;
   garmentCategory: string;
@@ -538,6 +698,21 @@ function createInput() {
     productName: "Blue Linen Shirt",
     price: "2499.00",
     currency: "INR",
+  };
+}
+
+function jewelleryCreateInput() {
+  return {
+    clientRequestId: "jewellery-request-1",
+    sessionId: "0198a9b3-d0bc-7000-8000-000000000001",
+    personAssetId: "person-asset",
+    tryOnVertical: "JEWELLERY" as const,
+    jewelleryAssetId: "jewellery-asset",
+    jewelleryType: "RING" as const,
+    catalogSource: "CUSTOM_API" as const,
+    externalProductId: "merchant-ring-1",
+    sku: "RING-GOLD",
+    productName: "Gold Ring",
   };
 }
 

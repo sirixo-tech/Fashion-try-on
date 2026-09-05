@@ -58,6 +58,21 @@ describe("parsePublicApiUploadMultipartRequest", () => {
     ).rejects.toBeInstanceOf(ApiErrorException);
   });
 
+  it("accepts jewellery as an explicit upload purpose", async () => {
+    const payload = await parsePublicApiUploadMultipartRequest(
+      multipartRequest([
+        field("purpose", "JEWELLERY"),
+        field("sessionId", "0198a9b3-d0bc-7000-8000-000000000001"),
+        file("image", "ring.png", "image/png", pngBuffer()),
+      ]),
+    );
+
+    expect(payload).toMatchObject({
+      purpose: "JEWELLERY",
+      sessionId: "0198a9b3-d0bc-7000-8000-000000000001",
+    });
+  });
+
   it("requires an explicit upload purpose", async () => {
     await expect(
       parsePublicApiUploadMultipartRequest(

@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger, Optional } from "@nestjs/common";
 import {
   KioskAssignmentScope,
   Prisma,
@@ -20,8 +20,23 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import { validateTechnicalImageBuffer } from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import {
+  JEWELLERY_TYPES,
+  PRODUCT_VERTICALS,
+  type JewelleryType,
+  type ProductVertical,
+} from "../catalog/product-kind.js";
+import { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
+import type {
+  JewelleryTryOnProviderMetadata,
+  JewelleryTryOnProviderSubmitInput,
+} from "../try-on/jewellery/jewellery-try-on.provider.js";
+import { JewelleryTryOnService } from "../try-on/jewellery/jewellery-try-on.service.js";
 import { TRY_ON_RESULT_RETENTION_MS } from "../try-on/try-on.constants.js";
-import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
+import {
+  TryOnExecutionService,
+  type NormalizedTryOnProcessError,
+} from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
 import { TRY_ON_LAB_MAX_IMAGE_BYTES } from "../try-on-lab/try-on-lab.constants.js";
 import { type CreateTryOnLabRunPayload } from "../try-on-lab/try-on-lab-multipart.js";
@@ -42,7 +57,13 @@ interface PublicRunAssets {
   organizationId: string;
   personAssetId: string;
   garmentAssetId: string;
-  executionPayload: CreateTryOnLabRunPayload;
+  tryOnVertical: ProductVertical;
+  jewelleryType: JewelleryType | null;
+  providerMetadata:
+    | ReturnType<TryOnExecutionService["metadata"]>
+    | JewelleryTryOnProviderMetadata;
+  executionPayload?: CreateTryOnLabRunPayload;
+  jewelleryExecutionPayload?: JewelleryTryOnProviderSubmitInput;
 }
 
 interface TryOnProductReference {
@@ -73,6 +94,9 @@ export class PublicApiTryOnService {
     private readonly storage: ObjectStorageService,
     private readonly webhooks: PublicApiWebhookService,
     private readonly usageEvents: UsageEventService,
+    @Optional() private readonly jewelleryTryOn?: JewelleryTryOnService,
+    @Optional()
+    private readonly jewelleryExecution?: JewelleryTryOnExecutionService,
   ) {}
 
   async createRun(
@@ -95,22 +119,24 @@ export class PublicApiTryOnService {
     }
 
     const runAssets = await this.prepareRunAssets(credential, input);
-    enforceModelGarmentCompatibility(runAssets.executionPayload);
-
-    this.execution.assertConfigured();
-    const providerMetadata = this.execution.metadata();
+    if (runAssets.executionPayload) {
+      enforceModelGarmentCompatibility(runAssets.executionPayload);
+    }
     const now = new Date();
     const created = await this.createNewRun(
       credential,
       clientRequestId,
-      providerMetadata,
       runAssets,
       normalizeProductReference(input),
       now,
     );
 
     if (created.isNew) {
-      void this.processRun(created.run.id, runAssets);
+      if (runAssets.tryOnVertical === "JEWELLERY") {
+        void this.processJewelleryRun(created.run.id, runAssets);
+      } else {
+        void this.processRun(created.run.id, runAssets);
+      }
     }
     return this.toResponse(created.run);
   }
@@ -191,11 +217,11 @@ export class PublicApiTryOnService {
   private async createNewRun(
     credential: PublicApiCredentialContext,
     clientRequestId: string,
-    providerMetadata: ReturnType<TryOnExecutionService["metadata"]>,
     runAssets: PublicRunAssets,
     productReference: TryOnProductReference,
     now: Date,
   ): Promise<{ run: PublicRunRecord; isNew: boolean }> {
+    const garmentFields = publicRunGarmentFields(runAssets);
     try {
       const run = await this.prisma.kioskTryOnRun.create({
         data: {
@@ -218,14 +244,16 @@ export class PublicApiTryOnService {
           externalProductName: productReference.productName,
           externalProductPrice: productReference.price,
           externalCurrency: productReference.currency,
-          provider: providerMetadata.provider,
-          providerDisplayName: providerMetadata.providerDisplayName,
-          providerModel: providerMetadata.model,
-          garmentSource: runAssets.executionPayload.garmentSource,
-          garmentIntent: runAssets.executionPayload.garmentIntent,
-          garmentCategory: runAssets.executionPayload.category,
-          garmentPhotoType: runAssets.executionPayload.garmentPhotoType,
-          generationProfile: runAssets.executionPayload.generationProfile,
+          provider: runAssets.providerMetadata.provider,
+          providerDisplayName: runAssets.providerMetadata.providerDisplayName,
+          providerModel: runAssets.providerMetadata.model,
+          tryOnVertical: runAssets.tryOnVertical,
+          jewelleryType: runAssets.jewelleryType,
+          garmentSource: garmentFields.garmentSource,
+          garmentIntent: garmentFields.garmentIntent,
+          garmentCategory: garmentFields.garmentCategory,
+          garmentPhotoType: garmentFields.garmentPhotoType,
+          generationProfile: garmentFields.generationProfile,
           expiresAt: new Date(now.getTime() + TRY_ON_RESULT_RETENTION_MS),
         },
         include: runResponseInclude,
@@ -252,6 +280,7 @@ export class PublicApiTryOnService {
     credential: PublicApiCredentialContext,
     input: CreatePublicApiTryOnDto,
   ): Promise<PublicRunAssets> {
+    const tryOnVertical = normalizeTryOnVertical(input.tryOnVertical);
     const scope = {
       sessionId: input.sessionId,
       organizationId: credential.storeId,
@@ -265,27 +294,70 @@ export class PublicApiTryOnService {
           purpose: TryOnAssetPurpose.PERSON,
         })
       : await this.sessions.getCurrentPersonAsset(scope);
-    const garmentAsset = await this.sessions.getSessionAsset({
-      ...scope,
-      assetId: input.garmentAssetId,
-      purpose: TryOnAssetPurpose.GARMENT,
-    });
-
     const personImage = await this.readAssetAsUploadedImage(
       personAsset,
       "personImage",
     );
+
+    if (tryOnVertical === "JEWELLERY") {
+      const jewelleryAssetId = requireJewelleryAssetId(input.jewelleryAssetId);
+      const jewelleryType = requireJewelleryType(input.jewelleryType);
+      const jewelleryAsset = await this.sessions.getSessionAsset({
+        ...scope,
+        assetId: jewelleryAssetId,
+        purpose: TryOnAssetPurpose.GARMENT,
+      });
+      const jewelleryImage = await this.readAssetAsUploadedImage(
+        jewelleryAsset,
+        "jewelleryImage",
+      );
+      const foundation = await this.requireJewelleryTryOn().prepareRunFoundation(
+        {
+          storeId: credential.storeId,
+          personImageDataUri: personImage.dataUri,
+          jewelleryImageDataUri: jewelleryImage.dataUri,
+          jewelleryType,
+          productReference: inputProductReference(input),
+        },
+      );
+
+      return {
+        sessionId: input.sessionId,
+        organizationId: credential.storeId,
+        personAssetId: personAsset.id,
+        garmentAssetId: jewelleryAsset.id,
+        tryOnVertical: "JEWELLERY",
+        jewelleryType: foundation.jewelleryType,
+        providerMetadata: foundation.provider,
+        jewelleryExecutionPayload: {
+          personImageDataUri: personImage.dataUri,
+          jewelleryImageDataUri: jewelleryImage.dataUri,
+          jewelleryType: foundation.jewelleryType,
+          productReference: foundation.productReference,
+        },
+      };
+    }
+
+    const garmentAsset = await this.sessions.getSessionAsset({
+      ...scope,
+      assetId: requireGarmentAssetId(input.garmentAssetId),
+      purpose: TryOnAssetPurpose.GARMENT,
+    });
     const garmentImage = await this.readAssetAsUploadedImage(
       garmentAsset,
       "garmentImage",
     );
     const garmentIntent = input.garmentIntent ?? "AUTO";
+    this.execution.assertConfigured();
 
     return {
       sessionId: input.sessionId,
       organizationId: credential.storeId,
       personAssetId: personAsset.id,
       garmentAssetId: garmentAsset.id,
+      tryOnVertical: "GARMENT",
+      jewelleryType: null,
+      providerMetadata: this.execution.metadata(),
       executionPayload: {
         clientRequestId: input.clientRequestId,
         personImage,
@@ -312,6 +384,9 @@ export class PublicApiTryOnService {
     runId: string,
     runAssets: PublicRunAssets,
   ): Promise<void> {
+    if (!runAssets.executionPayload) {
+      return;
+    }
     try {
       await this.execution.process(runAssets.executionPayload, {
         onStarted: async (startedAt) => {
@@ -386,12 +461,109 @@ export class PublicApiTryOnService {
     }
   }
 
+  private async processJewelleryRun(
+    runId: string,
+    runAssets: PublicRunAssets,
+  ): Promise<void> {
+    if (!runAssets.jewelleryExecutionPayload) {
+      return;
+    }
+    try {
+      await this.requireJewelleryExecution().process(
+        runAssets.jewelleryExecutionPayload,
+        this.processObserver(runId, runAssets),
+      );
+    } catch (error) {
+      this.logger.warn({
+        event: "public_api_jewellery_try_on_process_failed",
+        runId,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  private processObserver(runId: string, runAssets: PublicRunAssets) {
+    return {
+      onStarted: async (startedAt: Date) => {
+        await this.prisma.kioskTryOnRun.update({
+          where: { id: runId },
+          data: { startedAt },
+        });
+      },
+      onSubmitted: async (providerPredictionId: string) => {
+        await this.prisma.kioskTryOnRun.update({
+          where: { id: runId },
+          data: {
+            status: "PROCESSING",
+            providerPredictionId,
+            submittedAt: new Date(),
+          },
+        });
+      },
+      onStatus: async (status: {
+        status: SelfxTryOnRunStatus;
+        resultImage?: string;
+        errorCode?: PublicApiTryOnRunResponseDto["errorCode"];
+        errorMessage?: string;
+        completedAt?: Date;
+      }) => {
+        await this.prisma.kioskTryOnRun.update({
+          where: { id: runId },
+          data: {
+            status: status.status,
+            resultImage: null,
+            errorCode: status.errorCode,
+            errorMessage: status.errorMessage,
+            completedAt: status.completedAt,
+          },
+        });
+        if (status.status === "COMPLETED" && status.resultImage) {
+          await this.recordSessionLook(runId, runAssets, status.resultImage);
+          await this.deliverTerminalWebhook(runId, runAssets.organizationId);
+          return;
+        }
+        if (status.status === "FAILED") {
+          await this.deliverTerminalWebhook(runId, runAssets.organizationId);
+        }
+      },
+      onTimedOut: async (completedAt: Date) => {
+        await this.prisma.kioskTryOnRun.update({
+          where: { id: runId },
+          data: {
+            status: "FAILED",
+            resultImage: null,
+            errorCode: TRY_ON_LAB_ERROR_CODES.timedOut,
+            errorMessage: "Try-On generation timed out.",
+            completedAt,
+          },
+        });
+        await this.deliverTerminalWebhook(runId, runAssets.organizationId);
+      },
+      onError: async (
+        error: NormalizedTryOnProcessError,
+        completedAt: Date,
+      ) => {
+        await this.prisma.kioskTryOnRun.update({
+          where: { id: runId },
+          data: {
+            status: error.status,
+            resultImage: null,
+            errorCode: error.errorCode,
+            errorMessage: error.errorMessage,
+            completedAt,
+          },
+        });
+        await this.deliverTerminalWebhook(runId, runAssets.organizationId);
+      },
+    };
+  }
+
   private async readAssetAsUploadedImage(
     asset: Pick<
       PublicRunAssetRecord,
       "storageKey" | "contentType" | "id" | "purpose"
     >,
-    fieldName: "personImage" | "garmentImage",
+    fieldName: "personImage" | "garmentImage" | "jewelleryImage",
   ) {
     const buffer = await this.storage.readObject(
       asset.storageKey,
@@ -516,13 +688,44 @@ export class PublicApiTryOnService {
     });
   }
 
+  private requireJewelleryTryOn(): JewelleryTryOnService {
+    if (!this.jewelleryTryOn) {
+      throw new ApiErrorException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "PUBLIC_API_JEWELLERY_TRYON_UNAVAILABLE",
+        "Jewellery Try-On is not available in this deployment.",
+      );
+    }
+    return this.jewelleryTryOn;
+  }
+
+  private requireJewelleryExecution(): JewelleryTryOnExecutionService {
+    if (!this.jewelleryExecution) {
+      throw new ApiErrorException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "PUBLIC_API_JEWELLERY_TRYON_UNAVAILABLE",
+        "Jewellery Try-On is not available in this deployment.",
+      );
+    }
+    return this.jewelleryExecution;
+  }
+
   private toResponse(run: PublicRunRecord): PublicApiTryOnRunResponseDto {
     return {
       id: run.id,
       status: run.status as SelfxTryOnRunStatus,
       sessionId: run.tryOnSessionId ?? "",
+      tryOnVertical: run.tryOnVertical ?? "GARMENT",
       personAssetId: run.personAssetId ?? undefined,
-      garmentAssetId: run.garmentAssetId ?? undefined,
+      garmentAssetId:
+        run.tryOnVertical === "JEWELLERY"
+          ? undefined
+          : (run.garmentAssetId ?? undefined),
+      jewelleryAssetId:
+        run.tryOnVertical === "JEWELLERY"
+          ? (run.garmentAssetId ?? undefined)
+          : undefined,
+      jewelleryType: run.jewelleryType ?? undefined,
       productReference: responseProductReference(run),
       createdAt: run.createdAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),
@@ -606,6 +809,106 @@ function normalizeClientRequestId(value: string): string {
     );
   }
   return normalized;
+}
+
+function normalizeTryOnVertical(
+  value: ProductVertical | string | null | undefined,
+): ProductVertical {
+  const normalized = value?.trim().toUpperCase() || "GARMENT";
+  if (!PRODUCT_VERTICALS.includes(normalized as ProductVertical)) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "PUBLIC_API_TRYON_INVALID",
+      "tryOnVertical must be GARMENT or JEWELLERY.",
+    );
+  }
+  return normalized as ProductVertical;
+}
+
+function requireGarmentAssetId(value: string | undefined): string {
+  const normalized = value?.trim();
+  if (!normalized) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "PUBLIC_API_TRYON_INVALID",
+      "garmentAssetId is required for garment Try-On.",
+    );
+  }
+  return normalized;
+}
+
+function requireJewelleryAssetId(value: string | undefined): string {
+  const normalized = value?.trim();
+  if (!normalized) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "PUBLIC_API_TRYON_INVALID",
+      "jewelleryAssetId is required for jewellery Try-On.",
+    );
+  }
+  return normalized;
+}
+
+function requireJewelleryType(
+  value: JewelleryType | string | undefined,
+): JewelleryType {
+  const normalized = value?.trim().toUpperCase();
+  if (!normalized || !JEWELLERY_TYPES.includes(normalized as JewelleryType)) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "PUBLIC_API_TRYON_INVALID",
+      "jewelleryType must be RING, BRACELET, NECKLACE or EARRING.",
+    );
+  }
+  return normalized as JewelleryType;
+}
+
+function inputProductReference(
+  input: CreatePublicApiTryOnDto,
+): JewelleryTryOnProviderSubmitInput["productReference"] {
+  const reference = normalizeProductReference(input);
+  if (!reference.externalProductId && !reference.productName && !reference.sku) {
+    return undefined;
+  }
+  return {
+    productId: reference.externalProductId ?? undefined,
+    productName: reference.productName ?? undefined,
+    sku: reference.sku ?? undefined,
+  };
+}
+
+function publicRunGarmentFields(runAssets: PublicRunAssets): {
+  garmentSource: string;
+  garmentIntent: string;
+  garmentCategory: string;
+  garmentPhotoType: string;
+  generationProfile: string;
+} {
+  if (runAssets.tryOnVertical === "JEWELLERY") {
+    return {
+      garmentSource: "PUBLIC_API",
+      garmentIntent: "JEWELLERY",
+      garmentCategory: runAssets.jewelleryType ?? "JEWELLERY",
+      garmentPhotoType: "PRODUCT",
+      generationProfile: "BALANCED",
+    };
+  }
+
+  const payload = runAssets.executionPayload;
+  if (!payload) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "PUBLIC_API_TRYON_INVALID",
+      "Garment Try-On request is missing garment execution details.",
+    );
+  }
+  return {
+    garmentSource: payload.garmentSource,
+    garmentIntent: payload.garmentIntent,
+    garmentCategory: payload.category,
+    garmentPhotoType: payload.garmentPhotoType,
+    generationProfile: payload.generationProfile,
+  };
 }
 
 function normalizeProductReference(
@@ -700,6 +1003,8 @@ function productReferenceMetadata(run: {
 
 function downloadUsageMetadata(run: {
   resultAssetId: string | null;
+  tryOnVertical?: string | null;
+  jewelleryType?: string | null;
   catalogSource?: string | null;
   externalProductId?: string | null;
   externalVariantId?: string | null;
@@ -711,6 +1016,8 @@ function downloadUsageMetadata(run: {
   const productReference = productReferenceMetadata(run);
   return {
     ...(run.resultAssetId ? { result_asset_id: run.resultAssetId } : {}),
+    ...(run.tryOnVertical ? { try_on_vertical: run.tryOnVertical } : {}),
+    ...(run.jewelleryType ? { jewellery_type: run.jewelleryType } : {}),
     ...(productReference ? { product_reference: productReference } : {}),
   };
 }

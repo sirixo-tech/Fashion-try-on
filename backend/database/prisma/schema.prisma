@@ -144,6 +144,18 @@ enum CatalogProductScope {
   STORE
 }
 
+enum ProductVertical {
+  GARMENT
+  JEWELLERY
+}
+
+enum JewelleryType {
+  RING
+  BRACELET
+  NECKLACE
+  EARRING
+}
+
 enum OrganizationApplicationStatus {
   DRAFT
   SUBMITTED
@@ -480,6 +492,8 @@ model Product {
   priceAmountCents Int?                @map("price_amount_cents")
   priceCurrency    String?             @map("price_currency") @db.VarChar(3)
   productUrl       String?             @map("product_url") @db.Text
+  productVertical  ProductVertical     @default(GARMENT) @map("product_vertical")
+  jewelleryType    JewelleryType?      @map("jewellery_type")
   createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization     Organization?       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
@@ -491,6 +505,8 @@ model Product {
   @@index([organizationId, active, vtoEnabled, audience, sortOrder])
   @@index([categoryId, active, vtoEnabled, sortOrder])
   @@index([garmentIntent])
+  @@index([productVertical, active, vtoEnabled, sortOrder])
+  @@index([jewelleryType])
   @@map("products")
 }
 
@@ -767,6 +783,8 @@ model KioskTryOnRun {
   providerDisplayName  String               @map("provider_display_name") @db.VarChar(120)
   providerModel        String               @map("provider_model") @db.VarChar(120)
   providerPredictionId String?              @map("provider_prediction_id") @db.VarChar(160)
+  tryOnVertical        ProductVertical      @default(GARMENT) @map("try_on_vertical")
+  jewelleryType        JewelleryType?       @map("jewellery_type")
   garmentSource        String               @map("garment_source") @db.VarChar(40)
   garmentIntent        String               @map("garment_intent") @db.VarChar(40)
   garmentCategory      String               @map("garment_category") @db.VarChar(40)
@@ -801,6 +819,8 @@ model KioskTryOnRun {
   @@index([productId])
   @@index([organizationId, catalogSource, createdAt])
   @@index([organizationId, externalProductId])
+  @@index([organizationId, tryOnVertical, createdAt])
+  @@index([organizationId, jewelleryType, createdAt])
   @@index([resultAssetId])
   @@index([organizationId, createdAt])
   @@index([storeId, createdAt])

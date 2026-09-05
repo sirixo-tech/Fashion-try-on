@@ -570,6 +570,33 @@ Customer history remains usable without violating the 7-day image-retention poli
 
 ---
 
+## 3.8 Customer - Jewellery Try-On
+
+### Main Flow
+
+1. Customer chooses **Try On Jewellery**.
+2. Customer filters and selects a jewellery product.
+3. SelfX resolves the product's configured jewellery type and returns the
+   matching person-photo requirements.
+4. Kiosk customers take a photo; supported web/mobile customers may take or
+   upload a photo.
+5. The capture/upload UI uses the returned body-region guide and instructions.
+6. SelfX validates the person image against the selected jewellery requirements.
+7. A suitable image opens Preview and can proceed to generation.
+8. An unsuitable image opens the correction screen with Retake or Upload
+   Another Photo and one clear reason.
+9. SelfX submits the trusted product image, product jewellery type and accepted
+   person image through the jewellery provider boundary.
+
+### Rules
+
+- Product selection occurs before person-image acquisition.
+- Customers do not select or override jewellery type.
+- Provider execution does not begin until person-image preflight succeeds.
+- Detailed quality metrics remain internal.
+
+---
+
 ## 3.2.2 Staff/Admin Web Session Restoration
 
 ### Primary Actor

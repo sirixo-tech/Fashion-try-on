@@ -6,6 +6,11 @@ import { cn } from "@selfx/ui";
 
 export { SelectMenu as ProductSelectMenu } from "@selfx/ui";
 
+export const productVerticals = [
+  { value: "GARMENT", label: "Garments" },
+  { value: "JEWELLERY", label: "Jewellery" },
+] as const;
+
 export const productAudiences = [
   { value: "UNISEX", label: "Unisex" },
   { value: "WOMEN", label: "Women" },
@@ -45,6 +50,16 @@ export const productGarmentTypes = [
     garmentCategory: "FULL_OUTFIT",
   },
 ] as const;
+
+export const productJewelleryTypes = [
+  { value: "RING", label: "Rings", categoryName: "Rings" },
+  { value: "BRACELET", label: "Bracelets", categoryName: "Bracelets" },
+  { value: "NECKLACE", label: "Necklaces", categoryName: "Necklaces" },
+  { value: "EARRING", label: "Earrings", categoryName: "Earrings" },
+] as const;
+
+const jewelleryProductImageMinDimension = 640;
+const jewelleryProductImageMaxDimension = 4096;
 
 export const platformCurrencyOptions = [
   { value: "USD", label: "$ USD" },
@@ -157,6 +172,51 @@ export function normalizedProductTypeFor(
     (type) => type.garmentIntent === garmentIntent,
   );
   return byIntent?.value ?? productGarmentTypes[0].value;
+}
+
+export function normalizedJewelleryTypeFor(
+  jewelleryType: string | null | undefined,
+): (typeof productJewelleryTypes)[number]["value"] {
+  const normalized = (jewelleryType ?? "").trim().toUpperCase();
+  const type = productJewelleryTypes.find(
+    (option) => option.value === normalized,
+  );
+  return type?.value ?? productJewelleryTypes[0].value;
+}
+
+export function jewelleryCategoryNameForType(
+  jewelleryType: string | null | undefined,
+): string {
+  const normalized = normalizedJewelleryTypeFor(jewelleryType);
+  return (
+    productJewelleryTypes.find((option) => option.value === normalized)
+      ?.categoryName ?? productJewelleryTypes[0].categoryName
+  );
+}
+
+export function assertJewelleryProductImageDimensions(
+  productVertical: string,
+  dimensions: { width: number; height: number },
+): void {
+  if (productVertical !== "JEWELLERY") {
+    return;
+  }
+  if (
+    dimensions.width < jewelleryProductImageMinDimension ||
+    dimensions.height < jewelleryProductImageMinDimension
+  ) {
+    throw new Error(
+      "Jewellery product images must be at least 640 x 640 pixels.",
+    );
+  }
+  if (
+    dimensions.width > jewelleryProductImageMaxDimension ||
+    dimensions.height > jewelleryProductImageMaxDimension
+  ) {
+    throw new Error(
+      "Jewellery product images must not exceed 4096 x 4096 pixels.",
+    );
+  }
 }
 
 function productTypeFor(

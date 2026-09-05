@@ -122,10 +122,20 @@ class SelfxKioskTryOnGateway
   @override
   Future<KioskTryOnRun> createRun(KioskTryOnRequest request) async {
     _assertConfigured();
+    final isJewellery =
+        request.garmentInput.tryOnVertical == KioskTryOnVertical.jewellery;
     final garmentUploadPath = request.garmentInput.isCatalogProduct
         ? null
         : await _garmentUploadPath(request.garmentInput);
-    if (!request.garmentInput.isCatalogProduct && garmentUploadPath == null) {
+    if (isJewellery && !request.garmentInput.isCatalogProduct) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.garmentMissing,
+        'Choose a jewellery item before generating.',
+      );
+    }
+    if (!isJewellery &&
+        !request.garmentInput.isCatalogProduct &&
+        garmentUploadPath == null) {
       throw const KioskTryOnException(
         KioskTryOnFailureCode.garmentMissing,
         'Choose a garment image before generating.',
@@ -156,7 +166,7 @@ class SelfxKioskTryOnGateway
             ),
           );
         }
-        if (!request.garmentInput.isCatalogProduct) {
+        if (!isJewellery && !request.garmentInput.isCatalogProduct) {
           multipart.files.add(
             await http.MultipartFile.fromPath(
               'garmentImage',
@@ -237,29 +247,43 @@ class SelfxKioskTryOnGateway
   }
 
   Map<String, String> _fieldsFor(KioskTryOnRequest request) {
+    final input = request.garmentInput;
+    if (input.tryOnVertical == KioskTryOnVertical.jewellery) {
+      return {
+        'clientRequestId': request.clientRequestId,
+        if (request.sessionId != null) 'sessionId': request.sessionId!,
+        if (request.personAssetId != null)
+          'personAssetId': request.personAssetId!,
+        'tryOnVertical': KioskTryOnVertical.jewellery.apiValue,
+        if (input.productId != null) 'productId': input.productId!,
+        if (input.jewelleryType != null)
+          'jewelleryType': input.jewelleryType!.apiValue,
+        'generationProfile': 'BALANCED',
+      };
+    }
     return {
       'clientRequestId': request.clientRequestId,
       if (request.sessionId != null) 'sessionId': request.sessionId!,
       if (request.personAssetId != null)
         'personAssetId': request.personAssetId!,
-      if (request.garmentInput.productId != null)
-        'productId': request.garmentInput.productId!,
-      'garmentSource': request.garmentInput.isCatalogProduct
+      'tryOnVertical': KioskTryOnVertical.garment.apiValue,
+      if (input.productId != null) 'productId': input.productId!,
+      'garmentSource': input.isCatalogProduct
           ? 'SELFX_CATALOG'
           : 'DIRECT_UPLOAD',
-      'garmentIntent': request.garmentInput.intent.apiValue,
-      'category': request.garmentInput.intent.categoryApiValue,
-      'garmentPhotoType': request.garmentInput.photoType.apiValue,
+      'garmentIntent': input.intent.apiValue,
+      'category': input.intent.categoryApiValue,
+      'garmentPhotoType': input.photoType.apiValue,
       'modelCoverage': request.modelCoverage.apiValue,
       'generationProfile': 'BALANCED',
-      'categoryResolutionSource': request.garmentInput.isCatalogProduct
+      'categoryResolutionSource': input.isCatalogProduct
           ? 'SELFX_CATALOG_METADATA'
-          : request.garmentInput.intent == KioskGarmentIntent.auto
+          : input.intent == KioskGarmentIntent.auto
           ? 'AUTO_FALLBACK'
           : 'INTERNAL_LAB_OVERRIDE',
-      'photoTypeResolutionSource': request.garmentInput.isCatalogProduct
+      'photoTypeResolutionSource': input.isCatalogProduct
           ? 'SELFX_CATALOG_METADATA'
-          : request.garmentInput.photoType == KioskGarmentPhotoType.auto
+          : input.photoType == KioskGarmentPhotoType.auto
           ? 'AUTO_FALLBACK'
           : 'INTERNAL_LAB_OVERRIDE',
       'profileResolutionSource': 'PLATFORM_DEFAULT',

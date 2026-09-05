@@ -134,7 +134,11 @@ function objectKeyFor(input: {
         ? "webp"
         : "jpg";
   const purpose =
-    input.purpose === TryOnAssetPurpose.PERSON ? "person" : "garment";
+    input.purpose === TryOnAssetPurpose.PERSON
+      ? "person"
+      : input.purpose === "JEWELLERY"
+        ? "jewellery"
+        : "garment";
   return [
     "public-api",
     input.storeId,

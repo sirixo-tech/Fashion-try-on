@@ -22,6 +22,8 @@ import { type FastifyRequest } from "fastify";
 import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
+import { KioskCatalogSyncResponseDto } from "../kiosks/dto/kiosk.dto.js";
+import { KioskConfigurationService } from "../kiosks/kiosk-configuration.service.js";
 import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { AdminCatalogService } from "./admin-catalog.service.js";
@@ -32,6 +34,7 @@ import {
   PlatformProductImageUploadIntentDto,
   PlatformProductListQueryDto,
   PlatformProductListResponseDto,
+  RequestPlatformCatalogSyncDto,
   UpdatePlatformProductDto,
 } from "./dto/admin-catalog.dto.js";
 
@@ -43,7 +46,30 @@ export class AdminCatalogController {
     private readonly auth: AuthService,
     private readonly platformAuthorization: PlatformAuthorizationService,
     private readonly catalog: AdminCatalogService,
+    private readonly kioskConfigurations: KioskConfigurationService,
   ) {}
+
+  @Post("sync")
+  @ApiOperation({
+    summary: "Request kiosks using a platform catalog to refresh it",
+  })
+  @ApiOkResponse({ type: KioskCatalogSyncResponseDto })
+  async requestCatalogSync(
+    @Req() request: FastifyRequest,
+    @Body() dto: RequestPlatformCatalogSyncDto,
+  ): Promise<KioskCatalogSyncResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    await this.platformAuthorization.requirePermission(
+      user.id,
+      PLATFORM_PERMISSIONS.platformProductsManage,
+    );
+    return this.kioskConfigurations.requestPlatformCatalogSync(
+      user.id,
+      dto.productVertical,
+    );
+  }
 
   @Get("products")
   @ApiOperation({ summary: "List platform default catalog products" })

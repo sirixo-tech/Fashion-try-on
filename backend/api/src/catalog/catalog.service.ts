@@ -1,7 +1,10 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
-import { TRY_ON_LAB_ERROR_CODES } from "@selfx/shared";
+import {
+  TRY_ON_LAB_ERROR_CODES,
+  type SelfxJewelleryCaptureRequirements,
+} from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import {
@@ -11,6 +14,7 @@ import {
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { TRY_ON_LAB_MAX_IMAGE_BYTES } from "../try-on-lab/try-on-lab.constants.js";
+import { JewelleryCaptureRequirementsService } from "../try-on/jewellery/jewellery-capture-requirements.service.js";
 import {
   type KioskCatalogCategoryDto,
   type KioskCatalogCategoryListResponseDto,
@@ -21,6 +25,7 @@ import {
   type KioskCatalogRevisionDto,
   type KioskCatalogSnapshotDto,
 } from "./dto/kiosk-catalog.dto.js";
+import type { JewelleryType, ProductVertical } from "./product-kind.js";
 
 const defaultPage = 1;
 const defaultPageSize = 20;
@@ -33,6 +38,8 @@ type ProductRow = {
   id: string;
   name: string;
   description: string | null;
+  product_vertical: ProductVertical;
+  jewellery_type: JewelleryType | null;
   audience: string;
   garment_intent: string;
   garment_category: string;
@@ -66,7 +73,7 @@ type CatalogRevisionStatsRow = {
 };
 
 export interface KioskCatalogProductTryOnImage {
-  fieldName: "garmentImage";
+  fieldName: "garmentImage" | "jewelleryImage";
   filename: string;
   mimeType: SupportedImageMimeType;
   sizeBytes: number;
@@ -76,12 +83,25 @@ export interface KioskCatalogProductTryOnImage {
   height: number;
 }
 
+type KioskCatalogGarmentProductTryOnImage = KioskCatalogProductTryOnImage & {
+  fieldName: "garmentImage";
+};
+type KioskCatalogJewelleryProductTryOnImage = KioskCatalogProductTryOnImage & {
+  fieldName: "jewelleryImage";
+};
+
 export interface KioskCatalogProductForTryOn {
   productId: string;
   garmentIntent: string;
   garmentCategory: string;
   garmentPhotoType: string;
-  garmentImage: KioskCatalogProductTryOnImage;
+  garmentImage: KioskCatalogGarmentProductTryOnImage;
+}
+
+export interface KioskCatalogJewelleryProductForTryOn {
+  productId: string;
+  jewelleryType: JewelleryType;
+  jewelleryImage: KioskCatalogJewelleryProductTryOnImage;
 }
 
 @Injectable()
@@ -89,6 +109,7 @@ export class CatalogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: ObjectStorageService,
+    private readonly jewelleryCaptureRequirements: JewelleryCaptureRequirementsService,
   ) {}
 
   async listKioskProducts(
@@ -101,7 +122,11 @@ export class CatalogService {
       maxPageSize,
     );
     const offset = (page - 1) * pageSize;
-    const context = await this.resolveCatalogContext(storeTenantId);
+    const productVertical = query.productVertical ?? "GARMENT";
+    const context = await this.resolveCatalogContext(
+      storeTenantId,
+      productVertical,
+    );
     const where = productWhere(context, query);
     const [countRow, rows] = await Promise.all([
       this.prisma.$queryRaw<Array<{ total: bigint | number }>>`
@@ -115,6 +140,8 @@ export class CatalogService {
           p.id,
           p.name,
           p.description,
+          p.product_vertical,
+          p.jewellery_type,
           p.audience,
           p.garment_intent,
           p.garment_category,
@@ -156,7 +183,11 @@ export class CatalogService {
     storeTenantId: string | null,
     query: KioskCatalogCategoryQueryDto,
   ): Promise<KioskCatalogCategoryListResponseDto> {
-    const context = await this.resolveCatalogContext(storeTenantId);
+    const productVertical = query.productVertical ?? "GARMENT";
+    const context = await this.resolveCatalogContext(
+      storeTenantId,
+      productVertical,
+    );
     const where = categoryWhere(context, query);
     const rows = await this.prisma.$queryRaw<CategoryRow[]>`
       SELECT
@@ -177,20 +208,28 @@ export class CatalogService {
   async getKioskCatalogRevision(
     storeTenantId: string | null,
     syncVersion: number,
+    productVertical: ProductVertical = "GARMENT",
   ): Promise<KioskCatalogRevisionDto> {
-    const context = await this.resolveCatalogContext(storeTenantId);
-    const stats = await this.catalogRevisionStats(context);
+    const context = await this.resolveCatalogContext(
+      storeTenantId,
+      productVertical,
+    );
+    const stats = await this.catalogRevisionStats(context, productVertical);
     return mapRevision(context, stats, syncVersion);
   }
 
   async getKioskCatalogSnapshot(
     storeTenantId: string | null,
     syncVersion: number,
+    productVertical: ProductVertical = "GARMENT",
   ): Promise<KioskCatalogSnapshotDto> {
-    const context = await this.resolveCatalogContext(storeTenantId);
-    const where = productWhere(context, {});
+    const context = await this.resolveCatalogContext(
+      storeTenantId,
+      productVertical,
+    );
+    const where = productWhere(context, { productVertical });
     const [stats, categories, products] = await Promise.all([
-      this.catalogRevisionStats(context),
+      this.catalogRevisionStats(context, productVertical),
       this.prisma.$queryRaw<CategoryRow[]>`
         SELECT
           c.id,
@@ -209,6 +248,8 @@ export class CatalogService {
           p.id,
           p.name,
           p.description,
+          p.product_vertical,
+          p.jewellery_type,
           p.audience,
           p.garment_intent,
           p.garment_category,
@@ -242,10 +283,10 @@ export class CatalogService {
     storeTenantId: string | null,
     productId: string,
   ): Promise<KioskCatalogProductForTryOn> {
-    const context = await this.resolveCatalogContext(storeTenantId);
+    const context = await this.resolveCatalogContext(storeTenantId, "GARMENT");
     const where = Prisma.join(
       [
-        ...baseProductConditions(context),
+        ...baseProductConditions(context, "GARMENT"),
         Prisma.sql`p.id = ${productId}::uuid`,
       ],
       " AND ",
@@ -294,8 +335,101 @@ export class CatalogService {
     };
   }
 
+  async resolveKioskJewelleryProductForTryOn(
+    storeTenantId: string | null,
+    productId: string,
+  ): Promise<KioskCatalogJewelleryProductForTryOn> {
+    const context = await this.resolveCatalogContext(
+      storeTenantId,
+      "JEWELLERY",
+    );
+    const where = Prisma.join(
+      [
+        ...baseProductConditions(context, "JEWELLERY"),
+        Prisma.sql`p.id = ${productId}::uuid`,
+        Prisma.sql`p.jewellery_type IS NOT NULL`,
+      ],
+      " AND ",
+    );
+    const rows = await this.prisma.$queryRaw<
+      Array<
+        Pick<
+          ProductRow,
+          "id" | "image_url" | "image_storage_key" | "image_content_type"
+        > & { jewellery_type: JewelleryType }
+      >
+    >`
+      SELECT
+        p.id,
+        p.image_url,
+        p.image_storage_key,
+        p.image_content_type,
+        p.jewellery_type
+      FROM products p
+      INNER JOIN product_categories c ON c.id = p.category_id
+      WHERE ${where}
+      LIMIT 1
+    `;
+    const product = rows[0];
+    if (!product) {
+      throw new ApiErrorException(
+        HttpStatus.NOT_FOUND,
+        TRY_ON_LAB_ERROR_CODES.resolutionMetadataInvalid,
+        "Jewellery catalog product is not available for this kiosk.",
+      );
+    }
+
+    return {
+      productId: product.id,
+      jewelleryType: product.jewellery_type,
+      jewelleryImage: await this.resolveTryOnImage(product, "jewelleryImage"),
+    };
+  }
+
+  async getKioskJewelleryCaptureRequirements(
+    storeTenantId: string | null,
+    productId: string,
+  ): Promise<SelfxJewelleryCaptureRequirements> {
+    const context = await this.resolveCatalogContext(
+      storeTenantId,
+      "JEWELLERY",
+    );
+    const where = Prisma.join(
+      [
+        ...baseProductConditions(context, "JEWELLERY"),
+        Prisma.sql`p.id = ${productId}::uuid`,
+        Prisma.sql`p.jewellery_type IS NOT NULL`,
+      ],
+      " AND ",
+    );
+    const rows = await this.prisma.$queryRaw<
+      Array<{ id: string; jewellery_type: JewelleryType }>
+    >`
+      SELECT p.id, p.jewellery_type
+      FROM products p
+      INNER JOIN product_categories c ON c.id = p.category_id
+      WHERE ${where}
+      LIMIT 1
+    `;
+    const product = rows[0];
+    if (!product) {
+      throw new ApiErrorException(
+        HttpStatus.NOT_FOUND,
+        TRY_ON_LAB_ERROR_CODES.resolutionMetadataInvalid,
+        "Jewellery catalog product is not available for this kiosk.",
+      );
+    }
+
+    return this.jewelleryCaptureRequirements.resolve(
+      product.jewellery_type,
+      "KIOSK",
+      product.id,
+    );
+  }
+
   private async resolveCatalogContext(
     storeTenantId: string | null,
+    vertical: ProductVertical = "GARMENT",
   ): Promise<{ scope: CatalogScope; storeTenantId: string | null }> {
     if (!storeTenantId) {
       return { scope: "PLATFORM_DEFAULT", storeTenantId: null };
@@ -309,6 +443,7 @@ export class CatalogService {
           AND p.organization_id = ${storeTenantId}::uuid
           AND p.active = true
           AND p.vto_enabled = true
+          AND p.product_vertical::text = ${vertical}
           AND c.active = true
         LIMIT 1
       ) AS has_products
@@ -323,6 +458,8 @@ export class CatalogService {
       id: row.id,
       name: row.name,
       description: row.description,
+      productVertical: row.product_vertical,
+      jewelleryType: row.jewellery_type,
       audience: row.audience,
       category: {
         id: row.category_id,
@@ -346,11 +483,14 @@ export class CatalogService {
     };
   }
 
-  private async catalogRevisionStats(context: {
-    scope: CatalogScope;
-    storeTenantId: string | null;
-  }): Promise<CatalogRevisionStatsRow> {
-    const where = productWhere(context, {});
+  private async catalogRevisionStats(
+    context: {
+      scope: CatalogScope;
+      storeTenantId: string | null;
+    },
+    productVertical: ProductVertical = "GARMENT",
+  ): Promise<CatalogRevisionStatsRow> {
+    const where = productWhere(context, { productVertical });
     const rows = await this.prisma.$queryRaw<CatalogRevisionStatsRow[]>`
       SELECT
         COUNT(p.id) AS product_count,
@@ -373,12 +513,15 @@ export class CatalogService {
     });
   }
 
-  private async resolveTryOnImage(
+  private async resolveTryOnImage<
+    TFieldName extends "garmentImage" | "jewelleryImage",
+  >(
     product: Pick<
       ProductRow,
       "id" | "image_storage_key" | "image_url" | "image_content_type"
     >,
-  ): Promise<KioskCatalogProductTryOnImage> {
+    fieldName: TFieldName = "garmentImage" as TFieldName,
+  ): Promise<KioskCatalogProductTryOnImage & { fieldName: TFieldName }> {
     const image = product.image_storage_key
       ? await this.readStoredProductImage(product.image_storage_key)
       : await this.fetchProductImage(product.image_url);
@@ -388,7 +531,7 @@ export class CatalogService {
       maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
     });
     return {
-      fieldName: "garmentImage",
+      fieldName,
       filename: `catalog-product-${product.id}`,
       mimeType: metadata.mimeType,
       sizeBytes: metadata.sizeBytes,
@@ -450,7 +593,10 @@ function productWhere(
   context: { scope: CatalogScope; storeTenantId: string | null },
   query: KioskCatalogQueryDto,
 ): Prisma.Sql {
-  const conditions = baseProductConditions(context);
+  const conditions = baseProductConditions(
+    context,
+    query.productVertical ?? "GARMENT",
+  );
   if (query.audience) {
     conditions.push(Prisma.sql`p.audience = ${query.audience}`);
   }
@@ -464,21 +610,28 @@ function categoryWhere(
   context: { scope: CatalogScope; storeTenantId: string | null },
   query: KioskCatalogCategoryQueryDto,
 ): Prisma.Sql {
-  const conditions = baseProductConditions(context);
+  const conditions = baseProductConditions(
+    context,
+    query.productVertical ?? "GARMENT",
+  );
   if (query.audience) {
     conditions.push(Prisma.sql`p.audience = ${query.audience}`);
   }
   return Prisma.join(conditions, " AND ");
 }
 
-function baseProductConditions(context: {
-  scope: CatalogScope;
-  storeTenantId: string | null;
-}): Prisma.Sql[] {
+function baseProductConditions(
+  context: {
+    scope: CatalogScope;
+    storeTenantId: string | null;
+  },
+  vertical: ProductVertical,
+): Prisma.Sql[] {
   const conditions = [
     Prisma.sql`p.scope::text = ${context.scope}`,
     Prisma.sql`p.active = true`,
     Prisma.sql`p.vto_enabled = true`,
+    Prisma.sql`p.product_vertical::text = ${vertical}`,
     Prisma.sql`c.active = true`,
   ];
   if (context.scope === "STORE" && context.storeTenantId) {

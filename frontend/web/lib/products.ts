@@ -1,5 +1,8 @@
 import { selfxApi } from "@/lib/api";
 
+export type ProductVertical = "GARMENT" | "JEWELLERY";
+export type JewelleryType = "RING" | "BRACELET" | "NECKLACE" | "EARRING";
+
 export type PlatformProduct = {
   id: string;
   name: string;
@@ -14,6 +17,8 @@ export type PlatformProduct = {
   priceAmountCents: number | null;
   priceCurrency: string | null;
   productUrl: string | null;
+  productVertical: ProductVertical;
+  jewelleryType: JewelleryType | null;
   garmentIntent: string;
   garmentCategory: string;
   garmentPhotoType: string;
@@ -37,6 +42,8 @@ export type PlatformProductInput = {
   priceAmountCents?: number | null;
   priceCurrency?: string | null;
   productUrl?: string | null;
+  productVertical?: ProductVertical;
+  jewelleryType?: JewelleryType | null;
   garmentIntent?: string;
   garmentCategory?: string;
   garmentPhotoType?: string;
@@ -72,6 +79,11 @@ export type PlatformProductImageUploadIntent = {
   supportedContentTypes: string[];
 };
 
+export type CatalogSyncResult = {
+  updatedDevices: number;
+  requestedAt: string;
+};
+
 export function listPlatformProducts(
   accessToken: string,
   query: {
@@ -79,6 +91,7 @@ export function listPlatformProducts(
     pageSize?: number;
     search?: string;
     status?: "ALL" | "ACTIVE" | "INACTIVE" | "VTO_ENABLED";
+    productVertical?: ProductVertical;
   } = {},
 ): Promise<PlatformProductListResponse> {
   const params = new URLSearchParams();
@@ -89,6 +102,9 @@ export function listPlatformProducts(
   }
   if (query.status && query.status !== "ALL") {
     params.set("status", query.status);
+  }
+  if (query.productVertical) {
+    params.set("productVertical", query.productVertical);
   }
   return selfxApi<PlatformProductListResponse>(
     `/api/v1/admin/catalog/products?${params}`,
@@ -147,4 +163,15 @@ export function createPlatformProductImageUploadIntent(
       body: JSON.stringify(input),
     },
   );
+}
+
+export function requestPlatformCatalogSync(
+  accessToken: string,
+  productVertical: ProductVertical,
+): Promise<CatalogSyncResult> {
+  return selfxApi<CatalogSyncResult>("/api/v1/admin/catalog/sync", {
+    method: "POST",
+    accessToken,
+    body: JSON.stringify({ productVertical }),
+  });
 }

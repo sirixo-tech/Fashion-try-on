@@ -18,6 +18,7 @@ import 'browse_products_screen.dart';
 import 'kiosk_chrome.dart';
 import 'try_on_result_screen.dart';
 import 'selfx_kiosk_action_card.dart';
+import 'try_on_experience_config.dart';
 
 class TryOnGenerationScreen extends StatefulWidget {
   const TryOnGenerationScreen({
@@ -93,6 +94,9 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
           final progress = _progressFor(status);
           final personImagePath = _personImagePath(widget.captureController);
           final garmentInput = widget.tryOnController.garmentInput;
+          final experience = tryOnExperienceFor(
+            widget.tryOnController.activeTryOnVertical,
+          );
           final currentPick = _currentGarmentPick(widget.tryOnController);
           final garmentImagePath = _garmentImagePath(garmentInput);
           return LayoutBuilder(
@@ -144,7 +148,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                       garmentImagePath: garmentImagePath!,
                                       garmentName:
                                           garmentInput?.displayName ??
-                                          'Garment',
+                                          experience.title,
                                       garmentPrice:
                                           currentPick?.displayPrice ??
                                           garmentInput?.displayPrice,
@@ -160,6 +164,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                     status: status,
                                     progress: progress,
                                     statusGap: statusGap,
+                                    experience: experience,
                                   ),
                                 ),
                               ),
@@ -205,7 +210,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                       garmentImagePath: garmentImagePath!,
                                       garmentName:
                                           garmentInput?.displayName ??
-                                          'Garment',
+                                          experience.title,
                                       garmentPrice:
                                           currentPick?.displayPrice ??
                                           garmentInput?.displayPrice,
@@ -227,7 +232,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                 failed
                                     ? widget.tryOnController.customerMessage ??
                                           'Please try again.'
-                                    : _supportMessageFor(status),
+                                    : _supportMessageFor(status, experience),
                                 style: Theme.of(context).textTheme.bodyLarge,
                                 textAlign: TextAlign.center,
                               ),
@@ -302,9 +307,9 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                   key: const Key('try-on-choose-garment'),
                                   onPressed: () =>
                                       _chooseAnotherGarment(context),
-                                  icon: Icons.checkroom_outlined,
+                                  icon: experience.icon,
                                   iconColor: const Color(0xFFE86610),
-                                  label: 'Try Another Garment',
+                                  label: experience.tryAnotherLabel,
                                   subtitle: 'Choose item',
                                   minHeight: 76,
                                 ),
@@ -338,9 +343,9 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                   key: const Key('try-on-choose-garment'),
                                   onPressed: () =>
                                       _chooseAnotherGarment(context),
-                                  icon: Icons.checkroom_outlined,
+                                  icon: experience.icon,
                                   iconColor: const Color(0xFFE86610),
-                                  label: 'Try Another Garment',
+                                  label: experience.tryAnotherLabel,
                                   subtitle: 'Choose item',
                                   minHeight: 76,
                                 ),
@@ -407,6 +412,25 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
   Future<void> _chooseAnotherGarment(BuildContext context) async {
     widget.tryOnController.tryAnotherGarment();
     if (!context.mounted) {
+      return;
+    }
+    final experience = tryOnExperienceFor(
+      widget.tryOnController.activeTryOnVertical,
+    );
+    if (!experience.supportsPhysicalProductCapture) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) => BrowseProductsScreen(
+            captureController: widget.captureController,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
+            extractionService: widget.extractionService,
+            productVertical: experience.productVertical,
+          ),
+        ),
+        (route) => route.isFirst,
+      );
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
@@ -483,12 +507,16 @@ double _progressFor(KioskTryOnStatus status) {
   };
 }
 
-String _supportMessageFor(KioskTryOnStatus status) {
+String _supportMessageFor(
+  KioskTryOnStatus status,
+  TryOnExperienceConfig experience,
+) {
+  final itemLabel = experience.title.toLowerCase();
   return switch (status) {
     KioskTryOnStatus.preparing =>
-      'Checking your photo and garment before generation starts.',
+      'Checking your photo and $itemLabel before generation starts.',
     KioskTryOnStatus.uploading =>
-      'Uploading both images securely. Please keep this screen open.',
+      'Sending everything securely. Please keep this screen open.',
     KioskTryOnStatus.queued => 'SelfX is fitting this style to your photo.',
     KioskTryOnStatus.processing => 'SelfX is fitting this style to your photo.',
     KioskTryOnStatus.succeeded => 'Your result is ready. Opening it now.',
@@ -642,11 +670,13 @@ class _GenerationStatusContent extends StatelessWidget {
     required this.status,
     required this.progress,
     required this.statusGap,
+    required this.experience,
   });
 
   final KioskTryOnStatus status;
   final double progress;
   final double statusGap;
+  final TryOnExperienceConfig experience;
 
   @override
   Widget build(BuildContext context) {
@@ -669,7 +699,7 @@ class _GenerationStatusContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    _supportMessageFor(status),
+                    _supportMessageFor(status, experience),
                     style: Theme.of(context).textTheme.bodyLarge,
                     textAlign: TextAlign.center,
                   ),

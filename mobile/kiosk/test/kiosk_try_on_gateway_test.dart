@@ -59,6 +59,68 @@ void main() {
   );
 
   test(
+    'creates jewellery catalog try-on without uploading a garment image',
+    () async {
+      final request = KioskTryOnRequest(
+        clientRequestId: 'attempt-jewellery-1',
+        personImage: null,
+        garmentInput: const KioskGarmentInput.jewelleryCatalogProduct(
+          productId: '11111111-1111-4111-8111-111111111111',
+          name: 'Gold Necklace',
+          imageUrl: 'https://catalog.selfx.test/necklace.png',
+          jewelleryType: KioskJewelleryType.necklace,
+          displayPrice: 'INR 4,500',
+        ),
+        captureScope: CaptureScope.fullBody,
+        modelCoverage: ModelCoverage.fullBody,
+        targetMetadata: const TryOnTargetPreparationMetadata(
+          originalPath: 'stored-person.jpg',
+          preparedPath: 'stored-person.jpg',
+          originalWidth: 100,
+          originalHeight: 200,
+          cropX: 0,
+          cropY: 0,
+          cropWidth: 100,
+          cropHeight: 200,
+          scope: CaptureScope.fullBody,
+          usedTargetRegion: false,
+          windowsFullFrameFallback: true,
+        ),
+        sessionId: '22222222-2222-4222-8222-222222222222',
+        personAssetId: '33333333-3333-4333-8333-333333333333',
+      );
+      final deviceController = testDeviceController('device-token');
+      final gateway = SelfxKioskTryOnGateway(
+        config: const KioskTryOnApiConfig(apiBaseUrl: 'https://api.selfx.test'),
+        deviceController: deviceController,
+        client: MockClient((http.Request request) async {
+          final multipartBody = utf8.decode(
+            request.bodyBytes,
+            allowMalformed: true,
+          );
+          expect(multipartBody, contains('tryOnVertical'));
+          expect(multipartBody, contains('JEWELLERY'));
+          expect(multipartBody, contains('productId'));
+          expect(
+            multipartBody,
+            contains('11111111-1111-4111-8111-111111111111'),
+          );
+          expect(multipartBody, contains('jewelleryType'));
+          expect(multipartBody, contains('NECKLACE'));
+          expect(multipartBody, isNot(contains('garmentImage')));
+          return jsonResponse({'id': 'run-jewellery-1', 'status': 'QUEUED'});
+        }),
+      );
+
+      final run = await gateway.createRun(request);
+
+      expect(run.id, 'run-jewellery-1');
+      expect(run.status, KioskTryOnStatus.queued);
+      deviceController.dispose();
+    },
+  );
+
+  test(
     'uses original captured garment when no extracted preview exists',
     () async {
       final tempDir = await Directory.systemTemp.createTemp('selfx-tryon-');

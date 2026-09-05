@@ -64,6 +64,7 @@ import {
   updateStoreVirtualTryOnSettings,
   type AdminStoreDetail,
   type StoreInput,
+  type StoreTryOnCapability,
   type StoreVirtualTryOnSettings,
 } from "@/lib/stores";
 
@@ -134,6 +135,7 @@ export default function StoreDashboardPage() {
   const garmentPreviewControlDisabled =
     !canUpdateStore ||
     savingStoreTryOnSettings ||
+    !storeTryOnSettings?.garmentTryOnEnabled ||
     !storeTryOnSettings?.platformGarmentPreviewEnabled ||
     !storeTryOnSettings.storeHasGarmentPreviewPermission;
 
@@ -339,39 +341,83 @@ export default function StoreDashboardPage() {
                 </div>
 
                 {storeTryOnSettings ? (
-                  <div className="rounded-lg border bg-muted/25 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                  <div className="space-y-3">
+                    <div className="rounded-lg border bg-muted/25 p-4">
+                      <div className="mb-3">
                         <div className="text-sm font-semibold">
-                          Captured Garment Preview
+                          Try-On Capabilities
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Show the extracted garment preview after a garment is
-                          photographed.
+                          Choose which customer Try-On flows this Store offers.
                         </p>
                       </div>
-                      <input
-                        type="checkbox"
-                        className="mt-1 size-4"
-                        checked={storeTryOnSettings.storeGarmentPreviewEnabled}
-                        disabled={garmentPreviewControlDisabled}
-                        onChange={(event) =>
-                          void updateStoreGarmentPreview(
-                            event.target.checked,
-                          )
-                        }
-                      />
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <TryOnCapabilityToggle
+                          label="Garment Try-On"
+                          caption="Clothing catalog and garment generation."
+                          checked={storeTryOnSettings.garmentTryOnEnabled}
+                          disabled={!canUpdateStore || savingStoreTryOnSettings}
+                          onChange={(checked) =>
+                            void updateStoreTryOnCapability(
+                              "GARMENT_TRY_ON",
+                              checked,
+                            )
+                          }
+                        />
+                        <TryOnCapabilityToggle
+                          label="Jewellery Try-On"
+                          caption="Rings, bracelets, necklaces and earrings."
+                          checked={storeTryOnSettings.jewelleryTryOnEnabled}
+                          disabled={!canUpdateStore || savingStoreTryOnSettings}
+                          onChange={(checked) =>
+                            void updateStoreTryOnCapability(
+                              "JEWELLERY_TRY_ON",
+                              checked,
+                            )
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      Effective:{" "}
-                      {storeTryOnSettings.effectiveGarmentPreviewEnabled
-                        ? "On"
-                        : "Off"}
-                      {!storeTryOnSettings.platformGarmentPreviewEnabled
-                        ? " - disabled globally"
-                        : !storeTryOnSettings.storeHasGarmentPreviewPermission
-                          ? " - feature not granted"
-                          : ""}
+
+                    <div className="rounded-lg border bg-muted/25 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold">
+                            Captured Garment Preview
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Show the extracted garment preview after a garment is
+                            photographed.
+                          </p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="mt-1 size-4"
+                          checked={
+                            storeTryOnSettings.storeGarmentPreviewEnabled &&
+                            storeTryOnSettings.garmentTryOnEnabled
+                          }
+                          disabled={garmentPreviewControlDisabled}
+                          onChange={(event) =>
+                            void updateStoreGarmentPreview(
+                              event.target.checked,
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        Effective:{" "}
+                        {storeTryOnSettings.effectiveGarmentPreviewEnabled
+                          ? "On"
+                          : "Off"}
+                        {!storeTryOnSettings.garmentTryOnEnabled
+                          ? " - garment Try-On is off"
+                          : !storeTryOnSettings.platformGarmentPreviewEnabled
+                            ? " - disabled globally"
+                            : !storeTryOnSettings.storeHasGarmentPreviewPermission
+                              ? " - feature not granted"
+                              : ""}
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -492,6 +538,37 @@ export default function StoreDashboardPage() {
       setStoreTryOnSettings(
         await updateStoreVirtualTryOnSettings(accessToken, store.id, {
           garmentPreviewEnabled: enabled,
+        }),
+      );
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setSavingStoreTryOnSettings(false);
+    }
+  }
+
+  async function updateStoreTryOnCapability(
+    capability: StoreTryOnCapability,
+    enabled: boolean,
+  ) {
+    if (!accessToken || !store || !storeTryOnSettings) {
+      return;
+    }
+    const current = storeTryOnSettings.enabledTryOnCapabilities;
+    const next = enabled
+      ? [...new Set([...current, capability])]
+      : current.filter((item) => item !== capability);
+    if (next.length === 0) {
+      setError("At least one Try-On capability must stay enabled.");
+      return;
+    }
+
+    setSavingStoreTryOnSettings(true);
+    setError(null);
+    try {
+      setStoreTryOnSettings(
+        await updateStoreVirtualTryOnSettings(accessToken, store.id, {
+          enabledTryOnCapabilities: next,
         }),
       );
     } catch (caught) {
@@ -693,6 +770,38 @@ function StoreInfoRow({
         <div className="mt-1 break-words font-medium">{value}</div>
       </div>
     </div>
+  );
+}
+
+function TryOnCapabilityToggle({
+  label,
+  caption,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  caption: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-md border bg-background p-3 text-sm transition-colors hover:bg-muted/40">
+      <input
+        type="checkbox"
+        className="mt-1 size-4"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span>
+        <span className="block font-semibold">{label}</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          {caption}
+        </span>
+      </span>
+    </label>
   );
 }
 

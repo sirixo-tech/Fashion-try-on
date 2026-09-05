@@ -33,6 +33,7 @@ import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
 import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_jewellery_capture_requirements.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
@@ -1749,7 +1750,7 @@ void main() {
       expect(tryOnController.garmentInput, isNull);
       expect(
         tester
-            .widget<ElevatedButton>(
+            .widget<SelfxKioskButton>(
               find.byKey(const Key('continue-selected-product')),
             )
             .onPressed,
@@ -1763,7 +1764,7 @@ void main() {
       expect(find.text('Creating Try-On'), findsNothing);
       expect(
         tester
-            .widget<ElevatedButton>(
+            .widget<SelfxKioskButton>(
               find.byKey(const Key('continue-selected-product')),
             )
             .onPressed,
@@ -1944,12 +1945,16 @@ KioskCustomerUploadController testUploadController(
 KioskCatalogProduct testCatalogProduct({
   required String id,
   required String name,
+  KioskProductVertical productVertical = KioskProductVertical.garment,
+  KioskJewelleryType? jewelleryType,
   int? priceAmountCents,
   String? priceCurrency,
 }) {
   return KioskCatalogProduct(
     id: id,
     name: name,
+    productVertical: productVertical,
+    jewelleryType: jewelleryType,
     audience: KioskCatalogAudience.men.apiValue,
     category: const KioskCatalogProductCategory(
       id: 'category-bottoms',
@@ -1979,7 +1984,60 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
   final List<KioskCatalogProduct> products;
 
   @override
-  Future<KioskCatalogRevision> getCatalogRevision() async {
+  Future<KioskJewelleryCaptureRequirements> getJewelleryCaptureRequirements(
+    String productId,
+  ) async {
+    final product = products.firstWhere((item) => item.id == productId);
+    final jewelleryType = product.jewelleryType;
+    if (jewelleryType == null) {
+      throw const KioskCatalogException(
+        'PRODUCT_NOT_JEWELLERY',
+        'The selected product is not jewellery.',
+      );
+    }
+    final (targetRegion, guide, title, instruction) = switch (jewelleryType) {
+      KioskJewelleryType.ring => (
+        KioskJewelleryCaptureTargetRegion.hand,
+        KioskJewelleryCaptureGuide.handCloseUp,
+        'Hand guide',
+        'Keep your hand open and visible inside the guide.',
+      ),
+      KioskJewelleryType.bracelet => (
+        KioskJewelleryCaptureTargetRegion.wristAndLowerForearm,
+        KioskJewelleryCaptureGuide.wristCloseUp,
+        'Wrist guide',
+        'Keep your wrist and lower forearm visible inside the guide.',
+      ),
+      KioskJewelleryType.necklace => (
+        KioskJewelleryCaptureTargetRegion.neckShouldersAndUpperChest,
+        KioskJewelleryCaptureGuide.neckAndUpperChest,
+        'Neckline guide',
+        'Keep your neck, shoulders and upper chest visible inside the guide.',
+      ),
+      KioskJewelleryType.earring => (
+        KioskJewelleryCaptureTargetRegion.faceAndEars,
+        KioskJewelleryCaptureGuide.faceAndEars,
+        'Face and ears guide',
+        'Keep your face and both ears visible inside the guide.',
+      ),
+    };
+    return KioskJewelleryCaptureRequirements(
+      schemaVersion: 1,
+      jewelleryType: jewelleryType,
+      productId: productId,
+      targetRegion: targetRegion,
+      guide: guide,
+      title: title,
+      instruction: instruction,
+      checklist: const [],
+      requiredChecks: const [],
+    );
+  }
+
+  @override
+  Future<KioskCatalogRevision> getCatalogRevision({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) async {
     return KioskCatalogRevision(
       revision: 'test-revision-${products.length}',
       scope: 'STORE',
@@ -1990,7 +2048,9 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
   }
 
   @override
-  Future<KioskCatalogSnapshot> getCatalogSnapshot() async {
+  Future<KioskCatalogSnapshot> getCatalogSnapshot({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) async {
     return KioskCatalogSnapshot(
       revision: 'test-revision-${products.length}',
       scope: 'STORE',
@@ -1999,14 +2059,18 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
       updatedAt: '2026-08-25T00:00:00.000Z',
       categories: await getCatalogCategories(
         audience: KioskCatalogAudience.men,
+        productVertical: productVertical,
       ),
-      products: products,
+      products: products
+          .where((product) => product.productVertical == productVertical)
+          .toList(growable: false),
     );
   }
 
   @override
   Future<List<KioskCatalogCategory>> getCatalogCategories({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
   }) async {
     return const [
       KioskCatalogCategory(
@@ -2022,16 +2086,20 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
   @override
   Future<KioskCatalogPage> getCatalogProducts({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
     String? categorySlug,
     required int page,
     required int pageSize,
   }) async {
+    final filteredProducts = products
+        .where((product) => product.productVertical == productVertical)
+        .toList(growable: false);
     return KioskCatalogPage(
-      products: products,
-      pagination: const KioskCatalogPagination(
+      products: filteredProducts,
+      pagination: KioskCatalogPagination(
         page: 1,
         pageSize: 12,
-        total: 2,
+        total: filteredProducts.length,
         totalPages: 1,
         hasMore: false,
       ),

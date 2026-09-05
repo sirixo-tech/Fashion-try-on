@@ -8,6 +8,10 @@ enum KioskGarmentInputSource {
   remoteAsset,
 }
 
+enum KioskTryOnVertical { garment, jewellery }
+
+enum KioskJewelleryType { ring, bracelet, necklace, earring }
+
 enum KioskGarmentIntent { auto, top, bottom, onePiece, fullOutfit }
 
 enum KioskGarmentPhotoType { auto, flatLay, onModel }
@@ -16,9 +20,11 @@ class KioskGarmentInput {
   const KioskGarmentInput({
     required this.source,
     required this.localPath,
+    this.tryOnVertical = KioskTryOnVertical.garment,
     this.intent = KioskGarmentIntent.auto,
     this.photoType = KioskGarmentPhotoType.auto,
     this.productId,
+    this.jewelleryType,
     this.remoteImageUrl,
     this.name,
     this.displayPrice,
@@ -43,11 +49,30 @@ class KioskGarmentInput {
          photoType: photoType,
        );
 
+  const KioskGarmentInput.jewelleryCatalogProduct({
+    required String productId,
+    required String name,
+    required String imageUrl,
+    KioskJewelleryType? jewelleryType,
+    String? displayPrice,
+  }) : this(
+         source: KioskGarmentInputSource.catalogProduct,
+         localPath: '',
+         tryOnVertical: KioskTryOnVertical.jewellery,
+         productId: productId,
+         jewelleryType: jewelleryType,
+         name: name,
+         displayPrice: displayPrice,
+         remoteImageUrl: imageUrl,
+       );
+
   final KioskGarmentInputSource source;
   final String localPath;
+  final KioskTryOnVertical tryOnVertical;
   final KioskGarmentIntent intent;
   final KioskGarmentPhotoType photoType;
   final String? productId;
+  final KioskJewelleryType? jewelleryType;
   final String? remoteImageUrl;
   final String? name;
   final String? displayPrice;
@@ -61,9 +86,11 @@ class KioskGarmentInput {
   KioskGarmentInput copyWith({
     KioskGarmentInputSource? source,
     String? localPath,
+    KioskTryOnVertical? tryOnVertical,
     KioskGarmentIntent? intent,
     KioskGarmentPhotoType? photoType,
     String? productId,
+    KioskJewelleryType? jewelleryType,
     String? remoteImageUrl,
     String? name,
     String? displayPrice,
@@ -72,9 +99,11 @@ class KioskGarmentInput {
     return KioskGarmentInput(
       source: source ?? this.source,
       localPath: localPath ?? this.localPath,
+      tryOnVertical: tryOnVertical ?? this.tryOnVertical,
       intent: intent ?? this.intent,
       photoType: photoType ?? this.photoType,
       productId: productId ?? this.productId,
+      jewelleryType: jewelleryType ?? this.jewelleryType,
       remoteImageUrl: remoteImageUrl ?? this.remoteImageUrl,
       name: name ?? this.name,
       displayPrice: displayPrice ?? this.displayPrice,
@@ -86,9 +115,11 @@ class KioskGarmentInput {
     return KioskGarmentInput(
       source: source,
       localPath: localPath,
+      tryOnVertical: tryOnVertical,
       intent: intent,
       photoType: photoType,
       productId: productId,
+      jewelleryType: jewelleryType,
       remoteImageUrl: remoteImageUrl,
       name: name,
       displayPrice: displayPrice,
@@ -112,6 +143,66 @@ class KioskGarmentInput {
     }
     return localPath.trim().isNotEmpty && await File(localPath).exists();
   }
+}
+
+extension KioskTryOnVerticalLabels on KioskTryOnVertical {
+  String get apiValue {
+    return switch (this) {
+      KioskTryOnVertical.garment => 'GARMENT',
+      KioskTryOnVertical.jewellery => 'JEWELLERY',
+    };
+  }
+
+  String get itemLabel {
+    return switch (this) {
+      KioskTryOnVertical.garment => 'garment',
+      KioskTryOnVertical.jewellery => 'jewellery',
+    };
+  }
+
+  String get itemLabelTitle {
+    return switch (this) {
+      KioskTryOnVertical.garment => 'Garment',
+      KioskTryOnVertical.jewellery => 'Jewellery',
+    };
+  }
+}
+
+extension KioskJewelleryTypeLabels on KioskJewelleryType {
+  String get apiValue {
+    return switch (this) {
+      KioskJewelleryType.ring => 'RING',
+      KioskJewelleryType.bracelet => 'BRACELET',
+      KioskJewelleryType.necklace => 'NECKLACE',
+      KioskJewelleryType.earring => 'EARRING',
+    };
+  }
+
+  String get label {
+    return switch (this) {
+      KioskJewelleryType.ring => 'Ring',
+      KioskJewelleryType.bracelet => 'Bracelet',
+      KioskJewelleryType.necklace => 'Necklace',
+      KioskJewelleryType.earring => 'Earring',
+    };
+  }
+}
+
+KioskTryOnVertical kioskTryOnVerticalFromApi(String value) {
+  return switch (value.trim().toUpperCase()) {
+    'JEWELLERY' => KioskTryOnVertical.jewellery,
+    _ => KioskTryOnVertical.garment,
+  };
+}
+
+KioskJewelleryType? kioskJewelleryTypeFromApi(String? value) {
+  return switch (value?.trim().toUpperCase()) {
+    'RING' => KioskJewelleryType.ring,
+    'BRACELET' => KioskJewelleryType.bracelet,
+    'NECKLACE' => KioskJewelleryType.necklace,
+    'EARRING' => KioskJewelleryType.earring,
+    _ => null,
+  };
 }
 
 extension KioskGarmentIntentLabels on KioskGarmentIntent {

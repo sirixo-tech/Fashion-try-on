@@ -102,9 +102,10 @@ export class PublicApiController {
   @RequirePublicApiScopes("tryon:create")
   @PublicApiRateLimit("upload")
   @ApiOperation({
-    summary: "Upload a person or garment image for a Public API Try-On session",
+    summary:
+      "Upload a person, garment or jewellery image for a Public API Try-On session",
     description:
-      "Requires tryon:create. Uploads JPEG, PNG or WebP image data into a Store-scoped Try-On session. Omit sessionId on the first PERSON upload to create a session.",
+      "Requires tryon:create. Uploads JPEG, PNG or WebP image data into a Store-scoped Try-On session. Omit sessionId on the first PERSON upload to create a session. Use GARMENT for garment Try-On inputs and JEWELLERY for jewellery Try-On inputs.",
   })
   @ApiHeader({
     name: "x-selfx-api-key",
@@ -129,7 +130,7 @@ export class PublicApiController {
   @ApiOperation({
     summary: "Create a Public API Try-On run",
     description:
-      "Requires tryon:create. Creates an idempotent Try-On run from previously uploaded person and garment assets. SelfX calls the AI provider server-side.",
+      "Requires tryon:create. Creates an idempotent garment or jewellery Try-On run from previously uploaded assets. SelfX calls the AI provider server-side.",
   })
   @ApiHeader({
     name: "x-selfx-api-key",
@@ -157,6 +158,23 @@ export class PublicApiController {
           sku: "LINEN-BLUE-XL",
           productName: "Blue Linen Shirt",
           price: "2499.00",
+          currency: "INR",
+        },
+      },
+      jewelleryAssets: {
+        summary: "Uploaded person and jewellery assets",
+        value: {
+          clientRequestId: "order-1001-ring-1",
+          sessionId: "0198a9b3-d0bc-7000-8000-000000000101",
+          personAssetId: "0198a9b3-d0bc-7000-8000-000000000201",
+          tryOnVertical: "JEWELLERY",
+          jewelleryAssetId: "0198a9b3-d0bc-7000-8000-000000000203",
+          jewelleryType: "RING",
+          catalogSource: "CUSTOM_API",
+          externalProductId: "merchant-ring-1001",
+          sku: "RING-GOLD-7",
+          productName: "Gold Ring",
+          price: "5499.00",
           currency: "INR",
         },
       },

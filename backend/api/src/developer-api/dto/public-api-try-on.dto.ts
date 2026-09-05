@@ -26,6 +26,13 @@ import {
   type TryOnLabErrorCode,
 } from "@selfx/shared";
 
+import {
+  JEWELLERY_TYPES,
+  PRODUCT_VERTICALS,
+  type JewelleryType,
+  type ProductVertical,
+} from "../../catalog/product-kind.js";
+
 export class CreatePublicApiTryOnDto {
   @ApiProperty({
     description:
@@ -41,6 +48,17 @@ export class CreatePublicApiTryOnDto {
   sessionId!: string;
 
   @ApiPropertyOptional({
+    enum: PRODUCT_VERTICALS,
+    default: "GARMENT",
+    description:
+      "Try-On vertical. Omit for garment Try-On. Use JEWELLERY for jewellery Try-On.",
+    example: "GARMENT",
+  })
+  @IsOptional()
+  @IsIn(PRODUCT_VERTICALS)
+  tryOnVertical?: ProductVertical;
+
+  @ApiPropertyOptional({
     description:
       "Person asset ID. Omit to use the current person image for the session.",
     example: "0198a9b3-d0bc-7000-8000-000000000201",
@@ -49,9 +67,31 @@ export class CreatePublicApiTryOnDto {
   @IsUUID()
   personAssetId?: string;
 
-  @ApiProperty({ example: "0198a9b3-d0bc-7000-8000-000000000202" })
+  @ApiPropertyOptional({
+    description: "Required for garment Try-On.",
+    example: "0198a9b3-d0bc-7000-8000-000000000202",
+  })
+  @IsOptional()
   @IsUUID()
-  garmentAssetId!: string;
+  garmentAssetId?: string;
+
+  @ApiPropertyOptional({
+    description: "Required for jewellery Try-On.",
+    example: "0198a9b3-d0bc-7000-8000-000000000203",
+  })
+  @IsOptional()
+  @IsUUID()
+  jewelleryAssetId?: string;
+
+  @ApiPropertyOptional({
+    enum: JEWELLERY_TYPES,
+    description:
+      "Required for jewellery Try-On. This explicitly selects the jewellery provider route.",
+    example: "RING",
+  })
+  @IsOptional()
+  @IsIn(JEWELLERY_TYPES)
+  jewelleryType?: JewelleryType;
 
   @ApiPropertyOptional({ enum: SELFX_GARMENT_INTENTS, example: "TOP" })
   @IsOptional()
@@ -191,11 +231,20 @@ export class PublicApiTryOnRunResponseDto {
   @ApiProperty({ example: "0198a9b3-d0bc-7000-8000-000000000101" })
   sessionId!: string;
 
+  @ApiProperty({ enum: PRODUCT_VERTICALS, example: "GARMENT" })
+  tryOnVertical!: ProductVertical;
+
   @ApiPropertyOptional({ example: "0198a9b3-d0bc-7000-8000-000000000201" })
   personAssetId?: string;
 
   @ApiPropertyOptional({ example: "0198a9b3-d0bc-7000-8000-000000000202" })
   garmentAssetId?: string;
+
+  @ApiPropertyOptional({ example: "0198a9b3-d0bc-7000-8000-000000000203" })
+  jewelleryAssetId?: string;
+
+  @ApiPropertyOptional({ enum: JEWELLERY_TYPES, example: "RING" })
+  jewelleryType?: JewelleryType;
 
   @ApiPropertyOptional({ type: PublicApiTryOnProductReferenceDto })
   productReference?: PublicApiTryOnProductReferenceDto;

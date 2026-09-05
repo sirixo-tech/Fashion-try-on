@@ -6,30 +6,43 @@ import 'package:http/http.dart' as http;
 
 import '../device/kiosk_device_models.dart';
 import '../device/kiosk_device_session_controller.dart';
+import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import 'kiosk_catalog_models.dart';
 
 abstract class KioskCatalogGateway {
-  Future<KioskCatalogRevision> getCatalogRevision();
+  Future<KioskCatalogRevision> getCatalogRevision({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  });
 
-  Future<KioskCatalogSnapshot> getCatalogSnapshot();
+  Future<KioskCatalogSnapshot> getCatalogSnapshot({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  });
 
   Future<List<KioskCatalogCategory>> getCatalogCategories({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
   });
 
   Future<KioskCatalogPage> getCatalogProducts({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
     String? categorySlug,
     required int page,
     required int pageSize,
   });
+
+  Future<KioskJewelleryCaptureRequirements> getJewelleryCaptureRequirements(
+    String productId,
+  );
 }
 
 class UnavailableKioskCatalogGateway implements KioskCatalogGateway {
   const UnavailableKioskCatalogGateway();
 
   @override
-  Future<KioskCatalogRevision> getCatalogRevision() {
+  Future<KioskCatalogRevision> getCatalogRevision({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) {
     throw const KioskCatalogException(
       'KIOSK_API_NOT_CONFIGURED',
       'SelfX catalog is not configured on this kiosk.',
@@ -37,7 +50,9 @@ class UnavailableKioskCatalogGateway implements KioskCatalogGateway {
   }
 
   @override
-  Future<KioskCatalogSnapshot> getCatalogSnapshot() {
+  Future<KioskCatalogSnapshot> getCatalogSnapshot({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) {
     throw const KioskCatalogException(
       'KIOSK_API_NOT_CONFIGURED',
       'SelfX catalog is not configured on this kiosk.',
@@ -47,6 +62,7 @@ class UnavailableKioskCatalogGateway implements KioskCatalogGateway {
   @override
   Future<List<KioskCatalogCategory>> getCatalogCategories({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
   }) {
     throw const KioskCatalogException(
       'KIOSK_API_NOT_CONFIGURED',
@@ -57,10 +73,21 @@ class UnavailableKioskCatalogGateway implements KioskCatalogGateway {
   @override
   Future<KioskCatalogPage> getCatalogProducts({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
     String? categorySlug,
     required int page,
     required int pageSize,
   }) {
+    throw const KioskCatalogException(
+      'KIOSK_API_NOT_CONFIGURED',
+      'SelfX catalog is not configured on this kiosk.',
+    );
+  }
+
+  @override
+  Future<KioskJewelleryCaptureRequirements> getJewelleryCaptureRequirements(
+    String productId,
+  ) {
     throw const KioskCatalogException(
       'KIOSK_API_NOT_CONFIGURED',
       'SelfX catalog is not configured on this kiosk.',
@@ -100,20 +127,30 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
   final Duration timeout;
 
   @override
-  Future<KioskCatalogRevision> getCatalogRevision() async {
+  Future<KioskCatalogRevision> getCatalogRevision({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) async {
     _assertConfigured();
     final response = await _getWithDeviceAuth(
-      _catalogUri('revision'),
+      _catalogUri(
+        'revision',
+        queryParameters: {'productVertical': productVertical.apiValue},
+      ),
       forceRefresh: false,
     );
     return KioskCatalogRevision.fromJson(_decodeObject(response));
   }
 
   @override
-  Future<KioskCatalogSnapshot> getCatalogSnapshot() async {
+  Future<KioskCatalogSnapshot> getCatalogSnapshot({
+    KioskProductVertical productVertical = KioskProductVertical.garment,
+  }) async {
     _assertConfigured();
     final response = await _getWithDeviceAuth(
-      _catalogUri('snapshot'),
+      _catalogUri(
+        'snapshot',
+        queryParameters: {'productVertical': productVertical.apiValue},
+      ),
       forceRefresh: false,
     );
     return KioskCatalogSnapshot.fromJson(_decodeObject(response));
@@ -122,9 +159,11 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
   @override
   Future<List<KioskCatalogCategory>> getCatalogCategories({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
   }) async {
     _assertConfigured();
     final query = <String, String>{
+      'productVertical': productVertical.apiValue,
       if (audience != KioskCatalogAudience.all) 'audience': audience.apiValue,
     };
     final response = await _getWithDeviceAuth(
@@ -155,12 +194,14 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
   @override
   Future<KioskCatalogPage> getCatalogProducts({
     required KioskCatalogAudience audience,
+    KioskProductVertical productVertical = KioskProductVertical.garment,
     String? categorySlug,
     required int page,
     required int pageSize,
   }) async {
     _assertConfigured();
     final query = {
+      'productVertical': productVertical.apiValue,
       if (audience != KioskCatalogAudience.all) 'audience': audience.apiValue,
       'page': page.toString(),
       'pageSize': pageSize.toString(),
@@ -172,6 +213,20 @@ class SelfxKioskCatalogGateway implements KioskCatalogGateway {
       forceRefresh: false,
     );
     return KioskCatalogPage.fromJson(_decodeObject(response));
+  }
+
+  @override
+  Future<KioskJewelleryCaptureRequirements> getJewelleryCaptureRequirements(
+    String productId,
+  ) async {
+    _assertConfigured();
+    final response = await _getWithDeviceAuth(
+      _catalogUri(
+        'products/${Uri.encodeComponent(productId)}/capture-requirements',
+      ),
+      forceRefresh: false,
+    );
+    return KioskJewelleryCaptureRequirements.fromJson(_decodeObject(response));
   }
 
   Future<http.Response> _getWithDeviceAuth(

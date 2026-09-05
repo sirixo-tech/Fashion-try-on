@@ -33,6 +33,7 @@ export type KioskConfigurationAssetType =
 export type KioskConfigurationSoundProfile =
   "SELFX_SIGNATURE" | "SOFT" | "STUDIO" | "MINIMAL" | "MUTED";
 export type KioskConfigurationGarmentIntent = "TOP" | "BOTTOM" | "FULL_OUTFIT";
+export type StoreTryOnCapability = "GARMENT_TRY_ON" | "JEWELLERY_TRY_ON";
 
 export type KioskConfiguration = {
   version: number;
@@ -61,6 +62,7 @@ export type KioskConfiguration = {
     guidanceAudioEnabled: boolean;
   };
   experience: {
+    enabledTryOnCapabilities: StoreTryOnCapability[];
     enabledGarmentIntents: KioskConfigurationGarmentIntent[];
     multiGarmentSelectionEnabled: boolean;
     maxTryOnPicks: number;

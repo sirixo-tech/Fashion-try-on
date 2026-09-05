@@ -23,10 +23,14 @@ import {
 
 import { CatalogService } from "../catalog/catalog.service.js";
 import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-normalization.js";
+import type { JewelleryType } from "../catalog/product-kind.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { validateTechnicalImageBuffer } from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
+import { throwJewelleryTryOnNotEnabled } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
+import { JewelleryTryOnService } from "../try-on/jewellery/jewellery-try-on.service.js";
 import { TRY_ON_RESULT_RETENTION_MS } from "../try-on/try-on.constants.js";
 import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
@@ -48,6 +52,8 @@ import type {
 import type {
   CreateKioskTryOnRunPayload,
   KioskSessionImagePayload,
+  KioskTryOnJewelleryImage,
+  KioskTryOnPersonImage,
   KioskTryOnUploadedImage,
 } from "./kiosk-try-on.multipart.js";
 import { KioskCustomerUploadService } from "./kiosk-customer-upload.service.js";
@@ -66,6 +72,17 @@ interface SessionRunAssets {
   garmentAssetId: string | null;
   productId: string | null;
   executionPayload: CreateTryOnLabRunPayload;
+}
+
+interface JewelleryRunAssets {
+  sessionId: string | null;
+  kioskDeviceId: string;
+  personAssetId: string | null;
+  jewelleryAssetId: string | null;
+  productId: string | null;
+  personImage: KioskTryOnPersonImage;
+  jewelleryImage: KioskTryOnJewelleryImage;
+  jewelleryType: JewelleryType;
 }
 
 interface KioskTryOnProductReference {
@@ -92,6 +109,9 @@ export class KioskTryOnService {
     @Optional()
     private readonly mediaUploadSettings?: MediaUploadSettingsService,
     @Optional() private readonly usageEvents?: UsageEventService,
+    @Optional() private readonly jewelleryTryOn?: JewelleryTryOnService,
+    @Optional()
+    private readonly jewelleryExecution?: JewelleryTryOnExecutionService,
   ) {}
 
   async createSession(
@@ -206,6 +226,10 @@ export class KioskTryOnService {
     device: KioskDeviceContext,
     payload: CreateKioskTryOnRunPayload,
   ): Promise<KioskTryOnRunResponseDto> {
+    if (payload.tryOnVertical === "JEWELLERY") {
+      return this.createJewelleryRun(device, payload);
+    }
+
     await this.cleanupExpiredRuns();
     const clientRequestId = requireClientRequestId(payload.clientRequestId);
     const existing = await this.prisma.kioskTryOnRun.findUnique({
@@ -279,6 +303,8 @@ export class KioskTryOnService {
           provider: providerMetadata.provider,
           providerDisplayName: providerMetadata.providerDisplayName,
           providerModel: providerMetadata.model,
+          tryOnVertical: "GARMENT",
+          jewelleryType: null,
           garmentSource: executionPayload.garmentSource,
           garmentIntent: executionPayload.garmentIntent,
           garmentCategory: executionPayload.category,
@@ -410,10 +436,213 @@ export class KioskTryOnService {
     });
   }
 
+  private async createJewelleryRun(
+    device: KioskDeviceContext,
+    payload: CreateKioskTryOnRunPayload,
+  ): Promise<KioskTryOnRunResponseDto> {
+    await this.cleanupExpiredRuns();
+    const clientRequestId = requireClientRequestId(payload.clientRequestId);
+    const existing = await this.prisma.kioskTryOnRun.findUnique({
+      where: {
+        kioskDeviceId_clientRequestId: {
+          kioskDeviceId: device.id,
+          clientRequestId,
+        },
+      },
+    });
+    if (existing) {
+      return toResponse(existing);
+    }
+
+    const storeId = requireStoreTenantIdForJewelleryTryOn(device);
+    const jewelleryRun = await this.prepareJewelleryRunAssets(device, payload);
+    const foundationInput = {
+      storeId,
+      personImageDataUri: jewelleryRun.personImage.dataUri,
+      jewelleryImageDataUri: jewelleryRun.jewelleryImage.dataUri,
+      jewelleryType: jewelleryRun.jewelleryType,
+    };
+    const productReference = jewelleryProductReference(
+      jewelleryRun.productId,
+      payload,
+    );
+    const foundation =
+      await this.requireJewelleryTryOnService().prepareRunFoundation(
+        productReference
+          ? { ...foundationInput, productReference }
+          : foundationInput,
+      );
+    const now = new Date();
+    const created = await this.createNewJewelleryRun(
+      device,
+      payload,
+      jewelleryRun,
+      clientRequestId,
+      foundation.provider,
+      now,
+    );
+
+    if (created.isNew) {
+      void this.processJewelleryRun(created.run.id, jewelleryRun);
+    }
+    return toResponse(created.run);
+  }
+
+  private async createNewJewelleryRun(
+    device: KioskDeviceContext,
+    requestPayload: CreateKioskTryOnRunPayload,
+    jewelleryRun: JewelleryRunAssets,
+    clientRequestId: string,
+    providerMetadata: ReturnType<JewelleryTryOnExecutionService["metadata"]>,
+    now: Date,
+  ): Promise<{ run: Parameters<typeof toResponse>[0]; isNew: boolean }> {
+    try {
+      const run = await this.prisma.kioskTryOnRun.create({
+        data: {
+          id: createSelfxId(),
+          kioskDeviceId: device.id,
+          tryOnSessionId: jewelleryRun.sessionId,
+          clientRequestId,
+          status: "QUEUED",
+          assignmentScope: device.assignmentScope,
+          organizationId:
+            device.assignmentScope === KioskAssignmentScope.PLATFORM
+              ? null
+              : device.organizationId,
+          storeId:
+            device.assignmentScope === KioskAssignmentScope.STORE
+              ? device.storeId
+              : null,
+          personAssetId: jewelleryRun.personAssetId,
+          garmentAssetId: jewelleryRun.jewelleryAssetId,
+          productId: jewelleryRun.productId,
+          ...kioskProductReferenceData(device, requestPayload, jewelleryRun),
+          provider: providerMetadata.provider,
+          providerDisplayName: providerMetadata.providerDisplayName,
+          providerModel: providerMetadata.model,
+          tryOnVertical: "JEWELLERY",
+          jewelleryType: jewelleryRun.jewelleryType,
+          garmentSource: requestPayload.productId
+            ? "SELFX_CATALOG"
+            : "DIRECT_UPLOAD",
+          garmentIntent: "JEWELLERY",
+          garmentCategory: jewelleryRun.jewelleryType,
+          garmentPhotoType: "PRODUCT",
+          generationProfile: requestPayload.generationProfile,
+          expiresAt: new Date(now.getTime() + TRY_ON_RESULT_RETENTION_MS),
+        },
+      });
+      return { run, isNew: true };
+    } catch (error) {
+      const existing = await this.prisma.kioskTryOnRun.findUnique({
+        where: {
+          kioskDeviceId_clientRequestId: {
+            kioskDeviceId: device.id,
+            clientRequestId,
+          },
+        },
+      });
+      if (existing) {
+        return { run: existing, isNew: false };
+      }
+      throw error;
+    }
+  }
+
   private async cleanupExpiredRuns(): Promise<void> {
     await this.prisma.kioskTryOnRun.deleteMany({
       where: { expiresAt: { lte: new Date() } },
     });
+  }
+
+  private async prepareJewelleryRunAssets(
+    device: KioskDeviceContext,
+    payload: CreateKioskTryOnRunPayload,
+  ): Promise<JewelleryRunAssets> {
+    const sessionId = payload.sessionId ?? null;
+    let personAsset: TryOnAsset | null = null;
+    let personImage = payload.personImage;
+
+    if (sessionId) {
+      const sessionService = this.requireSessionService();
+      if (payload.personAssetId) {
+        personAsset = await sessionService.getSessionAsset({
+          sessionId,
+          kioskDeviceId: device.id,
+          assetId: payload.personAssetId,
+          purpose: TryOnAssetPurpose.PERSON,
+        });
+      } else if (payload.personImage) {
+        personAsset = await this.storeAndAttachPersonImage(
+          device,
+          sessionId,
+          payload.personImage,
+        );
+      } else {
+        personAsset = await sessionService.getCurrentPersonAsset({
+          sessionId,
+          kioskDeviceId: device.id,
+        });
+      }
+      personImage = await this.readAssetAsUploadedImage(
+        personAsset,
+        "personImage",
+      );
+    }
+
+    if (!personImage) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        TRY_ON_LAB_ERROR_CODES.multipartInvalid,
+        "Person image is required for jewellery Try-On requests.",
+      );
+    }
+
+    if (payload.productId) {
+      const product =
+        await this.requireCatalog().resolveKioskJewelleryProductForTryOn(
+          device.assignmentScope === KioskAssignmentScope.PLATFORM
+            ? null
+            : device.organizationId,
+          payload.productId,
+        );
+      return {
+        sessionId,
+        kioskDeviceId: device.id,
+        personAssetId: personAsset?.id ?? null,
+        jewelleryAssetId: null,
+        productId: product.productId,
+        personImage,
+        jewelleryImage: product.jewelleryImage,
+        jewelleryType: product.jewelleryType,
+      };
+    }
+
+    if (!payload.jewelleryImage || !payload.jewelleryType) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        TRY_ON_LAB_ERROR_CODES.multipartInvalid,
+        "Jewellery image and jewellery type are required for jewellery Try-On requests.",
+      );
+    }
+
+    const jewelleryAsset = sessionId
+      ? await this.storeAndAttachJewelleryImage(
+          device,
+          sessionId,
+          payload.jewelleryImage,
+        )
+      : null;
+    return {
+      sessionId,
+      kioskDeviceId: device.id,
+      personAssetId: personAsset?.id ?? null,
+      jewelleryAssetId: jewelleryAsset?.id ?? null,
+      productId: null,
+      personImage,
+      jewelleryImage: payload.jewelleryImage,
+      jewelleryType: payload.jewelleryType,
+    };
   }
 
   private async prepareSessionRunAssets(
@@ -593,10 +822,39 @@ export class KioskTryOnService {
     });
   }
 
-  private async readAssetAsUploadedImage(
+  private async storeAndAttachJewelleryImage(
+    device: KioskDeviceContext,
+    sessionId: string,
+    image: KioskTryOnUploadedImage,
+  ): Promise<TryOnAsset> {
+    const key = objectKeyFor(
+      sessionId,
+      createSelfxId(),
+      "jewellery",
+      image.mimeType,
+    );
+    await this.requireStorage().putObject({
+      key,
+      contentType: image.mimeType,
+      body: image.buffer,
+    });
+    return this.requireSessionService().attachGarmentAsset({
+      sessionId,
+      kioskDeviceId: device.id,
+      storageKey: key,
+      contentType: image.mimeType,
+      sizeBytes: image.sizeBytes,
+      width: image.width,
+      height: image.height,
+    });
+  }
+
+  private async readAssetAsUploadedImage<
+    TFieldName extends "personImage" | "garmentImage" | "jewelleryImage",
+  >(
     asset: Pick<TryOnAsset, "storageKey" | "contentType">,
-    fieldName: "personImage" | "garmentImage",
-  ): Promise<KioskTryOnUploadedImage> {
+    fieldName: TFieldName,
+  ): Promise<KioskTryOnUploadedImage & { fieldName: TFieldName }> {
     const maxImageBytes =
       (await this.mediaUploadSettings?.resolveCaptureImageMaxBytes()) ??
       KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES;
@@ -611,7 +869,7 @@ export class KioskTryOnService {
     });
     return {
       fieldName,
-      filename: fieldName === "personImage" ? "person-image" : "garment-image",
+      filename: `${fieldName}-asset`,
       mimeType: metadata.mimeType,
       sizeBytes: metadata.sizeBytes,
       buffer,
@@ -687,6 +945,151 @@ export class KioskTryOnService {
     );
   }
 
+  private async recordJewellerySessionLook(
+    runId: string,
+    jewelleryRun: JewelleryRunAssets,
+    resultImage: string,
+  ): Promise<void> {
+    if (!jewelleryRun.sessionId || !jewelleryRun.personAssetId) {
+      return;
+    }
+
+    const result = await parseResultImage(resultImage);
+    const metadata = validateTechnicalImageBuffer({
+      buffer: result.buffer,
+      declaredContentType: result.contentType,
+      maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
+    });
+    const key = objectKeyFor(
+      jewelleryRun.sessionId,
+      createSelfxId(),
+      "result",
+      metadata.mimeType,
+    );
+    await this.requireStorage().putObject({
+      key,
+      contentType: metadata.mimeType,
+      body: result.buffer,
+    });
+    const look = await this.requireSessionService().recordLook({
+      sessionId: jewelleryRun.sessionId,
+      kioskDeviceId: jewelleryRun.kioskDeviceId,
+      kioskTryOnRunId: runId,
+      personAssetId: jewelleryRun.personAssetId,
+      garmentAssetId: jewelleryRun.jewelleryAssetId,
+      productId: jewelleryRun.productId,
+      resultAsset: {
+        storageKey: key,
+        contentType: metadata.mimeType,
+        sizeBytes: metadata.sizeBytes,
+        width: metadata.width,
+        height: metadata.height,
+      },
+    });
+    const run = await this.prisma.kioskTryOnRun.findUnique({
+      where: { id: runId },
+      select: {
+        provider: true,
+        providerModel: true,
+        status: true,
+      },
+    });
+    await this.recordUsage(
+      {
+        id: jewelleryRun.kioskDeviceId,
+        assignmentScope: look.assignmentScope,
+        organizationId: look.organizationId,
+        storeId: look.storeId,
+      },
+      {
+        eventName: KIOSK_USAGE_EVENTS.tryOnGenerated,
+        idempotencyKey: `kiosk-jewellery-try-on-generated:${runId}`,
+        tryOnSessionId: jewelleryRun.sessionId,
+        kioskTryOnRunId: runId,
+        tryOnLookId: look.id,
+        productId: jewelleryRun.productId,
+        provider: run?.provider,
+        providerModel: run?.providerModel,
+        status: run?.status ?? "COMPLETED",
+      },
+    );
+  }
+
+  private async processJewelleryRun(
+    runId: string,
+    jewelleryRun: JewelleryRunAssets,
+  ): Promise<void> {
+    await this.requireJewelleryExecution().process(
+      {
+        personImageDataUri: jewelleryRun.personImage.dataUri,
+        jewelleryImageDataUri: jewelleryRun.jewelleryImage.dataUri,
+        jewelleryType: jewelleryRun.jewelleryType,
+        ...(jewelleryRun.productId
+          ? { productReference: { productId: jewelleryRun.productId } }
+          : {}),
+      },
+      {
+        onStarted: async (startedAt) => {
+          await this.prisma.kioskTryOnRun.update({
+            where: { id: runId },
+            data: { startedAt },
+          });
+        },
+        onSubmitted: async (providerPredictionId) => {
+          await this.prisma.kioskTryOnRun.update({
+            where: { id: runId },
+            data: {
+              status: "PROCESSING",
+              providerPredictionId,
+              submittedAt: new Date(),
+            },
+          });
+        },
+        onStatus: async (status) => {
+          await this.prisma.kioskTryOnRun.update({
+            where: { id: runId },
+            data: {
+              status: status.status,
+              resultImage: status.resultImage,
+              errorCode: status.errorCode,
+              errorMessage: status.errorMessage,
+              completedAt: status.completedAt,
+            },
+          });
+          if (status.status === "COMPLETED" && status.resultImage) {
+            await this.recordJewellerySessionLook(
+              runId,
+              jewelleryRun,
+              status.resultImage,
+            );
+          }
+        },
+        onTimedOut: async (completedAt) => {
+          await this.prisma.kioskTryOnRun.update({
+            where: { id: runId },
+            data: {
+              status: "FAILED",
+              errorCode: TRY_ON_LAB_ERROR_CODES.timedOut,
+              errorMessage: "Jewellery Try-On generation timed out.",
+              completedAt,
+            },
+          });
+        },
+        onError: async (error, completedAt) => {
+          await this.prisma.kioskTryOnRun.update({
+            where: { id: runId },
+            data: {
+              status: error.status,
+              errorCode: error.errorCode,
+              errorMessage: error.errorMessage,
+              completedAt,
+            },
+          });
+        },
+      },
+    );
+  }
+
   private async recordUsage(
     device: KioskDeviceContext,
     input: Omit<RecordKioskUsageEventInput, "device">,
@@ -745,6 +1148,28 @@ export class KioskTryOnService {
       );
     }
     return this.catalog;
+  }
+
+  private requireJewelleryTryOnService(): JewelleryTryOnService {
+    if (!this.jewelleryTryOn) {
+      throw new ApiErrorException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "JEWELLERY_TRY_ON_SERVICE_UNAVAILABLE",
+        "Jewellery Try-On service is not available.",
+      );
+    }
+    return this.jewelleryTryOn;
+  }
+
+  private requireJewelleryExecution(): JewelleryTryOnExecutionService {
+    if (!this.jewelleryExecution) {
+      throw new ApiErrorException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "JEWELLERY_TRY_ON_SERVICE_UNAVAILABLE",
+        "Jewellery Try-On service is not available.",
+      );
+    }
+    return this.jewelleryExecution;
   }
 }
 
@@ -829,10 +1254,48 @@ function requireClientRequestId(value: string | undefined): string {
   return value;
 }
 
+function requireStoreTenantIdForJewelleryTryOn(
+  device: KioskDeviceContext,
+): string {
+  if (device.assignmentScope === KioskAssignmentScope.ORGANIZATION) {
+    if (device.organizationId) {
+      return device.organizationId;
+    }
+  }
+  if (device.assignmentScope === KioskAssignmentScope.STORE) {
+    if (device.organizationId) {
+      return device.organizationId;
+    }
+    if (device.storeId) {
+      return device.storeId;
+    }
+  }
+  throwJewelleryTryOnNotEnabled();
+}
+
+function jewelleryProductReference(
+  productId: string | null,
+  payload: CreateKioskTryOnRunPayload,
+): { productId?: string; productName?: string; sku?: string } | undefined {
+  const reference: { productId?: string; productName?: string; sku?: string } =
+    {};
+  if (productId) {
+    reference.productId = productId;
+  }
+  if (payload.productName) {
+    reference.productName = payload.productName;
+  }
+  if (payload.sku) {
+    reference.sku = payload.sku;
+  }
+  return Object.keys(reference).length > 0 ? reference : undefined;
+}
+
 function kioskProductReferenceData(
   device: KioskDeviceContext,
   payload: CreateKioskTryOnRunPayload,
-  sessionRun: SessionRunAssets | undefined,
+  sessionRun:
+    Pick<SessionRunAssets | JewelleryRunAssets, "productId"> | undefined,
 ): KioskTryOnProductReference {
   const catalogSource =
     payload.catalogSource ??
@@ -857,6 +1320,8 @@ function toResponse(run: {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  tryOnVertical?: string | null;
+  jewelleryType?: string | null;
   resultImage: string | null;
   errorCode: string | null;
   errorMessage: string | null;
@@ -864,6 +1329,11 @@ function toResponse(run: {
   return {
     id: run.id,
     status: run.status as SelfxTryOnRunStatus,
+    tryOnVertical: run.tryOnVertical === "JEWELLERY" ? "JEWELLERY" : "GARMENT",
+    jewelleryType:
+      run.tryOnVertical === "JEWELLERY"
+        ? ((run.jewelleryType as JewelleryType | null | undefined) ?? undefined)
+        : undefined,
     createdAt: run.createdAt.toISOString(),
     updatedAt: run.updatedAt.toISOString(),
     resultImage: run.resultImage ?? undefined,
@@ -944,7 +1414,7 @@ function toLookResponse(
 function objectKeyFor(
   sessionId: string,
   assetId: string,
-  purpose: "person" | "garment" | "result",
+  purpose: "person" | "garment" | "jewellery" | "result",
   contentType: string,
 ): string {
   const extension =

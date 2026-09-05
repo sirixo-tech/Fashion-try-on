@@ -10,6 +10,7 @@ import {
   Code2Icon,
   CreditCardIcon,
   FlaskConicalIcon,
+  GemIcon,
   LayoutDashboardIcon,
   LockKeyholeIcon,
   MonitorIcon,
@@ -61,8 +62,38 @@ const navItems: SelfxNavItem[] = [
       },
     ],
   },
-  { href: "/app/products", label: "Products", icon: PackageIcon },
-  { href: "/app/try-on-lab", label: "Try-On Lab", icon: FlaskConicalIcon },
+  {
+    label: "Products",
+    icon: PackageIcon,
+    children: [
+      {
+        href: "/app/products/garments",
+        label: "Garments",
+        icon: PackageIcon,
+      },
+      {
+        href: "/app/products/jewellery",
+        label: "Jewellery",
+        icon: GemIcon,
+      },
+    ],
+  },
+  {
+    label: "Try-On Lab",
+    icon: FlaskConicalIcon,
+    children: [
+      {
+        href: "/app/try-on-lab/garments",
+        label: "Garment Lab",
+        icon: PackageIcon,
+      },
+      {
+        href: "/app/try-on-lab/jewellery",
+        label: "Jewellery Lab",
+        icon: GemIcon,
+      },
+    ],
+  },
   {
     label: "Integrations",
     icon: BlocksIcon,
@@ -238,7 +269,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   return (
     <AppShell
       navItems={filteredNavItems}
-      activePath={pathname}
+      activePath={activePathFor(pathname)}
       organizations={organizations}
       activeOrganizationId={activeOrganizationId}
       onSelectOrganization={setActiveOrganizationId}
@@ -261,6 +292,16 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       )}
     </AppShell>
   );
+}
+
+function activePathFor(pathname: string): string {
+  if (pathname === "/app/try-on-lab") {
+    return "/app/try-on-lab/garments";
+  }
+  if (pathname === "/app/products") {
+    return "/app/products/garments";
+  }
+  return pathname;
 }
 
 function navigationAccess({

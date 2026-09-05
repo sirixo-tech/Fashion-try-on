@@ -15,6 +15,8 @@ enum RuntimeKioskAssetType {
   remoteVideo,
 }
 
+enum RuntimeTryOnCapability { garmentTryOn, jewelleryTryOn }
+
 class KioskRuntimeConfiguration {
   const KioskRuntimeConfiguration({
     required this.version,
@@ -28,6 +30,7 @@ class KioskRuntimeConfiguration {
     required this.soundEnabled,
     required this.soundProfile,
     required this.guidanceAudioEnabled,
+    required this.enabledTryOnCapabilities,
     required this.enabledGarmentIntents,
     required this.multiGarmentSelectionEnabled,
     required this.maxTryOnPicks,
@@ -51,6 +54,13 @@ class KioskRuntimeConfiguration {
         .map(garmentIntentFromApiValue)
         .where((intent) => intent != KioskGarmentIntent.auto)
         .toList(growable: false);
+    final capabilities =
+        (experience['enabledTryOnCapabilities'] as List? ?? const [])
+            .whereType<String>()
+            .map(tryOnCapabilityFromApiValue)
+            .whereType<RuntimeTryOnCapability>()
+            .toSet()
+            .toList(growable: false);
     return KioskRuntimeConfiguration(
       version: _int(json, 'version', 1),
       idleMode: _idleMode(display['idleMode'] as String?),
@@ -69,6 +79,9 @@ class KioskRuntimeConfiguration {
       guidanceAudioEnabled: capture['guidanceAudioEnabled'] is bool
           ? capture['guidanceAudioEnabled'] as bool
           : false,
+      enabledTryOnCapabilities: capabilities.isEmpty
+          ? defaultRuntimeConfiguration.enabledTryOnCapabilities
+          : capabilities,
       enabledGarmentIntents: intents.isEmpty
           ? defaultRuntimeConfiguration.enabledGarmentIntents
           : intents,
@@ -107,6 +120,7 @@ class KioskRuntimeConfiguration {
   final bool soundEnabled;
   final RuntimeKioskSoundProfile soundProfile;
   final bool guidanceAudioEnabled;
+  final List<RuntimeTryOnCapability> enabledTryOnCapabilities;
   final List<KioskGarmentIntent> enabledGarmentIntents;
   final bool multiGarmentSelectionEnabled;
   final int maxTryOnPicks;
@@ -155,6 +169,12 @@ class KioskRuntimeConfiguration {
   bool get effectiveSoundEnabled =>
       soundEnabled && soundProfile != RuntimeKioskSoundProfile.muted;
 
+  bool get garmentTryOnEnabled =>
+      enabledTryOnCapabilities.contains(RuntimeTryOnCapability.garmentTryOn);
+
+  bool get jewelleryTryOnEnabled =>
+      enabledTryOnCapabilities.contains(RuntimeTryOnCapability.jewelleryTryOn);
+
   Map<String, dynamic> toJson() {
     return {
       'version': version,
@@ -175,6 +195,9 @@ class KioskRuntimeConfiguration {
         'guidanceAudioEnabled': guidanceAudioEnabled,
       },
       'experience': {
+        'enabledTryOnCapabilities': enabledTryOnCapabilities
+            .map((capability) => capability.apiValue)
+            .toList(),
         'enabledGarmentIntents': enabledGarmentIntents
             .map((intent) => intent.apiValue)
             .toList(),
@@ -301,6 +324,15 @@ extension on RuntimeKioskAssetType {
   }
 }
 
+extension on RuntimeTryOnCapability {
+  String get apiValue {
+    return switch (this) {
+      RuntimeTryOnCapability.garmentTryOn => 'GARMENT_TRY_ON',
+      RuntimeTryOnCapability.jewelleryTryOn => 'JEWELLERY_TRY_ON',
+    };
+  }
+}
+
 final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
   version: 1,
   idleMode: RuntimeKioskIdleMode.static,
@@ -322,6 +354,7 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
   soundEnabled: true,
   soundProfile: RuntimeKioskSoundProfile.selfxSignature,
   guidanceAudioEnabled: false,
+  enabledTryOnCapabilities: [RuntimeTryOnCapability.garmentTryOn],
   enabledGarmentIntents: [
     KioskGarmentIntent.top,
     KioskGarmentIntent.bottom,
@@ -336,6 +369,14 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
 );
 
 const defaultCaptureUploadMaxImageBytes = 10 * 1024 * 1024;
+
+RuntimeTryOnCapability? tryOnCapabilityFromApiValue(String value) {
+  return switch (value) {
+    'GARMENT_TRY_ON' => RuntimeTryOnCapability.garmentTryOn,
+    'JEWELLERY_TRY_ON' => RuntimeTryOnCapability.jewelleryTryOn,
+    _ => null,
+  };
+}
 
 KioskGarmentIntent garmentIntentFromApiValue(String value) {
   return switch (value) {

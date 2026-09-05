@@ -75,14 +75,14 @@ When a key exceeds a bucket, SelfX returns `429 Too Many Requests` with `Retry-A
 
 | Scope | Allows |
 | --- | --- |
-| `tryon:create` | Upload person/garment images and create Try-On runs |
+| `tryon:create` | Upload person, garment or jewellery images and create Try-On runs |
 | `tryon:read` | Poll Try-On run status and retrieve signed result URLs |
 | `usage:read` | Read usage rollups for the current API key |
 | `webhooks:manage` | Create, update, disable and list webhook endpoints |
 
 ## Retention And Privacy
 
-Public API person images, garment uploads and generated result assets follow SelfX sensitive-image retention rules. These assets are session-bound and expire no later than the active SelfX retention period.
+Public API person images, garment uploads, jewellery uploads and generated result assets follow SelfX sensitive-image retention rules. These assets are session-bound and expire no later than the active SelfX retention period.
 
 Responses do not expose provider credentials, provider prediction IDs, raw Base64 images or unrestricted public asset URLs. Completed result responses return SelfX result download URLs that require the same Public API key and stream the image as an attachment.
 
@@ -141,9 +141,12 @@ Example response:
 }
 ```
 
-## 3. Upload Garment Image
+## 3. Upload Product Image
 
-Upload the garment into the same session.
+Upload the garment or jewellery product image into the same session. Garment
+Try-On uses `purpose=GARMENT`. Jewellery Try-On uses `purpose=JEWELLERY`;
+SelfX still stores it as a session-bound Try-On input asset and the run's
+`tryOnVertical` plus `jewelleryType` decide the provider route.
 
 ```bash
 curl -sS \
@@ -152,6 +155,18 @@ curl -sS \
   -F "purpose=GARMENT" \
   -F "sessionId=0198a9b3-d0bc-7000-8000-000000000101" \
   -F "image=@./garment.png;type=image/png" \
+  https://api.selfx.example/api/v1/public/uploads
+```
+
+Jewellery upload example:
+
+```bash
+curl -sS \
+  -X POST \
+  -H "x-selfx-api-key: $SELFX_API_KEY" \
+  -F "purpose=JEWELLERY" \
+  -F "sessionId=0198a9b3-d0bc-7000-8000-000000000101" \
+  -F "image=@./ring.png;type=image/png" \
   https://api.selfx.example/api/v1/public/uploads
 ```
 
@@ -183,6 +198,8 @@ Unsupported formats, corrupt images, MIME/signature mismatches and oversized fil
 
 Create a Try-On run using uploaded assets. `clientRequestId` is required and idempotent per API key. If the same key sends the same `clientRequestId` again, SelfX returns the original run.
 
+Garment requests may omit `tryOnVertical`; SelfX treats them as `GARMENT`.
+
 ```bash
 curl -sS \
   -X POST \
@@ -208,6 +225,30 @@ curl -sS \
   https://api.selfx.example/api/v1/public/try-ons
 ```
 
+Jewellery Try-On uses the same endpoint with explicit jewellery fields:
+
+```bash
+curl -sS \
+  -X POST \
+  -H "content-type: application/json" \
+  -H "x-selfx-api-key: $SELFX_API_KEY" \
+  -d '{
+    "clientRequestId": "order-1001-ring-1",
+    "sessionId": "0198a9b3-d0bc-7000-8000-000000000101",
+    "personAssetId": "0198a9b3-d0bc-7000-8000-000000000201",
+    "tryOnVertical": "JEWELLERY",
+    "jewelleryAssetId": "0198a9b3-d0bc-7000-8000-000000000203",
+    "jewelleryType": "RING",
+    "catalogSource": "CUSTOM_API",
+    "externalProductId": "merchant-ring-1001",
+    "sku": "RING-GOLD-7",
+    "productName": "Gold Ring",
+    "price": "5499.00",
+    "currency": "INR"
+  }' \
+  https://api.selfx.example/api/v1/public/try-ons
+```
+
 Example queued response:
 
 ```json
@@ -215,6 +256,7 @@ Example queued response:
   "id": "0198a9b3-d0bc-7000-8000-000000000301",
   "status": "QUEUED",
   "sessionId": "0198a9b3-d0bc-7000-8000-000000000101",
+  "tryOnVertical": "GARMENT",
   "personAssetId": "0198a9b3-d0bc-7000-8000-000000000201",
   "garmentAssetId": "0198a9b3-d0bc-7000-8000-000000000202",
   "productReference": {
@@ -240,6 +282,14 @@ Optional generation fields:
 | `garmentPhotoType` | `AUTO`, `FLAT_LAY`, `ON_MODEL` | `AUTO` |
 | `generationProfile` | `PERFORMANCE`, `BALANCED`, `QUALITY` | `BALANCED` |
 | `modelCoverage` | `UPPER_BODY`, `LOWER_BODY`, `FULL_BODY`, `UNKNOWN` | omitted |
+
+Jewellery fields:
+
+| Field | Values | Default |
+| --- | --- | --- |
+| `tryOnVertical` | `GARMENT`, `JEWELLERY` | `GARMENT` |
+| `jewelleryAssetId` | Session asset ID from `purpose=JEWELLERY` upload | Required when `tryOnVertical=JEWELLERY` |
+| `jewelleryType` | `RING`, `BRACELET`, `NECKLACE`, `EARRING` | Required when `tryOnVertical=JEWELLERY` |
 
 Optional product reference fields:
 
@@ -274,6 +324,7 @@ Example completed response:
   "id": "0198a9b3-d0bc-7000-8000-000000000301",
   "status": "COMPLETED",
   "sessionId": "0198a9b3-d0bc-7000-8000-000000000101",
+  "tryOnVertical": "GARMENT",
   "personAssetId": "0198a9b3-d0bc-7000-8000-000000000201",
   "garmentAssetId": "0198a9b3-d0bc-7000-8000-000000000202",
   "productReference": {
@@ -667,5 +718,6 @@ curl -sS -H "x-selfx-api-key: $SELFX_API_KEY" \
 ## Current Limitations
 
 - Public API usage reports operational counts only. Pricing, invoices and billing calculations are intentionally deferred.
-- SelfX catalog lookup by Public API is not exposed yet. Public API Try-On creation uses uploaded person and garment assets plus optional product reference metadata.
+- SelfX catalog lookup by Public API is not exposed yet. Public API Try-On creation uses uploaded person and product input assets plus optional product reference metadata.
+- Jewellery Try-On requires the Store jewellery capability and a configured jewellery provider adapter.
 - Webhook retries require the SelfX worker process to be running.

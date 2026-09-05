@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, Query } from "@nestjs/common";
+import { Controller, Get, Headers, Param, Query } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -9,6 +9,8 @@ import {
 
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { KioskService } from "../kiosks/kiosk.service.js";
+import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
+import { JewelleryCaptureRequirementsResponseDto } from "../try-on/jewellery/dto/jewellery-capture-requirements.dto.js";
 import { CatalogService } from "./catalog.service.js";
 import {
   KioskCatalogCategoryListResponseDto,
@@ -43,6 +45,26 @@ export class KioskCatalogController {
     return this.catalog.listKioskProducts(device.organizationId, query);
   }
 
+  @Get("products/:productId/capture-requirements")
+  @ApiOperation({
+    summary:
+      "Return person capture requirements for a selected jewellery product",
+  })
+  @ApiOkResponse({ type: JewelleryCaptureRequirementsResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async jewelleryCaptureRequirements(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("productId", SelfxUuidParamPipe) productId: string,
+  ): Promise<JewelleryCaptureRequirementsResponseDto> {
+    const device = await this.kiosks.requireDevice(authorization);
+    return this.catalog.getKioskJewelleryCaptureRequirements(
+      device.organizationId,
+      productId,
+    );
+  }
+
   @Get("revision")
   @ApiOperation({
     summary: "Return the current catalog revision for the authenticated kiosk",
@@ -52,11 +74,13 @@ export class KioskCatalogController {
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
   async revision(
     @Headers("authorization") authorization: string | undefined,
+    @Query() query: KioskCatalogQueryDto,
   ): Promise<KioskCatalogRevisionDto> {
     const device = await this.kiosks.requireDevice(authorization);
     return this.catalog.getKioskCatalogRevision(
       device.organizationId,
       device.configuration?.version ?? 1,
+      query.productVertical,
     );
   }
 
@@ -69,11 +93,13 @@ export class KioskCatalogController {
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
   async snapshot(
     @Headers("authorization") authorization: string | undefined,
+    @Query() query: KioskCatalogQueryDto,
   ): Promise<KioskCatalogSnapshotDto> {
     const device = await this.kiosks.requireDevice(authorization);
     return this.catalog.getKioskCatalogSnapshot(
       device.organizationId,
       device.configuration?.version ?? 1,
+      query.productVertical,
     );
   }
 

@@ -27,6 +27,7 @@ import {
   CreateKioskConfigurationAssetUploadDto,
   KioskConfigurationAssetUploadIntentDto,
   KioskConfigurationDto,
+  KioskCatalogSyncResponseDto,
   KioskDeviceListResponseDto,
   UpdateKioskConfigurationDto,
 } from "../kiosks/dto/kiosk.dto.js";
@@ -51,6 +52,7 @@ import {
   CreateStoreProductDto,
   CreateStoreProductImageUploadDto,
   PairStoreKioskDto,
+  RequestStoreCatalogSyncDto,
   StoreKioskDeviceResponseDto,
   StoreKioskPairResponseDto,
   StoreProductDto,
@@ -248,6 +250,29 @@ export class AdminStoresController {
       STORE_PERMISSION_CODES.storesUpdate,
     );
     return this.stores.createStoreProduct(storeId, dto);
+  }
+
+  @Post(":storeId/products/sync")
+  @ApiOperation({
+    summary: "Request this Store's kiosks to refresh a product catalog",
+  })
+  @ApiOkResponse({ type: KioskCatalogSyncResponseDto })
+  async requestProductCatalogSync(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: RequestStoreCatalogSyncDto,
+  ): Promise<KioskCatalogSyncResponseDto> {
+    const user = await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
+    return this.configurations.requestStoreCatalogSync(
+      user.id,
+      storeId,
+      dto.productVertical,
+    );
   }
 
   @Patch(":storeId/products/:productId")

@@ -37,6 +37,9 @@ describe("KIOSK-6A remote kiosk configuration", () => {
       "selfx-default-kiosk-video",
     );
     expect(configuration.capture.countdownSeconds).toBe(5);
+    expect(configuration.experience.enabledTryOnCapabilities).toEqual([
+      "GARMENT_TRY_ON",
+    ]);
     expect(configuration.experience.enabledGarmentIntents).toEqual([
       KioskConfigurationGarmentIntent.TOP,
       KioskConfigurationGarmentIntent.BOTTOM,
@@ -178,6 +181,62 @@ describe("KIOSK-6A remote kiosk configuration", () => {
 
     expect(first.version).toBe(2);
     expect(second.version).toBe(3);
+  });
+
+  it("syncs a platform catalog only to platform and fallback kiosks", async () => {
+    const prisma = catalogSyncPrisma([
+      syncDevice("platform", null, 2),
+      syncDevice("store-fallback", "store-fallback", 4),
+      syncDevice("store-own", "store-own", 6),
+    ]);
+    prisma.$queryRaw.mockResolvedValue([{ organization_id: "store-own" }]);
+    const service = catalogSyncService(prisma);
+
+    const result = await service.requestPlatformCatalogSync(
+      "platform-user",
+      "GARMENT",
+    );
+
+    expect(result.updatedDevices).toBe(2);
+    expect(prisma.kioskDeviceConfiguration.update).toHaveBeenCalledTimes(2);
+    expect(prisma.kioskDeviceConfiguration.update).toHaveBeenCalledWith({
+      where: { id: "configuration-platform" },
+      data: { version: 3, updatedByUserId: "platform-user" },
+    });
+    expect(prisma.kioskDeviceConfiguration.update).toHaveBeenCalledWith({
+      where: { id: "configuration-store-fallback" },
+      data: { version: 5, updatedByUserId: "platform-user" },
+    });
+  });
+
+  it("syncs a Store catalog only to kiosks assigned to that Store", async () => {
+    const prisma = catalogSyncPrisma([
+      syncDevice("store-a-1", "store-a", 2),
+      syncDevice("store-a-2", "store-a", 3),
+      syncDevice("store-b-1", "store-b", 8),
+    ]);
+    const service = catalogSyncService(prisma);
+
+    const result = await service.requestStoreCatalogSync(
+      "store-user",
+      "store-a",
+      "JEWELLERY",
+    );
+
+    expect(result.updatedDevices).toBe(2);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.kioskDeviceConfiguration.update).toHaveBeenCalledTimes(2);
+    expect(prisma.auditLog.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          organizationId: "store-a",
+          metadata: expect.objectContaining({
+            catalogScope: "STORE",
+            productVertical: "JEWELLERY",
+          }),
+        }),
+      ]),
+    });
   });
 
   it("rejects invalid slide durations and invalid garment intents", async () => {
@@ -412,6 +471,7 @@ class ConfigurationHarness {
     this.storage as never,
     {
       resolveGarmentPreviewEnabled: async () => false,
+      resolveStoreTryOnCapabilities: async () => ["GARMENT_TRY_ON"],
     } as never,
     {
       resolveCaptureImageMaxBytes: async () => 10 * 1024 * 1024,
@@ -530,4 +590,49 @@ async function expectApiCode(promise: Promise<unknown>, code: string) {
     const body = response as { error?: { code?: string } };
     expect(body.error?.code).toBe(code);
   }
+}
+
+function syncDevice(
+  id: string,
+  organizationId: string | null,
+  version: number,
+) {
+  return {
+    id,
+    organizationId,
+    storeId: null,
+    configuration: { id: `configuration-${id}`, version },
+  };
+}
+
+function catalogSyncPrisma(devices: ReturnType<typeof syncDevice>[]) {
+  const prisma = {
+    kioskDevice: {
+      findMany: vi.fn().mockResolvedValue(devices),
+    },
+    kioskDeviceConfiguration: {
+      update: vi.fn().mockResolvedValue(undefined),
+      create: vi.fn().mockResolvedValue(undefined),
+    },
+    auditLog: {
+      createMany: vi.fn().mockResolvedValue(undefined),
+    },
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    $transaction: vi.fn(),
+  };
+  prisma.$transaction.mockImplementation(
+    async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+      callback(prisma),
+  );
+  return prisma;
+}
+
+function catalogSyncService(prisma: ReturnType<typeof catalogSyncPrisma>) {
+  return new KioskConfigurationService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
 }

@@ -3,6 +3,10 @@ import { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../database/prisma.service.js";
 import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
+import {
+  normalizeStoreTryOnCapabilities,
+  type StoreTryOnCapability,
+} from "./store-try-on-capabilities.js";
 
 export const GARMENT_PREVIEW_PLATFORM_SETTING_KEY =
   "tryon.garment_preview.platform_enabled";
@@ -20,6 +24,14 @@ export type StoreGarmentPreviewSettingsDto = {
   storeHasGarmentPreviewPermission: boolean;
   storeGarmentPreviewEnabled: boolean;
   effectiveGarmentPreviewEnabled: boolean;
+  enabledTryOnCapabilities: StoreTryOnCapability[];
+  garmentTryOnEnabled: boolean;
+  jewelleryTryOnEnabled: boolean;
+};
+
+export type StoreVirtualTryOnSettingsUpdate = {
+  garmentPreviewEnabled?: boolean;
+  enabledTryOnCapabilities?: StoreTryOnCapability[];
 };
 
 @Injectable()
@@ -93,16 +105,26 @@ export class GarmentPreviewSettingsService {
     const [
       platformGarmentPreviewEnabled,
       storeHasGarmentPreviewPermission,
-      storeGarmentPreviewEnabled,
+      store,
     ] = await Promise.all([
       this.platformGarmentPreviewEnabled(),
       this.storeHasGarmentPreviewPermission(storeId),
-      this.storeGarmentPreviewEnabled(storeId),
+      this.prisma.organization.findUnique({
+        where: { id: storeId },
+        select: { settings: true },
+      }),
     ]);
+    const storeGarmentPreviewEnabled = storeGarmentPreviewEnabledFromSettings(
+      store?.settings,
+    );
+    const enabledTryOnCapabilities = storeTryOnCapabilitiesFromSettings(
+      store?.settings,
+    );
     return this.resolve({
       platformGarmentPreviewEnabled,
       storeHasGarmentPreviewPermission,
       storeGarmentPreviewEnabled,
+      enabledTryOnCapabilities,
     });
   }
 
@@ -111,6 +133,15 @@ export class GarmentPreviewSettingsService {
       return false;
     }
     return (await this.storeSettings(storeId)).effectiveGarmentPreviewEnabled;
+  }
+
+  async resolveStoreTryOnCapabilities(
+    storeId: string | null,
+  ): Promise<StoreTryOnCapability[]> {
+    if (!storeId) {
+      return normalizeStoreTryOnCapabilities(null);
+    }
+    return (await this.storeSettings(storeId)).enabledTryOnCapabilities;
   }
 
   async storeGarmentPreviewEnabled(storeId: string): Promise<boolean> {
@@ -134,15 +165,25 @@ export class GarmentPreviewSettingsService {
 
   storeSettingsFromValue(
     settings: Prisma.JsonValue | null | undefined,
-    enabled: boolean,
+    input: StoreVirtualTryOnSettingsUpdate,
   ): Prisma.InputJsonValue {
     const base = isRecord(settings) ? settings : {};
     const currentTryOn = isRecord(base.virtualTryOn) ? base.virtualTryOn : {};
+    const enabledTryOnCapabilities =
+      input.enabledTryOnCapabilities !== undefined
+        ? normalizeStoreTryOnCapabilities(input.enabledTryOnCapabilities)
+        : storeTryOnCapabilitiesFromSettings(settings);
+    const capturedGarmentPreviewEnabled =
+      enabledTryOnCapabilities.includes("GARMENT_TRY_ON") &&
+      (input.garmentPreviewEnabled ??
+        storeGarmentPreviewEnabledFromSettings(settings));
+
     return {
       ...base,
       virtualTryOn: {
         ...currentTryOn,
-        capturedGarmentPreviewEnabled: enabled,
+        capturedGarmentPreviewEnabled,
+        enabledTryOnCapabilities,
       },
     } as Prisma.InputJsonValue;
   }
@@ -151,10 +192,19 @@ export class GarmentPreviewSettingsService {
     platformGarmentPreviewEnabled: boolean;
     storeHasGarmentPreviewPermission: boolean;
     storeGarmentPreviewEnabled: boolean;
+    enabledTryOnCapabilities: StoreTryOnCapability[];
   }): StoreGarmentPreviewSettingsDto {
+    const enabledTryOnCapabilities = normalizeStoreTryOnCapabilities(
+      input.enabledTryOnCapabilities,
+    );
     return {
       ...input,
+      enabledTryOnCapabilities,
+      garmentTryOnEnabled: enabledTryOnCapabilities.includes("GARMENT_TRY_ON"),
+      jewelleryTryOnEnabled:
+        enabledTryOnCapabilities.includes("JEWELLERY_TRY_ON"),
       effectiveGarmentPreviewEnabled:
+        enabledTryOnCapabilities.includes("GARMENT_TRY_ON") &&
         input.platformGarmentPreviewEnabled &&
         input.storeHasGarmentPreviewPermission &&
         input.storeGarmentPreviewEnabled,
@@ -204,6 +254,17 @@ function storeGarmentPreviewEnabledFromSettings(
     return false;
   }
   return settings.virtualTryOn.capturedGarmentPreviewEnabled === true;
+}
+
+function storeTryOnCapabilitiesFromSettings(
+  settings: Prisma.JsonValue | null | undefined,
+): StoreTryOnCapability[] {
+  if (!isRecord(settings) || !isRecord(settings.virtualTryOn)) {
+    return normalizeStoreTryOnCapabilities(null);
+  }
+  return normalizeStoreTryOnCapabilities(
+    settings.virtualTryOn.enabledTryOnCapabilities,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -3,16 +3,23 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../catalog/kiosk_catalog_models.dart';
+import '../catalog/kiosk_catalog_repository.dart';
+import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
+import '../tryon/kiosk_garment_input.dart';
+import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
+import 'camera_capture_screen.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
+import 'try_on_experience_config.dart';
 import 'try_on_generation_screen.dart';
 
 class BrowseProductsScreen extends StatefulWidget {
@@ -23,6 +30,7 @@ class BrowseProductsScreen extends StatefulWidget {
     required this.uploadController,
     required this.catalogGateway,
     this.extractionService = const UnavailableGarmentExtractionService(),
+    this.productVertical = KioskProductVertical.garment,
   });
 
   final CaptureSessionController captureController;
@@ -30,6 +38,7 @@ class BrowseProductsScreen extends StatefulWidget {
   final KioskCustomerUploadController uploadController;
   final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
+  final KioskProductVertical productVertical;
 
   @override
   State<BrowseProductsScreen> createState() => _BrowseProductsScreenState();
@@ -49,6 +58,16 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   String? _selectedProductId;
   String? _message;
   int _requestSerial = 0;
+  bool _catalogSyncInProgress = false;
+
+  TryOnExperienceConfig get _experience =>
+      productExperienceFor(widget.productVertical);
+
+  String get _productLabel => _experience.itemLabel;
+
+  String get _productPluralLabel => _experience.itemPluralLabel;
+
+  String get _productTitle => _experience.title;
 
   KioskCatalogProduct? get _selectedProduct {
     final selectedId = _selectedProductId;
@@ -67,12 +86,14 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   void initState() {
     super.initState();
     widget.tryOnController.addListener(_handleTryOnControllerChanged);
+    _catalogRepository?.addListener(_handleCatalogRepositoryChanged);
     unawaited(_load(reset: true));
   }
 
   @override
   void dispose() {
     widget.tryOnController.removeListener(_handleTryOnControllerChanged);
+    _catalogRepository?.removeListener(_handleCatalogRepositoryChanged);
     super.dispose();
   }
 
@@ -80,6 +101,27 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  KioskCatalogRepository? get _catalogRepository {
+    final gateway = widget.catalogGateway;
+    return gateway is KioskCatalogRepository ? gateway : null;
+  }
+
+  void _handleCatalogRepositoryChanged() {
+    final repository = _catalogRepository;
+    if (repository == null) {
+      return;
+    }
+    if (repository.syncing) {
+      _catalogSyncInProgress = true;
+      return;
+    }
+    if (!_catalogSyncInProgress) {
+      return;
+    }
+    _catalogSyncInProgress = false;
+    unawaited(_load(reset: true));
   }
 
   Future<void> _load({required bool reset}) async {
@@ -99,10 +141,12 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       if (reset) {
         _categories = await widget.catalogGateway.getCatalogCategories(
           audience: _audience,
+          productVertical: widget.productVertical,
         );
       }
       final page = await widget.catalogGateway.getCatalogProducts(
         audience: _audience,
+        productVertical: widget.productVertical,
         categorySlug: _categorySlug,
         page: reset ? 1 : ((_pagination?.page ?? 1) + 1),
         pageSize: _pageSize,
@@ -121,7 +165,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
         return;
       }
       setState(() {
-        _message = 'Unable to load garments';
+        _message = 'Unable to load $_productPluralLabel';
         _loading = false;
         _loadingMore = false;
       });
@@ -156,7 +200,8 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     if (_continuing) {
       return;
     }
-    if (widget.tryOnController.multiGarmentSelectionEnabled) {
+    if (widget.tryOnController.multiGarmentSelectionEnabled &&
+        _experience.supportsMultipleProductSelection) {
       final changed = widget.tryOnController.toggleGarmentPick(
         _pickFromProduct(product),
       );
@@ -165,7 +210,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
           SnackBar(
             content: Text(
               widget.tryOnController.sessionMessage ??
-                  'My Picks is full. Remove one garment to add another.',
+                  'My Picks is full. Remove one item to add another.',
             ),
           ),
         );
@@ -184,37 +229,86 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       return;
     }
     final multiSelectEnabled =
-        widget.tryOnController.multiGarmentSelectionEnabled;
+        widget.tryOnController.multiGarmentSelectionEnabled &&
+        _experience.supportsMultipleProductSelection;
     final product = _selectedProduct;
+    if (!multiSelectEnabled && product == null) {
+      return;
+    }
     if (multiSelectEnabled) {
       if (widget.tryOnController.garmentPicks.isEmpty) {
         return;
       }
       widget.tryOnController.selectFirstGarmentPick();
-    } else {
-      if (product == null) {
-        return;
-      }
-      widget.tryOnController.selectGarment(product.toGarmentInput());
+    } else if (_experience.vertical == KioskTryOnVertical.garment) {
+      widget.tryOnController.selectGarment(product!.toGarmentInput());
     }
     setState(() => _continuing = true);
+    try {
+      if (_experience.vertical == KioskTryOnVertical.jewellery) {
+        await _continueWithJewellery(product!);
+      } else {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => TryOnGenerationScreen(
+              captureController: widget.captureController,
+              tryOnController: widget.tryOnController,
+              uploadController: widget.uploadController,
+              catalogGateway: widget.catalogGateway,
+              extractionService: widget.extractionService,
+            ),
+          ),
+        );
+      }
+    } on KioskCatalogException catch (error) {
+      if (mounted) {
+        _showSelectionError(error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        _showSelectionError(
+          'SelfX could not prepare the camera for this jewellery item.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _continuing = false);
+      }
+    }
+  }
+
+  Future<void> _continueWithJewellery(KioskCatalogProduct product) async {
+    final requirements = await widget.catalogGateway
+        .getJewelleryCaptureRequirements(product.id);
     if (!mounted) {
       return;
     }
+    widget.tryOnController.selectJewelleryProduct(
+      product.toGarmentInput(),
+      requirements,
+    );
+    widget.captureController.configureModelCapture(
+      validateModelCoverage: false,
+      scope: _captureScopeFor(requirements),
+    );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => TryOnGenerationScreen(
-          captureController: widget.captureController,
+        builder: (_) => CameraCaptureScreen(
+          controller: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
           extractionService: widget.extractionService,
+          purpose: PhotoAcquisitionPurpose.model,
         ),
       ),
     );
-    if (mounted) {
-      setState(() => _continuing = false);
-    }
+  }
+
+  void _showSelectionError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   KioskTryOnPick _pickFromProduct(KioskCatalogProduct product) {
@@ -242,7 +336,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Choose a Garment',
+            'Choose $_productTitle',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineMedium,
           ),
@@ -273,7 +367,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       );
     }
     if (_products.isEmpty) {
-      return const _CatalogMessage(title: 'No garments available');
+      return _CatalogMessage(title: 'No $_productPluralLabel available');
     }
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -283,7 +377,8 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
             ? 3
             : 2;
         final multiSelectEnabled =
-            widget.tryOnController.multiGarmentSelectionEnabled;
+            widget.tryOnController.multiGarmentSelectionEnabled &&
+            _experience.supportsMultipleProductSelection;
         final pickCount = widget.tryOnController.garmentPicks.length;
         final maxPickCount = widget.tryOnController.maxTryOnPicks;
         return Column(
@@ -335,6 +430,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
             const SizedBox(height: 14),
             _SelectedProductAction(
               product: _selectedProduct,
+              productLabel: _productLabel,
               multiSelectEnabled: multiSelectEnabled,
               pickCount: pickCount,
               maxPickCount: maxPickCount,
@@ -363,10 +459,22 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-        builder: (_) => _MyPicksSheet(tryOnController: widget.tryOnController),
+        builder: (_) => _MyPicksSheet(
+          tryOnController: widget.tryOnController,
+          productPluralLabel: _productPluralLabel,
+        ),
       ),
     );
   }
+}
+
+CaptureScope _captureScopeFor(KioskJewelleryCaptureRequirements requirements) {
+  return switch (requirements.targetRegion) {
+    KioskJewelleryCaptureTargetRegion.hand ||
+    KioskJewelleryCaptureTargetRegion.wristAndLowerForearm ||
+    KioskJewelleryCaptureTargetRegion.neckShouldersAndUpperChest ||
+    KioskJewelleryCaptureTargetRegion.faceAndEars => CaptureScope.top,
+  };
 }
 
 class _CatalogFilterBar extends StatelessWidget {
@@ -711,6 +819,7 @@ class _SelectedBadge extends StatelessWidget {
 class _SelectedProductAction extends StatelessWidget {
   const _SelectedProductAction({
     required this.product,
+    required this.productLabel,
     required this.multiSelectEnabled,
     required this.pickCount,
     required this.maxPickCount,
@@ -721,6 +830,7 @@ class _SelectedProductAction extends StatelessWidget {
   });
 
   final KioskCatalogProduct? product;
+  final String productLabel;
   final bool multiSelectEnabled;
   final int pickCount;
   final int maxPickCount;
@@ -797,7 +907,7 @@ class _SelectedProductAction extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  selectedName ?? 'Select a garment to continue',
+                  selectedName ?? 'Select a $productLabel to continue',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -848,9 +958,13 @@ class _SelectedProductAction extends StatelessWidget {
 }
 
 class _MyPicksSheet extends StatelessWidget {
-  const _MyPicksSheet({required this.tryOnController});
+  const _MyPicksSheet({
+    required this.tryOnController,
+    required this.productPluralLabel,
+  });
 
   final KioskTryOnSessionController tryOnController;
+  final String productPluralLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -904,8 +1018,10 @@ class _MyPicksSheet extends StatelessWidget {
                 const SizedBox(height: 14),
                 Expanded(
                   child: picks.isEmpty
-                      ? const Center(
-                          child: Text('No garments added to My Picks yet.'),
+                      ? Center(
+                          child: Text(
+                            'No $productPluralLabel added to My Picks yet.',
+                          ),
                         )
                       : ReorderableListView.builder(
                           itemCount: picks.length,

@@ -2,6 +2,24 @@ import '../tryon/kiosk_garment_input.dart';
 
 enum KioskCatalogAudience { all, men, women, unisex }
 
+enum KioskProductVertical { garment, jewellery }
+
+extension KioskProductVerticalApi on KioskProductVertical {
+  String get apiValue {
+    return switch (this) {
+      KioskProductVertical.garment => 'GARMENT',
+      KioskProductVertical.jewellery => 'JEWELLERY',
+    };
+  }
+
+  String get label {
+    return switch (this) {
+      KioskProductVertical.garment => 'Garment',
+      KioskProductVertical.jewellery => 'Jewellery',
+    };
+  }
+}
+
 extension KioskCatalogAudienceApi on KioskCatalogAudience {
   String get apiValue {
     return switch (this) {
@@ -178,6 +196,8 @@ class KioskCatalogProduct {
     required this.name,
     required this.audience,
     required this.category,
+    this.productVertical = KioskProductVertical.garment,
+    this.jewelleryType,
     required this.garmentIntent,
     required this.garmentCategory,
     required this.garmentPhotoType,
@@ -191,6 +211,8 @@ class KioskCatalogProduct {
   final String id;
   final String name;
   final String? description;
+  final KioskProductVertical productVertical;
+  final KioskJewelleryType? jewelleryType;
   final String audience;
   final KioskCatalogProductCategory category;
   final KioskGarmentIntent garmentIntent;
@@ -219,6 +241,15 @@ class KioskCatalogProduct {
   }
 
   KioskGarmentInput toGarmentInput() {
+    if (productVertical == KioskProductVertical.jewellery) {
+      return KioskGarmentInput.jewelleryCatalogProduct(
+        productId: id,
+        name: name,
+        imageUrl: image.localPath ?? image.url ?? '',
+        jewelleryType: jewelleryType,
+        displayPrice: displayPrice,
+      );
+    }
     return KioskGarmentInput.catalogProduct(
       productId: id,
       name: name,
@@ -244,6 +275,16 @@ class KioskCatalogProduct {
       description: json['description'] is String
           ? json['description'] as String
           : null,
+      productVertical: kioskProductVerticalFromApi(
+        json['productVertical'] is String
+            ? json['productVertical'] as String
+            : 'GARMENT',
+      ),
+      jewelleryType: kioskJewelleryTypeFromApi(
+        json['jewelleryType'] is String
+            ? json['jewelleryType'] as String
+            : null,
+      ),
       audience: _string(json, 'audience'),
       category: KioskCatalogProductCategory.fromJson(category),
       garmentIntent: kioskGarmentIntentFromApi(_string(json, 'garmentIntent')),
@@ -267,6 +308,8 @@ class KioskCatalogProduct {
       id: id,
       name: name,
       description: description,
+      productVertical: productVertical,
+      jewelleryType: jewelleryType,
       audience: audience,
       category: category,
       garmentIntent: garmentIntent,
@@ -284,6 +327,8 @@ class KioskCatalogProduct {
       'id': id,
       'name': name,
       'description': description,
+      'productVertical': productVertical.apiValue,
+      'jewelleryType': jewelleryType?.apiValue,
       'audience': audience,
       'category': category.toJson(),
       'garmentIntent': garmentIntent.apiValue,
@@ -295,6 +340,13 @@ class KioskCatalogProduct {
       'updatedAt': updatedAt,
     };
   }
+}
+
+KioskProductVertical kioskProductVerticalFromApi(String value) {
+  return switch (value.trim().toUpperCase()) {
+    'JEWELLERY' => KioskProductVertical.jewellery,
+    _ => KioskProductVertical.garment,
+  };
 }
 
 String _currencySymbol(String currency) {

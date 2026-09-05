@@ -1619,7 +1619,7 @@ AUTH-PERSISTENCE-FIX-1 completes the transparent renewal slice:
 
 ### Goal
 
-Implement the normalized SelfX garment/product model.
+Implement the normalized SelfX product model for garment and jewellery Try-On.
 
 STORE-1 includes the native Store product management slice and the SelfX
 platform default catalog slice. Store-scoped catalog products have name,
@@ -1629,16 +1629,69 @@ serve platform-owned kiosks plus Store fallback catalogs. Product variants,
 product-store availability beyond the current Store owner, and commerce sync
 remain planned.
 
+Jewellery foundation adds `productVertical` and `jewelleryType` to the product
+domain. `GARMENT` remains the default for existing catalog rows. `JEWELLERY`
+products require `jewelleryType` (`RING`, `BRACELET`, `NECKLACE`, `EARRING`) so
+future kiosk, Public API and Perfect Corp provider routing can make an explicit
+decision without guessing from product images.
+
+Store Try-On capabilities are Store-level business settings. A Store can enable
+`GARMENT_TRY_ON`, `JEWELLERY_TRY_ON` or both, and assigned kiosks inherit that
+capability list through runtime configuration. Kiosk-level configuration must
+not decide which business verticals the Store offers.
+
+Jewellery Try-On backend foundation adds a separate provider-neutral jewellery
+adapter contract, a guarded live Perfect Corp adapter, Store capability
+enforcement and production run metadata (`try_on_vertical`, `jewellery_type`).
+The production kiosk Try-On run endpoint now accepts an explicit
+`tryOnVertical` contract: garments keep the existing request shape, while
+jewellery runs use `tryOnVertical=JEWELLERY` with `jewelleryImage` plus
+`jewelleryType` or a typed jewellery catalog `productId`. The Public API uses
+the same unified vertical contract: garment requests remain the default, while
+jewellery requests send `tryOnVertical=JEWELLERY`, `jewelleryAssetId` and
+`jewelleryType`. Live Perfect Corp execution uploads supported images through
+provider-issued signed requests, chooses the explicit ring/bracelet/necklace/
+earring 2D VTO route, submits an asynchronous task and maps polling outcomes to
+provider-neutral SelfX status and error contracts. WebP input is normalized
+server-side because Perfect Corp accepts JPEG/PNG for these routes.
+
 ### Implement
 
 - products (native Store slice and platform default slice implemented)
 - product variants
 - product-store availability
 - VTO eligibility/configuration
+- product vertical and jewellery type validation
 - native product management APIs (Store and platform default product
   list/create/update implemented)
 - product list/detail web screens (Store and platform Products managers
   implemented)
+- explicit garment/jewellery catalog sync actions on platform and Store product
+  screens, with server-resolved kiosk scope, heartbeat discovery, cache bypass
+  and per-device audit records (implemented)
+- Store-level Try-On capability settings with kiosk runtime inheritance
+- provider-neutral jewellery Try-On adapter foundation
+- live Perfect Corp upload, task submission, polling and error normalization
+- Perfect Corp input normalization with bounded person-photo upscaling and
+  640-4096 pixel jewellery catalog image enforcement (implemented)
+- Jewellery Lab input requirements, measured-resolution display and blocking
+  undersized-image status before provider submission (implemented)
+- shared production kiosk Try-On API contract for garments and jewellery
+- shared configuration-driven Flutter kiosk presentation for garment and
+  jewellery labels, icons, catalog mapping, actions and future guide/animation
+  selection, preserving one reusable screen family (implemented)
+- versioned provider-neutral jewellery person-capture requirements contract,
+  shared resolver, selected-product kiosk endpoint and internal Lab endpoint
+  (implemented)
+- jewellery-first Flutter kiosk routing from single product selection to the
+  authenticated capture-requirements endpoint, type-specific static capture
+  guides, assisted countdown, preview and generation continuation (implemented)
+- jewellery person-image technical and semantic validation against the resolved
+  capture requirements, with privacy-bounded MediaPipe evidence and provider
+  blocking only for invalid files or failed required-region checks in the
+  internal Lab; blur, recommended resolution, lighting and contrast do not
+  block or prompt the customer (Lab slice implemented; production kiosk
+  semantic validation pending)
 - pagination/filter/search
 - source type support
 
@@ -1649,6 +1702,7 @@ Likely:
 - products
 - product_variants
 - product_store_availability
+- kiosk_try_on_runs vertical/jewellery metadata
 
 ### Tests
 
