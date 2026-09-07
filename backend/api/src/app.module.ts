@@ -5,6 +5,7 @@ import { CatalogModule } from "./catalog/catalog.module.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { DeveloperApiModule } from "./developer-api/developer-api.module.js";
 import { HealthController } from "./health.controller.js";
+import { IntegrationsModule } from "./integrations/integrations.module.js";
 import { KioskModule } from "./kiosks/kiosk.module.js";
 import { OrganizationsModule } from "./organizations/organizations.module.js";
 import { RbacModule } from "./rbac/rbac.module.js";
@@ -24,6 +25,7 @@ import { UsageModule } from "./usage/usage.module.js";
     KioskModule,
     UsageModule,
     DeveloperApiModule,
+    IntegrationsModule,
   ],
   controllers: [HealthController],
 })

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
@@ -163,7 +164,7 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
           'Kiosk presentation asset is invalid.',
         );
       }
-      final localPath = await _downloadAsset(remote.version, asset);
+      final localPath = await _downloadAsset(asset);
       preparedAssets.add(asset.copyWithLocalAssetPath(localPath));
     }
     if (preparedAssets.isEmpty) {
@@ -195,7 +196,22 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
     );
   }
 
-  Future<String> _downloadAsset(int version, KioskRuntimeAsset asset) async {
+  Future<String> _downloadAsset(KioskRuntimeAsset asset) async {
+    final directory = await _configurationCacheDirectory();
+    final cacheFingerprint = _assetCacheFingerprint(asset);
+    final knownContentType = asset.contentType;
+    if (knownContentType != null &&
+        _isSupportedDownloadedContentType(knownContentType)) {
+      final cachedFile = File(
+        path.join(
+          directory.path,
+          '$cacheFingerprint${_extensionForContentType(knownContentType)}',
+        ),
+      );
+      if (await cachedFile.exists()) {
+        return cachedFile.path;
+      }
+    }
     final response = await _client
         .get(Uri.parse(asset.url!))
         .timeout(const Duration(seconds: 20));
@@ -212,14 +228,11 @@ class KioskRuntimeConfigurationController extends ChangeNotifier {
         'Kiosk presentation asset media type is not supported.',
       );
     }
-    final directory = await _configurationCacheDirectory();
     final extension = _extensionForContentType(contentType);
-    final file = File(
-      path.join(
-        directory.path,
-        'v$version-${_safeFilePart(asset.id)}$extension',
-      ),
-    );
+    final file = File(path.join(directory.path, '$cacheFingerprint$extension'));
+    if (await file.exists()) {
+      return file.path;
+    }
     final temporaryFile = File('${file.path}.tmp');
     await temporaryFile.writeAsBytes(response.bodyBytes, flush: true);
     if (await file.exists()) {
@@ -299,4 +312,14 @@ bool _isSupportedDownloadedContentType(String contentType) {
 
 String _safeFilePart(String value) {
   return value.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+}
+
+String _assetCacheFingerprint(KioskRuntimeAsset asset) {
+  final stableIdentity =
+      asset.assetRef ?? asset.url ?? asset.bundledAssetKey ?? asset.id;
+  final digest = sha256
+      .convert(utf8.encode('${asset.id}|${asset.contentType}|$stableIdentity'))
+      .toString()
+      .substring(0, 32);
+  return '${_safeFilePart(asset.id)}-$digest';
 }

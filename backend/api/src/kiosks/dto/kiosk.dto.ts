@@ -32,6 +32,7 @@ import {
 
 import {
   KIOSK_PAIRING_CODE_PATTERN,
+  KIOSK_PRESENTATION_MAX_VIDEO_DURATION_SECONDS,
   PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES,
 } from "../kiosk.constants.js";
 import { type StoreTryOnCapability } from "../../try-on/store-try-on-capabilities.js";
@@ -156,6 +157,7 @@ export class KioskConfigurationAssetDto {
   assetRef!: string | null;
   contentType!: string | null;
   sizeBytes!: number | null;
+  durationSeconds!: number | null;
   sortOrder!: number;
 }
 
@@ -187,6 +189,7 @@ export class KioskConfigurationDto {
     supported: boolean;
     maxImageBytes: number;
     maxVideoBytes: number;
+    maxVideoDurationSeconds: number;
     supportedContentTypes: string[];
   };
   captureUpload!: {
@@ -229,6 +232,12 @@ export class KioskConfigurationAssetInputDto {
   @Min(1)
   @Max(PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES)
   sizeBytes?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(KIOSK_PRESENTATION_MAX_VIDEO_DURATION_SECONDS)
+  durationSeconds?: number;
 }
 
 export class CreateKioskConfigurationAssetUploadDto {
@@ -240,6 +249,12 @@ export class CreateKioskConfigurationAssetUploadDto {
   @Min(1)
   @Max(PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES)
   sizeBytes!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(KIOSK_PRESENTATION_MAX_VIDEO_DURATION_SECONDS)
+  durationSeconds?: number;
 
   @IsOptional()
   @IsString()
@@ -257,6 +272,7 @@ export class KioskConfigurationAssetUploadIntentDto {
   headers!: Record<string, string>;
   maxImageBytes!: number;
   maxVideoBytes!: number;
+  maxVideoDurationSeconds!: number;
   supportedContentTypes!: string[];
 }
 

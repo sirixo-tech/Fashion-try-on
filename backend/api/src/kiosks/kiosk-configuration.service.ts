@@ -31,6 +31,9 @@ import {
   KIOSK_ERROR_CODES,
   KIOSK_PRESENTATION_DEFAULT_MAX_IMAGE_BYTES,
   KIOSK_PRESENTATION_DEFAULT_MAX_VIDEO_BYTES,
+  KIOSK_PRESENTATION_MAX_VIDEO_DURATION_SECONDS,
+  KIOSK_PRESENTATION_MAX_VIDEO_SLOTS,
+  KIOSK_PRESENTATION_MAX_WALLPAPER_SLOTS,
 } from "./kiosk.constants.js";
 import { KioskService } from "./kiosk.service.js";
 
@@ -103,6 +106,14 @@ export class KioskConfigurationService {
     if (!contentType || input.sizeBytes > maxBytes) {
       throwConfigurationInvalid("Presentation asset upload is invalid.");
     }
+    if (
+      contentType.startsWith("video/") &&
+      !isValidVideoDuration(input.durationSeconds)
+    ) {
+      throwConfigurationInvalid(
+        "Presentation videos must be 60 seconds or shorter.",
+      );
+    }
     const objectKey = kioskConfigurationAssetObjectKeyFor(
       deviceId,
       contentType,
@@ -124,6 +135,7 @@ export class KioskConfigurationService {
       headers: { "Content-Type": contentType },
       maxImageBytes: uploadLimits.maxImageBytes,
       maxVideoBytes: uploadLimits.maxVideoBytes,
+      maxVideoDurationSeconds: KIOSK_PRESENTATION_MAX_VIDEO_DURATION_SECONDS,
       supportedContentTypes: [...supportedUploadContentTypes],
     };
   }
@@ -185,6 +197,7 @@ export class KioskConfigurationService {
           objectKey: asset.objectKey,
           contentType: asset.contentType,
           sizeBytes: asset.sizeBytes,
+          durationSeconds: asset.durationSeconds,
         })),
       });
       const device = await tx.kioskDevice.findUniqueOrThrow({
@@ -405,6 +418,7 @@ export class KioskConfigurationService {
           assetRef: asset.objectKey ? encodeAssetRef(asset.objectKey) : null,
           contentType: asset.contentType,
           sizeBytes: asset.sizeBytes,
+          durationSeconds: asset.durationSeconds,
           sortOrder: asset.sortOrder,
         })),
       },
@@ -427,6 +441,7 @@ export class KioskConfigurationService {
         supported: true,
         maxImageBytes: uploadLimits.maxImageBytes,
         maxVideoBytes: uploadLimits.maxVideoBytes,
+        maxVideoDurationSeconds: KIOSK_PRESENTATION_MAX_VIDEO_DURATION_SECONDS,
         supportedContentTypes: [...supportedUploadContentTypes],
       },
       captureUpload: {
@@ -489,6 +504,7 @@ function defaultAssets(): KioskDeviceConfigurationAsset[] {
       objectKey: null,
       contentType: null,
       sizeBytes: null,
+      durationSeconds: null,
       createdAt: new Date(0),
     },
   ];
@@ -553,6 +569,18 @@ function normalizeConfigurationInput(
   const assets = input.display.assets.map((asset) =>
     normalizeAsset(asset, deviceId, uploadLimits),
   );
+  const videoSlots = assets.filter(isVideoPresentationAsset).length;
+  const wallpaperSlots = assets.length - videoSlots;
+  if (videoSlots > KIOSK_PRESENTATION_MAX_VIDEO_SLOTS) {
+    throwConfigurationInvalid(
+      `Presentation videos cannot exceed ${KIOSK_PRESENTATION_MAX_VIDEO_SLOTS} slots.`,
+    );
+  }
+  if (wallpaperSlots > KIOSK_PRESENTATION_MAX_WALLPAPER_SLOTS) {
+    throwConfigurationInvalid(
+      `Presentation wallpapers cannot exceed ${KIOSK_PRESENTATION_MAX_WALLPAPER_SLOTS} slots.`,
+    );
+  }
   if (input.display.idleMode === KioskIdleMode.SLIDESHOW && assets.length < 2) {
     throwConfigurationInvalid(
       "Slideshow mode requires at least two presentation assets.",
@@ -582,6 +610,16 @@ function normalizeConfigurationInput(
   };
 }
 
+function isVideoPresentationAsset(asset: {
+  bundledAssetKey: string | null;
+  contentType: string | null;
+}): boolean {
+  return (
+    asset.contentType === "video/mp4" ||
+    asset.bundledAssetKey === fallbackBundledAssetKey
+  );
+}
+
 function normalizeAsset(
   input: {
     type: KioskConfigurationAssetType;
@@ -591,6 +629,7 @@ function normalizeAsset(
     assetRef?: string;
     contentType?: string;
     sizeBytes?: number;
+    durationSeconds?: number;
   },
   deviceId: string,
   uploadLimits: { maxImageBytes: number; maxVideoBytes: number },
@@ -617,6 +656,7 @@ function normalizeAsset(
       objectKey: null,
       contentType: null,
       sizeBytes: null,
+      durationSeconds: null,
     };
   }
   if (input.type === KioskConfigurationAssetType.UPLOADED_IMAGE) {
@@ -628,6 +668,9 @@ function normalizeAsset(
     if (!input.sizeBytes || input.sizeBytes > maxBytes) {
       throwConfigurationInvalid("Uploaded presentation asset is too large.");
     }
+    const durationSeconds = contentType.startsWith("video/")
+      ? normalizeVideoDuration(input.durationSeconds)
+      : null;
     const objectKey = decodeAssetRef(input.assetRef);
     if (!objectKey.startsWith(`kiosk-config/${deviceId}/`)) {
       throwConfigurationInvalid(
@@ -642,6 +685,7 @@ function normalizeAsset(
       objectKey,
       contentType,
       sizeBytes: input.sizeBytes,
+      durationSeconds,
     };
   }
   const url = input.url?.trim() || "";
@@ -654,6 +698,7 @@ function normalizeAsset(
     objectKey: null,
     contentType: null,
     sizeBytes: null,
+    durationSeconds: null,
   };
 }
 
@@ -771,6 +816,24 @@ function maxBytesForContentType(
     return limits.maxVideoBytes;
   }
   return limits.maxImageBytes;
+}
+
+function normalizeVideoDuration(value: number | undefined): number {
+  if (!isValidVideoDuration(value)) {
+    throwConfigurationInvalid(
+      "Presentation videos must be 60 seconds or shorter.",
+    );
+  }
+  return Math.ceil(value);
+}
+
+function isValidVideoDuration(value: number | undefined): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value > 0 &&
+    value <= KIOSK_PRESENTATION_MAX_VIDEO_DURATION_SECONDS
+  );
 }
 
 function kioskConfigurationAssetObjectKeyFor(

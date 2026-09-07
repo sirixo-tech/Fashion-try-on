@@ -9,6 +9,7 @@ import {
   ArrowLeftIcon,
   Clock3Icon,
   GlobeIcon,
+  ImageIcon,
   MailIcon,
   MapPinIcon,
   MonitorIcon,
@@ -18,6 +19,9 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   ShieldAlertIcon,
+  Trash2Icon,
+  UploadIcon,
+  VideoIcon,
 } from "lucide-react";
 
 import {
@@ -59,6 +63,7 @@ import {
   getStoreKioskConfiguration,
   getStoreVirtualTryOnSettings,
   pairStoreKiosk,
+  createStoreKioskConfigurationAssetUploadIntent,
   updateStore,
   updateStoreKioskConfiguration,
   updateStoreVirtualTryOnSettings,
@@ -386,8 +391,8 @@ export default function StoreDashboardPage() {
                             Captured Garment Preview
                           </div>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            Show the extracted garment preview after a garment is
-                            photographed.
+                            Show the extracted garment preview after a garment
+                            is photographed.
                           </p>
                         </div>
                         <input
@@ -399,9 +404,7 @@ export default function StoreDashboardPage() {
                           }
                           disabled={garmentPreviewControlDisabled}
                           onChange={(event) =>
-                            void updateStoreGarmentPreview(
-                              event.target.checked,
-                            )
+                            void updateStoreGarmentPreview(event.target.checked)
                           }
                         />
                       </div>
@@ -598,6 +601,7 @@ function StoreKioskConfigurationDialog({
   );
   const [title, setTitle] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
+  const [assets, setAssets] = useState<EditablePresentationAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -617,6 +621,7 @@ function StoreKioskConfigurationDialog({
       setConfiguration(next);
       setTitle(next.display.title ?? "");
       setCtaLabel(next.display.ctaLabel);
+      setAssets(next.display.assets.map(editableAssetFromConfiguration));
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -629,6 +634,7 @@ function StoreKioskConfigurationDialog({
       void load();
     } else {
       setConfiguration(null);
+      setAssets([]);
       setError(null);
     }
   }, [load, open]);
@@ -647,15 +653,144 @@ function StoreKioskConfigurationDialog({
         configurationUpdateInput(configuration, {
           title: title.trim() || null,
           ctaLabel: ctaLabel.trim() || "Start Try-On",
+          assets,
         }),
       );
       setConfiguration(updated);
+      setAssets(updated.display.assets.map(editableAssetFromConfiguration));
       onSaved(updated);
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
       setSaving(false);
     }
+  }
+
+  async function uploadAsset(slotId: string, file: File) {
+    if (!device || !accessToken || !configuration) {
+      return;
+    }
+    const index = assets.findIndex((asset) => asset.localId === slotId);
+    const slot = assets[index];
+    if (index < 0 || !slot) {
+      return;
+    }
+    const contentType = normalizedPresentationContentType(file, slot.kind);
+    if (!contentType) {
+      setError(
+        slot.kind === "video"
+          ? "Upload an MP4 video."
+          : "Upload a JPG, PNG or WebP wallpaper.",
+      );
+      return;
+    }
+    let durationSeconds: number | undefined;
+    try {
+      durationSeconds =
+        slot.kind === "video" ? await videoDurationSeconds(file) : undefined;
+    } catch {
+      setError("Video duration could not be read.");
+      return;
+    }
+    if (
+      durationSeconds !== undefined &&
+      durationSeconds > configuration.assetUpload.maxVideoDurationSeconds
+    ) {
+      setError("Presentation videos must be 60 seconds or shorter.");
+      return;
+    }
+    const maxBytes =
+      slot.kind === "video"
+        ? configuration.assetUpload.maxVideoBytes
+        : configuration.assetUpload.maxImageBytes;
+    if (file.size > maxBytes) {
+      setError(
+        slot.kind === "video"
+          ? `Video uploads are limited to ${formatBytes(maxBytes)}.`
+          : `Wallpaper uploads are limited to ${formatBytes(maxBytes)}.`,
+      );
+      return;
+    }
+
+    setAssets((current) =>
+      current.map((asset) =>
+        asset.localId === slotId
+          ? { ...asset, uploadStatus: "uploading" }
+          : asset,
+      ),
+    );
+    setError(null);
+    try {
+      const intent = await createStoreKioskConfigurationAssetUploadIntent(
+        accessToken,
+        storeId,
+        device.id,
+        {
+          contentType,
+          sizeBytes: file.size,
+          ...(durationSeconds ? { durationSeconds } : {}),
+          fileName: file.name,
+        },
+      );
+      const upload = await fetch(intent.uploadUrl, {
+        method: intent.method,
+        headers: intent.headers,
+        body: file,
+      });
+      if (!upload.ok) {
+        throw new Error("upload failed");
+      }
+      setAssets((current) =>
+        current.map((asset) =>
+          asset.localId === slotId
+            ? {
+                ...asset,
+                type: intent.type,
+                label: intent.label,
+                assetRef: intent.assetRef,
+                contentType,
+                sizeBytes: file.size,
+                durationSeconds: durationSeconds ?? null,
+                bundledAssetKey: undefined,
+                url: undefined,
+                uploadStatus: "ready",
+              }
+            : asset,
+        ),
+      );
+    } catch (caught) {
+      setAssets((current) =>
+        current.map((asset) =>
+          asset.localId === slotId ? { ...asset, uploadStatus: "idle" } : asset,
+        ),
+      );
+      setError(messageFor(caught));
+    }
+  }
+
+  function addSlot(kind: PresentationAssetKind) {
+    const count = assets.filter((asset) => asset.kind === kind).length;
+    const max = kind === "video" ? maxVideoSlots : maxWallpaperSlots;
+    if (count >= max) {
+      setError(
+        kind === "video"
+          ? `A kiosk can use up to ${maxVideoSlots} video slots.`
+          : `A kiosk can use up to ${maxWallpaperSlots} wallpaper slots.`,
+      );
+      return;
+    }
+    setAssets((current) => [
+      ...current,
+      emptyPresentationAsset(kind, `${kind}-${Date.now()}`),
+    ]);
+  }
+
+  function removeSlot(slotId: string) {
+    if (assets.length <= 1) {
+      setError("At least one presentation asset is required.");
+      return;
+    }
+    setAssets((current) => current.filter((asset) => asset.localId !== slotId));
   }
 
   return (
@@ -704,6 +839,57 @@ function StoreKioskConfigurationDialog({
                 onChange={(event) => setCtaLabel(event.target.value)}
               />
             </label>
+            <div className="space-y-3 rounded-lg border bg-muted/25 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">
+                    Start Screen Playlist
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Uploaded media is cached by the kiosk and refreshed only
+                    when this configuration changes.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addSlot("video")}
+                    disabled={videoSlotCount(assets) >= maxVideoSlots}
+                  >
+                    <VideoIcon aria-hidden="true" />
+                    Add Video
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addSlot("wallpaper")}
+                    disabled={wallpaperSlotCount(assets) >= maxWallpaperSlots}
+                  >
+                    <ImageIcon aria-hidden="true" />
+                    Add Wallpaper
+                  </Button>
+                </div>
+              </div>
+              <div className="grid gap-3">
+                {assets.map((asset, index) => (
+                  <PresentationAssetSlot
+                    key={asset.localId}
+                    asset={asset}
+                    index={index}
+                    onUpload={(file) => void uploadAsset(asset.localId, file)}
+                    onRemove={() => removeSlot(asset.localId)}
+                  />
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Videos: {videoSlotCount(assets)}/{maxVideoSlots} - Wallpapers:{" "}
+                {wallpaperSlotCount(assets)}/{maxWallpaperSlots} - Max video
+                length: {configuration.assetUpload.maxVideoDurationSeconds}s
+              </div>
+            </div>
           </div>
         ) : null}
         <DialogFooter>
@@ -711,7 +897,12 @@ function StoreKioskConfigurationDialog({
             Close
           </Button>
           <Button
-            disabled={loading || saving || !configuration}
+            disabled={
+              loading ||
+              saving ||
+              !configuration ||
+              assets.some((asset) => !presentationAssetIsReady(asset))
+            }
             onClick={() => void save()}
           >
             Save Configuration
@@ -812,6 +1003,93 @@ function DetailRow({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="mt-1 break-words">{value}</div>
+    </div>
+  );
+}
+
+type PresentationAssetKind = "video" | "wallpaper";
+
+type EditablePresentationAsset = {
+  localId: string;
+  kind: PresentationAssetKind;
+  type: KioskConfigurationAssetType;
+  label: string;
+  url?: string;
+  bundledAssetKey?: string;
+  assetRef?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  durationSeconds?: number | null;
+  uploadStatus: "idle" | "uploading" | "ready";
+};
+
+const maxVideoSlots = 5;
+const maxWallpaperSlots = 5;
+
+function PresentationAssetSlot({
+  asset,
+  index,
+  onUpload,
+  onRemove,
+}: {
+  asset: EditablePresentationAsset;
+  index: number;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const isVideo = asset.kind === "video";
+  const ready = presentationAssetIsReady(asset);
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-md border bg-background p-3 text-sm">
+      <div className="grid size-9 shrink-0 place-items-center rounded-md bg-muted/50 text-primary">
+        {isVideo ? (
+          <VideoIcon size={17} aria-hidden="true" />
+        ) : (
+          <ImageIcon size={17} aria-hidden="true" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">
+          {isVideo ? "Video" : "Wallpaper"} {index + 1}
+        </div>
+        <div className="truncate text-xs text-muted-foreground">
+          {asset.label}
+          {asset.durationSeconds ? ` - ${asset.durationSeconds}s` : ""}
+          {asset.sizeBytes ? ` - ${formatBytes(asset.sizeBytes)}` : ""}
+        </div>
+      </div>
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted/50">
+        <UploadIcon size={15} aria-hidden="true" />
+        {asset.uploadStatus === "uploading" ? "Uploading" : "Upload"}
+        <input
+          type="file"
+          className="sr-only"
+          disabled={asset.uploadStatus === "uploading"}
+          accept={isVideo ? "video/mp4" : "image/jpeg,image/png,image/webp"}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.currentTarget.value = "";
+            if (file) {
+              onUpload(file);
+            }
+          }}
+        />
+      </label>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onRemove}
+        disabled={asset.uploadStatus === "uploading"}
+      >
+        <Trash2Icon aria-hidden="true" />
+        Remove
+      </Button>
+      {!ready ? (
+        <div className="basis-full text-xs text-muted-foreground">
+          Upload media for this slot before saving.
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1017,7 +1295,11 @@ function EditStoreDialog({
 
 function configurationUpdateInput(
   configuration: KioskConfiguration,
-  overrides: { title: string | null; ctaLabel: string },
+  overrides: {
+    title: string | null;
+    ctaLabel: string;
+    assets: EditablePresentationAsset[];
+  },
 ): KioskConfigurationUpdateInput {
   return {
     display: {
@@ -1026,7 +1308,7 @@ function configurationUpdateInput(
       title: overrides.title,
       subtitle: configuration.display.subtitle,
       ctaLabel: overrides.ctaLabel,
-      assets: configuration.display.assets.map((asset) => ({
+      assets: overrides.assets.map((asset) => ({
         type: asset.type as KioskConfigurationAssetType,
         label: asset.label,
         ...(asset.url ? { url: asset.url } : {}),
@@ -1036,6 +1318,9 @@ function configurationUpdateInput(
         ...(asset.assetRef ? { assetRef: asset.assetRef } : {}),
         ...(asset.contentType ? { contentType: asset.contentType } : {}),
         ...(asset.sizeBytes ? { sizeBytes: asset.sizeBytes } : {}),
+        ...(asset.durationSeconds
+          ? { durationSeconds: asset.durationSeconds }
+          : {}),
       })),
     },
     capture: {
@@ -1053,6 +1338,121 @@ function configurationUpdateInput(
         configuration.experience.sessionIdleTimeoutSeconds,
     },
   };
+}
+
+function editableAssetFromConfiguration(
+  asset: KioskConfiguration["display"]["assets"][number],
+): EditablePresentationAsset {
+  return {
+    localId: asset.id,
+    kind: presentationAssetKind(asset),
+    type: asset.type,
+    label: asset.label,
+    url: asset.url ?? undefined,
+    bundledAssetKey: asset.bundledAssetKey ?? undefined,
+    assetRef: asset.assetRef ?? undefined,
+    contentType: asset.contentType ?? undefined,
+    sizeBytes: asset.sizeBytes ?? undefined,
+    durationSeconds: asset.durationSeconds,
+    uploadStatus: "ready",
+  };
+}
+
+function emptyPresentationAsset(
+  kind: PresentationAssetKind,
+  localId: string,
+): EditablePresentationAsset {
+  return {
+    localId,
+    kind,
+    type: "UPLOADED_IMAGE",
+    label: kind === "video" ? "New video slot" : "New wallpaper slot",
+    contentType: kind === "video" ? "video/mp4" : undefined,
+    uploadStatus: "idle",
+  };
+}
+
+function presentationAssetKind(
+  asset: Pick<
+    KioskConfiguration["display"]["assets"][number],
+    "bundledAssetKey" | "contentType"
+  >,
+): PresentationAssetKind {
+  return asset.contentType === "video/mp4" ||
+    asset.bundledAssetKey === "selfx-default-kiosk-video"
+    ? "video"
+    : "wallpaper";
+}
+
+function presentationAssetIsReady(asset: EditablePresentationAsset): boolean {
+  if (asset.uploadStatus === "uploading") {
+    return false;
+  }
+  if (asset.type === "BUNDLED_IMAGE") {
+    return Boolean(asset.bundledAssetKey);
+  }
+  if (asset.type === "UPLOADED_IMAGE") {
+    return Boolean(asset.assetRef && asset.contentType && asset.sizeBytes);
+  }
+  return Boolean(asset.url);
+}
+
+function videoSlotCount(assets: EditablePresentationAsset[]): number {
+  return assets.filter((asset) => asset.kind === "video").length;
+}
+
+function wallpaperSlotCount(assets: EditablePresentationAsset[]): number {
+  return assets.filter((asset) => asset.kind === "wallpaper").length;
+}
+
+function normalizedPresentationContentType(
+  file: File,
+  kind: PresentationAssetKind,
+): string | null {
+  const contentType = file.type.toLowerCase().split(";")[0]?.trim();
+  if (kind === "video") {
+    return contentType === "video/mp4" ||
+      file.name.toLowerCase().endsWith(".mp4")
+      ? "video/mp4"
+      : null;
+  }
+  if (
+    contentType === "image/jpeg" ||
+    contentType === "image/png" ||
+    contentType === "image/webp"
+  ) {
+    return contentType;
+  }
+  return null;
+}
+
+function videoDurationSeconds(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(objectUrl);
+      const duration = Math.ceil(video.duration);
+      if (!Number.isFinite(duration) || duration <= 0) {
+        reject(new Error("Video duration could not be read."));
+        return;
+      }
+      resolve(duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Video duration could not be read."));
+    };
+    video.src = objectUrl;
+  });
+}
+
+function formatBytes(value: number): string {
+  if (value >= 1024 * 1024) {
+    return `${Math.round(value / (1024 * 1024))} MB`;
+  }
+  return `${Math.round(value / 1024)} KB`;
 }
 
 function cleanStoreInput(input: StoreInput): StoreInput {

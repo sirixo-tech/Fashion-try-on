@@ -9,12 +9,14 @@ import {
   getEffectiveStorePermissions,
   getStore,
   getStoreKioskConfiguration,
+  getStoreVirtualTryOnSettings,
   listStorePermissions,
   listStoreRoles,
   listStoreUsers,
   listStores,
   pairStoreKiosk,
   updateStoreKioskConfiguration,
+  updateStoreVirtualTryOnSettings,
 } from "@/lib/stores";
 import { useSession } from "@/lib/session";
 
@@ -35,6 +37,7 @@ vi.mock("@/lib/stores", () => ({
   getEffectiveStorePermissions: vi.fn(),
   getStore: vi.fn(),
   getStoreKioskConfiguration: vi.fn(),
+  getStoreVirtualTryOnSettings: vi.fn(),
   listStorePermissions: vi.fn(),
   listStoreRoles: vi.fn(),
   listStoreUsers: vi.fn(),
@@ -42,6 +45,7 @@ vi.mock("@/lib/stores", () => ({
   pairStoreKiosk: vi.fn(),
   updateStore: vi.fn(),
   updateStoreKioskConfiguration: vi.fn(),
+  updateStoreVirtualTryOnSettings: vi.fn(),
 }));
 
 const store = {
@@ -109,6 +113,7 @@ const configuration = {
         assetRef: null,
         contentType: null,
         sizeBytes: null,
+        durationSeconds: null,
         sortOrder: 0,
       },
     ],
@@ -129,6 +134,7 @@ const configuration = {
     supported: true,
     maxImageBytes: 12 * 1024 * 1024,
     maxVideoBytes: 80 * 1024 * 1024,
+    maxVideoDurationSeconds: 60,
     supportedContentTypes: [
       "image/jpeg",
       "image/png",
@@ -262,6 +268,26 @@ describe("STORE-1 web Store management", () => {
     vi.mocked(updateStoreKioskConfiguration).mockResolvedValue({
       ...configuration,
       version: 4,
+    } as never);
+    vi.mocked(getStoreVirtualTryOnSettings).mockResolvedValue({
+      storeId: "store-1",
+      enabledTryOnCapabilities: ["GARMENT_TRY_ON"],
+      garmentTryOnEnabled: true,
+      jewelleryTryOnEnabled: false,
+      storeGarmentPreviewEnabled: false,
+      platformGarmentPreviewEnabled: true,
+      storeHasGarmentPreviewPermission: true,
+      effectiveGarmentPreviewEnabled: false,
+    } as never);
+    vi.mocked(updateStoreVirtualTryOnSettings).mockResolvedValue({
+      storeId: "store-1",
+      enabledTryOnCapabilities: ["GARMENT_TRY_ON"],
+      garmentTryOnEnabled: true,
+      jewelleryTryOnEnabled: false,
+      storeGarmentPreviewEnabled: false,
+      platformGarmentPreviewEnabled: true,
+      storeHasGarmentPreviewPermission: true,
+      effectiveGarmentPreviewEnabled: false,
     } as never);
   });
 

@@ -10,7 +10,8 @@
   "workspaces": [
     "frontend/*",
     "backend/*",
-    "packages/*"
+    "packages/*",
+    "integrations/*"
   ],
   "scripts": {
     "dev": "turbo run dev --parallel",
@@ -31,6 +32,7 @@
     "db:test:uuid": "npm run test:uuid --workspace @selfx/database",
     "catalog:seed": "npm run seed:catalog --workspace @selfx/database",
     "catalog:assets:sync": "npm run catalog:sync-default-assets --workspace @selfx/api",
+    "shopify:sync:catalog": "npm run sync:catalog --workspace @selfx/shopify-integration",
     "auth:bootstrap": "npm run bootstrap:staff --workspace @selfx/api",
     "platform:bootstrap": "npm run bootstrap:platform-admin --workspace @selfx/api",
     "production:bootstrap-admin": "npm run bootstrap:production-admin --workspace @selfx/api",

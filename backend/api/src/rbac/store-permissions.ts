@@ -19,6 +19,7 @@ export const STORE_PERMISSION_CODES = {
   tryOnGarmentPreview: "tryon.garment_preview",
   analyticsView: "analytics.view",
   integrationsView: "integrations.view",
+  integrationsManage: "integrations.manage",
   developerApiView: "developer_api.view",
   developerApiManage: "developer_api.manage",
 } as const;
@@ -196,6 +197,15 @@ export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
     label: "View Integrations",
     description:
       "View Store integration status when integrations are implemented.",
+    applicability: "STORE",
+  },
+  {
+    code: STORE_PERMISSION_CODES.integrationsManage,
+    module: "integrations",
+    action: "manage",
+    label: "Manage Integrations",
+    description:
+      "Connect, disconnect and create Store-scoped integration credentials.",
     applicability: "STORE",
   },
   {

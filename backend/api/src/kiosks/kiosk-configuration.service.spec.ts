@@ -280,6 +280,7 @@ describe("KIOSK-6A remote kiosk configuration", () => {
       {
         contentType: "video/mp4",
         sizeBytes: 4 * 1024 * 1024,
+        durationSeconds: 45,
         fileName: "launch-loop.mp4",
       },
     );
@@ -288,9 +289,74 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     expect(intent.label).toBe("launch-loop");
     expect(intent.maxImageBytes).toBe(12 * 1024 * 1024);
     expect(intent.maxVideoBytes).toBe(80 * 1024 * 1024);
+    expect(intent.maxVideoDurationSeconds).toBe(60);
     expect(intent.supportedContentTypes).toContain("video/mp4");
     expect(harness.storage.createUploadUrl).toHaveBeenCalledWith(
       expect.objectContaining({ contentType: "video/mp4" }),
+    );
+  });
+
+  it("rejects presentation videos longer than one minute", async () => {
+    const harness = new ConfigurationHarness();
+
+    await expectApiCode(
+      harness.service.createAdminAssetUploadIntent(harness.deviceId, {
+        contentType: "video/mp4",
+        sizeBytes: 4 * 1024 * 1024,
+        durationSeconds: 61,
+        fileName: "too-long.mp4",
+      }),
+      KIOSK_ERROR_CODES.configurationInvalid,
+    );
+
+    await expectApiCode(
+      harness.service.createAdminAssetUploadIntent(harness.deviceId, {
+        contentType: "video/mp4",
+        sizeBytes: 4 * 1024 * 1024,
+        fileName: "missing-duration.mp4",
+      }),
+      KIOSK_ERROR_CODES.configurationInvalid,
+    );
+  });
+
+  it("stores uploaded video duration and limits playlist slots", async () => {
+    const harness = new ConfigurationHarness();
+    const videoAsset = uploadedAsset({
+      assetRef: encodeObjectKey(
+        `kiosk-config/${harness.deviceId}/video/presentation-video.mp4`,
+      ),
+      contentType: "video/mp4",
+      durationSeconds: 60,
+    });
+
+    const updated = await harness.service.updateAdminConfiguration(
+      harness.actorUserId,
+      harness.deviceId,
+      configurationInput({ assets: [videoAsset] }),
+    );
+
+    expect(updated.display.assets[0]).toMatchObject({
+      contentType: "video/mp4",
+      durationSeconds: 60,
+    });
+
+    await expectApiCode(
+      harness.service.updateAdminConfiguration(
+        harness.actorUserId,
+        harness.deviceId,
+        configurationInput({
+          assets: Array.from({ length: 6 }, (_, index) =>
+            uploadedAsset({
+              assetRef: encodeObjectKey(
+                `kiosk-config/${harness.deviceId}/video-${index}/presentation-video.mp4`,
+              ),
+              contentType: "video/mp4",
+              durationSeconds: 30,
+            }),
+          ),
+        }),
+      ),
+      KIOSK_ERROR_CODES.configurationInvalid,
     );
   });
 
@@ -512,6 +578,7 @@ function configurationInput(
     enabledGarmentIntents?: KioskConfigurationGarmentIntent[];
     maxTryOnPicks?: number;
     assetUrl?: string;
+    assets?: UpdateKioskConfigurationDto["display"]["assets"];
   } = {},
 ): UpdateKioskConfigurationDto {
   return {
@@ -521,7 +588,7 @@ function configurationInput(
       title: "SelfX Studio",
       subtitle: "Try the new collection",
       ctaLabel: overrides.ctaLabel ?? "Begin",
-      assets: [
+      assets: overrides.assets ?? [
         {
           type: overrides.assetUrl
             ? KioskConfigurationAssetType.REMOTE_IMAGE
@@ -549,6 +616,29 @@ function configurationInput(
       sessionIdleTimeoutSeconds: 180,
     },
   };
+}
+
+function uploadedAsset({
+  assetRef,
+  contentType,
+  durationSeconds,
+}: {
+  assetRef: string;
+  contentType: "video/mp4" | "image/jpeg";
+  durationSeconds?: number;
+}): UpdateKioskConfigurationDto["display"]["assets"][number] {
+  return {
+    type: KioskConfigurationAssetType.UPLOADED_IMAGE,
+    label: "Uploaded",
+    assetRef,
+    contentType,
+    sizeBytes: 4 * 1024 * 1024,
+    durationSeconds,
+  };
+}
+
+function encodeObjectKey(objectKey: string): string {
+  return Buffer.from(objectKey, "utf8").toString("base64url");
 }
 
 function deviceRecord({

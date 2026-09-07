@@ -1,5 +1,5 @@
-import { ModulePlaceholder } from "@/components/module-placeholder";
+import { IntegrationSettingsPage } from "@/components/integration-settings-page";
 
 export default function WooCommerceIntegrationPage() {
-  return <ModulePlaceholder title="WooCommerce" />;
+  return <IntegrationSettingsPage type="WOOCOMMERCE" title="WooCommerce" />;
 }

@@ -66,7 +66,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   void initState() {
     super.initState();
     widget.configurationController?.addListener(_configurationChanged);
-    _startSlideshowIfNeeded();
+    _scheduleSlideAdvanceIfNeeded();
   }
 
   @override
@@ -79,7 +79,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     if (oldWidget.presentation != widget.presentation ||
         oldWidget.configurationController != widget.configurationController) {
       _slideIndex = 0;
-      _startSlideshowIfNeeded();
+      _scheduleSlideAdvanceIfNeeded();
     }
   }
 
@@ -117,24 +117,31 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     }
     setState(() {
       _slideIndex = 0;
-      _startSlideshowIfNeeded();
     });
+    _scheduleSlideAdvanceIfNeeded();
   }
 
-  void _startSlideshowIfNeeded() {
+  void _scheduleSlideAdvanceIfNeeded() {
     _slideshowTimer?.cancel();
     final presentation = _presentation;
     if (!presentation.isSlideshow) {
       return;
     }
-    _slideshowTimer = Timer.periodic(presentation.slideDuration, (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _slideIndex = (_slideIndex + 1) % _presentation.assets.length;
-      });
+    final asset = presentation.assetAt(_slideIndex);
+    if (asset.assetVideoPath != null && asset.assetVideoPath!.isNotEmpty) {
+      return;
+    }
+    _slideshowTimer = Timer(presentation.slideDuration, _advanceSlide);
+  }
+
+  void _advanceSlide() {
+    if (!mounted || !_presentation.isSlideshow) {
+      return;
+    }
+    setState(() {
+      _slideIndex = (_slideIndex + 1) % _presentation.assets.length;
     });
+    _scheduleSlideAdvanceIfNeeded();
   }
 
   void _revealOperatorAccess() {
@@ -460,7 +467,12 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
               children: [
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 650),
-                  child: _IdleWallpaper(asset: asset, key: ValueKey(asset.id)),
+                  child: _IdleWallpaper(
+                    asset: asset,
+                    loopVideo: !presentation.isSlideshow,
+                    key: ValueKey(asset.id),
+                    onVideoCompleted: _advanceSlide,
+                  ),
                 ),
                 DecoratedBox(
                   decoration: BoxDecoration(
@@ -1117,9 +1129,16 @@ class _OperatorPinDialogState extends State<OperatorPinDialog> {
 }
 
 class _IdleWallpaper extends StatefulWidget {
-  const _IdleWallpaper({super.key, required this.asset});
+  const _IdleWallpaper({
+    super.key,
+    required this.asset,
+    required this.loopVideo,
+    required this.onVideoCompleted,
+  });
 
   final KioskIdleAsset asset;
+  final bool loopVideo;
+  final VoidCallback onVideoCompleted;
 
   @override
   State<_IdleWallpaper> createState() => _IdleWallpaperState();
@@ -1128,6 +1147,7 @@ class _IdleWallpaper extends StatefulWidget {
 class _IdleWallpaperState extends State<_IdleWallpaper> {
   VideoPlayerController? _videoController;
   bool _videoReady = false;
+  bool _videoCompletionReported = false;
 
   @override
   void initState() {
@@ -1140,6 +1160,8 @@ class _IdleWallpaperState extends State<_IdleWallpaper> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.asset.assetVideoPath != widget.asset.assetVideoPath) {
       unawaited(_configureVideo());
+    } else if (oldWidget.loopVideo != widget.loopVideo) {
+      unawaited(_videoController?.setLooping(widget.loopVideo));
     }
   }
 
@@ -1155,6 +1177,7 @@ class _IdleWallpaperState extends State<_IdleWallpaper> {
     final oldController = _videoController;
     _videoController = null;
     _videoReady = false;
+    _videoCompletionReported = false;
     if (mounted) {
       setState(() {});
     }
@@ -1165,13 +1188,11 @@ class _IdleWallpaperState extends State<_IdleWallpaper> {
       return;
     }
 
-    final controller = VideoPlayerController.asset(
-      videoPath,
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-    );
+    final controller = _videoControllerFor(videoPath);
     _videoController = controller;
     try {
-      await controller.setLooping(true);
+      controller.addListener(_handleVideoProgress);
+      await controller.setLooping(widget.loopVideo);
       await controller.setVolume(0);
       await controller.initialize();
       await controller.play();
@@ -1183,6 +1204,7 @@ class _IdleWallpaperState extends State<_IdleWallpaper> {
       if (mounted) {
         setState(() => _videoReady = false);
       }
+      widget.onVideoCompleted();
       return;
     }
 
@@ -1191,6 +1213,36 @@ class _IdleWallpaperState extends State<_IdleWallpaper> {
       return;
     }
     setState(() => _videoReady = true);
+  }
+
+  VideoPlayerController _videoControllerFor(String videoPath) {
+    final file = File(videoPath);
+    if (file.isAbsolute) {
+      return VideoPlayerController.file(
+        file,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+    }
+    return VideoPlayerController.asset(
+      videoPath,
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+  }
+
+  void _handleVideoProgress() {
+    final controller = _videoController;
+    if (controller == null || widget.loopVideo || _videoCompletionReported) {
+      return;
+    }
+    final value = controller.value;
+    final duration = value.duration;
+    if (!value.isInitialized || duration == Duration.zero) {
+      return;
+    }
+    if (value.position >= duration - const Duration(milliseconds: 250)) {
+      _videoCompletionReported = true;
+      widget.onVideoCompleted();
+    }
   }
 
   @override

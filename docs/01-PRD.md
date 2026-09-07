@@ -1370,7 +1370,12 @@ KIOSK-6A includes:
 - a device-authenticated configuration endpoint available only to active
   current kiosk devices;
 - configurable idle presentation mode, slide duration, title, subtitle,
-  **Start Try-On** CTA label and ordered presentation image references;
+  **Start Try-On** CTA label and ordered presentation image/video references;
+- the bundled SelfX default video is used for newly connected kiosks until a
+  Store-assigned kiosk receives a Store-managed presentation playlist;
+- Store-assigned kiosks may use Store-selected video and wallpaper slots in
+  place of the default video, with uploaded presentation videos limited to one
+  minute;
 - configurable capture countdown, capture sound enablement, sound profile and
   guidance-audio flag;
 - configurable customer-facing garment intent availability for `TOP`, `BOTTOM`
@@ -1378,13 +1383,15 @@ KIOSK-6A includes:
 - local kiosk cache and offline fallback to the last valid configuration, or
   bundled defaults if no cache exists;
 - remote configuration activation only after presentation assets are validated
-  and locally available.
+  and locally available;
+- kiosks cache downloaded presentation media and fetch replacement videos or
+  wallpapers only when the versioned configuration references changed media.
 
 KIOSK-6A does not implement remote camera selection, remote reboot/commands,
 OTA updates, Product Catalog, Shopify/WooCommerce sync, premium audio asset
 distribution, deep telemetry, billing, API Gateway or provider changes. SaaS
-presentation image upload is supported through SelfX object storage and remains
-scoped to the target kiosk configuration.
+presentation image/video upload is supported through SelfX object storage and
+remains scoped to the target kiosk configuration.
 
 ---
 

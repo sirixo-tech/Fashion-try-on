@@ -287,6 +287,65 @@ void main() {
     expect(await File(asset.assetVideoPath!).exists(), isTrue);
   });
 
+  test('reuses cached uploaded assets when only signed URLs rotate', () async {
+    final temp = await Directory.systemTemp.createTemp('selfx-kiosk-config-');
+    addTearDown(() => temp.delete(recursive: true));
+    var downloadCalls = 0;
+    final harness = RuntimeConfigHarness(
+      latestConfigurationVersion: 7,
+      cacheDirectory: temp,
+      client: MockClient((request) async {
+        downloadCalls += 1;
+        return http.Response.bytes(
+          [0, 0, 0, 24],
+          200,
+          headers: {'content-type': 'video/mp4'},
+        );
+      }),
+    );
+    const stableAssetRef = 'stable-uploaded-video';
+    harness.gateway.remote = _runtimeConfiguration(
+      version: 7,
+      assets: [
+        KioskRuntimeAsset(
+          id: 'hero-video',
+          type: RuntimeKioskAssetType.remoteVideo,
+          label: 'Hero video',
+          url: 'https://cdn.selfx.test/read-a.mp4',
+          assetRef: stableAssetRef,
+          contentType: 'video/mp4',
+        ),
+      ],
+    );
+
+    await harness.controller.syncIfNeeded();
+    final firstPath =
+        harness.controller.configuration.assets.single.assetVideoPath;
+
+    harness.deviceController.device = _device(8);
+    harness.gateway.remote = _runtimeConfiguration(
+      version: 8,
+      assets: [
+        KioskRuntimeAsset(
+          id: 'hero-video',
+          type: RuntimeKioskAssetType.remoteVideo,
+          label: 'Hero video',
+          url: 'https://cdn.selfx.test/read-b.mp4',
+          assetRef: stableAssetRef,
+          contentType: 'video/mp4',
+        ),
+      ],
+    );
+
+    await harness.controller.syncIfNeeded();
+
+    expect(downloadCalls, 1);
+    expect(
+      harness.controller.configuration.assets.single.assetVideoPath,
+      firstPath,
+    );
+  });
+
   test('allows only one configuration sync at a time', () async {
     final gate = Completer<KioskRuntimeConfiguration>();
     final harness = RuntimeConfigHarness(latestConfigurationVersion: 8);

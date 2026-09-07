@@ -146,6 +146,15 @@ export type StoreProductListResponse = {
   };
 };
 
+export type BulkImportedProductVtoResponse = {
+  enabled: boolean;
+  productVertical: ProductVertical;
+  matchedImportedProducts: number;
+  eligibleProducts: number;
+  updatedProducts: number;
+  updatedDevices: number;
+};
+
 export type StoreProductInput = {
   name: string;
   categoryName: string;
@@ -380,6 +389,21 @@ export function updateStoreProduct(
   );
 }
 
+export function setImportedProductsVtoEnabled(
+  accessToken: string,
+  storeId: string,
+  input: { enabled: boolean; productVertical: ProductVertical },
+): Promise<BulkImportedProductVtoResponse> {
+  return selfxApi<BulkImportedProductVtoResponse>(
+    `/api/v1/admin/stores/${storeId}/products/imported/vto`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export function deleteStoreProduct(
   accessToken: string,
   storeId: string,
@@ -484,6 +508,7 @@ export function createStoreKioskConfigurationAssetUploadIntent(
   input: {
     contentType: string;
     sizeBytes: number;
+    durationSeconds?: number;
     fileName?: string;
   },
 ): Promise<KioskConfigurationAssetUploadIntent> {

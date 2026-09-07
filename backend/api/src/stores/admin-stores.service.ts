@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable, Optional } from "@nestjs/common";
 import {
   CatalogProductScope,
+  ExternalProductMappingStatus,
   KioskAssignmentScope,
   KioskDeviceStatus,
   OrganizationStatus,
@@ -37,6 +38,8 @@ import {
   type AdminStoreListQueryDto,
   type AdminStoreListResponseDto,
   type AdminStoreResponseDto,
+  type BulkImportedProductVtoDto,
+  type BulkImportedProductVtoResponseDto,
   type CreateStoreProductDto,
   type CreateStoreProductImageUploadDto,
   type CreateAdminStoreDto,
@@ -513,6 +516,53 @@ export class AdminStoresService {
       }
       throw error;
     }
+  }
+
+  async setImportedProductsVtoEnabled(
+    storeId: string,
+    input: BulkImportedProductVtoDto,
+  ): Promise<Omit<BulkImportedProductVtoResponseDto, "updatedDevices">> {
+    const store = await this.findStoreOrThrow(storeId);
+    assertStoreActive(store);
+    const importedWhere: Prisma.ProductWhereInput = {
+      scope: CatalogProductScope.STORE,
+      organizationId: storeId,
+      productVertical: input.productVertical,
+      externalMappings: {
+        some: {
+          organizationId: storeId,
+          externalVariantId: null,
+          status: ExternalProductMappingStatus.ACTIVE,
+        },
+      },
+    };
+    const eligibleWhere: Prisma.ProductWhereInput = input.enabled
+      ? {
+          ...importedWhere,
+          active: true,
+          OR: [{ imageStorageKey: { not: null } }, { imageUrl: { not: null } }],
+        }
+      : importedWhere;
+    const [matchedImportedProducts, eligibleProducts, updated] =
+      await Promise.all([
+        this.prisma.product.count({ where: importedWhere }),
+        this.prisma.product.count({ where: eligibleWhere }),
+        this.prisma.product.updateMany({
+          where: {
+            ...eligibleWhere,
+            vtoEnabled: { not: input.enabled },
+          },
+          data: { vtoEnabled: input.enabled },
+        }),
+      ]);
+
+    return {
+      enabled: input.enabled,
+      productVertical: input.productVertical,
+      matchedImportedProducts,
+      eligibleProducts,
+      updatedProducts: updated.count,
+    };
   }
 
   async updateStoreProduct(

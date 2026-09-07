@@ -136,18 +136,19 @@ describe("TryOnLabClient", () => {
     ).toHaveProperty("disabled", true);
   });
 
-  it("uses automatic settings in the default workflow and keeps advanced controls collapsed", async () => {
+  it("keeps automatic and developer-only settings out of the workflow", async () => {
     renderWithUi(<TryOnLabClient />);
 
+    expect(screen.queryByText("Internal testing only")).toBeNull();
     expect(
-      screen.getByText("Try-On settings are selected automatically."),
-    ).toBeTruthy();
+      screen.queryByText("Try-On settings are selected automatically."),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Top" })).toBeNull();
-    expect(screen.getByText("Advanced settings")).toBeTruthy();
+    expect(screen.queryByText("Advanced settings")).toBeNull();
 
     await chooseImages();
 
-    expect(screen.getByText("Automatic garment")).toBeTruthy();
+    expect(screen.queryByText("Automatic garment")).toBeNull();
     expect(screen.queryByRole("button", { name: "Bottom" })).toBeNull();
   });
 
@@ -216,35 +217,7 @@ describe("TryOnLabClient", () => {
     expect(submittedFormData.get("disambiguationResolved")).toBe("true");
   });
 
-  it("allows internal advanced overrides while marking their resolution source", async () => {
-    qualityByTarget = {
-      person: qualityPass(),
-      garment: qualityPass(),
-    };
-    garmentAnalysisResult = garmentAnalysis("UPPER_BODY_MODEL");
-    vi.mocked(createTryOnLabRun).mockResolvedValue(completedResponse());
-    vi.mocked(getTryOnLabRun).mockResolvedValue(completedResponse());
-
-    renderWithUi(<TryOnLabClient />);
-    await chooseImages("Score 100/100");
-    fireEvent.click(screen.getByRole("button", { name: /show/i }));
-    fireEvent.click(screen.getByRole("radio", { name: "Bottom" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Flat lay" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Quality" }));
-    fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
-
-    await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
-    const submittedFormData = vi.mocked(createTryOnLabRun).mock.calls[0]![0];
-    expect(submittedFormData.get("garmentIntent")).toBe("BOTTOM");
-    expect(submittedFormData.get("category")).toBe("BOTTOM");
-    expect(submittedFormData.get("garmentPhotoType")).toBe("FLAT_LAY");
-    expect(submittedFormData.get("generationProfile")).toBe("QUALITY");
-    expect(submittedFormData.get("categoryResolutionSource")).toBe(
-      "INTERNAL_LAB_OVERRIDE",
-    );
-  });
-
-  it("clears stale garment disambiguation and overrides when garment is replaced", async () => {
+  it("recomputes automatic garment resolution when the garment is replaced", async () => {
     qualityByTarget = {
       person: qualityPass(),
       garment: qualityPass(),
@@ -255,9 +228,14 @@ describe("TryOnLabClient", () => {
 
     renderWithUi(<TryOnLabClient />);
     await chooseImages("Score 100/100");
-    fireEvent.click(screen.getByRole("button", { name: /show/i }));
-    fireEvent.click(screen.getByRole("radio", { name: "Bottom" }));
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/which item would you like to try on/i),
+      ).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /lower garment/i }));
 
     await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
     expect(vi.mocked(createTryOnLabRun).mock.calls[0]![0].get("category")).toBe(
@@ -416,7 +394,7 @@ describe("TryOnLabClient", () => {
     ).toHaveProperty("disabled", false);
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(
-      screen.getByText(/upload only images you are authorized/i),
+      screen.getByText(/confirm you are authorized to use these images/i),
     ).toBeTruthy();
   });
 
@@ -436,19 +414,19 @@ describe("TryOnLabClient", () => {
     await waitFor(() =>
       expect(screen.getByText("Result comparison")).toBeTruthy(),
     );
-    expect(screen.getByAltText("Person")).toHaveProperty(
+    expect(screen.getByAltText("Person photo preview")).toHaveProperty(
       "src",
       "blob:selfx-preview-1",
     );
-    expect(screen.getByAltText("Garment")).toHaveProperty(
+    expect(screen.getByAltText("Garment photo preview")).toHaveProperty(
       "src",
       "blob:selfx-preview-2",
     );
     expect(screen.getByAltText("Generated Try-On")).toBeTruthy();
-    expect(screen.getByText("Run summary")).toBeTruthy();
-    const diagnostics = screen.getByText("Run diagnostics").closest("details");
-    expect(diagnostics?.hasAttribute("open")).toBe(false);
-    expect(screen.getByText("FASHN")).toBeTruthy();
+    expect(screen.queryByText("Run summary")).toBeNull();
+    expect(screen.queryByText("Run diagnostics")).toBeNull();
+    expect(screen.queryByText("FASHN")).toBeNull();
+    expect(screen.queryByText(/SelfX run ID:/)).toBeNull();
     expect(screen.queryByText(/provider-1/i)).toBeNull();
     expect(screen.queryByText(/base64,result/i)).toBeNull();
 
@@ -498,7 +476,10 @@ describe("TryOnLabClient", () => {
     await chooseImages("Score 100/100");
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
 
-    await waitFor(() => expect(screen.getByText(/SelfX run ID:/)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Creating your Try-On")).toBeTruthy(),
+    );
+    expect(screen.queryByText(/SelfX run ID:/)).toBeNull();
     expect(screen.getByAltText("Person photo preview")).toHaveProperty(
       "src",
       "blob:selfx-preview-1",
@@ -812,8 +793,8 @@ describe("TryOnLabClient", () => {
     expect(submittedFormData.get("qualityWarningCodes")).toBe(
       JSON.stringify(["IMAGE_TOO_BLURRY"]),
     );
-    expect(screen.getByText("IMAGE_TOO_BLURRY")).toBeTruthy();
-    expect(screen.getByText("Yes")).toBeTruthy();
+    expect(screen.queryByText("IMAGE_TOO_BLURRY")).toBeNull();
+    expect(screen.queryByText("Yes")).toBeNull();
   });
 });
 

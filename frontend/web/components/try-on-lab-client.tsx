@@ -11,26 +11,38 @@ import {
   type ReactNode,
 } from "react";
 import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  ImageIcon,
+  InfoIcon,
+  Loader2Icon,
   Maximize2Icon,
+  PlayIcon,
   RotateCcwIcon,
+  ShirtIcon,
   SparklesIcon,
+  TriangleAlertIcon,
+  UploadIcon,
+  UserRoundIcon,
 } from "lucide-react";
 
 import {
   Alert as ShadcnAlert,
   AlertDescription,
   AlertTitle,
+  Badge,
   Button as ShadcnButton,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  FormActions,
-  Label,
   PageContainer,
   PageHeader,
   PageSection,
-  SectionCard,
   cn,
 } from "@selfx/ui";
 import {
@@ -247,7 +259,8 @@ function Button({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        justify === "flex-start" && "h-auto justify-start whitespace-normal p-4 text-left",
+        justify === "flex-start" &&
+          "h-auto justify-start whitespace-normal p-4 text-left",
         className,
       )}
     >
@@ -277,44 +290,6 @@ function Alert({
         </div>
       </div>
     </ShadcnAlert>
-  );
-}
-
-function FileInput({
-  label,
-  placeholder,
-  accept,
-  value,
-  onChange,
-}: {
-  label: string;
-  placeholder: string;
-  accept: string;
-  value: File | null;
-  onChange: (file: File | null) => void;
-}) {
-  const inputId = `try-on-lab-${label.toLowerCase().replace(/\s+/g, "-")}`;
-
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={inputId}>{label}</Label>
-      <label
-        htmlFor={inputId}
-        className="flex min-h-24 cursor-pointer flex-col justify-center rounded-lg border border-dashed bg-muted/30 p-4 text-sm transition-colors hover:border-primary hover:bg-[color-mix(in_srgb,var(--selfx-primary),white_94%)]"
-      >
-        <span className="font-semibold text-foreground">
-          {value?.name ?? placeholder}
-        </span>
-        <span className="mt-1 text-muted-foreground">JPEG, PNG or WebP.</span>
-      </label>
-      <input
-        id={inputId}
-        className="sr-only"
-        type="file"
-        accept={accept}
-        onChange={(event) => onChange(event.currentTarget.files?.[0] ?? null)}
-      />
-    </div>
   );
 }
 
@@ -403,7 +378,8 @@ function ThemeIcon({
         "inline-flex size-8 items-center justify-center rounded-full border",
         color === "red" && "border-red-200 bg-red-50 text-red-700",
         color === "yellow" && "border-amber-200 bg-amber-50 text-amber-700",
-        color === "green" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+        color === "green" &&
+          "border-emerald-200 bg-emerald-50 text-emerald-700",
         color === "dark" && "border-border bg-background text-foreground",
       )}
       style={style}
@@ -637,7 +613,7 @@ export function TryOnLabClient() {
       } catch (caught) {
         const message =
           caught instanceof SafeApiError
-            ? caught.message
+            ? customerSafeErrorMessage(caught.message)
             : "Try-On Lab request failed.";
         setError(message);
       } finally {
@@ -709,100 +685,148 @@ export function TryOnLabClient() {
     setQualityOverrideAccepted(false);
     setPreviewModal(null);
     resetGarmentResolutionState();
-  }, []);
+  }, [resetGarmentResolutionState]);
 
   return (
     <PageContainer width="wide">
       <PageHeader
-        title="Try-On Lab"
+        eyebrow="Try-On Lab"
+        title="Garment Lab"
+        description="Validate garment Try-On with guided inputs and clear result feedback."
+        status={
+          <GarmentLabStatusBadge
+            run={run}
+            analyzing={analyzing}
+            submitting={submitting}
+            ready={canGenerate}
+          />
+        }
       />
 
       <PageSection>
-        <SimpleGrid cols={{ base: 1, lg: 2 }}>
-          <ImageInputCard
-            title="Upload model photo"
-            target="person"
-            slot={person}
-            onChange={(file) => void handleFileChange(file, "person")}
-            onPreviewOpen={setPreviewModal}
-          />
-          <ImageInputCard
-            title="Upload garment image"
-            target="garment"
-            slot={garment}
-            onChange={(file) => void handleFileChange(file, "garment")}
-            onPreviewOpen={setPreviewModal}
-          />
-        </SimpleGrid>
-      </PageSection>
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+          <Card>
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ShirtIcon className="size-5 text-primary" aria-hidden="true" />
+                Inputs
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start gap-3 rounded-md border bg-muted/25 p-4">
+                <span className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                  <SparklesIcon className="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <div className="font-semibold">Capture clear inputs</div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    Use a clear person photo and a well-framed garment image for
+                    the best result.
+                  </div>
+                </div>
+              </div>
 
-      <PageSection>
-        <SectionCard>
-          <Stack gap="md">
-            {error ? (
-              <Alert color="red" title="Try-On failed">
-                {error}
-              </Alert>
-            ) : null}
-            {run?.errorMessage ? (
-              <Alert color="red" title={run.errorCode ?? "TRYON_FAILED"}>
-                {run.errorMessage}
-              </Alert>
-            ) : null}
-            <FormActions>
-              <Button
-                variant="light"
-                color="gray"
-                onClick={reset}
-                className="w-full sm:w-auto"
-              >
-                <RotateCcwIcon size={16} aria-hidden="true" />
-                New Try-On
-              </Button>
-              <Button
-                onClick={handleGenerateClick}
-                disabled={!canGenerate}
-                className="w-full sm:w-auto"
-              >
-                <SparklesIcon size={16} aria-hidden="true" />
-                {submitting ? "Generating" : "Generate Try-On"}
-              </Button>
-            </FormActions>
-          </Stack>
-        </SectionCard>
-      </PageSection>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ImageInputCard
+                  title="Person Image"
+                  target="person"
+                  slot={person}
+                  className="lg:order-2"
+                  onChange={(file) => void handleFileChange(file, "person")}
+                  onPreviewOpen={setPreviewModal}
+                />
+                <ImageInputCard
+                  title="Garment Image"
+                  target="garment"
+                  slot={garment}
+                  className="lg:order-1"
+                  onChange={(file) => void handleFileChange(file, "garment")}
+                  onPreviewOpen={setPreviewModal}
+                />
+              </div>
 
-      {run?.status === "COMPLETED" && run.resultImage ? (
-        <PageSection>
-          <SectionCard title="Try-On Result">
-            <div className="mx-auto max-w-2xl">
-              <PreviewPanel
-                title="Generated Try-On"
-                imageUrl={run.resultImage}
+              {error ? (
+                <Alert color="red" title="Try-On failed">
+                  {error}
+                </Alert>
+              ) : null}
+
+              <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row">
+                <ShadcnButton
+                  type="button"
+                  className="min-w-52"
+                  onClick={handleGenerateClick}
+                  disabled={!canGenerate}
+                >
+                  {submitting ? (
+                    <Loader2Icon className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <PlayIcon aria-hidden="true" />
+                  )}
+                  {submitting ? "Creating Try-On" : "Generate Try-On"}
+                </ShadcnButton>
+                <ShadcnButton
+                  type="button"
+                  variant="outline"
+                  className="min-w-32"
+                  onClick={reset}
+                  disabled={submitting}
+                >
+                  <RotateCcwIcon aria-hidden="true" />
+                  New Try-On
+                </ShadcnButton>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                By generating, you confirm you are authorized to use these
+                images.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="xl:sticky xl:top-4">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <SparklesIcon
+                  className="size-5 text-primary"
+                  aria-hidden="true"
+                />
+                Try-On Result
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <GarmentResultPanel
+                run={run}
+                submitting={submitting}
                 onPreviewOpen={setPreviewModal}
               />
-            </div>
-            <FormActions align="apart">
-              <Button
-                variant="light"
-                color="gray"
-                onClick={tryAnotherGarment}
-                className="w-full sm:w-auto"
-              >
-                Try Another Garment
-              </Button>
-              <Button
-                variant="light"
-                onClick={reset}
-                className="w-full sm:w-auto"
-              >
-                <RotateCcwIcon size={16} aria-hidden="true" />
-                New Try-On
-              </Button>
-            </FormActions>
-          </SectionCard>
-        </PageSection>
-      ) : null}
+              {run?.status === "COMPLETED" && run.resultImage ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                  <ShadcnButton
+                    type="button"
+                    variant="outline"
+                    onClick={tryAnotherGarment}
+                  >
+                    Try Another Garment
+                  </ShadcnButton>
+                  <ShadcnButton type="button" variant="outline" onClick={reset}>
+                    <RotateCcwIcon aria-hidden="true" />
+                    New Try-On
+                  </ShadcnButton>
+                </div>
+              ) : null}
+              <div className="flex gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-900">
+                <InfoIcon
+                  className="mt-0.5 size-4 shrink-0 text-sky-600"
+                  aria-hidden="true"
+                />
+                {canGenerate
+                  ? "Inputs are ready. Generate the Try-On securely through SelfX."
+                  : "Add valid person and garment images to prepare a Try-On."}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </PageSection>
 
       <Modal
         opened={warningModalOpened}
@@ -902,41 +926,249 @@ export function TryOnLabClient() {
   );
 }
 
+function GarmentLabStatusBadge({
+  run,
+  analyzing,
+  submitting,
+  ready,
+}: {
+  run: TryOnLabRunResponse | null;
+  analyzing: boolean;
+  submitting: boolean;
+  ready: boolean;
+}) {
+  if (submitting || run?.status === "QUEUED" || run?.status === "PROCESSING") {
+    return (
+      <Badge variant="secondary">
+        <Loader2Icon className="animate-spin" aria-hidden="true" />
+        Creating Try-On
+      </Badge>
+    );
+  }
+  if (analyzing) {
+    return (
+      <Badge variant="secondary">
+        <Loader2Icon className="animate-spin" aria-hidden="true" />
+        Checking images
+      </Badge>
+    );
+  }
+  if (run?.status === "COMPLETED") {
+    return <Badge className="bg-emerald-600 text-white">Completed</Badge>;
+  }
+  if (run?.status === "FAILED") {
+    return <Badge variant="destructive">Failed</Badge>;
+  }
+  return ready ? (
+    <Badge className="bg-emerald-600 text-white">Ready to run</Badge>
+  ) : (
+    <Badge variant="secondary">Inputs needed</Badge>
+  );
+}
+
+function GarmentResultPanel({
+  run,
+  submitting,
+  onPreviewOpen,
+}: {
+  run: TryOnLabRunResponse | null;
+  submitting: boolean;
+  onPreviewOpen: (preview: { title: string; imageUrl: string }) => void;
+}) {
+  if (run?.status === "COMPLETED" && run.resultImage) {
+    return (
+      <div className="space-y-2">
+        <div className="text-sm font-semibold">Result comparison</div>
+        <PreviewPanel
+          title="Generated Try-On"
+          imageUrl={run.resultImage}
+          onPreviewOpen={onPreviewOpen}
+        />
+      </div>
+    );
+  }
+
+  if (run?.status === "FAILED") {
+    return (
+      <div className="grid min-h-64 place-items-center rounded-md border border-destructive/30 bg-destructive/5 p-6 text-center text-destructive">
+        <div className="max-w-60 space-y-3">
+          <span className="mx-auto grid size-14 place-items-center rounded-full bg-destructive/10">
+            <AlertCircleIcon className="size-6" aria-hidden="true" />
+          </span>
+          <div>
+            <div className="font-semibold">Try-On failed</div>
+            <p className="mt-1 text-sm leading-5">
+              {safeRunErrorMessage(run.errorMessage)}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (submitting || run?.status === "QUEUED" || run?.status === "PROCESSING") {
+    return (
+      <div className="grid min-h-64 place-items-center rounded-md border bg-muted/20 p-6 text-center">
+        <div className="max-w-56 space-y-3">
+          <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
+            <Loader2Icon className="size-6 animate-spin" aria-hidden="true" />
+          </span>
+          <div>
+            <div className="font-semibold text-foreground">
+              Creating your Try-On
+            </div>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+              Your images are being processed securely by SelfX.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid min-h-64 place-items-center rounded-md border bg-muted/20 p-6 text-center">
+      <div className="max-w-56 space-y-3">
+        <span className="mx-auto grid size-14 place-items-center rounded-full bg-muted text-muted-foreground">
+          <ImageIcon className="size-6" aria-hidden="true" />
+        </span>
+        <div>
+          <div className="font-semibold text-foreground">No result yet</div>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">
+            Add person and garment images, then generate a Try-On to see the
+            result here.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ImageInputCard({
   title,
   target,
   slot,
+  className,
   onChange,
   onPreviewOpen,
 }: {
   title: string;
   target: ImageQualityTarget;
   slot: ImageSlot;
+  className?: string;
   onChange: (file: File | null) => void;
   onPreviewOpen: (preview: { title: string; imageUrl: string }) => void;
 }) {
+  const inputId = `garment-lab-${target}-image`;
+  const SlotIcon = target === "person" ? UserRoundIcon : ShirtIcon;
+  const accent =
+    target === "person"
+      ? {
+          border: "border-violet-300/80",
+          icon: "bg-violet-100 text-violet-600",
+        }
+      : {
+          border: "border-orange-300/80",
+          icon: "bg-orange-100 text-orange-600",
+        };
+  const previewTitle = target === "person" ? "Person photo" : "Garment photo";
+
   return (
-    <SectionCard title={title}>
-      <Stack gap="md">
-        <FileInput
-          label={target === "person" ? "Model photo" : "Garment image"}
-          placeholder={
-            slot.file ? "Change / re-upload" : "Choose JPEG, PNG or WebP"
-          }
-          accept={TRY_ON_LAB_BROWSER_ACCEPTED_IMAGE_TYPES.join(",")}
-          value={slot.file}
-          onChange={onChange}
-        />
+    <section
+      className={cn(
+        "min-h-[27rem] rounded-lg border border-dashed bg-muted/20 p-4",
+        accent.border,
+        className,
+      )}
+    >
+      <input
+        id={inputId}
+        className="sr-only"
+        type="file"
+        accept={TRY_ON_LAB_BROWSER_ACCEPTED_IMAGE_TYPES.join(",")}
+        onChange={(event) => onChange(event.currentTarget.files?.[0] ?? null)}
+      />
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span
+              className={cn(
+                "grid size-9 shrink-0 place-items-center rounded-md",
+                accent.icon,
+              )}
+            >
+              <SlotIcon className="size-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <div className="font-semibold">{title}</div>
+              <div className="text-sm text-muted-foreground">
+                {target === "person"
+                  ? "Clear, well-lit person photo for the Try-On."
+                  : "Product image for automatic garment resolution."}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                JPG, PNG or WebP; up to 8 MB.
+              </div>
+            </div>
+          </div>
+          <label
+            htmlFor={inputId}
+            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-md text-primary transition-colors hover:bg-primary/10"
+            title={slot.file ? "Change image" : "Choose image"}
+          >
+            <UploadIcon className="size-5" aria-hidden="true" />
+            <span className="sr-only">
+              {slot.file ? `Change ${title}` : `Choose ${title}`}
+            </span>
+          </label>
+        </div>
+
         {slot.previewUrl ? (
-          <PreviewPanel
-            title={`${title} preview`}
-            imageUrl={slot.previewUrl}
-            compact
-            onPreviewOpen={onPreviewOpen}
-          />
+          <button
+            type="button"
+            className="relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-md border bg-background p-0"
+            aria-label={`Open ${previewTitle} preview larger`}
+            onClick={() =>
+              onPreviewOpen({ title: previewTitle, imageUrl: slot.previewUrl! })
+            }
+          >
+            <Image
+              src={slot.previewUrl}
+              alt={`${previewTitle} preview`}
+              fit="contain"
+            />
+            <span className="absolute right-2 top-2 grid size-8 place-items-center rounded-md border bg-background/90 text-foreground shadow-sm">
+              <Maximize2Icon className="size-4" aria-hidden="true" />
+            </span>
+          </button>
+        ) : (
+          <label
+            htmlFor={inputId}
+            className="grid aspect-[4/3] cursor-pointer place-items-center rounded-md border bg-background transition-colors hover:border-primary hover:bg-primary/5"
+          >
+            <span className="flex flex-col items-center gap-2 px-4 text-center text-sm text-muted-foreground">
+              <span
+                className={cn(
+                  "grid size-12 place-items-center rounded-full",
+                  accent.icon,
+                )}
+              >
+                <UploadIcon className="size-5" aria-hidden="true" />
+              </span>
+              <span className="font-medium text-foreground">Choose image</span>
+              <span>Click to upload</span>
+            </span>
+          </label>
+        )}
+
+        {slot.file ? (
+          <div className="truncate text-xs text-muted-foreground">
+            {slot.file.name}
+          </div>
         ) : null}
-      </Stack>
-    </SectionCard>
+        <QualitySummary result={slot.quality} />
+      </div>
+    </section>
   );
 }
 
@@ -975,9 +1207,7 @@ function PreviewPanel({
         }}
         className={compact ? "max-h-80" : "max-h-[420px]"}
       >
-        {imageUrl ? (
-          <Image src={imageUrl} alt={title} fit="contain" />
-        ) : null}
+        {imageUrl ? <Image src={imageUrl} alt={title} fit="contain" /> : null}
         {imageUrl ? (
           <ThemeIcon
             color="dark"
@@ -990,6 +1220,74 @@ function PreviewPanel({
         ) : null}
       </Box>
     </Stack>
+  );
+}
+
+function QualitySummary({ result }: { result: ImageQualityResult | null }) {
+  if (!result) {
+    return (
+      <div className="text-xs text-muted-foreground">
+        Image checks appear after selection.
+      </div>
+    );
+  }
+
+  const blocking = result.issues.filter(
+    (issue) => issue.severity === "BLOCKING",
+  );
+  const warnings = result.issues.filter(
+    (issue) => issue.severity === "WARNING",
+  );
+  const analysisUnavailable = result.issues.some(
+    (issue) => issue.code === "IMAGE_QUALITY_ANALYSIS_UNAVAILABLE",
+  );
+  const tone =
+    blocking.length > 0
+      ? "border-destructive/30 bg-destructive/5 text-destructive"
+      : warnings.length > 0
+        ? "border-amber-300 bg-amber-50 text-amber-900"
+        : "border-emerald-600/30 bg-emerald-50 text-emerald-800";
+
+  return (
+    <div className={cn("space-y-2 rounded-md border p-3 text-xs", tone)}>
+      <div className="flex flex-wrap items-center gap-2 font-medium">
+        {blocking.length > 0 ? (
+          <AlertCircleIcon className="size-4" aria-hidden="true" />
+        ) : warnings.length > 0 ? (
+          <TriangleAlertIcon className="size-4" aria-hidden="true" />
+        ) : (
+          <CheckCircle2Icon className="size-4" aria-hidden="true" />
+        )}
+        <span>
+          {blocking.length > 0
+            ? "Image blocked"
+            : warnings.length > 0
+              ? "Review suggested"
+              : "Image ready"}
+        </span>
+        <span className="font-normal opacity-80">
+          {analysisUnavailable
+            ? "Score unavailable"
+            : `Score ${result.score}/100`}
+        </span>
+      </div>
+      {result.issues.length > 0 ? (
+        <ul className="list-disc space-y-1 pl-5">
+          {result.issues.map((issue) => (
+            <li key={issue.code}>{issue.message}</li>
+          ))}
+        </ul>
+      ) : (
+        <div>Resolution, exposure and contrast look usable.</div>
+      )}
+      <div className="opacity-75">
+        {formatMetric(result.metrics.width)}x
+        {formatMetric(result.metrics.height)}, sharpness{" "}
+        {formatMetric(result.metrics.sharpness)}, brightness{" "}
+        {formatMetric(result.metrics.brightness)}, contrast{" "}
+        {formatMetric(result.metrics.contrast)}
+      </div>
+    </div>
   );
 }
 
@@ -1029,6 +1327,23 @@ function collectQualityWarningCodes(warnings: {
       [...warnings.person, ...warnings.garment].map((issue) => issue.code),
     ),
   ];
+}
+
+function formatMetric(value: number | null): string {
+  return value === null ? "not analyzed" : String(value);
+}
+
+function safeRunErrorMessage(message?: string): string {
+  if (!message || /fashn|provider|model|prediction/i.test(message)) {
+    return "We could not create this Try-On. Check both images and try again.";
+  }
+  return message;
+}
+
+function customerSafeErrorMessage(message: string): string {
+  return /fashn|provider|model|prediction/i.test(message)
+    ? "Try-On could not be completed right now. Try again shortly."
+    : message;
 }
 
 function revokePreviewUrl(

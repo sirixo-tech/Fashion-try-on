@@ -149,6 +149,34 @@ enum ProductVertical {
   JEWELLERY
 }
 
+enum IntegrationType {
+  SHOPIFY
+  WOOCOMMERCE
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  DISCONNECTED
+  ERROR
+}
+
+enum IntegrationCredentialStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum IntegrationEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum ExternalProductMappingStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 enum JewelleryType {
   RING
   BRACELET
@@ -196,6 +224,9 @@ model User {
   kioskPairingClaims            KioskPairingSession[]               @relation("KioskPairingClaimedBy")
   kioskConfigurationsUpdated    KioskDeviceConfiguration[]          @relation("KioskConfigurationUpdatedBy")
   apiKeysCreated                ApiKey[]                            @relation("ApiKeyCreatedByUser")
+  integrationsCreated           Integration[]                       @relation("IntegrationCreatedByUser")
+  integrationCredentialsCreated IntegrationCredential[]             @relation("IntegrationCredentialCreatedByUser")
+  integrationOauthStatesCreated IntegrationOauthState[]             @relation("IntegrationOauthStateCreatedByUser")
 
   @@map("users")
 }
@@ -218,31 +249,37 @@ model UserSession {
 }
 
 model Organization {
-  id                     String                              @id @db.Uuid
-  name                   String                              @db.VarChar(200)
-  slug                   String                              @unique @db.VarChar(120)
-  status                 OrganizationStatus                  @default(PENDING_ACTIVATION)
-  timezone               String                              @default("UTC") @db.VarChar(64)
-  settings               Json?
-  createdAt              DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  activationRequirements OrganizationActivationRequirement[]
-  applications           OrganizationApplication[]
-  auditLogs              AuditLog[]
-  memberships            OrganizationMembership[]
-  roles                  StoreRole[]
-  permissionGrants       StorePermissionGrant[]
-  stores                 Store[]
-  kioskDevices           KioskDevice[]
-  tryOnSessions          TryOnSession[]
-  tryOnAssets            TryOnAsset[]
-  tryOnLooks             TryOnLook[]
-  tryOnShareCapabilities TryOnShareCapability[]
-  apiKeys                ApiKey[]
-  webhookEndpoints       WebhookEndpoint[]
-  webhookDeliveries      WebhookDelivery[]
-  productCategories      ProductCategory[]
-  products               Product[]
+  id                      String                              @id @db.Uuid
+  name                    String                              @db.VarChar(200)
+  slug                    String                              @unique @db.VarChar(120)
+  status                  OrganizationStatus                  @default(PENDING_ACTIVATION)
+  timezone                String                              @default("UTC") @db.VarChar(64)
+  settings                Json?
+  createdAt               DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  activationRequirements  OrganizationActivationRequirement[]
+  applications            OrganizationApplication[]
+  auditLogs               AuditLog[]
+  memberships             OrganizationMembership[]
+  roles                   StoreRole[]
+  permissionGrants        StorePermissionGrant[]
+  stores                  Store[]
+  kioskDevices            KioskDevice[]
+  tryOnSessions           TryOnSession[]
+  tryOnAssets             TryOnAsset[]
+  tryOnLooks              TryOnLook[]
+  tryOnShareCapabilities  TryOnShareCapability[]
+  apiKeys                 ApiKey[]
+  webhookEndpoints        WebhookEndpoint[]
+  webhookDeliveries       WebhookDelivery[]
+  productCategories       ProductCategory[]
+  products                Product[]
+  integrations            Integration[]
+  integrationCredentials  IntegrationCredential[]
+  integrationEvents       IntegrationEvent[]
+  externalProductMappings ExternalProductMapping[]
+  integrationOauthStates  IntegrationOauthState[]
+  providerCredentials     IntegrationProviderCredential[]
 
   @@index([status])
   @@map("organizations")
@@ -469,37 +506,38 @@ model ProductCategory {
 }
 
 model Product {
-  id               String              @id @db.Uuid
-  catalogKey       String              @unique @map("catalog_key") @db.VarChar(260)
+  id               String                   @id @db.Uuid
+  catalogKey       String                   @unique @map("catalog_key") @db.VarChar(260)
   scope            CatalogProductScope
-  organizationId   String?             @map("organization_id") @db.Uuid
-  categoryId       String              @map("category_id") @db.Uuid
-  name             String              @db.VarChar(180)
-  slug             String              @db.VarChar(160)
-  description      String?             @db.Text
-  audience         String              @db.VarChar(40)
-  active           Boolean             @default(true)
-  vtoEnabled       Boolean             @default(false) @map("vto_enabled")
-  sortOrder        Int                 @default(0) @map("sort_order")
-  garmentIntent    String              @map("garment_intent") @db.VarChar(40)
-  garmentCategory  String              @map("garment_category") @db.VarChar(40)
-  garmentPhotoType String              @default("AUTO") @map("garment_photo_type") @db.VarChar(40)
-  imageUrl         String?             @map("image_url") @db.Text
-  imageStorageKey  String?             @map("image_storage_key") @db.VarChar(512)
-  imageContentType String?             @map("image_content_type") @db.VarChar(80)
-  imageWidth       Int?                @map("image_width")
-  imageHeight      Int?                @map("image_height")
-  priceAmountCents Int?                @map("price_amount_cents")
-  priceCurrency    String?             @map("price_currency") @db.VarChar(3)
-  productUrl       String?             @map("product_url") @db.Text
-  productVertical  ProductVertical     @default(GARMENT) @map("product_vertical")
-  jewelleryType    JewelleryType?      @map("jewellery_type")
-  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization     Organization?       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  category         ProductCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  organizationId   String?                  @map("organization_id") @db.Uuid
+  categoryId       String                   @map("category_id") @db.Uuid
+  name             String                   @db.VarChar(180)
+  slug             String                   @db.VarChar(160)
+  description      String?                  @db.Text
+  audience         String                   @db.VarChar(40)
+  active           Boolean                  @default(true)
+  vtoEnabled       Boolean                  @default(false) @map("vto_enabled")
+  sortOrder        Int                      @default(0) @map("sort_order")
+  garmentIntent    String                   @map("garment_intent") @db.VarChar(40)
+  garmentCategory  String                   @map("garment_category") @db.VarChar(40)
+  garmentPhotoType String                   @default("AUTO") @map("garment_photo_type") @db.VarChar(40)
+  imageUrl         String?                  @map("image_url") @db.Text
+  imageStorageKey  String?                  @map("image_storage_key") @db.VarChar(512)
+  imageContentType String?                  @map("image_content_type") @db.VarChar(80)
+  imageWidth       Int?                     @map("image_width")
+  imageHeight      Int?                     @map("image_height")
+  priceAmountCents Int?                     @map("price_amount_cents")
+  priceCurrency    String?                  @map("price_currency") @db.VarChar(3)
+  productUrl       String?                  @map("product_url") @db.Text
+  productVertical  ProductVertical          @default(GARMENT) @map("product_vertical")
+  jewelleryType    JewelleryType?           @map("jewellery_type")
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization     Organization?            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  category         ProductCategory          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   tryOnRuns        KioskTryOnRun[]
   tryOnLooks       TryOnLook[]
+  externalMappings ExternalProductMapping[]
 
   @@index([scope, active, vtoEnabled, audience, sortOrder])
   @@index([organizationId, active, vtoEnabled, audience, sortOrder])
@@ -676,6 +714,7 @@ model KioskDeviceConfigurationAsset {
   objectKey       String?                     @map("object_key") @db.VarChar(512)
   contentType     String?                     @map("content_type") @db.VarChar(80)
   sizeBytes       Int?                        @map("size_bytes")
+  durationSeconds Int?                        @map("duration_seconds")
   createdAt       DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
   configuration   KioskDeviceConfiguration    @relation(fields: [configurationId], references: [id], onDelete: Cascade)
 
@@ -933,6 +972,147 @@ model TryOnLook {
   @@index([resultAssetId])
   @@index([expiresAt])
   @@map("try_on_looks")
+}
+
+model Integration {
+  id                  String                   @id @db.Uuid
+  organizationId      String                   @map("organization_id") @db.Uuid
+  type                IntegrationType
+  status              IntegrationStatus        @default(ACTIVE)
+  externalAccountId   String?                  @map("external_account_id") @db.VarChar(180)
+  externalAccountName String?                  @map("external_account_name") @db.VarChar(240)
+  metadata            Json?                    @map("metadata_json")
+  connectedAt         DateTime?                @default(now()) @map("connected_at") @db.Timestamptz(3)
+  disconnectedAt      DateTime?                @map("disconnected_at") @db.Timestamptz(3)
+  createdByUserId     String?                  @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser       User?                    @relation("IntegrationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  credentials         IntegrationCredential[]
+  events              IntegrationEvent[]
+  externalMappings    ExternalProductMapping[]
+  providerCredential  IntegrationProviderCredential?
+
+  @@unique([organizationId, type])
+  @@index([organizationId, status])
+  @@index([type, status])
+  @@index([createdByUserId])
+  @@map("integrations")
+}
+
+model IntegrationProviderCredential {
+  id                   String          @id @db.Uuid
+  integrationId        String          @unique @map("integration_id") @db.Uuid
+  organizationId       String          @map("organization_id") @db.Uuid
+  provider              IntegrationType
+  encryptedPayload      String          @map("encrypted_payload") @db.Text
+  initializationVector String          @map("initialization_vector") @db.VarChar(64)
+  authenticationTag    String          @map("authentication_tag") @db.VarChar(64)
+  keyVersion           String          @default("v1") @map("key_version") @db.VarChar(40)
+  scopes                Json            @map("scopes_json")
+  accessTokenExpiresAt  DateTime?       @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime?       @map("refresh_token_expires_at") @db.Timestamptz(3)
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  integration           Integration     @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, provider])
+  @@index([accessTokenExpiresAt])
+  @@map("integration_provider_credentials")
+}
+
+model IntegrationOauthState {
+  id              String          @id @db.Uuid
+  organizationId  String          @map("organization_id") @db.Uuid
+  provider         IntegrationType
+  shopDomain       String          @map("shop_domain") @db.VarChar(180)
+  stateHash        String          @unique @map("state_hash") @db.Char(64)
+  createdByUserId  String          @map("created_by_user_id") @db.Uuid
+  expiresAt        DateTime        @map("expires_at") @db.Timestamptz(3)
+  consumedAt       DateTime?       @map("consumed_at") @db.Timestamptz(3)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUser    User            @relation("IntegrationOauthStateCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, provider, expiresAt])
+  @@index([expiresAt, consumedAt])
+  @@map("integration_oauth_states")
+}
+
+model IntegrationCredential {
+  id              String                      @id @db.Uuid
+  integrationId   String                      @map("integration_id") @db.Uuid
+  organizationId  String                      @map("organization_id") @db.Uuid
+  name            String                      @db.VarChar(120)
+  tokenPrefix     String                      @map("token_prefix") @db.VarChar(48)
+  tokenHash       String                      @map("token_hash") @db.VarChar(128)
+  scopes          Json                        @map("scopes_json")
+  status          IntegrationCredentialStatus @default(ACTIVE)
+  expiresAt       DateTime?                   @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt      DateTime?                   @map("last_used_at") @db.Timestamptz(3)
+  createdByUserId String                      @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt       DateTime?                   @map("revoked_at") @db.Timestamptz(3)
+  integration     Integration                 @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser   User                        @relation("IntegrationCredentialCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([integrationId])
+  @@index([organizationId, status])
+  @@index([tokenPrefix])
+  @@index([createdByUserId])
+  @@map("integration_credentials")
+}
+
+model IntegrationEvent {
+  id              String                 @id @db.Uuid
+  integrationId   String                 @map("integration_id") @db.Uuid
+  organizationId  String                 @map("organization_id") @db.Uuid
+  externalEventId String                 @map("external_event_id") @db.VarChar(220)
+  eventType       String                 @map("event_type") @db.VarChar(120)
+  status          IntegrationEventStatus @default(RECEIVED)
+  payload         Json?                  @map("payload_json")
+  processedAt     DateTime?              @map("processed_at") @db.Timestamptz(3)
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  integration     Integration            @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([integrationId, externalEventId])
+  @@index([organizationId, createdAt])
+  @@index([integrationId, status, createdAt])
+  @@index([eventType, createdAt])
+  @@map("integration_events")
+}
+
+model ExternalProductMapping {
+  id                String                       @id @db.Uuid
+  integrationId     String                       @map("integration_id") @db.Uuid
+  organizationId    String                       @map("organization_id") @db.Uuid
+  productId         String                       @map("product_id") @db.Uuid
+  externalProductId String                       @map("external_product_id") @db.VarChar(180)
+  externalVariantId String?                      @map("external_variant_id") @db.VarChar(180)
+  externalSku       String?                      @map("external_sku") @db.VarChar(120)
+  externalHandle    String?                      @map("external_handle") @db.VarChar(220)
+  status            ExternalProductMappingStatus @default(ACTIVE)
+  metadata          Json?                        @map("metadata_json")
+  externalUpdatedAt DateTime?                    @map("external_updated_at") @db.Timestamptz(3)
+  lastSeenAt        DateTime                     @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  integration       Integration                  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  organization      Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  product           Product                      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([integrationId])
+  @@index([organizationId, status])
+  @@index([productId])
+  @@index([integrationId, externalProductId])
+  @@index([integrationId, externalSku])
+  @@index([integrationId, lastSeenAt])
+  @@map("external_product_mappings")
 }
 
 model TryOnShareCapability {

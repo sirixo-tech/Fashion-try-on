@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
+  CircleOffIcon,
   CloudDownloadIcon,
   Edit3Icon,
   ImageIcon,
@@ -69,8 +70,10 @@ import {
   getStore,
   listStoreProducts,
   requestStoreCatalogSync,
+  setImportedProductsVtoEnabled,
   updateStoreProduct,
   type AdminStoreDetail,
+  type BulkImportedProductVtoResponse,
   type JewelleryType,
   type ProductVertical,
   type StoreProduct,
@@ -110,6 +113,8 @@ export default function StoreProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [bulkVtoAction, setBulkVtoAction] = useState<boolean | null>(null);
+  const [bulkVtoBusy, setBulkVtoBusy] = useState(false);
   const [editing, setEditing] = useState<StoreProduct | null>(null);
   const [deleting, setDeleting] = useState<StoreProduct | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -231,6 +236,33 @@ export default function StoreProductsPage() {
     }
   }
 
+  async function applyImportedVtoChange() {
+    if (
+      !accessToken ||
+      !canUpdateProducts ||
+      bulkVtoAction === null ||
+      bulkVtoBusy
+    ) {
+      return;
+    }
+    setBulkVtoBusy(true);
+    setError(null);
+    setSyncMessage(null);
+    try {
+      const result = await setImportedProductsVtoEnabled(accessToken, storeId, {
+        enabled: bulkVtoAction,
+        productVertical,
+      });
+      setSyncMessage(importedVtoMessage(result));
+      setBulkVtoAction(null);
+      await load();
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setBulkVtoBusy(false);
+    }
+  }
+
   return (
     <PageContainer width="wide">
       <PageHeader
@@ -261,6 +293,22 @@ export default function StoreProductsPage() {
             >
               <CloudDownloadIcon aria-hidden="true" />
               {syncBusy ? "Syncing..." : "Sync to Kiosks"}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canUpdateProducts || bulkVtoBusy}
+              onClick={() => setBulkVtoAction(true)}
+            >
+              <CheckCircleIcon aria-hidden="true" />
+              Enable Imported
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canUpdateProducts || bulkVtoBusy}
+              onClick={() => setBulkVtoAction(false)}
+            >
+              <CircleOffIcon aria-hidden="true" />
+              Disable Imported
             </Button>
             <Button
               disabled={!canUpdateProducts}
@@ -392,17 +440,18 @@ export default function StoreProductsPage() {
                 </TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Try-On</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5}>Loading products...</TableCell>
+                  <TableCell colSpan={6}>Loading products...</TableCell>
                 </TableRow>
               ) : products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <div className="flex items-center gap-3 py-10 text-muted-foreground">
                       <PackageIcon size={20} aria-hidden="true" />
                       No {verticalItemLabel} match this view.
@@ -475,6 +524,12 @@ export default function StoreProductsPage() {
                         }
                       />
                     </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={product.vtoEnabled ? "ACTIVE" : "INACTIVE"}
+                        label={product.vtoEnabled ? "Enabled" : "Disabled"}
+                      />
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
@@ -541,7 +596,68 @@ export default function StoreProductsPage() {
         onCancel={() => setDeleting(null)}
         onConfirm={() => void confirmDeleteProduct()}
       />
+      <BulkImportedVtoDialog
+        enabled={bulkVtoAction}
+        busy={bulkVtoBusy}
+        verticalLabel={verticalLabel}
+        onCancel={() => setBulkVtoAction(null)}
+        onConfirm={() => void applyImportedVtoChange()}
+      />
     </PageContainer>
+  );
+}
+
+function BulkImportedVtoDialog({
+  enabled,
+  busy,
+  verticalLabel,
+  onCancel,
+  onConfirm,
+}: {
+  enabled: boolean | null;
+  busy: boolean;
+  verticalLabel: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const enabling = enabled === true;
+  return (
+    <Dialog
+      open={enabled !== null}
+      onOpenChange={(open) => !open && onCancel()}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {enabling
+              ? "Enable imported products for Try-On?"
+              : "Disable imported products for Try-On?"}
+          </DialogTitle>
+          <DialogDescription>
+            {enabling
+              ? "Active imported products with an image will become available for Try-On."
+              : "Imported products in this catalog will no longer be available for Try-On."}{" "}
+            {verticalLabel} on the connected website will not be changed.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            variant={enabling ? "default" : "destructive"}
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            {busy
+              ? "Updating..."
+              : enabling
+                ? "Enable Try-On"
+                : "Disable Try-On"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1111,6 +1227,39 @@ function catalogSyncMessage(updatedDevices: number): string {
     return "This Store has no active kiosks to update.";
   }
   return `Sync requested for ${updatedDevices} active kiosk${updatedDevices === 1 ? "" : "s"}. Online kiosks update on their next heartbeat; offline kiosks update after reconnecting.`;
+}
+
+function importedVtoMessage(result: BulkImportedProductVtoResponse): string {
+  const action = result.enabled ? "enabled" : "disabled";
+  const messages = [
+    result.updatedProducts +
+      " imported product" +
+      (result.updatedProducts === 1 ? "" : "s") +
+      " " +
+      action +
+      " for Try-On.",
+  ];
+  if (
+    result.enabled &&
+    result.eligibleProducts < result.matchedImportedProducts
+  ) {
+    const skipped = result.matchedImportedProducts - result.eligibleProducts;
+    messages.push(
+      skipped +
+        " inactive or imageless product" +
+        (skipped === 1 ? " was" : "s were") +
+        " skipped.",
+    );
+  }
+  if (result.updatedDevices > 0) {
+    messages.push(
+      result.updatedDevices +
+        " active kiosk" +
+        (result.updatedDevices === 1 ? " was" : "s were") +
+        " notified.",
+    );
+  }
+  return messages.join(" ");
 }
 
 function messageFor(caught: unknown): string {

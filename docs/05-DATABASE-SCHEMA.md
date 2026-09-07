@@ -987,9 +987,12 @@ Important fields:
 - `product_id`
 - `external_product_id`
 - `external_variant_id`
-- `external_url`
-- `external_status`
-- `last_synced_at`
+- `external_sku`
+- `external_handle`
+- `status`
+- `metadata_json`
+- `external_updated_at`
+- `last_seen_at`
 - `created_at`
 - `updated_at`
 
@@ -1002,6 +1005,13 @@ Indexes:
 - `integration_id`
 - `product_id`
 - `external_product_id`
+- `(integration_id, last_seen_at)`
+
+`last_seen_at` is the full-snapshot observation marker. Every bounded batch in
+one Shopify/WooCommerce full sync uses the same snapshot timestamp. Missing
+active mappings are archived only when the connector explicitly finalizes that
+snapshot, preventing an interrupted or partially submitted import from
+archiving products that have not been read yet.
 
 ---
 
@@ -1313,6 +1323,7 @@ Important fields:
 - `object_key`
 - `content_type`
 - `size_bytes`
+- `duration_seconds`
 - `created_at`
 
 Indexes:
@@ -1324,15 +1335,20 @@ Rules:
 
 - assets are ordered by `sort_order`;
 - bundled assets refer to a kiosk app asset key such as
-  `selfx-default-kiosk-wallpaper`;
-- remote image assets must use validated HTTPS URLs and must not use `file:`,
+  `selfx-default-kiosk-video` or `selfx-default-kiosk-wallpaper`;
+- remote image/video assets must use validated HTTPS URLs and must not use `file:`,
   `javascript:`, `data:`, localhost or internal network hosts;
-- uploaded image assets store a SelfX object-storage key and content metadata;
+- uploaded image/video assets store a SelfX object-storage key and content metadata;
   runtime configuration responses expose a short-lived signed read URL rather
   than a permanent public URL;
+- uploaded video assets must store validated duration metadata and may not
+  exceed 60 seconds;
+- Store/kiosk configuration validates bounded video and wallpaper slot counts;
 - kiosks download remote assets before activating a new configuration and
   continue offline with the last valid local cache, or bundled defaults if no
-  cache exists.
+  cache exists;
+- kiosks cache downloaded media by stable asset identity so rotated signed read
+  URLs do not redownload unchanged videos or wallpapers.
 
 ---
 
@@ -1648,20 +1664,22 @@ Rules:
 
 ## 13.1 `integrations`
 
-Represents Shopify/WooCommerce/future connections.
+Represents Shopify/WooCommerce/future connections. INTEGRATIONS-1 creates the
+shared connection spine before platform-specific OAuth, product sync and
+storefront UI are implemented.
 
 Important fields:
 
 - `id`
 - `organization_id`
-- `integration_type`
+- `type`
 - `external_account_id`
-- `display_name`
+- `external_account_name`
 - `status`
-- `encrypted_credentials` or secure secret reference
-- `last_synced_at`
-- `last_reconciled_at`
-- `last_error_code`
+- `metadata_json`
+- `connected_at`
+- `disconnected_at`
+- `created_by_user_id`
 - `created_at`
 - `updated_at`
 
@@ -1673,12 +1691,41 @@ Possible types:
 Indexes:
 
 - `organization_id`
-- `integration_type`
+- `type`
 - `(organization_id, status)`
 
 ---
 
-## 13.2 `integration_events`
+## 13.2 `integration_credentials`
+
+Stores plugin/app credentials for one Store integration. The raw token is shown
+only once and SelfX stores only the hash.
+
+Important fields:
+
+- `id`
+- `integration_id`
+- `organization_id`
+- `name`
+- `token_prefix`
+- `token_hash`
+- `scopes_json`
+- `status`
+- `expires_at`
+- `last_used_at`
+- `created_by_user_id`
+- `created_at`
+- `revoked_at`
+
+Indexes:
+
+- `integration_id`
+- `(organization_id, status)`
+- `token_prefix`
+
+---
+
+## 13.3 `integration_events`
 
 Tracks inbound external webhook events for idempotency.
 
@@ -1686,12 +1733,14 @@ Important fields:
 
 - `id`
 - `integration_id`
+- `organization_id`
 - `external_event_id`
 - `event_type`
-- `received_at`
-- `processed_at`
 - `status`
-- `error_code`
+- `payload_json`
+- `processed_at`
+- `created_at`
+- `updated_at`
 
 Constraint:
 
@@ -1699,7 +1748,50 @@ Constraint:
 
 ---
 
-## 13.3 `webhook_endpoints`
+## 13.4 `integration_provider_credentials`
+
+Stores retrievable commerce-provider credentials separately from hashed SelfX
+plugin tokens. Access and rotating refresh tokens are serialized into one
+AES-256-GCM encrypted payload; plaintext tokens must never be stored or returned
+to the browser.
+
+Important fields:
+
+- `integration_id` unique
+- `organization_id`
+- `provider`
+- `encrypted_payload`
+- `initialization_vector`
+- `authentication_tag`
+- `key_version`
+- `scopes_json`
+- `access_token_expires_at`
+- `refresh_token_expires_at`
+- `created_at`
+- `updated_at`
+
+---
+
+## 13.5 `integration_oauth_states`
+
+Short-lived, single-use OAuth state records bind an authorized SelfX user,
+Store, provider and canonical shop domain to one installation attempt. Only the
+SHA-256 state hash is persisted.
+
+Important fields:
+
+- `organization_id`
+- `provider`
+- `shop_domain`
+- `state_hash` unique
+- `created_by_user_id`
+- `expires_at`
+- `consumed_at`
+- `created_at`
+
+---
+
+## 13.6 `webhook_endpoints`
 
 Public API webhook configuration.
 

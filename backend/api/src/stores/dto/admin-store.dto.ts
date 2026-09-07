@@ -48,6 +48,14 @@ export class RequestStoreCatalogSyncDto {
   productVertical!: ProductVertical;
 }
 
+export class BulkImportedProductVtoDto {
+  @IsBoolean()
+  enabled!: boolean;
+
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical!: ProductVertical;
+}
+
 export class AdminStoreListQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -590,6 +598,26 @@ export class StoreProductListResponseDto {
     totalPages: number;
     hasMore: boolean;
   };
+}
+
+export class BulkImportedProductVtoResponseDto {
+  @ApiProperty()
+  enabled!: boolean;
+
+  @ApiProperty({ enum: PRODUCT_VERTICALS })
+  productVertical!: ProductVertical;
+
+  @ApiProperty()
+  matchedImportedProducts!: number;
+
+  @ApiProperty()
+  eligibleProducts!: number;
+
+  @ApiProperty()
+  updatedProducts!: number;
+
+  @ApiProperty()
+  updatedDevices!: number;
 }
 
 export class StoreProductImageUploadIntentDto {

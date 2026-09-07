@@ -1,5 +1,5 @@
-import { ModulePlaceholder } from "@/components/module-placeholder";
+import { IntegrationSettingsPage } from "@/components/integration-settings-page";
 
 export default function ShopifyIntegrationPage() {
-  return <ModulePlaceholder title="Shopify" />;
+  return <IntegrationSettingsPage type="SHOPIFY" title="Shopify" />;
 }

@@ -226,6 +226,7 @@ class KioskRuntimeAsset {
     required this.label,
     this.url,
     this.bundledAssetKey,
+    this.assetRef,
     this.contentType,
     this.localImagePath,
     this.assetImagePath,
@@ -234,6 +235,7 @@ class KioskRuntimeAsset {
 
   factory KioskRuntimeAsset.fromJson(Map<String, dynamic> json) {
     final bundledAssetKey = _nullableString(json['bundledAssetKey']);
+    final assetRef = _nullableString(json['assetRef']);
     final localImagePath = _nullableString(json['localImagePath']);
     final assetVideoPath = _nullableString(json['assetVideoPath']);
     final contentType = _nullableString(json['contentType']);
@@ -253,6 +255,7 @@ class KioskRuntimeAsset {
       label: _string(json, 'label', 'Kiosk presentation image'),
       url: _nullableString(json['url']),
       bundledAssetKey: bundledAssetKey,
+      assetRef: assetRef,
       contentType: contentType,
       localImagePath: runtimeType == RuntimeKioskAssetType.remoteImage
           ? localImagePath
@@ -273,6 +276,7 @@ class KioskRuntimeAsset {
   final String label;
   final String? url;
   final String? bundledAssetKey;
+  final String? assetRef;
   final String? contentType;
   final String? localImagePath;
   final String? assetImagePath;
@@ -285,6 +289,7 @@ class KioskRuntimeAsset {
       label: label,
       url: url,
       bundledAssetKey: bundledAssetKey,
+      assetRef: assetRef,
       contentType: contentType,
       localImagePath: type.isImage ? path : null,
       assetVideoPath: type.isVideo ? path : assetVideoPath,
@@ -298,6 +303,7 @@ class KioskRuntimeAsset {
       'label': label,
       'url': url,
       'bundledAssetKey': bundledAssetKey,
+      'assetRef': assetRef,
       'contentType': contentType,
       'localImagePath': localImagePath,
       'assetVideoPath': assetVideoPath,

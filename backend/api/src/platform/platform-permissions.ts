@@ -17,6 +17,8 @@ export const PLATFORM_PERMISSIONS = {
   platformProductsView: "PLATFORM_PRODUCTS_VIEW",
   platformProductsManage: "PLATFORM_PRODUCTS_MANAGE",
   usageView: "USAGE_VIEW",
+  integrationsView: "INTEGRATIONS_VIEW",
+  integrationsManage: "INTEGRATIONS_MANAGE",
   developerApiView: "DEVELOPER_API_VIEW",
   developerApiManage: "DEVELOPER_API_MANAGE",
   permissionsView: "PERMISSIONS_VIEW",
@@ -172,6 +174,23 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
       action: "view",
       label: "View Usage & Billing",
       description: "View privacy-safe usage and billing rollups.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.integrationsView,
+      module: "platform.integrations",
+      action: "view",
+      label: "View Integrations",
+      description: "View Store integration status across SelfX.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.integrationsManage,
+      module: "platform.integrations",
+      action: "manage",
+      label: "Manage Integrations",
+      description:
+        "Connect, disconnect and create Store integration credentials.",
       applicability: "PLATFORM_ONLY",
     },
     {

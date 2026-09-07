@@ -1372,13 +1372,17 @@ Implemented scope:
 - `session/me` and heartbeat version discovery through
   `latestConfigurationVersion` without returning the full configuration body;
 - validated display, capture and experience configuration fields;
-- validated HTTPS, uploaded object-storage or bundled presentation image
+- validated HTTPS, uploaded object-storage or bundled presentation image/video
   references;
-- SaaS presentation image upload intent API and web upload control for static
-  and slideshow kiosk presentation imagery;
+- SaaS presentation image/video upload intent API and Store/fleet web upload
+  controls for static and slideshow kiosk presentation media;
+- bundled SelfX default video fallback for newly connected kiosks, with
+  Store-assigned kiosk playlists overriding it after Store media is saved;
+- uploaded presentation video duration limited to 60 seconds, with bounded
+  video and wallpaper slot counts;
 - Flutter runtime configuration parsing, non-secret local cache, asset download
-  before activation and offline fallback to the last valid cache or bundled
-  defaults;
+  before activation, stable asset-identity cache reuse and offline fallback to
+  the last valid cache or bundled defaults;
 - customer home presentation, capture countdown/sound settings and enabled
   garment intent category buttons use the active runtime configuration;
 - operator Display settings show safe remote/cache/fallback sync status.
@@ -2240,22 +2244,58 @@ An external organization can integrate VTO without accessing internal admin APIs
 
 # 22. Phase 18 — Shopify Integration
 
-**Status:** PLANNED
+**Status:** WEBHOOKS PARTIAL
 
 ### Goal
 
 Integrate SelfX with Shopify while leaving Shopify commerce intact.
 
+INTEGRATIONS-1 creates the shared Store integration registry, plugin
+credentials, integration event table and external product mapping table used by
+both Shopify and WooCommerce. Plugin credentials can authenticate to SelfX with
+`x-selfx-integration-token` or `Authorization: Bearer` and inspect their safe
+Store/integration context at `GET /api/v1/integrations/me`. The shared one-way
+catalog ingestion endpoint at `POST /api/v1/integrations/catalog/sync` accepts
+incremental or full normalized product snapshots under the `catalog:sync`
+scope. The initial read-only Shopify connector now queries all products and
+variants through cursor pagination, normalizes them into this contract and
+submits bounded full-snapshot batches. A snapshot is finalized only after all
+pages were submitted, so a failed partial import cannot archive products that
+were not reached. Shopify remains authoritative: synchronization changes only
+SelfX's local Try-On reference data, preserves SelfX-owned VTO configuration,
+rejects stale source updates and provides no Shopify write-back capability.
+The Store dashboard now starts the Shopify authorization-code flow with only
+`read_products`. SelfX validates callback HMAC and single-use state, stores
+expiring offline access/refresh tokens encrypted at rest, refreshes tokens before
+manual sync, and automatically starts the first full catalog sync. Shopify
+product create/update/delete webhooks now use exact-body HMAC verification,
+durable webhook-ID deduplication and the same shared catalog ingestion path.
+Create/update notifications fetch the complete current product through the
+read-only Admin API before importing it; deletes archive only the local SelfX
+reference. App uninstall disconnects the integration, removes provider
+credentials, revokes plugin credentials and archives imported local references.
+Scheduled reconciliation, Theme App Extension and storefront Try-On UI remain
+planned.
+
 ### Implement
 
-- installable Shopify app
-- authorization/install flow
-- integration record
-- initial catalog sync
-- product/variant mapping
-- product webhooks
+- installable Shopify app (SelfX authorization/callback side implemented;
+  Shopify Dev Dashboard registration/deployment configuration remains)
+- authorization/install flow (implemented with read-only expiring offline
+  credentials)
+- integration record (foundation implemented)
+- integration credentials (foundation implemented)
+- plugin token authentication (foundation implemented)
+- initial catalog sync (read-only Shopify connector and shared ingestion
+  endpoint implemented)
+- product/variant mapping (Shopify normalization and shared one-way mapping
+  implemented)
+- product webhooks (implemented with signed, retry-safe incremental sync)
+- app uninstall webhook (implemented with credential cleanup and local catalog
+  archival)
 - reconciliation
-- VTO eligibility management
+- VTO eligibility management (Store-scoped bulk enable/disable for imported
+  products implemented; active, imaged products can be enabled together)
 - Theme App Extension
 - customer Try-On UI
 
@@ -2263,15 +2303,16 @@ Integrate SelfX with Shopify while leaving Shopify commerce intact.
 
 Implement/refine:
 
-- integrations
-- integration_events
-- external_product_mappings
+- integrations (foundation implemented)
+- integration_credentials (foundation implemented)
+- integration_events (foundation implemented)
+- external_product_mappings (foundation implemented)
 
 ### Tests
 
 - install/uninstall
-- product create/update/delete sync
-- webhook authenticity
+- product create/update/delete sync (implemented)
+- webhook authenticity and duplicate-delivery handling (implemented)
 - missed-webhook reconciliation
 - merchant tenant isolation
 - Shopify checkout remains unchanged
@@ -2284,21 +2325,33 @@ A Shopify merchant can install SelfX and enable Try-On on selected products.
 
 # 23. Phase 19 — WooCommerce Integration
 
-**Status:** PLANNED
+**Status:** FOUNDATION PARTIAL
 
 ### Goal
 
 Integrate SelfX with WooCommerce using a dedicated plugin.
 
+WooCommerce uses the same INTEGRATIONS-1 foundation as Shopify. The dedicated
+WordPress plugin can use SelfX plugin credentials to authenticate with
+`x-selfx-integration-token` or `Authorization: Bearer` and inspect its safe
+Store/integration context at `GET /api/v1/integrations/me`. WooCommerce can
+send normalized incremental or full snapshots to the shared one-way
+`POST /api/v1/integrations/catalog/sync` endpoint. WooCommerce remains the
+commerce source of truth, and the endpoint has no WooCommerce write-back
+capability. Plugin packaging, signed webhooks, scheduled reconciliation and
+storefront Try-On UI remain planned.
+
 ### Implement
 
 - WordPress/WooCommerce plugin
-- SelfX connection flow
-- product synchronization
-- external mappings
+- SelfX connection flow (foundation implemented in SelfX dashboard/API)
+- plugin token authentication (foundation implemented)
+- product synchronization (shared ingestion endpoint implemented)
+- external mappings (shared one-way mapping implemented)
 - signed webhook handling
 - reconciliation
-- VTO eligibility
+- VTO eligibility (shared Store-scoped bulk imported-product action
+  implemented)
 - storefront Try-On UI
 
 ### Tests

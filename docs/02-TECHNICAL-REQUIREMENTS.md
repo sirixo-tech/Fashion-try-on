@@ -1782,9 +1782,12 @@ Protected route coverage:
      increments a monotonic per-device version. The bundled default
      configuration is version `1`;
    - configuration includes idle presentation mode, slide duration, text/CTA,
-     ordered presentation image references, capture countdown, capture sound
-     settings, guidance-audio flag, enabled garment intents and session idle
-     timeout;
+     ordered presentation image/video references, capture countdown, capture
+     sound settings, guidance-audio flag, enabled garment intents and session
+     idle timeout;
+   - the bundled SelfX default video is the version `1` local/offline
+     presentation for newly connected kiosks until a Store-assigned kiosk has a
+     Store-managed presentation playlist;
    - Flutter loads the last valid non-secret cached configuration before remote
      sync and atomically activates a newer configuration only after presentation
      assets are valid and locally available;
@@ -1792,9 +1795,15 @@ Protected route coverage:
      SelfX defaults if no cache exists;
    - remote presentation image references must be HTTPS and must not target
      local/internal hosts or unsafe URL schemes;
-   - SaaS presentation image uploads use the SelfX object-storage presign
-     flow, persist an object key on the kiosk configuration asset and expose
-     short-lived signed read URLs through the kiosk runtime configuration;
+   - SaaS presentation image/video uploads use the SelfX object-storage presign
+     flow, persist an object key plus content metadata on the kiosk
+     configuration asset and expose short-lived signed read URLs through the
+     kiosk runtime configuration;
+   - uploaded presentation videos are limited to one minute, and Store/kiosk
+     playlist updates validate bounded video and wallpaper slot counts;
+   - Flutter caches downloaded presentation media by stable asset identity,
+     reuses unchanged media across configuration versions and downloads new
+     media only when a replacement video or wallpaper is referenced;
    - camera preference remains local device configuration until certified kiosk
      hardware provides stable cross-platform camera identifiers.
 
@@ -1833,7 +1842,7 @@ Protected route coverage:
     initial verticals are `GARMENT` and `JEWELLERY`.
     "Store product", "site product" and "catalog product" refer to the same
     canonical SelfX product concept whether the record is SelfX-native,
-    synchronized from a future Shopify integration, synchronized from a future
+    synchronized from the Shopify integration, synchronized from a future
     WooCommerce integration, or created through a future approved API. CORE
     VTO-1.2 only defines these source semantics for Try-On policy resolution;
     it does not implement catalog persistence or commerce synchronization.
@@ -1853,6 +1862,12 @@ Protected route coverage:
     product URL
     product status
     SelfX stores the normalized representation required for VTO and mapping.
+    Commerce integration synchronization is one-way from Shopify/WooCommerce
+    into SelfX. Integration credentials do not grant SelfX permission to edit
+    commerce products, inventory, prices, orders, customers, checkout, or site
+    settings. Commerce-owned snapshot fields may be refreshed or archived in
+    SelfX, while SelfX-owned VTO eligibility and garment configuration are not
+    writable through catalog synchronization.
     SelfX is not initially a full POS, inventory, checkout, order, tax, or shipping system.
 
     Garment product categories are catalog-facing sorting/filtering semantics
@@ -1900,6 +1915,26 @@ Protected route coverage:
     The storefront Try-On experience should use supported Shopify extension mechanisms such as a Theme App Extension.
     Catalog integration should use:
     Initial sync + incremental webhooks + periodic reconciliation
+    The initial read-only connector uses Shopify's versioned GraphQL Admin API,
+    product/variant cursor pagination and product-read access. It normalizes
+    Shopify records into the shared SelfX catalog sync contract and submits
+    bounded full-snapshot batches. The connector sends a distinct finalization
+    request only after every Shopify page was submitted; incomplete snapshots
+    must not archive mappings that were not seen yet.
+    Shopify Admin tokens remain server-side and must not be exposed through a
+    storefront extension or browser bundle. The install flow uses a short-lived,
+    single-use OAuth state, validates Shopify callback HMAC, requests only
+    `read_products`, and encrypts expiring offline access/refresh credentials at
+    rest. Access tokens are refreshed before catalog sync when near expiry.
+    Signed product create/update/delete webhooks and app-uninstall handling are
+    implemented at `/api/v1/integrations/shopify/webhooks`. SelfX verifies the
+    HMAC against the exact raw body before trusting headers or payload, records
+    Shopify webhook IDs for retry-safe processing and reads the complete current
+    product through the read-only Admin API before incremental normalization.
+    Product deletion archives only SelfX's local reference. App uninstall
+    disconnects the integration, removes provider credentials, revokes plugin
+    credentials and archives imported local catalog references. Scheduled
+    reconciliation remains a separate implementation step.
     Products require explicit VTO eligibility/configuration before Try-On is exposed.
     SelfX adds the Try-On experience.
     Shopify retains:

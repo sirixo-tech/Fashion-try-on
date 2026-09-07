@@ -236,25 +236,20 @@ PageContainer
 
 Main screen areas:
 
-- subtle Internal Lab badge/notice near the page heading;
-- passive authorized-use notice: "Internal testing only. Upload only images you
-  are authorized to process.";
-- Images section;
-- person-image upload and preview;
-- garment-image upload and preview;
-- OpenCV.js quality preflight results for each image;
-- Generate Try-On section;
-- concise message: "Try-On settings are selected automatically.";
-- automatic garment intent/photo type/profile summary;
-- collapsed Advanced settings area for internal Lab overrides only;
+- truthful Inputs needed, Checking images, Ready to run, Creating Try-On,
+  Completed or Failed status near the page heading;
+- one responsive Inputs workspace with person and garment upload/preview panels;
+- OpenCV.js quality preflight results inside each image panel;
+- a capture-guidance band using normal SelfX language;
 - optional ambiguity modal when the garment image appears to contain multiple
   clothing areas;
-- Generate Try-On action at the end of the Generate Try-On section;
-- Result section;
-- generation state and stable SelfX run ID;
-- compact provider-neutral generation details;
-- responsive comparison of original person image, garment image and generated
-  result;
+- Generate Try-On and New Try-On actions at the end of the Inputs workspace;
+- a compact action-level reminder that the tester must be authorized to use the
+  selected images;
+- a separate responsive Try-On Result rail for idle, processing, failed and
+  completed output states;
+- the two source previews remain beside the generated result on wide screens,
+  providing a compact comparison without a second full-width result section;
 - Try Another Garment and New Try-On actions.
 
 OpenCV.js must be lazy-loaded only when this lab is used. UI quality messages
@@ -312,8 +307,10 @@ Replacing the garment image clears stale analysis, disambiguation and internal
 override state. FULL_OUTFIT is a provider-neutral intent distinct from
 ONE_PIECE.
 
-The internal Lab does not use a customer-style consent checkbox. It uses the
-authorized-use notice above because it is a guarded staff/development tool.
+The internal Lab does not use a customer-style consent checkbox. A compact
+authorized-use reminder remains beside the generation action because this is a
+guarded staff/development tool. Automatic policy resolution remains internal and
+is not exposed through a settings summary or Advanced settings controls.
 Customer web, mobile and kiosk experiences still require consent before camera
 access, customer photo upload or AI processing.
 
@@ -327,15 +324,11 @@ Generated Try-On. Tablet and mobile layouts may stack responsively. Clicking an
 image opens a larger SelfX dialog preview. No before/after slider is included
 in CORE VTO-1.1.
 
-After a run, the default Lab view shows a compact run summary and prioritizes
-the result comparison. Technical provider/model/resolution telemetry is
-collapsed by default under Run diagnostics. That diagnostic disclosure may show
-status, provider display name, model, profile, garment source, garment intent,
-garment category, garment photo type, resolution sources, analysis body
-coverage/confidence, elapsed time, quality warnings, disambiguation state and
-whether the quality override was accepted. It must not show FASHN API keys,
-provider Authorization headers, Base64 payloads, raw image contents, internal
-stack traces or provider prediction IDs in normal Lab UI.
+After a run, the default Lab view prioritizes the result and source-image
+comparison. The normal Lab interface does not disclose provider identity,
+model names, request identifiers, timestamps, raw failure codes or provider
+telemetry. Operational telemetry remains available to authorized backend
+logging and diagnostics rather than being displayed in this workflow.
 
 Try Another Garment preserves the person image and clears garment, garment
 quality, prior result and run state. New Try-On clears person, garment, result,
@@ -1040,6 +1033,8 @@ Use clear warning/confirmation states for access removal or suspension.
   is inherited from Platform Settings
 - open product
 - enable/disable VTO
+- bulk enable or disable imported products for VTO by product vertical;
+  enabling includes only active imported products with a usable image
 - sync/retry where appropriate
 
 ---
@@ -1056,6 +1051,10 @@ Recommended sections:
 - Integration Sync Status
 
 Commerce fields imported from Shopify/WooCommerce should be visually identified as externally managed where appropriate.
+Bulk imported-product VTO actions change only SelfX eligibility. They must not
+change the product or its status on Shopify/WooCommerce, must be confirmed
+before execution and should report skipped inactive/imageless products and
+notified kiosks.
 
 ---
 
@@ -1148,8 +1147,12 @@ Editable fields:
 - idle mode: static or slideshow;
 - slide duration, 3-60 seconds;
 - presentation title, subtitle and CTA label;
-- ordered presentation images using bundled asset keys, uploaded SelfX
-  object-storage images or validated HTTPS image URLs;
+- ordered presentation images/videos using bundled asset keys, uploaded SelfX
+  object-storage media or validated HTTPS image URLs;
+- Store-assigned kiosk presentation slots for videos and wallpapers. The
+  bundled SelfX default video remains the fallback until Store media is saved;
+- uploaded video duration validation with clear feedback when a video exceeds
+  one minute;
 - capture countdown: 5, 10 or 15 seconds;
 - capture sounds enabled and sound profile;
 - guidance audio enabled;

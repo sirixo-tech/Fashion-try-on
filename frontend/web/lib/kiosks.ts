@@ -52,6 +52,7 @@ export type KioskConfiguration = {
       assetRef: string | null;
       contentType: string | null;
       sizeBytes: number | null;
+      durationSeconds: number | null;
       sortOrder: number;
     }>;
   };
@@ -73,6 +74,7 @@ export type KioskConfiguration = {
     supported: boolean;
     maxImageBytes: number;
     maxVideoBytes: number;
+    maxVideoDurationSeconds: number;
     supportedContentTypes: string[];
   };
   captureUpload: {
@@ -97,6 +99,7 @@ export type KioskConfigurationUpdateInput = {
       assetRef?: string;
       contentType?: string;
       sizeBytes?: number;
+      durationSeconds?: number;
     }>;
   };
   capture: {
@@ -311,6 +314,7 @@ export type KioskConfigurationAssetUploadIntent = {
   headers: Record<string, string>;
   maxImageBytes: number;
   maxVideoBytes: number;
+  maxVideoDurationSeconds: number;
   supportedContentTypes: string[];
 };
 
@@ -320,6 +324,7 @@ export function createKioskConfigurationAssetUploadIntent(
   input: {
     contentType: string;
     sizeBytes: number;
+    durationSeconds?: number;
     fileName?: string;
   },
 ): Promise<KioskConfigurationAssetUploadIntent> {

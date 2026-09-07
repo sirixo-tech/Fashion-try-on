@@ -48,6 +48,8 @@ import {
   AdminStoreListQueryDto,
   AdminStoreListResponseDto,
   AdminStoreResponseDto,
+  BulkImportedProductVtoDto,
+  BulkImportedProductVtoResponseDto,
   CreateAdminStoreDto,
   CreateStoreProductDto,
   CreateStoreProductImageUploadDto,
@@ -273,6 +275,39 @@ export class AdminStoresController {
       storeId,
       dto.productVertical,
     );
+  }
+
+  @Patch(":storeId/products/imported/vto")
+  @ApiOperation({
+    summary: "Bulk enable or disable imported products for Try-On",
+    description:
+      "Changes only SelfX VTO eligibility for products imported into this Store. Enabling includes active imported products with an image and does not modify the commerce platform.",
+  })
+  @ApiOkResponse({ type: BulkImportedProductVtoResponseDto })
+  async setImportedProductVto(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: BulkImportedProductVtoDto,
+  ): Promise<BulkImportedProductVtoResponseDto> {
+    const user = await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      STORE_PERMISSION_CODES.storesUpdate,
+    );
+    const result = await this.stores.setImportedProductsVtoEnabled(
+      storeId,
+      dto,
+    );
+    const refresh =
+      result.updatedProducts > 0
+        ? await this.configurations.requestStoreCatalogSync(
+            user.id,
+            storeId,
+            dto.productVertical,
+          )
+        : { updatedDevices: 0 };
+    return { ...result, updatedDevices: refresh.updatedDevices };
   }
 
   @Patch(":storeId/products/:productId")

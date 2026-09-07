@@ -9,6 +9,7 @@ import { DeveloperApiModule } from "./developer-api/developer-api.module.js";
 
 const PUBLIC_API_PATH_PREFIX = "/api/v1/public";
 const PUBLIC_API_SECURITY_SCHEME = "SelfXApiKey";
+const INTEGRATION_API_SECURITY_SCHEME = "SelfXIntegrationToken";
 
 export function setupOpenApiDocs(app: INestApplication): {
   internal: OpenAPIObject;
@@ -21,6 +22,16 @@ export function setupOpenApiDocs(app: INestApplication): {
       .setDescription("SelfX Virtual Try-On API")
       .setVersion("1.0")
       .addBearerAuth()
+      .addApiKey(
+        {
+          type: "apiKey",
+          in: "header",
+          name: "x-selfx-integration-token",
+          description:
+            "Preferred Shopify/WooCommerce plugin credential header. Authorization: Bearer is also supported.",
+        },
+        INTEGRATION_API_SECURITY_SCHEME,
+      )
       .build(),
   );
   SwaggerModule.setup("api/docs", app, internal);
@@ -62,7 +73,10 @@ function buildPublicApiOpenApiDocument(app: INestApplication): OpenAPIObject {
     },
   );
 
-  return filterOpenApiDocument(fullPublicModuleDocument, PUBLIC_API_PATH_PREFIX);
+  return filterOpenApiDocument(
+    fullPublicModuleDocument,
+    PUBLIC_API_PATH_PREFIX,
+  );
 }
 
 function filterOpenApiDocument(
@@ -86,13 +100,13 @@ function filterOpenApiDocument(
     components: {
       ...document.components,
       securitySchemes: {
-        [PUBLIC_API_SECURITY_SCHEME]:
-          document.components?.securitySchemes?.[PUBLIC_API_SECURITY_SCHEME] ??
-          {
-            type: "apiKey",
-            in: "header",
-            name: "x-selfx-api-key",
-          },
+        [PUBLIC_API_SECURITY_SCHEME]: document.components?.securitySchemes?.[
+          PUBLIC_API_SECURITY_SCHEME
+        ] ?? {
+          type: "apiKey",
+          in: "header",
+          name: "x-selfx-api-key",
+        },
       },
       schemas: pruneSchemas(document.components?.schemas ?? {}, paths),
     },

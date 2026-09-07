@@ -280,7 +280,9 @@ describe("STORE-1 admin Stores", () => {
   it("deletes only the requested Store product and removes its stored image", async () => {
     const prisma = createPrismaMock();
     const storage = {
-      createReadUrl: vi.fn().mockReturnValue("https://cdn.example/product.webp"),
+      createReadUrl: vi
+        .fn()
+        .mockReturnValue("https://cdn.example/product.webp"),
       deleteObject: vi.fn().mockResolvedValue(undefined),
     };
     const service = new AdminStoresService(
@@ -312,6 +314,116 @@ describe("STORE-1 admin Stores", () => {
     expect(storage.deleteObject).toHaveBeenCalledWith(
       "stores/store-1/products/product-1.webp",
     );
+  });
+
+  it("bulk enables only active imported Store products with an image", async () => {
+    const prisma = createPrismaMock();
+    prisma.organization.findUnique.mockResolvedValue(
+      organizationRecord({ id: "store-1" }),
+    );
+    prisma.product.count
+      .mockResolvedValueOnce(1_000)
+      .mockResolvedValueOnce(940);
+    prisma.product.updateMany.mockResolvedValue({ count: 935 });
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+    );
+
+    const result = await service.setImportedProductsVtoEnabled("store-1", {
+      enabled: true,
+      productVertical: "GARMENT",
+    });
+
+    expect(result).toEqual({
+      enabled: true,
+      productVertical: "GARMENT",
+      matchedImportedProducts: 1_000,
+      eligibleProducts: 940,
+      updatedProducts: 935,
+    });
+    expect(prisma.product.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        organizationId: "store-1",
+        scope: "STORE",
+        productVertical: "GARMENT",
+        active: true,
+        vtoEnabled: { not: true },
+        externalMappings: {
+          some: {
+            organizationId: "store-1",
+            externalVariantId: null,
+            status: "ACTIVE",
+          },
+        },
+        OR: [{ imageStorageKey: { not: null } }, { imageUrl: { not: null } }],
+      }),
+      data: { vtoEnabled: true },
+    });
+  });
+
+  it("bulk disables imported products without matching native or other-Store products", async () => {
+    const prisma = createPrismaMock();
+    prisma.organization.findUnique.mockResolvedValue(
+      organizationRecord({ id: "store-1" }),
+    );
+    prisma.product.count.mockResolvedValueOnce(50).mockResolvedValueOnce(50);
+    prisma.product.updateMany.mockResolvedValue({ count: 48 });
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+    );
+
+    await service.setImportedProductsVtoEnabled("store-1", {
+      enabled: false,
+      productVertical: "JEWELLERY",
+    });
+
+    expect(prisma.product.updateMany).toHaveBeenCalledWith({
+      where: {
+        scope: "STORE",
+        organizationId: "store-1",
+        productVertical: "JEWELLERY",
+        externalMappings: {
+          some: {
+            organizationId: "store-1",
+            externalVariantId: null,
+            status: "ACTIVE",
+          },
+        },
+        vtoEnabled: { not: false },
+      },
+      data: { vtoEnabled: false },
+    });
+  });
+
+  it("blocks bulk imported-product changes for an inactive Store", async () => {
+    const prisma = createPrismaMock();
+    prisma.organization.findUnique.mockResolvedValue(
+      organizationRecord({
+        id: "store-1",
+        status: OrganizationStatus.SUSPENDED,
+      }),
+    );
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+    );
+
+    await expectApiCode(
+      service.setImportedProductsVtoEnabled("store-1", {
+        enabled: true,
+        productVertical: "GARMENT",
+      }),
+      STORE_ERROR_CODES.storeInactive,
+    );
+    expect(prisma.product.updateMany).not.toHaveBeenCalled();
   });
 
   it("maps duplicate internal slugs to a Store slug conflict", async () => {
@@ -448,6 +560,88 @@ describe("STORE-1 admin Stores", () => {
       "kiosk-a",
     );
   });
+
+  it("requires Store update permission and refreshes kiosks after a bulk imported-product change", async () => {
+    const stores = {
+      setImportedProductsVtoEnabled: vi.fn().mockResolvedValue({
+        enabled: true,
+        productVertical: "GARMENT",
+        matchedImportedProducts: 1_000,
+        eligibleProducts: 940,
+        updatedProducts: 935,
+      }),
+    };
+    const configurations = {
+      requestStoreCatalogSync: vi.fn().mockResolvedValue({
+        updatedDevices: 4,
+      }),
+    };
+    const rbac = createRbacMock();
+    const controller = new AdminStoresController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "store-user" }),
+      } as never,
+      {
+        hasPermission: vi.fn().mockResolvedValue(false),
+      } as never,
+      stores as never,
+      configurations as never,
+      rbac as never,
+    );
+
+    await expect(
+      controller.setImportedProductVto(
+        { headers: { authorization: "Bearer store" } } as never,
+        "store-1",
+        { enabled: true, productVertical: "GARMENT" },
+      ),
+    ).resolves.toMatchObject({
+      updatedProducts: 935,
+      updatedDevices: 4,
+    });
+    expect(rbac.requireStorePermission).toHaveBeenCalledWith(
+      "store-user",
+      "store-1",
+      "stores.update",
+    );
+    expect(configurations.requestStoreCatalogSync).toHaveBeenCalledWith(
+      "store-user",
+      "store-1",
+      "GARMENT",
+    );
+  });
+
+  it("does not refresh kiosks when a bulk action changes no products", async () => {
+    const configurations = { requestStoreCatalogSync: vi.fn() };
+    const controller = new AdminStoresController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "platform-user" }),
+      } as never,
+      {
+        hasPermission: vi.fn().mockResolvedValue(true),
+      } as never,
+      {
+        setImportedProductsVtoEnabled: vi.fn().mockResolvedValue({
+          enabled: false,
+          productVertical: "GARMENT",
+          matchedImportedProducts: 20,
+          eligibleProducts: 20,
+          updatedProducts: 0,
+        }),
+      } as never,
+      configurations as never,
+      createRbacMock() as never,
+    );
+
+    await expect(
+      controller.setImportedProductVto(
+        { headers: { authorization: "Bearer platform" } } as never,
+        "store-1",
+        { enabled: false, productVertical: "GARMENT" },
+      ),
+    ).resolves.toMatchObject({ updatedDevices: 0 });
+    expect(configurations.requestStoreCatalogSync).not.toHaveBeenCalled();
+  });
 });
 
 function createPrismaMock() {
@@ -458,6 +652,10 @@ function createPrismaMock() {
     kioskDevice: {
       findUnique: vi.fn(),
       update: vi.fn(),
+    },
+    product: {
+      count: vi.fn(),
+      updateMany: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -476,6 +674,10 @@ function createPrismaMock() {
       findUnique: vi.fn(),
       groupBy: vi.fn().mockResolvedValue([]),
       update: vi.fn(),
+    },
+    product: {
+      count: vi.fn(),
+      updateMany: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
