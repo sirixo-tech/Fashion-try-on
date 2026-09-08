@@ -25,6 +25,7 @@ import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/session/temporary_capture_store.dart';
 import 'package:selfx_kiosk/src/settings/camera_settings_store.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_jewellery_capture_requirements.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_gateway.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
@@ -35,8 +36,126 @@ import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_gateway.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_models.dart';
 import 'package:selfx_kiosk/src/ui/mobile_upload_screen.dart';
+import 'package:selfx_kiosk/src/ui/camera_capture_screen.dart';
+import 'package:selfx_kiosk/src/ui/try_on_generation_screen.dart';
 
 void main() {
+  testWidgets(
+    'jewellery phone upload keeps selected product through generation',
+    (tester) async {
+      final gateway = JewellerySessionGateway();
+      final tryOn = KioskTryOnSessionController(
+        gateway: gateway,
+        targetPreparer: FakeTargetPreparer(),
+      );
+      await tryOn.beginCustomerSession(vertical: KioskTryOnVertical.jewellery);
+      selectTestJewellery(tryOn);
+      final uploads = FakeUploadGateway()
+        ..nextSession = readyUploadSession('jewellery-upload');
+      final harness = await pumpMobileUploadScreen(
+        tester,
+        gateway: uploads,
+        tryOn: tryOn,
+      );
+      await pumpMobileUploadState(tester);
+      expect(find.byKey(const Key('take-garment-photo')), findsNothing);
+      expect(find.byKey(const Key('browse-catalog')), findsNothing);
+      expect(find.text('Upload Again'), findsOneWidget);
+      gateway.failNextAttachment = true;
+      await tester.tap(find.byKey(const Key('use-mobile-photo')));
+      await tester.runAsync(testerPumpEventQueue);
+      await tester.pump();
+      expect(gateway.createCalls, 0);
+      expect(find.byKey(const Key('use-mobile-photo')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('use-mobile-photo')));
+      await tester.runAsync(testerPumpEventQueue);
+      await tester.pump();
+      await tester.runAsync(testerPumpEventQueue);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.runAsync(testerPumpEventQueue);
+      expect(uploads.consumedPurpose, PhotoAcquisitionPurpose.model);
+      expect(gateway.attachedSessionId, 'jewellery-session');
+      expect(gateway.lastRequest?.sessionId, 'jewellery-session');
+      expect(gateway.lastRequest?.personAssetId, 'uploaded-person');
+      expect(gateway.lastRequest?.garmentInput.productId, 'ring-1');
+      expect(
+        gateway.lastRequest?.garmentInput.tryOnVertical,
+        KioskTryOnVertical.jewellery,
+      );
+      expect(tryOn.jewelleryCaptureRequirements?.productId, 'ring-1');
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+    },
+  );
+
+  testWidgets(
+    'jewellery camera opens phone upload and cancellation preserves selection',
+    (tester) async {
+      final harness = await pumpMobileUploadScreen(
+        tester,
+        gateway: FakeUploadGateway(),
+      );
+      await pumpMobileUploadState(tester);
+      selectTestJewellery(harness.tryOnController);
+      await harness.uploadController.cancel();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CameraCaptureScreen(
+            controller: harness.captureController,
+            tryOnController: harness.tryOnController,
+            uploadController: harness.uploadController,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('upload-jewellery-person-photo')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('cancel-mobile-upload')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('cancel-mobile-upload')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('upload-jewellery-person-photo')),
+        findsOneWidget,
+      );
+      expect(harness.tryOnController.garmentInput?.productId, 'ring-1');
+      expect(
+        harness.tryOnController.jewelleryCaptureRequirements?.productId,
+        'ring-1',
+      );
+      expect(harness.uploadController.hasActivePoller, isFalse);
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+    },
+  );
+
+  testWidgets('jewellery QR keeps guidance after renewing an upload', (
+    tester,
+  ) async {
+    final tryOn = testTryOnController();
+    selectTestJewellery(tryOn);
+    final uploads = FakeUploadGateway()
+      ..nextSession = readyUploadSession('jewellery-upload');
+    final harness = await pumpMobileUploadScreen(
+      tester,
+      gateway: uploads,
+      tryOn: tryOn,
+    );
+    await pumpMobileUploadState(tester);
+    uploads.nextSession = waitingUploadSession('replacement-upload');
+    await tester.tap(find.byKey(const Key('upload-another-photo')));
+    await pumpMobileUploadState(tester);
+    expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
+    expect(harness.uploadController.session?.sessionId, 'replacement-upload');
+    expect(find.text('Keep your hand and fingers visible.'), findsOneWidget);
+    expect(tryOn.garmentInput?.productId, 'ring-1');
+    expect(tryOn.activeTryOnVertical, KioskTryOnVertical.jewellery);
+    await tester.pumpWidget(const SizedBox.shrink());
+    harness.dispose();
+  });
+
   test('createSession sends bodyless POST without JSON content type', () async {
     final gateway = SelfxKioskCustomerUploadGateway(
       config: const KioskCustomerUploadApiConfig(
@@ -213,18 +332,21 @@ void main() {
 
     await pumpMobileUploadState(tester);
     await tester.tap(find.byKey(const Key('use-mobile-photo')));
-    await tester.pumpAndSettle();
+    await tester.runAsync(testerPumpEventQueue);
+    await tester.pump();
+    await tester.runAsync(testerPumpEventQueue);
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(
       harness.tryOnController.garmentInput?.source,
       KioskGarmentInputSource.phoneUpload,
     );
     expect(harness.tryOnController.garmentInput?.extractedPreviewPath, isNull);
-    expect(find.text('Creating Try-On'), findsOneWidget);
+    expect(find.byType(TryOnGenerationScreen), findsOneWidget);
     expect(find.text('Preparing garment preview'), findsNothing);
 
-    harness.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
+    harness.dispose();
   });
 
   test('cancel stops active mobile upload polling', () async {
@@ -1050,6 +1172,7 @@ Future<MobileUploadHarness> pumpMobileUploadScreen(
   Size size = const Size(900, 700),
   PhotoAcquisitionPurpose purpose = PhotoAcquisitionPurpose.model,
   KioskGarmentIntent? garmentIntent,
+  KioskTryOnSessionController? tryOn,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() async {
@@ -1057,7 +1180,7 @@ Future<MobileUploadHarness> pumpMobileUploadScreen(
   });
   final deviceController = testDeviceController();
   final captureController = testCaptureController();
-  final tryOnController = testTryOnController();
+  final tryOnController = tryOn ?? testTryOnController();
   final uploadController = KioskCustomerUploadController(
     deviceController: deviceController,
     gateway: gateway,
@@ -1329,6 +1452,77 @@ class FakeTargetPreparer extends TryOnTargetPreparer {
       ),
     );
   }
+}
+
+void selectTestJewellery(KioskTryOnSessionController controller) {
+  controller.selectJewelleryProduct(
+    const KioskGarmentInput.jewelleryCatalogProduct(
+      productId: 'ring-1',
+      name: 'Gold ring',
+      imageUrl: 'https://selfx.test/ring.jpg',
+    ),
+    const KioskJewelleryCaptureRequirements(
+      schemaVersion: 1,
+      jewelleryType: KioskJewelleryType.ring,
+      productId: 'ring-1',
+      targetRegion: KioskJewelleryCaptureTargetRegion.hand,
+      guide: KioskJewelleryCaptureGuide.handCloseUp,
+      title: 'Show your hand',
+      instruction: 'Keep your hand and fingers visible.',
+      checklist: [],
+      requiredChecks: [],
+    ),
+  );
+}
+
+class JewellerySessionGateway extends FakeTryOnGateway
+    implements KioskTryOnSessionGateway {
+  String? attachedSessionId;
+  bool failNextAttachment = false;
+
+  @override
+  Future<KioskTryOnSession> createTryOnSession() async => KioskTryOnSession(
+    sessionId: 'jewellery-session',
+    status: KioskTryOnSessionStatus.active,
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+    expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+  );
+
+  @override
+  Future<KioskTryOnAsset> setSessionPerson({
+    required String sessionId,
+    required File personImage,
+  }) async {
+    if (failNextAttachment) {
+      failNextAttachment = false;
+      throw StateError('Temporary attachment failure');
+    }
+    attachedSessionId = sessionId;
+    return KioskTryOnAsset(
+      assetId: 'uploaded-person',
+      purpose: KioskTryOnAssetPurpose.person,
+      contentType: 'image/jpeg',
+      sizeBytes: 100,
+      width: 1024,
+      height: 1024,
+      expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+    );
+  }
+
+  @override
+  Future<List<KioskTryOnLook>> getSessionLooks(String sessionId) async => [];
+
+  @override
+  Future<KioskTryOnShare> createSessionShare(String sessionId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<KioskTryOnSession> completeTryOnSession(
+    String sessionId, {
+    KioskTryOnSessionCompletionReason reason =
+        KioskTryOnSessionCompletionReason.finished,
+  }) => throw UnimplementedError();
 }
 
 class FakeModelCoverageAnalyzer implements ModelCoverageAnalyzer {

@@ -793,6 +793,11 @@ assigned to that Store inherit these capabilities from Store settings; kiosk
 settings remain limited to device/runtime behavior such as camera, countdown,
 audio, idle presentation and local capture controls.
 
+Platform-owned kiosks use the SelfX platform catalog and enable both garment
+and jewellery Try-On by default. Their customer start screen keeps mobile person
+photo upload as a garment handoff, then presents garment and jewellery Try-On as
+separate choices; jewellery selection always occurs before person capture.
+
 ---
 
 # 22. Physical Garment Capture

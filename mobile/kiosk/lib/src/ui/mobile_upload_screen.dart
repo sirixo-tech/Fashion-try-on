@@ -7,6 +7,7 @@ import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
+import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_models.dart';
@@ -47,12 +48,21 @@ class MobileUploadScreen extends StatefulWidget {
 class _MobileUploadScreenState extends State<MobileUploadScreen> {
   Timer? _tickTimer;
   bool _continuing = false;
+  bool _leaving = false;
   KioskCustomerUploadSession? _continuingSession;
+  String? _preparedModelSessionId;
+  Future<void>? _sessionCreation;
+  Future<void>? _cancellation;
+
+  bool get _isJewelleryPersonUpload =>
+      widget.purpose == PhotoAcquisitionPurpose.model &&
+      widget.tryOnController.activeTryOnVertical ==
+          KioskTryOnVertical.jewellery;
 
   @override
   void initState() {
     super.initState();
-    unawaited(widget.uploadController.createSession(purpose: widget.purpose));
+    unawaited(_createUploadSession());
     _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
         setState(() {});
@@ -66,83 +76,134 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     super.dispose();
   }
 
+  Future<void> _createUploadSession() {
+    return _sessionCreation = widget.uploadController.createSession(
+      purpose: widget.purpose,
+    );
+  }
+
+  Future<void> _cancelUpload() => _cancellation ??= _finishCancellation();
+
+  Future<void> _finishCancellation() async {
+    // A late session-creation response must not restart polling after exit.
+    await _sessionCreation;
+    await widget.uploadController.cancel();
+    if (_isJewelleryPersonUpload && _preparedModelSessionId != null) {
+      await widget.captureController.retake();
+    }
+  }
+
+  Future<void> _cancelAndReturn() async {
+    if (_continuing || _leaving) return;
+    _leaving = true;
+    await _cancelUpload();
+    if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return KioskScaffold(
-      title: 'SelfX Kiosk',
-      subtitle: 'Use your phone',
-      leading: IconButton(
-        onPressed: () async {
-          await widget.uploadController.cancel();
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
-        },
-        icon: const Icon(Icons.arrow_back),
-      ),
-      child: AnimatedBuilder(
-        animation: widget.uploadController,
-        builder: (context, _) {
-          final session = widget.uploadController.session;
-          final continuingSession = _continuingSession;
-          final message =
-              widget.uploadController.message ?? 'Preparing secure upload...';
-          if (continuingSession?.photo != null) {
-            return _ReadyPhotoPanel(
-              controller: widget.uploadController,
-              session: continuingSession!,
-              purpose: widget.purpose,
-              busy: true,
-              onUseReadyUpload: _useReadyUpload,
-              onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
-              onBrowseCatalog: _browseCatalogAfterReadyUpload,
-            );
-          }
-          if (session?.status == KioskCustomerUploadStatus.ready &&
-              session?.photo != null) {
-            return _ReadyPhotoPanel(
-              controller: widget.uploadController,
-              session: session!,
-              purpose: widget.purpose,
-              busy: _continuing,
-              onUseReadyUpload: _useReadyUpload,
-              onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
-              onBrowseCatalog: _browseCatalogAfterReadyUpload,
-            );
-          }
-          if (widget.uploadController.flowState ==
-              KioskCustomerUploadFlowState.failed) {
-            return _UploadFailurePanel(
-              controller: widget.uploadController,
-              onRetry: () => widget.uploadController.createSession(
+    return PopScope<void>(
+      canPop: !_continuing,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop && _isJewelleryPersonUpload) {
+          unawaited(_cancelUpload());
+        }
+      },
+      child: KioskScaffold(
+        title: 'SelfX Kiosk',
+        subtitle: 'Use your phone',
+        leading: IconButton(
+          onPressed: _continuing ? null : _cancelAndReturn,
+          icon: const Icon(Icons.arrow_back),
+        ),
+        child: AnimatedBuilder(
+          animation: widget.uploadController,
+          builder: (context, _) {
+            final session = widget.uploadController.session;
+            final continuingSession = _continuingSession;
+            final message =
+                widget.uploadController.message ?? 'Preparing secure upload...';
+            if (continuingSession?.photo != null) {
+              return _ReadyPhotoPanel(
+                controller: widget.uploadController,
+                session: continuingSession!,
                 purpose: widget.purpose,
-              ),
-              onCancel: () async {
-                await widget.uploadController.cancel();
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                }
-              },
+                busy: _continuing,
+                jewelleryPersonUpload: _isJewelleryPersonUpload,
+                onUploadAgain: _uploadAgain,
+                onUseReadyUpload: _useReadyUpload,
+                onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
+                onBrowseCatalog: _browseCatalogAfterReadyUpload,
+              );
+            }
+            if (session?.status == KioskCustomerUploadStatus.ready &&
+                session?.photo != null) {
+              return _ReadyPhotoPanel(
+                controller: widget.uploadController,
+                session: session!,
+                purpose: widget.purpose,
+                busy: _continuing,
+                jewelleryPersonUpload: _isJewelleryPersonUpload,
+                onUploadAgain: _uploadAgain,
+                onUseReadyUpload: _useReadyUpload,
+                onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
+                onBrowseCatalog: _browseCatalogAfterReadyUpload,
+              );
+            }
+            if (widget.uploadController.flowState ==
+                KioskCustomerUploadFlowState.failed) {
+              return _UploadFailurePanel(
+                controller: widget.uploadController,
+                onRetry: _createUploadSession,
+                onCancel: _cancelAndReturn,
+              );
+            }
+            return _QrPanel(
+              controller: widget.uploadController,
+              session: session,
+              message: message,
+              purpose: widget.purpose,
+              jewelleryRequirements: _isJewelleryPersonUpload
+                  ? widget.tryOnController.jewelleryCaptureRequirements
+                  : null,
+              onCancel: _cancelAndReturn,
             );
-          }
-          return _QrPanel(
-            controller: widget.uploadController,
-            session: session,
-            message: message,
-            purpose: widget.purpose,
-            onCancel: () async {
-              await widget.uploadController.cancel();
-              if (context.mounted) {
-                Navigator.of(context).pop();
-              }
-            },
-          );
-        },
+          },
+        ),
       ),
     );
   }
 
+  Future<void> _uploadAgain() async {
+    if (_isJewelleryPersonUpload && _preparedModelSessionId != null) {
+      await widget.captureController.retake();
+    }
+    _preparedModelSessionId = null;
+    _stopContinuing();
+    await widget.uploadController.cancel();
+    if (mounted) await _createUploadSession();
+  }
+
   Future<void> _useReadyUpload() async {
+    if (_isJewelleryPersonUpload) {
+      if (!await _acceptReadyModelUpload() || !mounted) {
+        return;
+      }
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => TryOnGenerationScreen(
+            captureController: widget.captureController,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
+            extractionService: widget.extractionService,
+          ),
+        ),
+      );
+      return;
+    }
     if (widget.purpose != PhotoAcquisitionPurpose.garment) {
       await _browseCatalogAfterReadyUpload();
       return;
@@ -232,15 +293,20 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     }
     setState(() {
       _continuing = true;
-      _continuingSession = widget.uploadController.session;
+      _continuingSession ??= widget.uploadController.session;
     });
-    final accepted = await widget.uploadController.useReadyPhoto(
-      widget.captureController,
-    );
+    final sessionId = widget.uploadController.session?.sessionId;
+    final accepted =
+        _isJewelleryPersonUpload &&
+            _preparedModelSessionId == sessionId &&
+            sessionId != null
+        ? true
+        : await widget.uploadController.useReadyPhoto(widget.captureController);
     if (!accepted || !mounted) {
       _stopContinuing();
       return false;
     }
+    _preparedModelSessionId = sessionId;
     final attached = await widget.tryOnController.attachAcceptedPerson(
       widget.captureController,
     );
@@ -248,7 +314,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       return false;
     }
     if (!attached) {
-      _stopContinuing();
+      _stopContinuing(keepPreview: _isJewelleryPersonUpload);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -262,13 +328,15 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     return true;
   }
 
-  void _stopContinuing() {
+  void _stopContinuing({bool keepPreview = false}) {
     if (!mounted) {
       return;
     }
     setState(() {
       _continuing = false;
-      _continuingSession = null;
+      if (!keepPreview) {
+        _continuingSession = null;
+      }
     });
   }
 }
@@ -280,6 +348,7 @@ class _QrPanel extends StatelessWidget {
     required this.message,
     required this.purpose,
     required this.onCancel,
+    this.jewelleryRequirements,
   });
 
   final KioskCustomerUploadController controller;
@@ -287,11 +356,23 @@ class _QrPanel extends StatelessWidget {
   final String message;
   final PhotoAcquisitionPurpose purpose;
   final Future<void> Function() onCancel;
+  final KioskJewelleryCaptureRequirements? jewelleryRequirements;
 
   @override
   Widget build(BuildContext context) {
     final session = this.session;
-    final publicUploadUrl = session?.publicUploadUrl;
+    final rawUploadUrl = session?.publicUploadUrl;
+    final requirements = jewelleryRequirements;
+    final publicUploadUrl = rawUploadUrl == null || requirements == null
+        ? rawUploadUrl
+        : Uri.parse(rawUploadUrl)
+              .replace(
+                queryParameters: {
+                  ...Uri.parse(rawUploadUrl).queryParameters,
+                  'jewelleryType': requirements.jewelleryType.apiValue,
+                },
+              )
+              .toString();
     final hasValidSession = session != null && publicUploadUrl != null;
     final remaining = session == null ? null : controller.remainingFor(session);
     return LayoutBuilder(
@@ -351,6 +432,13 @@ class _QrPanel extends StatelessWidget {
                                   ),
                           ),
                         ),
+                        if (requirements != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            requirements.instruction,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                         if (hasValidSession && remaining != null) ...[
                           SizedBox(height: compact ? 16 : 22),
                           Text(
@@ -493,6 +581,8 @@ class _ReadyPhotoPanel extends StatelessWidget {
     required this.onUseReadyUpload,
     required this.onTakeGarmentPhoto,
     required this.onBrowseCatalog,
+    required this.jewelleryPersonUpload,
+    required this.onUploadAgain,
   });
 
   final KioskCustomerUploadController controller;
@@ -502,6 +592,8 @@ class _ReadyPhotoPanel extends StatelessWidget {
   final Future<void> Function() onUseReadyUpload;
   final Future<void> Function() onTakeGarmentPhoto;
   final Future<void> Function() onBrowseCatalog;
+  final bool jewelleryPersonUpload;
+  final Future<void> Function() onUploadAgain;
 
   @override
   Widget build(BuildContext context) {
@@ -527,7 +619,8 @@ class _ReadyPhotoPanel extends StatelessWidget {
             if (!compact) const Spacer(),
             const Center(child: SelfxLogo(height: 44, maxWidth: 160)),
             const SizedBox(height: 18),
-            if (purpose == PhotoAcquisitionPurpose.model) ...[
+            if (purpose == PhotoAcquisitionPurpose.model &&
+                !jewelleryPersonUpload) ...[
               Text(
                 "You're Ready",
                 textAlign: TextAlign.center,
@@ -631,14 +724,17 @@ class _ReadyPhotoPanel extends StatelessWidget {
                 key: const Key('upload-another-photo'),
                 onPressed: busy || controller.isBusy
                     ? null
-                    : () => unawaited(controller.uploadAnother()),
+                    : () => unawaited(onUploadAgain()),
                 icon: Icons.qr_code_2,
                 iconColor: const Color(0xFFC88913),
-                label: 'Upload Another',
+                label: jewelleryPersonUpload
+                    ? 'Upload Again'
+                    : 'Upload Another',
                 subtitle: 'Use phone',
                 minHeight: 76,
               ),
-            if (purpose == PhotoAcquisitionPurpose.garment) ...[
+            if (purpose == PhotoAcquisitionPurpose.garment ||
+                jewelleryPersonUpload) ...[
               const SizedBox(height: 16),
               SelfxKioskButton(
                 key: const Key('use-mobile-photo'),

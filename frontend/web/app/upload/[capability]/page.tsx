@@ -9,9 +9,19 @@ export const metadata: Metadata = {
 
 export default async function CustomerUploadPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ capability: string }>;
+  searchParams: Promise<{ jewelleryType?: string | string[] }>;
 }) {
   const { capability } = await params;
-  return <CustomerUploadPageClient capability={capability} />;
+  const { jewelleryType } = await searchParams;
+  return (
+    <CustomerUploadPageClient
+      capability={capability}
+      jewelleryType={
+        typeof jewelleryType === "string" ? jewelleryType : undefined
+      }
+    />
+  );
 }

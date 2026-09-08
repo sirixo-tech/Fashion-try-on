@@ -154,8 +154,9 @@ Current persistence mapping:
   stored under `organizations.settings.storeProfile`.
 - Store Try-On business capabilities are stored under
   `organizations.settings.virtualTryOn.enabledTryOnCapabilities` as
-  `GARMENT_TRY_ON`, `JEWELLERY_TRY_ON` or both. Existing Stores default to
-  `GARMENT_TRY_ON` when the setting is absent.
+  `GARMENT_TRY_ON`, `JEWELLERY_TRY_ON` or both. Stores default to both
+  capabilities when the setting is absent; explicit saved settings may disable
+  either mode according to business needs.
 - Captured garment preview remains a Store setting under
   `organizations.settings.virtualTryOn.capturedGarmentPreviewEnabled`, but it
   can only become effective when `GARMENT_TRY_ON` is enabled and the platform

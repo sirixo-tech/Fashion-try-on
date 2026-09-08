@@ -7,6 +7,12 @@ export type StoreTryOnCapability = (typeof STORE_TRY_ON_CAPABILITIES)[number];
 
 export const DEFAULT_STORE_TRY_ON_CAPABILITIES: StoreTryOnCapability[] = [
   "GARMENT_TRY_ON",
+  "JEWELLERY_TRY_ON",
+];
+
+export const DEFAULT_PLATFORM_TRY_ON_CAPABILITIES: StoreTryOnCapability[] = [
+  "GARMENT_TRY_ON",
+  "JEWELLERY_TRY_ON",
 ];
 
 const SUPPORTED_CAPABILITIES = new Set<string>(STORE_TRY_ON_CAPABILITIES);
@@ -28,4 +34,3 @@ export function normalizeStoreTryOnCapabilities(
   const unique = [...new Set(normalized)];
   return unique.length > 0 ? unique : [...fallback];
 }
-

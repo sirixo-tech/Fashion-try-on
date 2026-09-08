@@ -39,6 +39,7 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     expect(configuration.capture.countdownSeconds).toBe(5);
     expect(configuration.experience.enabledTryOnCapabilities).toEqual([
       "GARMENT_TRY_ON",
+      "JEWELLERY_TRY_ON",
     ]);
     expect(configuration.experience.enabledGarmentIntents).toEqual([
       KioskConfigurationGarmentIntent.TOP,
@@ -537,7 +538,10 @@ class ConfigurationHarness {
     this.storage as never,
     {
       resolveGarmentPreviewEnabled: async () => false,
-      resolveStoreTryOnCapabilities: async () => ["GARMENT_TRY_ON"],
+      resolveStoreTryOnCapabilities: async () => [
+        "GARMENT_TRY_ON",
+        "JEWELLERY_TRY_ON",
+      ],
     } as never,
     {
       resolveCaptureImageMaxBytes: async () => 10 * 1024 * 1024,

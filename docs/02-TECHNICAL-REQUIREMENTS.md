@@ -928,9 +928,21 @@ Protected route coverage:
     behavior. Jewellery requests must set `tryOnVertical=JEWELLERY` and provide
     either `jewelleryImage` plus explicit `jewelleryType`, or a jewellery catalog
     `productId` whose type is already configured in SelfX. Jewellery runs are
-    allowed only for Store-owned kiosks whose Store capability list includes
-    `JEWELLERY_TRY_ON`; platform-only/default kiosks must not execute jewellery
-    Try-On unless a future approved SelfX demo capability is introduced.
+    allowed for Store-owned kiosks when their Store capability list includes
+    `JEWELLERY_TRY_ON`. Store-owned and platform-owned kiosks both default to
+    `GARMENT_TRY_ON` plus `JEWELLERY_TRY_ON`; administrators may disable either
+    capability according to business needs. Platform-owned kiosks execute
+    jewellery Try-On against the SelfX platform catalog. A missing Store identity
+    on a non-platform device must never fall back to platform capabilities.
+
+    Jewellery phone uploads reuse device-authorized customer upload sessions
+    with the existing `MODEL` purpose. The Flutter Try-On session retains the
+    selected jewellery product, vertical and server-resolved capture requirements.
+    After preview confirmation it attaches the person asset to that same session
+    and submits jewellery generation. An allowlisted `jewelleryType` query hint
+    on the QR URL controls phone-page guidance only; it never authorizes an upload
+    or selects the product/provider. Capability validation, technical image
+    validation, expiry and cleanup retain the shared upload-service contracts.
 
     CORE VTO-1 implementation note:
     SelfX intentionally prioritized a guarded internal development Try-On Lab

@@ -134,7 +134,7 @@ describe("KIOSK-4B production Try-On service", () => {
     });
   });
 
-  it("rejects jewellery Try-On for platform-only kiosks", async () => {
+  it("creates a platform jewellery run with platform defaults", async () => {
     const prisma = new FakePrisma();
     const execution = new FakeExecution();
     const jewelleryTryOn = new FakeJewelleryTryOnService();
@@ -152,13 +152,25 @@ describe("KIOSK-4B production Try-On service", () => {
       jewelleryExecution as never,
     );
 
-    await expect(
-      service.createRun(platformDevice("device-1"), jewelleryPayload()),
-    ).rejects.toBeInstanceOf(ApiErrorException);
+    const created = await service.createRun(
+      platformDevice("device-1"),
+      jewelleryPayload(),
+    );
+    await flushPromises();
 
-    expect(jewelleryTryOn.preparedStoreIds).toEqual([]);
-    expect(jewelleryExecution.submissions).toBe(0);
-    expect(prisma.createdRuns).toHaveLength(0);
+    expect(created).toMatchObject({
+      status: "QUEUED",
+      tryOnVertical: "JEWELLERY",
+      jewelleryType: "RING",
+    });
+    expect(jewelleryTryOn.preparedStoreIds).toEqual([null]);
+    expect(jewelleryExecution.submissions).toBe(1);
+    expect(prisma.createdRuns[0]).toMatchObject({
+      assignmentScope: KioskAssignmentScope.PLATFORM,
+      organizationId: null,
+      storeId: null,
+      tryOnVertical: "JEWELLERY",
+    });
   });
 
   it("does not allow one kiosk device to read another device run", async () => {
@@ -422,7 +434,7 @@ class FakeJewelleryTryOnService implements Pick<
   JewelleryTryOnService,
   "prepareRunFoundation"
 > {
-  readonly preparedStoreIds: string[] = [];
+  readonly preparedStoreIds: Array<string | null> = [];
 
   async prepareRunFoundation(
     input: Parameters<JewelleryTryOnService["prepareRunFoundation"]>[0],

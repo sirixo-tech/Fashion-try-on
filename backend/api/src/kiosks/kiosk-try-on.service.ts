@@ -454,7 +454,7 @@ export class KioskTryOnService {
       return toResponse(existing);
     }
 
-    const storeId = requireStoreTenantIdForJewelleryTryOn(device);
+    const storeId = resolveJewelleryTryOnStoreId(device);
     const jewelleryRun = await this.prepareJewelleryRunAssets(device, payload);
     const foundationInput = {
       storeId,
@@ -1254,21 +1254,20 @@ function requireClientRequestId(value: string | undefined): string {
   return value;
 }
 
-function requireStoreTenantIdForJewelleryTryOn(
+function resolveJewelleryTryOnStoreId(
   device: KioskDeviceContext,
-): string {
-  if (device.assignmentScope === KioskAssignmentScope.ORGANIZATION) {
-    if (device.organizationId) {
-      return device.organizationId;
-    }
+): string | null {
+  if (device.assignmentScope === KioskAssignmentScope.PLATFORM) {
+    return null;
   }
-  if (device.assignmentScope === KioskAssignmentScope.STORE) {
-    if (device.organizationId) {
-      return device.organizationId;
-    }
-    if (device.storeId) {
-      return device.storeId;
-    }
+  if (device.organizationId) {
+    return device.organizationId;
+  }
+  if (
+    device.assignmentScope === KioskAssignmentScope.STORE &&
+    device.storeId
+  ) {
+    return device.storeId;
   }
   throwJewelleryTryOnNotEnabled();
 }

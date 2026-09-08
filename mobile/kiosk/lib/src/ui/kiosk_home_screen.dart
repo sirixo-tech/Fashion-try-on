@@ -518,19 +518,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                               small: 12,
                               large: 20,
                             );
-                            final useButtonRow =
-                                bodyConstraints.maxWidth >= 560;
-                            final buttonWidth = useButtonRow
-                                ? ((bodyConstraints.maxWidth - buttonGap) / 2)
-                                      .clamp(220.0, 320.0)
-                                      .toDouble()
-                                : (bodyConstraints.maxWidth *
-                                          (compact ? 0.72 : 0.56))
-                                      .clamp(
-                                        240.0,
-                                        layout.portrait ? 520.0 : 460.0,
-                                      )
-                                      .toDouble();
+                            final actionGroupWidth = bodyConstraints.maxWidth
+                                .clamp(240.0, 680.0)
+                                .toDouble();
                             final bottomGap = layout.scaled(
                               30,
                               small: 18,
@@ -543,105 +533,102 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                             final multipleTryOnModesEnabled =
                                 _multipleTryOnModesEnabled;
 
-                            Widget buildUploadButton() => SizedBox(
-                              width: buttonWidth,
-                              child: SelfxKioskButton(
-                                key: const Key('upload-from-mobile-start'),
-                                label: 'Upload From Mobile',
-                                icon: Icons.file_upload_outlined,
-                                variant: SelfxKioskButtonVariant.primary,
-                                backgroundColor: const Color(0xFFFFA21C),
-                                borderColor: const Color(0xFFFFA21C),
-                                minHeight: buttonHeight,
-                                borderRadius: 999,
-                                textAlign: TextAlign.center,
-                                onPressed: _uploadFromMobile,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: compact ? 22 : 34,
-                                  vertical: compact ? 18 : 26,
-                                ),
+                            Widget buildUploadButton() => SelfxKioskButton(
+                              key: const Key('upload-from-mobile-start'),
+                              label: 'Upload From Mobile',
+                              icon: Icons.file_upload_outlined,
+                              variant: SelfxKioskButtonVariant.primary,
+                              backgroundColor: const Color(0xFFFFA21C),
+                              borderColor: const Color(0xFFFFA21C),
+                              minHeight: buttonHeight,
+                              borderRadius: 999,
+                              textAlign: TextAlign.center,
+                              onPressed: _uploadFromMobile,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 22 : 34,
+                                vertical: compact ? 18 : 26,
                               ),
                             );
 
-                            Widget buildStartButton() => SizedBox(
-                              width: buttonWidth,
-                              child: SelfxKioskButton(
-                                key: const Key('start-try-on'),
-                                label: multipleTryOnModesEnabled
-                                    ? garmentTryOnExperience.multiModeHomeLabel
-                                    : presentation.ctaLabel,
-                                icon: garmentTryOnExperience.icon,
-                                variant: SelfxKioskButtonVariant.primary,
-                                minHeight: buttonHeight,
-                                borderRadius: 999,
-                                textAlign: TextAlign.center,
-                                onPressed: _startTryOn,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: compact ? 24 : 36,
-                                  vertical: compact ? 18 : 28,
-                                ),
+                            Widget buildStartButton() => SelfxKioskButton(
+                              key: const Key('start-try-on'),
+                              label: multipleTryOnModesEnabled
+                                  ? garmentTryOnExperience.multiModeHomeLabel
+                                  : presentation.ctaLabel,
+                              icon: garmentTryOnExperience.icon,
+                              variant: SelfxKioskButtonVariant.primary,
+                              minHeight: buttonHeight,
+                              borderRadius: 999,
+                              textAlign: TextAlign.center,
+                              onPressed: _startTryOn,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 24 : 36,
+                                vertical: compact ? 18 : 28,
                               ),
                             );
 
-                            Widget buildJewelleryButton() => SizedBox(
-                              width: buttonWidth,
-                              child: SelfxKioskButton(
-                                key: const Key('start-jewellery-try-on'),
-                                label: multipleTryOnModesEnabled
-                                    ? jewelleryTryOnExperience
-                                          .multiModeHomeLabel
-                                    : 'Start Try-On',
-                                icon: jewelleryTryOnExperience.icon,
-                                variant: SelfxKioskButtonVariant.primary,
-                                minHeight: buttonHeight,
-                                borderRadius: 999,
-                                textAlign: TextAlign.center,
-                                onPressed: _startJewelleryTryOn,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: compact ? 24 : 36,
-                                  vertical: compact ? 18 : 28,
-                                ),
+                            Widget buildJewelleryButton() => SelfxKioskButton(
+                              key: const Key('start-jewellery-try-on'),
+                              label: multipleTryOnModesEnabled
+                                  ? jewelleryTryOnExperience.multiModeHomeLabel
+                                  : 'Start Try-On',
+                              icon: jewelleryTryOnExperience.icon,
+                              variant: SelfxKioskButtonVariant.primary,
+                              minHeight: buttonHeight,
+                              borderRadius: 999,
+                              textAlign: TextAlign.center,
+                              onPressed: _startJewelleryTryOn,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 24 : 36,
+                                vertical: compact ? 18 : 28,
                               ),
                             );
-
-                            final actionButtons = <Widget>[
-                              if (garmentTryOnEnabled) buildUploadButton(),
-                              if (garmentTryOnEnabled) buildStartButton(),
-                              if (jewelleryTryOnEnabled) buildJewelleryButton(),
-                            ];
 
                             Widget buildActionButtons() {
-                              if (useButtonRow) {
-                                return Wrap(
-                                  alignment: WrapAlignment.center,
-                                  spacing: buttonGap,
-                                  runSpacing: layout.scaled(
-                                    14,
-                                    small: 10,
-                                    large: 18,
-                                  ),
-                                  children: actionButtons,
-                                );
-                              }
-                              return Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  for (
-                                    var index = 0;
-                                    index < actionButtons.length;
-                                    index++
-                                  ) ...[
-                                    if (index > 0)
-                                      SizedBox(
-                                        height: layout.scaled(
-                                          14,
-                                          small: 10,
-                                          large: 18,
-                                        ),
-                                      ),
-                                    actionButtons[index],
+                              final useCapabilityRow =
+                                  garmentTryOnEnabled &&
+                                  jewelleryTryOnEnabled &&
+                                  actionGroupWidth >= 440;
+                              final capabilityButtons =
+                                  garmentTryOnEnabled && jewelleryTryOnEnabled
+                                  ? useCapabilityRow
+                                        ? Row(
+                                            children: [
+                                              Expanded(
+                                                child: buildStartButton(),
+                                              ),
+                                              SizedBox(width: buttonGap),
+                                              Expanded(
+                                                child: buildJewelleryButton(),
+                                              ),
+                                            ],
+                                          )
+                                        : Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              buildStartButton(),
+                                              SizedBox(height: buttonGap),
+                                              buildJewelleryButton(),
+                                            ],
+                                          )
+                                  : garmentTryOnEnabled
+                                  ? buildStartButton()
+                                  : buildJewelleryButton();
+
+                              return SizedBox(
+                                width: actionGroupWidth,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (garmentTryOnEnabled) ...[
+                                      buildUploadButton(),
+                                      SizedBox(height: buttonGap),
+                                    ],
+                                    capabilityButtons,
                                   ],
-                                ],
+                                ),
                               );
                             }
 

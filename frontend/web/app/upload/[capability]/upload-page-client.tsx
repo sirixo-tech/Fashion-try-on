@@ -25,8 +25,10 @@ const supportedTypes = ["image/jpeg", "image/png", "image/webp"];
 
 export function CustomerUploadPageClient({
   capability,
+  jewelleryType,
 }: {
   capability: string;
+  jewelleryType?: string;
 }) {
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -117,11 +119,11 @@ export function CustomerUploadPageClient({
   }
 
   const expired =
-    status === "EXPIRED" ||
-    status === "CANCELLED" ||
-    status === "CONSUMED";
+    status === "EXPIRED" || status === "CANCELLED" || status === "CONSUMED";
   const sent = status === "READY";
-  const copy = uploadCopyFor(purpose);
+  const jewelleryGuidance =
+    purpose === "MODEL" ? jewelleryUploadGuidance(jewelleryType) : null;
+  const copy = jewelleryGuidance ?? uploadCopyFor(purpose);
 
   return (
     <main className="min-h-screen bg-background px-5 py-8">
@@ -157,7 +159,13 @@ export function CustomerUploadPageClient({
                   className="hidden"
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  capture={purpose === "MODEL" ? "user" : "environment"}
+                  capture={
+                    purpose === "MODEL" &&
+                    jewelleryType !== "RING" &&
+                    jewelleryType !== "BRACELET"
+                      ? "user"
+                      : "environment"
+                  }
                   onChange={(event) => selectFile(event.target.files?.[0])}
                 />
                 <input
@@ -224,6 +232,38 @@ export function CustomerUploadPageClient({
       </div>
     </main>
   );
+}
+
+function jewelleryUploadGuidance(type?: string) {
+  // URL hints affect framing copy only; the upload capability authorizes access.
+  switch (type) {
+    case "RING":
+      return {
+        title: "Add your hand photo",
+        description:
+          "Keep your hand open and steady, with your fingers clearly visible.",
+      };
+    case "BRACELET":
+      return {
+        title: "Add your wrist photo",
+        description:
+          "Keep your wrist and lower forearm clearly visible, with your sleeve moved aside.",
+      };
+    case "NECKLACE":
+      return {
+        title: "Add your photo",
+        description:
+          "Keep your neck, shoulders and upper chest visible. Move hair away from your neckline.",
+      };
+    case "EARRING":
+      return {
+        title: "Add your photo",
+        description:
+          "Keep your face and ears clearly visible. Move hair away from your ears.",
+      };
+    default:
+      return null;
+  }
 }
 
 function uploadCopyFor(purpose: CustomerUploadPurpose): {

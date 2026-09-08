@@ -20,6 +20,8 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'garment_review_screen.dart';
 import 'responsive_kiosk_layout.dart';
+import 'selfx_kiosk_button.dart';
+import 'mobile_upload_screen.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -47,6 +49,7 @@ class CameraCaptureScreen extends StatefulWidget {
 }
 
 class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
+  bool _openingMobileUpload = false;
   bool _starting = true;
   bool _switchingCamera = false;
   bool _handlingBack = false;
@@ -150,6 +153,12 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                     onCapture: _capture,
                     onCancelCountdown: widget.controller.cancelCountdown,
                     onCaptureAnyway: widget.controller.captureAnyway,
+                    onUploadFromMobile:
+                        jewelleryRequirements != null &&
+                            (flowState.stage == CaptureFlowStage.preview ||
+                                flowState.stage == CaptureFlowStage.error)
+                        ? _uploadJewelleryPersonPhoto
+                        : null,
                     canFlipCamera:
                         widget.purpose == PhotoAcquisitionPurpose.model &&
                         widget.controller.canFlipCamera,
@@ -225,6 +234,23 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         setState(() => _switchingCamera = false);
       }
     }
+  }
+
+  Future<void> _uploadJewelleryPersonPhoto() async {
+    if (_openingMobileUpload) return;
+    _openingMobileUpload = true;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MobileUploadScreen(
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+        ),
+      ),
+    );
+    _openingMobileUpload = false;
   }
 
   void _handleControllerChanged() {
@@ -961,6 +987,7 @@ class CaptureGuidancePanel extends StatelessWidget {
     required this.onCaptureAnyway,
     required this.canFlipCamera,
     required this.onFlipCamera,
+    this.onUploadFromMobile,
   });
 
   final CameraState state;
@@ -972,6 +999,7 @@ class CaptureGuidancePanel extends StatelessWidget {
   final VoidCallback onCaptureAnyway;
   final bool canFlipCamera;
   final VoidCallback? onFlipCamera;
+  final VoidCallback? onUploadFromMobile;
 
   @override
   Widget build(BuildContext context) {
@@ -985,6 +1013,7 @@ class CaptureGuidancePanel extends StatelessWidget {
       onCaptureAnyway: onCaptureAnyway,
       canFlipCamera: canFlipCamera,
       onFlipCamera: onFlipCamera,
+      onUploadFromMobile: onUploadFromMobile,
     );
   }
 }
@@ -1000,6 +1029,7 @@ class _CaptureControls extends StatelessWidget {
     required this.onCaptureAnyway,
     required this.canFlipCamera,
     required this.onFlipCamera,
+    this.onUploadFromMobile,
   });
 
   final CameraState state;
@@ -1011,6 +1041,7 @@ class _CaptureControls extends StatelessWidget {
   final VoidCallback onCaptureAnyway;
   final bool canFlipCamera;
   final VoidCallback? onFlipCamera;
+  final VoidCallback? onUploadFromMobile;
 
   @override
   Widget build(BuildContext context) {
@@ -1053,6 +1084,15 @@ class _CaptureControls extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (onUploadFromMobile != null) ...[
+              SelfxKioskButton(
+                key: const Key('upload-jewellery-person-photo'),
+                label: 'Upload From Mobile',
+                icon: Icons.file_upload_outlined,
+                onPressed: onUploadFromMobile,
+              ),
+              const SizedBox(height: 12),
+            ],
             if (flowState.errorMessage != null) ...[
               DecoratedBox(
                 decoration: BoxDecoration(

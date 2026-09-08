@@ -7,7 +7,7 @@ import { throwJewelleryTryOnNotEnabled } from "./jewellery-try-on-execution.serv
 import type { JewelleryTryOnProviderMetadata } from "./jewellery-try-on.provider.js";
 
 export interface JewelleryTryOnRunFoundationInput {
-  storeId: string;
+  storeId: string | null;
   personImageDataUri: string;
   jewelleryImageDataUri: string;
   jewelleryType: JewelleryType;
@@ -32,7 +32,7 @@ export class JewelleryTryOnService {
     private readonly execution: JewelleryTryOnExecutionService,
   ) {}
 
-  async assertStoreCanRunJewelleryTryOn(storeId: string): Promise<void> {
+  async assertStoreCanRunJewelleryTryOn(storeId: string | null): Promise<void> {
     const capabilities =
       await this.settings.resolveStoreTryOnCapabilities(storeId);
     if (!capabilities.includes("JEWELLERY_TRY_ON")) {

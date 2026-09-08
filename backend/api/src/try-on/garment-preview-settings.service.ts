@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../database/prisma.service.js";
 import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import {
+  DEFAULT_PLATFORM_TRY_ON_CAPABILITIES,
   normalizeStoreTryOnCapabilities,
   type StoreTryOnCapability,
 } from "./store-try-on-capabilities.js";
@@ -139,7 +140,7 @@ export class GarmentPreviewSettingsService {
     storeId: string | null,
   ): Promise<StoreTryOnCapability[]> {
     if (!storeId) {
-      return normalizeStoreTryOnCapabilities(null);
+      return [...DEFAULT_PLATFORM_TRY_ON_CAPABILITIES];
     }
     return (await this.storeSettings(storeId)).enabledTryOnCapabilities;
   }

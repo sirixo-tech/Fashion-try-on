@@ -1203,6 +1203,47 @@ void main() {
   });
 
   group('KIOSK-2C customer home and operator access', () {
+    testWidgets(
+      'platform defaults place mobile upload above side-by-side Try-On modes',
+      (tester) async {
+        final gateway = FakeKioskDeviceGateway();
+        final deviceController = KioskDeviceSessionController(
+          gateway: gateway,
+          store: InMemoryKioskDeviceCredentialStore(),
+          platform: 'android',
+        );
+        final configurationController = KioskRuntimeConfigurationController(
+          gateway: gateway,
+          deviceController: deviceController,
+          cache: InMemoryKioskRuntimeConfigurationCache(),
+        );
+        addTearDown(() {
+          configurationController.dispose();
+          deviceController.dispose();
+        });
+
+        await tester.pumpHome(
+          controller: testController(),
+          configurationController: configurationController,
+        );
+
+        expect(find.text('Try On Garments'), findsOneWidget);
+        expect(find.text('Try On Jewellery'), findsOneWidget);
+        final uploadTop = tester.getTopLeft(
+          find.byKey(const Key('upload-from-mobile-start')),
+        );
+        final garmentTop = tester.getTopLeft(
+          find.byKey(const Key('start-try-on')),
+        );
+        final jewelleryTop = tester.getTopLeft(
+          find.byKey(const Key('start-jewellery-try-on')),
+        );
+
+        expect(uploadTop.dy, lessThan(garmentTop.dy));
+        expect(garmentTop.dy, closeTo(jewelleryTop.dy, 1));
+      },
+    );
+
     testWidgets('home starts customer flow without visible settings controls', (
       tester,
     ) async {
@@ -1895,6 +1936,7 @@ extension _KioskHomeTester on WidgetTester {
   Future<void> pumpHome({
     required CaptureSessionController controller,
     OperatorAccessController? operatorAccessController,
+    KioskRuntimeConfigurationController? configurationController,
   }) async {
     await pumpWidget(
       MaterialApp(
@@ -1906,6 +1948,7 @@ extension _KioskHomeTester on WidgetTester {
           uploadController: testUploadController(controller.captureStore),
           operatorAccessController:
               operatorAccessController ?? testOperatorAccessController(),
+          configurationController: configurationController,
           presentation: testIdlePresentation,
         ),
       ),

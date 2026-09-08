@@ -63,7 +63,9 @@ describe("CustomerUploadPageClient", () => {
   });
 
   it("previews a selected file before upload", async () => {
-    const view = render(<CustomerUploadPageClient capability="capability-token" />);
+    const view = render(
+      <CustomerUploadPageClient capability="capability-token" />,
+    );
     const file = new File(["png"], "photo.png", { type: "image/png" });
     const inputs = view.container.querySelectorAll("input");
 
@@ -72,9 +74,44 @@ describe("CustomerUploadPageClient", () => {
     });
 
     expect(
-      (await screen.findByAltText("Selected photo preview")).getAttribute("src"),
+      (await screen.findByAltText("Selected photo preview")).getAttribute(
+        "src",
+      ),
     ).toBe("blob:selfx-preview");
     expect(intentMock).not.toHaveBeenCalled();
+  });
+
+  it("shows ring framing and uses the rear camera for a person upload", async () => {
+    const view = render(
+      <CustomerUploadPageClient
+        capability="ring-upload"
+        jewelleryType="RING"
+      />,
+    );
+    expect(await screen.findByText("Add your hand photo")).toBeTruthy();
+    await screen.findByText("Take Photo");
+    expect(
+      view.container.querySelector("input[capture]")?.getAttribute("capture"),
+    ).toBe("environment");
+    expect(statusMock).toHaveBeenCalledWith("ring-upload");
+  });
+
+  it("ignores jewellery guidance for a garment-image upload", async () => {
+    statusMock.mockResolvedValueOnce({
+      status: "WAITING",
+      purpose: "GARMENT",
+      expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      serverTime: new Date().toISOString(),
+      maxImageBytes: 8 * 1024 * 1024,
+    });
+    render(
+      <CustomerUploadPageClient
+        capability="garment-upload"
+        jewelleryType="RING"
+      />,
+    );
+    expect(await screen.findByText("Add garment photo")).toBeTruthy();
+    expect(screen.queryByText("Add your hand photo")).toBeNull();
   });
 
   it("shows expired state safely", async () => {
@@ -95,7 +132,9 @@ describe("CustomerUploadPageClient", () => {
   });
 
   it("uploads only after explicit confirmation and shows success", async () => {
-    const view = render(<CustomerUploadPageClient capability="capability-token" />);
+    const view = render(
+      <CustomerUploadPageClient capability="capability-token" />,
+    );
     const file = new File(["png"], "photo.png", { type: "image/png" });
     const inputs = view.container.querySelectorAll("input");
 

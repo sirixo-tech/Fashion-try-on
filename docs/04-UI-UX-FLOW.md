@@ -1557,10 +1557,18 @@ Customer cannot proceed to capture without required consent.
 
 # 26. Kiosk Try-On Type Selection
 
-The Store-level capability list determines the visible primary choices:
+Platform-owned kiosks enable both supported Try-On capabilities by default.
+Store-owned and platform-owned kiosks default to both Try-On capabilities.
+Store-owned kiosks continue to use the Store-level capability list, which
+determines the visible primary choices and lets administrators disable a mode
+when the business does not need it:
 
 - **Try On Garments**
 - **Try On Jewellery**
+
+On the kiosk start screen, **Upload From Mobile** remains a garment person-photo
+handoff and appears on its own first row. When both capabilities are available,
+**Try On Garments** and **Try On Jewellery** appear side by side beneath it.
 
 When garment Try-On is selected and physical capture is enabled:
 
@@ -1605,8 +1613,9 @@ No checkout button is required.
 For Jewellery, selecting a product requests its person-capture requirements
 from SelfX and then opens a type-specific capture screen. Ring, bracelet,
 necklace and earring products may use different target-region guides and
-instructions. Kiosk offers Take Photo; supported web/mobile screens may offer
-Take Photo and Upload Photo.
+instructions. The kiosk offers camera capture and **Upload From Mobile** after
+jewellery selection. Both use the same selected jewellery item and active
+Try-On session.
 
 The Flutter kiosk implements this as a single-selection flow: jewellery catalog
 -> selected-product capture requirements -> static type-specific camera guide
@@ -1614,6 +1623,15 @@ The Flutter kiosk implements this as a single-selection flow: jewellery catalog
 different jewellery item from Preview discards the current close-up because the
 next product may require a different body region. These guides are framing aids,
 not claims of live region detection.
+
+The jewellery phone-upload branch reuses the garment QR layout, preview sizing
+and shared buttons. Its QR and phone page show the selected jewellery type's
+person-photo framing guidance. The ready preview offers **Continue** and
+**Upload Again**. Continue attaches the uploaded person photo to the active
+session and goes directly to jewellery generation, without opening garment
+capture or garment catalog. Retry, expiry and cancellation preserve the selected
+jewellery; cancellation returns to the jewellery capture screen. The start-screen
+mobile upload remains the garment entry point.
 
 Person-image preflight shows only two outcomes:
 

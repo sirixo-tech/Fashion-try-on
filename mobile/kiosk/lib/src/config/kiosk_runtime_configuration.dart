@@ -360,7 +360,10 @@ final defaultRuntimeConfiguration = KioskRuntimeConfiguration(
   soundEnabled: true,
   soundProfile: RuntimeKioskSoundProfile.selfxSignature,
   guidanceAudioEnabled: false,
-  enabledTryOnCapabilities: [RuntimeTryOnCapability.garmentTryOn],
+  enabledTryOnCapabilities: [
+    RuntimeTryOnCapability.garmentTryOn,
+    RuntimeTryOnCapability.jewelleryTryOn,
+  ],
   enabledGarmentIntents: [
     KioskGarmentIntent.top,
     KioskGarmentIntent.bottom,

@@ -3,7 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 import { GarmentPreviewSettingsService } from "./garment-preview-settings.service.js";
 
 describe("GarmentPreviewSettingsService Store capabilities", () => {
-  it("defaults existing Stores to garment Try-On capability", async () => {
+  it("enables both Try-On capabilities for platform kiosks by default", async () => {
+    const service = new GarmentPreviewSettingsService(
+      createPrismaMock() as never,
+    );
+
+    await expect(service.resolveStoreTryOnCapabilities(null)).resolves.toEqual([
+      "GARMENT_TRY_ON",
+      "JEWELLERY_TRY_ON",
+    ]);
+  });
+
+  it("defaults existing Stores to both Try-On capabilities", async () => {
     const prisma = createPrismaMock();
     const service = new GarmentPreviewSettingsService(prisma as never);
     prisma.$queryRaw.mockResolvedValue([]);
@@ -12,9 +23,12 @@ describe("GarmentPreviewSettingsService Store capabilities", () => {
 
     const settings = await service.storeSettings("store-1");
 
-    expect(settings.enabledTryOnCapabilities).toEqual(["GARMENT_TRY_ON"]);
+    expect(settings.enabledTryOnCapabilities).toEqual([
+      "GARMENT_TRY_ON",
+      "JEWELLERY_TRY_ON",
+    ]);
     expect(settings.garmentTryOnEnabled).toBe(true);
-    expect(settings.jewelleryTryOnEnabled).toBe(false);
+    expect(settings.jewelleryTryOnEnabled).toBe(true);
   });
 
   it("stores jewellery-only capability and turns off captured garment preview", () => {
