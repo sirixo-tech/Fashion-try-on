@@ -40,7 +40,13 @@ SelfX Platform
 
 - Page title: Stores.
 - Primary action: Add Store.
-- Table columns: Store, Status, Kiosks, Last Activity, Created, Actions.
+- Store results use responsive cards rather than table rows.
+- Each card shows Store name, slug, status, kiosk totals, active/offline kiosk
+  counts, owner/contact email, location, last activity and created date.
+- Card actions use compact icon buttons for View Store, Suspend/Reactivate,
+  Impersonate owner and Delete. Impersonation remains disabled until the
+  approved impersonation backend flow exists. Delete remains protected by
+  inactive-Store and confirmation rules.
 - Search covers Store name and slug.
 - Status filter supports All Stores, Active and Inactive.
 - Empty state explains that a Store is required before pairing/managing SelfX
@@ -221,9 +227,10 @@ SELFX-UI-MIGRATION-1.1 current screen status:
 
 ### CORE VTO-1 Try-On Lab UI
 
-The internal development route `/app/try-on-lab` is a guarded authenticated
-workflow page for testing the core person-image plus garment-image VTO loop
-before Product Catalog and production VTO infrastructure.
+The internal development route `/app/try-on-lab` is available to authenticated
+Platform users and authenticated users with any active Store role. It remains a
+guarded workflow page for testing the core person-image plus garment-image VTO
+loop before Product Catalog and production VTO infrastructure.
 
 The lab screen uses the shared Phase 4 layout primitives:
 

@@ -1620,8 +1620,8 @@ Protected route coverage:
      only when explicitly configured with a development access token;
    - the development bridge remains disabled when `SELFX_KIOSK_API_BASE_URL` or
      `SELFX_KIOSK_DEV_ACCESS_TOKEN` is absent;
-   - backend Lab access remains guarded by staff/admin authentication and
-     `TRYON_LAB_ENABLED=true`;
+   - backend Lab access remains guarded by authenticated Platform or active
+     Store-role access and `TRYON_LAB_ENABLED=true`;
    - KIOSK-3A uses temporary local garment images through a customer-friendly
      picker/preview mapped to provider-neutral garment input metadata. Raw path
      entry, milestone labels and garment intent/photo-type override controls

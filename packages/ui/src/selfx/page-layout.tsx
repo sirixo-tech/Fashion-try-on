@@ -128,8 +128,8 @@ export function PageHeader({
       {backAction ? (
         <ActionButton action={backAction} variant="ghost" />
       ) : null}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-2">
+      <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="w-full min-w-0 space-y-2 sm:flex-1">
           {eyebrow ? (
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
               {eyebrow}
@@ -146,7 +146,7 @@ export function PageHeader({
           ) : null}
         </div>
         {actions || secondaryActions || renderedPrimaryAction ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
             {secondaryActions}
             {actions}
             {renderedPrimaryAction}

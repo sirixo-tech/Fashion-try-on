@@ -236,6 +236,18 @@ describe("SelfX shared shell", () => {
     expect(screen.getByRole("heading", { name: "Layout test" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Create" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Export" })).toBeTruthy();
+    const headerLayout = screen.getByRole("heading", {
+      name: "Layout test",
+    }).parentElement?.parentElement?.parentElement;
+    const actionLayout = screen.getByRole("button", {
+      name: "Export",
+    }).parentElement;
+    expect(headerLayout?.className).toContain("flex-col");
+    expect(headerLayout?.className).toContain("sm:flex-row");
+    expect(actionLayout?.className).toContain("w-full");
+    expect(actionLayout?.className).toContain("justify-start");
+    expect(actionLayout?.className).toContain("sm:w-auto");
+    expect(actionLayout?.className).toContain("sm:justify-end");
     expect(screen.getByText("Reusable section content")).toBeTruthy();
     expect(screen.getByText("Rows belong here")).toBeTruthy();
     expect(screen.getByLabelText("Field")).toBeTruthy();

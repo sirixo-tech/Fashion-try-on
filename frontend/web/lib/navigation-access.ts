@@ -59,7 +59,7 @@ const storePermissionsByHref: Record<string, string[]> = {
   "/app/integrations/woocommerce": ["integrations.view"],
 };
 
-const platformOnlyHrefs = new Set([
+const platformOrStoreAccessHrefs = new Set([
   "/app/try-on-lab",
   "/app/try-on-lab/garments",
   "/app/try-on-lab/jewellery",
@@ -104,8 +104,8 @@ function canSeeHref(href: string, access: NavigationAccess): boolean {
   if (alwaysVisibleHrefs.has(route)) {
     return true;
   }
-  if (platformOnlyHrefs.has(route)) {
-    return access.hasPlatformAccess;
+  if (platformOrStoreAccessHrefs.has(route)) {
+    return access.hasPlatformAccess || hasResolvedStoreAccess(access);
   }
 
   const platformPermissions = platformPermissionsByHref[route] ?? [];
@@ -118,6 +118,13 @@ function canSeeHref(href: string, access: NavigationAccess): boolean {
       access.hasActiveStore &&
       (access.storePlatformBypass ||
         hasAny(access.storePermissions, storePermissions)))
+  );
+}
+
+function hasResolvedStoreAccess(access: NavigationAccess): boolean {
+  return (
+    access.hasActiveStore &&
+    (access.storePlatformBypass || access.storePermissions.length > 0)
   );
 }
 

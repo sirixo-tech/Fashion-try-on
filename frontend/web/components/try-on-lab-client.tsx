@@ -1161,11 +1161,6 @@ function ImageInputCard({
           </label>
         )}
 
-        {slot.file ? (
-          <div className="truncate text-xs text-muted-foreground">
-            {slot.file.name}
-          </div>
-        ) : null}
         <QualitySummary result={slot.quality} />
       </div>
     </section>

@@ -1,18 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  BanIcon,
+  CalendarDaysIcon,
+  EyeIcon,
+  MailIcon,
+  MapPinIcon,
+  MonitorIcon,
   PlusIcon,
+  PowerIcon,
   RefreshCwIcon,
   SearchIcon,
   ShieldAlertIcon,
   StoreIcon,
   Trash2Icon,
+  UserCircleIcon,
 } from "lucide-react";
 
 import {
+  buttonVariants,
   Button,
+  Card,
+  CardAction,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
   ConfirmDialog,
   Dialog,
   DialogContent,
@@ -26,19 +47,14 @@ import {
   PageSection,
   SelectMenu,
   StatusBadge,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import {
+  activateStore,
   createStore,
+  deactivateStore,
   deleteStore,
   listStores,
   type AdminStore,
@@ -61,6 +77,7 @@ export default function StoresPage() {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deletingStoreId, setDeletingStoreId] = useState<string | null>(null);
+  const [statusStoreId, setStatusStoreId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -113,6 +130,34 @@ export default function StoresPage() {
     }
   }
 
+  async function changeStoreStatus(store: AdminStore) {
+    if (!accessToken) {
+      return;
+    }
+    const nextStatus = store.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    setStatusStoreId(store.id);
+    setError(null);
+    try {
+      const updated =
+        nextStatus === "ACTIVE"
+          ? await activateStore(accessToken, store.id)
+          : await deactivateStore(accessToken, store.id);
+      const keepInCurrentView = shouldShowStoreForStatus(updated, status);
+      setStores((current) =>
+        keepInCurrentView
+          ? current.map((item) => (item.id === updated.id ? updated : item))
+          : current.filter((item) => item.id !== updated.id),
+      );
+      if (!keepInCurrentView) {
+        setTotal((current) => Math.max(0, current - 1));
+      }
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setStatusStoreId(null);
+    }
+  }
+
   return (
     <PageContainer width="wide">
       <PageHeader
@@ -135,10 +180,17 @@ export default function StoresPage() {
       />
 
       <PageSection>
-        <TableContainer
-          title="Store directory"
-          description={`${total} Stores found. Store is the merchant tenant for SelfX kiosks.`}
-        >
+        <div className="space-y-5">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-xl font-semibold tracking-tight">
+              Store directory
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {total} Stores found. Store is the merchant tenant for SelfX
+              kiosks.
+            </p>
+          </div>
+
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end">
             <label className="flex-1 space-y-2 text-sm">
               <span className="font-medium">Search</span>
@@ -184,88 +236,35 @@ export default function StoresPage() {
             </div>
           ) : null}
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Store</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Kiosks</TableHead>
-                <TableHead>Last Activity</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6}>Loading Stores...</TableCell>
-                </TableRow>
-              ) : stores.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6}>
-                    <div className="flex items-center gap-3 py-8 text-muted-foreground">
-                      <StoreIcon size={20} aria-hidden="true" />
-                      No Stores yet. Create your first Store to start pairing
-                      and managing SelfX kiosks.
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                stores.map((store) => (
-                  <TableRow key={store.id}>
-                    <TableCell>
-                      <div className="font-medium">{store.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        /{store.slug}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={store.status} label={store.status} />
-                    </TableCell>
-                    <TableCell>
-                      {store.totalKiosks}
-                      <span className="text-xs text-muted-foreground">
-                        {" "}
-                        total / {store.activeKiosks} active
-                      </span>
-                    </TableCell>
-                    <TableCell>{formatDate(store.lastActivityAt)}</TableCell>
-                    <TableCell>{formatDate(store.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          render={<Link href={`/app/stores/${store.id}`} />}
-                          variant="outline"
-                          size="sm"
-                        >
-                          View Store
-                        </Button>
-                        {store.status === "INACTIVE" ? (
-                          <ConfirmDialog
-                            title="Delete Store?"
-                            description="This archives the inactive Store and removes it from Store lists. Kiosk records, settings, products and audit history are retained."
-                            confirmLabel="Delete"
-                            destructive
-                            onConfirm={() => void removeStore(store.id)}
-                            trigger={
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={deletingStoreId === store.id}
-                              >
-                                <Trash2Icon aria-hidden="true" />
-                                Delete
-                              </Button>
-                            }
-                          />
-                        ) : null}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          {loading ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }, (_, index) => (
+                <div
+                  key={index}
+                  className="h-72 animate-pulse rounded-xl border bg-card"
+                />
+              ))}
+            </div>
+          ) : stores.length === 0 ? (
+            <div className="flex items-center gap-3 rounded-lg border border-dashed bg-background p-8 text-muted-foreground">
+              <StoreIcon size={20} aria-hidden="true" />
+              No Stores yet. Create your first Store to start pairing and
+              managing SelfX kiosks.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {stores.map((store) => (
+                <StoreDirectoryCard
+                  key={store.id}
+                  store={store}
+                  deleting={deletingStoreId === store.id}
+                  statusChanging={statusStoreId === store.id}
+                  onDelete={() => void removeStore(store.id)}
+                  onChangeStatus={() => void changeStoreStatus(store)}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
             <span>Page {page}</span>
@@ -288,7 +287,7 @@ export default function StoresPage() {
               </Button>
             </div>
           </div>
-        </TableContainer>
+        </div>
       </PageSection>
 
       <StoreFormDialog
@@ -307,6 +306,209 @@ export default function StoresPage() {
         }}
       />
     </PageContainer>
+  );
+}
+
+function StoreDirectoryCard({
+  store,
+  deleting,
+  statusChanging,
+  onDelete,
+  onChangeStatus,
+}: {
+  store: AdminStore;
+  deleting: boolean;
+  statusChanging: boolean;
+  onDelete: () => void;
+  onChangeStatus: () => void;
+}) {
+  const active = store.status === "ACTIVE";
+  const location = storeLocation(store);
+  const ownerEmail = store.contactEmail ?? "No owner/contact email";
+
+  return (
+    <Card
+      className={
+        active
+          ? "border-t-4 border-t-emerald-500"
+          : "border-t-4 border-t-amber-500"
+      }
+    >
+      <CardHeader className="gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-primary text-base font-bold text-primary-foreground shadow-sm">
+            {storeInitials(store.name)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="truncate text-lg font-semibold">
+              {store.name}
+            </CardTitle>
+            <div className="truncate text-xs text-muted-foreground">
+              /{store.slug}
+            </div>
+          </div>
+        </div>
+        <CardAction>
+          <StatusBadge status={store.status} label={store.status} />
+        </CardAction>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-3 gap-3 border-y py-3">
+          <StoreMetric label="Kiosks" value={store.totalKiosks} />
+          <StoreMetric label="Active" value={store.activeKiosks} />
+          <StoreMetric label="Offline" value={store.offlineKiosks} />
+        </div>
+
+        <div className="space-y-2.5">
+          <StoreInfoLine
+            icon={<MailIcon size={15} aria-hidden="true" />}
+            label="Owner"
+            value={ownerEmail}
+          />
+          <StoreInfoLine
+            icon={<MapPinIcon size={15} aria-hidden="true" />}
+            label="Location"
+            value={location}
+          />
+          <StoreInfoLine
+            icon={<RefreshCwIcon size={15} aria-hidden="true" />}
+            label="Last activity"
+            value={formatDate(store.lastActivityAt)}
+          />
+          <StoreInfoLine
+            icon={<CalendarDaysIcon size={15} aria-hidden="true" />}
+            label="Created"
+            value={formatDate(store.createdAt)}
+          />
+        </div>
+      </CardContent>
+
+      <CardFooter className="justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <MonitorIcon size={15} aria-hidden="true" />
+          <span className="truncate">
+            {store.totalKiosks} assigned kiosk
+            {store.totalKiosks === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href={`/app/stores/${store.id}`}
+            aria-label={`View ${store.name}`}
+            title="View Store"
+            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+          >
+            <EyeIcon aria-hidden="true" />
+          </Link>
+
+          <ConfirmDialog
+            title={active ? "Suspend Store?" : "Reactivate Store?"}
+            description={
+              active
+                ? "The Store will remain in SelfX, but inactive Stores cannot receive new kiosk assignments."
+                : "The Store will become active again and can receive kiosk assignments."
+            }
+            confirmLabel={active ? "Suspend" : "Reactivate"}
+            destructive={active}
+            onConfirm={onChangeStatus}
+            trigger={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={active ? "Suspend Store" : "Reactivate Store"}
+                title={active ? "Suspend Store" : "Reactivate Store"}
+                disabled={statusChanging}
+              >
+                {active ? (
+                  <BanIcon aria-hidden="true" />
+                ) : (
+                  <PowerIcon aria-hidden="true" />
+                )}
+              </Button>
+            }
+          />
+
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label="Impersonate Store owner"
+            title="Impersonation is not available yet"
+            disabled
+          >
+            <UserCircleIcon aria-hidden="true" />
+          </Button>
+
+          {active ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label="Delete Store"
+              title="Suspend the Store before deleting"
+              disabled
+            >
+              <Trash2Icon aria-hidden="true" />
+            </Button>
+          ) : (
+            <ConfirmDialog
+              title="Delete Store?"
+              description="This archives the inactive Store and removes it from Store lists. Kiosk records, settings, products and audit history are retained."
+              confirmLabel="Delete"
+              destructive
+              onConfirm={onDelete}
+              trigger={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Delete Store"
+                  title="Delete Store"
+                  disabled={deleting}
+                >
+                  <Trash2Icon aria-hidden="true" />
+                </Button>
+              }
+            />
+          )}
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}
+
+function StoreMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 text-2xl font-bold leading-none text-foreground">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function StoreInfoLine({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-2 text-sm">
+      <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
+      <div className="min-w-0">
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        <div className="truncate text-foreground">{value}</div>
+      </div>
+    </div>
   );
 }
 
@@ -531,6 +733,25 @@ function cleanStoreInput(input: StoreInput): StoreInput {
 
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "-";
+}
+
+function storeInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  return (parts.map((part) => part[0]).join("") || "SX").toUpperCase();
+}
+
+function storeLocation(store: AdminStore): string {
+  return (
+    [store.city, store.stateRegion, store.country].filter(Boolean).join(", ") ||
+    "-"
+  );
+}
+
+function shouldShowStoreForStatus(
+  store: AdminStore,
+  selectedStatus: StoreStatus | "ALL",
+): boolean {
+  return selectedStatus === "ALL" || store.status === selectedStatus;
 }
 
 function messageFor(caught: unknown): string {

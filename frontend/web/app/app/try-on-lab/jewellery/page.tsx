@@ -670,15 +670,6 @@ function ImageUploadCard({
         </div>
         {slot.file ? (
           <div className="space-y-2">
-            <div className="truncate text-xs text-muted-foreground">
-              {slot.file.name}
-            </div>
-            {slot.dimensions ? (
-              <div className="text-xs font-medium text-foreground">
-                Resolution: {slot.dimensions.width} x {slot.dimensions.height}{" "}
-                px
-              </div>
-            ) : null}
             {status ? (
               <div
                 className={cn(

@@ -296,6 +296,16 @@ describe("STORE-1 web Store management", () => {
 
     expect(await screen.findByText("SelfX Demo Store")).toBeTruthy();
     expect(screen.getByText("Store directory")).toBeTruthy();
+    expect(screen.getByText("ops@example.com")).toBeTruthy();
+    expect(screen.getByText("Bengaluru, KA, India")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: /View SelfX Demo Store/i }),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: /Impersonate Store owner/i })
+        .hasAttribute("disabled"),
+    ).toBe(true);
     expect(screen.queryByText(/Organization/i)).toBeNull();
   });
 
@@ -336,9 +346,8 @@ describe("STORE-1 web Store management", () => {
     render(<StoresPage />);
 
     expect(await screen.findByText("SelfX Demo Store")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
-    fireEvent.click(deleteButtons[deleteButtons.length - 1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Delete Store" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() =>
       expect(deleteStore).toHaveBeenCalledWith("staff-token", "store-1"),

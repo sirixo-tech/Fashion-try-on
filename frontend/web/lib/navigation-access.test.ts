@@ -18,6 +18,13 @@ const items: SelfxNavItem[] = [
   { href: "/app/products", label: "Products" },
   { href: "/app/kiosks", label: "Kiosks" },
   {
+    label: "Try-On Lab",
+    children: [
+      { href: "/app/try-on-lab/garments", label: "Garment Lab" },
+      { href: "/app/try-on-lab/jewellery", label: "Jewellery Lab" },
+    ],
+  },
+  {
     label: "Integrations",
     children: [
       { href: "/app/integrations/shopify", label: "Shopify" },
@@ -64,6 +71,9 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
+      "Try-On Lab",
+      "Garment Lab",
+      "Jewellery Lab",
       "Integrations",
       "Shopify",
       "WooCommerce",
@@ -89,7 +99,41 @@ describe("permission-aware navigation", () => {
       "Stores",
       "Stores",
       "Kiosks",
+      "Try-On Lab",
+      "Garment Lab",
+      "Jewellery Lab",
       "Developer / API",
+      "Activity",
+    ]);
+  });
+
+  it("shows Try-On Lab to any platform role", () => {
+    expect(
+      labelsFor({
+        ...baseAccess,
+        hasPlatformAccess: true,
+      }),
+    ).toEqual([
+      "Dashboard",
+      "Try-On Lab",
+      "Garment Lab",
+      "Jewellery Lab",
+      "Activity",
+    ]);
+  });
+
+  it("shows Try-On Lab to any resolved Store role", () => {
+    expect(
+      labelsFor({
+        ...baseAccess,
+        hasActiveStore: true,
+        storePermissions: ["stores.view"],
+      }),
+    ).toEqual([
+      "Dashboard",
+      "Try-On Lab",
+      "Garment Lab",
+      "Jewellery Lab",
       "Activity",
     ]);
   });
@@ -103,6 +147,9 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
+      "Try-On Lab",
+      "Garment Lab",
+      "Jewellery Lab",
       "Integrations",
       "Shopify",
       "WooCommerce",
@@ -120,6 +167,9 @@ describe("permission-aware navigation", () => {
       "Onboarding",
       "Products",
       "Kiosks",
+      "Try-On Lab",
+      "Garment Lab",
+      "Jewellery Lab",
       "Integrations",
       "Shopify",
       "WooCommerce",
