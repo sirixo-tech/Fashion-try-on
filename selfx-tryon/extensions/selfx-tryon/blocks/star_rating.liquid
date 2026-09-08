@@ -1,0 +1,112 @@
+{% assign product = block.settings.product %}
+
+<div class="selfx-tryon-block">
+  <button
+    type="button"
+    class="selfx-tryon-button"
+    data-selfx-launch-url="{{ block.settings.selfx_launch_url }}"
+    data-selfx-shop="{{ shop.permanent_domain }}"
+    data-selfx-product-id="{{ product.id }}"
+    data-selfx-product-handle="{{ product.handle }}"
+  >
+    {{ block.settings.button_label }}
+  </button>
+
+  {% if block.settings.helper_text != blank %}
+    <p class="selfx-tryon-helper">
+      {{ block.settings.helper_text }}
+    </p>
+  {% endif %}
+</div>
+
+<style>
+  .selfx-tryon-block {
+    margin: 16px 0;
+  }
+
+  .selfx-tryon-button {
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    padding: 14px 18px;
+    background: {{ block.settings.button_background }};
+    color: {{ block.settings.button_text_color }};
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .selfx-tryon-button:hover {
+    opacity: 0.92;
+  }
+
+  .selfx-tryon-helper {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: #666;
+  }
+</style>
+
+<script>
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".selfx-tryon-button");
+    if (!button) return;
+
+    var launchUrl = button.dataset.selfxLaunchUrl;
+    if (!launchUrl) {
+      alert("SelfX Try-On is not connected yet.");
+      return;
+    }
+
+    var url = new URL(launchUrl);
+    url.searchParams.set("shop", button.dataset.selfxShop);
+    url.searchParams.set("productId", button.dataset.selfxProductId);
+    url.searchParams.set("productHandle", button.dataset.selfxProductHandle);
+
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+  });
+</script>
+
+{% schema %}
+{
+  "name": "SelfX Try It On",
+  "target": "section",
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Product",
+      "autofill": true
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Try It On"
+    },
+    {
+      "type": "text",
+      "id": "helper_text",
+      "label": "Helper text",
+      "default": "See how this product looks on you with SelfX."
+    },
+    {
+      "type": "url",
+      "id": "selfx_launch_url",
+      "label": "SelfX launch URL"
+    },
+    {
+      "type": "color",
+      "id": "button_background",
+      "label": "Button background",
+      "default": "#ff6a00"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button text color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}
