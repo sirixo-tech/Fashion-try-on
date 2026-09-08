@@ -46,7 +46,22 @@ describe("JewelleryPersonImageValidatorService", () => {
     });
   });
 
-  it("rejects an earring photo when both ears are not visible", async () => {
+  it("allows an earring photo when one ear is visible", async () => {
+    const validator = createValidator();
+
+    await expect(
+      validator.validate({
+        ...baseInput(),
+        jewelleryType: "EARRING",
+        semanticEvidence: {
+          ...poseEvidence(),
+          frontFacing: null,
+        },
+      }),
+    ).resolves.toEqual({ canProceed: true, outcome: "PROCEED" });
+  });
+
+  it("rejects an earring photo when no ear is visible", async () => {
     const validator = createValidator();
 
     const result = await validator.validate({

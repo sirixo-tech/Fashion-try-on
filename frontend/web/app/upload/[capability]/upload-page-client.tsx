@@ -259,7 +259,7 @@ function jewelleryUploadGuidance(type?: string) {
       return {
         title: "Add your photo",
         description:
-          "Keep your face and ears clearly visible. Move hair away from your ears.",
+          "Keep your face and at least one ear clearly visible. Move hair away from the visible ear.",
       };
     default:
       return null;

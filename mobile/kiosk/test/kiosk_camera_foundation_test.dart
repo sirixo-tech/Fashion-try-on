@@ -2061,7 +2061,7 @@ class FakeKioskCatalogGateway implements KioskCatalogGateway {
         KioskJewelleryCaptureTargetRegion.faceAndEars,
         KioskJewelleryCaptureGuide.faceAndEars,
         'Face and ears guide',
-        'Keep your face and both ears visible inside the guide.',
+        'Keep your face and one ear visible inside the guide.',
       ),
     };
     return KioskJewelleryCaptureRequirements(

@@ -64,7 +64,7 @@ void main() {
       targetRegion: KioskJewelleryCaptureTargetRegion.faceAndEars,
       guide: KioskJewelleryCaptureGuide.faceAndEars,
       title: 'Face and ears guide',
-      instruction: 'Keep your face and both ears visible inside the guide.',
+      instruction: 'Keep your face and one ear visible inside the guide.',
       checklist: [],
       requiredChecks: [],
     );
@@ -83,7 +83,7 @@ void main() {
 
     expect(find.text('Face and ears guide'), findsOneWidget);
     expect(
-      find.text('Keep your face and both ears visible inside the guide.'),
+      find.text('Keep your face and one ear visible inside the guide.'),
       findsOneWidget,
     );
     expect(find.byKey(const Key('camera-framing-guide')), findsOneWidget);

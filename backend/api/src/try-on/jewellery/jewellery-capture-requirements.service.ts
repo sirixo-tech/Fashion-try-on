@@ -73,19 +73,15 @@ const capturePolicies: Record<SelfxJewelleryType, JewelleryCapturePolicy> = {
   EARRING: {
     targetRegion: "FACE_AND_EARS",
     guide: "FACE_AND_EARS",
-    title: "Keep your face and ears visible",
+    title: "Keep your face and one ear visible",
     instruction:
-      "Face the camera directly and keep both ears clearly visible inside the guide.",
+      "Keep your face and at least one ear clearly visible inside the guide.",
     checklist: [
-      "Look directly toward the camera.",
-      "Move hair and accessories away from both ears.",
-      "Use even lighting across the face and ears.",
+      "Turn slightly if it makes the earring side clearer.",
+      "Move hair and accessories away from the visible ear.",
+      "Use even lighting across the face and ear.",
     ],
-    requiredChecks: [
-      ...commonImageChecks,
-      "FRONT_FACING",
-      "RELEVANT_REGION_UNOBSTRUCTED",
-    ],
+    requiredChecks: [...commonImageChecks, "RELEVANT_REGION_UNOBSTRUCTED"],
   },
 };
 

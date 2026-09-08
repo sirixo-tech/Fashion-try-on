@@ -1616,6 +1616,8 @@ necklace and earring products may use different target-region guides and
 instructions. The kiosk offers camera capture and **Upload From Mobile** after
 jewellery selection. Both use the same selected jewellery item and active
 Try-On session.
+Earring guidance asks for the face and at least one visible ear so side-facing
+photos can proceed; it does not require both ears to be visible.
 
 The Flutter kiosk implements this as a single-selection flow: jewellery catalog
 -> selected-product capture requirements -> static type-specific camera guide

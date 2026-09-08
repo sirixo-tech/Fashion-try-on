@@ -96,6 +96,21 @@ describe("CustomerUploadPageClient", () => {
     expect(statusMock).toHaveBeenCalledWith("ring-upload");
   });
 
+  it("shows relaxed earring guidance for a person upload", async () => {
+    render(
+      <CustomerUploadPageClient
+        capability="earring-upload"
+        jewelleryType="EARRING"
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Keep your face and at least one ear clearly visible. Move hair away from the visible ear.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("ignores jewellery guidance for a garment-image upload", async () => {
     statusMock.mockResolvedValueOnce({
       status: "WAITING",

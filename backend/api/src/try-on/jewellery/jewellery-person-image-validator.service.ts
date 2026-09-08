@@ -145,6 +145,6 @@ function obstructedRegionMessage(type: SelfxJewelleryType): string {
     case "NECKLACE":
       return "Move hair or clothing away from your neckline and retake the photo.";
     case "EARRING":
-      return "Move hair and accessories away from both ears and retake the photo.";
+      return "Move hair and accessories away from the visible ear and retake the photo.";
   }
 }

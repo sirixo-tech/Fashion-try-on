@@ -854,8 +854,11 @@ Protected route coverage:
     guide, customer instruction, checklist, permitted person-input methods and
     required validation checks. Initial mappings are ring -> hand, bracelet ->
     wrist/lower forearm, necklace -> neck/shoulders/upper chest and earring ->
-    face/ears. Kiosk allows camera capture, customer web/mobile may allow camera
-    capture or upload, and Public API/internal Lab inputs are uploads.
+    face/ear. Earring capture must allow side-facing images where the face and
+    at least one ear are clearly visible; it must not require both ears or a
+    strict front-facing head pose. Kiosk allows camera capture, customer
+    web/mobile may allow camera capture or upload, and Public API/internal Lab
+    inputs are uploads.
 
     The authenticated kiosk product route
     `GET /api/v1/kiosk/catalog/products/:productId/capture-requirements` must
@@ -869,7 +872,7 @@ Protected route coverage:
     The production Flutter kiosk implements the selected-product portion of
     this contract: it fetches the authenticated product requirements before
     person capture, renders the matching static hand, wrist, neckline or
-    face/ears guide, and preserves the selected product and type through
+    face/ear guide, and preserves the selected product and type through
     generation. Jewellery capture uses the existing assisted countdown and
     technical image-validity checks, without applying garment body-coverage
     readiness rules to a jewellery close-up. Automatic required-region
@@ -890,7 +893,8 @@ Protected route coverage:
     technical image validity before provider submission. Controlled SelfX
     clients may send compact semantic evidence produced from the resolved
     jewellery requirements: hand landmarks for rings/bracelets and pose
-    landmarks for necklaces/earrings.
+    landmarks for necklaces/earrings. Earring semantic evidence may satisfy the
+    required-region check with one visible ear plus a visible face/nose.
     Semantic evidence contains booleans, analyzer identity and bounded
     confidence only; clients must never upload raw landmarks or pose histories.
     The backend validates this evidence, selects one prioritized corrective

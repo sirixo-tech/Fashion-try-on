@@ -18,7 +18,7 @@ describe("jewellery person landmark analysis", () => {
     });
   });
 
-  it("rejects earring framing when an ear is outside the image", () => {
+  it("accepts earring framing when one ear is visible", () => {
     const landmarks = Array.from({ length: 13 }, () => ({
       x: 0.5,
       y: 0.5,
@@ -33,8 +33,28 @@ describe("jewellery person landmark analysis", () => {
       {
         analyzer: "MEDIAPIPE_POSE_LANDMARKER",
         subjectPresent: true,
+        requiredRegionVisible: true,
+        frontFacing: null,
+      },
+    );
+  });
+
+  it("rejects earring framing when no ear is visible", () => {
+    const landmarks = Array.from({ length: 13 }, () => ({
+      x: 0.5,
+      y: 0.5,
+      visibility: 0.9,
+      presence: 0.9,
+    }));
+    landmarks[0] = { x: 0.5, y: 0.3, visibility: 0.9, presence: 0.9 };
+    landmarks[7] = { x: -0.1, y: 0.3, visibility: 0.9, presence: 0.9 };
+    landmarks[8] = { x: 1.1, y: 0.3, visibility: 0.9, presence: 0.9 };
+
+    expect(analyzeJewelleryPersonLandmarks("EARRING", landmarks)).toMatchObject(
+      {
+        analyzer: "MEDIAPIPE_POSE_LANDMARKER",
+        subjectPresent: true,
         requiredRegionVisible: false,
-        frontFacing: false,
       },
     );
   });

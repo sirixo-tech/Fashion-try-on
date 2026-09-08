@@ -60,4 +60,17 @@ describe("JewelleryCaptureRequirementsService", () => {
       expect(requirements.guide).toBe(guide);
     },
   );
+
+  it("allows side-facing earring capture with one visible ear", () => {
+    const requirements = service.resolve("EARRING", "KIOSK", "product-1");
+
+    expect(requirements.title).toBe("Keep your face and one ear visible");
+    expect(requirements.instruction).toBe(
+      "Keep your face and at least one ear clearly visible inside the guide.",
+    );
+    expect(requirements.checklist).toContain(
+      "Move hair and accessories away from the visible ear.",
+    );
+    expect(requirements.requiredChecks).not.toContain("FRONT_FACING");
+  });
 });

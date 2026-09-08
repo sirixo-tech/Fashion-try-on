@@ -173,17 +173,22 @@ function analyzeUpperBody(
   const rightEar = landmarks?.[8];
   const leftShoulder = landmarks?.[11];
   const rightShoulder = landmarks?.[12];
+  const visibleEars = [leftEar, rightEar].filter(isVisibleLandmark);
   const requiredLandmarks =
     jewelleryType === "EARRING"
-      ? [nose, leftEar, rightEar]
+      ? [nose, ...visibleEars]
       : [nose, leftEar, rightEar, leftShoulder, rightShoulder];
   const requiredRegionVisible =
-    subjectPresent && requiredLandmarks.every(isVisibleLandmark);
+    subjectPresent &&
+    (jewelleryType === "EARRING"
+      ? isVisibleLandmark(nose) && visibleEars.length >= 1
+      : requiredLandmarks.every(isVisibleLandmark));
   const frontFacing =
-    requiredRegionVisible &&
-    isHorizontallyCentered(nose, leftEar, rightEar) &&
-    (jewelleryType === "EARRING" ||
-      shouldersAreLevel(leftShoulder, rightShoulder));
+    jewelleryType === "EARRING"
+      ? null
+      : requiredRegionVisible &&
+        isHorizontallyCentered(nose, leftEar, rightEar) &&
+        shouldersAreLevel(leftShoulder, rightShoulder);
   const confidence = averageConfidence(requiredLandmarks);
 
   return {
