@@ -21,6 +21,9 @@ customers, checkout or configuration.
 - deduplicates webhook retries by Shopify webhook ID;
 - disconnects the integration, revokes credentials and archives its local
   catalog references when the Shopify app is uninstalled;
+- provides a backend protocol for securely linking an authenticated Shopify
+  shop to one active SelfX Store;
+- includes a Theme App Extension block as the initial storefront surface;
 - prints a safe sync report without access tokens.
 
 ## Run A Full Catalog Sync
@@ -35,7 +38,39 @@ The CLI reads environment variables from the running process; it does not load
 or persist a local `.env` file. Tokens must stay on the server and must never be
 placed in storefront JavaScript.
 
-## Merchant Connection
+## Managed App Store Linking
+
+The preferred app flow does not ask a merchant to create or paste a SelfX API
+key. After Shopify authenticates the shop, the Shopify app server:
+
+1. calls `POST /api/v1/integrations/shopify/link-sessions` with the canonical
+   shop domain and Shopify Shop GID;
+2. sends the merchant to the returned SelfX approval URL;
+3. waits for the merchant to sign in and approve an active SelfX Store;
+4. calls `POST /api/v1/integrations/shopify/link-sessions/{token}/redeem`;
+5. encrypts the returned `catalog:sync` integration token in the Shopify app's
+   server-side storage.
+
+The create and redeem calls require the server-only
+`SELFX_SHOPIFY_APP_SERVICE_TOKEN`. Link sessions expire after ten minutes, are
+stored as hashes in SelfX and can be redeemed only once. A Shopify account can
+be linked to only one SelfX Store.
+
+The embedded Shopify app now creates the session, opens the SelfX approval page,
+checks approval automatically, stores the redeemed credential encrypted in its
+server-side database and starts the first full catalog sync. It also reports the
+latest import totals and supports a manual read-only resync.
+
+Configure these values on the Shopify app server:
+
+- `SELFX_API_BASE_URL`
+- `SELFX_WEB_BASE_URL`
+- `SELFX_SHOPIFY_APP_SERVICE_TOKEN` (the same value configured on SelfX API)
+- `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY` (a separate Base64-encoded 32-byte key)
+- `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY_VERSION`
+- `SHOPIFY_API_VERSION`
+
+## Direct Dashboard OAuth
 
 The SelfX dashboard now starts Shopify's authorization-code flow with only the
 `read_products` scope. The callback validates Shopify's HMAC, consumes a
@@ -67,6 +102,8 @@ delivery window and let Shopify retry. The endpoint never writes to Shopify.
 
 ## Still Planned
 
-Scheduled reconciliation, Theme App Extension and storefront Try-On UI are not
-implemented yet. The standalone CLI environment token remains an
-operator/development path independent of the dashboard OAuth connection.
+Scheduled reconciliation, disconnection/relink UI, a working theme-editor deep
+link and the complete storefront Try-On runtime are not implemented yet. The
+Theme App Extension block exists but is not yet connected to that complete
+runtime. The standalone CLI environment token remains an operator/development
+path independent of the managed-app connection.

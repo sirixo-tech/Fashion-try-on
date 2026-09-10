@@ -1678,18 +1678,26 @@ Shopify Merchant
 
 1. Merchant installs the SelfX Shopify app.
 2. Shopify authorization flow runs.
-3. SelfX verifies installation/authentication.
-4. Merchant connects or creates the appropriate SelfX organization.
-5. Integration record is created.
-6. Required product data begins initial synchronization.
-7. Merchant configures VTO-eligible products.
-8. Merchant enables the SelfX storefront extension/block.
-9. SelfX Try-On becomes available on configured products.
+3. The Shopify app verifies the shop and creates a short-lived SelfX link
+   session through a server-to-server request.
+4. Merchant signs in to SelfX and selects an active Store they are allowed to
+   manage.
+5. Merchant approves linking that Shopify shop to the selected Store.
+6. The Shopify app redeems the approval once and stores the returned
+   Store-scoped SelfX credential on its server.
+7. The Shopify integration record is activated.
+8. Required product data begins initial synchronization.
+9. Merchant configures VTO-eligible products.
+10. Merchant enables the SelfX storefront extension/block.
+11. SelfX Try-On becomes available on configured products.
 
 ### Security Rules
 
 - Shopify credentials remain server-side.
 - Merchant secrets are never exposed in storefront code.
+- Link sessions expire after ten minutes and can be redeemed only once.
+- Linking requires `integrations.manage` for the selected active SelfX Store.
+- A Shopify shop cannot be linked to more than one SelfX Store.
 
 ---
 

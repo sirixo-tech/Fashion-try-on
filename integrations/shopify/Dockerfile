@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 RUN apk add --no-cache openssl
 
@@ -10,11 +10,13 @@ ENV NODE_ENV=production
 
 COPY integrations/shopify/package.json integrations/shopify/package-lock.json ./
 
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci
 
 COPY tsconfig.base.json /tsconfig.base.json
 COPY integrations/shopify/ ./
 
 RUN npm run build
+
+RUN npm prune --omit=dev && npm cache clean --force
 
 CMD ["npm", "run", "docker-start"]

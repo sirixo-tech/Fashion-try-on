@@ -18,6 +18,7 @@ import {
 import { Alert, AlertDescription, Button, Input, Label } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
+import { safeLoginNextPath } from "@/lib/login-next";
 import {
   getPublicLoginPageSettings,
   type LoginPageSettings,
@@ -114,7 +115,10 @@ export function LoginForm() {
 
     try {
       await session.login(email, password);
-      router.push("/app/dashboard");
+      const next = safeLoginNextPath(
+        new URLSearchParams(window.location.search).get("next"),
+      );
+      router.push(next);
     } catch (error) {
       setErrorCode(
         error instanceof SafeApiError ? error.code : "REQUEST_FAILED",

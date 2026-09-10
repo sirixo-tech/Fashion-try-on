@@ -1942,6 +1942,16 @@ Protected route coverage:
     single-use OAuth state, validates Shopify callback HMAC, requests only
     `read_products`, and encrypts expiring offline access/refresh credentials at
     rest. Access tokens are refreshed before catalog sync when near expiry.
+    The managed Shopify app connection path must separate Shopify installation
+    authentication from SelfX Store approval. After Shopify authenticates the
+    shop, the Shopify app server creates a ten-minute link session with the
+    canonical shop domain and stable Shopify Shop GID. SelfX persists only the
+    link-token hash. A signed-in SelfX user with `integrations.manage` approves
+    one active Store, and the Shopify app server redeems the session exactly once
+    for a Store-scoped SelfX credential limited to `catalog:sync`. The service
+    credential used to create/redeem sessions and the redeemed integration token
+    remain server-only. One Shopify account may be linked to only one SelfX Store,
+    and one active Shopify integration may belong to a Store at a time.
     Signed product create/update/delete webhooks and app-uninstall handling are
     implemented at `/api/v1/integrations/shopify/webhooks`. SelfX verifies the
     HMAC against the exact raw body before trusting headers or payload, records

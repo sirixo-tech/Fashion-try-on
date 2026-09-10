@@ -61,6 +61,24 @@ export type CreateIntegrationCredentialResponse = {
   secret: string;
 };
 
+export type ShopifyLinkDetails = {
+  id: string;
+  status: "PENDING" | "APPROVED" | "REDEEMED";
+  shopDomain: string;
+  externalAccountName: string | null;
+  expiresAt: string;
+};
+
+export type ShopifyLinkApproval = {
+  id: string;
+  status: "APPROVED" | "REDEEMED";
+  shopDomain: string;
+  storeId: string;
+  storeName: string;
+  approvedAt: string;
+  expiresAt: string;
+};
+
 export function listIntegrations(
   accessToken: string,
   input: {
@@ -125,6 +143,31 @@ export function syncShopifyCatalog(
     method: "POST",
     accessToken,
   });
+}
+
+export function getShopifyLinkDetails(
+  accessToken: string,
+  linkToken: string,
+): Promise<ShopifyLinkDetails> {
+  return selfxApi<ShopifyLinkDetails>(
+    `/api/v1/admin/integrations/shopify/link-sessions/${encodeURIComponent(linkToken)}`,
+    { accessToken },
+  );
+}
+
+export function approveShopifyLink(
+  accessToken: string,
+  linkToken: string,
+  storeId: string,
+): Promise<ShopifyLinkApproval> {
+  return selfxApi<ShopifyLinkApproval>(
+    `/api/v1/admin/integrations/shopify/link-sessions/${encodeURIComponent(linkToken)}/approve`,
+    {
+      method: "POST",
+      accessToken,
+      body: JSON.stringify({ storeId }),
+    },
+  );
 }
 
 export function disconnectIntegration(

@@ -2,19 +2,19 @@
 
 client_id = "52e96ba0f2c2a416cfe9ccc6136c28b8"
 name = "selfx-tryon"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://fashion-try-on-production.up.railway.app"
 embedded = true
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_products"
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [
+  "https://fashion-try-on-production.up.railway.app/auth/callback"
+]
 
 [webhooks]
-api_version = "2026-10"
+api_version = "2026-07"
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true

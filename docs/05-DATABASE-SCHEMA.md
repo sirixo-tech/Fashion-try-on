@@ -1695,6 +1695,15 @@ Indexes:
 - `type`
 - `(organization_id, status)`
 
+Constraints:
+
+- unique `(organization_id, type)`
+- unique `(type, external_account_id)` when an external account ID is present
+
+The second constraint prevents one Shopify shop from being linked to multiple
+SelfX Stores. Moving a shop between Stores must use an explicit administrative
+disconnect/relink operation rather than creating a second integration row.
+
 ---
 
 ## 13.2 `integration_credentials`
@@ -1792,7 +1801,35 @@ Important fields:
 
 ---
 
-## 13.6 `webhook_endpoints`
+## 13.6 `shopify_link_sessions`
+
+Short-lived, single-use records used to connect an authenticated Shopify app
+installation to an active SelfX Store. The Shopify app creates the session by a
+server-to-server call. An authorized SelfX user selects and approves the Store,
+then the Shopify app redeems the session once for a Store-scoped
+`catalog:sync` credential. Only the SHA-256 hash of the link token is stored.
+
+Important fields:
+
+- `token_hash` unique
+- `shop_domain`
+- `external_account_id`
+- `external_account_name`
+- `organization_id`
+- `approved_by_user_id`
+- `integration_id`
+- `expires_at`
+- `approved_at`
+- `redeemed_at`
+- `created_at`
+- `updated_at`
+
+The raw link token and generated integration credential are each returned only
+to the Shopify app server. Neither value belongs in storefront JavaScript.
+
+---
+
+## 13.7 `webhook_endpoints`
 
 Public API webhook configuration.
 

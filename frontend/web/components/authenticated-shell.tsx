@@ -174,7 +174,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         setActiveOrganizationId((current) =>
           current && data.some((organization) => organization.id === current)
             ? current
-            : data[0]?.id ?? null,
+            : (data[0]?.id ?? null),
         );
       })
       .catch(() => {
@@ -260,7 +260,13 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         <PermissionDeniedState
           title="Sign in required"
           description="Use your SelfX staff or platform account to open the admin shell."
-          action={{ label: "Sign in", href: "/login" }}
+          action={{
+            label: "Sign in",
+            onClick: () => {
+              const next = `${window.location.pathname}${window.location.search}`;
+              router.push(`/login?next=${encodeURIComponent(next)}`);
+            },
+          }}
         />
       </main>
     );

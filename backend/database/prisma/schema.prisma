@@ -227,6 +227,7 @@ model User {
   integrationsCreated           Integration[]                       @relation("IntegrationCreatedByUser")
   integrationCredentialsCreated IntegrationCredential[]             @relation("IntegrationCredentialCreatedByUser")
   integrationOauthStatesCreated IntegrationOauthState[]             @relation("IntegrationOauthStateCreatedByUser")
+  shopifyLinkSessionsApproved   ShopifyLinkSession[]                @relation("ShopifyLinkSessionApprovedByUser")
 
   @@map("users")
 }
@@ -279,6 +280,7 @@ model Organization {
   integrationEvents       IntegrationEvent[]
   externalProductMappings ExternalProductMapping[]
   integrationOauthStates  IntegrationOauthState[]
+  shopifyLinkSessions     ShopifyLinkSession[]
   providerCredentials     IntegrationProviderCredential[]
 
   @@index([status])
@@ -975,26 +977,28 @@ model TryOnLook {
 }
 
 model Integration {
-  id                  String                   @id @db.Uuid
-  organizationId      String                   @map("organization_id") @db.Uuid
+  id                  String                         @id @db.Uuid
+  organizationId      String                         @map("organization_id") @db.Uuid
   type                IntegrationType
-  status              IntegrationStatus        @default(ACTIVE)
-  externalAccountId   String?                  @map("external_account_id") @db.VarChar(180)
-  externalAccountName String?                  @map("external_account_name") @db.VarChar(240)
-  metadata            Json?                    @map("metadata_json")
-  connectedAt         DateTime?                @default(now()) @map("connected_at") @db.Timestamptz(3)
-  disconnectedAt      DateTime?                @map("disconnected_at") @db.Timestamptz(3)
-  createdByUserId     String?                  @map("created_by_user_id") @db.Uuid
-  createdAt           DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByUser       User?                    @relation("IntegrationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  status              IntegrationStatus              @default(ACTIVE)
+  externalAccountId   String?                        @map("external_account_id") @db.VarChar(180)
+  externalAccountName String?                        @map("external_account_name") @db.VarChar(240)
+  metadata            Json?                          @map("metadata_json")
+  connectedAt         DateTime?                      @default(now()) @map("connected_at") @db.Timestamptz(3)
+  disconnectedAt      DateTime?                      @map("disconnected_at") @db.Timestamptz(3)
+  createdByUserId     String?                        @map("created_by_user_id") @db.Uuid
+  createdAt           DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization        Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser       User?                          @relation("IntegrationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   credentials         IntegrationCredential[]
   events              IntegrationEvent[]
   externalMappings    ExternalProductMapping[]
   providerCredential  IntegrationProviderCredential?
+  shopifyLinkSessions ShopifyLinkSession[]
 
   @@unique([organizationId, type])
+  @@unique([type, externalAccountId])
   @@index([organizationId, status])
   @@index([type, status])
   @@index([createdByUserId])
@@ -1002,14 +1006,14 @@ model Integration {
 }
 
 model IntegrationProviderCredential {
-  id                   String          @id @db.Uuid
-  integrationId        String          @unique @map("integration_id") @db.Uuid
-  organizationId       String          @map("organization_id") @db.Uuid
+  id                    String          @id @db.Uuid
+  integrationId         String          @unique @map("integration_id") @db.Uuid
+  organizationId        String          @map("organization_id") @db.Uuid
   provider              IntegrationType
   encryptedPayload      String          @map("encrypted_payload") @db.Text
-  initializationVector String          @map("initialization_vector") @db.VarChar(64)
-  authenticationTag    String          @map("authentication_tag") @db.VarChar(64)
-  keyVersion           String          @default("v1") @map("key_version") @db.VarChar(40)
+  initializationVector  String          @map("initialization_vector") @db.VarChar(64)
+  authenticationTag     String          @map("authentication_tag") @db.VarChar(64)
+  keyVersion            String          @default("v1") @map("key_version") @db.VarChar(40)
   scopes                Json            @map("scopes_json")
   accessTokenExpiresAt  DateTime?       @map("access_token_expires_at") @db.Timestamptz(3)
   refreshTokenExpiresAt DateTime?       @map("refresh_token_expires_at") @db.Timestamptz(3)
@@ -1026,19 +1030,43 @@ model IntegrationProviderCredential {
 model IntegrationOauthState {
   id              String          @id @db.Uuid
   organizationId  String          @map("organization_id") @db.Uuid
-  provider         IntegrationType
-  shopDomain       String          @map("shop_domain") @db.VarChar(180)
-  stateHash        String          @unique @map("state_hash") @db.Char(64)
-  createdByUserId  String          @map("created_by_user_id") @db.Uuid
-  expiresAt        DateTime        @map("expires_at") @db.Timestamptz(3)
-  consumedAt       DateTime?       @map("consumed_at") @db.Timestamptz(3)
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  provider        IntegrationType
+  shopDomain      String          @map("shop_domain") @db.VarChar(180)
+  stateHash       String          @unique @map("state_hash") @db.Char(64)
+  createdByUserId String          @map("created_by_user_id") @db.Uuid
+  expiresAt       DateTime        @map("expires_at") @db.Timestamptz(3)
+  consumedAt      DateTime?       @map("consumed_at") @db.Timestamptz(3)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdByUser    User            @relation("IntegrationOauthStateCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  createdByUser   User            @relation("IntegrationOauthStateCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, provider, expiresAt])
   @@index([expiresAt, consumedAt])
   @@map("integration_oauth_states")
+}
+
+model ShopifyLinkSession {
+  id                  String        @id @db.Uuid
+  tokenHash           String        @unique @map("token_hash") @db.Char(64)
+  shopDomain          String        @map("shop_domain") @db.VarChar(180)
+  externalAccountId   String        @map("external_account_id") @db.VarChar(180)
+  externalAccountName String?       @map("external_account_name") @db.VarChar(240)
+  organizationId      String?       @map("organization_id") @db.Uuid
+  approvedByUserId    String?       @map("approved_by_user_id") @db.Uuid
+  integrationId       String?       @map("integration_id") @db.Uuid
+  expiresAt           DateTime      @map("expires_at") @db.Timestamptz(3)
+  approvedAt          DateTime?     @map("approved_at") @db.Timestamptz(3)
+  redeemedAt          DateTime?     @map("redeemed_at") @db.Timestamptz(3)
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization        Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  approvedByUser      User?         @relation("ShopifyLinkSessionApprovedByUser", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  integration         Integration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@index([shopDomain, expiresAt])
+  @@index([expiresAt, redeemedAt])
+  @@index([organizationId, createdAt])
+  @@map("shopify_link_sessions")
 }
 
 model IntegrationCredential {

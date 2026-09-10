@@ -2244,7 +2244,7 @@ An external organization can integrate VTO without accessing internal admin APIs
 
 # 22. Phase 18 — Shopify Integration
 
-**Status:** WEBHOOKS PARTIAL
+**Status:** MANAGED APP LINKING FOUNDATION COMPLETE; END-TO-END APP PARTIAL
 
 ### Goal
 
@@ -2274,15 +2274,30 @@ Create/update notifications fetch the complete current product through the
 read-only Admin API before importing it; deletes archive only the local SelfX
 reference. App uninstall disconnects the integration, removes provider
 credentials, revokes plugin credentials and archives imported local references.
-Scheduled reconciliation, Theme App Extension and storefront Try-On UI remain
-planned.
+The managed-app linking foundation now lets the Shopify app server create a
+short-lived link session, lets an authorized merchant approve one active SelfX
+Store and lets the app redeem the approval once for a generated
+`catalog:sync` credential. Link tokens are stored only as hashes, the generated
+credential is returned once, and database constraints prevent one Shopify
+account from being linked to multiple SelfX Stores. The embedded app now uses
+that protocol, encrypts pending and redeemed credentials in its server-side
+database, automatically checks for approval, starts the initial read-only
+catalog sync and reports synchronization totals. Scheduled reconciliation,
+disconnect/relink controls and the complete storefront Try-On runtime remain
+planned. A Theme App Extension block exists as an initial storefront surface but
+is not yet connected to the complete production Try-On flow.
 
 ### Implement
 
 - installable Shopify app (SelfX authorization/callback side implemented;
-  Shopify Dev Dashboard registration/deployment configuration remains)
+  Shopify CLI scaffold and Theme App Extension exist; managed linking UI and
+  deployment configuration remain)
 - authorization/install flow (implemented with read-only expiring offline
   credentials)
+- managed app-to-Store link sessions (backend create, Store approval and
+  one-time redemption implemented)
+- embedded Shopify connection UI, encrypted app credential persistence and
+  initial catalog sync (implemented)
 - integration record (foundation implemented)
 - integration credentials (foundation implemented)
 - plugin token authentication (foundation implemented)
@@ -2307,10 +2322,12 @@ Implement/refine:
 - integration_credentials (foundation implemented)
 - integration_events (foundation implemented)
 - external_product_mappings (foundation implemented)
+- shopify_link_sessions (managed app linking foundation implemented)
 
 ### Tests
 
 - install/uninstall
+- managed link expiry, one-time redemption and Store isolation (implemented)
 - product create/update/delete sync (implemented)
 - webhook authenticity and duplicate-delivery handling (implemented)
 - missed-webhook reconciliation

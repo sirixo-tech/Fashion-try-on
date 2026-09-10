@@ -14,21 +14,50 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model SelfxConnection {
+  shop                       String    @id
+  shopifyAccountId           String    @unique
+  shopName                   String?
+  status                     String    @default("PENDING_APPROVAL")
+  pendingLinkTokenCiphertext String?
+  pendingLinkExpiresAt       DateTime?
+  integrationTokenCiphertext String?
+  encryptionKeyVersion       String?
+  selfxStoreId               String?
+  selfxStoreName             String?
+  selfxIntegrationId         String?
+  selfxCredentialId          String?
+  linkedAt                   DateTime?
+  syncStatus                 String    @default("NOT_STARTED")
+  lastSyncAt                 DateTime?
+  lastSyncProducts           Int       @default(0)
+  lastSyncVariants           Int       @default(0)
+  lastSyncCreated            Int       @default(0)
+  lastSyncUpdated            Int       @default(0)
+  lastSyncArchived           Int       @default(0)
+  lastErrorCode              String?
+  lastErrorMessage           String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  @@index([status, updatedAt])
 }
