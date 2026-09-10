@@ -1,15 +1,11 @@
 import { useEffect } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData } from "react-router";
 
 import {
-  completeSelfxConnection,
   getSelfxConnectionView,
-  runSelfxCatalogSync,
-  startSelfxConnection,
   type SelfxConnectionView,
 } from "../selfx-connection.server";
-import { SelfxLinkApiError } from "../selfx-link.server";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -17,37 +13,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { connection: await safeConnectionView(session.shop) };
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const form = await request.formData();
-  const intent = form.get("intent");
-  try {
-    const input = {
-      shop: session.shop,
-      shopifyAccessToken: requiredAccessToken(session.accessToken),
-    };
-    const connection =
-      intent === "connect"
-        ? await startSelfxConnection(input)
-        : intent === "complete"
-          ? await completeSelfxConnection(input)
-          : intent === "sync"
-            ? await runSelfxCatalogSync(input)
-            : await safeConnectionView(session.shop);
-    return { ok: true, intent: String(intent ?? "view"), connection };
-  } catch (error) {
-    return {
-      ok: false,
-      intent: String(intent ?? "unknown"),
-      connection: await safeConnectionView(session.shop),
-      error: safeMessage(error),
-    };
-  }
-};
-
 export default function Index() {
   const loaded = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<typeof action>();
+  const fetcher = useFetcher<{
+    ok: boolean;
+    intent: string;
+    connection: SelfxConnectionView;
+    error?: string;
+  }>();
   const connection = fetcher.data?.connection ?? loaded.connection;
   const busy = fetcher.state !== "idle";
 
@@ -60,7 +33,13 @@ export default function Index() {
     }
     const interval = window.setInterval(() => {
       if (fetcher.state === "idle") {
-        void fetcher.submit({ intent: "complete" }, { method: "post" });
+        void fetcher.submit(
+          { intent: "complete" },
+          {
+            method: "post",
+            action: `/app${window.location.search}`,
+          },
+        );
       }
     }, 4_000);
     return () => window.clearInterval(interval);
@@ -71,7 +50,13 @@ export default function Index() {
   const connected = connection.status === "CONNECTED";
 
   function submit(intent: "connect" | "complete" | "sync") {
-    void fetcher.submit({ intent }, { method: "post" });
+    void fetcher.submit(
+      { intent },
+      {
+        method: "post",
+        action: `/app${window.location.search}`,
+      },
+    );
   }
 
   return (
@@ -267,21 +252,6 @@ async function safeConnectionView(shop: string): Promise<SelfxConnectionView> {
         "SelfX linking is not configured for this Shopify app deployment.",
     };
   }
-}
-
-function requiredAccessToken(value: string | undefined): string {
-  const clean = value?.trim();
-  if (!clean) throw new Error("Shopify authentication must be refreshed.");
-  return clean;
-}
-
-function safeMessage(error: unknown): string {
-  if (error instanceof SelfxLinkApiError) {
-    const trustedError = error as SelfxLinkApiError;
-    return trustedError.message;
-  }
-
-  return "The SelfX connection could not be completed. Try again.";
 }
 
 function formatDate(value: string): string {
