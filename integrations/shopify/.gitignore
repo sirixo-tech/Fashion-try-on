@@ -5,6 +5,7 @@ node_modules
 
 /.cache
 /build
+/dist-integration
 /app/build
 /public/build/
 /public/_dev

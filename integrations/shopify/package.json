@@ -2,8 +2,19 @@
   "name": "@selfx/shopify-integration",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
+  "main": "./dist-integration/index.js",
+  "types": "./dist-integration/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-integration/index.d.ts",
+      "import": "./dist-integration/index.js",
+      "default": "./dist-integration/index.js"
+    }
+  },
   "scripts": {
-    "build": "react-router build",
+    "build": "npm run build:integration && react-router build",
+    "build:integration": "tsc -p tsconfig.integration.json",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
@@ -20,7 +31,6 @@
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit"
   },
-  "type": "module",
   "engines": {
     "node": ">=20.19 <22 || >=22.12"
   },
