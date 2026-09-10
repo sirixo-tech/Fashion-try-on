@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { SelfxCatalogClient } from "./selfx-catalog.client.js";
+import { SelfxCatalogClient } from "./selfx-catalog.server.js";
 
 describe("SelfxCatalogClient", () => {
   it("submits normalized data with only the SelfX integration token", async () => {

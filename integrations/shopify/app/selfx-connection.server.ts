@@ -1,5 +1,5 @@
-import { SelfxCatalogClient } from "../src/selfx-catalog.client.js";
-import { ShopifyAdminClient } from "../src/shopify-admin.client.js";
+import { SelfxCatalogClient } from "../src/selfx-catalog.server.js";
+import { ShopifyAdminClient } from "../src/shopify-admin.server.js";
 import { ShopifyCatalogConnector } from "../src/shopify-catalog.connector.js";
 import db from "./db.server";
 import {

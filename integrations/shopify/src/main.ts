@@ -1,6 +1,6 @@
 import { loadShopifyConnectorConfig } from "./config.js";
-import { SelfxCatalogClient } from "./selfx-catalog.client.js";
-import { ShopifyAdminClient } from "./shopify-admin.client.js";
+import { SelfxCatalogClient } from "./selfx-catalog.server.js";
+import { ShopifyAdminClient } from "./shopify-admin.server.js";
 import { ShopifyCatalogConnector } from "./shopify-catalog.connector.js";
 
 async function main(): Promise<void> {

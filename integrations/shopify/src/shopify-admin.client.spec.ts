@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ShopifyAdminClient } from "./shopify-admin.client.js";
+import { ShopifyAdminClient } from "./shopify-admin.server.js";
 
 describe("ShopifyAdminClient", () => {
   it("reads the canonical shop identity without a mutation", async () => {
