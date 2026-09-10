@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import { useLoaderData, useLocation } from "react-router";
 
 import {
   getSelfxConnectionView,
@@ -15,14 +15,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function Index() {
   const loaded = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{
-    ok: boolean;
-    intent: string;
-    connection: SelfxConnectionView;
-    error?: string;
-  }>();
-  const connection = fetcher.data?.connection ?? loaded.connection;
-  const busy = fetcher.state !== "idle";
+  const location = useLocation();
+  const completionFormRef = useRef<HTMLFormElement>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const connection = loaded.connection;
+  const actionPath = `/app/selfx-action${location.search}`;
+
+  useEffect(() => {
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    setActionError(fragment.get("selfxError"));
+  }, []);
 
   useEffect(() => {
     if (
@@ -32,38 +34,19 @@ export default function Index() {
       return;
     }
     const interval = window.setInterval(() => {
-      if (fetcher.state === "idle") {
-        void fetcher.submit(
-          { intent: "complete" },
-          {
-            method: "post",
-            action: `/app${window.location.search}`,
-          },
-        );
-      }
+      completionFormRef.current?.requestSubmit();
     }, 4_000);
     return () => window.clearInterval(interval);
-  }, [connection.pendingLinkExpiresAt, connection.status, fetcher]);
+  }, [connection.pendingLinkExpiresAt, connection.status]);
 
-  const error = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
   const pending = connection.status === "PENDING_APPROVAL";
   const connected = connection.status === "CONNECTED";
 
-  function submit(intent: "connect" | "complete" | "sync") {
-    void fetcher.submit(
-      { intent },
-      {
-        method: "post",
-        action: `/app${window.location.search}`,
-      },
-    );
-  }
-
   return (
     <s-page heading="SelfX Virtual Try-On" inlineSize="large">
-      {error ? (
+      {actionError ? (
         <s-banner heading="Connection could not be completed" tone="critical">
-          {error}
+          {actionError}
         </s-banner>
       ) : null}
       {connection.errorMessage ? (
@@ -100,13 +83,12 @@ export default function Index() {
             </s-grid-item>
             <s-grid-item>
               {!connected && !pending ? (
-                <s-button
-                  variant="primary"
-                  loading={busy}
-                  onClick={() => submit("connect")}
-                >
-                  Connect SelfX
-                </s-button>
+                <form method="post" action={actionPath}>
+                  <input type="hidden" name="intent" value="connect" />
+                  <s-button type="submit" variant="primary">
+                    Connect SelfX
+                  </s-button>
+                </form>
               ) : null}
               {pending && connection.approvalUrl ? (
                 <s-button
@@ -128,13 +110,12 @@ export default function Index() {
           ) : null}
 
           {pending ? (
-            <s-button
-              variant="secondary"
-              loading={busy}
-              onClick={() => submit("complete")}
-            >
-              Check approval
-            </s-button>
+            <form ref={completionFormRef} method="post" action={actionPath}>
+              <input type="hidden" name="intent" value="complete" />
+              <s-button type="submit" variant="secondary">
+                Check approval
+              </s-button>
+            </form>
           ) : null}
         </s-stack>
       </s-section>
@@ -159,15 +140,17 @@ export default function Index() {
                 : "No completed catalog sync yet"}
             </s-text>
           </s-stack>
-          <s-button
-            variant="secondary"
-            icon="refresh"
-            disabled={!connected}
-            loading={busy && fetcher.formData?.get("intent") === "sync"}
-            onClick={() => submit("sync")}
-          >
-            Sync catalog
-          </s-button>
+          <form method="post" action={actionPath}>
+            <input type="hidden" name="intent" value="sync" />
+            <s-button
+              type="submit"
+              variant="secondary"
+              icon="refresh"
+              disabled={!connected}
+            >
+              Sync catalog
+            </s-button>
+          </form>
           <s-text color="subdued">
             Sync is read-only. Shopify remains the source of truth for products,
             prices, inventory, orders and store settings.
