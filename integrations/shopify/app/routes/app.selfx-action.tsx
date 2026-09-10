@@ -1,4 +1,4 @@
-import type { ActionFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 
 import {
@@ -9,6 +9,11 @@ import {
 } from "../selfx-connection.server";
 import { SelfxLinkApiError } from "../selfx-link.server";
 import { authenticate } from "../shopify.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  return redirect(`/app${url.search}`);
+};
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -33,6 +38,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return redirectToApp(request);
   } catch (error) {
+    console.error("SelfX Shopify action failed", {
+      intent: safeIntent(intent),
+      ...safeErrorLogDetails(error),
+    });
     return redirectToApp(request, safeMessage(error));
   }
 };
@@ -56,4 +65,41 @@ function safeMessage(error: unknown): string {
   }
 
   return "The SelfX connection could not be completed. Try again.";
+}
+
+function safeIntent(intent: FormDataEntryValue | null): string {
+  return intent === "connect" || intent === "complete" || intent === "sync"
+    ? intent
+    : "unknown";
+}
+
+function safeErrorLogDetails(error: unknown): {
+  name: string;
+  message: string;
+  code?: string;
+} {
+  const record =
+    typeof error === "object" && error !== null
+      ? (error as Record<string, unknown>)
+      : null;
+  const name = error instanceof Error ? error.name : "UnknownError";
+  const message = error instanceof Error ? error.message : String(error);
+  const code = typeof record?.code === "string" ? record.code : undefined;
+
+  return {
+    name: redactSensitiveLogText(name),
+    message: redactSensitiveLogText(message),
+    ...(code ? { code: redactSensitiveLogText(code) } : {}),
+  };
+}
+
+function redactSensitiveLogText(value: string): string {
+  return value
+    .replace(/https?:\/\/\S+/gi, "[redacted-url]")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(
+      /\b(id_token|access_token|hmac|token|secret)=([^\s&]+)/gi,
+      "$1=[redacted]",
+    )
+    .slice(0, 1_000);
 }
