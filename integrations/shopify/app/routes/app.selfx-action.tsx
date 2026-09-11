@@ -46,6 +46,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 };
 
+export default function SelfxActionRoute(): null {
+  return null;
+}
+
 function redirectToApp(request: Request, error?: string) {
   const requestUrl = new URL(request.url);
   const fragment = error ? `#selfxError=${encodeURIComponent(error)}` : "";
