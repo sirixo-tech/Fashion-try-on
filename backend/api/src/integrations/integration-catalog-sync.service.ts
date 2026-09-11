@@ -144,6 +144,13 @@ async function syncProduct(
     mapping?.externalUpdatedAt &&
     sourceUpdatedAt <= mapping.externalUpdatedAt
   ) {
+    const sourceEligibilityFields = sourceOwnedEligibilityFields(input);
+    if (Object.keys(sourceEligibilityFields).length > 0) {
+      await tx.product.update({
+        where: { id: mapping.productId },
+        data: sourceEligibilityFields,
+      });
+    }
     await tx.externalProductMapping.update({
       where: { id: mapping.id },
       data: { lastSeenAt: observedAt },
@@ -182,12 +189,16 @@ async function syncProduct(
   }
 
   const sourceFields = sourceOwnedProductFields(input);
+  const sourceEligibilityFields = sourceOwnedEligibilityFields(input);
   let productId: string;
   if (mapping) {
     productId = mapping.productId;
     await tx.product.update({
       where: { id: productId },
-      data: sourceFields,
+      data: {
+        ...sourceFields,
+        ...sourceEligibilityFields,
+      },
     });
     await tx.externalProductMapping.update({
       where: { id: mapping.id },
@@ -208,7 +219,7 @@ async function syncProduct(
         categoryId,
         ...sourceFields,
         audience: "UNISEX",
-        vtoEnabled: false,
+        vtoEnabled: input.vtoEnabled ?? false,
         sortOrder: 0,
         garmentIntent: "AUTO",
         garmentCategory: "AUTO",
@@ -416,6 +427,16 @@ function sourceOwnedProductFields(input: IntegrationCatalogProductInputDto) {
     productUrl: nullableTrim(input.productUrl),
     imageUrl: nullableTrim(input.featuredImageUrl),
   } satisfies Prisma.ProductUncheckedUpdateInput;
+}
+
+function sourceOwnedEligibilityFields(
+  input: IntegrationCatalogProductInputDto,
+) {
+  return input.vtoEnabled === undefined
+    ? {}
+    : ({
+        vtoEnabled: input.vtoEnabled,
+      } satisfies Prisma.ProductUncheckedUpdateInput);
 }
 
 function rootMappingFields(

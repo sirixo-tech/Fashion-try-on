@@ -16,6 +16,7 @@ export type SelfxCatalogProduct = {
   handle: string | null;
   description: string | null;
   status: CommerceProductStatus;
+  vtoEnabled?: boolean;
   productUrl: string | null;
   featuredImageUrl: string | null;
   priceAmountCents: number | null;
@@ -58,6 +59,7 @@ export type ShopifyProduct = {
   handle: string;
   description: string;
   status: "ACTIVE" | "ARCHIVED" | "DRAFT" | "UNLISTED";
+  tags: string[];
   updatedAt: string;
   onlineStoreUrl: string | null;
   featuredMedia: {

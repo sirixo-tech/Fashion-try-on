@@ -216,6 +216,7 @@ const productFields = [
   "handle",
   "description",
   "status",
+  "tags",
   "updatedAt",
   "onlineStoreUrl",
   "featuredMedia { preview { image { url } } }",

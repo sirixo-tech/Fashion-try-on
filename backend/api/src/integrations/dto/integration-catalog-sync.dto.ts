@@ -107,6 +107,14 @@ export class IntegrationCatalogProductInputDto {
   @IsIn(integrationCatalogProductStatuses)
   status!: IntegrationCatalogProductStatus;
 
+  @ApiPropertyOptional({
+    description:
+      "Optional commerce-owned VTO eligibility signal. Omitted values preserve existing SelfX-owned eligibility on updates.",
+  })
+  @IsOptional()
+  @IsBoolean()
+  vtoEnabled?: boolean;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsUrl({ require_protocol: true, protocols: ["https", "http"] })

@@ -65,4 +65,17 @@ describe("Shopify product normalization", () => {
       "https://cdn.shopify.test/variant.jpg",
     );
   });
+
+  it("maps the selfx-tryon Shopify tag to VTO eligibility", () => {
+    expect(
+      mapShopifyProduct(
+        shopifyProduct({ tags: ["gender:men", "SelfX-TryOn", "garment"] }),
+        "USD",
+      ).vtoEnabled,
+    ).toBe(true);
+    expect(
+      mapShopifyProduct(shopifyProduct({ tags: ["garment"] }), "USD")
+        .vtoEnabled,
+    ).toBe(false);
+  });
 });

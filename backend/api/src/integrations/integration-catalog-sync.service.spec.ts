@@ -87,6 +87,24 @@ describe("IntegrationCatalogSyncService", () => {
     );
   });
 
+  it("creates a VTO-enabled product when commerce explicitly marks it eligible", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue(null);
+    tx.externalProductMapping.findMany.mockResolvedValue([]);
+    const service = createService(tx);
+
+    await service.sync(credential, {
+      mode: "INCREMENTAL",
+      products: [{ ...productInput, vtoEnabled: true }],
+    });
+
+    expect(tx.product.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        vtoEnabled: true,
+      }),
+    });
+  });
+
   it("updates commerce fields without changing SelfX-owned VTO settings", async () => {
     const tx = createTransaction();
     tx.externalProductMapping.findFirst.mockResolvedValue({
@@ -116,6 +134,31 @@ describe("IntegrationCatalogSyncService", () => {
     expect(updateData).not.toHaveProperty("garmentCategory");
     expect(updateData).not.toHaveProperty("garmentPhotoType");
     expect(updateData).not.toHaveProperty("productVertical");
+  });
+
+  it("updates VTO eligibility when commerce sends an explicit eligibility signal", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      id: "mapping-1",
+      productId: "selfx-product-1",
+      externalProductId: "shopify-product-1",
+      externalUpdatedAt: new Date("2026-09-07T08:00:00.000Z"),
+      lastSeenAt: new Date("2026-09-07T08:00:00.000Z"),
+    });
+    tx.externalProductMapping.findMany.mockResolvedValue([]);
+    const service = createService(tx);
+
+    await service.sync(credential, {
+      mode: "INCREMENTAL",
+      products: [{ ...productInput, vtoEnabled: true }],
+    });
+
+    expect(tx.product.update).toHaveBeenCalledWith({
+      where: { id: "selfx-product-1" },
+      data: expect.objectContaining({
+        vtoEnabled: true,
+      }),
+    });
   });
 
   it("skips a product without an image and continues importing the batch", async () => {
@@ -189,6 +232,33 @@ describe("IntegrationCatalogSyncService", () => {
 
     expect(result.ignoredAsStale).toBe(1);
     expect(tx.product.update).not.toHaveBeenCalled();
+    expect(tx.externalProductMapping.update).toHaveBeenCalledWith({
+      where: { id: "mapping-1" },
+      data: { lastSeenAt: expect.any(Date) },
+    });
+  });
+
+  it("still applies explicit VTO eligibility on stale product snapshots", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      id: "mapping-1",
+      productId: "selfx-product-1",
+      externalProductId: "shopify-product-1",
+      externalUpdatedAt: new Date("2026-09-07T10:00:00.000Z"),
+      lastSeenAt: new Date("2026-09-07T08:00:00.000Z"),
+    });
+    const service = createService(tx);
+
+    const result = await service.sync(credential, {
+      mode: "INCREMENTAL",
+      products: [{ ...productInput, vtoEnabled: true }],
+    });
+
+    expect(result.ignoredAsStale).toBe(1);
+    expect(tx.product.update).toHaveBeenCalledWith({
+      where: { id: "selfx-product-1" },
+      data: { vtoEnabled: true },
+    });
     expect(tx.externalProductMapping.update).toHaveBeenCalledWith({
       where: { id: "mapping-1" },
       data: { lastSeenAt: expect.any(Date) },
