@@ -4,6 +4,7 @@ import { redirect } from "react-router";
 import {
   completeSelfxConnection,
   getSelfxConnectionView,
+  restartSelfxConnection,
   runSelfxCatalogSync,
   startSelfxConnection,
 } from "../selfx-connection.server";
@@ -25,6 +26,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       await startSelfxConnection(input);
     } else if (intent === "complete") {
       await completeSelfxConnection(input);
+    } else if (intent === "restart") {
+      await restartSelfxConnection(session.shop);
     } else if (intent === "sync") {
       await runSelfxCatalogSync(input);
     } else {
@@ -74,7 +77,10 @@ function safeMessage(error: unknown): string {
 }
 
 function safeIntent(intent: string | null): string {
-  return intent === "connect" || intent === "complete" || intent === "sync"
+  return intent === "connect" ||
+    intent === "complete" ||
+    intent === "restart" ||
+    intent === "sync"
     ? intent
     : "unknown";
 }

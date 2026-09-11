@@ -107,6 +107,34 @@ export async function startSelfxConnection(input: {
     return getSelfxConnectionView(canonicalShop);
   }
 
+  const current = await db.selfxConnection.findUnique({
+    where: { shop: canonicalShop },
+  });
+  if (
+    current?.status === "PENDING_APPROVAL" &&
+    current.pendingLinkTokenCiphertext &&
+    current.pendingLinkExpiresAt &&
+    current.pendingLinkExpiresAt > new Date()
+  ) {
+    return getSelfxConnectionView(canonicalShop);
+  }
+  if (
+    current?.status === "PENDING_APPROVAL" &&
+    current.pendingLinkExpiresAt &&
+    current.pendingLinkExpiresAt <= new Date()
+  ) {
+    await db.selfxConnection.update({
+      where: { shop: canonicalShop },
+      data: {
+        status: "NOT_CONNECTED",
+        pendingLinkTokenCiphertext: null,
+        pendingLinkExpiresAt: null,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+      },
+    });
+  }
+
   const linkConfig = loadSelfxLinkConfig();
   const link = await new SelfxLinkClient(linkConfig).create({
     shopDomain: canonicalShop,
@@ -200,9 +228,17 @@ export async function completeSelfxConnection(input: {
       return getSelfxConnectionView(input.shop);
     }
     const safe = safeConnectionError(error);
+    const terminal = isTerminalLinkError(error);
     await db.selfxConnection.update({
       where: { shop: input.shop },
       data: {
+        ...(terminal
+          ? {
+              status: "ERROR",
+              pendingLinkTokenCiphertext: null,
+              pendingLinkExpiresAt: null,
+            }
+          : {}),
         lastErrorCode: safe.code,
         lastErrorMessage: safe.message,
       },
@@ -232,6 +268,25 @@ export async function completeSelfxConnection(input: {
     },
   });
   return runSelfxCatalogSync(input);
+}
+
+export async function restartSelfxConnection(
+  shop: string,
+): Promise<SelfxConnectionView> {
+  await db.selfxConnection.updateMany({
+    where: {
+      shop,
+      status: { in: ["PENDING_APPROVAL", "ERROR"] },
+    },
+    data: {
+      status: "NOT_CONNECTED",
+      pendingLinkTokenCiphertext: null,
+      pendingLinkExpiresAt: null,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+    },
+  });
+  return getSelfxConnectionView(shop);
 }
 
 export async function runSelfxCatalogSync(input: {
@@ -373,7 +428,8 @@ function integrationTokenContext(shopifyAccountId: string): string {
 }
 
 function connectionStatus(value: string): SelfxConnectionView["status"] {
-  return value === "PENDING_APPROVAL" ||
+  return value === "NOT_CONNECTED" ||
+    value === "PENDING_APPROVAL" ||
     value === "CONNECTED" ||
     value === "ERROR"
     ? value
@@ -397,4 +453,14 @@ function safeConnectionError(error: unknown): {
     code: "SELFX_LINK_FAILED",
     message: "SelfX could not complete the connection. Try again.",
   };
+}
+
+function isTerminalLinkError(error: unknown): boolean {
+  if (!(error instanceof SelfxLinkApiError)) return false;
+  return !(
+    error.code === "SELFX_LINK_UNAVAILABLE" ||
+    error.status === 408 ||
+    error.status === 429 ||
+    error.status >= 500
+  );
 }

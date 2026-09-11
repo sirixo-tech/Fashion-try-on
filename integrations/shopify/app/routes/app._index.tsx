@@ -20,6 +20,7 @@ export default function Index() {
   const connection = loaded.connection;
   const connectActionPath = selfxActionPath(location.search, "connect");
   const completeActionPath = selfxActionPath(location.search, "complete");
+  const restartActionPath = selfxActionPath(location.search, "restart");
   const syncActionPath = selfxActionPath(location.search, "sync");
 
   useEffect(() => {
@@ -108,9 +109,14 @@ export default function Index() {
           ) : null}
 
           {pending ? (
-            <s-button href={completeActionPath} variant="secondary">
-              Check approval
-            </s-button>
+            <s-stack direction="inline" gap="base">
+              <s-button href={completeActionPath} variant="secondary">
+                Check approval
+              </s-button>
+              <s-button href={restartActionPath} variant="secondary">
+                Restart connection
+              </s-button>
+            </s-stack>
           ) : null}
         </s-stack>
       </s-section>
@@ -238,7 +244,7 @@ function formatDate(value: string): string {
 
 function selfxActionPath(
   signedSearch: string,
-  intent: "connect" | "complete" | "sync",
+  intent: "connect" | "complete" | "restart" | "sync",
 ): string {
   const signedSuffix = signedSearch ? `&${signedSearch.slice(1)}` : "";
   return `/selfx-action?selfxIntent=${intent}${signedSuffix}`;
