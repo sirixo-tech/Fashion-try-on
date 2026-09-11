@@ -89,6 +89,9 @@ export class ShopifyStorefrontTryOnResultDto {
   readUrl!: string;
 
   @ApiPropertyOptional()
+  downloadUrl?: string;
+
+  @ApiPropertyOptional()
   contentType?: string;
 
   @ApiProperty()

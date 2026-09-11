@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  Badge,
   Button,
   Card,
   CardContent,
@@ -11,6 +12,16 @@ import {
   CardTitle,
   SelfxLogo,
 } from "@selfx/ui";
+import {
+  CameraIcon,
+  CheckCircle2Icon,
+  DownloadIcon,
+  ImageIcon,
+  LoaderCircleIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+  UploadIcon,
+} from "lucide-react";
 
 import { SafeApiError } from "@/lib/api";
 import {
@@ -61,6 +72,7 @@ export function ShopifyTryOnPageClient({
   );
   const [consented, setConsented] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -204,25 +216,73 @@ export function ShopifyTryOnPageClient({
     }
   }
 
+  async function downloadResult() {
+    if (downloading || state.status !== "COMPLETED") {
+      return;
+    }
+    setDownloading(true);
+    setMessage(null);
+    try {
+      const refreshedRun = await getShopifyTryOnRun(
+        state.session.session,
+        state.run.id,
+      );
+      if (!refreshedRun.result?.readUrl) {
+        setMessage("Your Try-On result is not ready to download yet.");
+        return;
+      }
+      setState({
+        status: "COMPLETED",
+        session: state.session,
+        previewUrl: state.previewUrl,
+        run: refreshedRun,
+      });
+      const link = document.createElement("a");
+      link.href = refreshedRun.result.downloadUrl ?? refreshedRun.result.readUrl;
+      link.download = downloadFilename(refreshedRun);
+      link.rel = "noopener noreferrer";
+      document.body.append(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      setMessage(messageFor(error));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   const session = sessionFrom(state);
   const productLabel =
     session?.product.handle ??
     session?.product.externalProductId;
+  const isActiveSession =
+    state.status !== "INVALID" &&
+    state.status !== "LOADING" &&
+    state.status !== "ERROR";
 
   return (
-    <main className="min-h-dvh bg-background px-4 py-8">
-      <div className="mx-auto grid min-h-[calc(100dvh-4rem)] w-full max-w-5xl items-center gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card className="w-full">
-          <CardHeader>
-            <SelfxLogo />
-            <CardTitle className="pt-4 text-3xl">SelfX Try-On</CardTitle>
-            <CardDescription>
-              {state.status === "INVALID"
-                ? "This Try-On link is missing a valid session."
-                : "Your Shopify product is ready for virtual try-on."}
-            </CardDescription>
+    <main className="min-h-dvh bg-[#f4f8f8] px-4 py-6 text-foreground sm:px-6 lg:py-10">
+      <div className="mx-auto grid min-h-[calc(100dvh-3rem)] w-full max-w-7xl gap-5 lg:grid-cols-[430px_minmax(0,1fr)] lg:items-center">
+        <Card className="w-full overflow-hidden border-border/70 bg-background shadow-[0_18px_60px_rgba(18,38,45,0.10)]">
+          <CardHeader className="space-y-5 border-b bg-background pb-5">
+            <div className="flex items-center justify-between gap-3">
+              <SelfxLogo />
+              <Badge variant="secondary" className="h-7 gap-1.5 px-3">
+                <ShieldCheckIcon className="size-3.5" />
+                Secure session
+              </Badge>
+            </div>
+            <div>
+              <CardTitle className="text-3xl">SelfX Try-On</CardTitle>
+              <CardDescription className="mt-2 text-base">
+                {state.status === "INVALID"
+                  ? "This Try-On link is missing a valid session."
+                  : "Your Shopify product is ready for virtual try-on."}
+              </CardDescription>
+            </div>
+            {isActiveSession ? <ProgressStrip status={state.status} /> : null}
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-5 p-5">
             {state.status === "INVALID" ? (
               <InvalidLink />
             ) : state.status === "LOADING" ? (
@@ -236,7 +296,7 @@ export function ShopifyTryOnPageClient({
                   imageUrl={session?.product.imageUrl}
                 />
 
-                <label className="flex items-start gap-3 rounded-lg border bg-muted px-4 py-3 text-sm">
+                <label className="flex items-start gap-3 rounded-lg border border-border/80 bg-[#edf5f5] px-4 py-3 text-sm leading-relaxed">
                   <input
                     type="checkbox"
                     checked={consented}
@@ -277,6 +337,7 @@ export function ShopifyTryOnPageClient({
                     disabled={!consented || busy || state.status === "RUNNING"}
                     onClick={() => cameraInput.current?.click()}
                   >
+                    <CameraIcon data-icon="inline-start" />
                     Take Photo
                   </Button>
                   <Button
@@ -285,6 +346,7 @@ export function ShopifyTryOnPageClient({
                     disabled={!consented || busy || state.status === "RUNNING"}
                     onClick={() => galleryInput.current?.click()}
                   >
+                    <UploadIcon data-icon="inline-start" />
                     Upload Photo
                   </Button>
                 </div>
@@ -296,16 +358,17 @@ export function ShopifyTryOnPageClient({
                     disabled={busy}
                     onClick={() => void startTryOn()}
                   >
+                    <SparklesIcon data-icon="inline-start" />
                     {busy ? "Starting..." : "Start Try-On"}
                   </Button>
                 ) : null}
 
                 {state.status === "RUNNING" ? (
-                  <StatePanel title="Creating your Try-On..." />
+                  <StatePanel title="Creating your Try-On..." active />
                 ) : null}
 
                 {message ? (
-                  <div className="rounded-lg border bg-muted px-4 py-3 text-sm">
+                  <div className="rounded-lg border border-border/80 bg-[#fff7ed] px-4 py-3 text-sm">
                     {message}
                   </div>
                 ) : null}
@@ -314,61 +377,234 @@ export function ShopifyTryOnPageClient({
           </CardContent>
         </Card>
 
-        <ResultPanel state={state} />
+        <ResultPanel
+          downloading={downloading}
+          onDownload={() => void downloadResult()}
+          productImageUrl={session?.product.imageUrl}
+          productLabel={productLabel ?? "Shopify product"}
+          state={state}
+        />
       </div>
     </main>
   );
 }
 
-function ResultPanel({ state }: { state: PageState }) {
-  if (
-    state.status !== "PHOTO_READY" &&
-    state.status !== "RUNNING" &&
-    state.status !== "COMPLETED"
-  ) {
-    return (
-      <Card className="hidden min-h-[520px] items-center justify-center lg:flex">
-        <CardContent className="text-center text-sm text-muted-foreground">
-          Your photo and result will appear here.
-        </CardContent>
-      </Card>
-    );
-  }
+function ProgressStrip({
+  status,
+}: {
+  status: Exclude<PageState["status"], "INVALID" | "LOADING" | "ERROR">;
+}) {
+  const steps = [
+    { label: "Product", complete: true, active: status === "READY" },
+    {
+      label: "Photo",
+      complete:
+        status === "PHOTO_READY" ||
+        status === "RUNNING" ||
+        status === "COMPLETED",
+      active: status === "PHOTO_READY",
+    },
+    {
+      label: "Result",
+      complete: status === "COMPLETED",
+      active: status === "RUNNING" || status === "COMPLETED",
+    },
+  ];
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl">
-          {state.status === "COMPLETED" ? "Your Result" : "Your Photo"}
-        </CardTitle>
+    <div className="grid grid-cols-3 gap-2">
+      {steps.map((step) => (
+        <div
+          key={step.label}
+          className={[
+            "flex h-9 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-semibold",
+            step.complete
+              ? "border-[#ff6b1a] bg-[#fff1e8] text-[#8f350d]"
+              : step.active
+                ? "border-[#7a9ca5] bg-[#edf5f5] text-[#284852]"
+                : "border-border bg-muted text-muted-foreground",
+          ].join(" ")}
+        >
+          {step.complete ? <CheckCircle2Icon className="size-3.5" /> : null}
+          <span>{step.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ResultPanel({
+  downloading,
+  onDownload,
+  productImageUrl,
+  productLabel,
+  state,
+}: {
+  downloading: boolean;
+  onDownload: () => void;
+  productImageUrl?: string;
+  productLabel: string;
+  state: PageState;
+}) {
+  const personImageUrl =
+    state.status === "PHOTO_READY" ||
+    state.status === "RUNNING" ||
+    state.status === "COMPLETED"
+      ? state.previewUrl
+      : undefined;
+  const resultImageUrl =
+    state.status === "COMPLETED" ? state.run.result?.readUrl : undefined;
+  const isRunning = state.status === "RUNNING";
+
+  return (
+    <Card className="w-full overflow-hidden border-border/70 bg-background shadow-[0_22px_70px_rgba(18,38,45,0.12)]">
+      <CardHeader className="border-b bg-[#fbfdfd] pb-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-2xl">
+              {state.status === "COMPLETED" ? "Your Result" : "Try-On Studio"}
+            </CardTitle>
+            <CardDescription>
+              Product, uploaded photo and generated try-on in one view.
+            </CardDescription>
+          </div>
+          <Badge
+            variant={state.status === "COMPLETED" ? "default" : "secondary"}
+            className="h-7 px-3"
+          >
+            {statusLabel(state)}
+          </Badge>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="overflow-hidden rounded-lg border bg-muted">
-          <img
-            src={
-              state.status === "COMPLETED"
-                ? state.run.result?.readUrl
-                : state.previewUrl
+      <CardContent className="space-y-4 p-4 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <VisualTile
+              title="Product"
+              label={productLabel}
+              imageUrl={productImageUrl}
+              emptyLabel="Product image unavailable"
+              state={productImageUrl ? "ready" : "empty"}
+            />
+            <VisualTile
+              title="Your Photo"
+              label={
+                personImageUrl
+                  ? "Uploaded image"
+                  : "Waiting for your image"
+              }
+              imageUrl={personImageUrl}
+              emptyLabel="Your uploaded photo will appear here"
+              state={personImageUrl ? "ready" : "empty"}
+            />
+          </div>
+          <VisualTile
+            title="Generated Image"
+            label={
+              resultImageUrl
+                ? "SelfX result"
+                : isRunning
+                  ? "Generating try-on"
+                  : "Ready after generation"
             }
-            alt={
-              state.status === "COMPLETED"
-                ? "Generated SelfX Try-On result"
-                : "Selected person photo"
+            imageUrl={resultImageUrl}
+            emptyLabel={
+              isRunning
+                ? "Creating your virtual try-on"
+                : "Generated image will appear here"
             }
-            className="max-h-[70dvh] w-full object-contain"
+            featured
+            state={resultImageUrl ? "ready" : isRunning ? "active" : "empty"}
           />
         </div>
         {state.status === "COMPLETED" ? (
           <Button
             className="w-full"
-            render={<a href={state.run.result?.readUrl} download />}
+            disabled={downloading}
+            onClick={onDownload}
+            size="lg"
+            type="button"
           >
-            Download
+            <DownloadIcon data-icon="inline-start" />
+            {downloading ? "Preparing..." : "Download"}
           </Button>
         ) : null}
       </CardContent>
     </Card>
   );
+}
+
+function VisualTile({
+  emptyLabel,
+  featured = false,
+  imageUrl,
+  label,
+  state,
+  title,
+}: {
+  emptyLabel: string;
+  featured?: boolean;
+  imageUrl?: string;
+  label: string;
+  state: "active" | "empty" | "ready";
+  title: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border/80 bg-[#edf3f4]">
+      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border/70 bg-background px-3 py-2">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+            {title}
+          </div>
+          <div className="truncate text-sm font-semibold">{label}</div>
+        </div>
+        <TileBadge state={state} />
+      </div>
+      <div
+        className={[
+          "relative flex aspect-[4/5] items-center justify-center overflow-hidden bg-[#e7eff1]",
+          featured ? "xl:min-h-[560px]" : "min-h-[210px]",
+        ].join(" ")}
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={title}
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <div className="flex max-w-[220px] flex-col items-center gap-3 px-5 text-center text-sm text-muted-foreground">
+            {state === "active" ? (
+              <LoaderCircleIcon className="size-7 animate-spin text-[#ff6b1a]" />
+            ) : (
+              <ImageIcon className="size-7 text-[#7a9ca5]" />
+            )}
+            <span>{emptyLabel}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TileBadge({ state }: { state: "active" | "empty" | "ready" }) {
+  if (state === "ready") {
+    return (
+      <Badge variant="secondary" className="gap-1 bg-[#fff1e8] text-[#8f350d]">
+        <CheckCircle2Icon className="size-3" />
+        Ready
+      </Badge>
+    );
+  }
+  if (state === "active") {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <LoaderCircleIcon className="size-3 animate-spin" />
+        Working
+      </Badge>
+    );
+  }
+  return <Badge variant="outline">Pending</Badge>;
 }
 
 function ProductSummary({
@@ -379,7 +615,7 @@ function ProductSummary({
   imageUrl?: string;
 }) {
   return (
-    <div className="grid grid-cols-[72px_1fr] gap-4 rounded-lg border bg-muted p-3">
+    <div className="grid grid-cols-[78px_1fr] gap-4 rounded-lg border border-border/80 bg-[#edf5f5] p-3">
       <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-background">
         {imageUrl ? (
           <img
@@ -414,10 +650,23 @@ function InvalidLink() {
   );
 }
 
-function StatePanel({ title, body }: { title: string; body?: string }) {
+function StatePanel({
+  active = false,
+  title,
+  body,
+}: {
+  active?: boolean;
+  title: string;
+  body?: string;
+}) {
   return (
-    <div className="rounded-lg border bg-muted px-4 py-5">
-      <div className="font-semibold">{title}</div>
+    <div className="rounded-lg border border-border/80 bg-[#edf5f5] px-4 py-5">
+      <div className="flex items-center gap-2 font-semibold">
+        {active ? (
+          <LoaderCircleIcon className="size-4 animate-spin text-[#ff6b1a]" />
+        ) : null}
+        {title}
+      </div>
       {body ? (
         <p className="mt-1 text-sm text-muted-foreground">{body}</p>
       ) : null}
@@ -431,6 +680,35 @@ function sessionFrom(state: PageState): ShopifyTryOnSession | null {
 
 function validSessionToken(sessionToken: string | null): sessionToken is string {
   return Boolean(sessionToken && /^[A-Za-z0-9_-]{43}$/.test(sessionToken));
+}
+
+function statusLabel(state: PageState): string {
+  if (state.status === "LOADING") {
+    return "Preparing";
+  }
+  if (state.status === "READY") {
+    return "Product ready";
+  }
+  if (state.status === "PHOTO_READY") {
+    return "Photo ready";
+  }
+  if (state.status === "RUNNING") {
+    return "Generating";
+  }
+  if (state.status === "COMPLETED") {
+    return "Complete";
+  }
+  return "Unavailable";
+}
+
+function downloadFilename(run: ShopifyTryOnRun): string {
+  const extension =
+    run.result?.contentType === "image/png"
+      ? "png"
+      : run.result?.contentType === "image/webp"
+        ? "webp"
+        : "jpg";
+  return `selfx-try-on-${run.id}.${extension}`;
 }
 
 function messageFor(error: unknown): string {

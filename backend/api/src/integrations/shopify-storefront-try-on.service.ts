@@ -720,6 +720,15 @@ export class ShopifyStorefrontTryOnService {
               key: run.resultAsset.storageKey,
               expiresInSeconds: 900,
             }),
+            downloadUrl: this.storage.createReadUrl({
+              key: run.resultAsset.storageKey,
+              expiresInSeconds: 900,
+              responseContentDisposition: `attachment; filename="${resultDownloadFilename(
+                run.id,
+                run.resultAsset.contentType,
+              )}"`,
+              responseContentType: run.resultAsset.contentType ?? undefined,
+            }),
             contentType: run.resultAsset.contentType ?? undefined,
             expiresAt: run.resultAsset.expiresAt.toISOString(),
           }
@@ -1002,6 +1011,19 @@ function productImageUnavailable(): ApiErrorException {
     SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.productImageUnavailable,
     "This product image is not available for SelfX Try-On.",
   );
+}
+
+function resultDownloadFilename(
+  runId: string,
+  contentType: string | null | undefined,
+): string {
+  const extension =
+    contentType === "image/png"
+      ? "png"
+      : contentType === "image/webp"
+        ? "webp"
+        : "jpg";
+  return `selfx-try-on-${runId}.${extension}`;
 }
 
 function sessionNotFound(): ApiErrorException {

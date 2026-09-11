@@ -29,6 +29,7 @@ export interface ShopifyTryOnRun {
   result?: {
     assetId: string;
     readUrl: string;
+    downloadUrl?: string;
     contentType?: string;
     expiresAt: string;
   };
