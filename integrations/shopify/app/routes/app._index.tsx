@@ -241,5 +241,5 @@ function selfxActionPath(
   intent: "connect" | "complete" | "sync",
 ): string {
   const separator = signedSearch ? "&" : "?";
-  return `/app/selfx-action${signedSearch}${separator}selfxIntent=${intent}`;
+  return `/selfx-action${signedSearch}${separator}selfxIntent=${intent}`;
 }
