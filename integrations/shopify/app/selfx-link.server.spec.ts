@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  SelfxLinkApiError,
-  SelfxLinkClient,
-  loadSelfxLinkConfig,
-} from "./selfx-link.server";
+import { SelfxLinkClient, loadSelfxLinkConfig } from "./selfx-link.server";
 
 const config = {
   apiBaseUrl: "https://api.selfx.test",
@@ -13,7 +9,7 @@ const config = {
 };
 
 describe("SelfxLinkClient", () => {
-  it("creates a link with server authentication and validates its approval URL", async () => {
+  it("creates a link with server authentication and a JSON body", async () => {
     const linkToken = "a".repeat(43);
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({
@@ -22,6 +18,7 @@ describe("SelfxLinkClient", () => {
         expiresAt: "2026-09-10T12:10:00.000Z",
       }),
     );
+
     const client = new SelfxLinkClient(config, fetchImpl);
 
     await client.create({
@@ -32,13 +29,50 @@ describe("SelfxLinkClient", () => {
 
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://api.selfx.test/api/v1/integrations/shopify/link-sessions",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          "x-selfx-shopify-service-token": "s".repeat(32),
-        }),
-      }),
+      expect.any(Object),
     );
+
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(request.headers);
+
+    expect(request.method).toBe("POST");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
+    expect(request.body).toBeTruthy();
+  });
+
+  it("redeems a link without sending an empty JSON request body", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            code: "SHOPIFY_LINK_SESSION_PENDING_APPROVAL",
+            message: "Approval is pending.",
+          },
+        },
+        409,
+      ),
+    );
+
+    const client = new SelfxLinkClient(config, fetchImpl);
+
+    await expect(client.redeem("a".repeat(43))).rejects.toMatchObject({
+      code: "SHOPIFY_LINK_SESSION_PENDING_APPROVAL",
+      message: "Approval is pending.",
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.selfx.test/api/v1/integrations/shopify/link-sessions/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/redeem",
+      expect.any(Object),
+    );
+
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(request.headers);
+
+    expect(request.method).toBe("POST");
+    expect(request.body).toBeUndefined();
+    expect(headers.has("Content-Type")).toBe(false);
+    expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
   });
 
   it("rejects an approval URL outside the configured SelfX web origin", async () => {
@@ -58,24 +92,6 @@ describe("SelfxLinkClient", () => {
         externalAccountName: "Merchant",
       }),
     ).rejects.toMatchObject({ code: "SELFX_LINK_INVALID_RESPONSE" });
-  });
-
-  it("preserves safe SelfX error codes for pending approval", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      jsonResponse(
-        {
-          error: {
-            code: "SHOPIFY_LINK_SESSION_PENDING_APPROVAL",
-            message: "Approval is pending.",
-          },
-        },
-        409,
-      ),
-    );
-
-    await expect(
-      new SelfxLinkClient(config, fetchImpl).redeem("a".repeat(43)),
-    ).rejects.toBeInstanceOf(SelfxLinkApiError);
   });
 });
 

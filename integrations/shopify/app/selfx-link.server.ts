@@ -82,7 +82,9 @@ export class SelfxLinkClient {
           ...init,
           headers: {
             Accept: "application/json",
-            "Content-Type": "application/json",
+            ...(init.body == null
+              ? {}
+              : { "Content-Type": "application/json" }),
             "x-selfx-shopify-service-token": this.config.serviceToken,
           },
           signal: AbortSignal.timeout(requestTimeoutMs),
