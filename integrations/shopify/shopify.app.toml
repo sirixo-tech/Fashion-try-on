@@ -6,7 +6,7 @@ application_url = "https://fashion-try-on-production.up.railway.app"
 embedded = true
 
 [access_scopes]
-scopes = "read_products"
+scopes = "read_products,write_app_proxy"
 
 [auth]
 redirect_urls = [
@@ -15,6 +15,11 @@ redirect_urls = [
 
 [webhooks]
 api_version = "2026-07"
+
+[app_proxy]
+url = "/apps/selfx-tryon"
+subpath = "selfx-tryon"
+prefix = "apps"
 
 [build]
 automatically_update_urls_on_dev = true

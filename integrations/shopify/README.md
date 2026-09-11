@@ -9,7 +9,7 @@ customers, checkout or configuration.
 ## Current Scope
 
 - reads every Shopify product and variant with cursor pagination;
-- requests product-read access only;
+- requests product-read access and app-proxy configuration access only;
 - maps Shopify product state, media, URL, price and variant data to SelfX;
 - submits bounded batches so stores with large catalogs do not require one huge
   request;
@@ -38,6 +38,16 @@ The CLI reads environment variables from the running process; it does not load
 or persist a local `.env` file. Tokens must stay on the server and must never be
 placed in storefront JavaScript.
 
+## App Storage
+
+The managed Shopify app stores Shopify sessions and SelfX Store approvals in
+PostgreSQL through Prisma. Set `DATABASE_URL` to a durable database URL. In
+production, use the Shopify integration schema in the shared database:
+
+```text
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=shopify_app
+```
+
 ## Managed App Store Linking
 
 The preferred app flow does not ask a merchant to create or paste a SelfX API
@@ -65,10 +75,17 @@ Configure these values on the Shopify app server:
 
 - `SELFX_API_BASE_URL`
 - `SELFX_WEB_BASE_URL`
+- `SELFX_STOREFRONT_TRYON_URL`
 - `SELFX_SHOPIFY_APP_SERVICE_TOKEN` (the same value configured on SelfX API)
 - `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY` (a separate Base64-encoded 32-byte key)
 - `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY_VERSION`
 - `SHOPIFY_API_VERSION`
+- `SCOPES=read_products,write_app_proxy`
+
+The storefront theme app block launches through the Shopify App Proxy at
+`/apps/selfx-tryon/launch`. The proxy route verifies Shopify's signed request,
+checks the stored SelfX connection and redirects connected stores to
+`SELFX_STOREFRONT_TRYON_URL` with Shopify product context.
 
 ## Direct Dashboard OAuth
 
@@ -102,8 +119,9 @@ delivery window and let Shopify retry. The endpoint never writes to Shopify.
 
 ## Still Planned
 
-Scheduled reconciliation, disconnection/relink UI, a working theme-editor deep
-link and the complete storefront Try-On runtime are not implemented yet. The
-Theme App Extension block exists but is not yet connected to that complete
-runtime. The standalone CLI environment token remains an operator/development
-path independent of the managed-app connection.
+Scheduled reconciliation, disconnection/relink UI and the complete storefront
+Try-On runtime are not implemented yet. The Theme App Extension block now uses
+the Shopify App Proxy launch bridge, but the customer-facing Try-On destination
+is still owned by `SELFX_STOREFRONT_TRYON_URL`. The standalone CLI environment
+token remains an operator/development path independent of the managed-app
+connection.

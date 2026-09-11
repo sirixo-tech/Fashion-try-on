@@ -1,10 +1,11 @@
 {% assign product = block.settings.product %}
+{% assign selfx_launch_url = block.settings.selfx_launch_url | default: '/apps/selfx-tryon/launch' %}
 
 <div class="selfx-tryon-block">
   <button
     type="button"
     class="selfx-tryon-button"
-    data-selfx-launch-url="{{ block.settings.selfx_launch_url }}"
+    data-selfx-launch-url="{{ selfx_launch_url }}"
     data-selfx-shop="{{ shop.permanent_domain }}"
     data-selfx-product-id="{{ product.id }}"
     data-selfx-product-handle="{{ product.handle }}"
@@ -58,7 +59,7 @@
       return;
     }
 
-    var url = new URL(launchUrl);
+    var url = new URL(launchUrl, window.location.origin);
     url.searchParams.set("shop", button.dataset.selfxShop);
     url.searchParams.set("productId", button.dataset.selfxProductId);
     url.searchParams.set("productHandle", button.dataset.selfxProductHandle);
