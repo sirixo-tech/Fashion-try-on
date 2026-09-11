@@ -1,4 +1,4 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 
 import {
@@ -12,13 +12,8 @@ import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  return redirect(`/app${url.search}`);
-};
-
-export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const form = await request.formData();
-  const intent = form.get("intent");
+  const intent = url.searchParams.get("selfxIntent");
 
   try {
     const input = {
@@ -52,8 +47,15 @@ export default function SelfxActionRoute(): null {
 
 function redirectToApp(request: Request, error?: string) {
   const requestUrl = new URL(request.url);
+  const signedQuerySegments = requestUrl.search
+    .slice(1)
+    .split("&")
+    .filter((segment) => segment && !segment.startsWith("selfxIntent="));
+  const signedSearch = signedQuerySegments.length
+    ? `?${signedQuerySegments.join("&")}`
+    : "";
   const fragment = error ? `#selfxError=${encodeURIComponent(error)}` : "";
-  return redirect(`/app${requestUrl.search}${fragment}`);
+  return redirect(`/app${signedSearch}${fragment}`);
 }
 
 function requiredAccessToken(value: string | undefined): string {
@@ -71,7 +73,7 @@ function safeMessage(error: unknown): string {
   return "The SelfX connection could not be completed. Try again.";
 }
 
-function safeIntent(intent: FormDataEntryValue | null): string {
+function safeIntent(intent: string | null): string {
   return intent === "connect" || intent === "complete" || intent === "sync"
     ? intent
     : "unknown";

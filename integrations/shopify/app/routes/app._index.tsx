@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useLocation } from "react-router";
 
@@ -16,10 +16,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Index() {
   const loaded = useLoaderData<typeof loader>();
   const location = useLocation();
-  const completionFormRef = useRef<HTMLFormElement>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const connection = loaded.connection;
-  const actionPath = `/app/selfx-action${location.search}`;
+  const connectActionPath = selfxActionPath(location.search, "connect");
+  const completeActionPath = selfxActionPath(location.search, "complete");
+  const syncActionPath = selfxActionPath(location.search, "sync");
 
   useEffect(() => {
     const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -34,10 +35,10 @@ export default function Index() {
       return;
     }
     const interval = window.setInterval(() => {
-      completionFormRef.current?.requestSubmit();
+      window.location.assign(completeActionPath);
     }, 4_000);
     return () => window.clearInterval(interval);
-  }, [connection.pendingLinkExpiresAt, connection.status]);
+  }, [completeActionPath, connection.pendingLinkExpiresAt, connection.status]);
 
   const pending = connection.status === "PENDING_APPROVAL";
   const connected = connection.status === "CONNECTED";
@@ -83,12 +84,9 @@ export default function Index() {
             </s-grid-item>
             <s-grid-item>
               {!connected && !pending ? (
-                <form method="post" action={actionPath}>
-                  <input type="hidden" name="intent" value="connect" />
-                  <s-button type="submit" variant="primary">
-                    Connect SelfX
-                  </s-button>
-                </form>
+                <s-button href={connectActionPath} variant="primary">
+                  Connect SelfX
+                </s-button>
               ) : null}
               {pending && connection.approvalUrl ? (
                 <s-button
@@ -110,12 +108,9 @@ export default function Index() {
           ) : null}
 
           {pending ? (
-            <form ref={completionFormRef} method="post" action={actionPath}>
-              <input type="hidden" name="intent" value="complete" />
-              <s-button type="submit" variant="secondary">
-                Check approval
-              </s-button>
-            </form>
+            <s-button href={completeActionPath} variant="secondary">
+              Check approval
+            </s-button>
           ) : null}
         </s-stack>
       </s-section>
@@ -140,17 +135,14 @@ export default function Index() {
                 : "No completed catalog sync yet"}
             </s-text>
           </s-stack>
-          <form method="post" action={actionPath}>
-            <input type="hidden" name="intent" value="sync" />
-            <s-button
-              type="submit"
-              variant="secondary"
-              icon="refresh"
-              disabled={!connected}
-            >
-              Sync catalog
-            </s-button>
-          </form>
+          <s-button
+            href={syncActionPath}
+            variant="secondary"
+            icon="refresh"
+            disabled={!connected}
+          >
+            Sync catalog
+          </s-button>
           <s-text color="subdued">
             Sync is read-only. Shopify remains the source of truth for products,
             prices, inventory, orders and store settings.
@@ -242,4 +234,12 @@ function formatDate(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function selfxActionPath(
+  signedSearch: string,
+  intent: "connect" | "complete" | "sync",
+): string {
+  const separator = signedSearch ? "&" : "?";
+  return `/app/selfx-action${signedSearch}${separator}selfxIntent=${intent}`;
 }
