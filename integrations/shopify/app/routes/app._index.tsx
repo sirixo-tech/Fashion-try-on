@@ -240,6 +240,6 @@ function selfxActionPath(
   signedSearch: string,
   intent: "connect" | "complete" | "sync",
 ): string {
-  const separator = signedSearch ? "&" : "?";
-  return `/selfx-action${signedSearch}${separator}selfxIntent=${intent}`;
+  const signedSuffix = signedSearch ? `&${signedSearch.slice(1)}` : "";
+  return `/selfx-action?selfxIntent=${intent}${signedSuffix}`;
 }
