@@ -82,6 +82,7 @@ describe("ShopifyCatalogConnector", () => {
       submittedBatches: 2,
       created: 3,
       archived: 4,
+      skippedWithoutImage: 0,
       completedAt: "2026-09-07T09:01:00.000Z",
     });
   });
@@ -116,6 +117,7 @@ function response(
     updated: number;
     archived: number;
     ignoredAsStale: number;
+    skippedWithoutImage: number;
   }> = {},
 ) {
   return {
@@ -126,6 +128,7 @@ function response(
     updated: 0,
     archived: 0,
     ignoredAsStale: 0,
+    skippedWithoutImage: 0,
     processedAt: "2026-09-07T09:00:00.000Z",
     ...overrides,
   };

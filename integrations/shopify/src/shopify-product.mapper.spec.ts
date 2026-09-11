@@ -39,4 +39,30 @@ describe("Shopify product normalization", () => {
     expect(moneyToCents("19.995")).toBe(2000);
     expect(moneyToCents("invalid")).toBeNull();
   });
+
+  it("uses the first variant image when featured media is unavailable", () => {
+    const result = mapShopifyProduct(
+      shopifyProduct({
+        featuredMedia: null,
+        variants: [
+          {
+            id: "gid://shopify/ProductVariant/1",
+            title: "Default",
+            sku: null,
+            price: "19.99",
+            availableForSale: true,
+            image: { url: "https://cdn.shopify.test/variant.jpg" },
+          },
+        ],
+      }),
+      "USD",
+    );
+
+    expect(result.featuredImageUrl).toBe(
+      "https://cdn.shopify.test/variant.jpg",
+    );
+    expect(result.variants[0]?.imageUrl).toBe(
+      "https://cdn.shopify.test/variant.jpg",
+    );
+  });
 });

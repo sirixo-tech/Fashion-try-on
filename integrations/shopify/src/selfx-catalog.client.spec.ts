@@ -14,6 +14,7 @@ describe("SelfxCatalogClient", () => {
           updated: 0,
           archived: 0,
           ignoredAsStale: 0,
+          skippedWithoutImage: 0,
           processedAt: "2026-09-07T10:00:00.000Z",
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },

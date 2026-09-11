@@ -25,7 +25,7 @@ export const INTEGRATION_CATALOG_SYNC_ERROR_CODES = {
 
 type SyncCounts = Pick<
   IntegrationCatalogSyncResponseDto,
-  "created" | "updated" | "archived" | "ignoredAsStale"
+  "created" | "updated" | "archived" | "ignoredAsStale" | "skippedWithoutImage"
 >;
 
 type RootMapping = {
@@ -54,6 +54,7 @@ export class IntegrationCatalogSyncService {
         updated: 0,
         archived: 0,
         ignoredAsStale: 0,
+        skippedWithoutImage: 0,
       };
       for (const product of input.products) {
         await syncProduct(
@@ -162,6 +163,21 @@ async function syncProduct(
       );
       counts.archived += 1;
     }
+    return;
+  }
+
+  if (!nullableTrim(input.featuredImageUrl)) {
+    if (mapping) {
+      await archiveMappedProduct(
+        tx,
+        credential.integrationId,
+        mapping,
+        sourceUpdatedAt,
+        observedAt,
+      );
+      counts.archived += 1;
+    }
+    counts.skippedWithoutImage += 1;
     return;
   }
 

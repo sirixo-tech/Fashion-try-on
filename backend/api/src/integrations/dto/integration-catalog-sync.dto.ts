@@ -204,5 +204,8 @@ export class IntegrationCatalogSyncResponseDto {
   ignoredAsStale!: number;
 
   @ApiProperty()
+  skippedWithoutImage!: number;
+
+  @ApiProperty()
   processedAt!: string;
 }

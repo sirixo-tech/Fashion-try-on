@@ -39,6 +39,7 @@ export type SelfxCatalogSyncResponse = {
   updated: number;
   archived: number;
   ignoredAsStale: number;
+  skippedWithoutImage: number;
   processedAt: string;
 };
 

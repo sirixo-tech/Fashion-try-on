@@ -8,7 +8,10 @@ export function mapShopifyProduct(
   product: ShopifyProduct,
   currencyCode: string,
 ): SelfxCatalogProduct {
-  const featuredImageUrl = product.featuredMedia?.preview?.image?.url ?? null;
+  const featuredImageUrl =
+    product.featuredMedia?.preview?.image?.url ??
+    product.variants.find((variant) => variant.image?.url)?.image?.url ??
+    null;
   const variants = product.variants.map((variant) => ({
     externalVariantId: variant.id,
     sku: nullableTrim(variant.sku),

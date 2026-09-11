@@ -118,6 +118,59 @@ describe("IntegrationCatalogSyncService", () => {
     expect(updateData).not.toHaveProperty("productVertical");
   });
 
+  it("skips a product without an image and continues importing the batch", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue(null);
+    const service = createService(tx);
+
+    const result = await service.sync(credential, {
+      mode: "INCREMENTAL",
+      products: [
+        {
+          ...productInput,
+          externalProductId: "shopify-product-without-image",
+          featuredImageUrl: null,
+        },
+        productInput,
+      ],
+    });
+
+    expect(result).toMatchObject({
+      created: 1,
+      updated: 0,
+      archived: 0,
+      skippedWithoutImage: 1,
+    });
+    expect(tx.product.create).toHaveBeenCalledTimes(1);
+    expect(tx.externalProductMapping.create).toHaveBeenCalledTimes(2);
+    expect(
+      JSON.stringify(tx.externalProductMapping.create.mock.calls),
+    ).not.toContain("shopify-product-without-image");
+  });
+
+  it("archives an imported product when its commerce image is removed", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      id: "mapping-1",
+      productId: "selfx-product-1",
+      externalProductId: "shopify-product-1",
+      externalUpdatedAt: new Date("2026-09-07T08:00:00.000Z"),
+      lastSeenAt: new Date("2026-09-07T08:00:00.000Z"),
+    });
+    const service = createService(tx);
+
+    const result = await service.sync(credential, {
+      mode: "INCREMENTAL",
+      products: [{ ...productInput, featuredImageUrl: null }],
+    });
+
+    expect(result).toMatchObject({ archived: 1, skippedWithoutImage: 1 });
+    expect(tx.product.update).toHaveBeenCalledWith({
+      where: { id: "selfx-product-1" },
+      data: { active: false },
+    });
+  });
+
   it("ignores delayed source updates", async () => {
     const tx = createTransaction();
     tx.externalProductMapping.findFirst.mockResolvedValue({

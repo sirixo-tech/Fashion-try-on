@@ -44,6 +44,7 @@ describe("IntegrationApiController", () => {
       updated: 0,
       archived: 0,
       ignoredAsStale: 0,
+      skippedWithoutImage: 0,
       processedAt: "2026-09-07T00:00:00.000Z",
     });
     const controller = new IntegrationApiController({ sync } as never);

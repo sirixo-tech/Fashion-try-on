@@ -16,6 +16,7 @@ export type ShopifyCatalogSyncReport = {
   updated: number;
   archived: number;
   ignoredAsStale: number;
+  skippedWithoutImage: number;
   completedAt: string;
 };
 
@@ -50,6 +51,7 @@ export class ShopifyCatalogConnector {
       updated: 0,
       archived: 0,
       ignoredAsStale: 0,
+      skippedWithoutImage: 0,
     };
     let cursor: string | null = null;
     let pending: SelfxCatalogProduct[] = [];
@@ -117,6 +119,7 @@ function addResponse(
     updated: number;
     archived: number;
     ignoredAsStale: number;
+    skippedWithoutImage: number;
   },
   response: SelfxCatalogSyncResponse,
 ): void {
@@ -124,6 +127,7 @@ function addResponse(
   totals.updated += response.updated;
   totals.archived += response.archived;
   totals.ignoredAsStale += response.ignoredAsStale;
+  totals.skippedWithoutImage += response.skippedWithoutImage ?? 0;
 }
 
 function requiredCursor(cursor: string | null): string {
