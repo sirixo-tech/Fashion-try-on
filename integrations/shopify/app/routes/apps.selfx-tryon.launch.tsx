@@ -3,11 +3,12 @@ import { redirect } from "react-router";
 
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
-
-type ProductReference = {
-  externalProductId: string | null;
-  productHandle: string | null;
-};
+import { loadSelfxLinkConfig } from "../selfx-link.server";
+import {
+  buildStorefrontTryOnSessionUrl,
+  productReference,
+  SelfxStorefrontTryOnClient,
+} from "../selfx-storefront-tryon.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const context = await authenticate.public.appProxy(request);
@@ -43,42 +44,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  const launchUrl = buildStorefrontTryOnUrl({
-    shop,
-    ...product,
-  });
-  if (!launchUrl) {
+  const launchBaseUrl = storefrontTryOnBaseUrl();
+  if (!launchBaseUrl) {
     return context.liquid(
       errorMarkup("SelfX Try-On launch is not configured yet."),
       { status: 503, layout: false },
     );
   }
 
-  return redirect(launchUrl);
+  try {
+    const client = new SelfxStorefrontTryOnClient(loadSelfxLinkConfig());
+    const session = await client.createSession({
+      source: "shopify",
+      shop,
+      ...(product.externalProductId
+        ? { externalProductId: product.externalProductId }
+        : {}),
+      ...(product.productHandle ? { productHandle: product.productHandle } : {}),
+    });
+    return redirect(
+      buildStorefrontTryOnSessionUrl({
+        baseUrl: launchBaseUrl,
+        session: session.session,
+      }),
+    );
+  } catch (error) {
+    return context.liquid(errorMarkup(messageForLaunchError(error)), {
+      status: 503,
+      layout: false,
+    });
+  }
 };
 
 export default function SelfxTryOnLaunchRoute(): null {
   return null;
-}
-
-function buildStorefrontTryOnUrl(input: {
-  shop: string;
-  externalProductId: string | null;
-  productHandle: string | null;
-}): string | null {
-  const baseUrl = storefrontTryOnBaseUrl();
-  if (!baseUrl) return null;
-
-  const url = new URL(baseUrl);
-  url.searchParams.set("source", "shopify");
-  url.searchParams.set("shop", input.shop);
-  if (input.externalProductId) {
-    url.searchParams.set("externalProductId", input.externalProductId);
-  }
-  if (input.productHandle) {
-    url.searchParams.set("productHandle", input.productHandle);
-  }
-  return url.toString();
 }
 
 function storefrontTryOnBaseUrl(): string | null {
@@ -94,30 +93,6 @@ function storefrontTryOnBaseUrl(): string | null {
   if (!url) return null;
 
   return new URL("/try-on/shopify", url).toString();
-}
-
-function productReference(searchParams: URLSearchParams): ProductReference {
-  const externalProductId = normalizeShopifyProductId(
-    searchParams.get("productId"),
-  );
-  const productHandle = normalizeProductHandle(
-    searchParams.get("productHandle"),
-  );
-
-  return { externalProductId, productHandle };
-}
-
-function normalizeShopifyProductId(value: string | null): string | null {
-  const clean = value?.trim();
-  if (!clean) return null;
-  if (/^gid:\/\/shopify\/Product\/\d+$/.test(clean)) return clean;
-  if (/^\d+$/.test(clean)) return `gid://shopify/Product/${clean}`;
-  return null;
-}
-
-function normalizeProductHandle(value: string | null): string | null {
-  const clean = value?.trim().toLowerCase();
-  return clean && /^[a-z0-9][a-z0-9-]*$/.test(clean) ? clean : null;
 }
 
 function normalizeShopDomain(value: string | null | undefined): string | null {
@@ -149,6 +124,18 @@ function validLaunchUrl(value: string): string | null {
 function cleanEnv(value: string | undefined): string | null {
   const clean = value?.trim();
   return clean || null;
+}
+
+function messageForLaunchError(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "SHOPIFY_STOREFRONT_TRYON_PRODUCT_NOT_ENABLED"
+  ) {
+    return "This product is not enabled for SelfX Try-On yet.";
+  }
+  return "SelfX Try-On could not be started for this product yet.";
 }
 
 function errorMarkup(message: string): string {
