@@ -10,7 +10,10 @@ import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  return { connection: await safeConnectionView(session.shop) };
+  return {
+    connection: await safeConnectionView(session.shop),
+    themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
+  };
 };
 
 export default function Index() {
@@ -18,6 +21,7 @@ export default function Index() {
   const location = useLocation();
   const [actionError, setActionError] = useState<string | null>(null);
   const connection = loaded.connection;
+  const themeEditorUrl = loaded.themeEditorUrl;
   const connectActionPath = selfxActionPath(location.search, "connect");
   const completeActionPath = selfxActionPath(location.search, "complete");
   const restartActionPath = selfxActionPath(location.search, "restart");
@@ -162,7 +166,12 @@ export default function Index() {
             After the catalog is synchronized, add the SelfX Try It On block to
             your product template from the Shopify theme editor.
           </s-text>
-          <s-button variant="secondary" disabled={!connected}>
+          <s-button
+            variant="secondary"
+            href={themeEditorUrl ?? undefined}
+            target="_blank"
+            disabled={!connected || !themeEditorUrl}
+          >
             Add Try-On block
           </s-button>
         </s-stack>
@@ -248,4 +257,18 @@ function selfxActionPath(
 ): string {
   const signedSuffix = signedSearch ? `&${signedSearch.slice(1)}` : "";
   return `/selfx-action?selfxIntent=${intent}${signedSuffix}`;
+}
+
+function buildTryOnBlockThemeEditorUrl(shop: string): string | null {
+  // eslint-disable-next-line no-undef
+  const apiKey = process.env.SHOPIFY_API_KEY?.trim();
+  const shopDomain = normalizeShopDomain(shop);
+  if (!apiKey || !shopDomain) return null;
+
+  return `https://${shopDomain}/admin/themes/current/editor?template=product&addAppBlockId=${apiKey}/selfx_try_it_on&target=mainSection`;
+}
+
+function normalizeShopDomain(shop: string): string | null {
+  const clean = shop.trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(clean) ? clean : null;
 }
