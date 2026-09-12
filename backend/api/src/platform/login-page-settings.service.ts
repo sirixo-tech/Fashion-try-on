@@ -14,26 +14,26 @@ export const LOGIN_PAGE_SETTINGS_KEY = "platform.login_page";
 
 const defaultLoginPageSettings: LoginPageSettingsResponseDto = {
   eyebrow: "SelfX Virtual Try-On",
-  headline: "Bring every fitting room to life",
-  body: "Manage Stores, kiosks, catalog products and Try-On operations from one SelfX control center.",
+  headline: "Bring virtual try-on to every storefront",
+  body: "Launch AI Try-On for Shopify, WooCommerce and in-store kiosks from one secure SelfX dashboard.",
   mediaType: "VIDEO",
   mediaUrl: "/login-default-video.mp4",
   mediaPosterUrl: null,
   mediaMuted: true,
   cards: [
     {
-      title: "Store control",
-      description: "Operate Store access, products and kiosks from one place.",
+      title: "Commerce ready",
+      description: "Connect online catalogs and manage product Try-On access.",
     },
     {
-      title: "Try-On ready",
-      description: "Keep visual AI workflows behind SelfX permissions.",
+      title: "Kiosk ready",
+      description: "Operate in-store Try-On devices from the same workspace.",
     },
   ],
   bullets: [
-    "Permission-aware dashboards for every role",
-    "One backend for Store, kiosk and future channel access",
-    "Provider credentials stay server-side",
+    "One dashboard for merchants, staff and SelfX admins",
+    "Credits, products and Try-On results in one place",
+    "Provider credentials and customer media stay protected",
   ],
 };
 

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Headers, Param, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common";
 import {
   ApiBody,
   ApiConsumes,
@@ -15,6 +24,7 @@ import { ShopifyAppServiceAuthService } from "./shopify-app-service-auth.service
 import {
   CreateShopifyStorefrontTryOnRunDto,
   CreateShopifyStorefrontTryOnSessionDto,
+  ShopifyStorefrontCreditSummaryDto,
   ShopifyStorefrontTryOnPersonUploadDto,
   ShopifyStorefrontTryOnRunDto,
   ShopifyStorefrontTryOnRunParamDto,
@@ -46,6 +56,21 @@ export class ShopifyStorefrontTryOnController {
   ): Promise<ShopifyStorefrontTryOnSessionDto> {
     this.serviceAuth.requireServiceToken(serviceToken);
     return this.tryOns.createSession(body);
+  }
+
+  @Get("credit-summary")
+  @ApiOperation({
+    summary: "Read Shopify Store credit summary",
+    description:
+      "Requires Shopify app service authentication and resolves the connected SelfX Store from the Shopify shop domain.",
+  })
+  @ApiOkResponse({ type: ShopifyStorefrontCreditSummaryDto })
+  getCreditSummary(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) serviceToken: string | undefined,
+    @Query("shop") shop: string | undefined,
+  ): Promise<ShopifyStorefrontCreditSummaryDto> {
+    this.serviceAuth.requireServiceToken(serviceToken);
+    return this.tryOns.getCreditSummaryForShop(shop);
   }
 
   @Get(":session")

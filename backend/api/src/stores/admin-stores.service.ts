@@ -15,6 +15,7 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { KioskService, mapDevice } from "../kiosks/kiosk.service.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
@@ -34,6 +35,7 @@ import {
 } from "../catalog/product-kind.js";
 import {
   AdminStoreStatus,
+  type AssignStorePricingPlanDto,
   type AdminStoreDetailResponseDto,
   type AdminStoreListQueryDto,
   type AdminStoreListResponseDto,
@@ -43,12 +45,15 @@ import {
   type CreateStoreProductDto,
   type CreateStoreProductImageUploadDto,
   type CreateAdminStoreDto,
+  type ManualStoreCreditAdjustmentDto,
   type PairStoreKioskDto,
+  type StoreCreditDiagnosticsDto,
   type StoreKioskDeviceResponseDto,
   type StoreKioskPairResponseDto,
   type StoreProductDto,
   type StoreProductListQueryDto,
   type StoreProductListResponseDto,
+  type StoreSubscriptionSummaryDto,
   type StoreProductImageUploadIntentDto,
   type UpdateStoreProductDto,
   type UpdateAdminStoreDto,
@@ -61,6 +66,7 @@ export const STORE_ERROR_CODES = {
   storeDeleteRequiresInactive: "STORE_DELETE_REQUIRES_INACTIVE",
   storeSlugConflict: "STORE_SLUG_CONFLICT",
   storeFeatureUnavailable: "STORE_FEATURE_UNAVAILABLE",
+  pricingPlanUnavailable: "STORE_PRICING_PLAN_UNAVAILABLE",
   kioskNotFound: "KIOSK_NOT_FOUND",
   kioskStoreMismatch: "KIOSK_STORE_MISMATCH",
   productNotFound: "PRODUCT_NOT_FOUND",
@@ -141,6 +147,7 @@ export class AdminStoresService {
     private readonly rbac: StoreRbacService,
     private readonly garmentPreviewSettings: GarmentPreviewSettingsService,
     @Optional() private readonly storage?: ObjectStorageService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   async listStores(
@@ -214,7 +221,70 @@ export class AdminStoresService {
     return {
       ...mapStore(store, stats.get(store.id)),
       kiosks: await this.listStoreKiosks(store.id),
+      subscription: await this.storeCreditSummary(store.id),
     };
+  }
+
+  async assignPricingPlan(
+    storeId: string,
+    input: AssignStorePricingPlanDto,
+  ): Promise<StoreSubscriptionSummaryDto> {
+    const store = await this.findStoreOrThrow(storeId);
+    if (!this.entitlements) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        STORE_ERROR_CODES.pricingPlanUnavailable,
+        "Store entitlements are not available.",
+      );
+    }
+    return this.entitlements.activatePlanForStore({
+      organizationId: store.id,
+      pricingPlanId: input.pricingPlanId,
+    });
+  }
+
+  async topUpCredits(
+    storeId: string,
+    input: ManualStoreCreditAdjustmentDto,
+    actorUserId: string,
+  ): Promise<StoreSubscriptionSummaryDto> {
+    const store = await this.findStoreOrThrow(storeId);
+    if (!this.entitlements) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        STORE_ERROR_CODES.pricingPlanUnavailable,
+        "Store entitlements are not available.",
+      );
+    }
+    return this.entitlements.topUpStoreCredits({
+      organizationId: store.id,
+      quantity: input.quantity,
+      reason: input.reason,
+      actorUserId,
+    });
+  }
+
+  async getCreditDiagnostics(
+    storeId: string,
+  ): Promise<StoreCreditDiagnosticsDto> {
+    const store = await this.findStoreOrThrow(storeId);
+    if (!this.entitlements) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        STORE_ERROR_CODES.pricingPlanUnavailable,
+        "Store entitlements are not available.",
+      );
+    }
+    return this.entitlements.getStoreCreditDiagnostics(store.id);
+  }
+
+  private async storeCreditSummary(
+    storeId: string,
+  ): Promise<StoreSubscriptionSummaryDto> {
+    if (this.entitlements) {
+      return this.entitlements.getStoreCreditSummary(storeId);
+    }
+    return { availableCredits: 0, subscription: null };
   }
 
   async getVirtualTryOnSettings(

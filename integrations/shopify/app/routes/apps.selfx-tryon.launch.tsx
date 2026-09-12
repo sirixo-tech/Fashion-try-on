@@ -3,56 +3,60 @@ import { redirect } from "react-router";
 
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
-import { loadSelfxLinkConfig } from "../selfx-link.server";
+import { storefrontTryOnErrorMarkup } from "../selfx-storefront-error.server";
+import { loadSelfxLinkConfig, SelfxLinkApiError } from "../selfx-link.server";
 import {
   buildStorefrontTryOnSessionUrl,
   productReference,
   SelfxStorefrontTryOnClient,
 } from "../selfx-storefront-tryon.server";
 
+type AppProxyContext = Awaited<ReturnType<typeof authenticate.public.appProxy>>;
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const context = await authenticate.public.appProxy(request);
-  const url = new URL(request.url);
-  const shop = normalizeShopDomain(
-    context.session?.shop ?? url.searchParams.get("shop"),
-  );
-
-  if (!shop) {
-    return context.liquid(errorMarkup("SelfX could not verify this shop."), {
-      status: 400,
-      layout: false,
-    });
-  }
-
-  const connection = await db.selfxConnection.findUnique({
-    where: { shop },
-    select: { status: true },
-  });
-
-  if (connection?.status !== "CONNECTED") {
-    return context.liquid(
-      errorMarkup("SelfX Try-On is not connected for this store yet."),
-      { status: 403, layout: false },
-    );
-  }
-
-  const product = productReference(url.searchParams);
-  if (!product.externalProductId && !product.productHandle) {
-    return context.liquid(
-      errorMarkup("SelfX could not identify this Shopify product."),
-      { status: 400, layout: false },
-    );
-  }
-
-  const launchBaseUrl = storefrontTryOnBaseUrl();
-  if (!launchBaseUrl) {
-    return context.liquid(
-      errorMarkup("SelfX Try-On launch is not configured yet."),
-      { status: 503, layout: false },
-    );
-  }
-
+  let context: AppProxyContext | null = null;
   try {
+    context = await authenticate.public.appProxy(request);
+    const url = new URL(request.url);
+    const shop = normalizeShopDomain(
+      context.session?.shop ?? url.searchParams.get("shop"),
+    );
+
+    if (!shop) {
+      return launchError(context, {
+        message: "SelfX could not verify this Shopify store.",
+        status: 400,
+      });
+    }
+
+    const connection = await db.selfxConnection.findUnique({
+      where: { shop },
+      select: { status: true },
+    });
+
+    if (connection?.status !== "CONNECTED") {
+      return launchError(context, {
+        message: "SelfX Try-On is not connected for this store yet.",
+        status: 403,
+      });
+    }
+
+    const product = productReference(url.searchParams);
+    if (!product.externalProductId && !product.productHandle) {
+      return launchError(context, {
+        message: "SelfX could not identify this Shopify product.",
+        status: 400,
+      });
+    }
+
+    const launchBaseUrl = storefrontTryOnBaseUrl();
+    if (!launchBaseUrl) {
+      return launchError(context, {
+        message: "SelfX Try-On launch is not configured yet.",
+        status: 503,
+      });
+    }
+
     const client = new SelfxStorefrontTryOnClient(loadSelfxLinkConfig());
     const session = await client.createSession({
       source: "shopify",
@@ -69,10 +73,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }),
     );
   } catch (error) {
-    return context.liquid(errorMarkup(messageForLaunchError(error)), {
-      status: 503,
-      layout: false,
-    });
+    console.error("SelfX storefront Try-On launch failed", safeErrorLog(error));
+    if (context) {
+      return launchError(context, {
+        message: messageForLaunchError(error),
+        status: statusForLaunchError(error),
+      });
+    }
+    return new Response(
+      storefrontTryOnErrorMarkup(
+        "SelfX Try-On could not verify this storefront request. Return to the product page and try again.",
+      ),
+      {
+        status: 400,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      },
+    );
   }
 };
 
@@ -135,23 +151,43 @@ function messageForLaunchError(error: unknown): string {
   ) {
     return "This product is not enabled for SelfX Try-On yet.";
   }
+  if (
+    error instanceof SelfxLinkApiError &&
+    error.code === "SHOPIFY_STOREFRONT_TRYON_PRODUCT_UNAVAILABLE"
+  ) {
+    return "This product is not available for SelfX Try-On right now.";
+  }
   return "SelfX Try-On could not be started for this product yet.";
 }
 
-function errorMarkup(message: string): string {
-  return `
-    <main style="padding: 2rem; font-family: system-ui, sans-serif;">
-      <h1 style="font-size: 1.25rem; margin: 0 0 0.75rem;">SelfX Try-On</h1>
-      <p style="margin: 0;">${escapeHtml(message)}</p>
-    </main>
-  `;
+function statusForLaunchError(error: unknown): number {
+  if (error instanceof SelfxLinkApiError) {
+    return error.status >= 400 && error.status < 500 ? error.status : 503;
+  }
+  return 503;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function launchError(
+  context: AppProxyContext,
+  input: { message: string; status: number },
+): Response {
+  return context.liquid(storefrontTryOnErrorMarkup(input.message), {
+    status: input.status,
+    layout: false,
+  });
+}
+
+function safeErrorLog(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    const maybeApiError =
+      error instanceof SelfxLinkApiError
+        ? { code: error.code, status: error.status }
+        : {};
+    return {
+      name: error.name,
+      message: error.message,
+      ...maybeApiError,
+    };
+  }
+  return { name: "UnknownError", message: String(error) };
 }

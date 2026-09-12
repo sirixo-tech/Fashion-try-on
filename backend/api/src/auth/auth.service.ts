@@ -1,4 +1,10 @@
-import { createHash } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from "node:crypto";
 
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
@@ -22,6 +28,7 @@ import {
   type AuthUserResponse,
   type LogoutAllResult,
   type RequestMetadata,
+  type SignupChallengeResponse,
 } from "./auth.types.js";
 import { PasswordService } from "./password.service.js";
 import { RefreshTokenService } from "./refresh-token.service.js";
@@ -30,6 +37,16 @@ interface AccessTokenPayload {
   sub: string;
   typ: "access";
 }
+
+interface SignupChallengePayload {
+  typ: "signup_challenge";
+  question: string;
+  nonce: string;
+  answerHash: string;
+  exp: number;
+}
+
+const signupChallengeTtlSeconds = 10 * 60;
 
 @Injectable()
 export class AuthService {
@@ -89,6 +106,66 @@ export class AuthService {
       resourceType: "user",
       resourceId: user.id,
       metadata: safeRequestMetadata(metadata),
+    });
+    return result;
+  }
+
+  createSignupChallenge(): SignupChallengeResponse {
+    const operation = randomInt(0, 2) === 0 ? "+" : "-";
+    const left = randomInt(4, 24);
+    const right = randomInt(2, operation === "-" ? left : 16);
+    const answer = String(operation === "+" ? left + right : left - right);
+    const nonce = randomBytes(16).toString("base64url");
+    const payload: SignupChallengePayload = {
+      typ: "signup_challenge",
+      question: `${left} ${operation} ${right}`,
+      nonce,
+      answerHash: this.signupChallengeDigest(answer, nonce),
+      exp: Math.floor(Date.now() / 1000) + signupChallengeTtlSeconds,
+    };
+    const encodedPayload = encodeBase64UrlJson(payload);
+    const signature = this.signupChallengeSignature(encodedPayload);
+
+    return {
+      question: payload.question,
+      challengeToken: `${encodedPayload}.${signature}`,
+      expiresAt: new Date(payload.exp * 1000).toISOString(),
+    };
+  }
+
+  async signup(input: {
+    displayName: string;
+    email: string;
+    password: string;
+    challengeToken: string;
+    challengeAnswer: string;
+    metadata: RequestMetadata;
+  }): Promise<AuthResult> {
+    this.verifySignupChallenge(input.challengeToken, input.challengeAnswer);
+    const normalizedEmail = normalizeEmail(input.email);
+    const displayName = normalizeDisplayName(input.displayName);
+    const passwordHash = await this.passwords.hashPassword(input.password);
+
+    const user = await this.repository.createSelfServeSignup({
+      email: normalizedEmail,
+      passwordHash,
+      displayName,
+      metadata: safeRequestMetadata(input.metadata),
+    });
+    if (!user) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        AUTH_ERROR_CODES.emailAlreadyExists,
+        "An account already exists for this email address.",
+      );
+    }
+
+    const result = await this.issueTokens(user, input.metadata);
+    await this.audit(AUTH_AUDIT_ACTIONS.signupSuccess, {
+      actorUserId: user.id,
+      resourceType: "user",
+      resourceId: user.id,
+      metadata: safeRequestMetadata(input.metadata),
     });
     return result;
   }
@@ -346,10 +423,54 @@ export class AuthService {
       metadata: input.metadata,
     });
   }
+
+  private verifySignupChallenge(token: string, answer: string): void {
+    const [encodedPayload, signature, extra] = token.split(".");
+    if (!encodedPayload || !signature || extra !== undefined) {
+      throwInvalidSignupChallenge();
+    }
+    const expectedSignature = this.signupChallengeSignature(encodedPayload);
+    if (!safeCompare(signature, expectedSignature)) {
+      throwInvalidSignupChallenge();
+    }
+
+    const payload = parseSignupChallengePayload(encodedPayload);
+    if (
+      !payload ||
+      payload.typ !== "signup_challenge" ||
+      payload.exp < Math.floor(Date.now() / 1000)
+    ) {
+      throwInvalidSignupChallenge();
+    }
+
+    const expectedAnswerHash = this.signupChallengeDigest(
+      answer.trim(),
+      payload.nonce,
+    );
+    if (!safeCompare(payload.answerHash, expectedAnswerHash)) {
+      throwInvalidSignupChallenge();
+    }
+  }
+
+  private signupChallengeDigest(answer: string, nonce: string): string {
+    return createHmac("sha256", this.config.jwtAccessSecret)
+      .update(`selfx-signup-answer:${nonce}:${answer}`)
+      .digest("base64url");
+  }
+
+  private signupChallengeSignature(encodedPayload: string): string {
+    return createHmac("sha256", this.config.jwtAccessSecret)
+      .update(`selfx-signup-challenge:${encodedPayload}`)
+      .digest("base64url");
+  }
 }
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function normalizeDisplayName(displayName: string): string {
+  return displayName.trim().replace(/\s+/g, " ").slice(0, 160);
 }
 
 export function sanitizeUser(user: AuthUserRecord): AuthUserResponse {
@@ -412,5 +533,48 @@ function throwInvalidRefreshToken(): never {
     HttpStatus.UNAUTHORIZED,
     AUTH_ERROR_CODES.refreshTokenInvalid,
     "Refresh session is invalid or expired.",
+  );
+}
+
+function throwInvalidSignupChallenge(): never {
+  throw new ApiErrorException(
+    HttpStatus.BAD_REQUEST,
+    AUTH_ERROR_CODES.signupChallengeInvalid,
+    "Signup challenge is invalid or expired.",
+  );
+}
+
+function encodeBase64UrlJson(value: SignupChallengePayload): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function parseSignupChallengePayload(
+  encodedPayload: string,
+): SignupChallengePayload | null {
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(encodedPayload, "base64url").toString("utf8"),
+    ) as Partial<SignupChallengePayload>;
+    if (
+      parsed.typ !== "signup_challenge" ||
+      typeof parsed.question !== "string" ||
+      typeof parsed.nonce !== "string" ||
+      typeof parsed.answerHash !== "string" ||
+      typeof parsed.exp !== "number"
+    ) {
+      return null;
+    }
+    return parsed as SignupChallengePayload;
+  } catch {
+    return null;
+  }
+}
+
+function safeCompare(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return (
+    leftBuffer.length === rightBuffer.length &&
+    timingSafeEqual(leftBuffer, rightBuffer)
   );
 }

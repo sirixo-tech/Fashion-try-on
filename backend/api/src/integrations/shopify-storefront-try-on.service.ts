@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import {
+  CreditLedgerChannel,
   ExternalProductMappingStatus,
   IntegrationStatus,
   KioskAssignmentScope,
@@ -34,6 +35,7 @@ import {
   PUBLIC_API_UPLOAD_MAX_IMAGE_BYTES,
   type PublicApiUploadPayload,
 } from "../developer-api/public-api-upload.multipart.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import {
   TryOnExecutionService,
@@ -48,6 +50,7 @@ import {
 import {
   type CreateShopifyStorefrontTryOnRunDto,
   type CreateShopifyStorefrontTryOnSessionDto,
+  type ShopifyStorefrontCreditSummaryDto,
   type ShopifyStorefrontTryOnPersonUploadDto,
   type ShopifyStorefrontTryOnProductDto,
   type ShopifyStorefrontTryOnRunDto,
@@ -119,6 +122,7 @@ export class ShopifyStorefrontTryOnService {
     private readonly sessions: TryOnSessionService,
     private readonly storage: ObjectStorageService,
     private readonly execution: TryOnExecutionService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async createSession(
@@ -203,6 +207,32 @@ export class ShopifyStorefrontTryOnService {
       expiresAt: capability.expiresAt.toISOString(),
       product: toCapabilityProductDto(capability),
     };
+  }
+
+  async getCreditSummaryForShop(
+    shop: string | undefined,
+  ): Promise<ShopifyStorefrontCreditSummaryDto> {
+    if (!shop) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.productContextMissing,
+        "Shopify shop is required.",
+      );
+    }
+    const shopDomain = normalizeShopDomain(shop);
+    const integration = await this.prisma.integration.findFirst({
+      where: {
+        type: "SHOPIFY",
+        status: IntegrationStatus.ACTIVE,
+        metadata: { path: ["shopDomain"], equals: shopDomain },
+        organization: { status: "ACTIVE" },
+      },
+      select: { organizationId: true },
+    });
+    if (!integration) {
+      throw productUnavailable();
+    }
+    return this.entitlements.getStoreCreditSummary(integration.organizationId);
   }
 
   async uploadPersonImage(
@@ -290,6 +320,25 @@ export class ShopifyStorefrontTryOnService {
     ]);
     const provider = this.execution.metadata();
     this.execution.assertConfigured();
+    const clientRequestId = input.clientRequestId?.trim() || randomUUID();
+    await this.entitlements.consumeTryOnCredit({
+      organizationId: capability.organizationId,
+      channel: CreditLedgerChannel.SHOPIFY,
+      idempotencyKey: [
+        "tryon",
+        "shopify",
+        capability.tryOnSessionId,
+        clientRequestId,
+      ].join(":"),
+      reason: "Shopify storefront Try-On generation",
+      tryOnSessionId: capability.tryOnSessionId,
+      productId: capability.product.id,
+      integrationId: capability.integrationId,
+      metadata: {
+        externalProductId: capability.externalProductId,
+        productHandle: capability.productHandle,
+      },
+    });
     const now = new Date();
     const run = await this.prisma.kioskTryOnRun.create({
       data: {
@@ -297,7 +346,7 @@ export class ShopifyStorefrontTryOnService {
         kioskDeviceId: null,
         apiKeyId: null,
         tryOnSessionId: capability.tryOnSessionId,
-        clientRequestId: input.clientRequestId?.trim() || randomUUID(),
+        clientRequestId,
         status: "QUEUED",
         assignmentScope: KioskAssignmentScope.ORGANIZATION,
         organizationId: capability.organizationId,

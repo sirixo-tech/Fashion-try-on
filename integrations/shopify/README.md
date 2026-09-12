@@ -9,7 +9,8 @@ customers, checkout or configuration.
 ## Current Scope
 
 - reads every Shopify product and variant with cursor pagination;
-- requests product-read access and app-proxy configuration access only;
+- requests product-read access, theme-read access for block detection and
+  app-proxy configuration access only;
 - maps Shopify product state, media, URL, price and variant data to SelfX;
 - submits bounded batches so stores with large catalogs do not require one huge
   request;
@@ -80,12 +81,15 @@ Configure these values on the Shopify app server:
 - `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY` (a separate Base64-encoded 32-byte key)
 - `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY_VERSION`
 - `SHOPIFY_API_VERSION`
-- `SCOPES=read_products,write_app_proxy`
+- `SCOPES=read_products,read_themes,write_app_proxy`
 
 The storefront theme app block launches through the Shopify App Proxy at
 `/apps/selfx-tryon/launch`. The proxy route verifies Shopify's signed request,
 checks the stored SelfX connection and redirects connected stores to
-`SELFX_STOREFRONT_TRYON_URL` with Shopify product context.
+`SELFX_STOREFRONT_TRYON_URL` with Shopify product context. The embedded app
+checks the published theme's `templates/product.json` file for the
+`selfx_try_it_on` app block so merchants can see whether the storefront block is
+installed.
 
 ## Direct Dashboard OAuth
 

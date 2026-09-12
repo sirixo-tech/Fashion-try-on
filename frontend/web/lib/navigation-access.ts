@@ -48,6 +48,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
     "ORGANIZATION_ACTIVATE",
     "ORGANIZATION_SUSPEND",
   ],
+  "/app/platform/pricing": ["PRICING_VIEW", "PRICING_MANAGE"],
 };
 
 const storePermissionsByHref: Record<string, string[]> = {

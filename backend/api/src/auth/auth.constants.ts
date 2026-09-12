@@ -9,6 +9,8 @@ export const AUTH_ERROR_CODES = {
   csrfRejected: "AUTH_CSRF_REJECTED",
   rateLimited: "AUTH_RATE_LIMITED",
   validationFailed: "AUTH_VALIDATION_FAILED",
+  emailAlreadyExists: "AUTH_EMAIL_ALREADY_EXISTS",
+  signupChallengeInvalid: "AUTH_SIGNUP_CHALLENGE_INVALID",
 } as const;
 
 export const AUTH_AUDIT_ACTIONS = {
@@ -18,4 +20,5 @@ export const AUTH_AUDIT_ACTIONS = {
   refreshRejected: "AUTH_REFRESH_REJECTED",
   logout: "AUTH_LOGOUT",
   logoutAll: "AUTH_LOGOUT_ALL",
+  signupSuccess: "AUTH_SIGNUP_SUCCESS",
 } as const;

@@ -3,6 +3,7 @@ import {
   type ShopifyProductPage,
   type ShopifyProductResult,
   type ShopifyShopIdentity,
+  type ShopifyThemeAppBlockStatus,
   type ShopifyVariant,
 } from "./contracts.js";
 
@@ -39,6 +40,38 @@ type ProductVariantsQueryData = {
 type ProductQueryData = {
   shop: { currencyCode: string };
   product: ProductNode | null;
+};
+
+type ThemeNode = {
+  id: string;
+  name: string;
+  role: string;
+};
+
+type ThemesQueryData = {
+  themes: { nodes: ThemeNode[] };
+};
+
+type ThemeFilesQueryData = {
+  theme: {
+    id: string;
+    name: string;
+    role: string;
+    files: {
+      nodes: Array<{
+        filename: string;
+        body:
+          | {
+              content?: string;
+            }
+          | null;
+      }>;
+      userErrors: Array<{
+        code?: string;
+        filename?: string;
+      }>;
+    };
+  } | null;
 };
 
 type GraphqlEnvelope<T> = {
@@ -118,6 +151,34 @@ export class ShopifyAdminClient {
       product: data.product
         ? await this.completeProductVariants(data.product, deadlineAt)
         : null,
+    };
+  }
+
+  async getThemeAppBlockStatus(
+    blockHandle: string,
+  ): Promise<ShopifyThemeAppBlockStatus> {
+    const checkedFilenames = ["templates/product.json"];
+    const themes = await this.graphql<ThemesQueryData>(themesQuery, {});
+    const mainTheme = themes.themes.nodes.find(
+      (theme) => theme.role === "MAIN",
+    );
+    if (!mainTheme) {
+      return { status: "NO_MAIN_THEME", checkedFilenames };
+    }
+
+    const data = await this.graphql<ThemeFilesQueryData>(themeFilesQuery, {
+      themeId: mainTheme.id,
+      filenames: checkedFilenames,
+    });
+    const installed =
+      data.theme?.files.nodes.some((file) =>
+        themeFileContainsAppBlock(file.body?.content, blockHandle),
+      ) ?? false;
+    return {
+      status: installed ? "INSTALLED" : "NOT_INSTALLED",
+      themeId: mainTheme.id,
+      themeName: mainTheme.name,
+      checkedFilenames,
     };
   }
 
@@ -270,6 +331,66 @@ const productVariantsQuery = [
   "  }",
   "}",
 ].join("\n");
+
+const themesQuery = [
+  "query SelfxThemes {",
+  "  themes(first: 10) {",
+  "    nodes { id name role }",
+  "  }",
+  "}",
+].join("\n");
+
+const themeFilesQuery = [
+  "query SelfxThemeTemplate($themeId: ID!, $filenames: [String!]!) {",
+  "  theme(id: $themeId) {",
+  "    id",
+  "    name",
+  "    role",
+  "    files(filenames: $filenames, first: 10) {",
+  "      nodes {",
+  "        filename",
+  "        body {",
+  "          ... on OnlineStoreThemeFileBodyText { content }",
+  "        }",
+  "      }",
+  "      userErrors { code filename }",
+  "    }",
+  "  }",
+  "}",
+].join("\n");
+
+function themeFileContainsAppBlock(
+  content: string | undefined,
+  blockHandle: string,
+): boolean {
+  if (!content) return false;
+  try {
+    return jsonValueContainsAppBlock(JSON.parse(content) as unknown, blockHandle);
+  } catch {
+    return false;
+  }
+}
+
+function jsonValueContainsAppBlock(
+  value: unknown,
+  blockHandle: string,
+): boolean {
+  if (typeof value === "string") {
+    return (
+      value.startsWith("shopify://apps/") &&
+      value.includes(`/blocks/${blockHandle}/`)
+    );
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => jsonValueContainsAppBlock(item, blockHandle));
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).some((item) =>
+      jsonValueContainsAppBlock(item, blockHandle),
+    );
+  }
+  return false;
+}
 
 function retryDelayMs(response: Response, attempt: number): number {
   const retryAfter = Number(response.headers.get("retry-after"));

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
+import { EntitlementsModule } from "../entitlements/entitlements.module.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
@@ -23,7 +24,7 @@ import { ShopifyWebhookController } from "./shopify-webhook.controller.js";
 import { ShopifyWebhookService } from "./shopify-webhook.service.js";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, TryOnModule],
+  imports: [AuthModule, DatabaseModule, EntitlementsModule, TryOnModule],
   controllers: [
     IntegrationsController,
     IntegrationApiController,

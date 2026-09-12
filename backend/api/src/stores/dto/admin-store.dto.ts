@@ -203,6 +203,23 @@ export class UpdateAdminStoreDto {
   status?: AdminStoreStatus;
 }
 
+export class AssignStorePricingPlanDto {
+  @IsString()
+  pricingPlanId!: string;
+}
+
+export class ManualStoreCreditAdjustmentDto {
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  quantity!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(240)
+  reason?: string;
+}
+
 export class PairStoreKioskDto {
   @IsString()
   @Matches(/^\d{6}$/)
@@ -644,9 +661,139 @@ export class AdminStoreListResponseDto {
   };
 }
 
+export class StorePricingPlanSummaryDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  currency!: string;
+
+  @ApiProperty()
+  monthlyPriceCents!: number;
+
+  @ApiProperty()
+  includedCredits!: number;
+
+  @ApiPropertyOptional()
+  extraCreditPriceCents!: number | null;
+
+  @ApiPropertyOptional()
+  kioskMonthlyRentCents!: number | null;
+
+  @ApiPropertyOptional()
+  kioskDeviceLimit!: number | null;
+
+  @ApiProperty({ type: [String] })
+  channels!: string[];
+}
+
+export class StoreSubscriptionSummaryDto {
+  @ApiProperty()
+  availableCredits!: number;
+
+  @ApiPropertyOptional()
+  subscription!: {
+    id: string;
+    status: string;
+    channels: string[];
+    includedCredits: number;
+    trialCredits: number;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+    pricingPlan: StorePricingPlanSummaryDto | null;
+  } | null;
+}
+
+export class StoreCreditChannelUsageDto {
+  @ApiProperty()
+  channel!: string;
+
+  @ApiProperty()
+  consumedCredits!: number;
+
+  @ApiProperty()
+  runs!: number;
+}
+
+export class StoreCreditProductUsageDto {
+  @ApiProperty()
+  productId!: string;
+
+  @ApiProperty()
+  productName!: string;
+
+  @ApiProperty()
+  productSlug!: string;
+
+  @ApiProperty()
+  consumedCredits!: number;
+
+  @ApiProperty()
+  runs!: number;
+}
+
+export class StoreCreditLedgerEntryDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  entryType!: string;
+
+  @ApiPropertyOptional()
+  channel!: string | null;
+
+  @ApiProperty()
+  quantity!: number;
+
+  @ApiPropertyOptional()
+  balanceAfter!: number | null;
+
+  @ApiPropertyOptional()
+  reason!: string | null;
+
+  @ApiPropertyOptional()
+  productId!: string | null;
+
+  @ApiProperty()
+  occurredAt!: string;
+}
+
+export class StoreCreditDiagnosticsDto {
+  @ApiProperty()
+  availableCredits!: number;
+
+  @ApiProperty()
+  totals!: {
+    grantedCredits: number;
+    consumedCredits: number;
+    manualAdjustments: number;
+    netCredits: number;
+  };
+
+  @ApiProperty({ type: [StoreCreditChannelUsageDto] })
+  byChannel!: StoreCreditChannelUsageDto[];
+
+  @ApiProperty({ type: [StoreCreditProductUsageDto] })
+  topProducts!: StoreCreditProductUsageDto[];
+
+  @ApiProperty({ type: [StoreCreditLedgerEntryDto] })
+  recentLedgerEntries!: StoreCreditLedgerEntryDto[];
+}
+
 export class AdminStoreDetailResponseDto extends AdminStoreResponseDto {
   @ApiProperty({ type: KioskDeviceListResponseDto })
   kiosks!: KioskDeviceListResponseDto;
+
+  @ApiProperty({ type: StoreSubscriptionSummaryDto })
+  subscription!: StoreSubscriptionSummaryDto;
 }
 
 export class StoreKioskPairResponseDto extends KioskProvisioningPairResponseDto {}

@@ -4,7 +4,9 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
+  Query,
 } from "@nestjs/common";
 import {
   ApiHeader,
@@ -19,6 +21,12 @@ import {
   IntegrationCatalogSyncResponseDto,
 } from "./dto/integration-catalog-sync.dto.js";
 import { IntegrationApiMeResponseDto } from "./dto/integration-api.dto.js";
+import {
+  IntegrationProductControlsQueryDto,
+  IntegrationProductControlsResponseDto,
+  UpdateIntegrationProductVtoDto,
+  IntegrationProductControlsDto,
+} from "./dto/integration-product-controls.dto.js";
 import { IntegrationCatalogSyncService } from "./integration-catalog-sync.service.js";
 import {
   IntegrationCredential,
@@ -85,5 +93,47 @@ export class IntegrationApiController {
     @Body() input: IntegrationCatalogSyncInputDto,
   ): Promise<IntegrationCatalogSyncResponseDto> {
     return this.catalogSync.sync(credential, input);
+  }
+
+  @Get("products")
+  @RequireIntegrationScopes("catalog:sync")
+  @ApiOperation({
+    summary: "List commerce products controlled by this integration",
+    description:
+      "Returns only products imported by the authenticated integration credential. Intended for commerce app dashboards such as Shopify.",
+  })
+  @ApiHeader({
+    name: "x-selfx-integration-token",
+    required: false,
+    description:
+      "Preferred integration token header. Authorization: Bearer is also supported.",
+  })
+  @ApiOkResponse({ type: IntegrationProductControlsResponseDto })
+  listProducts(
+    @IntegrationCredential() credential: IntegrationCredentialContext,
+    @Query() query: IntegrationProductControlsQueryDto,
+  ): Promise<IntegrationProductControlsResponseDto> {
+    return this.catalogSync.listProductControls(credential, query);
+  }
+
+  @Patch("products/vto")
+  @RequireIntegrationScopes("catalog:sync")
+  @ApiOperation({
+    summary: "Enable or disable Try-On for one imported commerce product",
+    description:
+      "Updates only SelfX VTO eligibility for a product imported by the authenticated integration. This does not modify the commerce platform product.",
+  })
+  @ApiHeader({
+    name: "x-selfx-integration-token",
+    required: false,
+    description:
+      "Preferred integration token header. Authorization: Bearer is also supported.",
+  })
+  @ApiOkResponse({ type: IntegrationProductControlsDto })
+  updateProductVto(
+    @IntegrationCredential() credential: IntegrationCredentialContext,
+    @Body() input: UpdateIntegrationProductVtoDto,
+  ): Promise<IntegrationProductControlsDto> {
+    return this.catalogSync.updateProductVto(credential, input);
   }
 }

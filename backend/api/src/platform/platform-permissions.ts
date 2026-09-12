@@ -17,6 +17,8 @@ export const PLATFORM_PERMISSIONS = {
   platformProductsView: "PLATFORM_PRODUCTS_VIEW",
   platformProductsManage: "PLATFORM_PRODUCTS_MANAGE",
   usageView: "USAGE_VIEW",
+  pricingView: "PRICING_VIEW",
+  pricingManage: "PRICING_MANAGE",
   integrationsView: "INTEGRATIONS_VIEW",
   integrationsManage: "INTEGRATIONS_MANAGE",
   developerApiView: "DEVELOPER_API_VIEW",
@@ -177,6 +179,23 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
       applicability: "PLATFORM_ONLY",
     },
     {
+      code: PLATFORM_PERMISSIONS.pricingView,
+      module: "platform.pricing",
+      action: "view",
+      label: "View Pricing Plans",
+      description: "View SelfX pricing plans, credit packs and kiosk pricing.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.pricingManage,
+      module: "platform.pricing",
+      action: "manage",
+      label: "Manage Pricing Plans",
+      description:
+        "Create and update SelfX pricing plans, credits and kiosk pricing.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
       code: PLATFORM_PERMISSIONS.integrationsView,
       module: "platform.integrations",
       action: "view",
@@ -310,7 +329,9 @@ const STAFF_ADMIN_PERMISSIONS: readonly PlatformPermission[] =
       permission !== PLATFORM_PERMISSIONS.permissionsManage &&
       permission !== PLATFORM_PERMISSIONS.organizationSuspend &&
       permission !== PLATFORM_PERMISSIONS.platformProductsView &&
-      permission !== PLATFORM_PERMISSIONS.platformProductsManage,
+      permission !== PLATFORM_PERMISSIONS.platformProductsManage &&
+      permission !== PLATFORM_PERMISSIONS.pricingView &&
+      permission !== PLATFORM_PERMISSIONS.pricingManage,
   );
 
 const ROLE_PERMISSIONS = {

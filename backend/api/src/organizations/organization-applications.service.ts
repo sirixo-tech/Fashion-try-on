@@ -18,6 +18,7 @@ import { createSelfxId } from "@selfx/database";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "../common/pagination.dto.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import {
@@ -46,6 +47,7 @@ export class OrganizationApplicationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly platformAuthorization: PlatformAuthorizationService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async createDraft(
@@ -71,6 +73,7 @@ export class OrganizationApplicationsService {
           }),
         },
       });
+      await this.entitlements.ensureTrialCredits(organizationId, tx);
 
       await tx.organizationMembership.create({
         data: {

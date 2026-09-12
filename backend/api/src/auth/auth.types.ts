@@ -59,6 +59,19 @@ export interface AuthResult {
   user: AuthUserResponse;
 }
 
+export interface SignupInput {
+  email: string;
+  passwordHash: string;
+  displayName: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SignupChallengeResponse {
+  question: string;
+  challengeToken: string;
+  expiresAt: string;
+}
+
 export interface LogoutAllResult {
   revokedSessions: number;
 }
@@ -66,6 +79,7 @@ export interface LogoutAllResult {
 export interface AuthRepositoryPort {
   findUserByEmail(email: string): Promise<AuthUserRecord | null>;
   findUserById(userId: string): Promise<AuthUserRecord | null>;
+  createSelfServeSignup(input: SignupInput): Promise<AuthUserRecord | null>;
   updateUserLogin(userId: string, loggedInAt: Date): Promise<void>;
   createUserSession(input: {
     id: string;

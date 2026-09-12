@@ -204,6 +204,8 @@ function isAuthenticationEndpoint(path: string): boolean {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return (
     normalized === "/api/v1/auth/login" ||
+    normalized === "/api/v1/auth/signup" ||
+    normalized === "/api/v1/auth/signup-challenge" ||
     normalized === "/api/v1/auth/refresh" ||
     normalized === "/api/v1/auth/logout"
   );

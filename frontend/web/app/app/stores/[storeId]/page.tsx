@@ -6,10 +6,15 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIcon,
+  AlertTriangleIcon,
   ArrowLeftIcon,
+  BarChart3Icon,
   Clock3Icon,
+  CoinsIcon,
+  CreditCardIcon,
   GlobeIcon,
   ImageIcon,
+  HistoryIcon,
   MailIcon,
   MapPinIcon,
   MonitorIcon,
@@ -49,29 +54,40 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
+  getCurrentPlatformAccess,
+  type CurrentPlatformAccess,
+} from "@/lib/access-control";
+import {
   type KioskConfiguration,
   type KioskConfigurationAssetType,
   type KioskConfigurationUpdateInput,
   type KioskDevice,
 } from "@/lib/kiosks";
+import { listPricingPlans, type PricingPlan } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
 import {
   activateStore,
+  assignStorePricingPlan,
   deactivateStore,
   getEffectiveStorePermissions,
   getStore,
+  getStoreCreditDiagnostics,
   getStoreKioskConfiguration,
   getStoreVirtualTryOnSettings,
   pairStoreKiosk,
   createStoreKioskConfigurationAssetUploadIntent,
+  topUpStoreCredits,
   updateStore,
   updateStoreKioskConfiguration,
   updateStoreVirtualTryOnSettings,
   type AdminStoreDetail,
+  type StoreCreditDiagnostics,
   type StoreInput,
   type StoreTryOnCapability,
   type StoreVirtualTryOnSettings,
 } from "@/lib/stores";
+
+const lowCreditThreshold = 20;
 
 export default function StoreDashboardPage() {
   const params = useParams<{ storeId: string }>();
@@ -88,6 +104,15 @@ export default function StoreDashboardPage() {
     [],
   );
   const [platformBypass, setPlatformBypass] = useState(false);
+  const [canManagePricing, setCanManagePricing] = useState(false);
+  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [assigningPlan, setAssigningPlan] = useState(false);
+  const [creditDiagnostics, setCreditDiagnostics] =
+    useState<StoreCreditDiagnostics | null>(null);
+  const [topUpQuantity, setTopUpQuantity] = useState("100");
+  const [topUpReason, setTopUpReason] = useState("Manual admin top-up");
+  const [toppingUpCredits, setToppingUpCredits] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [savingStoreTryOnSettings, setSavingStoreTryOnSettings] =
@@ -102,17 +127,43 @@ export default function StoreDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextStore, nextEffectivePermissions, nextStoreTryOnSettings] =
+      const [
+        nextStore,
+        nextEffectivePermissions,
+        nextStoreTryOnSettings,
+        nextPlatformAccess,
+      ] =
         await Promise.all([
           getStore(accessToken, storeId),
           getEffectiveStorePermissions(accessToken, storeId),
           getStoreVirtualTryOnSettings(accessToken, storeId),
+          getCurrentPlatformAccess(accessToken).catch(
+            (): CurrentPlatformAccess => ({
+            isSuperadmin: false,
+            permissions: [],
+            }),
+          ),
         ]);
       const nextEffectivePermissionCodes = nextEffectivePermissions.permissions;
+      const nextCanManagePricing =
+        nextPlatformAccess.isSuperadmin ||
+        nextPlatformAccess.permissions.includes("PRICING_MANAGE");
       setStore(nextStore);
       setStoreTryOnSettings(nextStoreTryOnSettings);
       setEffectivePermissions(nextEffectivePermissionCodes);
       setPlatformBypass(nextEffectivePermissions.platformBypass);
+      setCanManagePricing(nextCanManagePricing);
+      setSelectedPlanId(
+        nextStore.subscription?.subscription?.pricingPlan?.id ?? "",
+      );
+      setPricingPlans(
+        nextCanManagePricing
+          ? await listPricingPlans(accessToken).catch(() => [])
+          : [],
+      );
+      setCreditDiagnostics(
+        await getStoreCreditDiagnostics(accessToken, storeId).catch(() => null),
+      );
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -132,6 +183,9 @@ export default function StoreDashboardPage() {
   const canPairKiosks = can("kiosks.pair");
   const canConfigureKiosks = can("kiosks.configure");
   const canUpdateStore = can("stores.update");
+  const currentPricingPlan = store?.subscription?.subscription?.pricingPlan;
+  const availableCredits = store?.subscription?.availableCredits ?? null;
+  const creditHealth = creditHealthFor(availableCredits);
   const location = store ? storeLocation(store) : "";
   const activeKioskShare =
     store && store.totalKiosks > 0
@@ -197,7 +251,7 @@ export default function StoreDashboardPage() {
       ) : null}
 
       <PageSection>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard
             label="Total Kiosks"
             value={store?.totalKiosks ?? 0}
@@ -217,11 +271,212 @@ export default function StoreDashboardPage() {
             caption="Most recent kiosk signal"
           />
           <MetricCard
+            label="Try-On Credits"
+            value={availableCredits ?? 0}
+            icon={<CoinsIcon size={18} aria-hidden="true" />}
+            caption={creditStatusCaption(creditHealth, currentPricingPlan?.name)}
+          />
+          <MetricCard
             label="Configuration"
             value={kiosks.length}
             icon={<SettingsIcon size={18} aria-hidden="true" />}
             caption="Kiosks ready to manage"
           />
+        </div>
+      </PageSection>
+
+      <PageSection>
+        <div className="rounded-xl border bg-card p-5 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg border bg-muted/35 p-2 text-primary">
+                  <CreditCardIcon size={18} aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Credits and plan</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Store-wide credits are shared by Shopify, kiosks and public
+                    Try-On channels.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <PlanInfoTile
+                  label="Available credits"
+                  value={String(availableCredits ?? 0)}
+                />
+                <PlanInfoTile
+                  label="Current plan"
+                  value={currentPricingPlan?.name ?? "Trial"}
+                />
+                <PlanInfoTile
+                  label="Period ends"
+                  value={formatDate(
+                    store?.subscription?.subscription?.currentPeriodEnd ?? null,
+                  )}
+                />
+              </div>
+            </div>
+
+            {canManagePricing ? (
+              <div className="grid w-full max-w-2xl gap-4 md:grid-cols-2">
+                <div
+                  id="manual-credit-top-up"
+                  className="space-y-3 rounded-lg border bg-muted/25 p-4"
+                >
+                  <label className="block text-sm font-medium" htmlFor="planId">
+                    Assign pricing plan
+                  </label>
+                  <select
+                    id="planId"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    value={selectedPlanId}
+                    onChange={(event) => setSelectedPlanId(event.target.value)}
+                  >
+                    <option value="">Select plan</option>
+                    {pricingPlans
+                      .filter((plan) => plan.status === "ACTIVE")
+                      .map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} - {plan.includedCredits} credits
+                        </option>
+                      ))}
+                  </select>
+                  <Button
+                    onClick={() => void assignPricingPlan()}
+                    disabled={!selectedPlanId || assigningPlan}
+                  >
+                    {assigningPlan ? "Assigning..." : "Assign plan"}
+                  </Button>
+                </div>
+                <div className="space-y-3 rounded-lg border bg-muted/25 p-4">
+                  <label
+                    className="block text-sm font-medium"
+                    htmlFor="creditTopUp"
+                  >
+                    Manual credit top-up
+                  </label>
+                  <Input
+                    id="creditTopUp"
+                    type="number"
+                    min={1}
+                    max={1_000_000}
+                    value={topUpQuantity}
+                    onChange={(event) => setTopUpQuantity(event.target.value)}
+                  />
+                  <Input
+                    value={topUpReason}
+                    onChange={(event) => setTopUpReason(event.target.value)}
+                    placeholder="Reason"
+                  />
+                  <Button
+                    onClick={() => void topUpCredits()}
+                    disabled={toppingUpCredits}
+                  >
+                    {toppingUpCredits ? "Adding..." : "Add credits"}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <CreditStatusNotice
+            health={creditHealth}
+            canManagePricing={canManagePricing}
+          />
+
+          {creditDiagnostics ? (
+            <div className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <BarChart3Icon size={16} aria-hidden="true" />
+                  Credit usage
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <PlanInfoTile
+                    label="Consumed"
+                    value={String(creditDiagnostics.totals.consumedCredits)}
+                  />
+                  <PlanInfoTile
+                    label="Manual top-ups"
+                    value={String(creditDiagnostics.totals.manualAdjustments)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  {creditDiagnostics.byChannel.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      No Try-On credits consumed yet.
+                    </div>
+                  ) : (
+                    creditDiagnostics.byChannel.map((row) => (
+                      <div
+                        key={row.channel}
+                        className="flex items-center justify-between rounded-lg border p-3 text-sm"
+                      >
+                        <span className="font-medium">{row.channel}</span>
+                        <span className="text-muted-foreground">
+                          {row.consumedCredits} credits / {row.runs} runs
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold">
+                    Most-used products
+                  </div>
+                  {creditDiagnostics.topProducts.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      Product usage appears after Try-On runs.
+                    </div>
+                  ) : (
+                    creditDiagnostics.topProducts.map((product) => (
+                      <div
+                        key={product.productId}
+                        className="flex items-center justify-between rounded-lg border p-3 text-sm"
+                      >
+                        <span className="font-medium">
+                          {product.productName}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {product.consumedCredits} credits / {product.runs}{" "}
+                          runs
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <HistoryIcon size={16} aria-hidden="true" />
+                  Recent credit activity
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Credits</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>When</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {creditDiagnostics.recentLedgerEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>{formatLedgerType(entry.entryType)}</TableCell>
+                        <TableCell>{entry.quantity}</TableCell>
+                        <TableCell>{entry.reason ?? "-"}</TableCell>
+                        <TableCell>{formatDate(entry.occurredAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : null}
         </div>
       </PageSection>
 
@@ -528,6 +783,64 @@ export default function StoreDashboardPage() {
       setStore((current) => (current ? { ...current, ...updated } : current));
     } catch (caught) {
       setError(messageFor(caught));
+    }
+  }
+
+  async function assignPricingPlan() {
+    if (!accessToken || !store || !selectedPlanId) {
+      return;
+    }
+    setAssigningPlan(true);
+    setError(null);
+    try {
+      const subscription = await assignStorePricingPlan(
+        accessToken,
+        store.id,
+        selectedPlanId,
+      );
+      setStore((current) =>
+        current ? { ...current, subscription } : current,
+      );
+      setCreditDiagnostics(
+        await getStoreCreditDiagnostics(accessToken, store.id).catch(
+          () => null,
+        ),
+      );
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setAssigningPlan(false);
+    }
+  }
+
+  async function topUpCredits() {
+    if (!accessToken || !store) {
+      return;
+    }
+    const quantity = Number.parseInt(topUpQuantity, 10);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setError("Credit top-up must be a positive whole number.");
+      return;
+    }
+    setToppingUpCredits(true);
+    setError(null);
+    try {
+      const subscription = await topUpStoreCredits(accessToken, store.id, {
+        quantity,
+        reason: topUpReason,
+      });
+      setStore((current) =>
+        current ? { ...current, subscription } : current,
+      );
+      setCreditDiagnostics(
+        await getStoreCreditDiagnostics(accessToken, store.id).catch(
+          () => null,
+        ),
+      );
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setToppingUpCredits(false);
     }
   }
 
@@ -936,6 +1249,70 @@ function MetricCard({
         </div>
       </div>
       <div className="mt-3 text-xs text-muted-foreground">{caption}</div>
+    </div>
+  );
+}
+
+function PlanInfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-muted/25 p-4">
+      <div className="text-xs font-medium uppercase text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-2 text-base font-semibold">{value}</div>
+    </div>
+  );
+}
+
+type CreditHealth = "UNKNOWN" | "HEALTHY" | "LOW" | "EMPTY";
+
+function CreditStatusNotice({
+  canManagePricing,
+  health,
+}: {
+  canManagePricing: boolean;
+  health: CreditHealth;
+}) {
+  if (health === "HEALTHY" || health === "UNKNOWN") {
+    return null;
+  }
+  const empty = health === "EMPTY";
+  return (
+    <div
+      className={[
+        "mt-5 rounded-lg border p-4",
+        empty
+          ? "border-destructive/30 bg-destructive/5 text-destructive"
+          : "border-amber-300 bg-amber-50 text-amber-950",
+      ].join(" ")}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <AlertTriangleIcon className="mt-0.5 size-5" aria-hidden="true" />
+          <div>
+            <div className="font-semibold">
+              {empty ? "Try-On is paused" : "Try-On credits are low"}
+            </div>
+            <p className="mt-1 text-sm">
+              {empty
+                ? "This Store has no Try-On credits left. Shopify shoppers will see a temporary unavailable message until credits are added."
+                : `This Store has ${lowCreditThreshold} or fewer Try-On credits remaining.`}
+            </p>
+          </div>
+        </div>
+        {canManagePricing ? (
+          <Button
+            render={<a href="#manual-credit-top-up" />}
+            variant={empty ? "destructive" : "outline"}
+          >
+            Add credits
+          </Button>
+        ) : (
+          <Button render={<Link href="/app/billing" />} variant="outline">
+            Open billing
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -1471,6 +1848,40 @@ function storeLocation(store: AdminStoreDetail): string {
 
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "-";
+}
+
+function formatLedgerType(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function creditHealthFor(availableCredits: number | null): CreditHealth {
+  if (availableCredits == null) {
+    return "UNKNOWN";
+  }
+  if (availableCredits <= 0) {
+    return "EMPTY";
+  }
+  if (availableCredits <= lowCreditThreshold) {
+    return "LOW";
+  }
+  return "HEALTHY";
+}
+
+function creditStatusCaption(
+  health: CreditHealth,
+  planName: string | undefined,
+): string {
+  if (health === "EMPTY") {
+    return "Try-On paused";
+  }
+  if (health === "LOW") {
+    return "Low credits";
+  }
+  return planName ? `${planName} plan` : "Trial or unassigned";
 }
 
 function messageFor(caught: unknown): string {

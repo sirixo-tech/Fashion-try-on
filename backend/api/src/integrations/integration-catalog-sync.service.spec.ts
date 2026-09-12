@@ -404,6 +404,145 @@ describe("IntegrationCatalogSyncService", () => {
     });
   });
 
+  it("lists Shopify-controlled Try-On products for the authenticated integration", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findMany.mockResolvedValue([
+      productControlMapping({
+        externalProductId: "gid://shopify/Product/1001",
+        externalHandle: "floral-shirt",
+        product: {
+          id: "selfx-product-1",
+          name: "Floral Shirt",
+          active: true,
+          vtoEnabled: true,
+          productVertical: "GARMENT",
+          imageUrl: "https://cdn.example/floral-shirt.jpg",
+          imageStorageKey: null,
+          updatedAt: new Date("2026-09-11T10:00:00.000Z"),
+        },
+      }),
+      productControlMapping({
+        externalProductId: "gid://shopify/Product/1002",
+        externalHandle: "draft-shirt",
+        product: {
+          id: "selfx-product-2",
+          name: "Draft Shirt",
+          active: false,
+          vtoEnabled: false,
+          productVertical: "GARMENT",
+          imageUrl: "https://cdn.example/draft-shirt.jpg",
+          imageStorageKey: null,
+          updatedAt: new Date("2026-09-11T10:00:00.000Z"),
+        },
+      }),
+    ]);
+    const service = createService(tx);
+
+    const result = await service.listProductControls(credential, { limit: 10 });
+
+    expect(tx.externalProductMapping.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          integrationId: "integration-1",
+          organizationId: "store-1",
+          externalVariantId: null,
+          status: ExternalProductMappingStatus.ACTIVE,
+        }),
+      }),
+    );
+    expect(result.summary).toMatchObject({
+      total: 2,
+      ready: 1,
+      needsAttention: 1,
+    });
+    expect(result.data[0]).toMatchObject({
+      externalProductId: "gid://shopify/Product/1001",
+      handle: "floral-shirt",
+      name: "Floral Shirt",
+      tryOnStatus: "READY",
+    });
+    expect(result.data[1]).toMatchObject({
+      tryOnStatus: "INACTIVE",
+    });
+  });
+
+  it("enables Try-On only for eligible synced integration products", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue(
+      productControlMapping({
+        product: {
+          id: "selfx-product-1",
+          name: "Floral Shirt",
+          active: true,
+          vtoEnabled: false,
+          productVertical: "GARMENT",
+          imageUrl: "https://cdn.example/floral-shirt.jpg",
+          imageStorageKey: null,
+          updatedAt: new Date("2026-09-11T10:00:00.000Z"),
+        },
+      }),
+    );
+    tx.product.update.mockResolvedValue({
+      id: "selfx-product-1",
+      name: "Floral Shirt",
+      active: true,
+      vtoEnabled: true,
+      productVertical: "GARMENT",
+      imageUrl: "https://cdn.example/floral-shirt.jpg",
+      imageStorageKey: null,
+      updatedAt: new Date("2026-09-11T10:01:00.000Z"),
+    });
+    const service = createService(tx);
+
+    const result = await service.updateProductVto(credential, {
+      externalProductId: "gid://shopify/Product/1001",
+      enabled: true,
+    });
+
+    expect(tx.product.update).toHaveBeenCalledWith({
+      where: { id: "selfx-product-1" },
+      data: { vtoEnabled: true },
+      select: expect.any(Object),
+    });
+    expect(result).toMatchObject({
+      vtoEnabled: true,
+      tryOnStatus: "READY",
+    });
+  });
+
+  it("rejects enabling Try-On for an ineligible synced product", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue(
+      productControlMapping({
+        product: {
+          id: "selfx-product-1",
+          name: "No Image Shirt",
+          active: true,
+          vtoEnabled: false,
+          productVertical: "GARMENT",
+          imageUrl: null,
+          imageStorageKey: null,
+          updatedAt: new Date("2026-09-11T10:00:00.000Z"),
+        },
+      }),
+    );
+    const service = createService(tx);
+
+    await expect(
+      service.updateProductVto(credential, {
+        externalProductId: "gid://shopify/Product/1001",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotEligible,
+        }),
+      }),
+    });
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
   it("rejects duplicate external product identities", async () => {
     const tx = createTransaction();
     const service = createService(tx);
@@ -425,9 +564,11 @@ describe("IntegrationCatalogSyncService", () => {
 });
 
 function createService(tx: ReturnType<typeof createTransaction>) {
-  return new IntegrationCatalogSyncService({
-    $transaction: vi.fn(async (callback) => callback(tx)),
-  } as never);
+  return new IntegrationCatalogSyncService(
+    Object.assign(tx, {
+      $transaction: vi.fn(async (callback) => callback(tx)),
+    }) as never,
+  );
 }
 
 function createTransaction() {
@@ -447,5 +588,31 @@ function createTransaction() {
       update: vi.fn().mockResolvedValue({ id: "mapping-1" }),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
+  };
+}
+
+function productControlMapping(overrides: {
+  externalProductId?: string;
+  externalHandle?: string | null;
+  product: {
+    id: string;
+    name: string;
+    active: boolean;
+    vtoEnabled: boolean;
+    productVertical: "GARMENT" | "JEWELLERY";
+    imageUrl: string | null;
+    imageStorageKey: string | null;
+    updatedAt: Date;
+  };
+}) {
+  return {
+    id: "mapping-1",
+    productId: overrides.product.id,
+    externalProductId:
+      overrides.externalProductId ?? "gid://shopify/Product/1001",
+    externalVariantId: null,
+    externalHandle: overrides.externalHandle ?? "floral-shirt",
+    status: ExternalProductMappingStatus.ACTIVE,
+    product: overrides.product,
   };
 }

@@ -28,7 +28,6 @@ export function mapShopifyProduct(
     handle: nullableTrim(product.handle),
     description: nullableTrim(product.description),
     status: mapStatus(product.status),
-    vtoEnabled: hasTag(product.tags, "selfx-tryon"),
     productUrl: product.onlineStoreUrl,
     featuredImageUrl,
     priceAmountCents: firstVariant?.priceAmountCents ?? null,
@@ -48,11 +47,6 @@ export function moneyToCents(value: string): number | null {
     return null;
   }
   return Math.round(amount * 100);
-}
-
-function hasTag(tags: readonly string[], expected: string): boolean {
-  const normalizedExpected = expected.trim().toLowerCase();
-  return tags.some((tag) => tag.trim().toLowerCase() === normalizedExpected);
 }
 
 function mapStatus(status: ShopifyProduct["status"]): CommerceProductStatus {

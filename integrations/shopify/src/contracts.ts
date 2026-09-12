@@ -85,3 +85,15 @@ export type ShopifyShopIdentity = {
   name: string;
   myshopifyDomain: string;
 };
+
+export type ShopifyThemeAppBlockStatus =
+  | {
+      status: "INSTALLED" | "NOT_INSTALLED";
+      themeId: string;
+      themeName: string;
+      checkedFilenames: string[];
+    }
+  | {
+      status: "NO_MAIN_THEME";
+      checkedFilenames: string[];
+    };

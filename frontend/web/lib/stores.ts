@@ -35,8 +35,68 @@ export type AdminStore = {
   internalLegacyModel: "ORGANIZATION_AS_STORE";
 };
 
+export type StoreSubscriptionSummary = {
+  availableCredits: number;
+  subscription: {
+    id: string;
+    status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED";
+    channels: string[];
+    includedCredits: number;
+    trialCredits: number;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+    pricingPlan: {
+      id: string;
+      code: string;
+      name: string;
+      currency: string;
+      monthlyPriceCents: number;
+      includedCredits: number;
+      extraCreditPriceCents: number | null;
+      kioskMonthlyRentCents: number | null;
+      kioskDeviceLimit: number | null;
+      channels: string[];
+    } | null;
+  } | null;
+};
+
+export type StoreCreditDiagnostics = {
+  availableCredits: number;
+  totals: {
+    grantedCredits: number;
+    consumedCredits: number;
+    manualAdjustments: number;
+    netCredits: number;
+  };
+  byChannel: Array<{
+    channel: string;
+    consumedCredits: number;
+    runs: number;
+  }>;
+  topProducts: Array<{
+    productId: string;
+    productName: string;
+    productSlug: string;
+    consumedCredits: number;
+    runs: number;
+  }>;
+  recentLedgerEntries: Array<{
+    id: string;
+    entryType: string;
+    channel: string | null;
+    quantity: number;
+    balanceAfter: number | null;
+    reason: string | null;
+    productId: string | null;
+    occurredAt: string;
+  }>;
+};
+
 export type AdminStoreDetail = AdminStore & {
   kiosks: { data: KioskDevice[] };
+  subscription: StoreSubscriptionSummary;
 };
 
 export type StorePermission = {
@@ -260,6 +320,46 @@ export function getStore(
   return selfxApi<AdminStoreDetail>(`/api/v1/admin/stores/${storeId}`, {
     accessToken,
   });
+}
+
+export function assignStorePricingPlan(
+  accessToken: string,
+  storeId: string,
+  pricingPlanId: string,
+): Promise<StoreSubscriptionSummary> {
+  return selfxApi<StoreSubscriptionSummary>(
+    `/api/v1/admin/stores/${storeId}/subscription`,
+    {
+      method: "PUT",
+      accessToken,
+      body: JSON.stringify({ pricingPlanId }),
+    },
+  );
+}
+
+export function getStoreCreditDiagnostics(
+  accessToken: string,
+  storeId: string,
+): Promise<StoreCreditDiagnostics> {
+  return selfxApi<StoreCreditDiagnostics>(
+    `/api/v1/admin/stores/${storeId}/credits/diagnostics`,
+    { accessToken },
+  );
+}
+
+export function topUpStoreCredits(
+  accessToken: string,
+  storeId: string,
+  input: { quantity: number; reason?: string },
+): Promise<StoreSubscriptionSummary> {
+  return selfxApi<StoreSubscriptionSummary>(
+    `/api/v1/admin/stores/${storeId}/credits/manual-adjustments`,
+    {
+      method: "POST",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export function updateStore(

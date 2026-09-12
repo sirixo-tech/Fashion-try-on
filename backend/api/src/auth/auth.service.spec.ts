@@ -16,6 +16,7 @@ import {
   type AuthUserRecord,
 } from "./auth.types.js";
 import { LoginDto } from "./dto/login.dto.js";
+import { SignupDto } from "./dto/signup.dto.js";
 import { PasswordService } from "./password.service.js";
 import { AuthRateLimiterService } from "./rate-limiter.service.js";
 import { RefreshTokenService } from "./refresh-token.service.js";
@@ -77,6 +78,7 @@ describe("AuthService", () => {
       email: user.email,
       displayName: user.displayName,
       status: UserStatus.ACTIVE,
+      hasPlatformAccess: false,
     });
     expect(JSON.stringify(result)).not.toContain(user.passwordHash);
     expect(repository.sessions).toHaveLength(1);
@@ -123,6 +125,7 @@ describe("AuthService", () => {
       email: user.email,
       displayName: user.displayName,
       status: UserStatus.ACTIVE,
+      hasPlatformAccess: false,
     });
 
     const expired = await auth.signAccessTokenForTest(user.id, -1);
@@ -234,6 +237,67 @@ describe("AuthService", () => {
       AUTH_ERROR_CODES.rateLimited,
     );
   });
+
+  it("creates a self-serve account with a valid signup challenge", async () => {
+    const challenge = auth.createSignupChallenge();
+
+    const result = await auth.signup({
+      displayName: "Asha Merchant",
+      email: "ASHA@example.test",
+      password: "CorrectPassword123!",
+      challengeToken: challenge.challengeToken,
+      challengeAnswer: solveChallenge(challenge.question),
+      metadata: requestMetadata(),
+    });
+
+    expect(result.user).toMatchObject({
+      email: "asha@example.test",
+      displayName: "Asha Merchant",
+      status: UserStatus.ACTIVE,
+      hasPlatformAccess: false,
+    });
+    expect(repository.users).toHaveLength(1);
+    expect(repository.selfServeSignups).toHaveLength(1);
+    expect(repository.sessions).toHaveLength(1);
+    expect(repository.auditLogs.map((log) => log.action)).toContain(
+      "AUTH_SIGNUP_SUCCESS",
+    );
+  });
+
+  it("rejects signup with a wrong math challenge answer", async () => {
+    const challenge = auth.createSignupChallenge();
+
+    await expectAuthCode(
+      auth.signup({
+        displayName: "Asha Merchant",
+        email: "asha@example.test",
+        password: "CorrectPassword123!",
+        challengeToken: challenge.challengeToken,
+        challengeAnswer: "999",
+        metadata: requestMetadata(),
+      }),
+      AUTH_ERROR_CODES.signupChallengeInvalid,
+    );
+  });
+
+  it("rejects signup for an existing email", async () => {
+    await createUser(repository, passwords, {
+      email: "asha@example.test",
+    });
+    const challenge = auth.createSignupChallenge();
+
+    await expectAuthCode(
+      auth.signup({
+        displayName: "Asha Merchant",
+        email: "ASHA@example.test",
+        password: "CorrectPassword123!",
+        challengeToken: challenge.challengeToken,
+        challengeAnswer: solveChallenge(challenge.question),
+        metadata: requestMetadata(),
+      }),
+      AUTH_ERROR_CODES.emailAlreadyExists,
+    );
+  });
 });
 
 describe("LoginDto", () => {
@@ -246,6 +310,28 @@ describe("LoginDto", () => {
 
     expect(errors.map((error) => error.property)).toEqual(
       expect.arrayContaining(["email", "password"]),
+    );
+  });
+});
+
+describe("SignupDto", () => {
+  it("validates the signup request shape", async () => {
+    const dto = new SignupDto();
+    dto.displayName = "";
+    dto.email = "not-an-email";
+    dto.password = "short";
+    dto.challengeToken = "";
+    dto.challengeAnswer = "";
+
+    const errors = await validate(dto);
+
+    expect(errors.map((error) => error.property)).toEqual(
+      expect.arrayContaining([
+        "displayName",
+        "email",
+        "password",
+        "challengeAnswer",
+      ]),
     );
   });
 });
@@ -314,6 +400,11 @@ async function expectAuthCode(
 class FakeAuthRepository implements AuthRepositoryPort {
   readonly users: AuthUserRecord[] = [];
   readonly sessions: AuthSessionRecord[] = [];
+  readonly selfServeSignups: Array<{
+    email: string;
+    displayName: string;
+    metadata?: Record<string, unknown>;
+  }> = [];
   readonly auditLogs: Array<{
     action: string;
     actorUserId?: string;
@@ -328,6 +419,35 @@ class FakeAuthRepository implements AuthRepositoryPort {
 
   async findUserById(userId: string): Promise<AuthUserRecord | null> {
     return this.users.find((user) => user.id === userId) ?? null;
+  }
+
+  async createSelfServeSignup(input: {
+    email: string;
+    passwordHash: string;
+    displayName: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<AuthUserRecord | null> {
+    if (await this.findUserByEmail(input.email)) {
+      return null;
+    }
+    const user: AuthUserRecord = {
+      id: createSelfxId(),
+      email: input.email,
+      passwordHash: input.passwordHash,
+      displayName: input.displayName,
+      status: UserStatus.ACTIVE,
+      emailVerifiedAt: null,
+      lastLoginAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.push(user);
+    this.selfServeSignups.push({
+      email: input.email,
+      displayName: input.displayName,
+      metadata: input.metadata,
+    });
+    return user;
   }
 
   async updateUserLogin(userId: string, loggedInAt: Date): Promise<void> {
@@ -425,4 +545,11 @@ class FakeAuthRepository implements AuthRepositoryPort {
   }): Promise<void> {
     this.auditLogs.push(input);
   }
+}
+
+function solveChallenge(question: string): string {
+  const [leftRaw, operator, rightRaw] = question.split(" ");
+  const left = Number(leftRaw);
+  const right = Number(rightRaw);
+  return String(operator === "+" ? left + right : left - right);
 }

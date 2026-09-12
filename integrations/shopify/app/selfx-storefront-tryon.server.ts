@@ -15,6 +15,33 @@ export type SelfxStorefrontTryOnCreated = {
   };
 };
 
+export type SelfxStorefrontCreditSummary = {
+  availableCredits: number;
+  subscription: {
+    id: string;
+    status: string;
+    channels: string[];
+    includedCredits: number;
+    trialCredits: number;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+    pricingPlan: {
+      id: string;
+      code: string;
+      name: string;
+      currency: string;
+      monthlyPriceCents: number;
+      includedCredits: number;
+      extraCreditPriceCents: number | null;
+      kioskMonthlyRentCents: number | null;
+      kioskDeviceLimit: number | null;
+      channels: string[];
+    } | null;
+  } | null;
+};
+
 export type StorefrontProductReference = {
   externalProductId: string | null;
   productHandle: string | null;
@@ -37,6 +64,18 @@ export class SelfxStorefrontTryOnClient {
       body: JSON.stringify(input),
     });
     if (!/^[A-Za-z0-9_-]{43}$/.test(result.session) || !validDate(result.expiresAt)) {
+      throw invalidResponse();
+    }
+    return result;
+  }
+
+  async getCreditSummary(shop: string): Promise<SelfxStorefrontCreditSummary> {
+    const search = new URLSearchParams({ shop });
+    const result = await this.request<SelfxStorefrontCreditSummary>(
+      `/credit-summary?${search.toString()}`,
+      { method: "GET" },
+    );
+    if (!Number.isFinite(result.availableCredits)) {
       throw invalidResponse();
     }
     return result;

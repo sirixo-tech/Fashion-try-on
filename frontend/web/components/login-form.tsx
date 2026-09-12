@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRightIcon,
-  Building2Icon,
+  BadgeCheckIcon,
   EyeIcon,
   EyeOffIcon,
   LockKeyholeIcon,
@@ -15,7 +16,15 @@ import {
   SparklesIcon,
 } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Input, Label } from "@selfx/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Input,
+  Label,
+  SelectMenu,
+  type SelectMenuOption,
+} from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
 import { safeLoginNextPath } from "@/lib/login-next";
@@ -45,6 +54,16 @@ const demoLoginGroups = [
   },
 ] as const;
 
+const demoLoginOptions: ReadonlyArray<SelectMenuOption<string>> = [
+  { value: "", label: "Select a demo account" },
+  ...demoLoginGroups.flatMap((group) =>
+    group.accounts.map((account) => ({
+      value: account.email,
+      label: `${group.label} - ${account.label}`,
+    })),
+  ),
+];
+
 const demoLoginPassword =
   process.env.NEXT_PUBLIC_SELFX_DEMO_LOGIN_PASSWORD ?? "";
 const demoLoginsEnabled =
@@ -53,26 +72,26 @@ const demoLoginsEnabled =
 
 const fallbackLoginPageSettings: LoginPageSettings = {
   eyebrow: "SelfX Virtual Try-On",
-  headline: "Bring every fitting room to life",
-  body: "Manage Stores, kiosks, catalog products and Try-On operations from one SelfX control center.",
+  headline: "Bring virtual try-on to every storefront",
+  body: "Launch AI Try-On for Shopify, WooCommerce and in-store kiosks from one secure SelfX dashboard.",
   mediaType: "VIDEO",
   mediaUrl: "/login-default-video.mp4",
   mediaPosterUrl: null,
   mediaMuted: true,
   cards: [
     {
-      title: "Store control",
-      description: "Operate Store access, products and kiosks from one place.",
+      title: "Commerce ready",
+      description: "Connect online catalogs and manage product Try-On access.",
     },
     {
-      title: "Try-On ready",
-      description: "Keep visual AI workflows behind SelfX permissions.",
+      title: "Kiosk ready",
+      description: "Operate in-store Try-On devices from the same workspace.",
     },
   ],
   bullets: [
-    "Permission-aware dashboards for every role",
-    "One backend for Store, kiosk and future channel access",
-    "Provider credentials stay server-side",
+    "One dashboard for merchants, staff and SelfX admins",
+    "Credits, products and Try-On results in one place",
+    "Provider credentials and customer media stay protected",
   ],
 };
 
@@ -87,6 +106,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [signupHref, setSignupHref] = useState("/signup");
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +126,15 @@ export function LoginForm() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    setSignupHref(
+      next
+        ? `/signup?next=${encodeURIComponent(safeLoginNextPath(next))}`
+        : "/signup",
+    );
   }, []);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -129,6 +158,9 @@ export function LoginForm() {
   }
 
   function selectDemoLogin(nextEmail: string) {
+    if (!nextEmail) {
+      return;
+    }
     setEmail(nextEmail);
     setPassword(demoLoginPassword);
     setErrorCode(null);
@@ -143,7 +175,7 @@ export function LoginForm() {
             <SelfxBrandLogo className="h-auto w-36 sm:w-44" priority />
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-normal text-primary">
               <span className="size-2 rounded-full bg-primary" />
-              Admin Portal
+              SelfX Dashboard
             </span>
           </div>
 
@@ -151,14 +183,14 @@ export function LoginForm() {
             <div className="mb-4">
               <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-normal text-slate-600">
                 <LockKeyholeIcon size={14} aria-hidden="true" />
-                Secure Workspace
+                Secure Dashboard
               </span>
               <h1 className="text-[1.65rem] font-semibold leading-tight text-slate-950">
                 Sign in to SelfX
               </h1>
               <p className="mt-2 max-w-[28rem] text-[0.93rem] leading-6 text-slate-600">
-                Manage platform, Store and kiosk operations from one controlled
-                workspace.
+                Manage Shopify Try-On, WooCommerce, kiosks, products, credits
+                and results from one secure workspace.
               </p>
             </div>
 
@@ -236,28 +268,33 @@ export function LoginForm() {
                 className="h-11 w-full justify-between bg-slate-950 px-5 text-sm font-semibold hover:bg-slate-800"
               >
                 <span>
-                  {submitting ? "Signing in" : "Sign in to dashboard"}
+                  {submitting ? "Signing in" : "Sign in"}
                 </span>
                 <ArrowRightIcon size={18} aria-hidden="true" />
               </Button>
             </form>
 
+            <p className="mt-4 text-center text-sm text-slate-600">
+              New to SelfX?{" "}
+              <Link
+                href={signupHref}
+                className="font-semibold text-primary hover:text-primary/80"
+              >
+                Create account
+              </Link>
+            </p>
+
             <div className="mt-4 grid gap-3 border-t pt-3.5 text-xs font-medium text-slate-600 sm:grid-cols-2">
               <span className="inline-flex items-center gap-2">
                 <ShieldCheckIcon size={15} aria-hidden="true" />
-                Server-side RBAC
+                Secure sessions
               </span>
               <span className="inline-flex items-center gap-2">
-                <Building2Icon size={15} aria-hidden="true" />
-                Tenant isolation
+                <BadgeCheckIcon size={15} aria-hidden="true" />
+                Protected workspace
               </span>
             </div>
           </div>
-
-          <p className="mt-4 text-center text-xs text-slate-500">
-            New Store access is handled through the approved SelfX onboarding
-            flow.
-          </p>
         </div>
       </section>
 
@@ -297,53 +334,29 @@ function DemoRoleAccess({
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800">
           <SparklesIcon size={15} aria-hidden="true" />
-          Quick access
+          Demo account
         </span>
         <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[0.65rem] font-medium text-slate-500 shadow-sm">
-          demo password {demoLoginPassword}
+          testing only
         </span>
       </div>
 
-      <div className="space-y-2">
-        {demoLoginGroups.map((group) => (
-          <div key={group.label} className="space-y-1.5">
-            <div className="text-[0.65rem] font-semibold uppercase tracking-normal text-slate-500">
-              {group.label}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {group.accounts.map((account) => {
-                const selected = account.email === selectedEmail;
-                return (
-                  <Button
-                    key={account.email}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    aria-pressed={selected}
-                    style={
-                      selected
-                        ? {
-                            backgroundColor: "#ff5a00",
-                            borderColor: "#ff5a00",
-                            color: "#ffffff",
-                          }
-                        : undefined
-                    }
-                    className={
-                      selected
-                        ? "h-6 rounded-full border-[#ff5a00] bg-[#ff5a00] px-2.5 text-[0.7rem] text-white shadow-[0_6px_16px_rgba(255,90,0,0.28)] hover:border-[#ff5a00] hover:bg-[#ff5a00] hover:text-white"
-                        : "h-6 rounded-full bg-white px-2.5 text-[0.7rem] text-slate-600 hover:bg-slate-100"
-                    }
-                    onClick={() => onSelect(account.email)}
-                  >
-                    {account.label}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+      <SelectMenu
+        ariaLabel="Select demo account"
+        value={
+          demoLoginOptions.some((option) => option.value === selectedEmail)
+            ? selectedEmail
+            : ""
+        }
+        options={demoLoginOptions}
+        placeholder="Select a demo account"
+        className="h-9 bg-white text-xs"
+        contentClassName="max-h-72"
+        onChange={onSelect}
+      />
+      <p className="mt-2 text-[0.68rem] leading-5 text-slate-500">
+        Selecting a demo account fills the shared test password automatically.
+      </p>
     </div>
   );
 }

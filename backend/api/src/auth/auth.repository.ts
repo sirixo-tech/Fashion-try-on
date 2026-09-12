@@ -1,19 +1,35 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import {
+  MembershipStatus,
+  MembershipStoreScopeMode,
+  OrganizationMembershipRole,
+  OrganizationStatus,
+  Prisma,
+  UserStatus,
+} from "@prisma/client";
 
 import { createSelfxId } from "@selfx/database";
 
 import { PrismaService } from "../database/prisma.service.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
+import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import {
   type AuthRepositoryPort,
   type AuthSessionRecord,
   type AuthSessionWithUserRecord,
   type AuthUserRecord,
+  type SignupInput,
 } from "./auth.types.js";
 
 @Injectable()
 export class PrismaAuthRepository implements AuthRepositoryPort {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly entitlements: EntitlementsService;
+  private readonly rbac: StoreRbacService;
+
+  constructor(private readonly prisma: PrismaService) {
+    this.entitlements = new EntitlementsService(prisma);
+    this.rbac = new StoreRbacService(prisma);
+  }
 
   async findUserByEmail(email: string): Promise<AuthUserRecord | null> {
     return this.prisma.user.findUnique({
@@ -26,6 +42,64 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
     return this.prisma.user.findUnique({
       where: { id: userId },
       include: activePlatformAccessInclude,
+    });
+  }
+
+  async createSelfServeSignup(
+    input: SignupInput,
+  ): Promise<AuthUserRecord | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const existingUser = await tx.user.findUnique({
+        where: { email: input.email },
+        select: { id: true },
+      });
+      if (existingUser) {
+        return null;
+      }
+
+      const now = new Date();
+      const user = await tx.user.create({
+        data: {
+          id: createSelfxId(),
+          email: input.email,
+          passwordHash: input.passwordHash,
+          displayName: input.displayName,
+          status: UserStatus.ACTIVE,
+          lastLoginAt: now,
+        },
+        include: activePlatformAccessInclude,
+      });
+      const storeName = storeNameForSignup(input.displayName, input.email);
+      const organization = await tx.organization.create({
+        data: {
+          id: createSelfxId(),
+          name: storeName,
+          slug: await uniqueStoreSlug(tx, storeName, input.email),
+          status: OrganizationStatus.ACTIVE,
+          timezone: "UTC",
+          settings: {
+            source: "SELF_SERVE_SIGNUP",
+            signup: jsonObjectFromRecord(input.metadata),
+          } satisfies Prisma.InputJsonObject,
+        },
+      });
+
+      await this.rbac.ensureStoreRbacInTransaction(tx, organization.id, true);
+      await this.entitlements.ensureTrialCredits(organization.id, tx);
+
+      await tx.organizationMembership.create({
+        data: {
+          id: createSelfxId(),
+          orgId: organization.id,
+          userId: user.id,
+          role: OrganizationMembershipRole.ORGANIZATION_OWNER,
+          storeScopeMode: MembershipStoreScopeMode.ALL_STORES,
+          status: MembershipStatus.ACTIVE,
+          joinedAt: now,
+        },
+      });
+
+      return user;
     });
   }
 
@@ -139,3 +213,57 @@ const activePlatformAccessInclude = {
     select: { status: true },
   },
 } satisfies Prisma.UserInclude;
+
+function storeNameForSignup(displayName: string, email: string): string {
+  const cleanName = displayName.trim() || email.split("@")[0] || "SelfX";
+  const suffix = cleanName.toLowerCase().endsWith("store") ? "" : " Store";
+  return `${cleanName}${suffix}`.slice(0, 200);
+}
+
+async function uniqueStoreSlug(
+  tx: Prisma.TransactionClient,
+  storeName: string,
+  email: string,
+): Promise<string> {
+  const base = slugFromText(storeName) || slugFromText(email.split("@")[0] ?? "");
+  const safeBase = (base || `store-${createSelfxId()}`).slice(0, 96);
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const slug =
+      attempt === 0
+        ? safeBase
+        : `${safeBase}-${createSelfxId().replace(/-/g, "").slice(0, 8)}`;
+    const existing = await tx.organization.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (!existing) {
+      return slug;
+    }
+  }
+  return `store-${createSelfxId()}`;
+}
+
+function slugFromText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "");
+}
+
+function jsonObjectFromRecord(
+  value: Record<string, unknown> | undefined,
+): Prisma.InputJsonObject {
+  const json: Record<string, string | number | boolean> = {};
+  for (const [key, item] of Object.entries(value ?? {})) {
+    if (
+      typeof item === "string" ||
+      typeof item === "number" ||
+      typeof item === "boolean"
+    ) {
+      json[key] = item;
+    }
+  }
+  return json as Prisma.InputJsonObject;
+}

@@ -28,6 +28,17 @@ export class AuthTokenResponseDto {
   user!: AuthUserDto;
 }
 
+export class SignupChallengeResponseDto {
+  @ApiProperty({ example: "18 - 5" })
+  question!: string;
+
+  @ApiProperty()
+  challengeToken!: string;
+
+  @ApiProperty()
+  expiresAt!: string;
+}
+
 export class MeResponseDto {
   @ApiProperty({ type: AuthUserDto })
   user!: AuthUserDto;

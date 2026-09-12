@@ -4,7 +4,7 @@ application_url = "https://app.selfx.example/app/integrations/shopify"
 embedded = false
 
 [access_scopes]
-scopes = "read_products,write_app_proxy"
+scopes = "read_products,read_themes,write_app_proxy"
 
 [auth]
 redirect_urls = [

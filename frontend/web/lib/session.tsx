@@ -34,8 +34,17 @@ type SessionState =
 
 type SessionContextValue = SessionState & {
   login: (email: string, password: string) => Promise<void>;
+  signup: (input: SignupInput) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+};
+
+export type SignupInput = {
+  displayName: string;
+  email: string;
+  password: string;
+  challengeToken: string;
+  challengeAnswer: string;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -197,6 +206,41 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [applyTokenResponse, setSessionState],
   );
 
+  const signup = useCallback(
+    async (input: SignupInput) => {
+      const signupVersion = operationVersionRef.current + 1;
+      operationVersionRef.current = signupVersion;
+
+      try {
+        const response = await selfxApi<AuthTokenResponse>(
+          "/api/v1/auth/signup",
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        );
+
+        if (operationVersionRef.current === signupVersion) {
+          applyTokenResponse(response);
+        }
+      } catch (error) {
+        if (
+          operationVersionRef.current === signupVersion &&
+          sessionRef.current.status === "loading"
+        ) {
+          setSessionState({
+            status: "unauthenticated",
+            user: null,
+            accessToken: null,
+          });
+        }
+
+        throw error;
+      }
+    },
+    [applyTokenResponse, setSessionState],
+  );
+
   const logout = useCallback(async () => {
     const logoutVersion = operationVersionRef.current + 1;
     operationVersionRef.current = logoutVersion;
@@ -242,10 +286,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () => ({
       ...session,
       login,
+      signup,
       logout,
       refresh,
     }),
-    [login, logout, refresh, session],
+    [login, logout, refresh, session, signup],
   );
 
   return (

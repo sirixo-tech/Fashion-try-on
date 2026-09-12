@@ -177,6 +177,36 @@ enum ExternalProductMappingStatus {
   ARCHIVED
 }
 
+enum PricingPlanStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum StoreSubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum CreditLedgerEntryType {
+  TRIAL_GRANTED
+  PLAN_GRANTED
+  CREDIT_PACK_PURCHASED
+  CREDIT_CONSUMED
+  CREDIT_REFUNDED
+  MANUAL_ADJUSTMENT
+}
+
+enum CreditLedgerChannel {
+  SHOPIFY
+  KIOSK
+  PUBLIC_API
+  ADMIN
+}
+
 enum JewelleryType {
   RING
   BRACELET
@@ -283,6 +313,8 @@ model Organization {
   shopifyLinkSessions            ShopifyLinkSession[]
   shopifyStorefrontTryOnSessions ShopifyStorefrontTryOnSession[]
   providerCredentials            IntegrationProviderCredential[]
+  storeSubscription              StoreSubscription?
+  creditLedgerEntries            CreditLedgerEntry[]
 
   @@index([status])
   @@map("organizations")
@@ -1235,6 +1267,89 @@ model UsageEvent {
   @@index([tryOnLookId])
   @@index([productId, occurredAt])
   @@map("usage_events")
+}
+
+model PricingPlan {
+  id                    String              @id @db.Uuid
+  code                  String              @unique @db.VarChar(80)
+  name                  String              @db.VarChar(160)
+  status                PricingPlanStatus   @default(ACTIVE)
+  channels              Json                @map("channels_json")
+  currency              String              @default("USD") @db.Char(3)
+  monthlyPriceCents     Int                 @default(0) @map("monthly_price_cents")
+  includedCredits       Int                 @default(0) @map("included_credits")
+  trialCredits          Int                 @default(10) @map("trial_credits")
+  extraCreditPriceCents Int?                @map("extra_credit_price_cents")
+  kioskMonthlyRentCents Int?                @map("kiosk_monthly_rent_cents")
+  kioskDeviceLimit      Int?                @map("kiosk_device_limit")
+  metadata              Json?               @map("metadata_json")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  subscriptions         StoreSubscription[]
+  creditLedgerEntries   CreditLedgerEntry[]
+
+  @@index([status])
+  @@map("pricing_plans")
+}
+
+model StoreSubscription {
+  id                  String                  @id @db.Uuid
+  organizationId      String                  @unique @map("organization_id") @db.Uuid
+  pricingPlanId       String?                 @map("pricing_plan_id") @db.Uuid
+  status              StoreSubscriptionStatus @default(TRIALING)
+  channels            Json                    @map("channels_json")
+  includedCredits     Int                     @default(0) @map("included_credits")
+  trialCredits        Int                     @default(10) @map("trial_credits")
+  currentPeriodStart  DateTime?               @map("current_period_start") @db.Timestamptz(3)
+  currentPeriodEnd    DateTime?               @map("current_period_end") @db.Timestamptz(3)
+  trialStartedAt      DateTime?               @map("trial_started_at") @db.Timestamptz(3)
+  trialEndsAt         DateTime?               @map("trial_ends_at") @db.Timestamptz(3)
+  cancelledAt         DateTime?               @map("cancelled_at") @db.Timestamptz(3)
+  metadata            Json?                   @map("metadata_json")
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  pricingPlan         PricingPlan?            @relation(fields: [pricingPlanId], references: [id], onDelete: SetNull)
+  creditLedgerEntries CreditLedgerEntry[]
+
+  @@index([status])
+  @@index([pricingPlanId])
+  @@index([currentPeriodEnd])
+  @@map("store_subscriptions")
+}
+
+model CreditLedgerEntry {
+  id              String                @id @db.Uuid
+  organizationId  String                @map("organization_id") @db.Uuid
+  subscriptionId  String?               @map("subscription_id") @db.Uuid
+  pricingPlanId   String?               @map("pricing_plan_id") @db.Uuid
+  entryType       CreditLedgerEntryType @map("entry_type")
+  channel         CreditLedgerChannel?
+  quantity        Int
+  balanceAfter    Int?                  @map("balance_after")
+  idempotencyKey  String                @unique @map("idempotency_key") @db.VarChar(180)
+  reason          String?               @db.VarChar(240)
+  tryOnSessionId  String?               @map("try_on_session_id") @db.Uuid
+  kioskTryOnRunId String?               @map("kiosk_try_on_run_id") @db.Uuid
+  productId       String?               @map("product_id") @db.Uuid
+  integrationId   String?               @map("integration_id") @db.Uuid
+  metadata        Json?                 @map("metadata_json")
+  occurredAt      DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  subscription    StoreSubscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  pricingPlan     PricingPlan?          @relation(fields: [pricingPlanId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, channel, occurredAt])
+  @@index([organizationId, entryType, occurredAt])
+  @@index([subscriptionId, occurredAt])
+  @@index([pricingPlanId])
+  @@index([tryOnSessionId])
+  @@index([kioskTryOnRunId])
+  @@index([productId])
+  @@index([integrationId])
+  @@map("credit_ledger_entries")
 }
 
 model ApiKey {

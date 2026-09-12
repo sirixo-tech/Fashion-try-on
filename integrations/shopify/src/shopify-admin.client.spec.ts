@@ -197,6 +197,136 @@ describe("ShopifyAdminClient", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     clock.mockRestore();
   });
+
+  it("detects the SelfX app block in the main product template", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            themes: {
+              nodes: [
+                {
+                  id: "gid://shopify/OnlineStoreTheme/1",
+                  name: "Draft",
+                  role: "UNPUBLISHED",
+                },
+                {
+                  id: "gid://shopify/OnlineStoreTheme/2",
+                  name: "Main",
+                  role: "MAIN",
+                },
+              ],
+            },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            theme: {
+              id: "gid://shopify/OnlineStoreTheme/2",
+              name: "Main",
+              role: "MAIN",
+              files: {
+                nodes: [
+                  {
+                    filename: "templates/product.json",
+                    body: {
+                      content: JSON.stringify({
+                        sections: {
+                          main: {
+                            blocks: {
+                              selfx: {
+                                type: "shopify://apps/selfx-tryon/blocks/selfx_try_it_on/123",
+                              },
+                            },
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                userErrors: [],
+              },
+            },
+          },
+        }),
+      );
+    const client = new ShopifyAdminClient({
+      shopDomain: "demo.myshopify.com",
+      accessToken: "secret-shop-token",
+      apiVersion: "2026-07",
+      productPageSize: 50,
+      fetchImpl,
+    });
+
+    await expect(
+      client.getThemeAppBlockStatus("selfx_try_it_on"),
+    ).resolves.toEqual({
+      status: "INSTALLED",
+      themeId: "gid://shopify/OnlineStoreTheme/2",
+      themeName: "Main",
+      checkedFilenames: ["templates/product.json"],
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports the SelfX app block as missing when product template has no block", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            themes: {
+              nodes: [
+                {
+                  id: "gid://shopify/OnlineStoreTheme/2",
+                  name: "Main",
+                  role: "MAIN",
+                },
+              ],
+            },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            theme: {
+              id: "gid://shopify/OnlineStoreTheme/2",
+              name: "Main",
+              role: "MAIN",
+              files: {
+                nodes: [
+                  {
+                    filename: "templates/product.json",
+                    body: {
+                      content: JSON.stringify({ sections: { main: {} } }),
+                    },
+                  },
+                ],
+                userErrors: [],
+              },
+            },
+          },
+        }),
+      );
+    const client = new ShopifyAdminClient({
+      shopDomain: "demo.myshopify.com",
+      accessToken: "secret-shop-token",
+      apiVersion: "2026-07",
+      productPageSize: 50,
+      fetchImpl,
+    });
+
+    await expect(
+      client.getThemeAppBlockStatus("selfx_try_it_on"),
+    ).resolves.toMatchObject({
+      status: "NOT_INSTALLED",
+      themeName: "Main",
+    });
+  });
 });
 
 function variant(id: string) {

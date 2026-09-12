@@ -7,6 +7,7 @@ import {
   getShopifyTryOnSession,
   uploadShopifyTryOnPersonImage,
 } from "@/lib/shopify-storefront-try-on-api";
+import { SafeApiError } from "@/lib/api";
 
 import { ShopifyTryOnPageClient } from "./shopify-try-on-page-client";
 
@@ -118,5 +119,41 @@ describe("ShopifyTryOnPageClient", () => {
     expect(clickedAnchor?.href).toBe("https://storage.example/fresh-download.png");
     expect(clickedAnchor?.download).toBe("selfx-try-on-run-1.png");
     expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("shows a shopper-safe message when store credits are exhausted", async () => {
+    vi.mocked(getShopifyTryOnSession).mockResolvedValue(session);
+    vi.mocked(uploadShopifyTryOnPersonImage).mockResolvedValue({
+      session: sessionToken,
+      personAssetId: "person-1",
+      expiresAt: "2026-09-11T00:15:00.000Z",
+    });
+    vi.mocked(createShopifyTryOnRun).mockRejectedValue(
+      new SafeApiError(
+        "SELFX_CREDITS_EXHAUSTED",
+        "SelfX Try-On credits are exhausted.",
+        402,
+      ),
+    );
+
+    render(<ShopifyTryOnPageClient sessionToken={sessionToken} />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("checkbox"));
+    const file = new File(["person"], "person.png", { type: "image/png" });
+    const inputs = document.querySelectorAll<HTMLInputElement>(
+      'input[type="file"]',
+    );
+    await act(async () => {
+      fireEvent.change(inputs[1]!, { target: { files: [file] } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Start Try-On" }));
+    });
+
+    expect(
+      screen.getByText(
+        "Try-On is temporarily unavailable for this store. Please try again later.",
+      ),
+    ).toBeTruthy();
   });
 });

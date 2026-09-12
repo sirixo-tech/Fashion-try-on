@@ -42,6 +42,40 @@ describe("SelfxStorefrontTryOnClient", () => {
     expect(headers.get("Content-Type")).toBe("application/json");
     expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
   });
+
+  it("reads the credit summary with server authentication", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        availableCredits: 42,
+        subscription: {
+          id: "subscription-1",
+          status: "ACTIVE",
+          channels: ["SHOPIFY"],
+          includedCredits: 100,
+          trialCredits: 10,
+          currentPeriodStart: "2026-09-01T00:00:00.000Z",
+          currentPeriodEnd: "2026-10-01T00:00:00.000Z",
+          trialStartedAt: null,
+          trialEndsAt: null,
+          pricingPlan: { id: "plan-1", name: "Shopify Growth" },
+        },
+      }),
+    );
+    const client = new SelfxStorefrontTryOnClient(config, fetchImpl);
+
+    await expect(
+      client.getCreditSummary("merchant.myshopify.com"),
+    ).resolves.toMatchObject({ availableCredits: 42 });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.selfx.test/api/v1/public/integrations/shopify/try-on-sessions/credit-summary?shop=merchant.myshopify.com",
+      expect.any(Object),
+    );
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(request.headers);
+    expect(request.method).toBe("GET");
+    expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
+  });
 });
 
 describe("Shopify storefront Try-On launch helpers", () => {

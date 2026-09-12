@@ -117,6 +117,9 @@ function serviceFor(
       assertConfigured: vi.fn(),
       process: vi.fn(),
     } as never,
+    {
+      consumeTryOnCredit: vi.fn(),
+    } as never,
   );
 }
 

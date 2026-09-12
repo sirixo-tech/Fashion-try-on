@@ -70,6 +70,36 @@ export class ShopifyStorefrontTryOnSessionDto {
   product!: ShopifyStorefrontTryOnProductDto;
 }
 
+export class ShopifyStorefrontCreditSummaryDto {
+  @ApiProperty()
+  availableCredits!: number;
+
+  @ApiPropertyOptional()
+  subscription!: {
+    id: string;
+    status: string;
+    channels: string[];
+    includedCredits: number;
+    trialCredits: number;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+    pricingPlan: {
+      id: string;
+      code: string;
+      name: string;
+      currency: string;
+      monthlyPriceCents: number;
+      includedCredits: number;
+      extraCreditPriceCents: number | null;
+      kioskMonthlyRentCents: number | null;
+      kioskDeviceLimit: number | null;
+      channels: string[];
+    } | null;
+  } | null;
+}
+
 export class ShopifyStorefrontTryOnPersonUploadDto {
   @ApiProperty()
   session!: string;

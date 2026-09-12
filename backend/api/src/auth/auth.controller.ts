@@ -29,10 +29,12 @@ import {
   LogoutAllResponseDto,
   LogoutResponseDto,
   MeResponseDto,
+  SignupChallengeResponseDto,
 } from "./dto/auth-response.dto.js";
 import { LoginDto } from "./dto/login.dto.js";
+import { SignupDto } from "./dto/signup.dto.js";
 
-@ApiTags("Staff/Admin Auth")
+@ApiTags("SelfX Auth")
 @Controller("api/v1/auth")
 export class AuthController {
   constructor(
@@ -43,7 +45,7 @@ export class AuthController {
 
   @Post("login")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Staff/admin email-password login" })
+  @ApiOperation({ summary: "SelfX dashboard email-password login" })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ type: AuthTokenResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
@@ -59,6 +61,52 @@ export class AuthController {
       ipAddress: request.ip,
       userAgent: request.headers["user-agent"],
       origin: request.headers.origin,
+    });
+    this.setRefreshCookie(
+      reply,
+      result.refreshToken,
+      result.refreshTokenExpiresAt,
+    );
+    return {
+      accessToken: result.accessToken,
+      accessTokenExpiresAt: result.accessTokenExpiresAt,
+      user: result.user,
+    };
+  }
+
+  @Get("signup-challenge")
+  @ApiOperation({ summary: "Create a short-lived signup math challenge" })
+  @ApiOkResponse({ type: SignupChallengeResponseDto })
+  signupChallenge(): SignupChallengeResponseDto {
+    return this.auth.createSignupChallenge();
+  }
+
+  @Post("signup")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Create a SelfX account with an active Store and trial credits",
+  })
+  @ApiBody({ type: SignupDto })
+  @ApiOkResponse({ type: AuthTokenResponseDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 409, type: ApiErrorResponseDto })
+  async signup(
+    @Body() dto: SignupDto,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<AuthTokenResponseDto> {
+    this.browserSecurity.assertTrustedOrigin(request);
+    const result = await this.auth.signup({
+      displayName: dto.displayName,
+      email: dto.email,
+      password: dto.password,
+      challengeToken: dto.challengeToken,
+      challengeAnswer: dto.challengeAnswer,
+      metadata: {
+        ipAddress: request.ip,
+        userAgent: request.headers["user-agent"],
+        origin: request.headers.origin,
+      },
     });
     this.setRefreshCookie(
       reply,
@@ -122,7 +170,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Revoke all active staff/admin sessions for the user",
+    summary: "Revoke all active SelfX dashboard sessions for the user",
   })
   @ApiOkResponse({ type: LogoutAllResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
@@ -138,7 +186,7 @@ export class AuthController {
 
   @Get("me")
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Return the current staff/admin user" })
+  @ApiOperation({ summary: "Return the current SelfX dashboard user" })
   @ApiOkResponse({ type: MeResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   async me(@Req() request: FastifyRequest): Promise<MeResponseDto> {

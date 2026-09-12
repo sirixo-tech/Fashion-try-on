@@ -25,7 +25,6 @@ import {
   AppShell,
   ErrorState,
   LoadingState,
-  PermissionDeniedState,
   type SelfxNavItem,
 } from "@selfx/ui";
 
@@ -42,6 +41,7 @@ import {
   type TenantOrganization,
 } from "@/lib/organizations";
 import { useSession } from "@/lib/session";
+import { safeLoginNextPath } from "@/lib/login-next";
 import {
   getEffectiveStorePermissions,
   type EffectiveStorePermissions,
@@ -129,6 +129,11 @@ const navItems: SelfxNavItem[] = [
     icon: SettingsIcon,
     children: [
       { href: "/app/settings", label: "Settings", icon: SettingsIcon },
+      {
+        href: "/app/platform/pricing",
+        label: "Pricing Control",
+        icon: CreditCardIcon,
+      },
       { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },
     ],
   },
@@ -240,6 +245,13 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     };
   }, [activeOrganizationId, session.accessToken, session.status]);
 
+  useEffect(() => {
+    if (session.status !== "unauthenticated") {
+      return;
+    }
+    router.replace(loginUrlForCurrentPage());
+  }, [pathname, router, session.status]);
+
   const filteredNavItems = filterNavigationItems(
     navItems,
     navigationAccess({
@@ -255,21 +267,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   }
 
   if (session.status === "unauthenticated") {
-    return (
-      <main className="flex min-h-dvh items-center justify-center p-4">
-        <PermissionDeniedState
-          title="Sign in required"
-          description="Use your SelfX staff or platform account to open the admin shell."
-          action={{
-            label: "Sign in",
-            onClick: () => {
-              const next = `${window.location.pathname}${window.location.search}`;
-              router.push(`/login?next=${encodeURIComponent(next)}`);
-            },
-          }}
-        />
-      </main>
-    );
+    return <LoadingState label="Opening sign in" />;
   }
 
   return (
@@ -308,6 +306,13 @@ function activePathFor(pathname: string): string {
     return "/app/products/garments";
   }
   return pathname;
+}
+
+function loginUrlForCurrentPage(): string {
+  const next = safeLoginNextPath(
+    `${window.location.pathname}${window.location.search}${window.location.hash}`,
+  );
+  return `/login?next=${encodeURIComponent(next)}`;
 }
 
 function navigationAccess({

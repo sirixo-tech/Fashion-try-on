@@ -22,6 +22,7 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { loadSelfxEnv } from "../config/load-env.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { OrganizationApplicationsService } from "./organization-applications.service.js";
 import { ORGANIZATION_ERROR_CODES } from "./organization-error-codes.js";
@@ -41,9 +42,11 @@ describe("OrganizationApplicationsService Phase 3A", () => {
     prisma = new PrismaService();
     await prisma.$connect();
     const platformAuthorization = new PlatformAuthorizationService(prisma);
+    const entitlements = new EntitlementsService(prisma);
     service = new OrganizationApplicationsService(
       prisma,
       platformAuthorization,
+      entitlements,
     );
     tenantGuard = new OrganizationTenantGuardService(prisma);
   });
@@ -70,6 +73,12 @@ describe("OrganizationApplicationsService Phase 3A", () => {
     expect(application.organization.status).toBe(
       OrganizationStatus.PENDING_ACTIVATION,
     );
+    await expect(
+      prisma.creditLedgerEntry.aggregate({
+        where: { organizationId: application.organization.id },
+        _sum: { quantity: true },
+      }),
+    ).resolves.toMatchObject({ _sum: { quantity: 10 } });
     expect(application.intendedOwnerMembership).toMatchObject({
       role: OrganizationMembershipRole.ORGANIZATION_OWNER,
       status: MembershipStatus.PENDING_ACTIVATION,
@@ -412,6 +421,12 @@ async function cleanupTestRecords(
     },
   });
   await prisma.organizationActivationRequirement.deleteMany({
+    where: { organizationId: { in: organizationIds } },
+  });
+  await prisma.creditLedgerEntry.deleteMany({
+    where: { organizationId: { in: organizationIds } },
+  });
+  await prisma.storeSubscription.deleteMany({
     where: { organizationId: { in: organizationIds } },
   });
   await prisma.organizationApplication.deleteMany({

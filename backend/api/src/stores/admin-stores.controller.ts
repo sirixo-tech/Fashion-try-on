@@ -48,19 +48,23 @@ import {
   AdminStoreListQueryDto,
   AdminStoreListResponseDto,
   AdminStoreResponseDto,
+  AssignStorePricingPlanDto,
   BulkImportedProductVtoDto,
   BulkImportedProductVtoResponseDto,
   CreateAdminStoreDto,
   CreateStoreProductDto,
   CreateStoreProductImageUploadDto,
+  ManualStoreCreditAdjustmentDto,
   PairStoreKioskDto,
   RequestStoreCatalogSyncDto,
+  StoreCreditDiagnosticsDto,
   StoreKioskDeviceResponseDto,
   StoreKioskPairResponseDto,
   StoreProductDto,
   StoreProductImageUploadIntentDto,
   StoreProductListQueryDto,
   StoreProductListResponseDto,
+  StoreSubscriptionSummaryDto,
   StoreVirtualTryOnSettingsResponseDto,
   UpdateStoreProductDto,
   UpdateStoreVirtualTryOnSettingsDto,
@@ -146,6 +150,60 @@ export class AdminStoresController {
       STORE_PERMISSION_CODES.storesUpdate,
     );
     return this.stores.updateStore(storeId, dto);
+  }
+
+  @Put(":storeId/subscription")
+  @ApiOperation({ summary: "Assign an active pricing plan to a Store" })
+  @ApiOkResponse({ type: StoreSubscriptionSummaryDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async assignPricingPlan(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: AssignStorePricingPlanDto,
+  ): Promise<StoreSubscriptionSummaryDto> {
+    await this.requirePermission(request, PLATFORM_PERMISSIONS.pricingManage);
+    return this.stores.assignPricingPlan(storeId, dto);
+  }
+
+  @Get(":storeId/credits/diagnostics")
+  @ApiOperation({ summary: "Read Store credit diagnostics" })
+  @ApiOkResponse({ type: StoreCreditDiagnosticsDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async getCreditDiagnostics(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+  ): Promise<StoreCreditDiagnosticsDto> {
+    await this.requirePlatformOrStorePermission(
+      request,
+      storeId,
+      PLATFORM_PERMISSIONS.storesView,
+      STORE_PERMISSION_CODES.storesView,
+    );
+    return this.stores.getCreditDiagnostics(storeId);
+  }
+
+  @Post(":storeId/credits/manual-adjustments")
+  @ApiOperation({ summary: "Manually add Store Try-On credits" })
+  @ApiOkResponse({ type: StoreSubscriptionSummaryDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, type: ApiErrorResponseDto })
+  async topUpCredits(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() dto: ManualStoreCreditAdjustmentDto,
+  ): Promise<StoreSubscriptionSummaryDto> {
+    const user = await this.requirePermission(
+      request,
+      PLATFORM_PERMISSIONS.pricingManage,
+    );
+    return this.stores.topUpCredits(storeId, dto, user.id);
   }
 
   @Get(":storeId/virtual-try-on-settings")

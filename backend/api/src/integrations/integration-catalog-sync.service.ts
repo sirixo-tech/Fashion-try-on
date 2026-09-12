@@ -16,11 +16,20 @@ import {
   type IntegrationCatalogSyncResponseDto,
   type IntegrationCatalogVariantInputDto,
 } from "./dto/integration-catalog-sync.dto.js";
+import {
+  type IntegrationProductControlsDto,
+  type IntegrationProductControlsQueryDto,
+  type IntegrationProductControlsResponseDto,
+  type IntegrationProductTryOnStatus,
+  type UpdateIntegrationProductVtoDto,
+} from "./dto/integration-product-controls.dto.js";
 import { type IntegrationCredentialContext } from "./integration-token-auth.service.js";
 
 export const INTEGRATION_CATALOG_SYNC_ERROR_CODES = {
   duplicateProduct: "INTEGRATION_CATALOG_DUPLICATE_PRODUCT",
   duplicateVariant: "INTEGRATION_CATALOG_DUPLICATE_VARIANT",
+  productNotFound: "INTEGRATION_PRODUCT_NOT_FOUND",
+  productNotEligible: "INTEGRATION_PRODUCT_NOT_ELIGIBLE",
 } as const;
 
 type SyncCounts = Pick<
@@ -36,9 +45,130 @@ type RootMapping = {
   lastSeenAt: Date;
 };
 
+type ProductControlMapping = Prisma.ExternalProductMappingGetPayload<{
+  include: {
+    product: {
+      select: {
+        id: true;
+        name: true;
+        active: true;
+        vtoEnabled: true;
+        productVertical: true;
+        imageUrl: true;
+        imageStorageKey: true;
+        updatedAt: true;
+      };
+    };
+  };
+}>;
+
 @Injectable()
 export class IntegrationCatalogSyncService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listProductControls(
+    credential: IntegrationCredentialContext,
+    query: IntegrationProductControlsQueryDto,
+  ): Promise<IntegrationProductControlsResponseDto> {
+    const mappings = await this.prisma.externalProductMapping.findMany({
+      where: {
+        integrationId: credential.integrationId,
+        organizationId: credential.storeId,
+        externalVariantId: null,
+        status: ExternalProductMappingStatus.ACTIVE,
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            active: true,
+            vtoEnabled: true,
+            productVertical: true,
+            imageUrl: true,
+            imageStorageKey: true,
+            updatedAt: true,
+          },
+        },
+      },
+      orderBy: [{ lastSeenAt: "desc" }, { externalProductId: "asc" }],
+      take: boundedProductControlsLimit(query.limit),
+    });
+    const data = mappings.map(mapProductControl);
+    return {
+      data,
+      summary: {
+        total: data.length,
+        ready: data.filter((product) => product.tryOnStatus === "READY")
+          .length,
+        disabled: data.filter((product) => product.tryOnStatus === "DISABLED")
+          .length,
+        needsAttention: data.filter(
+          (product) =>
+            product.tryOnStatus !== "READY" &&
+            product.tryOnStatus !== "DISABLED",
+        ).length,
+      },
+    };
+  }
+
+  async updateProductVto(
+    credential: IntegrationCredentialContext,
+    input: UpdateIntegrationProductVtoDto,
+  ): Promise<IntegrationProductControlsDto> {
+    const externalProductId = nullableTrim(input.externalProductId);
+    if (!externalProductId) {
+      throwProductNotFound();
+    }
+    const mapping = await this.prisma.externalProductMapping.findFirst({
+      where: {
+        integrationId: credential.integrationId,
+        organizationId: credential.storeId,
+        externalProductId,
+        externalVariantId: null,
+        status: ExternalProductMappingStatus.ACTIVE,
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            active: true,
+            vtoEnabled: true,
+            productVertical: true,
+            imageUrl: true,
+            imageStorageKey: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+    if (!mapping) {
+      throwProductNotFound();
+    }
+    if (input.enabled && !isProductEligibleForTryOn(mapping.product)) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotEligible,
+        "This synced product is not eligible for SelfX Try-On.",
+      );
+    }
+    const product = await this.prisma.product.update({
+      where: { id: mapping.productId },
+      data: { vtoEnabled: input.enabled },
+      select: {
+        id: true,
+        name: true,
+        active: true,
+        vtoEnabled: true,
+        productVertical: true,
+        imageUrl: true,
+        imageStorageKey: true,
+        updatedAt: true,
+      },
+    });
+    return mapProductControl({ ...mapping, product });
+  }
 
   async sync(
     credential: IntegrationCredentialContext,
@@ -544,4 +674,73 @@ function productSlug(input: IntegrationCatalogProductInputDto): string {
 function nullableTrim(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function boundedProductControlsLimit(value: number | undefined): number {
+  if (!value || !Number.isInteger(value)) {
+    return 25;
+  }
+  return Math.min(Math.max(value, 1), 50);
+}
+
+function mapProductControl(
+  mapping: ProductControlMapping,
+): IntegrationProductControlsDto {
+  return {
+    id: mapping.product.id,
+    externalProductId: mapping.externalProductId,
+    handle: mapping.externalHandle,
+    name: mapping.product.name,
+    active: mapping.product.active,
+    vtoEnabled: mapping.product.vtoEnabled,
+    productVertical: mapping.product.productVertical,
+    imageUrl: mapping.product.imageUrl,
+    tryOnStatus: productTryOnStatus(mapping.product),
+    updatedAt: mapping.product.updatedAt.toISOString(),
+  };
+}
+
+function productTryOnStatus(
+  product: Pick<
+    ProductControlMapping["product"],
+    "active" | "vtoEnabled" | "productVertical" | "imageUrl" | "imageStorageKey"
+  >,
+): IntegrationProductTryOnStatus {
+  if (!product.active) {
+    return "INACTIVE";
+  }
+  if (product.productVertical !== "GARMENT") {
+    return "NOT_GARMENT";
+  }
+  if (!hasProductImage(product)) {
+    return "MISSING_IMAGE";
+  }
+  return product.vtoEnabled ? "READY" : "DISABLED";
+}
+
+function isProductEligibleForTryOn(
+  product: Pick<
+    ProductControlMapping["product"],
+    "active" | "productVertical" | "imageUrl" | "imageStorageKey"
+  >,
+): boolean {
+  return (
+    product.active &&
+    product.productVertical === "GARMENT" &&
+    hasProductImage(product)
+  );
+}
+
+function hasProductImage(
+  product: Pick<ProductControlMapping["product"], "imageUrl" | "imageStorageKey">,
+): boolean {
+  return Boolean(nullableTrim(product.imageUrl) || product.imageStorageKey);
+}
+
+function throwProductNotFound(): never {
+  throw new ApiErrorException(
+    HttpStatus.NOT_FOUND,
+    INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotFound,
+    "Synced integration product was not found.",
+  );
 }

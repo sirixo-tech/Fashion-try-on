@@ -57,6 +57,8 @@ type PageState =
   | { status: "ERROR"; message: string; session?: ShopifyTryOnSession };
 
 const supportedTypes = ["image/jpeg", "image/png", "image/webp"];
+const tryOnTemporarilyUnavailableMessage =
+  "Try-On is temporarily unavailable for this store. Please try again later.";
 
 export function ShopifyTryOnPageClient({
   sessionToken,
@@ -130,7 +132,7 @@ export function ShopifyTryOnPageClient({
           setState({
             status: "ERROR",
             session: state.session,
-            message: next.errorMessage ?? "Try-On could not be completed.",
+            message: runFailureMessage(next),
           });
           return;
         }
@@ -261,8 +263,8 @@ export function ShopifyTryOnPageClient({
     state.status !== "ERROR";
 
   return (
-    <main className="min-h-dvh bg-[#f4f8f8] px-4 py-6 text-foreground sm:px-6 lg:py-10">
-      <div className="mx-auto grid min-h-[calc(100dvh-3rem)] w-full max-w-7xl gap-5 lg:grid-cols-[430px_minmax(0,1fr)] lg:items-center">
+    <main className="min-h-dvh bg-[#f4f8f8] px-4 py-6 text-foreground sm:px-6 lg:py-8">
+      <div className="mx-auto grid min-h-[calc(100dvh-3rem)] w-full max-w-[1500px] gap-5 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
         <Card className="w-full overflow-hidden border-border/70 bg-background shadow-[0_18px_60px_rgba(18,38,45,0.10)]">
           <CardHeader className="space-y-5 border-b bg-background pb-5">
             <div className="flex items-center justify-between gap-3">
@@ -457,28 +459,40 @@ function ResultPanel({
   const isRunning = state.status === "RUNNING";
 
   return (
-    <Card className="w-full overflow-hidden border-border/70 bg-background shadow-[0_22px_70px_rgba(18,38,45,0.12)]">
-      <CardHeader className="border-b bg-[#fbfdfd] pb-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-2xl">
-              {state.status === "COMPLETED" ? "Your Result" : "Try-On Studio"}
-            </CardTitle>
-            <CardDescription>
-              Product, uploaded photo and generated try-on in one view.
-            </CardDescription>
+    <div className="grid w-full items-start gap-5 lg:grid-cols-[minmax(0,1fr)_25rem]">
+      <Card className="w-full overflow-hidden border-border/70 bg-background shadow-[0_22px_70px_rgba(18,38,45,0.12)]">
+        <CardHeader className="border-b bg-[#fbfdfd] pb-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-2xl">
+                <UploadIcon className="size-5 text-primary" />
+                Inputs
+              </CardTitle>
+              <CardDescription>
+                Product image and shopper photo used for this Try-On.
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="h-7 px-3">
+              {personImageUrl ? "Inputs ready" : "Photo needed"}
+            </Badge>
           </div>
-          <Badge
-            variant={state.status === "COMPLETED" ? "default" : "secondary"}
-            className="h-7 px-3"
-          >
-            {statusLabel(state)}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 p-4 sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+        </CardHeader>
+        <CardContent className="space-y-4 p-4 sm:p-5">
+          <div className="rounded-lg border border-border/80 bg-[#f8fbfb] p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-[#fff1e8] text-[#ff6b1a]">
+                <SparklesIcon className="size-5" />
+              </span>
+              <div>
+                <div className="font-semibold">Review your Try-On inputs</div>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  SelfX combines the synced Shopify product image with your
+                  uploaded photo to create the generated result.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
             <VisualTile
               title="Product"
               label={productLabel}
@@ -498,6 +512,32 @@ function ResultPanel({
               state={personImageUrl ? "ready" : "empty"}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="w-full overflow-hidden border-border/70 bg-background shadow-[0_22px_70px_rgba(18,38,45,0.12)] lg:sticky lg:top-6">
+        <CardHeader className="border-b bg-[#fbfdfd] pb-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-2xl">
+                <SparklesIcon className="size-5 text-primary" />
+                Try-On Result
+              </CardTitle>
+              <CardDescription>
+                {state.status === "COMPLETED"
+                  ? "Your generated SelfX image is ready."
+                  : "The generated image will appear here."}
+              </CardDescription>
+            </div>
+            <Badge
+              variant={state.status === "COMPLETED" ? "default" : "secondary"}
+              className="h-7 px-3"
+            >
+              {statusLabel(state)}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 p-4 sm:p-5">
           <VisualTile
             title="Generated Image"
             label={
@@ -505,18 +545,17 @@ function ResultPanel({
                 ? "SelfX result"
                 : isRunning
                   ? "Generating try-on"
-                  : "Ready after generation"
+                  : "No result yet"
             }
             imageUrl={resultImageUrl}
             emptyLabel={
               isRunning
                 ? "Creating your virtual try-on"
-                : "Generated image will appear here"
+                : "Add your photo, then start Try-On"
             }
             featured
             state={resultImageUrl ? "ready" : isRunning ? "active" : "empty"}
           />
-        </div>
         {state.status === "COMPLETED" ? (
           <Button
             className="w-full"
@@ -529,8 +568,9 @@ function ResultPanel({
             {downloading ? "Preparing..." : "Download"}
           </Button>
         ) : null}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -563,7 +603,7 @@ function VisualTile({
       <div
         className={[
           "relative flex aspect-[4/5] items-center justify-center overflow-hidden bg-[#e7eff1]",
-          featured ? "xl:min-h-[560px]" : "min-h-[210px]",
+          featured ? "min-h-[430px] lg:min-h-[520px]" : "min-h-[360px]",
         ].join(" ")}
       >
         {imageUrl ? (
@@ -713,6 +753,9 @@ function downloadFilename(run: ShopifyTryOnRun): string {
 
 function messageFor(error: unknown): string {
   if (error instanceof SafeApiError) {
+    if (error.code === "SELFX_CREDITS_EXHAUSTED") {
+      return tryOnTemporarilyUnavailableMessage;
+    }
     if (error.code === "SHOPIFY_STOREFRONT_TRYON_PRODUCT_NOT_ENABLED") {
       return "This product is not enabled for SelfX Try-On yet.";
     }
@@ -725,4 +768,11 @@ function messageFor(error: unknown): string {
     return error.message;
   }
   return "Try-On could not be completed right now.";
+}
+
+function runFailureMessage(run: ShopifyTryOnRun): string {
+  if (run.errorCode === "SELFX_CREDITS_EXHAUSTED") {
+    return tryOnTemporarilyUnavailableMessage;
+  }
+  return run.errorMessage ?? "Try-On could not be completed.";
 }

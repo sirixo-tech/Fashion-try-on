@@ -73,6 +73,24 @@ export async function getSelfxConnectionView(
   };
 }
 
+export async function getSelfxIntegrationToken(shop: string): Promise<string> {
+  const connection = await db.selfxConnection.findUnique({
+    where: { shop },
+  });
+  if (
+    !connection ||
+    connection.status !== "CONNECTED" ||
+    !connection.integrationTokenCiphertext
+  ) {
+    throw new Error("Connect this Shopify shop to SelfX before continuing.");
+  }
+  const cipher = new SelfxSecretCipher(loadSelfxSecretCipherConfig());
+  return cipher.decrypt(
+    connection.integrationTokenCiphertext,
+    integrationTokenContext(connection.shopifyAccountId),
+  );
+}
+
 export async function startSelfxConnection(input: {
   shop: string;
   shopifyAccessToken: string;

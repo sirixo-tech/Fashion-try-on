@@ -6,7 +6,7 @@ application_url = "https://fashion-try-on-production.up.railway.app"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,write_app_proxy"
+scopes = "read_products,read_themes,write_app_proxy"
 
 [auth]
 redirect_urls = [
@@ -15,6 +15,15 @@ redirect_urls = [
 
 [webhooks]
 api_version = "2026-07"
+
+[[webhooks.subscriptions]]
+topics = [
+  "products/create",
+  "products/update",
+  "products/delete",
+  "app/uninstalled"
+]
+uri = "https://selfxapi-production.up.railway.app/api/v1/integrations/shopify/webhooks"
 
 [app_proxy]
 url = "/apps/selfx-tryon"
