@@ -205,6 +205,7 @@ export class AdminStoresService {
           },
         });
         await this.rbac.ensureStoreRbacInTransaction(tx, created.id, true);
+        await this.entitlements?.ensureTrialCredits(created.id, tx);
         return created;
       });
       return mapStore(store);

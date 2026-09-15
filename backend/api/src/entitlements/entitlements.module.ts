@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
+import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
 import { AdminPricingFeaturesController } from "./admin-pricing-features.controller.js";
 import { AdminPricingController } from "./admin-pricing.controller.js";
 import { EntitlementsService } from "./entitlements.service.js";
@@ -22,6 +23,7 @@ import { PricingControlService } from "./pricing-control.service.js";
     PricingFeaturesService,
     PricingControlService,
     PlatformAuthorizationService,
+    GarmentPreviewSettingsService,
   ],
   exports: [EntitlementsService, PricingFeaturesService, PricingControlService],
 })

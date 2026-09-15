@@ -76,6 +76,7 @@ const editorSections = [
   { id: "features", label: "Features" },
   { id: "kiosks", label: "Kiosks" },
 ] as const;
+const defaultStarterPlanCode = "selfx-default-starter";
 
 type PlanFormState = {
   code: string;
@@ -264,12 +265,22 @@ export function PricingPlanEditor({
     () => planCodeFromName(form.name),
     [form.name],
   );
+  const editingDefaultStarterPlan =
+    mode === "edit" && form.code === defaultStarterPlanCode;
 
   async function savePlan() {
     if (!accessToken || !canManagePricing) {
       return;
     }
-    const validationError = validateForm(form);
+    const saveForm = editingDefaultStarterPlan
+      ? {
+          ...form,
+          monthlyPrice: "0",
+          extraCreditPrice: "",
+          kioskMonthlyRent: "",
+        }
+      : form;
+    const validationError = validateForm(saveForm);
     if (validationError) {
       setError(validationError);
       return;
@@ -277,7 +288,7 @@ export function PricingPlanEditor({
     setSaving(true);
     setError(null);
     try {
-      const payload = formToInput({ ...form, currency: platformCurrency });
+      const payload = formToInput({ ...saveForm, currency: platformCurrency });
       const generatedCode =
         mode === "create"
           ? uniquePlanCode(
@@ -460,26 +471,16 @@ export function PricingPlanEditor({
                     <div>
                       <CardTitle>Pricing</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Uses the currency saved in Platform Settings for every
-                        pricing plan.
+                        Set monthly plan price and extra credit pricing.
                       </p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <label className="grid gap-2 text-sm font-medium">
-                    Currency
-                    <div className="flex h-12 items-center rounded-md border border-input bg-muted/40 px-3 text-base font-semibold">
-                      {platformCurrency}
-                    </div>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      Inherited from Platform Settings.
-                    </span>
-                  </label>
                   <NumberField
                     label="Monthly price"
                     value={form.monthlyPrice}
-                    disabled={!canManagePricing}
+                    disabled={!canManagePricing || editingDefaultStarterPlan}
                     onChange={(monthlyPrice) =>
                       setForm((current) => ({ ...current, monthlyPrice }))
                     }
@@ -487,7 +488,7 @@ export function PricingPlanEditor({
                   <NumberField
                     label="Extra credit price"
                     value={form.extraCreditPrice}
-                    disabled={!canManagePricing}
+                    disabled={!canManagePricing || editingDefaultStarterPlan}
                     placeholder="Optional"
                     onChange={(extraCreditPrice) =>
                       setForm((current) => ({ ...current, extraCreditPrice }))
@@ -598,7 +599,7 @@ export function PricingPlanEditor({
                   <NumberField
                     label="Kiosk monthly rent"
                     value={form.kioskMonthlyRent}
-                    disabled={!canManagePricing}
+                    disabled={!canManagePricing || editingDefaultStarterPlan}
                     placeholder="Optional"
                     onChange={(kioskMonthlyRent) =>
                       setForm((current) => ({ ...current, kioskMonthlyRent }))

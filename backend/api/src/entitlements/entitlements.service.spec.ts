@@ -3,8 +3,11 @@ import { CreditLedgerChannel } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  DEFAULT_STARTER_PLAN_CODE,
   DEFAULT_TRIAL_CREDITS,
   DEFAULT_TRIAL_FEATURE_KEYS,
+} from "./default-trial.js";
+import {
   ENTITLEMENT_ERROR_CODES,
   EntitlementsService,
 } from "./entitlements.service.js";
@@ -22,6 +25,7 @@ describe("EntitlementsService", () => {
       organizationId: "store-1",
       entryType: "TRIAL_GRANTED",
       quantity: DEFAULT_TRIAL_CREDITS,
+      pricingPlanId: expect.any(String),
       idempotencyKey: "trial:store-1:v1",
     });
     await expect(service.getCreditBalance("store-1")).resolves.toEqual({
@@ -152,6 +156,33 @@ class FakeEntitlementsPrisma {
   ledger: Record<string, any>[] = [];
 
   pricingPlan = {
+    upsert: vi.fn(
+      ({
+        where,
+        create,
+        update,
+      }: {
+        where: { code: string };
+        create: Record<string, any>;
+        update: Record<string, any>;
+      }) => {
+        const existing = Array.from(this.plans.values()).find(
+          (plan) => plan.code === where.code,
+        );
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+        const now = new Date("2026-09-12T00:00:00.000Z");
+        const plan: Record<string, any> = {
+          ...create,
+          createdAt: now,
+          updatedAt: now,
+        };
+        this.plans.set(plan.id, plan);
+        return plan;
+      },
+    ),
     findFirst: vi.fn(({ where }: { where: { id: string; status: string } }) => {
       const plan = this.plans.get(where.id);
       return plan?.status === where.status ? plan : null;
@@ -179,6 +210,7 @@ class FakeEntitlementsPrisma {
           const result = {
             id: existing.id,
             pricingPlanId: existing.pricingPlanId ?? null,
+            status: existing.status,
           };
           if (select) {
             const selected = result as Record<string, any>;
@@ -186,12 +218,13 @@ class FakeEntitlementsPrisma {
               Object.keys(select).map((key) => [key, selected[key]]),
             );
           }
-          return {
-            id: existing.id,
-            pricingPlanId: existing.pricingPlanId ?? null,
-          };
-        }
-        this.subscriptions.set(create.organizationId, create);
+        return {
+          id: existing.id,
+          pricingPlanId: existing.pricingPlanId ?? null,
+          status: existing.status,
+        };
+      }
+      this.subscriptions.set(create.organizationId, create);
         if (select) {
           return Object.fromEntries(
             Object.keys(select).map((key) => [key, create[key]]),
@@ -200,7 +233,31 @@ class FakeEntitlementsPrisma {
         return {
           id: create.id,
           pricingPlanId: create.pricingPlanId ?? null,
+          status: create.status,
         };
+      },
+    ),
+    update: vi.fn(
+      ({
+        where,
+        data,
+        select,
+      }: {
+        where: { organizationId: string };
+        data: Record<string, any>;
+        select?: Record<string, boolean>;
+      }) => {
+        const existing = this.subscriptions.get(where.organizationId);
+        if (!existing) {
+          return null;
+        }
+        Object.assign(existing, data);
+        if (select) {
+          return Object.fromEntries(
+            Object.keys(select).map((key) => [key, existing[key]]),
+          );
+        }
+        return existing;
       },
     ),
     findUnique: vi.fn(

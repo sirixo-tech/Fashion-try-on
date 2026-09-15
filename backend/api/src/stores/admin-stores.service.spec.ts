@@ -21,11 +21,14 @@ describe("STORE-1 admin Stores", () => {
   it("creates a product Store as an active internal tenant row with Store profile settings", async () => {
     const prisma = createPrismaMock();
     const rbac = createRbacMock();
+    const entitlements = createEntitlementsMock();
     const service = new AdminStoresService(
       prisma as never,
       createKioskMock() as never,
       rbac as never,
       createGarmentPreviewSettingsMock() as never,
+      undefined,
+      entitlements as never,
     );
     prisma.organization.create.mockResolvedValue(
       organizationRecord({
@@ -68,6 +71,10 @@ describe("STORE-1 admin Stores", () => {
       expect.any(Object),
       "store-1",
       true,
+    );
+    expect(entitlements.ensureTrialCredits).toHaveBeenCalledWith(
+      "store-1",
+      expect.any(Object),
     );
   });
 
@@ -747,6 +754,12 @@ function createRbacMock() {
     ensureStoreRbac: vi.fn(),
     ensureStoreRbacInTransaction: vi.fn(),
     requireStorePermission: vi.fn(),
+  };
+}
+
+function createEntitlementsMock() {
+  return {
+    ensureTrialCredits: vi.fn().mockResolvedValue(undefined),
   };
 }
 

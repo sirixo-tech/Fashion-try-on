@@ -1,10 +1,15 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Optional } from "@nestjs/common";
 import { PricingPlanStatus, Prisma, type PricingPlan } from "@prisma/client";
 
 import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
+import {
+  DEFAULT_STARTER_PLAN_CODE,
+  ensureDefaultStarterPricingPlan,
+} from "./default-trial.js";
 import {
   type CreatePricingPlanDto,
   type PricingPlanResponseDto,
@@ -20,21 +25,33 @@ const planFeatureKeysMetadataKey = "featureKeys";
 
 @Injectable()
 export class PricingControlService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    private readonly platformSettings?: GarmentPreviewSettingsService,
+  ) {}
 
   async listPlans(): Promise<PricingPlanResponseDto[]> {
+    await ensureDefaultStarterPricingPlan(
+      this.prisma,
+      await this.platformDefaultCurrency(),
+    );
     const plans = await this.prisma.pricingPlan.findMany({
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     });
-    return plans.map(toDto);
+    return defaultStarterFirst(plans).map(toDto);
   }
 
   async listAvailablePlans(): Promise<PricingPlanResponseDto[]> {
+    await ensureDefaultStarterPricingPlan(
+      this.prisma,
+      await this.platformDefaultCurrency(),
+    );
     const plans = await this.prisma.pricingPlan.findMany({
       where: { status: PricingPlanStatus.ACTIVE },
       orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
     });
-    return plans.map(toDto);
+    return defaultStarterFirst(plans).map(toDto);
   }
 
   async createPlan(
@@ -79,59 +96,72 @@ export class PricingControlService {
     input: UpdatePricingPlanDto,
   ): Promise<PricingPlanResponseDto> {
     try {
-      const current =
-        input.featureKeys !== undefined && input.metadata === undefined
-          ? await this.prisma.pricingPlan.findUnique({
-              where: { id: planId },
-              select: { metadata: true },
-            })
-          : null;
-      if (
-        input.featureKeys !== undefined &&
-        input.metadata === undefined &&
-        !current
-      ) {
-        throw missingRecordError();
-      }
-      const plan = await this.prisma.pricingPlan.update({
-        where: { id: planId },
-        data: {
-          ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-          ...(input.status !== undefined ? { status: input.status } : {}),
-          ...(input.channels !== undefined ? { channels: input.channels } : {}),
-          ...(input.currency !== undefined
-            ? { currency: input.currency.trim().toUpperCase() }
-            : {}),
-          ...(input.monthlyPriceCents !== undefined
-            ? { monthlyPriceCents: input.monthlyPriceCents }
-            : {}),
-          ...(input.includedCredits !== undefined
-            ? { includedCredits: input.includedCredits }
-            : {}),
-          ...(input.trialCredits !== undefined
-            ? { trialCredits: input.trialCredits }
-            : {}),
-          ...(input.extraCreditPriceCents !== undefined
-            ? { extraCreditPriceCents: input.extraCreditPriceCents }
-            : {}),
-          ...(input.kioskMonthlyRentCents !== undefined
-            ? { kioskMonthlyRentCents: input.kioskMonthlyRentCents }
-            : {}),
-          ...(input.kioskDeviceLimit !== undefined
-            ? { kioskDeviceLimit: input.kioskDeviceLimit }
-            : {}),
-          ...(input.metadata !== undefined || input.featureKeys !== undefined
-            ? {
-                metadata: jsonMetadataWithFeatureKeys(
-                  input.metadata ??
-                    (isRecord(current?.metadata) ? current.metadata : null),
-                  input.featureKeys,
-                ),
-              }
-            : {}),
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const current = await tx.pricingPlan.findUnique({
+          where: { id: planId },
+          select: { code: true, metadata: true },
+        });
+        if (!current) {
+          throw missingRecordError();
+        }
+        const starterPlan = current.code === DEFAULT_STARTER_PLAN_CODE;
+        const plan = await tx.pricingPlan.update({
+          where: { id: planId },
+          data: {
+            ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+            ...(input.status !== undefined ? { status: input.status } : {}),
+            ...(input.channels !== undefined
+              ? { channels: input.channels }
+              : {}),
+            ...(input.currency !== undefined
+              ? { currency: input.currency.trim().toUpperCase() }
+              : {}),
+            ...(starterPlan
+              ? { monthlyPriceCents: 0 }
+              : input.monthlyPriceCents !== undefined
+                ? { monthlyPriceCents: input.monthlyPriceCents }
+                : {}),
+            ...(input.includedCredits !== undefined
+              ? { includedCredits: input.includedCredits }
+              : {}),
+            ...(input.trialCredits !== undefined
+              ? { trialCredits: input.trialCredits }
+              : {}),
+            ...(starterPlan
+              ? { extraCreditPriceCents: null }
+              : input.extraCreditPriceCents !== undefined
+                ? { extraCreditPriceCents: input.extraCreditPriceCents }
+                : {}),
+            ...(starterPlan
+              ? { kioskMonthlyRentCents: null }
+              : input.kioskMonthlyRentCents !== undefined
+                ? { kioskMonthlyRentCents: input.kioskMonthlyRentCents }
+                : {}),
+            ...(input.kioskDeviceLimit !== undefined
+              ? { kioskDeviceLimit: input.kioskDeviceLimit }
+              : {}),
+            ...(input.metadata !== undefined || input.featureKeys !== undefined
+              ? {
+                  metadata: jsonMetadataWithFeatureKeys(
+                    input.metadata ??
+                      (isRecord(current.metadata) ? current.metadata : null),
+                    input.featureKeys,
+                  ),
+                }
+              : {}),
+          },
+        });
+        await tx.storeSubscription.updateMany({
+          where: { pricingPlanId: plan.id },
+          data: {
+            channels: jsonStringArray(plan.channels),
+            includedCredits: plan.includedCredits,
+            trialCredits: plan.trialCredits,
+            metadata: subscriptionMetadataForPlan(plan),
+          },
+        });
+        return toDto(plan);
       });
-      return toDto(plan);
     } catch (error) {
       if (isMissingRecord(error)) {
         throw new ApiErrorException(
@@ -141,6 +171,17 @@ export class PricingControlService {
         );
       }
       throw error;
+    }
+  }
+
+  private async platformDefaultCurrency(): Promise<string> {
+    try {
+      return (
+        (await this.platformSettings?.platformDefaultCurrency())?.trim() ||
+        "USD"
+      ).toUpperCase();
+    } catch {
+      return "USD";
     }
   }
 }
@@ -199,6 +240,29 @@ function isKnownChannel(
     value === "KIOSK" ||
     value === "PUBLIC_API"
   );
+}
+
+function defaultStarterFirst(plans: PricingPlan[]): PricingPlan[] {
+  return [
+    ...plans.filter((plan) => plan.code === DEFAULT_STARTER_PLAN_CODE),
+    ...plans.filter((plan) => plan.code !== DEFAULT_STARTER_PLAN_CODE),
+  ];
+}
+
+function subscriptionMetadataForPlan(plan: {
+  code: string;
+  metadata: Prisma.JsonValue | null;
+}): Prisma.InputJsonObject {
+  return {
+    pricingPlanCode: plan.code,
+    featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
+  };
+}
+
+function jsonStringArray(value: Prisma.JsonValue): Prisma.InputJsonValue {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function jsonMetadata(

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Optional } from "@nestjs/common";
 import {
   CreditLedgerChannel,
   CreditLedgerEntryType,
@@ -14,32 +14,19 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
+import {
+  DEFAULT_TRIAL_CREDITS,
+  DEFAULT_TRIAL_FEATURE_KEYS,
+  ensureDefaultStarterPricingPlan,
+} from "./default-trial.js";
 import { featureKeysFromPricingPlanMetadata } from "./pricing-control.service.js";
-
-export const DEFAULT_TRIAL_CREDITS = 10;
-export const DEFAULT_TRIAL_FEATURE_KEYS = [
-  "TRY_ON_WIDGET",
-  "SHOPIFY_INTEGRATION",
-  "WOOCOMMERCE_INTEGRATION",
-  "KIOSK_MANAGEMENT",
-  "MULTI_LANGUAGE",
-  "ANALYTICS",
-  "PRODUCT_ANALYTICS",
-  "CUSTOM_LIMITS",
-] as const;
 
 export const ENTITLEMENT_ERROR_CODES = {
   creditsExhausted: "SELFX_CREDITS_EXHAUSTED",
   featureUnavailable: "SELFX_FEATURE_UNAVAILABLE",
   pricingPlanUnavailable: "PRICING_PLAN_UNAVAILABLE",
 } as const;
-
-const defaultTrialChannels = [
-  "SHOPIFY",
-  "WOOCOMMERCE",
-  "KIOSK",
-  "PUBLIC_API",
-] as const;
 
 export interface CreditBalance {
   availableCredits: number;
@@ -139,7 +126,11 @@ type EntitlementTx = Pick<
 
 @Injectable()
 export class EntitlementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    private readonly platformSettings?: GarmentPreviewSettingsService,
+  ) {}
 
   async getCreditBalance(organizationId: string): Promise<CreditBalance> {
     return this.getCreditBalanceWithClient(organizationId, this.prisma);
@@ -398,34 +389,57 @@ export class EntitlementsService {
     tx: EntitlementTx = this.prisma,
   ): Promise<void> {
     const now = new Date();
+    const defaultPlan = await ensureDefaultStarterPricingPlan(
+      tx,
+      await this.platformDefaultCurrency(),
+    );
     const subscription = await tx.storeSubscription.upsert({
       where: { organizationId },
       create: {
         id: createSelfxId(),
         organizationId,
+        pricingPlanId: defaultPlan.id,
         status: "TRIALING",
-        channels: [...defaultTrialChannels],
-        includedCredits: 0,
-        trialCredits: DEFAULT_TRIAL_CREDITS,
+        channels: jsonStringArray(defaultPlan.channels),
+        includedCredits: defaultPlan.includedCredits,
+        trialCredits: defaultPlan.trialCredits,
         trialStartedAt: now,
-        metadata: trialSubscriptionMetadata(),
+        metadata: subscriptionMetadataForPlan(defaultPlan),
       },
       update: {},
-      select: { id: true, pricingPlanId: true },
+      select: { id: true, pricingPlanId: true, status: true },
     });
+    const effectiveSubscription =
+      subscription.status === StoreSubscriptionStatus.TRIALING &&
+      subscription.pricingPlanId === null
+        ? await tx.storeSubscription.update({
+            where: { organizationId },
+            data: {
+              pricingPlanId: defaultPlan.id,
+              channels: jsonStringArray(defaultPlan.channels),
+              includedCredits: defaultPlan.includedCredits,
+              trialCredits: defaultPlan.trialCredits,
+              metadata: subscriptionMetadataForPlan(defaultPlan),
+            },
+            select: { id: true, pricingPlanId: true },
+          })
+        : subscription;
 
     await this.createLedgerEntryIdempotently(tx, {
       id: createSelfxId(),
       organizationId,
-      subscriptionId: subscription.id,
-      pricingPlanId: subscription.pricingPlanId,
+      subscriptionId: effectiveSubscription.id,
+      pricingPlanId: effectiveSubscription.pricingPlanId,
       entryType: CreditLedgerEntryType.TRIAL_GRANTED,
       channel: null,
-      quantity: DEFAULT_TRIAL_CREDITS,
+      quantity: defaultPlan.trialCredits,
       balanceAfter: null,
       idempotencyKey: trialGrantIdempotencyKey(organizationId),
       reason: "Initial SelfX trial credits",
-      metadata: { trialCredits: DEFAULT_TRIAL_CREDITS },
+      metadata: {
+        pricingPlanCode: defaultPlan.code,
+        trialCredits: defaultPlan.trialCredits,
+      },
       occurredAt: now,
     });
   }
@@ -578,6 +592,17 @@ export class EntitlementsService {
       }
     }
   }
+
+  private async platformDefaultCurrency(): Promise<string> {
+    try {
+      return (
+        (await this.platformSettings?.platformDefaultCurrency())?.trim() ||
+        "USD"
+      ).toUpperCase();
+    } catch {
+      return "USD";
+    }
+  }
 }
 
 function subscriptionMetadataForPlan(plan: {
@@ -590,18 +615,20 @@ function subscriptionMetadataForPlan(plan: {
   };
 }
 
-function trialSubscriptionMetadata(): Prisma.InputJsonObject {
-  return {
-    trialCredits: DEFAULT_TRIAL_CREDITS,
-    featureKeys: [...DEFAULT_TRIAL_FEATURE_KEYS],
-  };
-}
-
 function subscriptionFeatureKeys(subscription: {
   status: StoreSubscriptionStatus;
   pricingPlanId: string | null;
   metadata: Prisma.JsonValue | null;
+  pricingPlan?: { metadata: Prisma.JsonValue | null } | null;
 }): string[] {
+  if (subscription.pricingPlan) {
+    const pricingPlanFeatureKeys = featureKeysFromPricingPlanMetadata(
+      subscription.pricingPlan.metadata,
+    );
+    if (pricingPlanFeatureKeys.length > 0) {
+      return pricingPlanFeatureKeys;
+    }
+  }
   const featureKeys = featureKeysFromPricingPlanMetadata(subscription.metadata);
   if (featureKeys.length > 0) {
     return featureKeys;

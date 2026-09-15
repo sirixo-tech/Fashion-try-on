@@ -3,6 +3,11 @@ import { PricingPlanStatus, Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  DEFAULT_STARTER_PLAN_CODE,
+  DEFAULT_TRIAL_CREDITS,
+  DEFAULT_TRIAL_FEATURE_KEYS,
+} from "./default-trial.js";
+import {
   PRICING_ERROR_CODES,
   PricingControlService,
 } from "./pricing-control.service.js";
@@ -10,7 +15,10 @@ import {
 describe("PricingControlService", () => {
   it("creates and lists pricing plans from the central catalog", async () => {
     const prisma = new FakePricingPrisma();
-    const service = new PricingControlService(prisma as never);
+    const service = new PricingControlService(
+      prisma as never,
+      createPlatformSettingsMock("INR") as never,
+    );
 
     const created = await service.createPlan({
       code: "shopify-starter",
@@ -36,7 +44,33 @@ describe("PricingControlService", () => {
         featureKeys: ["TRY_ON_WIDGET", "SHOPIFY_INTEGRATION"],
       },
     });
-    await expect(service.listPlans()).resolves.toEqual([created]);
+    await expect(service.listPlans()).resolves.toEqual([
+      expect.objectContaining({
+        code: DEFAULT_STARTER_PLAN_CODE,
+        name: "Default starter pack",
+        currency: "INR",
+        includedCredits: 0,
+        trialCredits: DEFAULT_TRIAL_CREDITS,
+        featureKeys: [...DEFAULT_TRIAL_FEATURE_KEYS],
+        metadata: expect.objectContaining({
+          starterPack: true,
+        }),
+      }),
+      created,
+    ]);
+  });
+
+  it("lists the default starter pack when no pricing plans exist yet", async () => {
+    const prisma = new FakePricingPrisma();
+    const service = new PricingControlService(prisma as never);
+
+    await expect(service.listPlans()).resolves.toEqual([
+      expect.objectContaining({
+        code: DEFAULT_STARTER_PLAN_CODE,
+        name: "Default starter pack",
+        trialCredits: DEFAULT_TRIAL_CREDITS,
+      }),
+    ]);
   });
 
   it("updates plan pricing and kiosk rental fields", async () => {
@@ -63,6 +97,38 @@ describe("PricingControlService", () => {
       name: "Kiosk Standard Plus",
       kioskMonthlyRentCents: 800000,
       kioskDeviceLimit: 2,
+    });
+    expect(prisma.storeSubscription.updateMany).toHaveBeenCalledWith({
+      where: { pricingPlanId: created.id },
+      data: expect.objectContaining({
+        includedCredits: 5000,
+        trialCredits: 10,
+      }),
+    });
+  });
+
+  it("keeps the default starter plan free while allowing plan edits", async () => {
+    const prisma = new FakePricingPrisma();
+    const service = new PricingControlService(prisma as never);
+    const [starterPlan] = await service.listPlans();
+    if (!starterPlan) {
+      throw new Error("Default starter plan was not listed.");
+    }
+
+    const updated = await service.updatePlan(starterPlan.id, {
+      name: "Launch starter",
+      monthlyPriceCents: 9900,
+      extraCreditPriceCents: 99,
+      featureKeys: ["TRY_ON_WIDGET"],
+    });
+
+    expect(updated).toMatchObject({
+      code: DEFAULT_STARTER_PLAN_CODE,
+      name: "Launch starter",
+      monthlyPriceCents: 0,
+      extraCreditPriceCents: null,
+      kioskMonthlyRentCents: null,
+      featureKeys: ["TRY_ON_WIDGET"],
     });
   });
 
@@ -114,7 +180,10 @@ describe("PricingControlService", () => {
       trialCredits: 0,
     });
 
-    await expect(service.listAvailablePlans()).resolves.toEqual([active]);
+    await expect(service.listAvailablePlans()).resolves.toEqual([
+      expect.objectContaining({ code: DEFAULT_STARTER_PLAN_CODE }),
+      active,
+    ]);
   });
 
   it("rejects duplicate plan codes", async () => {
@@ -146,6 +215,35 @@ class FakePricingPrisma {
   plans: Record<string, any>[] = [];
 
   pricingPlan = {
+    upsert: vi.fn(
+      ({
+        where,
+        create,
+        update,
+      }: {
+        where: { code: string };
+        create: Record<string, any>;
+        update: Record<string, any>;
+      }) => {
+        const existing = this.plans.find((plan) => plan.code === where.code);
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+        const now = new Date("2026-09-12T00:00:00.000Z");
+        const plan = {
+          extraCreditPriceCents: null,
+          kioskMonthlyRentCents: null,
+          kioskDeviceLimit: null,
+          metadata: null,
+          ...create,
+          createdAt: now,
+          updatedAt: now,
+        };
+        this.plans.push(plan);
+        return plan;
+      },
+    ),
     findMany: vi.fn(
       ({
         where,
@@ -217,18 +315,35 @@ class FakePricingPrisma {
         where,
         select,
       }: {
-        where: { id: string };
+        where: { id?: string; code?: string };
         select?: Record<string, boolean>;
       }) => {
-        const plan = this.plans.find((item) => item.id === where.id);
+        const plan = this.plans.find((item) =>
+          where.id ? item.id === where.id : item.code === where.code,
+        );
         if (!plan) {
           return null;
         }
         if (select?.metadata) {
-          return { metadata: plan.metadata };
+          return {
+            ...(select.code ? { code: plan.code } : {}),
+            metadata: plan.metadata,
+          };
         }
         return plan;
       },
     ),
+  };
+
+  storeSubscription = {
+    updateMany: vi.fn(),
+  };
+
+  $transaction = vi.fn((callback: (tx: this) => unknown) => callback(this));
+}
+
+function createPlatformSettingsMock(currency: string) {
+  return {
+    platformDefaultCurrency: vi.fn().mockResolvedValue(currency),
   };
 }
