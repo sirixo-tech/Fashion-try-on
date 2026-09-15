@@ -12,7 +12,9 @@ import {
   loadSelfxSecretCipherConfig,
 } from "./selfx-secret.server";
 import {
+  normalizeLanguageLocale,
   normalizeStorefrontLocale,
+  type LanguageLocale,
   type StorefrontLocale,
 } from "./selfx-localization";
 
@@ -26,6 +28,10 @@ export type SelfxConnectionView = {
   pendingLinkExpiresAt: string | null;
   storeName: string | null;
   storefrontLocale: StorefrontLocale;
+  adminLocale: LanguageLocale;
+  visitorTryOnLimit: number;
+  visitorTryOnLimitPeriod: TryOnLimitPeriod;
+  monthlyStoreTryOnLimit: number;
   linkedAt: string | null;
   syncStatus: "NOT_STARTED" | "SYNCING" | "SUCCESS" | "ERROR";
   lastSyncAt: string | null;
@@ -36,6 +42,17 @@ export type SelfxConnectionView = {
   archived: number;
   errorCode: string | null;
   errorMessage: string | null;
+};
+
+export type TryOnLimitPeriod = "DAY" | "WEEK" | "MONTH";
+
+export type SelfxStorefrontSettingsInput = {
+  shop: string;
+  storefrontLocale: string;
+  adminLocale: string;
+  visitorTryOnLimit: unknown;
+  visitorTryOnLimitPeriod: unknown;
+  monthlyStoreTryOnLimit: unknown;
 };
 
 export async function getSelfxConnectionView(
@@ -66,6 +83,12 @@ export async function getSelfxConnectionView(
       connection.pendingLinkExpiresAt?.toISOString() ?? null,
     storeName: connection.selfxStoreName,
     storefrontLocale: normalizeStorefrontLocale(connection.storefrontLocale),
+    adminLocale: normalizeLanguageLocale(connection.adminLocale),
+    visitorTryOnLimit: normalizeLimit(connection.visitorTryOnLimit),
+    visitorTryOnLimitPeriod: normalizeTryOnLimitPeriod(
+      connection.visitorTryOnLimitPeriod,
+    ),
+    monthlyStoreTryOnLimit: normalizeLimit(connection.monthlyStoreTryOnLimit),
     linkedAt: connection.linkedAt?.toISOString() ?? null,
     syncStatus: syncStatus(connection.syncStatus),
     lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
@@ -83,16 +106,40 @@ export async function updateSelfxStorefrontLocale(input: {
   shop: string;
   locale: string;
 }): Promise<SelfxConnectionView> {
-  await db.selfxConnection.upsert({
+  const current = await getSelfxConnectionView(input.shop);
+  return updateSelfxStorefrontSettings({
+    shop: input.shop,
+    storefrontLocale: input.locale,
+    adminLocale: current.adminLocale,
+    visitorTryOnLimit: current.visitorTryOnLimit,
+    visitorTryOnLimitPeriod: current.visitorTryOnLimitPeriod,
+    monthlyStoreTryOnLimit: current.monthlyStoreTryOnLimit,
+  });
+}
+
+export async function updateSelfxStorefrontSettings(
+  input: SelfxStorefrontSettingsInput,
+): Promise<SelfxConnectionView> {
+  const connection = await db.selfxConnection.findUnique({
     where: { shop: input.shop },
-    create: {
-      shop: input.shop,
-      shopifyAccountId: input.shop,
-      status: "NOT_CONNECTED",
-      storefrontLocale: normalizeStorefrontLocale(input.locale),
-    },
-    update: {
-      storefrontLocale: normalizeStorefrontLocale(input.locale),
+    select: { shop: true },
+  });
+  if (!connection) {
+    throw new Error(
+      "Connect this Shopify shop to SelfX before changing settings.",
+    );
+  }
+
+  await db.selfxConnection.update({
+    where: { shop: input.shop },
+    data: {
+      storefrontLocale: normalizeStorefrontLocale(input.storefrontLocale),
+      adminLocale: normalizeLanguageLocale(input.adminLocale),
+      visitorTryOnLimit: normalizeLimit(input.visitorTryOnLimit),
+      visitorTryOnLimitPeriod: normalizeTryOnLimitPeriod(
+        input.visitorTryOnLimitPeriod,
+      ),
+      monthlyStoreTryOnLimit: normalizeLimit(input.monthlyStoreTryOnLimit),
     },
   });
   return getSelfxConnectionView(input.shop);
@@ -418,7 +465,11 @@ function emptyView(shop: string): SelfxConnectionView {
     approvalUrl: null,
     pendingLinkExpiresAt: null,
     storeName: null,
-    storefrontLocale: "en",
+    storefrontLocale: "auto",
+    adminLocale: "en",
+    visitorTryOnLimit: 0,
+    visitorTryOnLimitPeriod: "DAY",
+    monthlyStoreTryOnLimit: 0,
     linkedAt: null,
     syncStatus: "NOT_STARTED",
     lastSyncAt: null,
@@ -430,6 +481,18 @@ function emptyView(shop: string): SelfxConnectionView {
     errorCode: null,
     errorMessage: null,
   };
+}
+
+function normalizeLimit(value: unknown): number {
+  const parsed =
+    typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(Math.floor(parsed), 1_000_000);
+}
+
+function normalizeTryOnLimitPeriod(value: unknown): TryOnLimitPeriod {
+  const clean = String(value ?? "").trim().toUpperCase();
+  return clean === "WEEK" || clean === "MONTH" ? clean : "DAY";
 }
 
 function normalizeShopDomain(value: string): string {

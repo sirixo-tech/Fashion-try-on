@@ -30,6 +30,10 @@ describe("ShopifyStorefrontTryOnService", () => {
       shop: " Merchant.MyShopify.com ",
       externalProductId: "gid://shopify/Product/1001",
       locale: "es-MX",
+      visitorToken: "v".repeat(43),
+      visitorTryOnLimit: 3,
+      visitorTryOnLimitPeriod: "DAY",
+      monthlyStoreTryOnLimit: 20,
     });
 
     expect(created.session).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -42,7 +46,11 @@ describe("ShopifyStorefrontTryOnService", () => {
       externalProductId: "gid://shopify/Product/1001",
       productHandle: "linen-shirt",
       storefrontLocale: "es",
+      visitorTryOnLimit: 3,
+      visitorLimitPeriod: "DAY",
+      monthlyStoreTryOnLimit: 20,
     });
+    expect(prisma.createdCapability?.visitorTokenHash).toMatch(/^[a-f0-9]{64}$/);
     expect(created.locale).toBe("es");
     expect(JSON.stringify(prisma.createdCapability)).not.toContain(
       created.session,
@@ -105,6 +113,54 @@ describe("ShopifyStorefrontTryOnService", () => {
     });
   });
 
+  it("fails safely when the monthly Shopify store cap is reached", async () => {
+    const prisma = new FakePrisma();
+    prisma.monthlyShopifyRuns = 10;
+    const storage = new FakeStorage();
+    const service = serviceFor(prisma, new FakeTryOnSessions(), storage);
+
+    await expect(
+      service.createSession({
+        source: "shopify",
+        shop: "merchant.myshopify.com",
+        externalProductId: "gid://shopify/Product/1001",
+        monthlyStoreTryOnLimit: 10,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.monthlyLimitReached,
+        }),
+      }),
+    });
+    expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
+  it("fails safely when the per-visitor Shopify limit is reached", async () => {
+    const prisma = new FakePrisma();
+    prisma.visitorShopifyRuns = 5;
+    const storage = new FakeStorage();
+    const service = serviceFor(prisma, new FakeTryOnSessions(), storage);
+
+    await expect(
+      service.createSession({
+        source: "shopify",
+        shop: "merchant.myshopify.com",
+        externalProductId: "gid://shopify/Product/1001",
+        visitorToken: "v".repeat(43),
+        visitorTryOnLimit: 5,
+        visitorTryOnLimitPeriod: "DAY",
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.visitorLimitReached,
+        }),
+      }),
+    });
+    expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
   it("returns privacy-safe Shopify storefront usage summary", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-14T12:00:00.000Z"));
@@ -153,6 +209,34 @@ describe("ShopifyStorefrontTryOnService", () => {
       _sum: { quantity: true },
     });
   });
+
+  it("returns only active Shopify-compatible plans", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+
+    const plans = await service.getAvailablePlansForShop(
+      "merchant.myshopify.com",
+    );
+
+    expect(plans.data).toEqual([
+      expect.objectContaining({
+        id: "plan-shopify-growth",
+        code: "shopify-growth",
+        name: "Shopify Growth",
+        channels: ["SHOPIFY"],
+        monthlyPriceCents: 4999,
+        includedCredits: 200,
+      }),
+    ]);
+    expect(prisma.pricingPlan.findMany).toHaveBeenCalledWith({
+      where: { status: "ACTIVE" },
+      orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
+    });
+  });
 });
 
 function serviceFor(
@@ -177,6 +261,8 @@ function serviceFor(
 
 class FakePrisma {
   integrationConnected = true;
+  monthlyShopifyRuns = 0;
+  visitorShopifyRuns = 0;
   product = {
     id: "product-1",
     name: "Linen Shirt",
@@ -228,6 +314,10 @@ class FakePrisma {
 
   kioskTryOnRun = {
     count: vi.fn(({ where }: { where: Record<string, any> }) => {
+      const shopifyCapability =
+        where.tryOnSession?.shopifyStorefrontTryOnSession;
+      if (shopifyCapability?.visitorTokenHash) return this.visitorShopifyRuns;
+      if (shopifyCapability?.shopDomain) return this.monthlyShopifyRuns;
       if (!where.createdAt) return 12;
       if (where.status === "COMPLETED") return 4;
       if (where.status === "FAILED") return 1;
@@ -246,6 +336,45 @@ class FakePrisma {
     aggregate: vi.fn(() => ({
       _sum: { quantity: -5 },
     })),
+  };
+
+  pricingPlan = {
+    findMany: vi.fn(() => [
+      {
+        id: "plan-shopify-growth",
+        code: "shopify-growth",
+        name: "Shopify Growth",
+        status: "ACTIVE",
+        channels: ["SHOPIFY"],
+        currency: "INR",
+        monthlyPriceCents: 4999,
+        includedCredits: 200,
+        trialCredits: 10,
+        extraCreditPriceCents: 49,
+        kioskMonthlyRentCents: null,
+        kioskDeviceLimit: null,
+        metadata: null,
+        createdAt: new Date("2026-09-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+      },
+      {
+        id: "plan-kiosk-pro",
+        code: "kiosk-pro",
+        name: "Kiosk Pro",
+        status: "ACTIVE",
+        channels: ["KIOSK"],
+        currency: "INR",
+        monthlyPriceCents: 12999,
+        includedCredits: 500,
+        trialCredits: 10,
+        extraCreditPriceCents: 29,
+        kioskMonthlyRentCents: 300000,
+        kioskDeviceLimit: 1,
+        metadata: null,
+        createdAt: new Date("2026-09-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+      },
+    ]),
   };
 
 }

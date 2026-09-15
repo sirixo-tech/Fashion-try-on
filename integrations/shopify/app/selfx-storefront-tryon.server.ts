@@ -43,6 +43,24 @@ export type SelfxStorefrontCreditSummary = {
   } | null;
 };
 
+export type SelfxStorefrontPricingPlan = {
+  id: string;
+  code: string;
+  name: string;
+  channels: string[];
+  currency: string;
+  monthlyPriceCents: number;
+  includedCredits: number;
+  trialCredits: number;
+  extraCreditPriceCents: number | null;
+  kioskMonthlyRentCents: number | null;
+  kioskDeviceLimit: number | null;
+};
+
+export type SelfxStorefrontPricingPlans = {
+  data: SelfxStorefrontPricingPlan[];
+};
+
 export type SelfxStorefrontUsageSummary = {
   totalTryOns: number;
   thisMonth: {
@@ -80,6 +98,10 @@ export class SelfxStorefrontTryOnClient {
     externalProductId?: string;
     productHandle?: string;
     locale?: string;
+    visitorToken?: string;
+    visitorTryOnLimit?: number;
+    visitorTryOnLimitPeriod?: string;
+    monthlyStoreTryOnLimit?: number;
   }): Promise<SelfxStorefrontTryOnCreated> {
     const result = await this.request<SelfxStorefrontTryOnCreated>("", {
       method: "POST",
@@ -113,6 +135,18 @@ export class SelfxStorefrontTryOnClient {
       !Number.isFinite(result.totalTryOns) ||
       !Number.isFinite(result.thisMonth?.tryOns)
     ) {
+      throw invalidResponse();
+    }
+    return result;
+  }
+
+  async getAvailablePlans(shop: string): Promise<SelfxStorefrontPricingPlans> {
+    const search = new URLSearchParams({ shop });
+    const result = await this.request<SelfxStorefrontPricingPlans>(
+      `/plans?${search.toString()}`,
+      { method: "GET" },
+    );
+    if (!Array.isArray(result.data)) {
       throw invalidResponse();
     }
     return result;

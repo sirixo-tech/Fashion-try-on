@@ -133,7 +133,7 @@ const navItems: SelfxNavItem[] = [
       { href: "/app/settings", label: "Settings", icon: SettingsIcon },
       {
         href: "/app/platform/pricing",
-        label: "Pricing Control",
+        label: "Plans",
         icon: CreditCardIcon,
       },
       { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },

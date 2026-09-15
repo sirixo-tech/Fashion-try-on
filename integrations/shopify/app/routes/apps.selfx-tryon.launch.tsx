@@ -1,10 +1,15 @@
+import { randomBytes } from "node:crypto";
+
 import type { LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { storefrontTryOnErrorMarkup } from "../selfx-storefront-error.server";
-import { normalizeStorefrontLocale } from "../selfx-localization";
+import {
+  normalizeLanguageLocale,
+  normalizeStorefrontLocale,
+} from "../selfx-localization";
 import { loadSelfxLinkConfig, SelfxLinkApiError } from "../selfx-link.server";
 import {
   buildStorefrontTryOnSessionUrl,
@@ -13,6 +18,8 @@ import {
 } from "../selfx-storefront-tryon.server";
 
 type AppProxyContext = Awaited<ReturnType<typeof authenticate.public.appProxy>>;
+
+const visitorCookieName = "selfx_tryon_visitor";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let context: AppProxyContext | null = null;
@@ -32,7 +39,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const connection = await db.selfxConnection.findUnique({
       where: { shop },
-      select: { status: true, storefrontLocale: true },
+      select: {
+        status: true,
+        storefrontLocale: true,
+        visitorTryOnLimit: true,
+        visitorTryOnLimitPeriod: true,
+        monthlyStoreTryOnLimit: true,
+      },
     });
 
     if (connection?.status !== "CONNECTED") {
@@ -59,22 +72,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const client = new SelfxStorefrontTryOnClient(loadSelfxLinkConfig());
-    const locale = normalizeStorefrontLocale(connection.storefrontLocale);
+    const requestedLocale = normalizeLanguageLocale(
+      url.searchParams.get("locale"),
+    );
+    const configuredLocale = normalizeStorefrontLocale(
+      connection.storefrontLocale,
+    );
+    const locale =
+      configuredLocale === "auto" ? requestedLocale : configuredLocale;
+    const visitor = visitorToken(request);
     const session = await client.createSession({
       source: "shopify",
       shop,
       locale,
+      visitorToken: visitor.value,
+      visitorTryOnLimit: normalizeLimit(connection.visitorTryOnLimit),
+      visitorTryOnLimitPeriod: normalizeLimitPeriod(
+        connection.visitorTryOnLimitPeriod,
+      ),
+      monthlyStoreTryOnLimit: normalizeLimit(
+        connection.monthlyStoreTryOnLimit,
+      ),
       ...(product.externalProductId
         ? { externalProductId: product.externalProductId }
         : {}),
       ...(product.productHandle ? { productHandle: product.productHandle } : {}),
     });
-    return redirect(
+    const response = redirect(
       buildStorefrontTryOnSessionUrl({
         baseUrl: launchBaseUrl,
         session: session.session,
       }),
     );
+    if (visitor.setCookie) {
+      response.headers.append("Set-Cookie", visitor.setCookie);
+    }
+    return response;
   } catch (error) {
     console.error("SelfX storefront Try-On launch failed", safeErrorLog(error));
     if (context) {
@@ -97,6 +130,47 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function SelfxTryOnLaunchRoute(): null {
   return null;
+}
+
+function visitorToken(request: Request): { value: string; setCookie: string | null } {
+  const existing = parseCookie(request.headers.get("cookie"))[visitorCookieName];
+  if (existing && /^[A-Za-z0-9_-]{43}$/.test(existing)) {
+    return { value: existing, setCookie: null };
+  }
+  const value = randomBytes(32).toString("base64url");
+  return {
+    value,
+    setCookie: [
+      `${visitorCookieName}=${value}`,
+      "Path=/apps/selfx-tryon",
+      "Max-Age=31536000",
+      "HttpOnly",
+      "Secure",
+      "SameSite=Lax",
+    ].join("; "),
+  };
+}
+
+function parseCookie(header: string | null): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const part of header?.split(";") ?? []) {
+    const [name, ...valueParts] = part.trim().split("=");
+    if (!name || valueParts.length === 0) continue;
+    result[name] = decodeURIComponent(valueParts.join("="));
+  }
+  return result;
+}
+
+function normalizeLimit(value: unknown): number {
+  const parsed =
+    typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(Math.floor(parsed), 1_000_000);
+}
+
+function normalizeLimitPeriod(value: unknown): "DAY" | "WEEK" | "MONTH" {
+  const clean = String(value ?? "").trim().toUpperCase();
+  return clean === "WEEK" || clean === "MONTH" ? clean : "DAY";
 }
 
 function storefrontTryOnBaseUrl(): string | null {
@@ -159,6 +233,18 @@ function messageForLaunchError(error: unknown): string {
     error.code === "SHOPIFY_STOREFRONT_TRYON_PRODUCT_UNAVAILABLE"
   ) {
     return "This product is not available for SelfX Try-On right now.";
+  }
+  if (
+    error instanceof SelfxLinkApiError &&
+    error.code === "SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED"
+  ) {
+    return "This store has reached its monthly SelfX Try-On limit.";
+  }
+  if (
+    error instanceof SelfxLinkApiError &&
+    error.code === "SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED"
+  ) {
+    return "You have reached this store's Try-On limit for now.";
   }
   return "SelfX Try-On could not be started for this product yet.";
 }

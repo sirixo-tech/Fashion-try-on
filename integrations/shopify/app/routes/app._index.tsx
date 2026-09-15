@@ -1,15 +1,29 @@
 import { useEffect, useState, type ReactNode } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Form, useActionData, useLoaderData, useLocation } from "react-router";
+import type {
+  ActionFunctionArgs,
+  LoaderFunctionArgs,
+  ShouldRevalidateFunctionArgs,
+} from "react-router";
+import {
+  Form,
+  useActionData,
+  useFetcher,
+  useLoaderData,
+  useLocation,
+} from "react-router";
 
 import {
   getSelfxIntegrationToken,
   getSelfxConnectionView,
-  updateSelfxStorefrontLocale,
+  updateSelfxStorefrontSettings,
   type SelfxConnectionView,
 } from "../selfx-connection.server";
 import {
+  adminT,
+  languageLocaleLabel,
+  normalizeLanguageLocale,
   normalizeStorefrontLocale,
+  supportedLanguageLocales,
   supportedStorefrontLocales,
   storefrontLocaleLabel,
 } from "../selfx-localization";
@@ -22,6 +36,7 @@ import {
 import {
   SelfxStorefrontTryOnClient,
   type SelfxStorefrontCreditSummary,
+  type SelfxStorefrontPricingPlan,
   type SelfxStorefrontUsageSummary,
 } from "../selfx-storefront-tryon.server";
 import { loadSelfxLinkConfig } from "../selfx-link.server";
@@ -30,6 +45,11 @@ import { ShopifyAdminClient } from "../../src/shopify-admin.server";
 
 const tryOnBlockHandle = "selfx_try_it_on";
 const lowCreditThreshold = 20;
+const limitPeriods = [
+  { value: "DAY", textKey: "daily" },
+  { value: "WEEK", textKey: "weekly" },
+  { value: "MONTH", textKey: "monthly" },
+] as const;
 
 type ThemeBlockView = {
   status: "NOT_CHECKED" | "INSTALLED" | "NOT_INSTALLED" | "UNAVAILABLE";
@@ -50,6 +70,11 @@ type ProductActionData =
       productActionSuccess: string | null;
       settingsActionError?: string | null;
       settingsActionSuccess?: string | null;
+      settingsStorefrontLocale?: string | null;
+      settingsAdminLocale?: string | null;
+      settingsVisitorTryOnLimit?: number | null;
+      settingsVisitorTryOnLimitPeriod?: string | null;
+      settingsMonthlyStoreTryOnLimit?: number | null;
     }
   | undefined;
 
@@ -136,6 +161,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: session.shop,
     }),
     creditSummary: await safeCreditSummary(session.shop, connection),
+    availablePlans: await safeAvailablePlans(session.shop, connection),
     usageSummary: await safeUsageSummary(session.shop, connection),
     productControls: await safeProductControls(session.shop, connection),
     selfxBillingUrl: safeSelfxBillingUrl(connection),
@@ -147,19 +173,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
-  if (intent === "setStorefrontLocale") {
+  if (intent === "setStorefrontSettings") {
     try {
-      const connection = await updateSelfxStorefrontLocale({
+      const connection = await updateSelfxStorefrontSettings({
         shop: session.shop,
-        locale: normalizeStorefrontLocale(formData.get("storefrontLocale")),
+        storefrontLocale: normalizeStorefrontLocale(
+          formData.get("storefrontLocale"),
+        ),
+        adminLocale: normalizeLanguageLocale(formData.get("adminLocale")),
+        visitorTryOnLimit: formData.get("visitorTryOnLimit"),
+        visitorTryOnLimitPeriod: formData.get("visitorTryOnLimitPeriod"),
+        monthlyStoreTryOnLimit: formData.get("monthlyStoreTryOnLimit"),
       });
       return {
         productActionError: null,
         productActionSuccess: null,
         settingsActionError: null,
-        settingsActionSuccess: `Storefront language updated to ${storefrontLocaleLabel(
-          connection.storefrontLocale,
-        )}.`,
+        settingsActionSuccess: "Storefront settings updated.",
+        settingsStorefrontLocale: connection.storefrontLocale,
+        settingsAdminLocale: connection.adminLocale,
+        settingsVisitorTryOnLimit: connection.visitorTryOnLimit,
+        settingsVisitorTryOnLimitPeriod: connection.visitorTryOnLimitPeriod,
+        settingsMonthlyStoreTryOnLimit: connection.monthlyStoreTryOnLimit,
       };
     } catch (error) {
       return {
@@ -168,8 +203,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         settingsActionError:
           error instanceof Error
             ? error.message
-            : "SelfX could not update storefront language.",
+            : "SelfX could not update storefront settings.",
         settingsActionSuccess: null,
+        settingsStorefrontLocale: null,
+        settingsAdminLocale: null,
+        settingsVisitorTryOnLimit: null,
+        settingsVisitorTryOnLimitPeriod: null,
+        settingsMonthlyStoreTryOnLimit: null,
       };
     }
   }
@@ -208,6 +248,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 };
 
+export const shouldRevalidate = ({
+  defaultShouldRevalidate,
+  formData,
+}: ShouldRevalidateFunctionArgs) => {
+  if (formData?.get("intent") === "setStorefrontSettings") {
+    return false;
+  }
+  return defaultShouldRevalidate;
+};
+
 export default function Index() {
   const loaded = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -218,6 +268,7 @@ export default function Index() {
   const connection = loaded.connection;
   const themeBlock = loaded.themeBlock;
   const creditSummary = loaded.creditSummary;
+  const availablePlans = loaded.availablePlans;
   const usageSummary = loaded.usageSummary;
   const productControls = loaded.productControls;
   const selfxBillingUrl = loaded.selfxBillingUrl;
@@ -266,9 +317,11 @@ export default function Index() {
   const planName =
     creditSummary?.subscription?.pricingPlan?.name ??
     (connected ? "Trial" : "Not connected");
+  const t = (key: Parameters<typeof adminT>[1]) => adminT(connection.adminLocale, key);
 
   return (
-    <s-page heading="SelfX Virtual Try-On" inlineSize="large">
+    <s-page heading={t("appHeading")} inlineSize="large">
+      <SelfxShopifyStyles />
       <StatusAlerts
         actionError={actionError}
         actionData={actionData}
@@ -280,9 +333,6 @@ export default function Index() {
         connected={connected}
         connection={connection}
         storefrontLocale={connection.storefrontLocale}
-        pending={pending}
-        storefrontReady={storefrontReady}
-        themeBlock={themeBlock}
         completeActionPath={completeActionPath}
         connectActionPath={connectActionPath}
         restartActionPath={restartActionPath}
@@ -326,14 +376,15 @@ export default function Index() {
         usedCredits={usedCredits}
       />
 
-      <s-grid gridTemplateColumns="16rem minmax(0, 1fr)" gap="base">
-        <s-grid-item>
+      <div className="selfx-shopify-panel-layout">
+        <aside className="selfx-shopify-panel-nav">
           <ShopifyPanelNavigation
             activePanel={activePanel}
+            adminLocale={connection.adminLocale}
             onChange={setActivePanel}
           />
-        </s-grid-item>
-        <s-grid-item>
+        </aside>
+        <main className="selfx-shopify-panel-main">
           <ShopifyPanelContent
             activePanel={activePanel}
             availableCredits={availableCredits}
@@ -352,8 +403,8 @@ export default function Index() {
             themeEditorUrl={themeEditorUrl}
             usageSummary={usageSummary}
           />
-        </s-grid-item>
-      </s-grid>
+        </main>
+      </div>
     </s-page>
   );
 }
@@ -426,9 +477,7 @@ function MerchantAppHeader({
   storefrontLocale,
   pending,
   restartActionPath,
-  storefrontReady,
   syncActionPath,
-  themeBlock,
 }: {
   completeActionPath: string;
   connectActionPath: string;
@@ -437,10 +486,14 @@ function MerchantAppHeader({
   storefrontLocale: string;
   pending: boolean;
   restartActionPath: string;
-  storefrontReady: boolean;
   syncActionPath: string;
-  themeBlock: ThemeBlockView;
 }) {
+  const fetcher = useFetcher<ProductActionData>();
+  const saving = fetcher.state !== "idle";
+  const currentAdminLocale =
+    fetcher.data?.settingsAdminLocale ?? connection.adminLocale;
+  const t = (key: Parameters<typeof adminT>[1]) => adminT(currentAdminLocale, key);
+
   return (
     <s-section>
       <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
@@ -463,15 +516,45 @@ function MerchantAppHeader({
         </s-grid-item>
         <s-grid-item>
           <s-stack direction="inline" gap="base" alignItems="center">
-            <ConnectionBadge status={connection.status} />
-            <s-badge tone="info">
-              {storefrontLocaleLabel(storefrontLocale)}
-            </s-badge>
-            {storefrontReady ? (
-              <s-badge tone="success">Storefront ready</s-badge>
-            ) : (
-              <ThemeBlockBadge status={themeBlock.status} />
-            )}
+            <fetcher.Form method="post" className="selfx-shopify-language-form">
+              <input type="hidden" name="intent" value="setStorefrontSettings" />
+              <input
+                type="hidden"
+                name="storefrontLocale"
+                value={storefrontLocale}
+              />
+              <input
+                type="hidden"
+                name="visitorTryOnLimit"
+                value={String(connection.visitorTryOnLimit)}
+              />
+              <input
+                type="hidden"
+                name="visitorTryOnLimitPeriod"
+                value={connection.visitorTryOnLimitPeriod}
+              />
+              <input
+                type="hidden"
+                name="monthlyStoreTryOnLimit"
+                value={String(connection.monthlyStoreTryOnLimit)}
+              />
+              <div className="selfx-shopify-language-form__inner">
+                <s-select
+                  label={t("adminPanelLanguage")}
+                  name="adminLocale"
+                  value={currentAdminLocale}
+                >
+                  {supportedLanguageLocales.map((locale) => (
+                    <s-option key={locale.code} value={locale.code}>
+                      {locale.label}
+                    </s-option>
+                  ))}
+                </s-select>
+                <SelfxActionButton type="submit" disabled={saving}>
+                  {saving ? t("saving") : t("saveSettings")}
+                </SelfxActionButton>
+              </div>
+            </fetcher.Form>
             <s-button href={syncActionPath} variant="secondary" icon="refresh">
               Refresh
             </s-button>
@@ -601,22 +684,24 @@ function CreditUsagePanel({
 
 function ShopifyPanelNavigation({
   activePanel,
+  adminLocale,
   onChange,
 }: {
   activePanel: ShopifyAdminPanelKey;
+  adminLocale: string;
   onChange: (panel: ShopifyAdminPanelKey) => void;
 }) {
   return (
     <s-section>
       <s-stack gap="small-200">
         {shopifyAdminPanels.map((panel) => (
-          <s-button
+          <SelfxPanelTab
             key={panel.key}
-            variant={activePanel === panel.key ? "primary" : "tertiary"}
+            active={activePanel === panel.key}
             onClick={() => onChange(panel.key)}
           >
-            {panel.label}
-          </s-button>
+            {adminT(adminLocale, panel.key)}
+          </SelfxPanelTab>
         ))}
       </s-stack>
     </s-section>
@@ -695,8 +780,10 @@ function ShopifyPanelContent({
   if (activePanel === "plans") {
     return (
       <PlansPanel
+        availablePlans={availablePlans}
         billingUrl={selfxBillingUrl}
         creditHealth={creditHealth}
+        creditSummary={creditSummary}
         availableCredits={availableCredits}
         includedCredits={includedCredits}
       />
@@ -760,14 +847,14 @@ function SetupPanel({
               )}
             </s-grid-item>
           </s-grid>
-          <s-button
-            variant="primary"
+          <SelfxActionButton
+            tone="primary"
             href={themeEditorUrl ?? undefined}
             target="_blank"
             disabled={!connected || !themeEditorUrl}
           >
             Open Theme Editor - Product Pages
-          </s-button>
+          </SelfxActionButton>
           <s-stack gap="base">
             {setupSteps.map((step, index) => (
               <SetupInstruction
@@ -957,37 +1044,129 @@ function LanguageSettingsPanel({
 }: {
   connection: SelfxConnectionView;
 }) {
+  const fetcher = useFetcher<ProductActionData>();
+  const saving = fetcher.state !== "idle";
+  const currentLocale =
+    fetcher.data?.settingsStorefrontLocale ?? connection.storefrontLocale;
+  const currentAdminLocale =
+    fetcher.data?.settingsAdminLocale ?? connection.adminLocale;
+  const currentVisitorLimit =
+    fetcher.data?.settingsVisitorTryOnLimit ?? connection.visitorTryOnLimit;
+  const currentVisitorLimitPeriod =
+    fetcher.data?.settingsVisitorTryOnLimitPeriod ??
+    connection.visitorTryOnLimitPeriod;
+  const currentMonthlyLimit =
+    fetcher.data?.settingsMonthlyStoreTryOnLimit ??
+    connection.monthlyStoreTryOnLimit;
+  const t = (key: Parameters<typeof adminT>[1]) => adminT(currentAdminLocale, key);
+
   return (
-    <s-section heading="Storefront language">
+    <s-section heading={t("settings")}>
       <s-stack gap="base">
-        <s-text color="subdued">
-          Choose the shopper-facing language for the SelfX Try-On launch page.
-          The Shopify theme block also includes auto-localized defaults for new
-          installations.
-        </s-text>
-        <Form method="post">
-          <input type="hidden" name="intent" value="setStorefrontLocale" />
-          <s-grid gridTemplateColumns="minmax(0, 1fr) auto" gap="base" alignItems="end">
-            <s-grid-item>
-              <s-select
-                label="Storefront language"
-                name="storefrontLocale"
-                value={connection.storefrontLocale}
-              >
-                {supportedStorefrontLocales.map((locale) => (
-                  <s-option key={locale.code} value={locale.code}>
-                    {locale.label}
-                  </s-option>
-                ))}
-              </s-select>
-            </s-grid-item>
-            <s-grid-item>
-              <s-button type="submit" variant="primary">
-                Save language
-              </s-button>
-            </s-grid-item>
-          </s-grid>
-        </Form>
+        {fetcher.data?.settingsActionError ? (
+          <s-banner heading={t("settingsFailed")} tone="critical">
+            {fetcher.data.settingsActionError}
+          </s-banner>
+        ) : null}
+        {fetcher.data?.settingsActionSuccess ? (
+          <s-banner heading={t("settingsUpdated")} tone="success">
+            {fetcher.data.settingsActionSuccess}
+          </s-banner>
+        ) : null}
+        <fetcher.Form method="post">
+          <input type="hidden" name="intent" value="setStorefrontSettings" />
+          <s-stack gap="base">
+            <s-grid
+              gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
+              gap="base"
+            >
+              <s-grid-item>
+                <s-number-field
+                  label={t("maxTryOnsPerVisitor")}
+                  name="visitorTryOnLimit"
+                  value={String(currentVisitorLimit)}
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                />
+              </s-grid-item>
+              <s-grid-item>
+                <s-select
+                  label={t("visitorLimitPeriod")}
+                  name="visitorTryOnLimitPeriod"
+                  value={currentVisitorLimitPeriod}
+                >
+                  {limitPeriods.map((period) => (
+                    <s-option key={period.value} value={period.value}>
+                      {t(period.textKey)}
+                    </s-option>
+                  ))}
+                </s-select>
+              </s-grid-item>
+            </s-grid>
+            <s-text color="subdued">
+              {currentVisitorLimit > 0
+                ? `Each visitor can use up to ${currentVisitorLimit} Try-Ons per ${limitPeriodLabel(
+                    currentVisitorLimitPeriod,
+                  )}.`
+                : "Per-visitor limits are off. Plan credits still apply."}
+            </s-text>
+            <s-divider />
+            <s-number-field
+              label={t("monthlyStoreCap")}
+              name="monthlyStoreTryOnLimit"
+              value={String(currentMonthlyLimit)}
+              min={0}
+              step={1}
+              inputMode="numeric"
+            />
+            <s-text color="subdued">
+              {currentMonthlyLimit > 0
+                ? `This Shopify store can run up to ${currentMonthlyLimit} Try-Ons per calendar month.`
+                : "No custom monthly cap is set. The SelfX plan credit limit is still enforced."}
+            </s-text>
+            <s-divider />
+            <s-select
+              label={t("storefrontWidgetLanguage")}
+              name="storefrontLocale"
+              value={currentLocale}
+            >
+              {supportedStorefrontLocales.map((locale) => (
+                <s-option key={locale.code} value={locale.code}>
+                  {locale.label}
+                </s-option>
+              ))}
+            </s-select>
+            <s-text color="subdued">
+              {currentLocale === "auto"
+                ? "Auto follows the shopper's Shopify storefront language when available."
+                : `Shoppers will see ${storefrontLocaleLabel(
+                    currentLocale,
+                  )} for the SelfX Try-On launch page.`}
+            </s-text>
+            <s-divider />
+            <s-grid gridTemplateColumns="minmax(0, 1fr) auto" gap="base" alignItems="end">
+              <s-grid-item>
+                <s-select
+                  label={t("adminPanelLanguage")}
+                  name="adminLocale"
+                  value={currentAdminLocale}
+                >
+                  {supportedLanguageLocales.map((locale) => (
+                    <s-option key={locale.code} value={locale.code}>
+                      {locale.label}
+                    </s-option>
+                  ))}
+                </s-select>
+              </s-grid-item>
+              <s-grid-item>
+                <SelfxActionButton type="submit" tone="primary" disabled={saving}>
+                  {saving ? t("saving") : t("saveSettings")}
+                </SelfxActionButton>
+              </s-grid-item>
+            </s-grid>
+          </s-stack>
+        </fetcher.Form>
         <s-box
           padding="base"
           background="subdued"
@@ -996,14 +1175,20 @@ function LanguageSettingsPanel({
           borderRadius="base"
         >
           <s-text color="subdued">
-            Current storefront language:{" "}
-            {storefrontLocaleLabel(connection.storefrontLocale)}. Arabic uses a
-            right-to-left shopper layout.
+            Current admin language: {languageLocaleLabel(currentAdminLocale)}.
+            Current storefront language: {storefrontLocaleLabel(currentLocale)}.
+            Arabic uses a right-to-left shopper layout.
           </s-text>
         </s-box>
       </s-stack>
     </s-section>
   );
+}
+
+function limitPeriodLabel(period: string): string {
+  if (period === "WEEK") return "week";
+  if (period === "MONTH") return "month";
+  return "day";
 }
 
 function AnalyticsPanel({
@@ -1099,16 +1284,30 @@ function AnalyticsPanel({
 }
 
 function PlansPanel({
+  availablePlans,
   availableCredits,
   billingUrl,
   creditHealth,
+  creditSummary,
   includedCredits,
 }: {
+  availablePlans: SelfxStorefrontPricingPlan[];
   availableCredits: number;
   billingUrl: string | null;
   creditHealth: CreditHealth;
+  creditSummary: SelfxStorefrontCreditSummary | null;
   includedCredits: number;
 }) {
+  const currentPlan = creditSummary?.subscription?.pricingPlan ?? null;
+  const currentPlanId = currentPlan?.id ?? null;
+  const currentPlanCode = currentPlan?.code ?? null;
+  const hasCurrentPlanInCatalog = availablePlans.some(
+    (plan) =>
+      (currentPlanId && plan.id === currentPlanId) ||
+      (currentPlanCode && plan.code === currentPlanCode),
+  );
+  const currentPlanLabel = currentPlan?.name ?? "Trial";
+
   return (
     <s-section heading="Plans">
       <s-stack gap="base">
@@ -1119,17 +1318,177 @@ function PlansPanel({
           <Metric label="Available credits" value={availableCredits} />
           <Metric label="Plan credits" value={includedCredits} />
         </s-grid>
-        <s-stack direction="inline" gap="base" alignItems="center">
-          <CreditBadge health={creditHealth} />
-          {billingUrl ? (
-            <s-button href={billingUrl} target="_blank" variant="primary">
-              View Plans in SelfX
-            </s-button>
-          ) : null}
-        </s-stack>
+        <s-box
+          padding="base"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack direction="inline" gap="base" alignItems="center">
+            <CreditBadge health={creditHealth} />
+            <s-stack gap="small-200">
+              <s-heading>{currentPlanLabel}</s-heading>
+              <s-text color="subdued">
+                Manage upgrades and billing in your SelfX dashboard.
+              </s-text>
+            </s-stack>
+          </s-stack>
+        </s-box>
+        {availablePlans.length > 0 ? (
+          <div className="selfx-shopify-plan-grid">
+            {!currentPlan ? (
+              <PlanCard
+                active
+                billingUrl={billingUrl}
+                plan={{
+                  id: "trial",
+                  code: "trial",
+                  name: "Trial",
+                  currency: "USD",
+                  monthlyPriceCents: 0,
+                  includedCredits,
+                  trialCredits: creditSummary?.subscription?.trialCredits ?? 10,
+                  extraCreditPriceCents: null,
+                  kioskMonthlyRentCents: null,
+                  kioskDeviceLimit: null,
+                  channels: ["SHOPIFY"],
+                }}
+              />
+            ) : null}
+            {currentPlan && !hasCurrentPlanInCatalog ? (
+              <PlanCard
+                active
+                billingUrl={billingUrl}
+                plan={{
+                  id: currentPlan.id,
+                  code: currentPlan.code,
+                  name: currentPlan.name,
+                  currency: currentPlan.currency,
+                  monthlyPriceCents: currentPlan.monthlyPriceCents,
+                  includedCredits: currentPlan.includedCredits,
+                  trialCredits: creditSummary?.subscription?.trialCredits ?? 0,
+                  extraCreditPriceCents: currentPlan.extraCreditPriceCents,
+                  kioskMonthlyRentCents: currentPlan.kioskMonthlyRentCents,
+                  kioskDeviceLimit: currentPlan.kioskDeviceLimit,
+                  channels: currentPlan.channels,
+                }}
+              />
+            ) : null}
+            {availablePlans.map((plan) => {
+              const active =
+                (currentPlanId != null && plan.id === currentPlanId) ||
+                (currentPlanCode != null && plan.code === currentPlanCode);
+              return (
+                <PlanCard
+                  key={plan.id}
+                  active={active}
+                  billingUrl={billingUrl}
+                  plan={plan}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <s-box
+            padding="base"
+            background="subdued"
+            borderWidth="small"
+            borderColor="base"
+            borderRadius="base"
+          >
+            <s-stack gap="base">
+              <s-text color="subdued">
+                SelfX plans are not available in Shopify right now.
+              </s-text>
+              {billingUrl ? (
+                <SelfxActionButton
+                  href={billingUrl}
+                  target="_blank"
+                  tone="primary"
+                >
+                  View Plans in SelfX
+                </SelfxActionButton>
+              ) : null}
+            </s-stack>
+          </s-box>
+        )}
       </s-stack>
     </s-section>
   );
+}
+
+function PlanCard({
+  active,
+  billingUrl,
+  plan,
+}: {
+  active: boolean;
+  billingUrl: string | null;
+  plan: SelfxStorefrontPricingPlan;
+}) {
+  const channelLabel = plan.channels.includes("SHOPIFY")
+    ? "Shopify storefront"
+    : plan.channels.join(", ");
+  return (
+    <div className={`selfx-shopify-plan-card${active ? " is-active" : ""}`}>
+      <div className="selfx-shopify-plan-card__header">
+        <div>
+          <div className="selfx-shopify-plan-card__name">{plan.name}</div>
+          <div className="selfx-shopify-plan-card__code">{plan.code}</div>
+        </div>
+        {active ? (
+          <span className="selfx-shopify-plan-pill selfx-shopify-plan-pill--active">
+            Active
+          </span>
+        ) : null}
+      </div>
+      <div className="selfx-shopify-plan-card__price">
+        {formatMoney(plan.monthlyPriceCents, plan.currency)}
+        <span> / month</span>
+      </div>
+      <div className="selfx-shopify-plan-card__stats">
+        <div>
+          <span>Credits</span>
+          <strong>{plan.includedCredits}</strong>
+        </div>
+        <div>
+          <span>Extra credit</span>
+          <strong>{formatOptionalMoney(plan.extraCreditPriceCents, plan.currency)}</strong>
+        </div>
+      </div>
+      <div className="selfx-shopify-plan-card__meta">{channelLabel}</div>
+      {active ? (
+        <div className="selfx-shopify-plan-card__active-note">
+          This is your current plan.
+        </div>
+      ) : (
+        <SelfxActionButton
+          disabled={!billingUrl}
+          href={billingUrl ?? undefined}
+          target="_blank"
+          tone="primary"
+        >
+          Upgrade
+        </SelfxActionButton>
+      )}
+    </div>
+  );
+}
+
+function formatMoney(amountCents: number, currency: string): string {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: /^[A-Z]{3}$/.test(currency) ? currency : "USD",
+    maximumFractionDigits: amountCents % 100 === 0 ? 0 : 2,
+  }).format(amountCents / 100);
+}
+
+function formatOptionalMoney(
+  amountCents: number | null,
+  currency: string,
+): string {
+  return amountCents == null ? "-" : formatMoney(amountCents, currency);
 }
 
 function SupportPanel({
@@ -1217,6 +1576,308 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
+function SelfxActionButton({
+  children,
+  disabled = false,
+  href,
+  target,
+  tone = "secondary",
+  type = "button",
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  href?: string;
+  target?: string;
+  tone?: "primary" | "secondary";
+  type?: "button" | "submit";
+}) {
+  const className = `selfx-shopify-button selfx-shopify-button--${tone}`;
+  if (href && !disabled) {
+    return (
+      <a
+        className={className}
+        href={href}
+        target={target}
+        rel={target === "_blank" ? "noopener noreferrer" : undefined}
+      >
+        {children}
+      </a>
+    );
+  }
+  return (
+    <button className={className} type={type} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+
+function SelfxPanelTab({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`selfx-shopify-tab${active ? " selfx-shopify-tab--active" : ""}`}
+      type="button"
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SelfxShopifyStyles() {
+  return (
+    <style>
+      {`
+        .selfx-shopify-button,
+        .selfx-shopify-tab {
+          align-items: center;
+          border-radius: 8px;
+          border: 1px solid #c8d7e6;
+          cursor: pointer;
+          display: inline-flex;
+          font: inherit;
+          font-weight: 700;
+          justify-content: center;
+          letter-spacing: 0;
+          min-height: 2.5rem;
+          text-decoration: none;
+          transition:
+            background-color 140ms ease,
+            border-color 140ms ease,
+            box-shadow 140ms ease,
+            color 140ms ease,
+            transform 140ms ease;
+          white-space: nowrap;
+        }
+
+        .selfx-shopify-button {
+          gap: 0.5rem;
+          padding: 0.625rem 1rem;
+        }
+
+        .selfx-shopify-button--primary {
+          background: #ff6a1a;
+          border-color: #ff6a1a;
+          box-shadow: 0 8px 18px rgba(255, 106, 26, 0.18);
+          color: #ffffff;
+        }
+
+        .selfx-shopify-button--secondary {
+          background: #ffffff;
+          border-color: #c8d7e6;
+          color: #12324a;
+        }
+
+        .selfx-shopify-button:hover:not(:disabled) {
+          transform: translateY(-1px);
+        }
+
+        .selfx-shopify-button--primary:hover:not(:disabled) {
+          background: #f05f12;
+          border-color: #f05f12;
+        }
+
+        .selfx-shopify-button--secondary:hover:not(:disabled) {
+          background: #f3f8fc;
+          border-color: #9fb9cf;
+        }
+
+        .selfx-shopify-button:focus-visible,
+        .selfx-shopify-tab:focus-visible {
+          outline: 2px solid #ff8a3d;
+          outline-offset: 2px;
+        }
+
+        .selfx-shopify-button:disabled {
+          background: #e8f0f7;
+          border-color: #d2dde8;
+          box-shadow: none;
+          color: #7b8da0;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .selfx-shopify-tab {
+          background: transparent;
+          color: #26394d;
+          min-height: 2.75rem;
+          padding: 0.625rem 0.875rem;
+          width: 100%;
+        }
+
+        .selfx-shopify-tab:hover {
+          background: #f3f8fc;
+          border-color: #d6e3ee;
+        }
+
+        .selfx-shopify-tab--active {
+          background: #fff0e6;
+          border-color: #ffd5bd;
+          box-shadow: inset 4px 0 0 #ff6a1a;
+          color: #9f3d00;
+        }
+
+        .selfx-shopify-language-form {
+          margin: 0;
+        }
+
+        .selfx-shopify-language-form__inner {
+          align-items: end;
+          display: grid;
+          gap: 0.5rem;
+          grid-template-columns: minmax(10rem, 13rem) auto;
+        }
+
+        .selfx-shopify-panel-layout {
+          align-items: start;
+          display: grid;
+          gap: 1rem;
+          grid-template-columns: 16rem minmax(0, 1fr);
+          min-height: 0;
+        }
+
+        .selfx-shopify-panel-nav {
+          align-self: start;
+          max-height: calc(100vh - 2rem);
+          overflow-y: auto;
+          position: sticky;
+          top: 1rem;
+        }
+
+        .selfx-shopify-panel-main {
+          max-height: calc(100vh - 2rem);
+          min-width: 0;
+          overflow-y: auto;
+          padding-right: 0.25rem;
+        }
+
+        .selfx-shopify-plan-grid {
+          display: grid;
+          gap: 1rem;
+          grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+        }
+
+        .selfx-shopify-plan-card {
+          background: #ffffff;
+          border: 1px solid #d6e3ee;
+          border-radius: 8px;
+          box-shadow: 0 8px 20px rgba(18, 50, 74, 0.06);
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          min-height: 16rem;
+          padding: 1rem;
+        }
+
+        .selfx-shopify-plan-card.is-active {
+          border-color: #ffb987;
+          box-shadow:
+            inset 0 4px 0 #ff6a1a,
+            0 10px 24px rgba(255, 106, 26, 0.12);
+        }
+
+        .selfx-shopify-plan-card__header {
+          align-items: flex-start;
+          display: flex;
+          gap: 0.75rem;
+          justify-content: space-between;
+        }
+
+        .selfx-shopify-plan-card__name {
+          color: #00112c;
+          font-size: 1rem;
+          font-weight: 800;
+          line-height: 1.3;
+        }
+
+        .selfx-shopify-plan-card__code,
+        .selfx-shopify-plan-card__meta,
+        .selfx-shopify-plan-card__active-note {
+          color: #607589;
+          font-size: 0.875rem;
+          line-height: 1.4;
+        }
+
+        .selfx-shopify-plan-card__price {
+          color: #00112c;
+          font-size: 1.5rem;
+          font-weight: 800;
+          line-height: 1.2;
+        }
+
+        .selfx-shopify-plan-card__price span {
+          color: #607589;
+          font-size: 0.875rem;
+          font-weight: 600;
+        }
+
+        .selfx-shopify-plan-card__stats {
+          display: grid;
+          gap: 0.75rem;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .selfx-shopify-plan-card__stats div {
+          background: #f3f8fc;
+          border: 1px solid #dce8f2;
+          border-radius: 8px;
+          display: grid;
+          gap: 0.25rem;
+          padding: 0.75rem;
+        }
+
+        .selfx-shopify-plan-card__stats span {
+          color: #607589;
+          font-size: 0.75rem;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+
+        .selfx-shopify-plan-card__stats strong {
+          color: #00112c;
+          font-size: 1rem;
+        }
+
+        .selfx-shopify-plan-pill {
+          align-items: center;
+          border-radius: 999px;
+          display: inline-flex;
+          font-size: 0.8125rem;
+          font-weight: 800;
+          line-height: 1;
+          padding: 0.375rem 0.625rem;
+          white-space: nowrap;
+        }
+
+        .selfx-shopify-plan-pill--active {
+          background: #d8f8e4;
+          color: #007f4e;
+        }
+
+        @media (max-width: 760px) {
+          .selfx-shopify-panel-layout {
+            grid-template-columns: minmax(0, 1fr);
+          }
+
+          .selfx-shopify-panel-nav,
+          .selfx-shopify-panel-main {
+            max-height: none;
+            overflow: visible;
+            position: static;
+          }
+        }
+      `}
+    </style>
+  );
+}
+
 function PrimaryActions({
   approvalUrl,
   completeActionPath,
@@ -1239,9 +1900,9 @@ function PrimaryActions({
     return (
       <s-stack direction="inline" gap="base">
         {approvalUrl ? (
-          <s-button variant="primary" href={approvalUrl} target="_blank">
+          <SelfxActionButton tone="primary" href={approvalUrl} target="_blank">
             Approve in SelfX
-          </s-button>
+          </SelfxActionButton>
         ) : null}
         <s-button href={completeActionPath} variant="secondary">
           Check approval
@@ -1253,9 +1914,9 @@ function PrimaryActions({
     );
   }
   return (
-    <s-button href={connectActionPath} variant="primary">
+    <SelfxActionButton href={connectActionPath} tone="primary">
       Connect SelfX
-    </s-button>
+    </SelfxActionButton>
   );
 }
 
@@ -1294,36 +1955,11 @@ function LaunchStep({
   );
 }
 
-function ConnectionBadge({
-  status,
-}: {
-  status: SelfxConnectionView["status"];
-}) {
-  if (status === "CONNECTED")
-    return <s-badge tone="success">Connected</s-badge>;
-  if (status === "PENDING_APPROVAL") {
-    return <s-badge tone="warning">Approval pending</s-badge>;
-  }
-  if (status === "ERROR") return <s-badge tone="critical">Error</s-badge>;
-  return <s-badge tone="neutral">Not connected</s-badge>;
-}
-
 function SyncBadge({ status }: { status: SelfxConnectionView["syncStatus"] }) {
   if (status === "SUCCESS") return <s-badge tone="success">Synced</s-badge>;
   if (status === "SYNCING") return <s-badge tone="info">Syncing</s-badge>;
   if (status === "ERROR") return <s-badge tone="critical">Sync failed</s-badge>;
   return <s-badge tone="neutral">Not started</s-badge>;
-}
-
-function ThemeBlockBadge({ status }: { status: ThemeBlockView["status"] }) {
-  if (status === "INSTALLED") return <s-badge tone="success">Installed</s-badge>;
-  if (status === "NOT_INSTALLED") {
-    return <s-badge tone="warning">Not installed</s-badge>;
-  }
-  if (status === "UNAVAILABLE") {
-    return <s-badge tone="warning">Check unavailable</s-badge>;
-  }
-  return <s-badge tone="neutral">Not checked</s-badge>;
 }
 
 function CreditStatusBanner({
@@ -1500,12 +2136,12 @@ function ProductControlRow({ product }: { product: SelfxProductControl }) {
                 name="enabled"
                 value={canEnable ? "true" : "false"}
               />
-              <s-button
+              <SelfxActionButton
                 type="submit"
-                variant={canEnable ? "primary" : "secondary"}
+                tone={canEnable ? "primary" : "secondary"}
               >
                 {canEnable ? "Enable Try-On" : "Disable Try-On"}
-              </s-button>
+              </SelfxActionButton>
             </Form>
           ) : (
             <s-button disabled variant="secondary">
@@ -1628,7 +2264,11 @@ async function safeConnectionView(shop: string): Promise<SelfxConnectionView> {
       approvalUrl: null,
       pendingLinkExpiresAt: null,
       storeName: null,
-      storefrontLocale: "en",
+      storefrontLocale: "auto",
+      adminLocale: "en",
+      visitorTryOnLimit: 0,
+      visitorTryOnLimitPeriod: "DAY",
+      monthlyStoreTryOnLimit: 0,
       linkedAt: null,
       syncStatus: "NOT_STARTED",
       lastSyncAt: null,
@@ -1673,6 +2313,24 @@ async function safeUsageSummary(
     ).getUsageSummary(shop);
   } catch {
     return null;
+  }
+}
+
+async function safeAvailablePlans(
+  shop: string,
+  connection: SelfxConnectionView,
+): Promise<SelfxStorefrontPricingPlan[]> {
+  if (connection.status !== "CONNECTED") {
+    return [];
+  }
+  try {
+    return (
+      await new SelfxStorefrontTryOnClient(
+        loadSelfxLinkConfig(),
+      ).getAvailablePlans(shop)
+    ).data;
+  } catch {
+    return [];
   }
 }
 

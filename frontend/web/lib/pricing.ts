@@ -1,7 +1,8 @@
 import { selfxApi } from "./api";
 
 export type PricingPlanStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
-export type PricingPlanChannel = "SHOPIFY" | "KIOSK" | "PUBLIC_API";
+export type PricingPlanChannel =
+  "SHOPIFY" | "WOOCOMMERCE" | "KIOSK" | "PUBLIC_API";
 
 export interface PricingPlan {
   id: string;
@@ -41,6 +42,16 @@ export async function listPricingPlans(
 ): Promise<PricingPlan[]> {
   const response = await selfxApi<{ data: PricingPlan[] }>(
     "/api/v1/admin/pricing/plans",
+    { accessToken },
+  );
+  return response.data;
+}
+
+export async function listAvailablePricingPlans(
+  accessToken: string,
+): Promise<PricingPlan[]> {
+  const response = await selfxApi<{ data: PricingPlan[] }>(
+    "/api/v1/pricing/plans/available",
     { accessToken },
   );
   return response.data;

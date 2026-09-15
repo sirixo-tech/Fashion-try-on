@@ -12,6 +12,8 @@ import {
 import {
   Badge,
   Button,
+  ErrorState,
+  LoadingState,
   PageContainer,
   PageHeader,
   PageSection,
@@ -27,6 +29,10 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
+  getCurrentPlatformAccess,
+  type CurrentPlatformAccess,
+} from "@/lib/access-control";
+import {
   createPricingPlan,
   listPricingPlans,
   updatePricingPlan,
@@ -37,7 +43,12 @@ import {
 } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
 
-const channelOptions: PricingPlanChannel[] = ["SHOPIFY", "KIOSK", "PUBLIC_API"];
+const channelOptions: PricingPlanChannel[] = [
+  "SHOPIFY",
+  "WOOCOMMERCE",
+  "KIOSK",
+  "PUBLIC_API",
+];
 const statusOptions: Array<{ value: PricingPlanStatus; label: string }> = [
   { value: "ACTIVE", label: "Active" },
   { value: "INACTIVE", label: "Inactive" },
@@ -83,6 +94,19 @@ export default function PricingControlPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [platformAccess, setPlatformAccess] =
+    useState<CurrentPlatformAccess | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
+
+  const canViewPricing = Boolean(
+    platformAccess?.isSuperadmin ||
+    platformAccess?.permissions.includes("PRICING_VIEW") ||
+    platformAccess?.permissions.includes("PRICING_MANAGE"),
+  );
+  const canManagePricing = Boolean(
+    platformAccess?.isSuperadmin ||
+    platformAccess?.permissions.includes("PRICING_MANAGE"),
+  );
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.id === form.id) ?? null,
@@ -90,7 +114,9 @@ export default function PricingControlPage() {
   );
 
   const loadPlans = useCallback(async () => {
-    if (!accessToken) {
+    if (!accessToken || !canViewPricing) {
+      setPlans([]);
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -102,14 +128,43 @@ export default function PricingControlPage() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [accessToken, canViewPricing]);
 
   useEffect(() => {
     void loadPlans();
   }, [loadPlans]);
 
-  async function savePlan() {
+  useEffect(() => {
     if (!accessToken) {
+      setPlatformAccess(null);
+      setAccessLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setAccessLoading(true);
+    getCurrentPlatformAccess(accessToken)
+      .then((access) => {
+        if (!cancelled) {
+          setPlatformAccess(access);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlatformAccess({ isSuperadmin: false, permissions: [] });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAccessLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  async function savePlan() {
+    if (!accessToken || !canManagePricing) {
       return;
     }
     setSaving(true);
@@ -130,11 +185,26 @@ export default function PricingControlPage() {
     }
   }
 
+  if (accessLoading) {
+    return <LoadingState label="Checking pricing access" />;
+  }
+
+  if (!canViewPricing) {
+    return (
+      <div className="flex min-h-[calc(100dvh-3.75rem)] items-center justify-center p-4">
+        <ErrorState
+          title="Plans are platform-only"
+          description="Only SelfX platform roles can view or manage pricing plans."
+        />
+      </div>
+    );
+  }
+
   return (
     <PageContainer width="wide">
       <PageHeader
         eyebrow="Platform"
-        title="Pricing Control"
+        title="Plans"
         description="Central plan, credit and kiosk rental configuration."
         status={<Badge variant="secondary">{plans.length} plans</Badge>}
         actions={
@@ -143,7 +213,11 @@ export default function PricingControlPage() {
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button variant="outline" onClick={() => setForm(emptyForm)}>
+            <Button
+              variant="outline"
+              disabled={!canManagePricing}
+              onClick={() => setForm(emptyForm)}
+            >
               <PlusIcon aria-hidden="true" />
               New plan
             </Button>
@@ -226,7 +300,7 @@ export default function PricingControlPage() {
                           onClick={() => setForm(formFromPlan(plan))}
                         >
                           <PencilIcon aria-hidden="true" />
-                          Edit
+                          {canManagePricing ? "Edit" : "View"}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -253,13 +327,18 @@ export default function PricingControlPage() {
               <TextField
                 label="Plan code"
                 value={form.code}
-                disabled={Boolean(form.id)}
-                onChange={(code) => setForm((current) => ({ ...current, code }))}
+                disabled={Boolean(form.id) || !canManagePricing}
+                onChange={(code) =>
+                  setForm((current) => ({ ...current, code }))
+                }
               />
               <TextField
                 label="Plan name"
                 value={form.name}
-                onChange={(name) => setForm((current) => ({ ...current, name }))}
+                disabled={!canManagePricing}
+                onChange={(name) =>
+                  setForm((current) => ({ ...current, name }))
+                }
               />
               <label className="grid gap-2 text-sm font-medium">
                 Status
@@ -268,6 +347,7 @@ export default function PricingControlPage() {
                   value={form.status}
                   options={statusOptions}
                   className="h-10"
+                  disabled={!canManagePricing}
                   onChange={(status) =>
                     setForm((current) => ({
                       ...current,
@@ -280,6 +360,7 @@ export default function PricingControlPage() {
                 label="Currency"
                 value={form.currency}
                 maxLength={3}
+                disabled={!canManagePricing}
                 onChange={(currency) =>
                   setForm((current) => ({
                     ...current,
@@ -289,6 +370,7 @@ export default function PricingControlPage() {
               />
               <ChannelPicker
                 value={form.channels}
+                disabled={!canManagePricing}
                 onChange={(channels) =>
                   setForm((current) => ({ ...current, channels }))
                 }
@@ -296,6 +378,7 @@ export default function PricingControlPage() {
               <NumberField
                 label="Monthly price"
                 value={form.monthlyPrice}
+                disabled={!canManagePricing}
                 onChange={(monthlyPrice) =>
                   setForm((current) => ({ ...current, monthlyPrice }))
                 }
@@ -303,6 +386,7 @@ export default function PricingControlPage() {
               <NumberField
                 label="Included credits"
                 value={form.includedCredits}
+                disabled={!canManagePricing}
                 onChange={(includedCredits) =>
                   setForm((current) => ({ ...current, includedCredits }))
                 }
@@ -310,6 +394,7 @@ export default function PricingControlPage() {
               <NumberField
                 label="Trial credits"
                 value={form.trialCredits}
+                disabled={!canManagePricing}
                 onChange={(trialCredits) =>
                   setForm((current) => ({ ...current, trialCredits }))
                 }
@@ -317,6 +402,7 @@ export default function PricingControlPage() {
               <NumberField
                 label="Extra credit price"
                 value={form.extraCreditPrice}
+                disabled={!canManagePricing}
                 onChange={(extraCreditPrice) =>
                   setForm((current) => ({ ...current, extraCreditPrice }))
                 }
@@ -324,6 +410,7 @@ export default function PricingControlPage() {
               <NumberField
                 label="Kiosk monthly rent"
                 value={form.kioskMonthlyRent}
+                disabled={!canManagePricing}
                 onChange={(kioskMonthlyRent) =>
                   setForm((current) => ({ ...current, kioskMonthlyRent }))
                 }
@@ -332,11 +419,15 @@ export default function PricingControlPage() {
                 label="Kiosk device limit"
                 value={form.kioskDeviceLimit}
                 step="1"
+                disabled={!canManagePricing}
                 onChange={(kioskDeviceLimit) =>
                   setForm((current) => ({ ...current, kioskDeviceLimit }))
                 }
               />
-              <Button onClick={() => void savePlan()} disabled={saving}>
+              <Button
+                onClick={() => void savePlan()}
+                disabled={saving || !canManagePricing}
+              >
                 <SaveIcon aria-hidden="true" />
                 {saving ? "Saving..." : "Save plan"}
               </Button>
@@ -379,11 +470,13 @@ function NumberField({
   label,
   value,
   step = "0.01",
+  disabled,
   onChange,
 }: {
   label: string;
   value: string;
   step?: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -395,6 +488,7 @@ function NumberField({
         min="0"
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -403,9 +497,11 @@ function NumberField({
 
 function ChannelPicker({
   value,
+  disabled,
   onChange,
 }: {
   value: PricingPlanChannel[];
+  disabled?: boolean;
   onChange: (value: PricingPlanChannel[]) => void;
 }) {
   return (
@@ -420,6 +516,7 @@ function ChannelPicker({
             <input
               type="checkbox"
               checked={value.includes(channel)}
+              disabled={disabled}
               onChange={(event) => {
                 const next = event.target.checked
                   ? [...value, channel]

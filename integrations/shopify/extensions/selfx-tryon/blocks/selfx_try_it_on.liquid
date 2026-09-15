@@ -50,6 +50,7 @@
     data-selfx-shop="{{ shop.permanent_domain }}"
     data-selfx-product-id="{{ product.id }}"
     data-selfx-product-handle="{{ product.handle }}"
+    data-selfx-locale="{{ selfx_locale }}"
     data-selfx-alert="{{ selfx_default_alert | escape }}"
   >
     {{ selfx_button_label }}
@@ -105,6 +106,7 @@
     url.searchParams.set("shop", button.dataset.selfxShop);
     url.searchParams.set("productId", button.dataset.selfxProductId);
     url.searchParams.set("productHandle", button.dataset.selfxProductHandle);
+    url.searchParams.set("locale", button.dataset.selfxLocale || "en");
 
     window.open(url.toString(), "_blank", "noopener,noreferrer");
   });

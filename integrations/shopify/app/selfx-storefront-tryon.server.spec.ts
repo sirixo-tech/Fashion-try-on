@@ -31,6 +31,10 @@ describe("SelfxStorefrontTryOnClient", () => {
       shop: "merchant.myshopify.com",
       externalProductId: "gid://shopify/Product/1001",
       locale: "es",
+      visitorToken: "v".repeat(43),
+      visitorTryOnLimit: 5,
+      visitorTryOnLimitPeriod: "DAY",
+      monthlyStoreTryOnLimit: 300,
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -40,7 +44,13 @@ describe("SelfxStorefrontTryOnClient", () => {
     const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     const headers = new Headers(request.headers);
     expect(request.method).toBe("POST");
-    expect(JSON.parse(String(request.body))).toMatchObject({ locale: "es" });
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      locale: "es",
+      visitorToken: "v".repeat(43),
+      visitorTryOnLimit: 5,
+      visitorTryOnLimitPeriod: "DAY",
+      monthlyStoreTryOnLimit: 300,
+    });
     expect(headers.get("Content-Type")).toBe("application/json");
     expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
   });
@@ -113,6 +123,44 @@ describe("SelfxStorefrontTryOnClient", () => {
 
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://api.selfx.test/api/v1/public/integrations/shopify/try-on-sessions/usage-summary?shop=merchant.myshopify.com",
+      expect.any(Object),
+    );
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(request.headers);
+    expect(request.method).toBe("GET");
+    expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
+  });
+
+  it("reads active Shopify plans with server authentication", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: [
+          {
+            id: "plan-1",
+            code: "shopify-growth",
+            name: "Shopify Growth",
+            channels: ["SHOPIFY"],
+            currency: "INR",
+            monthlyPriceCents: 4999,
+            includedCredits: 200,
+            trialCredits: 10,
+            extraCreditPriceCents: 49,
+            kioskMonthlyRentCents: null,
+            kioskDeviceLimit: null,
+          },
+        ],
+      }),
+    );
+    const client = new SelfxStorefrontTryOnClient(config, fetchImpl);
+
+    await expect(
+      client.getAvailablePlans("merchant.myshopify.com"),
+    ).resolves.toMatchObject({
+      data: [{ code: "shopify-growth", channels: ["SHOPIFY"] }],
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.selfx.test/api/v1/public/integrations/shopify/try-on-sessions/plans?shop=merchant.myshopify.com",
       expect.any(Object),
     );
     const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;

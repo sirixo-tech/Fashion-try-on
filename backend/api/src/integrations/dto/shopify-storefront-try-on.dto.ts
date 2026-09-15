@@ -1,10 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from "class-validator";
 
@@ -35,6 +38,40 @@ export class CreateShopifyStorefrontTryOnSessionDto {
   @IsString()
   @MaxLength(16)
   locale?: string;
+
+  @ApiPropertyOptional({
+    description: "Anonymous visitor token generated after Shopify app proxy verification.",
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(32)
+  @MaxLength(128)
+  visitorToken?: string;
+
+  @ApiPropertyOptional({
+    description: "Maximum Try-Ons this visitor can run in the selected period. 0 disables the custom visitor limit.",
+    example: 5,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  visitorTryOnLimit?: number;
+
+  @ApiPropertyOptional({ enum: ["DAY", "WEEK", "MONTH"], example: "DAY" })
+  @IsOptional()
+  @IsIn(["DAY", "WEEK", "MONTH"])
+  visitorTryOnLimitPeriod?: "DAY" | "WEEK" | "MONTH";
+
+  @ApiPropertyOptional({
+    description: "Maximum Shopify storefront Try-Ons for the store per calendar month. 0 disables the custom monthly cap.",
+    example: 300,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  monthlyStoreTryOnLimit?: number;
 }
 
 export class CreateShopifyStorefrontTryOnRunDto {
@@ -158,6 +195,46 @@ export class ShopifyStorefrontUsageSummaryDto {
 
   @ApiProperty({ type: [ShopifyStorefrontUsageProductDto] })
   topProducts!: ShopifyStorefrontUsageProductDto[];
+}
+
+export class ShopifyStorefrontPricingPlanDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ enum: ["SHOPIFY", "WOOCOMMERCE", "KIOSK", "PUBLIC_API"], isArray: true })
+  channels!: string[];
+
+  @ApiProperty()
+  currency!: string;
+
+  @ApiProperty()
+  monthlyPriceCents!: number;
+
+  @ApiProperty()
+  includedCredits!: number;
+
+  @ApiProperty()
+  trialCredits!: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  extraCreditPriceCents!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  kioskMonthlyRentCents!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  kioskDeviceLimit!: number | null;
+}
+
+export class ShopifyStorefrontPricingPlansDto {
+  @ApiProperty({ type: [ShopifyStorefrontPricingPlanDto] })
+  data!: ShopifyStorefrontPricingPlanDto[];
 }
 
 export class ShopifyStorefrontTryOnPersonUploadDto {

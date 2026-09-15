@@ -40,7 +40,7 @@ export type StoreSubscriptionSummary = {
   availableCredits: number;
   subscription: {
     id: string;
-    status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED";
+    status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "EXPIRED";
     channels: string[];
     includedCredits: number;
     trialCredits: number;

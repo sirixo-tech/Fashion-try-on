@@ -14,7 +14,12 @@ import {
   Matches,
 } from "class-validator";
 
-const pricingChannels = ["SHOPIFY", "KIOSK", "PUBLIC_API"] as const;
+const pricingChannels = [
+  "SHOPIFY",
+  "WOOCOMMERCE",
+  "KIOSK",
+  "PUBLIC_API",
+] as const;
 type PricingChannel = (typeof pricingChannels)[number];
 
 export class PricingPlanResponseDto {

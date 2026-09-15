@@ -25,6 +25,7 @@ import {
   CreateShopifyStorefrontTryOnRunDto,
   CreateShopifyStorefrontTryOnSessionDto,
   ShopifyStorefrontCreditSummaryDto,
+  ShopifyStorefrontPricingPlansDto,
   ShopifyStorefrontUsageSummaryDto,
   ShopifyStorefrontTryOnPersonUploadDto,
   ShopifyStorefrontTryOnRunDto,
@@ -87,6 +88,21 @@ export class ShopifyStorefrontTryOnController {
   ): Promise<ShopifyStorefrontUsageSummaryDto> {
     this.serviceAuth.requireServiceToken(serviceToken);
     return this.tryOns.getUsageSummaryForShop(shop);
+  }
+
+  @Get("plans")
+  @ApiOperation({
+    summary: "Read active Shopify-compatible SelfX plans",
+    description:
+      "Requires Shopify app service authentication and returns pricing plan summaries for the embedded Shopify app.",
+  })
+  @ApiOkResponse({ type: ShopifyStorefrontPricingPlansDto })
+  getPlans(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) serviceToken: string | undefined,
+    @Query("shop") shop: string | undefined,
+  ): Promise<ShopifyStorefrontPricingPlansDto> {
+    this.serviceAuth.requireServiceToken(serviceToken);
+    return this.tryOns.getAvailablePlansForShop(shop);
   }
 
   @Get(":session")

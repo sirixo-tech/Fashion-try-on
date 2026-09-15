@@ -61,6 +61,32 @@ describe("PricingControlService", () => {
     });
   });
 
+  it("lists only active plans as customer-available plans", async () => {
+    const prisma = new FakePricingPrisma();
+    const service = new PricingControlService(prisma as never);
+    const active = await service.createPlan({
+      code: "woocommerce-starter",
+      name: "WooCommerce Starter",
+      channels: ["WOOCOMMERCE"],
+      currency: "USD",
+      monthlyPriceCents: 2900,
+      includedCredits: 250,
+      trialCredits: 10,
+    });
+    await service.createPlan({
+      code: "archived-plan",
+      name: "Archived Plan",
+      status: PricingPlanStatus.ARCHIVED,
+      channels: ["SHOPIFY"],
+      currency: "USD",
+      monthlyPriceCents: 100,
+      includedCredits: 10,
+      trialCredits: 0,
+    });
+
+    await expect(service.listAvailablePlans()).resolves.toEqual([active]);
+  });
+
   it("rejects duplicate plan codes", async () => {
     const prisma = new FakePricingPrisma();
     const service = new PricingControlService(prisma as never);
@@ -90,11 +116,27 @@ class FakePricingPrisma {
   plans: Record<string, any>[] = [];
 
   pricingPlan = {
-    findMany: vi.fn(() =>
-      [...this.plans].sort((left, right) =>
-        String(left.status).localeCompare(String(right.status)) ||
-        right.createdAt.getTime() - left.createdAt.getTime(),
-      ),
+    findMany: vi.fn(
+      ({
+        where,
+        orderBy,
+      }: { where?: Record<string, any>; orderBy?: any } = {}) => {
+        const rows = where?.status
+          ? this.plans.filter((plan) => plan.status === where.status)
+          : [...this.plans];
+        return rows.sort((left, right) => {
+          if (Array.isArray(orderBy) && orderBy[0]?.monthlyPriceCents) {
+            return (
+              left.monthlyPriceCents - right.monthlyPriceCents ||
+              right.createdAt.getTime() - left.createdAt.getTime()
+            );
+          }
+          return (
+            String(left.status).localeCompare(String(right.status)) ||
+            right.createdAt.getTime() - left.createdAt.getTime()
+          );
+        });
+      },
     ),
     create: vi.fn(({ data }: { data: Record<string, any> }) => {
       if (this.plans.some((plan) => plan.code === data.code)) {

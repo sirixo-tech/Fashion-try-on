@@ -64,4 +64,45 @@ describe("ShopifyStorefrontTryOnController", () => {
       "x-selfx-shopify-service-token",
     );
   });
+
+  it("returns plan summaries only for a server-authenticated Shopify app request", async () => {
+    const plans = {
+      data: [
+        {
+          id: "plan-1",
+          code: "shopify-growth",
+          name: "Shopify Growth",
+          channels: ["SHOPIFY"],
+          currency: "INR",
+          monthlyPriceCents: 4999,
+          includedCredits: 200,
+          trialCredits: 10,
+          extraCreditPriceCents: 49,
+          kioskMonthlyRentCents: null,
+          kioskDeviceLimit: null,
+        },
+      ],
+    };
+    const serviceAuth = {
+      requireServiceToken: vi.fn(),
+    };
+    const tryOns = {
+      getAvailablePlansForShop: vi.fn().mockResolvedValue(plans),
+    };
+    const controller = new ShopifyStorefrontTryOnController(
+      serviceAuth as never,
+      tryOns as never,
+    );
+
+    await expect(
+      controller.getPlans("server-token", "merchant.myshopify.com"),
+    ).resolves.toEqual(plans);
+
+    expect(serviceAuth.requireServiceToken).toHaveBeenCalledWith(
+      "server-token",
+    );
+    expect(tryOns.getAvailablePlansForShop).toHaveBeenCalledWith(
+      "merchant.myshopify.com",
+    );
+  });
 });

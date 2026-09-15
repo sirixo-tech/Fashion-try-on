@@ -22,7 +22,12 @@ export const ENTITLEMENT_ERROR_CODES = {
   pricingPlanUnavailable: "PRICING_PLAN_UNAVAILABLE",
 } as const;
 
-const defaultTrialChannels = ["SHOPIFY", "KIOSK", "PUBLIC_API"] as const;
+const defaultTrialChannels = [
+  "SHOPIFY",
+  "WOOCOMMERCE",
+  "KIOSK",
+  "PUBLIC_API",
+] as const;
 
 export interface CreditBalance {
   availableCredits: number;
@@ -316,7 +321,9 @@ export class EntitlementsService {
           select: { id: true, name: true, slug: true },
         })
       : [];
-    const productsById = new Map(products.map((product) => [product.id, product]));
+    const productsById = new Map(
+      products.map((product) => [product.id, product]),
+    );
     return {
       availableCredits: balance.availableCredits,
       totals: creditTotals(typeRows),
@@ -501,8 +508,7 @@ export class EntitlementsService {
                   code: subscription.pricingPlan.code,
                   name: subscription.pricingPlan.name,
                   currency: subscription.pricingPlan.currency,
-                  monthlyPriceCents:
-                    subscription.pricingPlan.monthlyPriceCents,
+                  monthlyPriceCents: subscription.pricingPlan.monthlyPriceCents,
                   includedCredits: subscription.pricingPlan.includedCredits,
                   extraCreditPriceCents:
                     subscription.pricingPlan.extraCreditPriceCents,

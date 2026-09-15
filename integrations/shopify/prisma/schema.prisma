@@ -46,7 +46,11 @@ model SelfxConnection {
   selfxStoreName             String?
   selfxIntegrationId         String?
   selfxCredentialId          String?
-  storefrontLocale           String    @default("en")
+  storefrontLocale           String    @default("auto")
+  adminLocale                String    @default("en")
+  visitorTryOnLimit          Int       @default(0)
+  visitorTryOnLimitPeriod    String    @default("DAY")
+  monthlyStoreTryOnLimit     Int       @default(0)
   linkedAt                   DateTime?
   syncStatus                 String    @default("NOT_STARTED")
   lastSyncAt                 DateTime?

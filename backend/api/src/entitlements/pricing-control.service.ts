@@ -27,7 +27,17 @@ export class PricingControlService {
     return plans.map(toDto);
   }
 
-  async createPlan(input: CreatePricingPlanDto): Promise<PricingPlanResponseDto> {
+  async listAvailablePlans(): Promise<PricingPlanResponseDto[]> {
+    const plans = await this.prisma.pricingPlan.findMany({
+      where: { status: PricingPlanStatus.ACTIVE },
+      orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
+    });
+    return plans.map(toDto);
+  }
+
+  async createPlan(
+    input: CreatePricingPlanDto,
+  ): Promise<PricingPlanResponseDto> {
     try {
       const plan = await this.prisma.pricingPlan.create({
         data: {
@@ -135,8 +145,15 @@ function toDto(plan: PricingPlan): PricingPlanResponseDto {
   };
 }
 
-function isKnownChannel(value: unknown): value is "SHOPIFY" | "KIOSK" | "PUBLIC_API" {
-  return value === "SHOPIFY" || value === "KIOSK" || value === "PUBLIC_API";
+function isKnownChannel(
+  value: unknown,
+): value is "SHOPIFY" | "WOOCOMMERCE" | "KIOSK" | "PUBLIC_API" {
+  return (
+    value === "SHOPIFY" ||
+    value === "WOOCOMMERCE" ||
+    value === "KIOSK" ||
+    value === "PUBLIC_API"
+  );
 }
 
 function jsonMetadata(

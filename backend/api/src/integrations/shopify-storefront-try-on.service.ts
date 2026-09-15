@@ -7,6 +7,7 @@ import {
   ExternalProductMappingStatus,
   IntegrationStatus,
   KioskAssignmentScope,
+  PricingPlanStatus,
   type Prisma,
   type Product,
   TryOnAssetPurpose,
@@ -52,6 +53,8 @@ import {
   type CreateShopifyStorefrontTryOnRunDto,
   type CreateShopifyStorefrontTryOnSessionDto,
   type ShopifyStorefrontCreditSummaryDto,
+  type ShopifyStorefrontPricingPlanDto,
+  type ShopifyStorefrontPricingPlansDto,
   type ShopifyStorefrontUsageSummaryDto,
   type ShopifyStorefrontTryOnPersonUploadDto,
   type ShopifyStorefrontTryOnProductDto,
@@ -71,6 +74,8 @@ export const SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES = {
   imageInvalid: "SHOPIFY_STOREFRONT_TRYON_IMAGE_INVALID",
   personRequired: "SHOPIFY_STOREFRONT_TRYON_PERSON_REQUIRED",
   runNotFound: "SHOPIFY_STOREFRONT_TRYON_RUN_NOT_FOUND",
+  visitorLimitReached: "SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED",
+  monthlyLimitReached: "SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED",
 } as const;
 
 type ShopifyProductContext = {
@@ -107,6 +112,15 @@ type ActiveMapping = {
   externalSku: string | null;
 };
 
+type StorefrontLimitPeriod = "DAY" | "WEEK" | "MONTH";
+
+type StorefrontLimits = {
+  visitorTokenHash: string | null;
+  visitorTryOnLimit: number;
+  visitorLimitPeriod: StorefrontLimitPeriod;
+  monthlyStoreTryOnLimit: number;
+};
+
 type RunWithResult = Prisma.KioskTryOnRunGetPayload<{
   include: typeof runInclude;
 }>;
@@ -131,6 +145,13 @@ export class ShopifyStorefrontTryOnService {
     input: CreateShopifyStorefrontTryOnSessionDto,
   ): Promise<ShopifyStorefrontTryOnSessionDto> {
     const context = await this.requireEligibleProduct(input);
+    const shopDomain = normalizeShopDomain(input.shop);
+    const limits = storefrontLimitsFromInput(input);
+    await this.assertStorefrontLimits({
+      organizationId: context.storeId,
+      shopDomain,
+      ...limits,
+    });
     const expiresAt = new Date(
       Date.now() + SHOPIFY_STOREFRONT_TRY_ON_SESSION_LIFETIME_MS,
     );
@@ -179,10 +200,14 @@ export class ShopifyStorefrontTryOnService {
           organizationId: context.storeId,
           productId: context.product.id,
           garmentAssetId: asset.id,
-          shopDomain: normalizeShopDomain(input.shop),
+          shopDomain,
           externalProductId: context.mapping.externalProductId,
           productHandle: context.mapping.externalHandle,
           storefrontLocale,
+          visitorTokenHash: limits.visitorTokenHash,
+          visitorTryOnLimit: limits.visitorTryOnLimit,
+          visitorLimitPeriod: limits.visitorLimitPeriod,
+          monthlyStoreTryOnLimit: limits.monthlyStoreTryOnLimit,
           expiresAt,
         },
       });
@@ -312,6 +337,19 @@ export class ShopifyStorefrontTryOnService {
     };
   }
 
+  async getAvailablePlansForShop(
+    shop: string | undefined,
+  ): Promise<ShopifyStorefrontPricingPlansDto> {
+    await this.requireActiveIntegrationForShop(shop);
+    const plans = await this.prisma.pricingPlan.findMany({
+      where: { status: PricingPlanStatus.ACTIVE },
+      orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
+    });
+    return {
+      data: plans.filter(supportsShopifyChannel).map(toPricingPlanDto),
+    };
+  }
+
   async uploadPersonImage(
     sessionToken: string,
     payload: PublicApiUploadPayload,
@@ -364,6 +402,14 @@ export class ShopifyStorefrontTryOnService {
     input: CreateShopifyStorefrontTryOnRunDto,
   ): Promise<ShopifyStorefrontTryOnRunDto> {
     const capability = await this.requireActiveCapability(sessionToken);
+    await this.assertStorefrontLimits({
+      organizationId: capability.organizationId,
+      shopDomain: capability.shopDomain,
+      visitorTokenHash: capability.visitorTokenHash,
+      visitorTryOnLimit: capability.visitorTryOnLimit,
+      visitorLimitPeriod: normalizeLimitPeriod(capability.visitorLimitPeriod),
+      monthlyStoreTryOnLimit: capability.monthlyStoreTryOnLimit,
+    });
     const mapping = await this.requireActiveMapping(capability);
     const personAsset = await this.sessions
       .getCurrentPersonAsset({
@@ -654,6 +700,67 @@ export class ShopifyStorefrontTryOnService {
       throw productUnavailable();
     }
     return mapping;
+  }
+
+  private async assertStorefrontLimits(input: {
+    organizationId: string;
+    shopDomain: string;
+  } & StorefrontLimits): Promise<void> {
+    const now = new Date();
+    if (input.monthlyStoreTryOnLimit > 0) {
+      const monthlyRuns = await this.prisma.kioskTryOnRun.count({
+        where: {
+          organizationId: input.organizationId,
+          catalogSource: "SHOPIFY",
+          createdAt: { gte: currentUtcMonthStart(now), lte: now },
+          tryOnSession: {
+            shopifyStorefrontTryOnSession: {
+              shopDomain: input.shopDomain,
+            },
+          },
+        },
+      });
+      if (monthlyRuns >= input.monthlyStoreTryOnLimit) {
+        throw new ApiErrorException(
+          HttpStatus.TOO_MANY_REQUESTS,
+          SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.monthlyLimitReached,
+          "This store has reached its monthly Try-On limit.",
+        );
+      }
+    }
+
+    if (input.visitorTryOnLimit > 0) {
+      if (!input.visitorTokenHash) {
+        throw new ApiErrorException(
+          HttpStatus.BAD_REQUEST,
+          SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.visitorLimitReached,
+          "This Try-On visitor session could not be verified.",
+        );
+      }
+      const visitorRuns = await this.prisma.kioskTryOnRun.count({
+        where: {
+          organizationId: input.organizationId,
+          catalogSource: "SHOPIFY",
+          createdAt: {
+            gte: periodStart(now, input.visitorLimitPeriod),
+            lte: now,
+          },
+          tryOnSession: {
+            shopifyStorefrontTryOnSession: {
+              shopDomain: input.shopDomain,
+              visitorTokenHash: input.visitorTokenHash,
+            },
+          },
+        },
+      });
+      if (visitorRuns >= input.visitorTryOnLimit) {
+        throw new ApiErrorException(
+          HttpStatus.TOO_MANY_REQUESTS,
+          SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.visitorLimitReached,
+          "You have reached this store's Try-On limit for now.",
+        );
+      }
+    }
   }
 
   private async readProductImage(product: ShopifyProductRecord) {
@@ -968,6 +1075,12 @@ export function hashSessionToken(sessionToken: string): string {
   return createHash("sha256").update(sessionToken).digest("hex");
 }
 
+function hashVisitorToken(visitorToken: string | undefined): string | null {
+  const clean = visitorToken?.trim();
+  if (!clean || !/^[A-Za-z0-9_-]{32,128}$/.test(clean)) return null;
+  return createHash("sha256").update(clean).digest("hex");
+}
+
 function validSessionToken(sessionToken: string): boolean {
   return /^[A-Za-z0-9_-]{43}$/.test(sessionToken);
 }
@@ -1085,6 +1198,44 @@ function toCapabilityProductDto(
   };
 }
 
+function toPricingPlanDto(plan: {
+  id: string;
+  code: string;
+  name: string;
+  channels: Prisma.JsonValue;
+  currency: string;
+  monthlyPriceCents: number;
+  includedCredits: number;
+  trialCredits: number;
+  extraCreditPriceCents: number | null;
+  kioskMonthlyRentCents: number | null;
+  kioskDeviceLimit: number | null;
+}): ShopifyStorefrontPricingPlanDto {
+  return {
+    id: plan.id,
+    code: plan.code,
+    name: plan.name,
+    channels: jsonStringArray(plan.channels),
+    currency: plan.currency,
+    monthlyPriceCents: plan.monthlyPriceCents,
+    includedCredits: plan.includedCredits,
+    trialCredits: plan.trialCredits,
+    extraCreditPriceCents: plan.extraCreditPriceCents,
+    kioskMonthlyRentCents: plan.kioskMonthlyRentCents,
+    kioskDeviceLimit: plan.kioskDeviceLimit,
+  };
+}
+
+function supportsShopifyChannel(plan: { channels: Prisma.JsonValue }): boolean {
+  return jsonStringArray(plan.channels).includes("SHOPIFY");
+}
+
+function jsonStringArray(value: Prisma.JsonValue): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
 function objectKeyFor(input: {
   storeId: string;
   sessionId: string;
@@ -1121,6 +1272,43 @@ function normalizeShopDomain(value: string): string {
 
 function currentUtcMonthStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+function storefrontLimitsFromInput(
+  input: CreateShopifyStorefrontTryOnSessionDto,
+): StorefrontLimits {
+  return {
+    visitorTokenHash: hashVisitorToken(input.visitorToken),
+    visitorTryOnLimit: normalizeLimit(input.visitorTryOnLimit),
+    visitorLimitPeriod: normalizeLimitPeriod(input.visitorTryOnLimitPeriod),
+    monthlyStoreTryOnLimit: normalizeLimit(input.monthlyStoreTryOnLimit),
+  };
+}
+
+function normalizeLimit(value: number | undefined): number {
+  if (!Number.isFinite(value) || !value || value <= 0) return 0;
+  return Math.min(Math.floor(value), 1_000_000);
+}
+
+function normalizeLimitPeriod(
+  value: string | undefined,
+): StorefrontLimitPeriod {
+  return value === "WEEK" || value === "MONTH" ? value : "DAY";
+}
+
+function periodStart(now: Date, period: StorefrontLimitPeriod): Date {
+  if (period === "MONTH") return currentUtcMonthStart(now);
+  if (period === "WEEK") {
+    const start = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+    const daysSinceMonday = (start.getUTCDay() + 6) % 7;
+    start.setUTCDate(start.getUTCDate() - daysSinceMonday);
+    return start;
+  }
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
 }
 
 function assertProductEligible(product: ShopifyProductRecord): void {
