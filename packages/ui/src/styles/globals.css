@@ -173,6 +173,19 @@ textarea {
   font: inherit;
 }
 
+input[type="checkbox"] {
+  accent-color: var(--selfx-primary);
+}
+
+@keyframes selfx-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

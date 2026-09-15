@@ -79,6 +79,8 @@ export {
   TableRow,
 } from "./components/table";
 export { Textarea } from "./components/textarea";
+export { ToastProvider, useToast } from "./components/toast";
+export type { ToastInput, ToastVariant } from "./components/toast";
 export {
   Tooltip,
   TooltipContent,

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import type {
   ActionFunctionArgs,
   LoaderFunctionArgs,
@@ -21,6 +21,7 @@ import {
   type SelfxConnectionView,
 } from "../selfx-connection.server";
 import {
+  adminFormat,
   adminT,
   languageLocaleLabel,
   normalizeLanguageLocale,
@@ -378,10 +379,16 @@ export default function Index() {
     includedCredits > 0
       ? Math.min(100, Math.round((usedCredits / includedCredits) * 100))
       : 0;
-  const planName =
+  const [adminLocale, setAdminLocale] = useState(connection.adminLocale);
+
+  useEffect(() => {
+    setAdminLocale(connection.adminLocale);
+  }, [connection.adminLocale]);
+
+  const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
+  const localizedPlanName =
     creditSummary?.subscription?.pricingPlan?.name ??
-    (connected ? "Trial" : "Not connected");
-  const t = (key: Parameters<typeof adminT>[1]) => adminT(connection.adminLocale, key);
+    (connected ? t("trial") : t("notConnected"));
 
   return (
     <s-page heading={t("appHeading")} inlineSize="large">
@@ -397,8 +404,10 @@ export default function Index() {
         connected={connected}
         connection={connection}
         storefrontLocale={connection.storefrontLocale}
+        adminLocale={adminLocale}
         completeActionPath={completeActionPath}
         connectActionPath={connectActionPath}
+        onAdminLocaleChange={setAdminLocale}
         restartActionPath={restartActionPath}
         syncActionPath={syncActionPath}
       />
@@ -408,34 +417,37 @@ export default function Index() {
         gap="base"
       >
         <DashboardMetric
-          label="Total Try-Ons"
+          label={t("totalTryOns")}
           value={String(totalTryOns)}
-          meta="All Shopify storefront sessions"
+          meta={t("allShopifyStorefrontSessions")}
         />
         <DashboardMetric
-          label="This Month"
+          label={t("thisMonth")}
           value={String(thisMonthTryOns)}
           meta={
             usageSummary
-              ? `${usageSummary.thisMonth.generatedImages} generated`
-              : "No usage yet"
+              ? adminFormat(adminLocale, "generated", {
+                  count: usageSummary.thisMonth.generatedImages,
+                })
+              : t("noUsageYet")
           }
         />
         <DashboardMetric
-          label="Available Credits"
+          label={t("availableCredits")}
           value={connected ? String(availableCredits) : "-"}
-          meta={planName}
-          badge={<CreditBadge health={creditHealth} />}
+          meta={localizedPlanName}
+          badge={<CreditBadge adminLocale={adminLocale} health={creditHealth} />}
         />
       </s-grid>
 
       <CreditUsagePanel
+        adminLocale={adminLocale}
         availableCredits={availableCredits}
         billingUrl={selfxBillingUrl}
         connected={connected}
         creditHealth={creditHealth}
         includedCredits={includedCredits}
-        planName={planName}
+        planName={localizedPlanName}
         usagePercent={usagePercent}
         usedCredits={usedCredits}
       />
@@ -444,13 +456,14 @@ export default function Index() {
         <aside className="selfx-shopify-panel-nav">
           <ShopifyPanelNavigation
             activePanel={activePanel}
-            adminLocale={connection.adminLocale}
+            adminLocale={adminLocale}
             onChange={setActivePanel}
           />
         </aside>
         <main className="selfx-shopify-panel-main">
           <ShopifyPanelContent
             activePanel={activePanel}
+            adminLocale={adminLocale}
             availableCredits={availableCredits}
             connected={connected}
             connection={connection}
@@ -534,19 +547,23 @@ function StatusAlerts({
 }
 
 function MerchantAppHeader({
+  adminLocale,
   completeActionPath,
   connectActionPath,
   connected,
   connection,
+  onAdminLocaleChange,
   storefrontLocale,
   pending,
   restartActionPath,
   syncActionPath,
 }: {
+  adminLocale: string;
   completeActionPath: string;
   connectActionPath: string;
   connected: boolean;
   connection: SelfxConnectionView;
+  onAdminLocaleChange: (locale: string) => void;
   storefrontLocale: string;
   pending: boolean;
   restartActionPath: string;
@@ -554,9 +571,30 @@ function MerchantAppHeader({
 }) {
   const fetcher = useFetcher<ProductActionData>();
   const saving = fetcher.state !== "idle";
-  const currentAdminLocale =
-    fetcher.data?.settingsAdminLocale ?? connection.adminLocale;
+  const currentAdminLocale = fetcher.data?.settingsAdminLocale ?? adminLocale;
   const t = (key: Parameters<typeof adminT>[1]) => adminT(currentAdminLocale, key);
+
+  function handleAdminLocaleChange(event: FormEvent<HTMLElement>) {
+    const nextLocale = normalizeLanguageLocale(
+      (event.currentTarget as HTMLSelectElement).value,
+    );
+    onAdminLocaleChange(nextLocale);
+
+    const formData = new FormData();
+    formData.set("intent", "setStorefrontSettings");
+    formData.set("storefrontLocale", storefrontLocale);
+    formData.set("visitorTryOnLimit", String(connection.visitorTryOnLimit));
+    formData.set(
+      "visitorTryOnLimitPeriod",
+      connection.visitorTryOnLimitPeriod,
+    );
+    formData.set(
+      "monthlyStoreTryOnLimit",
+      String(connection.monthlyStoreTryOnLimit),
+    );
+    formData.set("adminLocale", nextLocale);
+    fetcher.submit(formData, { method: "post" });
+  }
 
   return (
     <s-section>
@@ -580,47 +618,21 @@ function MerchantAppHeader({
         </s-grid-item>
         <s-grid-item>
           <s-stack direction="inline" gap="base" alignItems="center">
-            <fetcher.Form method="post" className="selfx-shopify-language-form">
-              <input type="hidden" name="intent" value="setStorefrontSettings" />
-              <input
-                type="hidden"
-                name="storefrontLocale"
-                value={storefrontLocale}
-              />
-              <input
-                type="hidden"
-                name="visitorTryOnLimit"
-                value={String(connection.visitorTryOnLimit)}
-              />
-              <input
-                type="hidden"
-                name="visitorTryOnLimitPeriod"
-                value={connection.visitorTryOnLimitPeriod}
-              />
-              <input
-                type="hidden"
-                name="monthlyStoreTryOnLimit"
-                value={String(connection.monthlyStoreTryOnLimit)}
-              />
-              <div className="selfx-shopify-language-form__inner">
-                <s-select
-                  label={t("adminPanelLanguage")}
-                  name="adminLocale"
-                  value={currentAdminLocale}
-                >
-                  {supportedLanguageLocales.map((locale) => (
-                    <s-option key={locale.code} value={locale.code}>
-                      {locale.label}
-                    </s-option>
-                  ))}
-                </s-select>
-                <SelfxActionButton type="submit" disabled={saving}>
-                  {saving ? t("saving") : t("saveSettings")}
-                </SelfxActionButton>
-              </div>
-            </fetcher.Form>
+            <s-select
+              label={t("adminPanelLanguage")}
+              name="adminLocale"
+              value={currentAdminLocale}
+              onChange={handleAdminLocaleChange}
+              disabled={saving}
+            >
+              {supportedLanguageLocales.map((locale) => (
+                <s-option key={locale.code} value={locale.code}>
+                  {locale.label}
+                </s-option>
+              ))}
+            </s-select>
             <s-button href={syncActionPath} variant="secondary" icon="refresh">
-              Refresh
+              {t("refresh")}
             </s-button>
             <PrimaryActions
               approvalUrl={connection.approvalUrl}
@@ -671,6 +683,7 @@ function DashboardMetric({
 }
 
 function CreditUsagePanel({
+  adminLocale,
   availableCredits,
   billingUrl,
   connected,
@@ -680,6 +693,7 @@ function CreditUsagePanel({
   usagePercent,
   usedCredits,
 }: {
+  adminLocale: string;
   availableCredits: number;
   billingUrl: string | null;
   connected: boolean;
@@ -692,10 +706,15 @@ function CreditUsagePanel({
   if (!connected) {
     return null;
   }
+  const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
   return (
     <s-section>
       <s-stack gap="base">
-        <CreditStatusBanner health={creditHealth} billingUrl={billingUrl} />
+        <CreditStatusBanner
+          adminLocale={adminLocale}
+          health={creditHealth}
+          billingUrl={billingUrl}
+        />
         <s-box
           padding="base"
           background="base"
@@ -707,17 +726,20 @@ function CreditUsagePanel({
             <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
               <s-grid-item>
                 <s-stack direction="inline" gap="base" alignItems="center">
-                  <CreditBadge health={creditHealth} />
+                  <CreditBadge adminLocale={adminLocale} health={creditHealth} />
                   <s-text>
-                    {planName} - {availableCredits} of {includedCredits} credits
-                    left
+                    {planName} -{" "}
+                    {adminFormat(adminLocale, "creditsLeft", {
+                      available: availableCredits,
+                      included: includedCredits,
+                    })}
                   </s-text>
                 </s-stack>
               </s-grid-item>
               <s-grid-item>
                 {billingUrl ? (
                   <s-button href={billingUrl} target="_blank" variant="secondary">
-                    View Plans
+                    {t("viewPlans")}
                   </s-button>
                 ) : null}
               </s-grid-item>
@@ -774,6 +796,7 @@ function ShopifyPanelNavigation({
 
 function ShopifyPanelContent({
   activePanel,
+  adminLocale,
   availableCredits,
   connected,
   connection,
@@ -791,6 +814,7 @@ function ShopifyPanelContent({
   usageSummary,
 }: {
   activePanel: ShopifyAdminPanelKey;
+  adminLocale: string;
   availableCredits: number;
   connected: boolean;
   connection: SelfxConnectionView;
@@ -826,7 +850,12 @@ function ShopifyPanelContent({
     );
   }
   if (activePanel === "settings") {
-    return <LanguageSettingsPanel connection={connection} />;
+    return (
+      <LanguageSettingsPanel
+        adminLocale={adminLocale}
+        connection={connection}
+      />
+    );
   }
   if (activePanel === "analytics") {
     return (
@@ -844,6 +873,7 @@ function ShopifyPanelContent({
   if (activePanel === "plans") {
     return (
       <PlansPanel
+        adminLocale={adminLocale}
         availablePlans={availablePlans}
         billingUrl={selfxBillingUrl}
         creditHealth={creditHealth}
@@ -1104,16 +1134,17 @@ function DisplaySettingsPreview() {
 }
 
 function LanguageSettingsPanel({
+  adminLocale,
   connection,
 }: {
+  adminLocale: string;
   connection: SelfxConnectionView;
 }) {
   const fetcher = useFetcher<ProductActionData>();
   const saving = fetcher.state !== "idle";
   const currentLocale =
     fetcher.data?.settingsStorefrontLocale ?? connection.storefrontLocale;
-  const currentAdminLocale =
-    fetcher.data?.settingsAdminLocale ?? connection.adminLocale;
+  const currentAdminLocale = fetcher.data?.settingsAdminLocale ?? adminLocale;
   const currentVisitorLimit =
     fetcher.data?.settingsVisitorTryOnLimit ?? connection.visitorTryOnLimit;
   const currentVisitorLimitPeriod =
@@ -1139,6 +1170,7 @@ function LanguageSettingsPanel({
         ) : null}
         <fetcher.Form method="post">
           <input type="hidden" name="intent" value="setStorefrontSettings" />
+          <input type="hidden" name="adminLocale" value={currentAdminLocale} />
           <s-stack gap="base">
             <s-grid
               gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
@@ -1170,10 +1202,14 @@ function LanguageSettingsPanel({
             </s-grid>
             <s-text color="subdued">
               {currentVisitorLimit > 0
-                ? `Each visitor can use up to ${currentVisitorLimit} Try-Ons per ${limitPeriodLabel(
-                    currentVisitorLimitPeriod,
-                  )}.`
-                : "Per-visitor limits are off. Plan credits still apply."}
+                ? adminFormat(currentAdminLocale, "visitorLimitEnabled", {
+                    limit: currentVisitorLimit,
+                    period: limitPeriodLabel(
+                      currentVisitorLimitPeriod,
+                      currentAdminLocale,
+                    ),
+                  })
+                : t("visitorLimitsOff")}
             </s-text>
             <s-divider />
             <s-number-field
@@ -1186,8 +1222,10 @@ function LanguageSettingsPanel({
             />
             <s-text color="subdued">
               {currentMonthlyLimit > 0
-                ? `This Shopify store can run up to ${currentMonthlyLimit} Try-Ons per calendar month.`
-                : "No custom monthly cap is set. The SelfX plan credit limit is still enforced."}
+                ? adminFormat(currentAdminLocale, "monthlyStoreCapEnabled", {
+                    limit: currentMonthlyLimit,
+                  })
+                : t("monthlyStoreCapOff")}
             </s-text>
             <s-divider />
             <s-select
@@ -1203,32 +1241,17 @@ function LanguageSettingsPanel({
             </s-select>
             <s-text color="subdued">
               {currentLocale === "auto"
-                ? "Auto follows the shopper's Shopify storefront language when available."
-                : `Shoppers will see ${storefrontLocaleLabel(
-                    currentLocale,
-                  )} for the SelfX Try-On launch page.`}
+                ? t("storefrontAutoHelp")
+                : adminFormat(currentAdminLocale, "storefrontForcedHelp", {
+                    language: storefrontLocaleLabel(currentLocale),
+                  })}
             </s-text>
             <s-divider />
-            <s-grid gridTemplateColumns="minmax(0, 1fr) auto" gap="base" alignItems="end">
-              <s-grid-item>
-                <s-select
-                  label={t("adminPanelLanguage")}
-                  name="adminLocale"
-                  value={currentAdminLocale}
-                >
-                  {supportedLanguageLocales.map((locale) => (
-                    <s-option key={locale.code} value={locale.code}>
-                      {locale.label}
-                    </s-option>
-                  ))}
-                </s-select>
-              </s-grid-item>
-              <s-grid-item>
-                <SelfxActionButton type="submit" tone="primary" disabled={saving}>
-                  {saving ? t("saving") : t("saveSettings")}
-                </SelfxActionButton>
-              </s-grid-item>
-            </s-grid>
+            <s-box>
+              <SelfxActionButton type="submit" tone="primary" disabled={saving}>
+                {saving ? t("saving") : t("saveSettings")}
+              </SelfxActionButton>
+            </s-box>
           </s-stack>
         </fetcher.Form>
         <s-box
@@ -1239,9 +1262,13 @@ function LanguageSettingsPanel({
           borderRadius="base"
         >
           <s-text color="subdued">
-            Current admin language: {languageLocaleLabel(currentAdminLocale)}.
-            Current storefront language: {storefrontLocaleLabel(currentLocale)}.
-            Arabic uses a right-to-left shopper layout.
+            {adminFormat(currentAdminLocale, "currentAdminLanguage", {
+              language: languageLocaleLabel(currentAdminLocale),
+            })}{" "}
+            {adminFormat(currentAdminLocale, "currentStorefrontLanguage", {
+              language: storefrontLocaleLabel(currentLocale),
+            })}{" "}
+            {t("arabicRtlNote")}
           </s-text>
         </s-box>
       </s-stack>
@@ -1275,10 +1302,10 @@ export function ErrorBoundary() {
   );
 }
 
-function limitPeriodLabel(period: string): string {
-  if (period === "WEEK") return "week";
-  if (period === "MONTH") return "month";
-  return "day";
+function limitPeriodLabel(period: string, adminLocale: string): string {
+  if (period === "WEEK") return adminT(adminLocale, "weekly").toLowerCase();
+  if (period === "MONTH") return adminT(adminLocale, "monthly").toLowerCase();
+  return adminT(adminLocale, "daily").toLowerCase();
 }
 
 function AnalyticsPanel({
@@ -1374,6 +1401,7 @@ function AnalyticsPanel({
 }
 
 function PlansPanel({
+  adminLocale,
   availablePlans,
   availableCredits,
   billingUrl,
@@ -1381,6 +1409,7 @@ function PlansPanel({
   creditSummary,
   includedCredits,
 }: {
+  adminLocale: string;
   availablePlans: SelfxStorefrontPricingPlan[];
   availableCredits: number;
   billingUrl: string | null;
@@ -1416,7 +1445,7 @@ function PlansPanel({
           borderRadius="base"
         >
           <s-stack direction="inline" gap="base" alignItems="center">
-            <CreditBadge health={creditHealth} />
+            <CreditBadge adminLocale={adminLocale} health={creditHealth} />
             <s-stack gap="small-200">
               <s-heading>{currentPlanLabel}</s-heading>
               <s-text color="subdued">
@@ -1814,17 +1843,6 @@ function SelfxShopifyStyles() {
           color: #9f3d00;
         }
 
-        .selfx-shopify-language-form {
-          margin: 0;
-        }
-
-        .selfx-shopify-language-form__inner {
-          align-items: end;
-          display: grid;
-          gap: 0.5rem;
-          grid-template-columns: minmax(10rem, 13rem) auto;
-        }
-
         .selfx-shopify-panel-layout {
           align-items: start;
           display: grid;
@@ -2053,9 +2071,11 @@ function SyncBadge({ status }: { status: SelfxConnectionView["syncStatus"] }) {
 }
 
 function CreditStatusBanner({
+  adminLocale,
   billingUrl,
   health,
 }: {
+  adminLocale: string;
   billingUrl: string | null;
   health: CreditHealth;
 }) {
@@ -2063,20 +2083,23 @@ function CreditStatusBanner({
     return null;
   }
   const empty = health === "EMPTY";
+  const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
   return (
     <s-banner
-      heading={empty ? "Try-On is paused" : "Try-On credits are low"}
+      heading={empty ? t("tryOnPaused") : t("tryOnCreditsLow")}
       tone={empty ? "critical" : "warning"}
     >
       <s-stack gap="base">
         <s-text>
           {empty
-            ? "This store has no Try-On credits left. Shoppers will see a temporary unavailable message until credits are added."
-            : `This store has ${lowCreditThreshold} or fewer Try-On credits remaining.`}
+            ? t("emptyCreditsMessage")
+            : adminFormat(adminLocale, "lowCreditsMessage", {
+                threshold: lowCreditThreshold,
+              })}
         </s-text>
         {billingUrl ? (
           <s-button href={billingUrl} target="_blank" variant="secondary">
-            Open SelfX Billing
+            {t("openSelfxBilling")}
           </s-button>
         ) : null}
       </s-stack>
@@ -2084,17 +2107,24 @@ function CreditStatusBanner({
   );
 }
 
-function CreditBadge({ health }: { health: CreditHealth }) {
+function CreditBadge({
+  adminLocale,
+  health,
+}: {
+  adminLocale: string;
+  health: CreditHealth;
+}) {
+  const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
   if (health === "EMPTY") {
-    return <s-badge tone="critical">No credits</s-badge>;
+    return <s-badge tone="critical">{t("noCredits")}</s-badge>;
   }
   if (health === "LOW") {
-    return <s-badge tone="warning">Low credits</s-badge>;
+    return <s-badge tone="warning">{t("lowCredits")}</s-badge>;
   }
   if (health === "HEALTHY") {
-    return <s-badge tone="success">Credits available</s-badge>;
+    return <s-badge tone="success">{t("creditsAvailable")}</s-badge>;
   }
-  return <s-badge tone="neutral">Credits unavailable</s-badge>;
+  return <s-badge tone="neutral">{t("creditsUnavailable")}</s-badge>;
 }
 
 function ProductControlsSection({

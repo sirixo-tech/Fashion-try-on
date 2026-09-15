@@ -2,14 +2,16 @@
 
 import type { ReactNode } from "react";
 
-import { SelfxUiProvider } from "@selfx/ui";
+import { SelfxUiProvider, ToastProvider } from "@selfx/ui";
 
 import { SessionProvider } from "@/lib/session";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <SelfxUiProvider>
-      <SessionProvider>{children}</SessionProvider>
+      <ToastProvider>
+        <SessionProvider>{children}</SessionProvider>
+      </ToastProvider>
     </SelfxUiProvider>
   );
 }

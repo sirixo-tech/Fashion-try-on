@@ -33,9 +33,9 @@ import {
   PageSection,
   SelectMenu,
   buttonVariants,
+  useToast,
 } from "@selfx/ui";
 
-import { platformCurrencyOptions } from "@/components/product-form-controls";
 import { SafeApiError } from "@/lib/api";
 import {
   getCurrentPlatformAccess,
@@ -123,12 +123,12 @@ export function PricingPlanEditor({
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
   const [features, setFeatures] = useState<PlanFeature[]>([]);
   const [accessLoading, setAccessLoading] = useState(true);
-  const [currencyLoading, setCurrencyLoading] = useState(mode === "create");
+  const [platformCurrency, setPlatformCurrency] = useState(emptyForm.currency);
+  const { showToast } = useToast();
 
   const canViewPricing = Boolean(
     platformAccess?.isSuperadmin ||
@@ -156,7 +156,7 @@ export function PricingPlanEditor({
       const plan = plans.find((item) => item.id === planId) ?? null;
       setLoadedPlan(plan);
       if (plan) {
-        setForm(formFromPlan(plan));
+        setForm(formFromPlan(plan, platformCurrency));
       } else {
         setError("Pricing plan was not found.");
       }
@@ -165,7 +165,7 @@ export function PricingPlanEditor({
     } finally {
       setLoading(false);
     }
-  }, [accessToken, canViewPricing, mode, planId]);
+  }, [accessToken, canViewPricing, mode, planId, platformCurrency]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -223,43 +223,32 @@ export function PricingPlanEditor({
   }, [accessToken, canViewPricing]);
 
   useEffect(() => {
-    if (mode !== "create") {
-      setCurrencyLoading(false);
-      return;
-    }
     if (!accessToken || !canViewPricing) {
-      setCurrencyLoading(false);
       return;
     }
     let cancelled = false;
-    setCurrencyLoading(true);
     getPlatformVirtualTryOnSettings(accessToken)
       .then((settings) => {
         if (cancelled) {
           return;
         }
-        const defaultCurrency = settings.defaultCurrency.trim().toUpperCase();
-        if (!defaultCurrency) {
-          return;
-        }
-        setForm((current) =>
-          current.currency === emptyForm.currency
-            ? { ...current, currency: defaultCurrency }
-            : current,
-        );
+        const defaultCurrency = normalizeCurrency(settings.defaultCurrency);
+        setPlatformCurrency(defaultCurrency);
+        setForm((current) => ({ ...current, currency: defaultCurrency }));
       })
       .catch(() => {
-        // Keep the conservative USD fallback if platform settings are unavailable.
-      })
-      .finally(() => {
         if (!cancelled) {
-          setCurrencyLoading(false);
+          setPlatformCurrency(emptyForm.currency);
+          setForm((current) => ({
+            ...current,
+            currency: normalizeCurrency(current.currency),
+          }));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [accessToken, canViewPricing, mode]);
+  }, [accessToken, canViewPricing]);
 
   const title = mode === "create" ? "New plan" : "Edit plan";
   const previewTitle = form.name.trim() || "Untitled plan";
@@ -271,32 +260,47 @@ export function PricingPlanEditor({
     () => labelsForFeatureKeys(form.featureKeys, features),
     [features, form.featureKeys],
   );
+  const generatedPlanCode = useMemo(
+    () => planCodeFromName(form.name),
+    [form.name],
+  );
 
   async function savePlan() {
     if (!accessToken || !canManagePricing) {
       return;
     }
-    const validationError = validateForm(form, mode);
+    const validationError = validateForm(form);
     if (validationError) {
       setError(validationError);
-      setNotice(null);
       return;
     }
     setSaving(true);
     setError(null);
-    setNotice(null);
     try {
-      const payload = formToInput(form);
+      const payload = formToInput({ ...form, currency: platformCurrency });
+      const generatedCode =
+        mode === "create"
+          ? uniquePlanCode(
+              generatedPlanCode,
+              await listPricingPlans(accessToken).catch(() => []),
+            )
+          : form.code.trim();
       const saved =
         mode === "create"
           ? await createPricingPlan(accessToken, {
               ...payload,
-              code: form.code.trim(),
+              code: generatedCode,
             })
           : await updatePricingPlan(accessToken, planId ?? "", payload);
       setLoadedPlan(saved);
-      setForm(formFromPlan(saved));
-      setNotice(`${saved.name} saved.`);
+      setForm(formFromPlan(saved, platformCurrency));
+      showToast({
+        variant: "success",
+        title: mode === "create" ? "Plan created" : "Plan saved",
+        description: `${saved.name} ${
+          mode === "create" ? "created" : "updated"
+        } successfully.`,
+      });
       if (mode === "create") {
         router.replace(`/app/platform/pricing/${saved.id}/edit`);
       }
@@ -362,14 +366,6 @@ export function PricingPlanEditor({
         </PageSection>
       ) : null}
 
-      {notice ? (
-        <PageSection>
-          <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
-            {notice}
-          </div>
-        </PageSection>
-      ) : null}
-
       <PageSection>
         {loading ? (
           <LoadingState label="Loading pricing plan" />
@@ -412,28 +408,13 @@ export function PricingPlanEditor({
                     <div>
                       <CardTitle>Name & visibility</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Choose the public name and internal code for this plan.
+                        Choose the public name and availability state for this
+                        plan.
                       </p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-4">
-                  {mode === "create" ? (
-                    <TextField
-                      label="Plan code"
-                      value={form.code}
-                      disabled={!canManagePricing}
-                      placeholder="shopify-starter"
-                      onChange={(code) =>
-                        setForm((current) => ({
-                          ...current,
-                          code: code.toLowerCase(),
-                        }))
-                      }
-                    />
-                  ) : (
-                    <ReadOnlyField label="Plan code" value={form.code} />
-                  )}
                   <TextField
                     label="Plan name"
                     value={form.name}
@@ -455,6 +436,20 @@ export function PricingPlanEditor({
                       }
                     />
                   </label>
+                  {mode === "edit" ? (
+                    <div className="grid gap-3 rounded-md border bg-muted/25 p-3">
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                          Internal details
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          This code was generated when the plan was created and
+                          stays stable for integrations, billing and analytics.
+                        </p>
+                      </div>
+                      <ReadOnlyField label="Plan code" value={form.code} />
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
 
@@ -465,8 +460,8 @@ export function PricingPlanEditor({
                     <div>
                       <CardTitle>Pricing</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Set the currency, monthly plan price and extra credit
-                        pricing.
+                        Uses the currency saved in Platform Settings for every
+                        pricing plan.
                       </p>
                     </div>
                   </div>
@@ -474,17 +469,11 @@ export function PricingPlanEditor({
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <label className="grid gap-2 text-sm font-medium">
                     Currency
-                    <SelectMenu
-                      ariaLabel="Plan currency"
-                      value={form.currency}
-                      options={platformCurrencyOptions}
-                      disabled={!canManagePricing || currencyLoading}
-                      onChange={(currency) =>
-                        setForm((current) => ({ ...current, currency }))
-                      }
-                    />
+                    <div className="flex h-12 items-center rounded-md border border-input bg-muted/40 px-3 text-base font-semibold">
+                      {platformCurrency}
+                    </div>
                     <span className="text-xs font-normal text-muted-foreground">
-                      Defaults to the currency saved in Platform Settings.
+                      Inherited from Platform Settings.
                     </span>
                   </label>
                   <NumberField
@@ -805,7 +794,15 @@ function ChannelPicker({
         {channelOptions.map((channel) => (
           <label
             key={channel}
-            className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3 text-sm font-medium"
+            className={[
+              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm font-medium transition-[background-color,border-color,box-shadow,transform]",
+              value.includes(channel)
+                ? "border-primary/80 bg-primary/5 ring-1 ring-primary/20 hover:border-primary hover:ring-primary/30"
+                : "border-border bg-muted/20 hover:border-foreground/25 hover:shadow-soft",
+              disabled
+                ? "cursor-not-allowed opacity-60 hover:shadow-none motion-safe:hover:translate-y-0 motion-safe:hover:scale-100"
+                : "motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]",
+            ].join(" ")}
           >
             <input
               type="checkbox"
@@ -885,11 +882,13 @@ function FeaturePicker({
                   <label
                     key={feature.key}
                     className={[
-                      "grid cursor-pointer gap-2 rounded-lg border p-4 text-sm transition-colors",
+                      "grid cursor-pointer gap-2 rounded-lg border p-4 text-sm transition-[background-color,border-color,box-shadow,transform]",
                       checked
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-background",
-                      disabled ? "cursor-not-allowed opacity-60" : "",
+                        ? "border-primary/80 bg-primary/5 ring-1 ring-primary/20 hover:border-primary hover:ring-primary/30"
+                        : "border-border bg-background hover:border-foreground/25 hover:shadow-soft",
+                      disabled
+                        ? "cursor-not-allowed opacity-60 hover:shadow-none motion-safe:hover:translate-y-0 motion-safe:hover:scale-100"
+                        : "motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]",
                     ].join(" ")}
                   >
                     <span className="flex items-start gap-3">
@@ -939,13 +938,16 @@ function PreviewMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formFromPlan(plan: PricingPlan): PlanFormState {
+function formFromPlan(
+  plan: PricingPlan,
+  platformCurrency = plan.currency,
+): PlanFormState {
   return {
     code: plan.code,
     name: plan.name,
     status: plan.status,
     channels: plan.channels,
-    currency: plan.currency,
+    currency: normalizeCurrency(platformCurrency),
     monthlyPrice: centsToMoneyInput(plan.monthlyPriceCents),
     includedCredits: String(plan.includedCredits),
     trialCredits: String(plan.trialCredits),
@@ -979,13 +981,47 @@ function formToInput(form: PlanFormState): PricingPlanInput {
   };
 }
 
-function validateForm(
-  form: PlanFormState,
-  mode: "create" | "edit",
-): string | null {
-  if (mode === "create" && !/^[a-z0-9][a-z0-9-]*$/.test(form.code.trim())) {
-    return "Plan code must use lowercase letters, numbers and hyphens.";
+function planCodeFromName(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+  const code = slug || "plan";
+  const validLengthCode = code.length < 3 ? `${code}-plan` : code;
+  return validLengthCode.slice(0, 80).replace(/-+$/g, "") || "plan";
+}
+
+function uniquePlanCode(baseCode: string, existingPlans: PricingPlan[]): string {
+  const existingCodes = new Set(existingPlans.map((plan) => plan.code));
+  if (!existingCodes.has(baseCode)) {
+    return baseCode;
   }
+  for (let suffix = 2; suffix < 1000; suffix += 1) {
+    const suffixText = String(suffix);
+    const prefix =
+      baseCode.slice(0, 79 - suffixText.length).replace(/-+$/g, "") || "plan";
+    const candidate = `${prefix}-${suffixText}`;
+    if (!existingCodes.has(candidate)) {
+      return candidate;
+    }
+  }
+  const fallbackSuffix = Date.now().toString(36);
+  const fallbackPrefix =
+    baseCode.slice(0, 79 - fallbackSuffix.length).replace(/-+$/g, "") ||
+    "plan";
+  return `${fallbackPrefix}-${fallbackSuffix}`;
+}
+
+function normalizeCurrency(value: unknown): string {
+  const currency = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(currency) ? currency : emptyForm.currency;
+}
+
+function validateForm(form: PlanFormState): string | null {
   if (form.name.trim().length < 2) {
     return "Plan name must be at least 2 characters.";
   }
@@ -1070,6 +1106,9 @@ function channelDescription(channel: PricingPlanChannel): string {
 
 function messageFor(caught: unknown): string {
   if (caught instanceof SafeApiError) {
+    if (caught.code === "PRICING_PLAN_CODE_CONFLICT") {
+      return "A plan with a matching generated code already exists. Change the plan name slightly and try again.";
+    }
     return caught.message;
   }
   if (caught instanceof Error) {

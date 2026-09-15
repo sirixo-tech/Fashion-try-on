@@ -30,6 +30,7 @@ import {
   PageHeader,
   PageSection,
   buttonVariants,
+  useToast,
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
@@ -55,10 +56,10 @@ export default function PricingControlPage() {
   const [loading, setLoading] = useState(true);
   const [archivingPlanId, setArchivingPlanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
+  const { showToast } = useToast();
 
   const canViewPricing = Boolean(
     platformAccess?.isSuperadmin ||
@@ -131,7 +132,6 @@ export default function PricingControlPage() {
     }
     setArchivingPlanId(plan.id);
     setError(null);
-    setNotice(null);
     try {
       const archived = await updatePricingPlan(accessToken, plan.id, {
         status: "ARCHIVED",
@@ -139,7 +139,11 @@ export default function PricingControlPage() {
       setPlans((current) =>
         current.map((item) => (item.id === archived.id ? archived : item)),
       );
-      setNotice(`${archived.name} archived.`);
+      showToast({
+        variant: "success",
+        title: "Plan archived",
+        description: `${archived.name} archived successfully.`,
+      });
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -204,14 +208,6 @@ export default function PricingControlPage() {
         <PageSection>
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
             {error}
-          </div>
-        </PageSection>
-      ) : null}
-
-      {notice ? (
-        <PageSection>
-          <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
-            {notice}
           </div>
         </PageSection>
       ) : null}

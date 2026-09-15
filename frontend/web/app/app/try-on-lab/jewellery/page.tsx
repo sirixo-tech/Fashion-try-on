@@ -89,6 +89,8 @@ const jewelleryTypeOptions: Array<{
   },
 ];
 
+type JewelleryTypeOption = (typeof jewelleryTypeOptions)[number];
+
 type ImageSlot = {
   file: File | null;
   previewUrl: string | null;
@@ -318,7 +320,6 @@ export default function JewelleryTryOnLabPage() {
   const selectedType = jewelleryTypeOptions.find(
     (option) => option.value === jewelleryType,
   )!;
-  const SelectedTypeIcon = selectedType.icon;
 
   return (
     <PageContainer width="wide">
@@ -385,30 +386,6 @@ export default function JewelleryTryOnLabPage() {
                   })}
                 </div>
               </div>
-
-              {requirements ? (
-                <div className="grid gap-3 rounded-md border bg-muted/25 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
-                  <div className="grid size-11 place-items-center rounded-md bg-primary/10">
-                    <SelectedTypeIcon
-                      className={cn("size-6", selectedType.iconClassName)}
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-semibold">{requirements.title}</div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {requirements.instruction}
-                    </div>
-                  </div>
-                  <div className="flex max-w-64 items-start gap-2 rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-xs leading-5 text-muted-foreground">
-                    <InfoIcon
-                      className="mt-0.5 size-4 shrink-0 text-primary"
-                      aria-hidden="true"
-                    />
-                    Clear, unobstructed framing gives the best placement.
-                  </div>
-                </div>
-              ) : null}
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <ImageUploadCard
@@ -491,6 +468,10 @@ export default function JewelleryTryOnLabPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <ResultPanel run={run} busy={busy} />
+              <JewelleryGuidancePanel
+                requirements={requirements}
+                selectedType={selectedType}
+              />
               <div className="flex gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-900">
                 <InfoIcon
                   className="mt-0.5 size-4 shrink-0 text-sky-600"
@@ -505,6 +486,46 @@ export default function JewelleryTryOnLabPage() {
         </div>
       </PageSection>
     </PageContainer>
+  );
+}
+
+function JewelleryGuidancePanel({
+  requirements,
+  selectedType,
+}: {
+  requirements: SelfxJewelleryCaptureRequirements | null;
+  selectedType: JewelleryTypeOption;
+}) {
+  if (!requirements) {
+    return null;
+  }
+
+  const SelectedTypeIcon = selectedType.icon;
+
+  return (
+    <div className="grid gap-3 rounded-md border bg-muted/25 p-4">
+      <div className="flex items-start gap-3">
+        <div className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/10">
+          <SelectedTypeIcon
+            className={cn("size-6", selectedType.iconClassName)}
+            aria-hidden="true"
+          />
+        </div>
+        <div className="min-w-0">
+          <div className="font-semibold">{requirements.title}</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            {requirements.instruction}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-start gap-2 rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-xs leading-5 text-muted-foreground">
+        <InfoIcon
+          className="mt-0.5 size-4 shrink-0 text-primary"
+          aria-hidden="true"
+        />
+        Clear, unobstructed framing gives the best placement.
+      </div>
+    </div>
   );
 }
 

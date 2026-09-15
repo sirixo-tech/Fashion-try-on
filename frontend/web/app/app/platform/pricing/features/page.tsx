@@ -8,7 +8,6 @@ import {
   type SetStateAction,
 } from "react";
 import {
-  CheckCircleIcon,
   RefreshCwIcon,
   SaveIcon,
   SparklesIcon,
@@ -26,6 +25,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
+  useToast,
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
@@ -49,10 +49,10 @@ export default function PricingFeaturesPage() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
+  const { showToast } = useToast();
 
   const canViewPricing = Boolean(
     platformAccess?.isSuperadmin ||
@@ -128,7 +128,6 @@ export default function PricingFeaturesPage() {
     }
     setSavingKey(featureKey);
     setError(null);
-    setNotice(null);
     try {
       const saved = await updatePlanFeature(accessToken, featureKey, {
         displayName: draft.displayName,
@@ -141,7 +140,11 @@ export default function PricingFeaturesPage() {
         current.map((feature) => (feature.key === saved.key ? saved : feature)),
       );
       setDrafts((current) => ({ ...current, [saved.key]: saved }));
-      setNotice(`${saved.displayName} saved.`);
+      showToast({
+        variant: "success",
+        title: "Feature label saved",
+        description: `${saved.displayName} updated successfully.`,
+      });
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -183,15 +186,6 @@ export default function PricingFeaturesPage() {
         <PageSection>
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
             {error}
-          </div>
-        </PageSection>
-      ) : null}
-
-      {notice ? (
-        <PageSection>
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-900">
-            <CheckCircleIcon size={18} aria-hidden="true" />
-            {notice}
           </div>
         </PageSection>
       ) : null}
