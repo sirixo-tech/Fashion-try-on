@@ -43,6 +43,7 @@ import {
 } from "../rbac/store-permissions.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { AdminStoresService } from "./admin-stores.service.js";
+import { StoreImpersonationService } from "./store-impersonation.service.js";
 import {
   AdminStoreDetailResponseDto,
   AdminStoreListQueryDto,
@@ -81,6 +82,7 @@ export class AdminStoresController {
     private readonly stores: AdminStoresService,
     private readonly configurations: KioskConfigurationService,
     private readonly rbac: StoreRbacService,
+    private readonly impersonation: StoreImpersonationService,
   ) {}
 
   @Get()
@@ -164,7 +166,11 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Body() dto: AssignStorePricingPlanDto,
   ): Promise<StoreSubscriptionSummaryDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.pricingManage);
+    await this.requirePlatformPermissionForStore(
+      request,
+      PLATFORM_PERMISSIONS.pricingManage,
+      storeId,
+    );
     return this.stores.assignPricingPlan(storeId, dto);
   }
 
@@ -199,9 +205,10 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Body() dto: ManualStoreCreditAdjustmentDto,
   ): Promise<StoreSubscriptionSummaryDto> {
-    const user = await this.requirePermission(
+    const user = await this.requirePlatformPermissionForStore(
       request,
       PLATFORM_PERMISSIONS.pricingManage,
+      storeId,
     );
     return this.stores.topUpCredits(storeId, dto, user.id);
   }
@@ -246,9 +253,10 @@ export class AdminStoresController {
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
   ): Promise<AdminStoreResponseDto> {
-    await this.requirePermission(
+    await this.requirePlatformPermissionForStore(
       request,
       PLATFORM_PERMISSIONS.storesDeactivate,
+      storeId,
     );
     return this.stores.deactivateStore(storeId);
   }
@@ -260,7 +268,11 @@ export class AdminStoresController {
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
   ): Promise<AdminStoreResponseDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.storesUpdate);
+    await this.requirePlatformPermissionForStore(
+      request,
+      PLATFORM_PERMISSIONS.storesUpdate,
+      storeId,
+    );
     return this.stores.activateStore(storeId);
   }
 
@@ -271,9 +283,10 @@ export class AdminStoresController {
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
   ): Promise<AdminStoreResponseDto> {
-    await this.requirePermission(
+    await this.requirePlatformPermissionForStore(
       request,
       PLATFORM_PERMISSIONS.storesDeactivate,
+      storeId,
     );
     return this.stores.archiveStore(storeId);
   }
@@ -463,9 +476,10 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Param("deviceId", SelfxUuidParamPipe) deviceId: string,
   ): Promise<StoreKioskDeviceResponseDto> {
-    const user = await this.requirePermission(
+    const user = await this.requirePlatformPermissionForStore(
       request,
       PLATFORM_PERMISSIONS.kiosksAssign,
+      storeId,
     );
     return this.stores.assignKioskToStore(user.id, storeId, deviceId);
   }
@@ -560,6 +574,16 @@ export class AdminStoresController {
     return user;
   }
 
+  private async requirePlatformPermissionForStore(
+    request: FastifyRequest,
+    permission: PlatformPermission,
+    storeId: string,
+  ) {
+    const user = await this.requirePermission(request, permission);
+    await this.impersonation.resolveStoreContext(user.id, storeId);
+    return user;
+  }
+
   private async requirePlatformOrStorePermission(
     request: FastifyRequest,
     storeId: string,
@@ -569,6 +593,7 @@ export class AdminStoresController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
+    await this.impersonation.resolveStoreContext(user.id, storeId);
     if (
       await this.platformAuthorization.hasPermission(
         user.id,

@@ -25,6 +25,7 @@ describe("StoreRbacController", () => {
       } as never,
       platformAuthorization as never,
       storeRbac as never,
+      createImpersonationMock() as never,
     );
 
     await expect(
@@ -69,6 +70,7 @@ describe("StoreRbacController", () => {
       } as never,
       platformAuthorization as never,
       rbac as never,
+      createImpersonationMock() as never,
     );
 
     await expect(
@@ -87,3 +89,13 @@ describe("StoreRbacController", () => {
     );
   });
 });
+
+function createImpersonationMock() {
+  return {
+    resolveStoreContext: vi.fn().mockResolvedValue({
+      actorUserId: "test-user",
+      effectiveStoreId: "018fb642-4fcb-7d6d-8f35-00f1c6f9e001",
+      impersonationSession: null,
+    }),
+  };
+}

@@ -23,6 +23,7 @@ import {
 
 import {
   AppShell,
+  Button,
   ErrorState,
   LoadingState,
   type SelfxNavItem,
@@ -37,14 +38,15 @@ import {
   type NavigationAccess,
 } from "@/lib/navigation-access";
 import {
-  listActiveOrganizations,
-  type TenantOrganization,
-} from "@/lib/organizations";
+  getCurrentMerchantStoreAccess,
+  type CurrentStore,
+} from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import { safeLoginNextPath } from "@/lib/login-next";
 import {
-  getEffectiveStorePermissions,
+  endStoreImpersonation,
   type EffectiveStorePermissions,
+  type StoreImpersonationSession,
 } from "@/lib/stores";
 
 const navItems: SelfxNavItem[] = [
@@ -143,10 +145,11 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const session = useSession();
-  const [organizations, setOrganizations] = useState<TenantOrganization[]>([]);
-  const [activeOrganizationId, setActiveOrganizationId] = useState<
-    string | null
-  >(null);
+  const [currentStore, setCurrentStore] = useState<CurrentStore | null>(null);
+  const [impersonation, setImpersonation] =
+    useState<StoreImpersonationSession | null>(null);
+  const [endingImpersonation, setEndingImpersonation] = useState(false);
+  const [contextReloadKey, setContextReloadKey] = useState(0);
   const [organizationError, setOrganizationError] = useState(false);
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
@@ -157,8 +160,8 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (session.status !== "authenticated") {
-      setOrganizations([]);
-      setActiveOrganizationId(null);
+      setCurrentStore(null);
+      setImpersonation(null);
       setPlatformAccess(null);
       setStoreAccess(null);
       setPlatformAccessError(false);
@@ -168,19 +171,17 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
-    listActiveOrganizations(session.accessToken)
-      .then((data) => {
+    getCurrentMerchantStoreAccess(session.accessToken)
+      .then((access) => {
         if (cancelled) {
           return;
         }
 
         setOrganizationError(false);
-        setOrganizations(data);
-        setActiveOrganizationId((current) =>
-          current && data.some((organization) => organization.id === current)
-            ? current
-            : (data[0]?.id ?? null),
-        );
+        setStoreAccessError(false);
+        setCurrentStore(access.store);
+        setStoreAccess(access.permissions);
+        setImpersonation(access.impersonation);
       })
       .catch(() => {
         if (!cancelled) {
@@ -191,7 +192,24 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [session.accessToken, session.status]);
+  }, [contextReloadKey, session.accessToken, session.status]);
+
+  useEffect(() => {
+    function refreshImpersonationContext() {
+      setContextReloadKey((current) => current + 1);
+    }
+
+    window.addEventListener(
+      "selfx:impersonation-changed",
+      refreshImpersonationContext,
+    );
+    return () => {
+      window.removeEventListener(
+        "selfx:impersonation-changed",
+        refreshImpersonationContext,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     if (session.status !== "authenticated") {
@@ -219,33 +237,6 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   }, [session.accessToken, session.status]);
 
   useEffect(() => {
-    if (session.status !== "authenticated" || !activeOrganizationId) {
-      setStoreAccess(null);
-      setStoreAccessError(false);
-      return;
-    }
-
-    let cancelled = false;
-    setStoreAccessError(false);
-
-    getEffectiveStorePermissions(session.accessToken, activeOrganizationId)
-      .then((nextAccess) => {
-        if (!cancelled) {
-          setStoreAccess(nextAccess);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStoreAccessError(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeOrganizationId, session.accessToken, session.status]);
-
-  useEffect(() => {
     if (session.status !== "unauthenticated") {
       return;
     }
@@ -255,10 +246,12 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   const filteredNavItems = filterNavigationItems(
     navItems,
     navigationAccess({
-      sessionHasPlatformAccess: session.user?.hasPlatformAccess ?? false,
-      platformAccess,
+      sessionHasPlatformAccess: impersonation
+        ? false
+        : (session.user?.hasPlatformAccess ?? false),
+      platformAccess: impersonation ? null : platformAccess,
       storeAccess,
-      hasActiveStore: activeOrganizationId !== null,
+      hasActiveStore: currentStore !== null,
     }),
   );
 
@@ -270,19 +263,59 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     return <LoadingState label="Opening sign in" />;
   }
 
+  async function endActiveImpersonation() {
+    if (session.status !== "authenticated" || !impersonation) {
+      return;
+    }
+
+    setEndingImpersonation(true);
+    setStoreAccessError(false);
+    try {
+      await endStoreImpersonation(session.accessToken, impersonation.id);
+      setImpersonation(null);
+      setContextReloadKey((current) => current + 1);
+      router.push("/app/stores");
+    } catch {
+      setStoreAccessError(true);
+    } finally {
+      setEndingImpersonation(false);
+    }
+  }
+
   return (
     <AppShell
       navItems={filteredNavItems}
       activePath={activePathFor(pathname)}
-      organizations={organizations}
-      activeOrganizationId={activeOrganizationId}
-      onSelectOrganization={setActiveOrganizationId}
+      organizations={currentStore ? [currentStore] : []}
+      activeOrganizationId={currentStore?.id ?? null}
       user={session.user}
       onNavigateTo={(href) => router.push(href)}
       onLogout={() => {
         void session.logout().then(() => router.push("/login"));
       }}
     >
+      {impersonation ? (
+        <div className="border-b border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-950">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <span className="font-semibold">Impersonating Store:</span>{" "}
+              {impersonation.targetStoreName}
+              <span className="ml-2 text-orange-800">
+                Ends {new Date(impersonation.expiresAt).toLocaleTimeString()}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={endingImpersonation}
+              onClick={() => void endActiveImpersonation()}
+            >
+              End impersonation
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {organizationError || platformAccessError || storeAccessError ? (
         <div className="flex min-h-[calc(100dvh-3.75rem)] items-center justify-center p-4">
           <ErrorState

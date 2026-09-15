@@ -38,7 +38,7 @@ import {
   type CurrentPlatformAccess,
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
-import { listActiveOrganizations } from "@/lib/organizations";
+import { getCurrentMerchantStore } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import { listStores, type AdminStore } from "@/lib/stores";
 import {
@@ -81,6 +81,10 @@ export default function AnalyticsPage() {
     platformAccess?.isSuperadmin ||
       platformAccess?.permissions.includes("USAGE_VIEW"),
   );
+  const canChooseStoreScope = Boolean(
+    platformAccess?.isSuperadmin ||
+      platformAccess?.permissions.includes("STORES_VIEW"),
+  );
   const selectedStoreName = useMemo(
     () =>
       storeId
@@ -116,12 +120,11 @@ export default function AnalyticsPage() {
           return;
         }
 
-        const stores = await listActiveOrganizations(token);
+        const currentStore = await getCurrentMerchantStore(token);
         if (!cancelled) {
-          const options = stores.map((store) => ({
-            id: store.id,
-            name: store.name,
-          }));
+          const options = currentStore
+            ? [{ id: currentStore.id, name: currentStore.name }]
+            : [];
           setStoreOptions(options);
           setStoreId((current) => current || options[0]?.id || "");
         }
@@ -216,25 +219,34 @@ export default function AnalyticsPage() {
               onChange={setChannel}
             />
           </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Store
-            <SelectMenu
-              ariaLabel="Store"
-              value={storeId}
-              disabled={storeOptions.length === 0}
-              options={[
-                ...(hasPlatformUsageAccess
-                  ? [{ value: "", label: "All Stores" }]
-                  : []),
-                ...storeOptions.map((store) => ({
-                  value: store.id,
-                  label: store.name,
-                })),
-              ]}
-              className="h-11"
-              onChange={setStoreId}
-            />
-          </label>
+          {canChooseStoreScope ? (
+            <label className="grid gap-2 text-sm font-medium">
+              Store
+              <SelectMenu
+                ariaLabel="Store"
+                value={storeId}
+                disabled={storeOptions.length === 0}
+                options={[
+                  ...(hasPlatformUsageAccess
+                    ? [{ value: "", label: "All Stores" }]
+                    : []),
+                  ...storeOptions.map((store) => ({
+                    value: store.id,
+                    label: store.name,
+                  })),
+                ]}
+                className="h-11"
+                onChange={setStoreId}
+              />
+            </label>
+          ) : (
+            <div className="grid gap-2 text-sm font-medium">
+              SelfX account
+              <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
+                {selectedStoreName ?? "Your Store"}
+              </div>
+            </div>
+          )}
           <div className="flex items-end text-sm text-muted-foreground">
             {summary
               ? `${formatDate(summary.range.from)} to ${formatDate(summary.range.to)}`

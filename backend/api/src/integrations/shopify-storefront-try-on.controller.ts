@@ -25,6 +25,7 @@ import {
   CreateShopifyStorefrontTryOnRunDto,
   CreateShopifyStorefrontTryOnSessionDto,
   ShopifyStorefrontCreditSummaryDto,
+  ShopifyStorefrontUsageSummaryDto,
   ShopifyStorefrontTryOnPersonUploadDto,
   ShopifyStorefrontTryOnRunDto,
   ShopifyStorefrontTryOnRunParamDto,
@@ -71,6 +72,21 @@ export class ShopifyStorefrontTryOnController {
   ): Promise<ShopifyStorefrontCreditSummaryDto> {
     this.serviceAuth.requireServiceToken(serviceToken);
     return this.tryOns.getCreditSummaryForShop(shop);
+  }
+
+  @Get("usage-summary")
+  @ApiOperation({
+    summary: "Read Shopify Store Try-On usage summary",
+    description:
+      "Requires Shopify app service authentication and returns privacy-safe storefront usage metrics for the connected SelfX Store.",
+  })
+  @ApiOkResponse({ type: ShopifyStorefrontUsageSummaryDto })
+  getUsageSummary(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) serviceToken: string | undefined,
+    @Query("shop") shop: string | undefined,
+  ): Promise<ShopifyStorefrontUsageSummaryDto> {
+    this.serviceAuth.requireServiceToken(serviceToken);
+    return this.tryOns.getUsageSummaryForShop(shop);
   }
 
   @Get(":session")

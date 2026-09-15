@@ -11,6 +11,10 @@ import {
   SelfxSecretCipher,
   loadSelfxSecretCipherConfig,
 } from "./selfx-secret.server";
+import {
+  normalizeStorefrontLocale,
+  type StorefrontLocale,
+} from "./selfx-localization";
 
 const pendingApprovalCode = "SHOPIFY_LINK_SESSION_PENDING_APPROVAL";
 
@@ -21,6 +25,7 @@ export type SelfxConnectionView = {
   approvalUrl: string | null;
   pendingLinkExpiresAt: string | null;
   storeName: string | null;
+  storefrontLocale: StorefrontLocale;
   linkedAt: string | null;
   syncStatus: "NOT_STARTED" | "SYNCING" | "SUCCESS" | "ERROR";
   lastSyncAt: string | null;
@@ -60,6 +65,7 @@ export async function getSelfxConnectionView(
     pendingLinkExpiresAt:
       connection.pendingLinkExpiresAt?.toISOString() ?? null,
     storeName: connection.selfxStoreName,
+    storefrontLocale: normalizeStorefrontLocale(connection.storefrontLocale),
     linkedAt: connection.linkedAt?.toISOString() ?? null,
     syncStatus: syncStatus(connection.syncStatus),
     lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
@@ -71,6 +77,25 @@ export async function getSelfxConnectionView(
     errorCode: connection.lastErrorCode,
     errorMessage: connection.lastErrorMessage,
   };
+}
+
+export async function updateSelfxStorefrontLocale(input: {
+  shop: string;
+  locale: string;
+}): Promise<SelfxConnectionView> {
+  await db.selfxConnection.upsert({
+    where: { shop: input.shop },
+    create: {
+      shop: input.shop,
+      shopifyAccountId: input.shop,
+      status: "NOT_CONNECTED",
+      storefrontLocale: normalizeStorefrontLocale(input.locale),
+    },
+    update: {
+      storefrontLocale: normalizeStorefrontLocale(input.locale),
+    },
+  });
+  return getSelfxConnectionView(input.shop);
 }
 
 export async function getSelfxIntegrationToken(shop: string): Promise<string> {
@@ -393,6 +418,7 @@ function emptyView(shop: string): SelfxConnectionView {
     approvalUrl: null,
     pendingLinkExpiresAt: null,
     storeName: null,
+    storefrontLocale: "en",
     linkedAt: null,
     syncStatus: "NOT_STARTED",
     lastSyncAt: null,

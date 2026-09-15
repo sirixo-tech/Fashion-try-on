@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   MembershipStatus,
+  ImpersonationSessionStatus,
   MembershipStoreScopeMode,
   OrganizationMembershipRole,
   OrganizationStatus,
@@ -8,6 +9,7 @@ import {
 } from "@prisma/client";
 
 import { PaginationResponseDto } from "../../common/pagination.dto.js";
+import { EffectiveStorePermissionsResponseDto } from "../../rbac/dto/store-rbac.dto.js";
 
 export class TenantOrganizationResponseDto {
   @ApiProperty()
@@ -41,6 +43,52 @@ export class TenantOrganizationListResponseDto {
 
   @ApiProperty({ type: PaginationResponseDto })
   pagination!: PaginationResponseDto;
+}
+
+export class CurrentTenantStoreResponseDto {
+  @ApiPropertyOptional({ type: TenantOrganizationResponseDto, nullable: true })
+  store!: TenantOrganizationResponseDto | null;
+
+  @ApiPropertyOptional({
+    type: EffectiveStorePermissionsResponseDto,
+    nullable: true,
+  })
+  permissions!: EffectiveStorePermissionsResponseDto | null;
+
+  @ApiProperty()
+  hasMultipleStores!: boolean;
+
+  @ApiPropertyOptional({ type: Object, nullable: true })
+  impersonation!: CurrentTenantStoreImpersonationDto | null;
+}
+
+export class CurrentTenantStoreImpersonationDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  actorUserId!: string;
+
+  @ApiProperty()
+  targetStoreId!: string;
+
+  @ApiProperty()
+  targetStoreName!: string;
+
+  @ApiProperty()
+  targetStoreSlug!: string;
+
+  @ApiProperty({ enum: ImpersonationSessionStatus })
+  status!: ImpersonationSessionStatus;
+
+  @ApiProperty()
+  startedAt!: string;
+
+  @ApiProperty()
+  expiresAt!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  endedAt!: string | null;
 }
 
 export class StoreResponseDto {

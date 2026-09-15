@@ -4,6 +4,7 @@ import { redirect } from "react-router";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { storefrontTryOnErrorMarkup } from "../selfx-storefront-error.server";
+import { normalizeStorefrontLocale } from "../selfx-localization";
 import { loadSelfxLinkConfig, SelfxLinkApiError } from "../selfx-link.server";
 import {
   buildStorefrontTryOnSessionUrl,
@@ -31,7 +32,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const connection = await db.selfxConnection.findUnique({
       where: { shop },
-      select: { status: true },
+      select: { status: true, storefrontLocale: true },
     });
 
     if (connection?.status !== "CONNECTED") {
@@ -58,9 +59,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const client = new SelfxStorefrontTryOnClient(loadSelfxLinkConfig());
+    const locale = normalizeStorefrontLocale(connection.storefrontLocale);
     const session = await client.createSession({
       source: "shopify",
       shop,
+      locale,
       ...(product.externalProductId
         ? { externalProductId: product.externalProductId }
         : {}),

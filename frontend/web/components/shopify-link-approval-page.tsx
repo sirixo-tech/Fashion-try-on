@@ -34,9 +34,12 @@ import {
   type ShopifyLinkApproval,
   type ShopifyLinkDetails,
 } from "@/lib/integrations";
-import { listActiveOrganizations } from "@/lib/organizations";
+import {
+  getCurrentMerchantStoreAccess,
+  hasCurrentStorePermission,
+} from "@/lib/current-store";
 import { useSession } from "@/lib/session";
-import { getEffectiveStorePermissions, listStores } from "@/lib/stores";
+import { listStores } from "@/lib/stores";
 
 type StoreOption = { id: string; name: string };
 
@@ -46,6 +49,8 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
   const [approval, setApproval] = useState<ShopifyLinkApproval | null>(null);
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
+  const [merchantStoreName, setMerchantStoreName] = useState("");
+  const [platformStoreSelection, setPlatformStoreSelection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,13 +73,15 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
         if (cancelled) return;
         setDetails(nextDetails);
         if (nextDetails.status !== "PENDING") return;
-        const manageableStores = await loadManageableStores(
+        const storeContext = await loadApprovalStoreContext(
           session.accessToken,
           platformAccess,
         );
         if (cancelled) return;
-        setStores(manageableStores);
-        setSelectedStoreId(manageableStores[0]?.id ?? "");
+        setPlatformStoreSelection(storeContext.platformStoreSelection);
+        setStores(storeContext.stores);
+        setSelectedStoreId(storeContext.stores[0]?.id ?? "");
+        setMerchantStoreName(storeContext.stores[0]?.name ?? "");
       })
       .catch((caught) => {
         if (!cancelled) setError(messageFor(caught));
@@ -141,7 +148,9 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
         description={
           completed
             ? "SelfX has approved the connection. The Shopify app can now finish setup and synchronize the catalog."
-            : "Choose the SelfX Store that should receive products from this Shopify shop."
+            : platformStoreSelection
+              ? "Choose the SelfX Store that should receive products from this Shopify shop."
+              : "Approve this Shopify shop for your SelfX account. Product settings stay inside Shopify."
         }
         status={
           <StatusBadge
@@ -195,7 +204,7 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
               />
             </div>
 
-            {stores.length ? (
+            {platformStoreSelection && stores.length ? (
               <div className="space-y-2">
                 <Label htmlFor="shopify-link-store">SelfX Store</Label>
                 <SelectMenu
@@ -208,6 +217,20 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
                   }))}
                   onChange={setSelectedStoreId}
                 />
+              </div>
+            ) : stores.length ? (
+              <div className="rounded-lg border bg-muted/25 p-4">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  SelfX account
+                </p>
+                <p className="mt-1 text-sm font-medium">
+                  {merchantStoreName || "Your Store"}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  This Shopify shop will connect to your SelfX account
+                  automatically. There is no separate Store selection for
+                  Shopify.
+                </p>
               </div>
             ) : (
               <Alert>
@@ -275,10 +298,10 @@ function ConnectionDetail({
   );
 }
 
-async function loadManageableStores(
+async function loadApprovalStoreContext(
   accessToken: string,
   platformAccess: CurrentPlatformAccess,
-): Promise<StoreOption[]> {
+): Promise<{ stores: StoreOption[]; platformStoreSelection: boolean }> {
   const platformCanManage =
     platformAccess.isSuperadmin ||
     platformAccess.permissions.includes("INTEGRATIONS_MANAGE");
@@ -288,23 +311,27 @@ async function loadManageableStores(
       status: "ACTIVE",
       sort: "nameAsc",
     });
-    return response.data.map((store) => ({ id: store.id, name: store.name }));
+    return {
+      stores: response.data.map((store) => ({
+        id: store.id,
+        name: store.name,
+      })),
+      platformStoreSelection: true,
+    };
   }
-  const memberships = await listActiveOrganizations(accessToken);
-  const access = await Promise.all(
-    memberships.map(async (store) => ({
-      store,
-      permissions: await getEffectiveStorePermissions(accessToken, store.id),
-    })),
-  );
-  return access
-    .filter(
-      ({ permissions }) =>
-        permissions.platformBypass ||
-        permissions.permissions.includes("integrations.manage"),
-    )
-    .map(({ store }) => ({ id: store.id, name: store.name }))
-    .sort((left, right) => left.name.localeCompare(right.name));
+
+  const currentStore = await getCurrentMerchantStoreAccess(accessToken);
+  if (
+    !currentStore.store ||
+    !hasCurrentStorePermission(currentStore.permissions, ["integrations.manage"])
+  ) {
+    return { stores: [], platformStoreSelection: false };
+  }
+
+  return {
+    stores: [{ id: currentStore.store.id, name: currentStore.store.name }],
+    platformStoreSelection: false,
+  };
 }
 
 function messageFor(error: unknown): string {

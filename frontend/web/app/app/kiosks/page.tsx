@@ -38,6 +38,14 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
+  getCurrentPlatformAccess,
+  type CurrentPlatformAccess,
+} from "@/lib/access-control";
+import {
+  getCurrentMerchantStoreAccess,
+  hasCurrentStorePermission,
+} from "@/lib/current-store";
+import {
   deleteKioskDevice,
   listKioskAssignmentOptions,
   listKioskDevices,
@@ -49,8 +57,11 @@ import {
   type KioskDevice,
 } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
+import { listStoreKiosks, pairStoreKiosk } from "@/lib/stores";
 
 const assignmentScopes: KioskAssignmentScope[] = ["PLATFORM", "ORGANIZATION"];
+
+type StoreOption = { id: string; name: string; status: string };
 
 export default function KiosksPage() {
   const session = useSession();
@@ -61,6 +72,8 @@ export default function KiosksPage() {
     organizations: [],
     stores: [],
   });
+  const [platformFleetMode, setPlatformFleetMode] = useState(false);
+  const [activeStore, setActiveStore] = useState<StoreOption | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pairOpen, setPairOpen] = useState(false);
@@ -73,12 +86,63 @@ export default function KiosksPage() {
     setLoading(true);
     setError(null);
     try {
-      const [nextDevices, nextOptions] = await Promise.all([
-        listKioskDevices(accessToken),
-        listKioskAssignmentOptions(accessToken),
+      const fallbackPlatformAccess: CurrentPlatformAccess = {
+        isSuperadmin: false,
+        permissions: [],
+      };
+      const platformAccess = await getCurrentPlatformAccess(accessToken).catch(
+        () => fallbackPlatformAccess,
+      );
+      const canManagePlatformFleet =
+        platformAccess.isSuperadmin ||
+        platformAccess.permissions.includes("KIOSKS_VIEW");
+
+      if (canManagePlatformFleet) {
+        const [nextDevices, nextOptions] = await Promise.all([
+          listKioskDevices(accessToken),
+          listKioskAssignmentOptions(accessToken),
+        ]);
+        setPlatformFleetMode(true);
+        setActiveStore(null);
+        setDevices(nextDevices);
+        setOptions(nextOptions);
+        return;
+      }
+
+      const { store, permissions } =
+        await getCurrentMerchantStoreAccess(accessToken);
+      if (!store) {
+        setPlatformFleetMode(false);
+        setActiveStore(null);
+        setDevices([]);
+        setOptions({ organizations: [], stores: [] });
+        setError("No active Store is available for this account.");
+        return;
+      }
+
+      const canViewStoreKiosks = hasCurrentStorePermission(permissions, [
+        "kiosks.view",
+        "kiosks.pair",
+        "kiosks.configure",
       ]);
-      setDevices(nextDevices);
-      setOptions(nextOptions);
+      if (!canViewStoreKiosks) {
+        setPlatformFleetMode(false);
+        setActiveStore({ id: store.id, name: store.name, status: store.status });
+        setDevices([]);
+        setOptions({ organizations: [], stores: [] });
+        setError("You do not have access to this Store's kiosks.");
+        return;
+      }
+
+      const storeOption = {
+        id: store.id,
+        name: store.name,
+        status: store.status,
+      };
+      setPlatformFleetMode(false);
+      setActiveStore(storeOption);
+      setOptions({ organizations: [storeOption], stores: [] });
+      setDevices(await listStoreKiosks(accessToken, store.id));
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -97,9 +161,13 @@ export default function KiosksPage() {
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Platform fleet"
+        eyebrow={platformFleetMode ? "Platform fleet" : "Store kiosks"}
         title="Kiosks"
-        description="Pair and manage SelfX kiosk devices before production device-authenticated Try-On endpoints arrive."
+        description={
+          platformFleetMode
+            ? "Pair and manage SelfX kiosk devices across the platform fleet."
+            : `Pair and monitor kiosk devices for ${activeStore?.name ?? "your Store"}.`
+        }
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => void load()}>
@@ -117,8 +185,12 @@ export default function KiosksPage() {
 
       <PageSection>
         <TableContainer
-          title="Fleet devices"
-          description="Kiosks belong to the SelfX platform fleet and may be assigned to platform or Store scope."
+          title={platformFleetMode ? "Fleet devices" : "Store devices"}
+          description={
+            platformFleetMode
+              ? "Kiosks belong to the SelfX platform fleet and may be assigned to platform or Store scope."
+              : "Kiosks are attached to your Store account. Branch/location assignment can be added later under this same Store."
+          }
         >
           {error ? (
             <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -177,6 +249,7 @@ export default function KiosksPage() {
                     <TableCell className="text-right">
                       <KioskLifecycleActions
                         device={device}
+                        platformFleetMode={platformFleetMode}
                         onPair={() => setPairingDevice(device)}
                         onUnpair={() => void unpair(device.id)}
                         onDelete={() => void remove(device.id)}
@@ -193,6 +266,7 @@ export default function KiosksPage() {
       <PairKioskDialog
         open={pairOpen}
         options={options}
+        activeStore={activeStore}
         onOpenChange={setPairOpen}
         onPaired={(device) => {
           setDevices((current) => [device, ...current]);
@@ -253,15 +327,25 @@ export default function KiosksPage() {
 
 function KioskLifecycleActions({
   device,
+  platformFleetMode,
   onPair,
   onUnpair,
   onDelete,
 }: {
   device: KioskDevice;
+  platformFleetMode: boolean;
   onPair: () => void;
   onUnpair: () => void;
   onDelete: () => void;
 }) {
+  if (!platformFleetMode) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        Store kiosk
+      </span>
+    );
+  }
+
   return (
     <div className="flex flex-wrap justify-end gap-2">
       <Button
@@ -310,11 +394,13 @@ function KioskLifecycleActions({
 function PairKioskDialog({
   open,
   options,
+  activeStore,
   onOpenChange,
   onPaired,
 }: {
   open: boolean;
   options: KioskAssignmentOptions;
+  activeStore: StoreOption | null;
   onOpenChange: (open: boolean) => void;
   onPaired: (device: KioskDevice) => void;
 }) {
@@ -328,6 +414,7 @@ function PairKioskDialog({
   const [submitting, setSubmitting] = useState(false);
 
   const stores = options.organizations;
+  const storeMode = activeStore !== null;
 
   async function submit() {
     if (session.status !== "authenticated") {
@@ -341,12 +428,17 @@ function PairKioskDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const device = await pairKioskDevice(session.accessToken, {
-        pairingCode: canonicalCode,
-        displayName,
-        assignmentScope,
-        ...(assignmentScope !== "PLATFORM" ? { organizationId } : {}),
-      });
+      const device = activeStore
+        ? await pairStoreKiosk(session.accessToken, activeStore.id, {
+            pairingCode: canonicalCode,
+            displayName,
+          })
+        : await pairKioskDevice(session.accessToken, {
+            pairingCode: canonicalCode,
+            displayName,
+            assignmentScope,
+            ...(assignmentScope !== "PLATFORM" ? { organizationId } : {}),
+          });
       onPaired(device);
       setPairingCode("");
       setDisplayName("");
@@ -394,46 +486,61 @@ function PairKioskDialog({
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="assignment-scope">Assignment Scope</Label>
-            <SelectMenu
-              id="assignment-scope"
-              ariaLabel="Assignment scope"
-              value={assignmentScope}
-              options={assignmentScopes.map((scope) => ({
-                value: scope,
-                label: scope === "ORGANIZATION" ? "STORE" : scope,
-              }))}
-              onChange={(value) => {
-                setAssignmentScope(value);
-                setOrganizationId("");
-              }}
-            />
-          </div>
-          {assignmentScope !== "PLATFORM" ? (
-            <div className="space-y-2">
-              <Label htmlFor="organization">Store</Label>
-              <SelectMenu
-                id="organization"
-                ariaLabel="Store"
-                value={organizationId}
-                options={[
-                  { value: "", label: "Select Store" },
-                  ...stores.map((store) => ({
-                    value: store.id,
-                    label: store.name,
-                  })),
-                ]}
-                onChange={setOrganizationId}
-              />
+          {storeMode ? (
+            <div className="rounded-lg border bg-muted/25 p-3 text-sm text-muted-foreground">
+              This kiosk will be paired to {activeStore.name}.
             </div>
-          ) : null}
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="assignment-scope">Assignment Scope</Label>
+                <SelectMenu
+                  id="assignment-scope"
+                  ariaLabel="Assignment scope"
+                  value={assignmentScope}
+                  options={assignmentScopes.map((scope) => ({
+                    value: scope,
+                    label: scope === "ORGANIZATION" ? "STORE" : scope,
+                  }))}
+                  onChange={(value) => {
+                    setAssignmentScope(value);
+                    setOrganizationId("");
+                  }}
+                />
+              </div>
+              {assignmentScope !== "PLATFORM" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="organization">Store</Label>
+                  <SelectMenu
+                    id="organization"
+                    ariaLabel="Store"
+                    value={organizationId}
+                    options={[
+                      { value: "", label: "Select Store" },
+                      ...stores.map((store) => ({
+                        value: store.id,
+                        label: store.name,
+                      })),
+                    ]}
+                    onChange={setOrganizationId}
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={submitting || !displayName.trim()} onClick={submit}>
+          <Button
+            disabled={
+              submitting ||
+              !displayName.trim() ||
+              (!storeMode && assignmentScope !== "PLATFORM" && !organizationId)
+            }
+            onClick={submit}
+          >
             Pair
           </Button>
         </DialogFooter>

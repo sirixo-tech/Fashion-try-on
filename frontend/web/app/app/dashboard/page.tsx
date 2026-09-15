@@ -37,8 +37,8 @@ import {
   type CurrentPlatformAccess,
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
+import { getCurrentMerchantStore } from "@/lib/current-store";
 import { listKioskDevices, type KioskDevice } from "@/lib/kiosks";
-import { listActiveOrganizations } from "@/lib/organizations";
 import { useSession } from "@/lib/session";
 import {
   getEffectiveStorePermissions,
@@ -91,6 +91,9 @@ export default function DashboardPage() {
   );
   const canViewPlatformKiosks = Boolean(
     platformAccess?.isSuperadmin || platformPermissions.includes("KIOSKS_VIEW"),
+  );
+  const canChooseStoreScope = Boolean(
+    platformAccess?.isSuperadmin || platformPermissions.includes("STORES_VIEW"),
   );
   const hasStoreBypass = storeAccess?.platformBypass ?? false;
   const storePermissions = storeAccess?.permissions ?? [];
@@ -147,12 +150,11 @@ export default function DashboardPage() {
           return;
         }
 
-        const activeStores = await listActiveOrganizations(token);
+        const currentStore = await getCurrentMerchantStore(token);
         if (!cancelled) {
-          const options = activeStores.map((store) => ({
-            id: store.id,
-            name: store.name,
-          }));
+          const options = currentStore
+            ? [{ id: currentStore.id, name: currentStore.name }]
+            : [];
           setStoreOptions(options);
           setStoreId((current) => current || options[0]?.id || "");
         }
@@ -289,25 +291,34 @@ export default function DashboardPage() {
               onChange={setRange}
             />
           </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Store scope
-            <SelectMenu
-              ariaLabel="Store scope"
-              value={storeId}
-              disabled={storeOptions.length === 0}
-              options={[
-                ...(hasPlatformUsageAccess
-                  ? [{ value: "", label: "All Stores" }]
-                  : []),
-                ...storeOptions.map((store) => ({
-                  value: store.id,
-                  label: store.name,
-                })),
-              ]}
-              className="h-11"
-              onChange={setStoreId}
-            />
-          </label>
+          {canChooseStoreScope ? (
+            <label className="grid gap-2 text-sm font-medium">
+              Store scope
+              <SelectMenu
+                ariaLabel="Store scope"
+                value={storeId}
+                disabled={storeOptions.length === 0}
+                options={[
+                  ...(hasPlatformUsageAccess
+                    ? [{ value: "", label: "All Stores" }]
+                    : []),
+                  ...storeOptions.map((store) => ({
+                    value: store.id,
+                    label: store.name,
+                  })),
+                ]}
+                className="h-11"
+                onChange={setStoreId}
+              />
+            </label>
+          ) : (
+            <div className="grid gap-2 text-sm font-medium">
+              SelfX account
+              <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
+                {selectedStoreName}
+              </div>
+            </div>
+          )}
           <div className="flex items-end text-sm text-muted-foreground">
             {summary
               ? `${formatDate(summary.range.from)} to ${formatDate(summary.range.to)}`

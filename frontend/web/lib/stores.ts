@@ -32,6 +32,7 @@ export type AdminStore = {
   lastActivityAt: string | null;
   createdAt: string;
   updatedAt: string;
+  subscription?: StoreSubscriptionSummary;
   internalLegacyModel: "ORGANIZATION_AS_STORE";
 };
 
@@ -275,6 +276,18 @@ export type StoreInput = {
   timezone?: string;
 };
 
+export type StoreImpersonationSession = {
+  id: string;
+  actorUserId: string;
+  targetStoreId: string;
+  targetStoreName: string;
+  targetStoreSlug: string;
+  status: "ACTIVE" | "ENDED" | "EXPIRED";
+  startedAt: string;
+  expiresAt: string;
+  endedAt: string | null;
+};
+
 export function listStores(
   accessToken: string,
   query: {
@@ -311,6 +324,41 @@ export function createStore(
     accessToken,
     body: JSON.stringify(input),
   });
+}
+
+export function startStoreImpersonation(
+  accessToken: string,
+  storeId: string,
+): Promise<{ session: StoreImpersonationSession }> {
+  return selfxApi<{ session: StoreImpersonationSession }>(
+    `/api/v1/admin/stores/${storeId}/impersonation/start`,
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
+}
+
+export function getCurrentStoreImpersonation(
+  accessToken: string,
+): Promise<{ session: StoreImpersonationSession | null }> {
+  return selfxApi<{ session: StoreImpersonationSession | null }>(
+    "/api/v1/admin/impersonation/current",
+    { accessToken },
+  );
+}
+
+export function endStoreImpersonation(
+  accessToken: string,
+  sessionId: string,
+): Promise<{ session: StoreImpersonationSession }> {
+  return selfxApi<{ session: StoreImpersonationSession }>(
+    `/api/v1/admin/impersonation/${sessionId}/end`,
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
 }
 
 export function getStore(

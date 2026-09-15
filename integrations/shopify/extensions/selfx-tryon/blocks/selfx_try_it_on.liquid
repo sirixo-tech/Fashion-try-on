@@ -1,5 +1,46 @@
 {% assign product = block.settings.product %}
 {% assign selfx_launch_url = block.settings.selfx_launch_url | default: '/apps/selfx-tryon/launch' %}
+{% assign selfx_locale = block.settings.button_language | default: 'auto' %}
+{% if selfx_locale == 'auto' %}
+  {% assign selfx_locale = request.locale.iso_code | split: '-' | first | downcase %}
+{% endif %}
+
+{% case selfx_locale %}
+  {% when 'es' %}
+    {% assign selfx_default_button_label = 'Probar ahora' %}
+    {% assign selfx_default_helper_text = 'Mira como te queda este producto con SelfX.' %}
+    {% assign selfx_default_alert = 'SelfX Try-On aun no esta conectado.' %}
+  {% when 'ar' %}
+    {% assign selfx_default_button_label = 'جربه الآن' %}
+    {% assign selfx_default_helper_text = 'شاهد كيف يبدو هذا المنتج عليك مع SelfX.' %}
+    {% assign selfx_default_alert = 'لم يتم ربط SelfX Try-On بعد.' %}
+  {% when 'hi' %}
+    {% assign selfx_default_button_label = 'अभी ट्राय करें' %}
+    {% assign selfx_default_helper_text = 'SelfX के साथ देखें कि यह उत्पाद आप पर कैसा दिखता है.' %}
+    {% assign selfx_default_alert = 'SelfX Try-On अभी कनेक्ट नहीं है.' %}
+  {% when 'fr' %}
+    {% assign selfx_default_button_label = 'Essayer maintenant' %}
+    {% assign selfx_default_helper_text = 'Voyez comment ce produit vous va avec SelfX.' %}
+    {% assign selfx_default_alert = 'SelfX Try-On n est pas encore connecte.' %}
+  {% when 'de' %}
+    {% assign selfx_default_button_label = 'Jetzt anprobieren' %}
+    {% assign selfx_default_helper_text = 'Sieh mit SelfX, wie dieses Produkt an dir aussieht.' %}
+    {% assign selfx_default_alert = 'SelfX Try-On ist noch nicht verbunden.' %}
+  {% when 'pt' %}
+    {% assign selfx_default_button_label = 'Experimentar agora' %}
+    {% assign selfx_default_helper_text = 'Veja como este produto fica em voce com SelfX.' %}
+    {% assign selfx_default_alert = 'SelfX Try-On ainda nao esta conectado.' %}
+  {% when 'it' %}
+    {% assign selfx_default_button_label = 'Prova ora' %}
+    {% assign selfx_default_helper_text = 'Guarda come ti sta questo prodotto con SelfX.' %}
+    {% assign selfx_default_alert = 'SelfX Try-On non e ancora collegato.' %}
+  {% else %}
+    {% assign selfx_default_button_label = 'Try It On' %}
+    {% assign selfx_default_helper_text = 'See how this product looks on you with SelfX.' %}
+    {% assign selfx_default_alert = 'SelfX Try-On is not connected yet.' %}
+{% endcase %}
+{% assign selfx_button_label = block.settings.button_label | default: selfx_default_button_label %}
+{% assign selfx_helper_text = block.settings.helper_text | default: selfx_default_helper_text %}
 
 <div class="selfx-tryon-block">
   <button
@@ -9,13 +50,14 @@
     data-selfx-shop="{{ shop.permanent_domain }}"
     data-selfx-product-id="{{ product.id }}"
     data-selfx-product-handle="{{ product.handle }}"
+    data-selfx-alert="{{ selfx_default_alert | escape }}"
   >
-    {{ block.settings.button_label }}
+    {{ selfx_button_label }}
   </button>
 
-  {% if block.settings.helper_text != blank %}
+  {% if selfx_helper_text != blank %}
     <p class="selfx-tryon-helper">
-      {{ block.settings.helper_text }}
+      {{ selfx_helper_text }}
     </p>
   {% endif %}
 </div>
@@ -55,7 +97,7 @@
 
     var launchUrl = button.dataset.selfxLaunchUrl;
     if (!launchUrl) {
-      alert("SelfX Try-On is not connected yet.");
+      alert(button.dataset.selfxAlert || "SelfX Try-On is not connected yet.");
       return;
     }
 
@@ -80,16 +122,33 @@
       "autofill": true
     },
     {
+      "type": "select",
+      "id": "button_language",
+      "label": "Language",
+      "default": "auto",
+      "options": [
+        { "value": "auto", "label": "Auto storefront language" },
+        { "value": "en", "label": "English" },
+        { "value": "es", "label": "Spanish" },
+        { "value": "ar", "label": "Arabic" },
+        { "value": "hi", "label": "Hindi" },
+        { "value": "fr", "label": "French" },
+        { "value": "de", "label": "German" },
+        { "value": "pt", "label": "Portuguese" },
+        { "value": "it", "label": "Italian" }
+      ]
+    },
+    {
       "type": "text",
       "id": "button_label",
-      "label": "Button label",
-      "default": "Try It On"
+      "label": "Custom button label",
+      "default": ""
     },
     {
       "type": "text",
       "id": "helper_text",
-      "label": "Helper text",
-      "default": "See how this product looks on you with SelfX."
+      "label": "Custom helper text",
+      "default": ""
     },
     {
       "type": "url",

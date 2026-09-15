@@ -10,6 +10,8 @@ import { ObjectStorageService } from "../storage/object-storage.js";
 import { TryOnModule } from "../try-on/try-on.module.js";
 import { AdminStoresController } from "./admin-stores.controller.js";
 import { AdminStoresService } from "./admin-stores.service.js";
+import { StoreImpersonationController } from "./store-impersonation.controller.js";
+import { StoreImpersonationService } from "./store-impersonation.service.js";
 
 @Module({
   imports: [
@@ -20,9 +22,10 @@ import { AdminStoresService } from "./admin-stores.service.js";
     RbacModule,
     TryOnModule,
   ],
-  controllers: [AdminStoresController],
+  controllers: [AdminStoresController, StoreImpersonationController],
   providers: [
     AdminStoresService,
+    StoreImpersonationService,
     PlatformAuthorizationService,
     ObjectStorageService,
   ],

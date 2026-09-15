@@ -12,6 +12,7 @@ export interface ShopifyTryOnSession {
   session: string;
   garmentAssetId: string;
   expiresAt: string;
+  locale?: string;
   product: ShopifyTryOnProduct;
 }
 

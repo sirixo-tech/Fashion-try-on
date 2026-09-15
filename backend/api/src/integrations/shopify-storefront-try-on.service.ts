@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import {
+  CreditLedgerEntryType,
   CreditLedgerChannel,
   ExternalProductMappingStatus,
   IntegrationStatus,
@@ -51,6 +52,7 @@ import {
   type CreateShopifyStorefrontTryOnRunDto,
   type CreateShopifyStorefrontTryOnSessionDto,
   type ShopifyStorefrontCreditSummaryDto,
+  type ShopifyStorefrontUsageSummaryDto,
   type ShopifyStorefrontTryOnPersonUploadDto,
   type ShopifyStorefrontTryOnProductDto,
   type ShopifyStorefrontTryOnRunDto,
@@ -167,6 +169,7 @@ export class ShopifyStorefrontTryOnService {
         height: productImage.height,
         expiresAt,
       });
+      const storefrontLocale = normalizeStorefrontLocale(input.locale);
       await this.prisma.shopifyStorefrontTryOnSession.create({
         data: {
           id: createSelfxId(),
@@ -179,6 +182,7 @@ export class ShopifyStorefrontTryOnService {
           shopDomain: normalizeShopDomain(input.shop),
           externalProductId: context.mapping.externalProductId,
           productHandle: context.mapping.externalHandle,
+          storefrontLocale,
           expiresAt,
         },
       });
@@ -186,6 +190,7 @@ export class ShopifyStorefrontTryOnService {
         session: sessionToken,
         garmentAssetId: asset.id,
         expiresAt: expiresAt.toISOString(),
+        locale: storefrontLocale,
         product: toProductDto(context),
       };
     } catch (error) {
@@ -205,6 +210,7 @@ export class ShopifyStorefrontTryOnService {
       session: sessionToken,
       garmentAssetId: capability.garmentAssetId,
       expiresAt: capability.expiresAt.toISOString(),
+      locale: capability.storefrontLocale,
       product: toCapabilityProductDto(capability),
     };
   }
@@ -212,27 +218,98 @@ export class ShopifyStorefrontTryOnService {
   async getCreditSummaryForShop(
     shop: string | undefined,
   ): Promise<ShopifyStorefrontCreditSummaryDto> {
-    if (!shop) {
-      throw new ApiErrorException(
-        HttpStatus.BAD_REQUEST,
-        SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.productContextMissing,
-        "Shopify shop is required.",
-      );
-    }
-    const shopDomain = normalizeShopDomain(shop);
-    const integration = await this.prisma.integration.findFirst({
-      where: {
-        type: "SHOPIFY",
-        status: IntegrationStatus.ACTIVE,
-        metadata: { path: ["shopDomain"], equals: shopDomain },
-        organization: { status: "ACTIVE" },
-      },
-      select: { organizationId: true },
-    });
-    if (!integration) {
-      throw productUnavailable();
-    }
+    const integration = await this.requireActiveIntegrationForShop(shop);
     return this.entitlements.getStoreCreditSummary(integration.organizationId);
+  }
+
+  async getUsageSummaryForShop(
+    shop: string | undefined,
+  ): Promise<ShopifyStorefrontUsageSummaryDto> {
+    const integration = await this.requireActiveIntegrationForShop(shop);
+    const now = new Date();
+    const monthStart = currentUtcMonthStart(now);
+    const shopifyRunWhere = {
+      organizationId: integration.organizationId,
+      catalogSource: "SHOPIFY",
+    } satisfies Prisma.KioskTryOnRunWhereInput;
+    const thisMonthRunWhere = {
+      ...shopifyRunWhere,
+      createdAt: { gte: monthStart, lte: now },
+    } satisfies Prisma.KioskTryOnRunWhereInput;
+
+    const [
+      totalTryOns,
+      thisMonthTryOns,
+      completedTryOns,
+      failedTryOns,
+      generatedImages,
+      creditConsumption,
+      topProductRows,
+    ] = await Promise.all([
+      this.prisma.kioskTryOnRun.count({ where: shopifyRunWhere }),
+      this.prisma.kioskTryOnRun.count({ where: thisMonthRunWhere }),
+      this.prisma.kioskTryOnRun.count({
+        where: { ...thisMonthRunWhere, status: "COMPLETED" },
+      }),
+      this.prisma.kioskTryOnRun.count({
+        where: { ...thisMonthRunWhere, status: "FAILED" },
+      }),
+      this.prisma.kioskTryOnRun.count({
+        where: { ...thisMonthRunWhere, resultAssetId: { not: null } },
+      }),
+      this.prisma.creditLedgerEntry.aggregate({
+        where: {
+          organizationId: integration.organizationId,
+          channel: CreditLedgerChannel.SHOPIFY,
+          entryType: CreditLedgerEntryType.CREDIT_CONSUMED,
+          occurredAt: { gte: monthStart, lte: now },
+        },
+        _sum: { quantity: true },
+      }),
+      this.prisma.kioskTryOnRun.groupBy({
+        by: ["productId"],
+        where: { ...thisMonthRunWhere, productId: { not: null } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const productIds = topProductRows
+      .map((row) => row.productId)
+      .filter((productId): productId is string => Boolean(productId));
+    const products = productIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, name: true, slug: true, imageUrl: true },
+        })
+      : [];
+    const productsById = new Map(products.map((product) => [product.id, product]));
+
+    return {
+      totalTryOns,
+      thisMonth: {
+        start: monthStart.toISOString(),
+        end: now.toISOString(),
+        tryOns: thisMonthTryOns,
+        completedTryOns,
+        failedTryOns,
+        generatedImages,
+        creditsConsumed: Math.abs(creditConsumption._sum.quantity ?? 0),
+      },
+      topProducts: topProductRows
+        .filter((row) => row.productId)
+        .map((row) => {
+          const product = productsById.get(row.productId!);
+          return {
+            productId: row.productId!,
+            productName: product?.name ?? "Unknown product",
+            productSlug: product?.slug,
+            imageUrl: product?.imageUrl ?? undefined,
+            tryOns: row._count._all,
+          };
+        })
+        .sort((a, b) => b.tryOns - a.tryOns)
+        .slice(0, 5),
+    };
   }
 
   async uploadPersonImage(
@@ -425,6 +502,30 @@ export class ShopifyStorefrontTryOnService {
       );
     }
     return this.toRunDto(run, sessionToken, toCapabilityProductDto(capability));
+  }
+
+  private async requireActiveIntegrationForShop(shop: string | undefined) {
+    if (!shop) {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.productContextMissing,
+        "Shopify shop is required.",
+      );
+    }
+    const shopDomain = normalizeShopDomain(shop);
+    const integration = await this.prisma.integration.findFirst({
+      where: {
+        type: "SHOPIFY",
+        status: IntegrationStatus.ACTIVE,
+        metadata: { path: ["shopDomain"], equals: shopDomain },
+        organization: { status: "ACTIVE" },
+      },
+      select: { id: true, organizationId: true },
+    });
+    if (!integration) {
+      throw productUnavailable();
+    }
+    return integration;
   }
 
   private async requireEligibleProduct(
@@ -871,6 +972,22 @@ function validSessionToken(sessionToken: string): boolean {
   return /^[A-Za-z0-9_-]{43}$/.test(sessionToken);
 }
 
+const supportedStorefrontLocales = new Set([
+  "en",
+  "es",
+  "ar",
+  "hi",
+  "fr",
+  "de",
+  "pt",
+  "it",
+]);
+
+function normalizeStorefrontLocale(value: string | undefined): string {
+  const clean = value?.trim().toLowerCase().split("-")[0];
+  return clean && supportedStorefrontLocales.has(clean) ? clean : "en";
+}
+
 function validateProductImage(buffer: Buffer, contentType: string | null) {
   try {
     const metadata = validateTechnicalImageBuffer({
@@ -1000,6 +1117,10 @@ function normalizeShopDomain(value: string): string {
     throw productUnavailable();
   }
   return clean;
+}
+
+function currentUtcMonthStart(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
 function assertProductEligible(product: ShopifyProductRecord): void {

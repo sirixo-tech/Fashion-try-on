@@ -30,6 +30,7 @@ describe("SelfxStorefrontTryOnClient", () => {
       source: "shopify",
       shop: "merchant.myshopify.com",
       externalProductId: "gid://shopify/Product/1001",
+      locale: "es",
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -39,6 +40,7 @@ describe("SelfxStorefrontTryOnClient", () => {
     const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
     const headers = new Headers(request.headers);
     expect(request.method).toBe("POST");
+    expect(JSON.parse(String(request.body))).toMatchObject({ locale: "es" });
     expect(headers.get("Content-Type")).toBe("application/json");
     expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
   });
@@ -69,6 +71,48 @@ describe("SelfxStorefrontTryOnClient", () => {
 
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://api.selfx.test/api/v1/public/integrations/shopify/try-on-sessions/credit-summary?shop=merchant.myshopify.com",
+      expect.any(Object),
+    );
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(request.headers);
+    expect(request.method).toBe("GET");
+    expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
+  });
+
+  it("reads Shopify storefront usage summary with server authentication", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        totalTryOns: 12,
+        thisMonth: {
+          start: "2026-09-01T00:00:00.000Z",
+          end: "2026-09-14T00:00:00.000Z",
+          tryOns: 5,
+          completedTryOns: 4,
+          failedTryOns: 1,
+          generatedImages: 4,
+          creditsConsumed: 5,
+        },
+        topProducts: [
+          {
+            productId: "product-1",
+            productName: "Linen Shirt",
+            productSlug: "linen-shirt",
+            tryOns: 5,
+          },
+        ],
+      }),
+    );
+    const client = new SelfxStorefrontTryOnClient(config, fetchImpl);
+
+    await expect(
+      client.getUsageSummary("merchant.myshopify.com"),
+    ).resolves.toMatchObject({
+      totalTryOns: 12,
+      thisMonth: { tryOns: 5, creditsConsumed: 5 },
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.selfx.test/api/v1/public/integrations/shopify/try-on-sessions/usage-summary?shop=merchant.myshopify.com",
       expect.any(Object),
     );
     const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;

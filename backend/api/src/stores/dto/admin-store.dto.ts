@@ -459,6 +459,57 @@ export class CreateStoreProductImageUploadDto {
   fileName?: string;
 }
 
+export class StorePricingPlanSummaryDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  currency!: string;
+
+  @ApiProperty()
+  monthlyPriceCents!: number;
+
+  @ApiProperty()
+  includedCredits!: number;
+
+  @ApiPropertyOptional()
+  extraCreditPriceCents!: number | null;
+
+  @ApiPropertyOptional()
+  kioskMonthlyRentCents!: number | null;
+
+  @ApiPropertyOptional()
+  kioskDeviceLimit!: number | null;
+
+  @ApiProperty({ type: [String] })
+  channels!: string[];
+}
+
+export class StoreSubscriptionSummaryDto {
+  @ApiProperty()
+  availableCredits!: number;
+
+  @ApiPropertyOptional()
+  subscription!: {
+    id: string;
+    status: string;
+    channels: string[];
+    includedCredits: number;
+    trialCredits: number;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    trialStartedAt: string | null;
+    trialEndsAt: string | null;
+    pricingPlan: StorePricingPlanSummaryDto | null;
+  } | null;
+}
+
 export class AdminStoreResponseDto {
   @ApiProperty()
   id!: string;
@@ -516,6 +567,9 @@ export class AdminStoreResponseDto {
 
   @ApiProperty()
   updatedAt!: string;
+
+  @ApiPropertyOptional({ type: () => StoreSubscriptionSummaryDto })
+  subscription?: StoreSubscriptionSummaryDto;
 
   @ApiProperty()
   internalLegacyModel!: "ORGANIZATION_AS_STORE";
@@ -661,57 +715,6 @@ export class AdminStoreListResponseDto {
   };
 }
 
-export class StorePricingPlanSummaryDto {
-  @ApiProperty()
-  id!: string;
-
-  @ApiProperty()
-  code!: string;
-
-  @ApiProperty()
-  name!: string;
-
-  @ApiProperty()
-  currency!: string;
-
-  @ApiProperty()
-  monthlyPriceCents!: number;
-
-  @ApiProperty()
-  includedCredits!: number;
-
-  @ApiPropertyOptional()
-  extraCreditPriceCents!: number | null;
-
-  @ApiPropertyOptional()
-  kioskMonthlyRentCents!: number | null;
-
-  @ApiPropertyOptional()
-  kioskDeviceLimit!: number | null;
-
-  @ApiProperty({ type: [String] })
-  channels!: string[];
-}
-
-export class StoreSubscriptionSummaryDto {
-  @ApiProperty()
-  availableCredits!: number;
-
-  @ApiPropertyOptional()
-  subscription!: {
-    id: string;
-    status: string;
-    channels: string[];
-    includedCredits: number;
-    trialCredits: number;
-    currentPeriodStart: string | null;
-    currentPeriodEnd: string | null;
-    trialStartedAt: string | null;
-    trialEndsAt: string | null;
-    pricingPlan: StorePricingPlanSummaryDto | null;
-  } | null;
-}
-
 export class StoreCreditChannelUsageDto {
   @ApiProperty()
   channel!: string;
@@ -791,9 +794,6 @@ export class StoreCreditDiagnosticsDto {
 export class AdminStoreDetailResponseDto extends AdminStoreResponseDto {
   @ApiProperty({ type: KioskDeviceListResponseDto })
   kiosks!: KioskDeviceListResponseDto;
-
-  @ApiProperty({ type: StoreSubscriptionSummaryDto })
-  subscription!: StoreSubscriptionSummaryDto;
 }
 
 export class StoreKioskPairResponseDto extends KioskProvisioningPairResponseDto {}

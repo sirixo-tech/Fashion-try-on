@@ -29,6 +29,12 @@ export class CreateShopifyStorefrontTryOnSessionDto {
   @IsString()
   @MaxLength(220)
   productHandle?: string;
+
+  @ApiPropertyOptional({ example: "es" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  locale?: string;
 }
 
 export class CreateShopifyStorefrontTryOnRunDto {
@@ -66,6 +72,9 @@ export class ShopifyStorefrontTryOnSessionDto {
   @ApiProperty()
   expiresAt!: string;
 
+  @ApiPropertyOptional()
+  locale?: string;
+
   @ApiProperty({ type: ShopifyStorefrontTryOnProductDto })
   product!: ShopifyStorefrontTryOnProductDto;
 }
@@ -98,6 +107,57 @@ export class ShopifyStorefrontCreditSummaryDto {
       channels: string[];
     } | null;
   } | null;
+}
+
+export class ShopifyStorefrontUsagePeriodDto {
+  @ApiProperty()
+  start!: string;
+
+  @ApiProperty()
+  end!: string;
+
+  @ApiProperty()
+  tryOns!: number;
+
+  @ApiProperty()
+  completedTryOns!: number;
+
+  @ApiProperty()
+  failedTryOns!: number;
+
+  @ApiProperty()
+  generatedImages!: number;
+
+  @ApiProperty()
+  creditsConsumed!: number;
+}
+
+export class ShopifyStorefrontUsageProductDto {
+  @ApiProperty()
+  productId!: string;
+
+  @ApiProperty()
+  productName!: string;
+
+  @ApiPropertyOptional()
+  productSlug?: string;
+
+  @ApiPropertyOptional()
+  imageUrl?: string;
+
+  @ApiProperty()
+  tryOns!: number;
+}
+
+export class ShopifyStorefrontUsageSummaryDto {
+  @ApiProperty()
+  totalTryOns!: number;
+
+  @ApiProperty({ type: ShopifyStorefrontUsagePeriodDto })
+  thisMonth!: ShopifyStorefrontUsagePeriodDto;
+
+  @ApiProperty({ type: [ShopifyStorefrontUsageProductDto] })
+  topProducts!: ShopifyStorefrontUsageProductDto[];
 }
 
 export class ShopifyStorefrontTryOnPersonUploadDto {

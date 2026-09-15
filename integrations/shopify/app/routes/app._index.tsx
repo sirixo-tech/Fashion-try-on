@@ -5,8 +5,14 @@ import { Form, useActionData, useLoaderData, useLocation } from "react-router";
 import {
   getSelfxIntegrationToken,
   getSelfxConnectionView,
+  updateSelfxStorefrontLocale,
   type SelfxConnectionView,
 } from "../selfx-connection.server";
+import {
+  normalizeStorefrontLocale,
+  supportedStorefrontLocales,
+  storefrontLocaleLabel,
+} from "../selfx-localization";
 import {
   SelfxProductControlsClient,
   type SelfxProductControl,
@@ -16,6 +22,7 @@ import {
 import {
   SelfxStorefrontTryOnClient,
   type SelfxStorefrontCreditSummary,
+  type SelfxStorefrontUsageSummary,
 } from "../selfx-storefront-tryon.server";
 import { loadSelfxLinkConfig } from "../selfx-link.server";
 import { authenticate } from "../shopify.server";
@@ -37,6 +44,87 @@ type ProductControlsView = SelfxProductControlsResponse & {
   errorMessage: string | null;
 };
 
+type ProductActionData =
+  | {
+      productActionError: string | null;
+      productActionSuccess: string | null;
+      settingsActionError?: string | null;
+      settingsActionSuccess?: string | null;
+    }
+  | undefined;
+
+type ShopifyAdminPanelKey =
+  | "setup"
+  | "display"
+  | "settings"
+  | "analytics"
+  | "leads"
+  | "plans"
+  | "support";
+
+type ShopifyAdminPanel = {
+  key: ShopifyAdminPanelKey;
+  label: string;
+  summary: string;
+};
+
+const shopifyAdminPanels: ShopifyAdminPanel[] = [
+  {
+    key: "setup",
+    label: "Setup",
+    summary: "Launch checklist and storefront installation.",
+  },
+  {
+    key: "display",
+    label: "Display",
+    summary: "Product eligibility and storefront behavior.",
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    summary: "Brand controls and future storefront options.",
+  },
+  {
+    key: "analytics",
+    label: "Analytics",
+    summary: "Try-On usage, conversion and product insights.",
+  },
+  {
+    key: "leads",
+    label: "Leads",
+    summary: "Future shopper capture and follow-up tools.",
+  },
+  {
+    key: "plans",
+    label: "Plans",
+    summary: "Credits, limits and upgrade entry points.",
+  },
+  {
+    key: "support",
+    label: "Support",
+    summary: "Diagnostics and help resources.",
+  },
+];
+
+const setupSteps = [
+  {
+    label: "Open Theme Editor",
+    body: "The product template opens directly in Shopify's theme editor.",
+  },
+  {
+    label: 'Add the "SelfX Try It On" block',
+    body: "In Product information, choose Add block and select the SelfX app block.",
+  },
+  {
+    label: "Position and customize",
+    body: "Place it near buy actions and adjust the block settings to match the storefront.",
+  },
+  {
+    label: "Save and go live",
+    body: "After saving, shoppers can launch virtual Try-On from eligible product pages.",
+  },
+];
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const connection = await safeConnectionView(session.shop);
@@ -48,6 +136,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: session.shop,
     }),
     creditSummary: await safeCreditSummary(session.shop, connection),
+    usageSummary: await safeUsageSummary(session.shop, connection),
     productControls: await safeProductControls(session.shop, connection),
     selfxBillingUrl: safeSelfxBillingUrl(connection),
     themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
@@ -58,10 +147,38 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
+  if (intent === "setStorefrontLocale") {
+    try {
+      const connection = await updateSelfxStorefrontLocale({
+        shop: session.shop,
+        locale: normalizeStorefrontLocale(formData.get("storefrontLocale")),
+      });
+      return {
+        productActionError: null,
+        productActionSuccess: null,
+        settingsActionError: null,
+        settingsActionSuccess: `Storefront language updated to ${storefrontLocaleLabel(
+          connection.storefrontLocale,
+        )}.`,
+      };
+    } catch (error) {
+      return {
+        productActionError: null,
+        productActionSuccess: null,
+        settingsActionError:
+          error instanceof Error
+            ? error.message
+            : "SelfX could not update storefront language.",
+        settingsActionSuccess: null,
+      };
+    }
+  }
   if (intent !== "setProductVto") {
     return {
       productActionError: "That Shopify product action is not supported.",
       productActionSuccess: null,
+      settingsActionError: null,
+      settingsActionSuccess: null,
     };
   }
 
@@ -75,6 +192,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       productActionSuccess: `${product.name} Try-On is ${
         product.vtoEnabled ? "enabled" : "disabled"
       }.`,
+      settingsActionError: null,
+      settingsActionSuccess: null,
     };
   } catch (error) {
     return {
@@ -83,6 +202,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           ? error.message
           : "SelfX could not update this product.",
       productActionSuccess: null,
+      settingsActionError: null,
+      settingsActionSuccess: null,
     };
   }
 };
@@ -92,9 +213,12 @@ export default function Index() {
   const actionData = useActionData<typeof action>();
   const location = useLocation();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activePanel, setActivePanel] =
+    useState<ShopifyAdminPanelKey>("setup");
   const connection = loaded.connection;
   const themeBlock = loaded.themeBlock;
   const creditSummary = loaded.creditSummary;
+  const usageSummary = loaded.usageSummary;
   const productControls = loaded.productControls;
   const selfxBillingUrl = loaded.selfxBillingUrl;
   const themeEditorUrl = loaded.themeEditorUrl;
@@ -127,9 +251,126 @@ export default function Index() {
   const themeBlockInstalled = themeBlock.status === "INSTALLED";
   const storefrontReady = connected && synced && themeBlockInstalled;
   const creditHealth = creditHealthFor(creditSummary);
+  const includedCredits =
+    creditSummary?.subscription?.pricingPlan?.includedCredits ??
+    creditSummary?.subscription?.includedCredits ??
+    0;
+  const availableCredits = creditSummary?.availableCredits ?? 0;
+  const usedCredits = Math.max(0, includedCredits - availableCredits);
+  const totalTryOns = usageSummary?.totalTryOns ?? 0;
+  const thisMonthTryOns = usageSummary?.thisMonth.tryOns ?? 0;
+  const usagePercent =
+    includedCredits > 0
+      ? Math.min(100, Math.round((usedCredits / includedCredits) * 100))
+      : 0;
+  const planName =
+    creditSummary?.subscription?.pricingPlan?.name ??
+    (connected ? "Trial" : "Not connected");
 
   return (
     <s-page heading="SelfX Virtual Try-On" inlineSize="large">
+      <StatusAlerts
+        actionError={actionError}
+        actionData={actionData}
+        connection={connection}
+        pending={pending}
+      />
+
+      <MerchantAppHeader
+        connected={connected}
+        connection={connection}
+        storefrontLocale={connection.storefrontLocale}
+        pending={pending}
+        storefrontReady={storefrontReady}
+        themeBlock={themeBlock}
+        completeActionPath={completeActionPath}
+        connectActionPath={connectActionPath}
+        restartActionPath={restartActionPath}
+        syncActionPath={syncActionPath}
+      />
+
+      <s-grid
+        gridTemplateColumns="repeat(auto-fit, minmax(15rem, 1fr))"
+        gap="base"
+      >
+        <DashboardMetric
+          label="Total Try-Ons"
+          value={String(totalTryOns)}
+          meta="All Shopify storefront sessions"
+        />
+        <DashboardMetric
+          label="This Month"
+          value={String(thisMonthTryOns)}
+          meta={
+            usageSummary
+              ? `${usageSummary.thisMonth.generatedImages} generated`
+              : "No usage yet"
+          }
+        />
+        <DashboardMetric
+          label="Available Credits"
+          value={connected ? String(availableCredits) : "-"}
+          meta={planName}
+          badge={<CreditBadge health={creditHealth} />}
+        />
+      </s-grid>
+
+      <CreditUsagePanel
+        availableCredits={availableCredits}
+        billingUrl={selfxBillingUrl}
+        connected={connected}
+        creditHealth={creditHealth}
+        includedCredits={includedCredits}
+        planName={planName}
+        usagePercent={usagePercent}
+        usedCredits={usedCredits}
+      />
+
+      <s-grid gridTemplateColumns="16rem minmax(0, 1fr)" gap="base">
+        <s-grid-item>
+          <ShopifyPanelNavigation
+            activePanel={activePanel}
+            onChange={setActivePanel}
+          />
+        </s-grid-item>
+        <s-grid-item>
+          <ShopifyPanelContent
+            activePanel={activePanel}
+            availableCredits={availableCredits}
+            connected={connected}
+            connection={connection}
+            creditHealth={creditHealth}
+            includedCredits={includedCredits}
+            pending={pending}
+            productControls={productControls}
+            selfxBillingUrl={selfxBillingUrl}
+            storefrontReady={storefrontReady}
+            syncActionPath={syncActionPath}
+            synced={synced}
+            themeBlock={themeBlock}
+            themeBlockInstalled={themeBlockInstalled}
+            themeEditorUrl={themeEditorUrl}
+            usageSummary={usageSummary}
+          />
+        </s-grid-item>
+      </s-grid>
+    </s-page>
+  );
+}
+
+function StatusAlerts({
+  actionData,
+  actionError,
+  connection,
+  pending,
+}: {
+  actionData: ProductActionData;
+  actionError: string | null;
+  connection: SelfxConnectionView;
+  pending: boolean;
+}) {
+  return (
+    <>
       {actionError ? (
         <s-banner heading="Connection could not be completed" tone="critical">
           {actionError}
@@ -157,152 +398,386 @@ export default function Index() {
           {actionData.productActionSuccess}
         </s-banner>
       ) : null}
-
-      <s-section>
-        <s-stack gap="base">
-          <s-grid
-            gridTemplateColumns="repeat(auto-fit, minmax(18rem, 1fr))"
-            gap="base"
-          >
-            <s-grid-item>
-              <StatusPanel
-                eyebrow="Store connection"
-                title={
-                  connected
-                    ? (connection.storeName ?? "SelfX Store")
-                    : pending
-                      ? "Approval pending"
-                      : "Connect SelfX"
-                }
-                body={
-                  connected
-                    ? "SelfX is connected to this Shopify store."
-                    : pending
-                      ? "Finish approval in SelfX to activate catalog sync."
-                      : "Connect an active SelfX Store to unlock Try-On."
-                }
-                meta={`Shopify shop: ${connection.shop}`}
-                badge={<ConnectionBadge status={connection.status} />}
-              />
-            </s-grid-item>
-            <s-grid-item>
-              <StatusPanel
-                eyebrow="Storefront status"
-                title={
-                  storefrontReady
-                    ? "Ready to launch"
-                    : connected && synced
-                      ? "Add theme block"
-                      : "Setup in progress"
-                }
-                body={
-                  storefrontReady
-                    ? "The SelfX Try-On block is installed on the main product template."
-                    : connected && synced
-                      ? "Catalog sync is complete. Add the storefront block to finish setup."
-                    : "Complete connection and sync before enabling shopper Try-On."
-                }
-                meta={themeBlockMeta(themeBlock)}
-                badge={<ThemeBlockBadge status={themeBlock.status} />}
-              />
-            </s-grid-item>
-          </s-grid>
-
-          <PrimaryActions
-            approvalUrl={connection.approvalUrl}
-            completeActionPath={completeActionPath}
-            connectActionPath={connectActionPath}
-            connected={connected}
-            pending={pending}
-            restartActionPath={restartActionPath}
-          />
-        </s-stack>
-      </s-section>
-
+      {actionData?.settingsActionError ? (
+        <s-banner heading="Settings update failed" tone="critical">
+          {actionData.settingsActionError}
+        </s-banner>
+      ) : null}
+      {actionData?.settingsActionSuccess ? (
+        <s-banner heading="Settings updated" tone="success">
+          {actionData.settingsActionSuccess}
+        </s-banner>
+      ) : null}
       {pending ? (
-        <s-banner heading="Approval is open" tone="info">
-          Select an active Store in SelfX. This page checks for approval
+        <s-banner heading="SelfX approval is open" tone="info">
+          Approve this Shopify store in SelfX. This page checks for approval
           automatically; no API key needs to be copied.
         </s-banner>
       ) : null}
+    </>
+  );
+}
 
-      {connected ? (
-        <s-section heading="Credits">
-          <CreditStatusBanner
-            health={creditHealth}
-            billingUrl={selfxBillingUrl}
-          />
-          <s-grid
-            gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
-            gap="base"
-          >
-            <Metric
-              label="Available credits"
-              value={creditSummary?.availableCredits ?? 0}
-            />
-            <Metric
-              label="Plan credits"
-              value={
-                creditSummary?.subscription?.pricingPlan?.includedCredits ??
-                creditSummary?.subscription?.includedCredits ??
-                0
-              }
-            />
-          </s-grid>
-          <s-box
-            padding="base"
-            background={creditHealth === "HEALTHY" ? "subdued" : "base"}
-            borderWidth="small"
-            borderColor="base"
-            borderRadius="base"
-          >
-            <s-stack direction="inline" gap="base" alignItems="center">
-              <CreditBadge health={creditHealth} />
-              <s-text>
-                Current plan:{" "}
-                {creditSummary?.subscription?.pricingPlan?.name ?? "Trial"}
-              </s-text>
+function MerchantAppHeader({
+  completeActionPath,
+  connectActionPath,
+  connected,
+  connection,
+  storefrontLocale,
+  pending,
+  restartActionPath,
+  storefrontReady,
+  syncActionPath,
+  themeBlock,
+}: {
+  completeActionPath: string;
+  connectActionPath: string;
+  connected: boolean;
+  connection: SelfxConnectionView;
+  storefrontLocale: string;
+  pending: boolean;
+  restartActionPath: string;
+  storefrontReady: boolean;
+  syncActionPath: string;
+  themeBlock: ThemeBlockView;
+}) {
+  return (
+    <s-section>
+      <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+        <s-grid-item>
+          <s-stack direction="inline" gap="base" alignItems="center">
+            <s-box
+              padding="base"
+              background="subdued"
+              borderWidth="small"
+              borderColor="base"
+              borderRadius="base"
+            >
+              <s-icon type="product" />
+            </s-box>
+            <s-stack gap="small-200">
+              <s-heading>SelfX Try-On</s-heading>
+              <s-text color="subdued">{connection.shop}</s-text>
             </s-stack>
-          </s-box>
-        </s-section>
-      ) : null}
+          </s-stack>
+        </s-grid-item>
+        <s-grid-item>
+          <s-stack direction="inline" gap="base" alignItems="center">
+            <ConnectionBadge status={connection.status} />
+            <s-badge tone="info">
+              {storefrontLocaleLabel(storefrontLocale)}
+            </s-badge>
+            {storefrontReady ? (
+              <s-badge tone="success">Storefront ready</s-badge>
+            ) : (
+              <ThemeBlockBadge status={themeBlock.status} />
+            )}
+            <s-button href={syncActionPath} variant="secondary" icon="refresh">
+              Refresh
+            </s-button>
+            <PrimaryActions
+              approvalUrl={connection.approvalUrl}
+              completeActionPath={completeActionPath}
+              connectActionPath={connectActionPath}
+              connected={connected}
+              pending={pending}
+              restartActionPath={restartActionPath}
+            />
+          </s-stack>
+        </s-grid-item>
+      </s-grid>
+    </s-section>
+  );
+}
 
-      <s-section heading="Catalog sync">
-        <s-stack gap="base">
-          <s-grid
-            gridTemplateColumns="repeat(auto-fit, minmax(10rem, 1fr))"
-            gap="base"
+function DashboardMetric({
+  badge,
+  label,
+  meta,
+  value,
+}: {
+  badge?: ReactNode;
+  label: string;
+  meta: string;
+  value: string;
+}) {
+  return (
+    <s-box
+      padding="base"
+      background="subdued"
+      borderWidth="small"
+      borderColor="base"
+      borderRadius="base"
+    >
+      <s-stack gap="base">
+        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+          <s-grid-item>
+            <s-text color="subdued">{label}</s-text>
+          </s-grid-item>
+          <s-grid-item>{badge}</s-grid-item>
+        </s-grid>
+        <s-heading>{value}</s-heading>
+        <s-text color="subdued">{meta}</s-text>
+      </s-stack>
+    </s-box>
+  );
+}
+
+function CreditUsagePanel({
+  availableCredits,
+  billingUrl,
+  connected,
+  creditHealth,
+  includedCredits,
+  planName,
+  usagePercent,
+  usedCredits,
+}: {
+  availableCredits: number;
+  billingUrl: string | null;
+  connected: boolean;
+  creditHealth: CreditHealth;
+  includedCredits: number;
+  planName: string;
+  usagePercent: number;
+  usedCredits: number;
+}) {
+  if (!connected) {
+    return null;
+  }
+  return (
+    <s-section>
+      <s-stack gap="base">
+        <CreditStatusBanner health={creditHealth} billingUrl={billingUrl} />
+        <s-box
+          padding="base"
+          background="base"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack gap="base">
+            <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+              <s-grid-item>
+                <s-stack direction="inline" gap="base" alignItems="center">
+                  <CreditBadge health={creditHealth} />
+                  <s-text>
+                    {planName} - {availableCredits} of {includedCredits} credits
+                    left
+                  </s-text>
+                </s-stack>
+              </s-grid-item>
+              <s-grid-item>
+                {billingUrl ? (
+                  <s-button href={billingUrl} target="_blank" variant="secondary">
+                    View Plans
+                  </s-button>
+                ) : null}
+              </s-grid-item>
+            </s-grid>
+            <div
+              aria-label={`${usedCredits} credits used`}
+              style={{
+                background: "#edf2f7",
+                borderRadius: "999px",
+                height: "0.5rem",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  background: "#ff6a1a",
+                  height: "100%",
+                  width: `${usagePercent}%`,
+                }}
+              />
+            </div>
+          </s-stack>
+        </s-box>
+      </s-stack>
+    </s-section>
+  );
+}
+
+function ShopifyPanelNavigation({
+  activePanel,
+  onChange,
+}: {
+  activePanel: ShopifyAdminPanelKey;
+  onChange: (panel: ShopifyAdminPanelKey) => void;
+}) {
+  return (
+    <s-section>
+      <s-stack gap="small-200">
+        {shopifyAdminPanels.map((panel) => (
+          <s-button
+            key={panel.key}
+            variant={activePanel === panel.key ? "primary" : "tertiary"}
+            onClick={() => onChange(panel.key)}
           >
-            <Metric label="Products" value={connection.productsImported} />
-            <Metric label="Variants" value={connection.variantsImported} />
-            <Metric label="Created" value={connection.created} />
-            <Metric label="Updated" value={connection.updated} />
-            <Metric label="Archived" value={connection.archived} />
-          </s-grid>
+            {panel.label}
+          </s-button>
+        ))}
+      </s-stack>
+    </s-section>
+  );
+}
 
+function ShopifyPanelContent({
+  activePanel,
+  availableCredits,
+  connected,
+  connection,
+  creditHealth,
+  includedCredits,
+  pending,
+  productControls,
+  selfxBillingUrl,
+  storefrontReady,
+  syncActionPath,
+  synced,
+  themeBlock,
+  themeBlockInstalled,
+  themeEditorUrl,
+  usageSummary,
+}: {
+  activePanel: ShopifyAdminPanelKey;
+  availableCredits: number;
+  connected: boolean;
+  connection: SelfxConnectionView;
+  creditHealth: CreditHealth;
+  includedCredits: number;
+  pending: boolean;
+  productControls: ProductControlsView | null;
+  selfxBillingUrl: string | null;
+  storefrontReady: boolean;
+  syncActionPath: string;
+  synced: boolean;
+  themeBlock: ThemeBlockView;
+  themeBlockInstalled: boolean;
+  themeEditorUrl: string | null;
+  usageSummary: SelfxStorefrontUsageSummary | null;
+}) {
+  if (activePanel === "display") {
+    return (
+      <s-stack gap="base">
+        <DisplaySettingsPreview />
+        {connected ? (
+          <ProductControlsSection
+            productControls={productControls}
+            syncActionPath={syncActionPath}
+          />
+        ) : (
+          <UnavailablePanel
+            heading="Connect SelfX first"
+            body="Product Try-On controls become available after this Shopify store is connected."
+          />
+        )}
+      </s-stack>
+    );
+  }
+  if (activePanel === "settings") {
+    return <LanguageSettingsPanel connection={connection} />;
+  }
+  if (activePanel === "analytics") {
+    return (
+      <AnalyticsPanel
+        availableCredits={availableCredits}
+        connection={connection}
+        includedCredits={includedCredits}
+        usageSummary={usageSummary}
+      />
+    );
+  }
+  if (activePanel === "leads") {
+    return <FuturePanel panelKey="leads" />;
+  }
+  if (activePanel === "plans") {
+    return (
+      <PlansPanel
+        billingUrl={selfxBillingUrl}
+        creditHealth={creditHealth}
+        availableCredits={availableCredits}
+        includedCredits={includedCredits}
+      />
+    );
+  }
+  if (activePanel === "support") {
+    return <SupportPanel connection={connection} themeBlock={themeBlock} />;
+  }
+  return (
+    <SetupPanel
+      connected={connected}
+      connection={connection}
+      pending={pending}
+      storefrontReady={storefrontReady}
+      syncActionPath={syncActionPath}
+      synced={synced}
+      themeBlock={themeBlock}
+      themeBlockInstalled={themeBlockInstalled}
+      themeEditorUrl={themeEditorUrl}
+    />
+  );
+}
+
+function SetupPanel({
+  connected,
+  connection,
+  pending,
+  storefrontReady,
+  syncActionPath,
+  synced,
+  themeBlock,
+  themeBlockInstalled,
+  themeEditorUrl,
+}: {
+  connected: boolean;
+  connection: SelfxConnectionView;
+  pending: boolean;
+  storefrontReady: boolean;
+  syncActionPath: string;
+  synced: boolean;
+  themeBlock: ThemeBlockView;
+  themeBlockInstalled: boolean;
+  themeEditorUrl: string | null;
+}) {
+  return (
+    <s-stack gap="base">
+      <s-section heading="Add Try-On Button to Your Store">
+        <s-stack gap="base">
           <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
             <s-grid-item>
-              <s-stack direction="inline" gap="base" alignItems="center">
-                <SyncBadge status={connection.syncStatus} />
-                <s-text color="subdued">
-                  {connection.lastSyncAt
-                    ? `Last synced ${formatDate(connection.lastSyncAt)}`
-                    : "No completed catalog sync yet"}
-                </s-text>
-              </s-stack>
+              <s-text color="subdued">
+                Add the SelfX button to product pages in a few minutes. No code
+                editing is required.
+              </s-text>
             </s-grid-item>
             <s-grid-item>
-              <s-button
-                href={syncActionPath}
-                variant="secondary"
-                icon="refresh"
-                disabled={!connected}
-              >
-                Sync catalog
-              </s-button>
+              {storefrontReady ? (
+                <s-badge tone="success">Added</s-badge>
+              ) : (
+                <s-badge tone="warning">Not yet added</s-badge>
+              )}
             </s-grid-item>
           </s-grid>
-
+          <s-button
+            variant="primary"
+            href={themeEditorUrl ?? undefined}
+            target="_blank"
+            disabled={!connected || !themeEditorUrl}
+          >
+            Open Theme Editor - Product Pages
+          </s-button>
+          <s-stack gap="base">
+            {setupSteps.map((step, index) => (
+              <SetupInstruction
+                key={step.label}
+                body={step.body}
+                index={index + 1}
+                label={step.label}
+              />
+            ))}
+          </s-stack>
           <s-box
             padding="base"
             background="subdued"
@@ -311,80 +786,417 @@ export default function Index() {
             borderRadius="base"
           >
             <s-text color="subdued">
-              Sync is read-only. Shopify remains the source of truth for
-              products, prices, inventory, orders and store settings.
+              Uninstalling the Shopify app automatically removes the app block
+              from the theme. Product data remains managed in Shopify.
             </s-text>
           </s-box>
         </s-stack>
       </s-section>
 
-      {connected ? (
-        <ProductControlsSection
-          productControls={productControls}
-          syncActionPath={syncActionPath}
-        />
-      ) : null}
-
-      <s-section heading="Storefront">
+      <s-section heading="Launch checklist">
         <s-grid
-          gridTemplateColumns="repeat(auto-fit, minmax(18rem, 1fr))"
+          gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
           gap="base"
         >
+          <LaunchStep label="Store connected" complete={connected} pending={pending} />
+          <LaunchStep
+            label="Catalog synced"
+            complete={synced}
+            pending={connection.syncStatus === "SYNCING"}
+          />
+          <LaunchStep
+            label="Theme block installed"
+            complete={themeBlockInstalled}
+            pending={
+              connected &&
+              synced &&
+              (themeBlock.status === "NOT_INSTALLED" ||
+                themeBlock.status === "UNAVAILABLE")
+            }
+          />
+        </s-grid>
+      </s-section>
+
+      <CatalogSyncPanel
+        connected={connected}
+        connection={connection}
+        syncActionPath={syncActionPath}
+      />
+    </s-stack>
+  );
+}
+
+function SetupInstruction({
+  body,
+  index,
+  label,
+}: {
+  body: string;
+  index: number;
+  label: string;
+}) {
+  return (
+    <s-grid gridTemplateColumns="2.5rem 1fr" gap="base" alignItems="start">
+      <s-grid-item>
+        <s-box
+          padding="small-200"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-heading>{String(index)}</s-heading>
+        </s-box>
+      </s-grid-item>
+      <s-grid-item>
+        <s-stack gap="small-200">
+          <s-heading>{label}</s-heading>
+          <s-text color="subdued">{body}</s-text>
+        </s-stack>
+      </s-grid-item>
+    </s-grid>
+  );
+}
+
+function CatalogSyncPanel({
+  connected,
+  connection,
+  syncActionPath,
+}: {
+  connected: boolean;
+  connection: SelfxConnectionView;
+  syncActionPath: string;
+}) {
+  return (
+    <s-section heading="Catalog sync">
+      <s-stack gap="base">
+        <s-grid
+          gridTemplateColumns="repeat(auto-fit, minmax(10rem, 1fr))"
+          gap="base"
+        >
+          <Metric label="Products" value={connection.productsImported} />
+          <Metric label="Variants" value={connection.variantsImported} />
+          <Metric label="Created" value={connection.created} />
+          <Metric label="Updated" value={connection.updated} />
+          <Metric label="Archived" value={connection.archived} />
+        </s-grid>
+        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
           <s-grid-item>
-            <s-stack gap="base">
-              <LaunchStep
-                label="Store connected"
-                complete={connected}
-                pending={pending}
-              />
-              <LaunchStep
-                label="Catalog synced"
-                complete={synced}
-                pending={connection.syncStatus === "SYNCING"}
-              />
-              <LaunchStep
-                label="Theme block installed"
-                complete={themeBlockInstalled}
-                pending={
-                  connected &&
-                  synced &&
-                  (themeBlock.status === "NOT_INSTALLED" ||
-                    themeBlock.status === "UNAVAILABLE")
-                }
-              />
+            <s-stack direction="inline" gap="base" alignItems="center">
+              <SyncBadge status={connection.syncStatus} />
+              <s-text color="subdued">
+                {connection.lastSyncAt
+                  ? `Last synced ${formatDate(connection.lastSyncAt)}`
+                  : "No completed catalog sync yet"}
+              </s-text>
             </s-stack>
           </s-grid-item>
           <s-grid-item>
-            <s-box
-              padding="base"
-              background="subdued"
-              borderWidth="small"
-              borderColor="base"
-              borderRadius="base"
+            <s-button
+              href={syncActionPath}
+              variant="secondary"
+              icon="refresh"
+              disabled={!connected}
             >
-              <s-stack gap="base">
-                <s-stack gap="small-200">
-                  <s-heading>Add Try-On block</s-heading>
-                  <s-text color="subdued">
-                    {themeBlockInstalled
-                      ? "The SelfX Try It On block is installed on the main product template."
-                      : "Open the Shopify theme editor and place the SelfX Try It On block on your product template."}
-                  </s-text>
-                </s-stack>
-                <s-button
-                  variant="primary"
-                  href={themeEditorUrl ?? undefined}
-                  target="_blank"
-                  disabled={!connected || !themeEditorUrl}
-                >
-                  {themeBlockInstalled ? "Open theme editor" : "Add Try-On block"}
-                </s-button>
-              </s-stack>
-            </s-box>
+              Sync catalog
+            </s-button>
           </s-grid-item>
         </s-grid>
-      </s-section>
-    </s-page>
+        <s-text color="subdued">
+          Sync is read-only. Shopify remains the source of truth for products,
+          prices, inventory, orders and store settings.
+        </s-text>
+      </s-stack>
+    </s-section>
+  );
+}
+
+function DisplaySettingsPreview() {
+  return (
+    <s-section heading="Display controls">
+      <s-grid
+        gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
+        gap="base"
+      >
+        <s-box
+          padding="base"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack gap="small-200">
+            <s-heading>Button block</s-heading>
+            <s-text color="subdued">
+              Installed through Shopify's theme editor so it can follow each
+              merchant's theme.
+            </s-text>
+          </s-stack>
+        </s-box>
+        <s-box
+          padding="base"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack gap="small-200">
+            <s-heading>Product visibility</s-heading>
+            <s-text color="subdued">
+              Enable or disable Try-On per synced garment below.
+            </s-text>
+          </s-stack>
+        </s-box>
+      </s-grid>
+    </s-section>
+  );
+}
+
+function LanguageSettingsPanel({
+  connection,
+}: {
+  connection: SelfxConnectionView;
+}) {
+  return (
+    <s-section heading="Storefront language">
+      <s-stack gap="base">
+        <s-text color="subdued">
+          Choose the shopper-facing language for the SelfX Try-On launch page.
+          The Shopify theme block also includes auto-localized defaults for new
+          installations.
+        </s-text>
+        <Form method="post">
+          <input type="hidden" name="intent" value="setStorefrontLocale" />
+          <s-grid gridTemplateColumns="minmax(0, 1fr) auto" gap="base" alignItems="end">
+            <s-grid-item>
+              <s-select
+                label="Storefront language"
+                name="storefrontLocale"
+                value={connection.storefrontLocale}
+              >
+                {supportedStorefrontLocales.map((locale) => (
+                  <s-option key={locale.code} value={locale.code}>
+                    {locale.label}
+                  </s-option>
+                ))}
+              </s-select>
+            </s-grid-item>
+            <s-grid-item>
+              <s-button type="submit" variant="primary">
+                Save language
+              </s-button>
+            </s-grid-item>
+          </s-grid>
+        </Form>
+        <s-box
+          padding="base"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-text color="subdued">
+            Current storefront language:{" "}
+            {storefrontLocaleLabel(connection.storefrontLocale)}. Arabic uses a
+            right-to-left shopper layout.
+          </s-text>
+        </s-box>
+      </s-stack>
+    </s-section>
+  );
+}
+
+function AnalyticsPanel({
+  availableCredits,
+  connection,
+  includedCredits,
+  usageSummary,
+}: {
+  availableCredits: number;
+  connection: SelfxConnectionView;
+  includedCredits: number;
+  usageSummary: SelfxStorefrontUsageSummary | null;
+}) {
+  const usedCredits =
+    usageSummary?.thisMonth.creditsConsumed ??
+    Math.max(0, includedCredits - availableCredits);
+  return (
+    <s-section heading="Analytics">
+      <s-stack gap="base">
+        <s-grid
+          gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
+          gap="base"
+        >
+          <Metric
+            label="Try-Ons this month"
+            value={usageSummary?.thisMonth.tryOns ?? 0}
+          />
+          <Metric
+            label="Generated results"
+            value={usageSummary?.thisMonth.generatedImages ?? 0}
+          />
+          <Metric
+            label="Completed"
+            value={usageSummary?.thisMonth.completedTryOns ?? 0}
+          />
+          <Metric
+            label="Failed"
+            value={usageSummary?.thisMonth.failedTryOns ?? 0}
+          />
+          <Metric label="Credits used" value={usedCredits} />
+          <Metric label="Synced products" value={connection.productsImported} />
+        </s-grid>
+        {usageSummary?.topProducts.length ? (
+          <s-box
+            padding="base"
+            background="subdued"
+            borderWidth="small"
+            borderColor="base"
+            borderRadius="base"
+          >
+            <s-stack gap="base">
+              <s-heading>Most used products this month</s-heading>
+              {usageSummary.topProducts.map((product) => (
+                <s-grid
+                  key={product.productId}
+                  gridTemplateColumns="1fr auto"
+                  gap="base"
+                  alignItems="center"
+                >
+                  <s-grid-item>
+                    <s-stack direction="inline" gap="base" alignItems="center">
+                      {product.imageUrl ? (
+                        <s-thumbnail
+                          src={product.imageUrl}
+                          alt={product.productName}
+                          size="small"
+                        />
+                      ) : null}
+                      <s-stack gap="small-200">
+                        <s-heading>{product.productName}</s-heading>
+                        {product.productSlug ? (
+                          <s-text color="subdued">{product.productSlug}</s-text>
+                        ) : null}
+                      </s-stack>
+                    </s-stack>
+                  </s-grid-item>
+                  <s-grid-item>
+                    <s-badge tone="info">{product.tryOns} Try-Ons</s-badge>
+                  </s-grid-item>
+                </s-grid>
+              ))}
+            </s-stack>
+          </s-box>
+        ) : (
+          <s-text color="subdued">
+            Shopify Try-On product rankings will appear after shoppers generate
+            storefront Try-Ons.
+          </s-text>
+        )}
+      </s-stack>
+    </s-section>
+  );
+}
+
+function PlansPanel({
+  availableCredits,
+  billingUrl,
+  creditHealth,
+  includedCredits,
+}: {
+  availableCredits: number;
+  billingUrl: string | null;
+  creditHealth: CreditHealth;
+  includedCredits: number;
+}) {
+  return (
+    <s-section heading="Plans">
+      <s-stack gap="base">
+        <s-grid
+          gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
+          gap="base"
+        >
+          <Metric label="Available credits" value={availableCredits} />
+          <Metric label="Plan credits" value={includedCredits} />
+        </s-grid>
+        <s-stack direction="inline" gap="base" alignItems="center">
+          <CreditBadge health={creditHealth} />
+          {billingUrl ? (
+            <s-button href={billingUrl} target="_blank" variant="primary">
+              View Plans in SelfX
+            </s-button>
+          ) : null}
+        </s-stack>
+      </s-stack>
+    </s-section>
+  );
+}
+
+function SupportPanel({
+  connection,
+  themeBlock,
+}: {
+  connection: SelfxConnectionView;
+  themeBlock: ThemeBlockView;
+}) {
+  return (
+    <s-section heading="Diagnostics">
+      <s-stack gap="base">
+        <s-box
+          padding="base"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack gap="small-200">
+            <s-heading>Store domain registered</s-heading>
+            <s-text>{connection.shop}</s-text>
+          </s-stack>
+        </s-box>
+        <s-box
+          padding="base"
+          background="subdued"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack gap="small-200">
+            <s-heading>Theme block check</s-heading>
+            <s-text color="subdued">{themeBlockMeta(themeBlock)}</s-text>
+          </s-stack>
+        </s-box>
+      </s-stack>
+    </s-section>
+  );
+}
+
+function FuturePanel({ panelKey }: { panelKey: ShopifyAdminPanelKey }) {
+  const panel = shopifyAdminPanels.find((item) => item.key === panelKey);
+  return (
+    <UnavailablePanel
+      heading={panel?.label ?? "Coming soon"}
+      body={
+        panel?.summary ??
+        "This area is reserved for future Shopify storefront controls."
+      }
+    />
+  );
+}
+
+function UnavailablePanel({ body, heading }: { body: string; heading: string }) {
+  return (
+    <s-section heading={heading}>
+      <s-box
+        padding="base"
+        background="subdued"
+        borderWidth="small"
+        borderColor="base"
+        borderRadius="base"
+      >
+        <s-text color="subdued">{body}</s-text>
+      </s-box>
+    </s-section>
   );
 }
 
@@ -400,44 +1212,6 @@ function Metric({ label, value }: { label: string; value: number }) {
       <s-stack gap="small-200">
         <s-text color="subdued">{label}</s-text>
         <s-heading>{String(value)}</s-heading>
-      </s-stack>
-    </s-box>
-  );
-}
-
-function StatusPanel({
-  badge,
-  body,
-  eyebrow,
-  meta,
-  title,
-}: {
-  badge: ReactNode;
-  body: string;
-  eyebrow: string;
-  meta: string;
-  title: string;
-}) {
-  return (
-    <s-box
-      padding="base"
-      background="subdued"
-      borderWidth="small"
-      borderColor="base"
-      borderRadius="base"
-    >
-      <s-stack gap="base">
-        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="start">
-          <s-grid-item>
-            <s-stack gap="small-200">
-              <s-text color="subdued">{eyebrow}</s-text>
-              <s-heading>{title}</s-heading>
-            </s-stack>
-          </s-grid-item>
-          <s-grid-item>{badge}</s-grid-item>
-        </s-grid>
-        <s-text>{body}</s-text>
-        <s-text color="subdued">{meta}</s-text>
       </s-stack>
     </s-box>
   );
@@ -854,6 +1628,7 @@ async function safeConnectionView(shop: string): Promise<SelfxConnectionView> {
       approvalUrl: null,
       pendingLinkExpiresAt: null,
       storeName: null,
+      storefrontLocale: "en",
       linkedAt: null,
       syncStatus: "NOT_STARTED",
       lastSyncAt: null,
@@ -880,6 +1655,22 @@ async function safeCreditSummary(
     return await new SelfxStorefrontTryOnClient(
       loadSelfxLinkConfig(),
     ).getCreditSummary(shop);
+  } catch {
+    return null;
+  }
+}
+
+async function safeUsageSummary(
+  shop: string,
+  connection: SelfxConnectionView,
+): Promise<SelfxStorefrontUsageSummary | null> {
+  if (connection.status !== "CONNECTED") {
+    return null;
+  }
+  try {
+    return await new SelfxStorefrontTryOnClient(
+      loadSelfxLinkConfig(),
+    ).getUsageSummary(shop);
   } catch {
     return null;
   }

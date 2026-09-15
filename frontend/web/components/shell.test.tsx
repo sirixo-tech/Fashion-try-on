@@ -281,6 +281,13 @@ describe("SelfX shared shell", () => {
     await waitFor(() =>
       expect(screen.getByText("unauthenticated")).toBeTruthy(),
     );
-    expect(window.localStorage.length).toBe(0);
+    const storageDump = Array.from(
+      { length: window.localStorage.length },
+      (_, index) => {
+        const key = window.localStorage.key(index) ?? "";
+        return `${key}:${window.localStorage.getItem(key) ?? ""}`;
+      },
+    ).join("\n");
+    expect(storageDump).not.toMatch(/access|refresh|bearer|token/i);
   });
 });

@@ -45,6 +45,7 @@ import {
   type CurrentPlatformAccess,
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
+import { getCurrentMerchantStore } from "@/lib/current-store";
 import {
   createDeveloperApiKey,
   createDeveloperApiWebhook,
@@ -65,7 +66,6 @@ import {
   type DeveloperApiWebhookEndpoint,
   type DeveloperApiWebhookEvent,
 } from "@/lib/developer-api";
-import { listActiveOrganizations } from "@/lib/organizations";
 import { useSession } from "@/lib/session";
 import {
   getEffectiveStorePermissions,
@@ -237,11 +237,10 @@ export default function DeveloperPage() {
         return;
       }
 
-      const stores = await listActiveOrganizations(accessToken);
-      const options = stores.map((store) => ({
-        id: store.id,
-        name: store.name,
-      }));
+      const currentStore = await getCurrentMerchantStore(accessToken);
+      const options = currentStore
+        ? [{ id: currentStore.id, name: currentStore.name }]
+        : [];
       setStoreOptions(options);
       setSelectedStoreId((current) => current || options[0]?.id || "");
     } catch (caught) {
@@ -585,23 +584,30 @@ export default function DeveloperPage() {
             description="Keys, usage and webhooks are owned by Store tenants."
           >
             <div className="space-y-4">
-              <label className="space-y-2 text-sm">
-                <span className="font-medium">Store</span>
-                <SelectMenu
-                  ariaLabel="Store"
-                  value={selectedStoreId}
-                  options={[
-                    ...(hasPlatformDeveloperAccess
-                      ? [{ value: "", label: "All Stores" }]
-                      : []),
-                    ...storeOptions.map((store) => ({
-                      value: store.id,
-                      label: store.name,
-                    })),
-                  ]}
-                  onChange={setSelectedStoreId}
-                />
-              </label>
+              {hasPlatformDeveloperAccess ? (
+                <label className="space-y-2 text-sm">
+                  <span className="font-medium">Store</span>
+                  <SelectMenu
+                    ariaLabel="Store"
+                    value={selectedStoreId}
+                    options={[
+                      { value: "", label: "All Stores" },
+                      ...storeOptions.map((store) => ({
+                        value: store.id,
+                        label: store.name,
+                      })),
+                    ]}
+                    onChange={setSelectedStoreId}
+                  />
+                </label>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <span className="font-medium">SelfX account</span>
+                  <div className="flex h-10 items-center rounded-md border bg-muted/25 px-3">
+                    {selectedStoreName || "Your Store"}
+                  </div>
+                </div>
+              )}
               <label className="space-y-2 text-sm">
                 <span className="font-medium">Usage range</span>
                 <SelectMenu

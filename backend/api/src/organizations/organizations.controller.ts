@@ -22,9 +22,11 @@ import { CursorPaginationQueryDto } from "../common/pagination.dto.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { UpdateOrganizationDto } from "./dto/tenant-commands.dto.js";
 import {
+  CurrentTenantStoreResponseDto,
   TenantOrganizationListResponseDto,
   TenantOrganizationResponseDto,
 } from "./dto/tenant-response.dto.js";
+import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { TenantManagementService } from "./tenant-management.service.js";
 
 @ApiTags("Organizations")
@@ -34,6 +36,7 @@ export class OrganizationsController {
   constructor(
     private readonly auth: AuthService,
     private readonly tenants: TenantManagementService,
+    private readonly rbac: StoreRbacService,
   ) {}
 
   @Get()
@@ -48,6 +51,27 @@ export class OrganizationsController {
       request.headers.authorization,
     );
     return this.tenants.listOrganizations(user.id, query);
+  }
+
+  @Get("current-store")
+  @ApiOperation({
+    summary: "Get the current merchant Store for the signed-in account",
+  })
+  @ApiOkResponse({ type: CurrentTenantStoreResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  async currentStore(
+    @Req() request: FastifyRequest,
+  ): Promise<CurrentTenantStoreResponseDto> {
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
+    );
+    const current = await this.tenants.getCurrentStore(user.id);
+    return {
+      ...current,
+      permissions: current.store
+        ? await this.rbac.effectivePermissions(user.id, current.store.id)
+        : null,
+    };
   }
 
   @Get(":organizationId")

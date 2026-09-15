@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StoreDashboardPage from "../app/app/stores/[storeId]/page";
 import StoresPage from "../app/app/stores/page";
+import { listPricingPlans } from "@/lib/pricing";
 import {
+  assignStorePricingPlan,
   createStore,
   deleteStore,
   getEffectiveStorePermissions,
@@ -15,21 +17,30 @@ import {
   listStoreUsers,
   listStores,
   pairStoreKiosk,
+  startStoreImpersonation,
   updateStoreKioskConfiguration,
   updateStoreVirtualTryOnSettings,
 } from "@/lib/stores";
 import { useSession } from "@/lib/session";
 
+const pushMock = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
   useParams: () => ({ storeId: "store-1" }),
+  useRouter: () => ({ push: pushMock }),
 }));
 
 vi.mock("@/lib/session", () => ({
   useSession: vi.fn(),
 }));
 
+vi.mock("@/lib/pricing", () => ({
+  listPricingPlans: vi.fn(),
+}));
+
 vi.mock("@/lib/stores", () => ({
   activateStore: vi.fn(),
+  assignStorePricingPlan: vi.fn(),
   createStore: vi.fn(),
   createStoreKioskConfigurationAssetUploadIntent: vi.fn(),
   deactivateStore: vi.fn(),
@@ -43,6 +54,7 @@ vi.mock("@/lib/stores", () => ({
   listStoreUsers: vi.fn(),
   listStores: vi.fn(),
   pairStoreKiosk: vi.fn(),
+  startStoreImpersonation: vi.fn(),
   updateStore: vi.fn(),
   updateStoreKioskConfiguration: vi.fn(),
   updateStoreVirtualTryOnSettings: vi.fn(),
@@ -69,6 +81,40 @@ const store = {
   createdAt: "2026-08-15T00:00:00.000Z",
   updatedAt: "2026-08-16T00:00:00.000Z",
   internalLegacyModel: "ORGANIZATION_AS_STORE",
+} as const;
+
+const pricingPlan = {
+  id: "plan-growth",
+  code: "growth",
+  name: "Growth",
+  status: "ACTIVE",
+  channels: ["SHOPIFY", "KIOSK"],
+  currency: "USD",
+  monthlyPriceCents: 4900,
+  includedCredits: 100,
+  trialCredits: 10,
+  extraCreditPriceCents: 50,
+  kioskMonthlyRentCents: 25000,
+  kioskDeviceLimit: 2,
+  metadata: null,
+  createdAt: "2026-08-15T00:00:00.000Z",
+  updatedAt: "2026-08-16T00:00:00.000Z",
+} as const;
+
+const subscriptionSummary = {
+  availableCredits: 100,
+  subscription: {
+    id: "subscription-1",
+    status: "ACTIVE",
+    channels: ["SHOPIFY", "KIOSK"],
+    includedCredits: 100,
+    trialCredits: 10,
+    currentPeriodStart: "2026-08-01T00:00:00.000Z",
+    currentPeriodEnd: "2026-09-01T00:00:00.000Z",
+    trialStartedAt: null,
+    trialEndsAt: null,
+    pricingPlan,
+  },
 } as const;
 
 const kiosk = {
@@ -198,6 +244,7 @@ const storeUser = {
 
 describe("STORE-1 web Store management", () => {
   beforeEach(() => {
+    pushMock.mockReset();
     vi.mocked(useSession).mockReturnValue({
       status: "authenticated",
       accessToken: "staff-token",
@@ -213,7 +260,24 @@ describe("STORE-1 web Store management", () => {
         hasMore: false,
       },
     } as never);
+    vi.mocked(listPricingPlans).mockResolvedValue([pricingPlan] as never);
+    vi.mocked(assignStorePricingPlan).mockResolvedValue(
+      subscriptionSummary as never,
+    );
     vi.mocked(createStore).mockResolvedValue(store as never);
+    vi.mocked(startStoreImpersonation).mockResolvedValue({
+      session: {
+        id: "impersonation-1",
+        actorUserId: "admin-user-1",
+        targetStoreId: "store-1",
+        targetStoreName: "SelfX Demo Store",
+        targetStoreSlug: "selfx-demo-store",
+        status: "ACTIVE",
+        startedAt: "2026-08-16T00:00:00.000Z",
+        expiresAt: "2026-08-16T00:30:00.000Z",
+        endedAt: null,
+      },
+    } as never);
     vi.mocked(deleteStore).mockResolvedValue({
       ...store,
       status: "INACTIVE",
@@ -305,8 +369,25 @@ describe("STORE-1 web Store management", () => {
       screen
         .getByRole("button", { name: /Impersonate Store owner/i })
         .hasAttribute("disabled"),
-    ).toBe(true);
+    ).toBe(false);
     expect(screen.queryByText(/Organization/i)).toBeNull();
+  });
+
+  it("starts Store impersonation from the directory", async () => {
+    render(<StoresPage />);
+
+    await screen.findByText("SelfX Demo Store");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Impersonate Store owner/i }),
+    );
+
+    await waitFor(() =>
+      expect(startStoreImpersonation).toHaveBeenCalledWith(
+        "staff-token",
+        "store-1",
+      ),
+    );
+    expect(pushMock).toHaveBeenCalledWith("/app/dashboard");
   });
 
   it("creates a Store from the directory dialog", async () => {

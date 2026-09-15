@@ -8,6 +8,7 @@ import { LoginPageSettingsService } from "../platform/login-page-settings.servic
 import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { PlatformSettingsController } from "../platform/platform-settings.controller.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
+import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 import { TryOnModule } from "../try-on/try-on.module.js";
 import { StoreRbacController } from "./store-rbac.controller.js";
 import { StoreRbacService } from "./store-rbac.service.js";
@@ -25,6 +26,7 @@ import { StoreRbacService } from "./store-rbac.service.js";
     LoginPageSettingsService,
     MediaUploadSettingsService,
     PlatformAuthorizationService,
+    StoreImpersonationService,
   ],
   exports: [StoreRbacService],
 })

@@ -29,6 +29,7 @@ describe("ShopifyStorefrontTryOnService", () => {
       source: "shopify",
       shop: " Merchant.MyShopify.com ",
       externalProductId: "gid://shopify/Product/1001",
+      locale: "es-MX",
     });
 
     expect(created.session).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -40,7 +41,9 @@ describe("ShopifyStorefrontTryOnService", () => {
       shopDomain: "merchant.myshopify.com",
       externalProductId: "gid://shopify/Product/1001",
       productHandle: "linen-shirt",
+      storefrontLocale: "es",
     });
+    expect(created.locale).toBe("es");
     expect(JSON.stringify(prisma.createdCapability)).not.toContain(
       created.session,
     );
@@ -101,6 +104,55 @@ describe("ShopifyStorefrontTryOnService", () => {
       }),
     });
   });
+
+  it("returns privacy-safe Shopify storefront usage summary", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T12:00:00.000Z"));
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+
+    const summary = await service.getUsageSummaryForShop(
+      "merchant.myshopify.com",
+    );
+
+    expect(summary).toEqual({
+      totalTryOns: 12,
+      thisMonth: {
+        start: "2026-09-01T00:00:00.000Z",
+        end: "2026-09-14T12:00:00.000Z",
+        tryOns: 5,
+        completedTryOns: 4,
+        failedTryOns: 1,
+        generatedImages: 4,
+        creditsConsumed: 5,
+      },
+      topProducts: [
+        {
+          productId: "product-1",
+          productName: "Linen Shirt",
+          productSlug: "linen-shirt",
+          imageUrl: "https://cdn.example/linen-shirt.png",
+          tryOns: 5,
+        },
+      ],
+    });
+    expect(prisma.creditLedgerEntry.aggregate).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        organizationId: "store-1",
+        channel: "SHOPIFY",
+        entryType: "CREDIT_CONSUMED",
+        occurredAt: {
+          gte: new Date("2026-09-01T00:00:00.000Z"),
+          lte: new Date("2026-09-14T12:00:00.000Z"),
+        },
+      }),
+      _sum: { quantity: true },
+    });
+  });
 });
 
 function serviceFor(
@@ -139,6 +191,14 @@ class FakePrisma {
     garmentIntent: "AUTO",
     garmentCategory: "AUTO",
     garmentPhotoType: "AUTO",
+    findMany: vi.fn(() => [
+      {
+        id: "product-1",
+        name: "Linen Shirt",
+        slug: "linen-shirt",
+        imageUrl: "https://cdn.example/linen-shirt.png",
+      },
+    ]),
   };
   createdCapability: Record<string, any> | null = null;
 
@@ -165,6 +225,29 @@ class FakePrisma {
       return data;
     }),
   };
+
+  kioskTryOnRun = {
+    count: vi.fn(({ where }: { where: Record<string, any> }) => {
+      if (!where.createdAt) return 12;
+      if (where.status === "COMPLETED") return 4;
+      if (where.status === "FAILED") return 1;
+      if (where.resultAssetId) return 4;
+      return 5;
+    }),
+    groupBy: vi.fn(() => [
+      {
+        productId: "product-1",
+        _count: { _all: 5 },
+      },
+    ]),
+  };
+
+  creditLedgerEntry = {
+    aggregate: vi.fn(() => ({
+      _sum: { quantity: -5 },
+    })),
+  };
+
 }
 
 class FakeTryOnSessions {

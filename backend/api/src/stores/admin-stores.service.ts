@@ -171,8 +171,13 @@ export class AdminStoresService {
     const stats = await this.kioskStatsForStores(
       stores.map((store) => store.id),
     );
+    const subscriptions = await this.storeCreditSummariesForStores(
+      stores.map((store) => store.id),
+    );
     return {
-      data: stores.map((store) => mapStore(store, stats.get(store.id))),
+      data: stores.map((store) =>
+        mapStore(store, stats.get(store.id), subscriptions.get(store.id)),
+      ),
       pagination: {
         page,
         pageSize,
@@ -285,6 +290,25 @@ export class AdminStoresService {
       return this.entitlements.getStoreCreditSummary(storeId);
     }
     return { availableCredits: 0, subscription: null };
+  }
+
+  private async storeCreditSummariesForStores(
+    storeIds: string[],
+  ): Promise<Map<string, StoreSubscriptionSummaryDto>> {
+    const summaries = new Map<string, StoreSubscriptionSummaryDto>();
+    if (!this.entitlements || storeIds.length === 0) {
+      return summaries;
+    }
+    const rows = await Promise.all(
+      storeIds.map(async (storeId) => [
+        storeId,
+        await this.entitlements!.getStoreCreditSummary(storeId),
+      ] as const),
+    );
+    for (const [storeId, summary] of rows) {
+      summaries.set(storeId, summary);
+    }
+    return summaries;
   }
 
   async getVirtualTryOnSettings(
@@ -1299,6 +1323,7 @@ function mapStore(
     offlineKiosks: 0,
     lastActivityAt: null,
   },
+  subscription?: StoreSubscriptionSummaryDto,
 ): AdminStoreResponseDto {
   const profile = storeProfileFromSettings(store.settings);
   return {
@@ -1321,6 +1346,7 @@ function mapStore(
     lastActivityAt: stats.lastActivityAt?.toISOString() ?? null,
     createdAt: store.createdAt.toISOString(),
     updatedAt: store.updatedAt.toISOString(),
+    subscription,
     internalLegacyModel: "ORGANIZATION_AS_STORE",
   };
 }

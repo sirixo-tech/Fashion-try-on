@@ -13,6 +13,7 @@ export type SelfxStorefrontTryOnCreated = {
     externalProductId?: string;
     imageUrl?: string;
   };
+  locale?: string;
 };
 
 export type SelfxStorefrontCreditSummary = {
@@ -42,6 +43,26 @@ export type SelfxStorefrontCreditSummary = {
   } | null;
 };
 
+export type SelfxStorefrontUsageSummary = {
+  totalTryOns: number;
+  thisMonth: {
+    start: string;
+    end: string;
+    tryOns: number;
+    completedTryOns: number;
+    failedTryOns: number;
+    generatedImages: number;
+    creditsConsumed: number;
+  };
+  topProducts: Array<{
+    productId: string;
+    productName: string;
+    productSlug?: string;
+    imageUrl?: string;
+    tryOns: number;
+  }>;
+};
+
 export type StorefrontProductReference = {
   externalProductId: string | null;
   productHandle: string | null;
@@ -58,6 +79,7 @@ export class SelfxStorefrontTryOnClient {
     shop: string;
     externalProductId?: string;
     productHandle?: string;
+    locale?: string;
   }): Promise<SelfxStorefrontTryOnCreated> {
     const result = await this.request<SelfxStorefrontTryOnCreated>("", {
       method: "POST",
@@ -76,6 +98,21 @@ export class SelfxStorefrontTryOnClient {
       { method: "GET" },
     );
     if (!Number.isFinite(result.availableCredits)) {
+      throw invalidResponse();
+    }
+    return result;
+  }
+
+  async getUsageSummary(shop: string): Promise<SelfxStorefrontUsageSummary> {
+    const search = new URLSearchParams({ shop });
+    const result = await this.request<SelfxStorefrontUsageSummary>(
+      `/usage-summary?${search.toString()}`,
+      { method: "GET" },
+    );
+    if (
+      !Number.isFinite(result.totalTryOns) ||
+      !Number.isFinite(result.thisMonth?.tryOns)
+    ) {
       throw invalidResponse();
     }
     return result;

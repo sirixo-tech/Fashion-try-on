@@ -4,6 +4,7 @@ import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
 import { EntitlementsModule } from "../entitlements/entitlements.module.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
+import { RbacModule } from "../rbac/rbac.module.js";
 import { MembershipsController } from "./memberships.controller.js";
 import { OrganizationApplicationsController } from "./organization-applications.controller.js";
 import { OrganizationApplicationsService } from "./organization-applications.service.js";
@@ -15,7 +16,7 @@ import { TenantAuthorizationService } from "./tenant-authorization.service.js";
 import { TenantManagementService } from "./tenant-management.service.js";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, EntitlementsModule],
+  imports: [AuthModule, DatabaseModule, EntitlementsModule, RbacModule],
   controllers: [
     OrganizationApplicationsController,
     PlatformOrganizationApplicationsController,

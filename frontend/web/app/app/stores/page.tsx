@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -11,6 +12,7 @@ import {
 import {
   BanIcon,
   CalendarDaysIcon,
+  CreditCardIcon,
   EyeIcon,
   MailIcon,
   MapPinIcon,
@@ -50,13 +52,16 @@ import {
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
+import { listPricingPlans, type PricingPlan } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
 import {
   activateStore,
+  assignStorePricingPlan,
   createStore,
   deactivateStore,
   deleteStore,
   listStores,
+  startStoreImpersonation,
   type AdminStore,
   type StoreInput,
   type StoreStatus,
@@ -65,6 +70,7 @@ import {
 const statusOptions: Array<StoreStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
 
 export default function StoresPage() {
+  const router = useRouter();
   const session = useSession();
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
@@ -78,6 +84,15 @@ export default function StoresPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deletingStoreId, setDeletingStoreId] = useState<string | null>(null);
   const [statusStoreId, setStatusStoreId] = useState<string | null>(null);
+  const [impersonatingStoreId, setImpersonatingStoreId] = useState<
+    string | null
+  >(null);
+  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
+  const [pricingPlansLoading, setPricingPlansLoading] = useState(false);
+  const [planDialogStore, setPlanDialogStore] = useState<AdminStore | null>(
+    null,
+  );
+  const [planStoreId, setPlanStoreId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -105,6 +120,21 @@ export default function StoresPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const loadPricingPlanOptions = useCallback(async () => {
+    if (!accessToken) {
+      return;
+    }
+    setPricingPlansLoading(true);
+    try {
+      const plans = await listPricingPlans(accessToken);
+      setPricingPlans(plans);
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setPricingPlansLoading(false);
+    }
+  }, [accessToken]);
 
   const activeCount = useMemo(
     () => stores.filter((store) => store.status === "ACTIVE").length,
@@ -155,6 +185,55 @@ export default function StoresPage() {
       setError(messageFor(caught));
     } finally {
       setStatusStoreId(null);
+    }
+  }
+
+  async function impersonateStore(store: AdminStore) {
+    if (!accessToken) {
+      return;
+    }
+    setImpersonatingStoreId(store.id);
+    setError(null);
+    try {
+      await startStoreImpersonation(accessToken, store.id);
+      window.dispatchEvent(new Event("selfx:impersonation-changed"));
+      router.push("/app/dashboard");
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setImpersonatingStoreId(null);
+    }
+  }
+
+  function openPlanDialog(store: AdminStore) {
+    setPlanDialogStore(store);
+    if (pricingPlans.length === 0 && !pricingPlansLoading) {
+      void loadPricingPlanOptions();
+    }
+  }
+
+  async function assignPlan(store: AdminStore, pricingPlanId: string) {
+    if (!accessToken) {
+      return;
+    }
+    setPlanStoreId(store.id);
+    setError(null);
+    try {
+      const subscription = await assignStorePricingPlan(
+        accessToken,
+        store.id,
+        pricingPlanId,
+      );
+      setStores((current) =>
+        current.map((item) =>
+          item.id === store.id ? { ...item, subscription } : item,
+        ),
+      );
+      setPlanDialogStore((current) =>
+        current?.id === store.id ? { ...current, subscription } : current,
+      );
+    } finally {
+      setPlanStoreId(null);
     }
   }
 
@@ -259,8 +338,11 @@ export default function StoresPage() {
                   store={store}
                   deleting={deletingStoreId === store.id}
                   statusChanging={statusStoreId === store.id}
+                  impersonating={impersonatingStoreId === store.id}
                   onDelete={() => void removeStore(store.id)}
                   onChangeStatus={() => void changeStoreStatus(store)}
+                  onImpersonate={() => void impersonateStore(store)}
+                  onManagePlan={() => openPlanDialog(store)}
                 />
               ))}
             </div>
@@ -305,6 +387,20 @@ export default function StoresPage() {
           await load();
         }}
       />
+
+      <StorePlanDialog
+        store={planDialogStore}
+        plans={pricingPlans}
+        loading={pricingPlansLoading}
+        assigning={planDialogStore?.id === planStoreId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPlanDialogStore(null);
+          }
+        }}
+        onReloadPlans={loadPricingPlanOptions}
+        onAssign={assignPlan}
+      />
     </PageContainer>
   );
 }
@@ -313,18 +409,26 @@ function StoreDirectoryCard({
   store,
   deleting,
   statusChanging,
+  impersonating,
   onDelete,
   onChangeStatus,
+  onImpersonate,
+  onManagePlan,
 }: {
   store: AdminStore;
   deleting: boolean;
   statusChanging: boolean;
+  impersonating: boolean;
   onDelete: () => void;
   onChangeStatus: () => void;
+  onImpersonate: () => void;
+  onManagePlan: () => void;
 }) {
   const active = store.status === "ACTIVE";
   const location = storeLocation(store);
   const ownerEmail = store.contactEmail ?? "No owner/contact email";
+  const subscription = store.subscription;
+  const currentPlan = subscription?.subscription?.pricingPlan ?? null;
 
   return (
     <Card
@@ -354,6 +458,24 @@ function StoreDirectoryCard({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <CreditCardIcon
+              size={16}
+              className="shrink-0 text-primary"
+              aria-hidden="true"
+            />
+            <span className="truncate text-sm font-semibold">
+              {currentPlan?.name ?? "No plan assigned"}
+            </span>
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {subscription
+              ? `${formatNumber(subscription.availableCredits)} credits available`
+              : "Assign a plan to activate credits"}
+          </div>
+        </div>
+
         <div className="grid grid-cols-3 gap-3 border-y py-3">
           <StoreMetric label="Kiosks" value={store.totalKiosks} />
           <StoreMetric label="Active" value={store.activeKiosks} />
@@ -393,6 +515,17 @@ function StoreDirectoryCard({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={`Change plan for ${store.name}`}
+            title="Change plan"
+            onClick={onManagePlan}
+          >
+            <CreditCardIcon aria-hidden="true" />
+          </Button>
+
           <Link
             href={`/app/stores/${store.id}`}
             aria-label={`View ${store.name}`}
@@ -435,8 +568,9 @@ function StoreDirectoryCard({
             variant="outline"
             size="icon-sm"
             aria-label="Impersonate Store owner"
-            title="Impersonation is not available yet"
-            disabled
+            title="Impersonate Store owner"
+            disabled={impersonating}
+            onClick={onImpersonate}
           >
             <UserCircleIcon aria-hidden="true" />
           </Button>
@@ -508,6 +642,189 @@ function StoreInfoLine({
         <div className="text-xs font-medium text-muted-foreground">{label}</div>
         <div className="truncate text-foreground">{value}</div>
       </div>
+    </div>
+  );
+}
+
+function StorePlanDialog({
+  store,
+  plans,
+  loading,
+  assigning,
+  onOpenChange,
+  onReloadPlans,
+  onAssign,
+}: {
+  store: AdminStore | null;
+  plans: PricingPlan[];
+  loading: boolean;
+  assigning: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReloadPlans: () => Promise<void>;
+  onAssign: (store: AdminStore, pricingPlanId: string) => Promise<void>;
+}) {
+  const currentPlanId = store?.subscription?.subscription?.pricingPlan?.id ?? "";
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedPlanId(currentPlanId);
+    setError(null);
+  }, [currentPlanId, store?.id]);
+
+  const activePlans = useMemo(
+    () => plans.filter((plan) => plan.status === "ACTIVE"),
+    [plans],
+  );
+  const selectedPlan =
+    activePlans.find((plan) => plan.id === selectedPlanId) ?? null;
+  const currentPlan = store?.subscription?.subscription?.pricingPlan ?? null;
+  const hasSelectionChanged =
+    Boolean(selectedPlanId) && selectedPlanId !== currentPlanId;
+
+  async function submitPlanChange() {
+    if (!store || !selectedPlanId) {
+      setError("Choose a plan before updating this Store.");
+      return;
+    }
+    setError(null);
+    try {
+      await onAssign(store, selectedPlanId);
+      onOpenChange(false);
+    } catch (caught) {
+      setError(messageFor(caught));
+    }
+  }
+
+  if (!store) {
+    return null;
+  }
+
+  return (
+    <Dialog open={Boolean(store)} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Change plan</DialogTitle>
+          <DialogDescription>
+            Update the manual subscription plan for {store.name}. Changes apply
+            immediately.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PlanSummaryTile
+              label="Current plan"
+              value={currentPlan?.name ?? "No plan assigned"}
+              detail={`${formatNumber(
+                store.subscription?.availableCredits ?? 0,
+              )} credits available`}
+            />
+            <PlanSummaryTile
+              label="Selected plan"
+              value={selectedPlan?.name ?? "Choose a plan"}
+              detail={selectedPlan ? planDetail(selectedPlan) : "Ready to assign"}
+            />
+          </div>
+
+          <label className="space-y-2 text-sm">
+            <span className="font-medium">Plan</span>
+            <SelectMenu
+              ariaLabel="Plan"
+              value={selectedPlanId}
+              placeholder="Select a plan"
+              disabled={loading || assigning}
+              options={[
+                {
+                  value: "",
+                  label: loading ? "Loading plans..." : "Select a plan",
+                  disabled: true,
+                },
+                ...activePlans.map((plan) => ({
+                  value: plan.id,
+                  label: `${plan.name} - ${formatNumber(
+                    plan.includedCredits,
+                  )} credits`,
+                })),
+              ]}
+              onChange={setSelectedPlanId}
+            />
+          </label>
+
+          {selectedPlan ? (
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+              <div className="font-medium">{planDetail(selectedPlan)}</div>
+              <div className="mt-1 text-muted-foreground">
+                Channels: {selectedPlan.channels.join(", ") || "None"}
+              </div>
+            </div>
+          ) : null}
+
+          {activePlans.length === 0 && !loading ? (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              No active pricing plans are available. Create or activate a plan
+              in the pricing control center first.
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={loading || assigning}
+            onClick={() => void onReloadPlans()}
+          >
+            <RefreshCwIcon aria-hidden="true" />
+            Refresh plans
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={
+              loading ||
+              assigning ||
+              activePlans.length === 0 ||
+              !hasSelectionChanged
+            }
+            onClick={() => void submitPlanChange()}
+          >
+            Update plan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PlanSummaryTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 truncate text-sm font-semibold">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{detail}</div>
     </div>
   );
 }
@@ -729,6 +1046,29 @@ function cleanStoreInput(input: StoreInput): StoreInput {
       typeof value === "string" ? value.trim() !== "" : value !== undefined,
     ),
   ) as StoreInput;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
+    value,
+  );
+}
+
+function planDetail(plan: PricingPlan): string {
+  const price = formatMoney(plan.monthlyPriceCents, plan.currency);
+  return `${price} / month, ${formatNumber(plan.includedCredits)} included credits`;
+}
+
+function formatMoney(cents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    }).format(cents / 100);
+  } catch {
+    return `${currency} ${(cents / 100).toFixed(2)}`;
+  }
 }
 
 function formatDate(value: string | null): string {

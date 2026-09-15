@@ -52,6 +52,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
 };
 
 const storePermissionsByHref: Record<string, string[]> = {
+  "/app/kiosks": ["kiosks.view", "kiosks.pair", "kiosks.configure"],
   "/app/staff": ["users.view"],
   "/app/analytics": ["analytics.view"],
   "/app/billing": ["analytics.view"],

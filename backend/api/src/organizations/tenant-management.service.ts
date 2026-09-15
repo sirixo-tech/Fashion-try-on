@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import {
   MembershipStatus,
   MembershipStoreScopeMode,
+  ImpersonationSessionStatus,
   OrganizationMembershipRole,
   OrganizationStatus,
   Prisma,
@@ -39,6 +40,7 @@ import {
   type MembershipListResponseDto,
   type MembershipResponseDto,
   type MembershipUserResponseDto,
+  type CurrentTenantStoreResponseDto,
   type StoreListResponseDto,
   type StoreResponseDto,
   type TenantOrganizationListResponseDto,
@@ -54,6 +56,10 @@ type MembershipWithRelations = OrganizationMembership & {
   storeScopes: MembershipStoreScope[];
   user: Pick<User, "id" | "email" | "displayName">;
 };
+
+type ImpersonationSessionWithTargetStore = Prisma.ImpersonationSessionGetPayload<{
+  include: { targetStore: true };
+}>;
 
 @Injectable()
 export class TenantManagementService {
@@ -80,6 +86,72 @@ export class TenantManagementService {
     });
 
     return paginate(records, pageSize, mapOrganization);
+  }
+
+  async getCurrentStore(
+    userId: string,
+  ): Promise<
+    Pick<
+      CurrentTenantStoreResponseDto,
+      "store" | "hasMultipleStores" | "impersonation"
+    >
+  > {
+    const impersonation = await this.currentImpersonationSession(userId);
+    if (impersonation) {
+      return {
+        store: mapOrganization(impersonation.targetStore),
+        hasMultipleStores: false,
+        impersonation: mapCurrentStoreImpersonation(impersonation),
+      };
+    }
+
+    const records = await this.prisma.organization.findMany({
+      where: {
+        status: OrganizationStatus.ACTIVE,
+        memberships: {
+          some: { userId, status: MembershipStatus.ACTIVE },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 2,
+    });
+
+    return {
+      store: records[0] ? mapOrganization(records[0]) : null,
+      hasMultipleStores: records.length > 1,
+      impersonation: null,
+    };
+  }
+
+  private async currentImpersonationSession(userId: string) {
+    const now = new Date();
+    await this.prisma.impersonationSession.updateMany({
+      where: {
+        actorUserId: userId,
+        status: ImpersonationSessionStatus.ACTIVE,
+        endedAt: null,
+        expiresAt: { lte: now },
+      },
+      data: {
+        status: ImpersonationSessionStatus.EXPIRED,
+      },
+    });
+
+    return this.prisma.impersonationSession.findFirst({
+      where: {
+        actorUserId: userId,
+        status: ImpersonationSessionStatus.ACTIVE,
+        endedAt: null,
+        expiresAt: { gt: now },
+        targetStore: {
+          status: { not: OrganizationStatus.ARCHIVED },
+        },
+      },
+      include: {
+        targetStore: true,
+      },
+      orderBy: { startedAt: "desc" },
+    });
   }
 
   async getOrganization(
@@ -832,6 +904,22 @@ function mapOrganization(
     settings: jsonRecord(organization.settings),
     createdAt: organization.createdAt.toISOString(),
     updatedAt: organization.updatedAt.toISOString(),
+  };
+}
+
+function mapCurrentStoreImpersonation(
+  session: ImpersonationSessionWithTargetStore,
+) {
+  return {
+    id: session.id,
+    actorUserId: session.actorUserId,
+    targetStoreId: session.targetStoreId,
+    targetStoreName: session.targetStore.name,
+    targetStoreSlug: session.targetStore.slug,
+    status: session.status,
+    startedAt: session.startedAt.toISOString(),
+    expiresAt: session.expiresAt.toISOString(),
+    endedAt: toIso(session.endedAt),
   };
 }
 

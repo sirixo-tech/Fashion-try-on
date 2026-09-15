@@ -28,6 +28,7 @@ import {
   type PlatformPermission,
 } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
+import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 import {
   AddStoreUserDto,
   CreateStoreRoleDto,
@@ -58,6 +59,7 @@ export class StoreRbacController {
     private readonly auth: AuthService,
     private readonly platformAuthorization: PlatformAuthorizationService,
     private readonly rbac: StoreRbacService,
+    private readonly impersonation: StoreImpersonationService,
   ) {}
 
   @Get("permissions")
@@ -88,6 +90,7 @@ export class StoreRbacController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
+    await this.impersonation.resolveStoreContext(user.id, storeId);
     return this.rbac.effectivePermissions(user.id, storeId);
   }
 
@@ -270,6 +273,7 @@ export class StoreRbacController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
+    await this.impersonation.resolveStoreContext(user.id, storeId);
     if (
       await this.platformAuthorization.hasPermission(
         user.id,

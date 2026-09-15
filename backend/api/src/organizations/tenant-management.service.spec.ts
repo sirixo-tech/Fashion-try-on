@@ -1,5 +1,6 @@
 import { validate } from "class-validator";
 import {
+  ImpersonationSessionStatus,
   MembershipStatus,
   MembershipStoreScopeMode,
   OrganizationMembershipRole,
@@ -83,6 +84,85 @@ describe("TenantManagementService Phase 3B", () => {
     );
     const list = await service.listOrganizations(ownerA.id, {});
     expect(list.data.map((org) => org.id)).toEqual([orgA.id]);
+  });
+
+  it("resolves the current active merchant Store without exposing platform-only users", async () => {
+    const owner = await createUser("current-owner");
+    const platformUser = await createUser("current-platform");
+    const inactiveOwner = await createUser("current-inactive");
+    const inactiveOrg = await createOrganizationWithMember(
+      inactiveOwner.id,
+      OrganizationMembershipRole.ORGANIZATION_OWNER,
+      { status: OrganizationStatus.SUSPENDED },
+    );
+    const first = await createOrganizationWithMember(
+      owner.id,
+      OrganizationMembershipRole.ORGANIZATION_OWNER,
+    );
+    const second = await createOrganizationWithMember(
+      owner.id,
+      OrganizationMembershipRole.ORGANIZATION_OWNER,
+    );
+    await prisma.organization.update({
+      where: { id: first.id },
+      data: { createdAt: new Date(Date.now() - 1000) },
+    });
+    await prisma.platformRoleAssignment.create({
+      data: {
+        id: createSelfxId(),
+        userId: platformUser.id,
+        role: PlatformRole.SELFX_SUPER_ADMIN,
+        status: PlatformRoleAssignmentStatus.ACTIVE,
+      },
+    });
+
+    const current = await service.getCurrentStore(owner.id);
+    expect(current.store?.id).toBe(second.id);
+    expect(current.hasMultipleStores).toBe(true);
+
+    await expect(service.getCurrentStore(platformUser.id)).resolves.toEqual({
+      store: null,
+      hasMultipleStores: false,
+      impersonation: null,
+    });
+    await expect(service.getCurrentStore(inactiveOwner.id)).resolves.toEqual({
+      store: null,
+      hasMultipleStores: false,
+      impersonation: null,
+    });
+    expect(inactiveOrg.status).toBe(OrganizationStatus.SUSPENDED);
+    expect(first.status).toBe(OrganizationStatus.ACTIVE);
+  });
+
+  it("uses an active impersonation session as the current Store context", async () => {
+    const admin = await createUser("impersonation-admin");
+    const owner = await createUser("impersonation-owner");
+    const target = await createOrganizationWithMember(
+      owner.id,
+      OrganizationMembershipRole.ORGANIZATION_OWNER,
+    );
+
+    const session = await prisma.impersonationSession.create({
+      data: {
+        id: createSelfxId(),
+        actorUserId: admin.id,
+        targetStoreId: target.id,
+        status: ImpersonationSessionStatus.ACTIVE,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    const current = await service.getCurrentStore(admin.id);
+    expect(current.store?.id).toBe(target.id);
+    expect(current.hasMultipleStores).toBe(false);
+    expect(current.impersonation).toMatchObject({
+      id: session.id,
+      actorUserId: admin.id,
+      targetStoreId: target.id,
+      targetStoreName: target.name,
+      targetStoreSlug: target.slug,
+      status: ImpersonationSessionStatus.ACTIVE,
+    });
   });
 
   it("blocks pending and suspended organizations from tenant APIs", async () => {
@@ -811,6 +891,14 @@ async function cleanupTestRecords(
       OR: [
         { actorUserId: { in: userIds } },
         { organizationId: { in: organizationIds } },
+      ],
+    },
+  });
+  await prisma.impersonationSession.deleteMany({
+    where: {
+      OR: [
+        { actorUserId: { in: userIds } },
+        { targetStoreId: { in: organizationIds } },
       ],
     },
   });

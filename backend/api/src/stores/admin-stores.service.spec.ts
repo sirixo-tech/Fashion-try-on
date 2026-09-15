@@ -15,6 +15,7 @@ import {
   STORE_ERROR_CODES,
 } from "./admin-stores.service.js";
 import { AdminStoreStatus } from "./dto/admin-store.dto.js";
+import { STORE_IMPERSONATION_ERROR_CODES } from "./store-impersonation.service.js";
 
 describe("STORE-1 admin Stores", () => {
   it("creates a product Store as an active internal tenant row with Store profile settings", async () => {
@@ -468,6 +469,7 @@ describe("STORE-1 admin Stores", () => {
       stores as never,
       {} as never,
       createRbacMock() as never,
+      createImpersonationMock() as never,
     );
 
     await expectApiCode(
@@ -508,6 +510,7 @@ describe("STORE-1 admin Stores", () => {
       stores as never,
       configurations as never,
       createRbacMock() as never,
+      createImpersonationMock() as never,
     );
 
     await expectApiCode(
@@ -540,6 +543,7 @@ describe("STORE-1 admin Stores", () => {
       stores as never,
       configurations as never,
       rbac as never,
+      createImpersonationMock() as never,
     );
 
     await expect(
@@ -587,6 +591,7 @@ describe("STORE-1 admin Stores", () => {
       stores as never,
       configurations as never,
       rbac as never,
+      createImpersonationMock() as never,
     );
 
     await expect(
@@ -631,6 +636,7 @@ describe("STORE-1 admin Stores", () => {
       } as never,
       configurations as never,
       createRbacMock() as never,
+      createImpersonationMock() as never,
     );
 
     await expect(
@@ -641,6 +647,41 @@ describe("STORE-1 admin Stores", () => {
       ),
     ).resolves.toMatchObject({ updatedDevices: 0 });
     expect(configurations.requestStoreCatalogSync).not.toHaveBeenCalled();
+  });
+
+  it("blocks Store-scoped platform actions outside the active impersonation target", async () => {
+    const stores = {
+      getStore: vi.fn(),
+    };
+    const controller = new AdminStoresController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "platform-user" }),
+      } as never,
+      {
+        hasPermission: vi.fn().mockResolvedValue(true),
+      } as never,
+      stores as never,
+      {} as never,
+      createRbacMock() as never,
+      {
+        resolveStoreContext: vi.fn().mockRejectedValue(
+          new ApiErrorException(
+            HttpStatus.FORBIDDEN,
+            STORE_IMPERSONATION_ERROR_CODES.storeMismatch,
+            "This impersonation session can only access its target Store.",
+          ),
+        ),
+      } as never,
+    );
+
+    await expectApiCode(
+      controller.get(
+        { headers: { authorization: "Bearer platform" } } as never,
+        "store-2",
+      ),
+      STORE_IMPERSONATION_ERROR_CODES.storeMismatch,
+    );
+    expect(stores.getStore).not.toHaveBeenCalled();
   });
 });
 
@@ -706,6 +747,16 @@ function createRbacMock() {
     ensureStoreRbac: vi.fn(),
     ensureStoreRbacInTransaction: vi.fn(),
     requireStorePermission: vi.fn(),
+  };
+}
+
+function createImpersonationMock() {
+  return {
+    resolveStoreContext: vi.fn().mockResolvedValue({
+      actorUserId: "test-user",
+      effectiveStoreId: "store-1",
+      impersonationSession: null,
+    }),
   };
 }
 

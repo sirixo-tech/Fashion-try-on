@@ -60,6 +60,12 @@ enum PlatformRoleAssignmentStatus {
   REVOKED
 }
 
+enum ImpersonationSessionStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
+}
+
 enum PermissionApplicability {
   PLATFORM_ONLY
   STORE
@@ -247,6 +253,7 @@ model User {
   platformRolesAssigned         PlatformRoleAssignment[]            @relation("PlatformRoleAssignedByUser")
   platformAccessRoleAssignments PlatformUserAccessRole[]            @relation("PlatformUserAccessRoleAssignedToUser")
   platformAccessRolesAssigned   PlatformUserAccessRole[]            @relation("PlatformUserAccessRoleAssignedByUser")
+  impersonationSessions         ImpersonationSession[]              @relation("ImpersonationSessionActor")
   requirementsReviewed          OrganizationActivationRequirement[] @relation("ActivationRequirementReviewedBy")
   storeMembershipRolesAssigned  StoreMembershipRole[]               @relation("StoreMembershipRoleAssignedBy")
   storePermissionGrantsAssigned StorePermissionGrant[]              @relation("StorePermissionGrantGrantedByUser")
@@ -315,9 +322,30 @@ model Organization {
   providerCredentials            IntegrationProviderCredential[]
   storeSubscription              StoreSubscription?
   creditLedgerEntries            CreditLedgerEntry[]
+  impersonationSessions          ImpersonationSession[]              @relation("ImpersonationSessionTargetStore")
 
   @@index([status])
   @@map("organizations")
+}
+
+model ImpersonationSession {
+  id            String                     @id @db.Uuid
+  actorUserId   String                     @map("actor_user_id") @db.Uuid
+  targetStoreId String                     @map("target_store_id") @db.Uuid
+  status        ImpersonationSessionStatus @default(ACTIVE)
+  startedAt     DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
+  expiresAt     DateTime                   @map("expires_at") @db.Timestamptz(3)
+  endedAt       DateTime?                  @map("ended_at") @db.Timestamptz(3)
+  createdAt     DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  actorUser     User                       @relation("ImpersonationSessionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  targetStore   Organization               @relation("ImpersonationSessionTargetStore", fields: [targetStoreId], references: [id], onDelete: Restrict)
+
+  @@index([actorUserId])
+  @@index([targetStoreId])
+  @@index([expiresAt])
+  @@index([status, expiresAt])
+  @@map("impersonation_sessions")
 }
 
 model OrganizationMembership {
@@ -1117,6 +1145,7 @@ model ShopifyStorefrontTryOnSession {
   shopDomain        String       @map("shop_domain") @db.VarChar(180)
   externalProductId String       @map("external_product_id") @db.VarChar(180)
   productHandle     String?      @map("product_handle") @db.VarChar(220)
+  storefrontLocale  String       @default("en") @map("storefront_locale") @db.VarChar(16)
   expiresAt         DateTime     @map("expires_at") @db.Timestamptz(3)
   createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)

@@ -64,6 +64,7 @@ describe("permission-aware navigation", () => {
         ...baseAccess,
         hasActiveStore: true,
         storePermissions: [
+          "kiosks.view",
           "users.view",
           "integrations.view",
           "developer_api.view",
@@ -71,6 +72,7 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
+      "Kiosks",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -147,6 +149,7 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
+      "Kiosks",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",

@@ -23,6 +23,7 @@ export const PLATFORM_PERMISSIONS = {
   integrationsManage: "INTEGRATIONS_MANAGE",
   developerApiView: "DEVELOPER_API_VIEW",
   developerApiManage: "DEVELOPER_API_MANAGE",
+  storeImpersonation: "STORE_IMPERSONATION",
   permissionsView: "PERMISSIONS_VIEW",
   permissionsManage: "PERMISSIONS_MANAGE",
   platformRolesManage: "PLATFORM_ROLES_MANAGE",
@@ -229,6 +230,15 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
       applicability: "PLATFORM_ONLY",
     },
     {
+      code: PLATFORM_PERMISSIONS.storeImpersonation,
+      module: "platform.support",
+      action: "impersonate_store",
+      label: "Impersonate Store Accounts",
+      description:
+        "Start short-lived internal support sessions scoped to a Store account.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
       code: PLATFORM_PERMISSIONS.permissionsView,
       module: "platform.access",
       action: "view_permissions",
@@ -339,6 +349,7 @@ const ROLE_PERMISSIONS = {
   [PlatformRole.SELFX_STAFF_ADMIN]: STAFF_ADMIN_PERMISSIONS,
   [PlatformRole.SELFX_SUPPORT_ADMIN]: [
     PLATFORM_PERMISSIONS.organizationApplicationReview,
+    PLATFORM_PERMISSIONS.storeImpersonation,
   ],
 } satisfies Record<PlatformRole, readonly PlatformPermission[]>;
 

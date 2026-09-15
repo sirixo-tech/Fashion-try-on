@@ -49,7 +49,7 @@ import {
   type PlatformUser,
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
-import { listActiveOrganizations } from "@/lib/organizations";
+import { getCurrentMerchantStore } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import {
   addStoreUser,
@@ -188,12 +188,11 @@ export default function StaffPage() {
           return;
         }
 
-        const stores = await listActiveOrganizations(token);
+        const currentStore = await getCurrentMerchantStore(token);
         if (!cancelled) {
-          const options = stores.map((store) => ({
-            id: store.id,
-            name: store.name,
-          }));
+          const options = currentStore
+            ? [{ id: currentStore.id, name: currentStore.name }]
+            : [];
           setStoreOptions(options);
           setStoreId((current) => current || options[0]?.id || "");
         }
@@ -375,23 +374,32 @@ export default function StaffPage() {
               onChange={setScope}
             />
           </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Store
-            <SelectMenu
-              ariaLabel="Store"
-              value={storeId}
-              disabled={scope !== "store" || storeOptions.length === 0}
-              options={[
-                { value: "", label: "Select Store" },
-                ...storeOptions.map((store) => ({
-                  value: store.id,
-                  label: store.name,
-                })),
-              ]}
-              className="h-11"
-              onChange={setStoreId}
-            />
-          </label>
+          {canViewStoreStaffGlobally ? (
+            <label className="grid gap-2 text-sm font-medium">
+              Store
+              <SelectMenu
+                ariaLabel="Store"
+                value={storeId}
+                disabled={scope !== "store" || storeOptions.length === 0}
+                options={[
+                  { value: "", label: "Select Store" },
+                  ...storeOptions.map((store) => ({
+                    value: store.id,
+                    label: store.name,
+                  })),
+                ]}
+                className="h-11"
+                onChange={setStoreId}
+              />
+            </label>
+          ) : (
+            <div className="grid gap-2 text-sm font-medium">
+              SelfX account
+              <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
+                {selectedStoreName}
+              </div>
+            </div>
+          )}
           <div className="flex items-end text-sm text-muted-foreground">
             {scope === "platform"
               ? "SelfX Platform roles do not create merchant Store access."
