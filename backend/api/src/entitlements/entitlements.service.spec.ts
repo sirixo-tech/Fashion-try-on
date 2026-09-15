@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_TRIAL_CREDITS,
+  DEFAULT_TRIAL_FEATURE_KEYS,
   ENTITLEMENT_ERROR_CODES,
   EntitlementsService,
 } from "./entitlements.service.js";
@@ -26,6 +27,15 @@ describe("EntitlementsService", () => {
     await expect(service.getCreditBalance("store-1")).resolves.toEqual({
       availableCredits: DEFAULT_TRIAL_CREDITS,
     });
+  });
+
+  it("includes default Store features during the initial trial", async () => {
+    const prisma = new FakeEntitlementsPrisma();
+    const service = new EntitlementsService(prisma as never);
+
+    await expect(service.getStoreFeatureKeys("store-1")).resolves.toEqual([
+      ...DEFAULT_TRIAL_FEATURE_KEYS,
+    ]);
   });
 
   it("consumes a Try-On credit from the shared store balance", async () => {
@@ -142,12 +152,10 @@ class FakeEntitlementsPrisma {
   ledger: Record<string, any>[] = [];
 
   pricingPlan = {
-    findFirst: vi.fn(
-      ({ where }: { where: { id: string; status: string } }) => {
-        const plan = this.plans.get(where.id);
-        return plan?.status === where.status ? plan : null;
-      },
-    ),
+    findFirst: vi.fn(({ where }: { where: { id: string; status: string } }) => {
+      const plan = this.plans.get(where.id);
+      return plan?.status === where.status ? plan : null;
+    }),
   };
 
   storeSubscription = {
@@ -211,7 +219,7 @@ class FakeEntitlementsPrisma {
           ...subscription,
           pricingPlan:
             include?.pricingPlan && subscription.pricingPlanId
-              ? this.plans.get(subscription.pricingPlanId) ?? null
+              ? (this.plans.get(subscription.pricingPlanId) ?? null)
               : undefined,
         };
       },
@@ -219,15 +227,13 @@ class FakeEntitlementsPrisma {
   };
 
   creditLedgerEntry = {
-    aggregate: vi.fn(
-      ({ where }: { where: { organizationId: string } }) => ({
-        _sum: {
-          quantity: this.ledger
-            .filter((entry) => entry.organizationId === where.organizationId)
-            .reduce((sum, entry) => sum + entry.quantity, 0),
-        },
-      }),
-    ),
+    aggregate: vi.fn(({ where }: { where: { organizationId: string } }) => ({
+      _sum: {
+        quantity: this.ledger
+          .filter((entry) => entry.organizationId === where.organizationId)
+          .reduce((sum, entry) => sum + entry.quantity, 0),
+      },
+    })),
     create: vi.fn(({ data }: { data: Record<string, any> }) => {
       if (
         this.ledger.some(

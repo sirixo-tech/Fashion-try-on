@@ -16,6 +16,8 @@ export const PRICING_ERROR_CODES = {
   planNotFound: "PRICING_PLAN_NOT_FOUND",
 } as const;
 
+const planFeatureKeysMetadataKey = "featureKeys";
+
 @Injectable()
 export class PricingControlService {
   constructor(private readonly prisma: PrismaService) {}
@@ -53,7 +55,10 @@ export class PricingControlService {
           extraCreditPriceCents: input.extraCreditPriceCents ?? null,
           kioskMonthlyRentCents: input.kioskMonthlyRentCents ?? null,
           kioskDeviceLimit: input.kioskDeviceLimit ?? null,
-          metadata: jsonMetadata(input.metadata),
+          metadata: jsonMetadataWithFeatureKeys(
+            input.metadata,
+            input.featureKeys,
+          ),
         },
       });
       return toDto(plan);
@@ -74,6 +79,20 @@ export class PricingControlService {
     input: UpdatePricingPlanDto,
   ): Promise<PricingPlanResponseDto> {
     try {
+      const current =
+        input.featureKeys !== undefined && input.metadata === undefined
+          ? await this.prisma.pricingPlan.findUnique({
+              where: { id: planId },
+              select: { metadata: true },
+            })
+          : null;
+      if (
+        input.featureKeys !== undefined &&
+        input.metadata === undefined &&
+        !current
+      ) {
+        throw missingRecordError();
+      }
       const plan = await this.prisma.pricingPlan.update({
         where: { id: planId },
         data: {
@@ -101,8 +120,14 @@ export class PricingControlService {
           ...(input.kioskDeviceLimit !== undefined
             ? { kioskDeviceLimit: input.kioskDeviceLimit }
             : {}),
-          ...(input.metadata !== undefined
-            ? { metadata: jsonMetadata(input.metadata) }
+          ...(input.metadata !== undefined || input.featureKeys !== undefined
+            ? {
+                metadata: jsonMetadataWithFeatureKeys(
+                  input.metadata ??
+                    (isRecord(current?.metadata) ? current.metadata : null),
+                  input.featureKeys,
+                ),
+              }
             : {}),
         },
       });
@@ -140,9 +165,29 @@ function toDto(plan: PricingPlan): PricingPlanResponseDto {
       plan.metadata && typeof plan.metadata === "object"
         ? (plan.metadata as Record<string, unknown>)
         : null,
+    featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
   };
+}
+
+export function featureKeysFromPricingPlanMetadata(
+  value: Prisma.JsonValue | null | undefined,
+): string[] {
+  if (!isRecord(value)) {
+    return [];
+  }
+  const featureKeys = value[planFeatureKeysMetadataKey];
+  return Array.isArray(featureKeys)
+    ? Array.from(
+        new Set(
+          featureKeys
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        ),
+      )
+    : [];
 }
 
 function isKnownChannel(
@@ -164,6 +209,33 @@ function jsonMetadata(
     : (value as Prisma.InputJsonObject);
 }
 
+function jsonMetadataWithFeatureKeys(
+  metadata: Record<string, unknown> | null | undefined,
+  featureKeys: string[] | undefined,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
+  if (featureKeys === undefined) {
+    return jsonMetadata(metadata);
+  }
+  return {
+    ...(metadata ?? {}),
+    [planFeatureKeysMetadataKey]: cleanFeatureKeys(featureKeys),
+  };
+}
+
+function cleanFeatureKeys(values: string[]): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value.trim().toUpperCase())
+        .filter((value) => /^[A-Z0-9_:-]{2,80}$/.test(value)),
+    ),
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isUniqueConflict(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -176,4 +248,11 @@ function isMissingRecord(error: unknown): boolean {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2025"
   );
+}
+
+function missingRecordError(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Missing record", {
+    code: "P2025",
+    clientVersion: "test",
+  });
 }

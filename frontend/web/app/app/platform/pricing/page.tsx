@@ -1,30 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ArchiveIcon,
+  CheckCircle2Icon,
   CreditCardIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
-  SaveIcon,
+  SparklesIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 import {
   Badge,
   Button,
+  Card,
+  CardAction,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  ConfirmDialog,
+  EmptyState,
   ErrorState,
   LoadingState,
   PageContainer,
   PageHeader,
   PageSection,
-  SelectMenu,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableHeader,
-  TableRow,
+  buttonVariants,
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
@@ -33,65 +38,22 @@ import {
   type CurrentPlatformAccess,
 } from "@/lib/access-control";
 import {
-  createPricingPlan,
+  listPlanFeatures,
   listPricingPlans,
   updatePricingPlan,
+  type PlanFeature,
   type PricingPlan,
-  type PricingPlanChannel,
-  type PricingPlanInput,
-  type PricingPlanStatus,
 } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
-
-const channelOptions: PricingPlanChannel[] = [
-  "SHOPIFY",
-  "WOOCOMMERCE",
-  "KIOSK",
-  "PUBLIC_API",
-];
-const statusOptions: Array<{ value: PricingPlanStatus; label: string }> = [
-  { value: "ACTIVE", label: "Active" },
-  { value: "INACTIVE", label: "Inactive" },
-  { value: "ARCHIVED", label: "Archived" },
-];
-
-type PlanFormState = {
-  id?: string;
-  code: string;
-  name: string;
-  status: PricingPlanStatus;
-  channels: PricingPlanChannel[];
-  currency: string;
-  monthlyPrice: string;
-  includedCredits: string;
-  trialCredits: string;
-  extraCreditPrice: string;
-  kioskMonthlyRent: string;
-  kioskDeviceLimit: string;
-};
-
-const emptyForm: PlanFormState = {
-  code: "",
-  name: "",
-  status: "ACTIVE",
-  channels: ["SHOPIFY"],
-  currency: "USD",
-  monthlyPrice: "0",
-  includedCredits: "1000",
-  trialCredits: "10",
-  extraCreditPrice: "",
-  kioskMonthlyRent: "",
-  kioskDeviceLimit: "",
-};
 
 export default function PricingControlPage() {
   const session = useSession();
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
   const [plans, setPlans] = useState<PricingPlan[]>([]);
-  const [form, setForm] = useState<PlanFormState>(emptyForm);
+  const [features, setFeatures] = useState<PlanFeature[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [archivingPlanId, setArchivingPlanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [platformAccess, setPlatformAccess] =
@@ -108,11 +70,6 @@ export default function PricingControlPage() {
     platformAccess?.permissions.includes("PRICING_MANAGE"),
   );
 
-  const selectedPlan = useMemo(
-    () => plans.find((plan) => plan.id === form.id) ?? null,
-    [form.id, plans],
-  );
-
   const loadPlans = useCallback(async () => {
     if (!accessToken || !canViewPricing) {
       setPlans([]);
@@ -122,7 +79,12 @@ export default function PricingControlPage() {
     setLoading(true);
     setError(null);
     try {
-      setPlans(await listPricingPlans(accessToken));
+      const [nextPlans, nextFeatures] = await Promise.all([
+        listPricingPlans(accessToken),
+        listPlanFeatures(accessToken),
+      ]);
+      setPlans(nextPlans);
+      setFeatures(nextFeatures);
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -163,25 +125,25 @@ export default function PricingControlPage() {
     };
   }, [accessToken]);
 
-  async function savePlan() {
-    if (!accessToken || !canManagePricing) {
+  async function archivePlan(plan: PricingPlan) {
+    if (!accessToken || !canManagePricing || plan.status === "ARCHIVED") {
       return;
     }
-    setSaving(true);
+    setArchivingPlanId(plan.id);
     setError(null);
     setNotice(null);
     try {
-      const payload = formToInput(form);
-      const saved = form.id
-        ? await updatePricingPlan(accessToken, form.id, payload)
-        : await createPricingPlan(accessToken, { ...payload, code: form.code });
-      setPlans((current) => upsertPlan(current, saved));
-      setForm(formFromPlan(saved));
-      setNotice(`${saved.name} saved.`);
+      const archived = await updatePricingPlan(accessToken, plan.id, {
+        status: "ARCHIVED",
+      });
+      setPlans((current) =>
+        current.map((item) => (item.id === archived.id ? archived : item)),
+      );
+      setNotice(`${archived.name} archived.`);
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
-      setSaving(false);
+      setArchivingPlanId(null);
     }
   }
 
@@ -209,18 +171,31 @@ export default function PricingControlPage() {
         status={<Badge variant="secondary">{plans.length} plans</Badge>}
         actions={
           <>
+            <Link
+              href="/app/platform/pricing/features"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <SparklesIcon aria-hidden="true" />
+              Feature labels
+            </Link>
             <Button variant="outline" onClick={() => void loadPlans()}>
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              disabled={!canManagePricing}
-              onClick={() => setForm(emptyForm)}
-            >
-              <PlusIcon aria-hidden="true" />
-              New plan
-            </Button>
+            {canManagePricing ? (
+              <Link
+                href="/app/platform/pricing/new"
+                className={buttonVariants({ variant: "default" })}
+              >
+                <PlusIcon aria-hidden="true" />
+                New plan
+              </Link>
+            ) : (
+              <Button variant="secondary" disabled>
+                <PlusIcon aria-hidden="true" />
+                New plan
+              </Button>
+            )}
           </>
         }
       />
@@ -242,360 +217,246 @@ export default function PricingControlPage() {
       ) : null}
 
       <PageSection>
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <TableContainer
-            title="Plans"
-            actions={<CreditCardIcon size={18} aria-hidden="true" />}
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Channels</TableHead>
-                  <TableHead>Monthly</TableHead>
-                  <TableHead>Credits</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>Loading pricing plans...</TableCell>
-                  </TableRow>
-                ) : plans.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>No pricing plans yet.</TableCell>
-                  </TableRow>
-                ) : (
-                  plans.map((plan) => (
-                    <TableRow key={plan.id}>
-                      <TableCell>
-                        <div className="font-medium">{plan.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {plan.code}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            plan.status === "ACTIVE" ? "default" : "secondary"
-                          }
-                        >
-                          {plan.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{plan.channels.join(", ")}</TableCell>
-                      <TableCell>
-                        {money(plan.monthlyPriceCents, plan.currency)}
-                      </TableCell>
-                      <TableCell>
-                        {number(plan.includedCredits)} +{" "}
-                        {number(plan.trialCredits)} trial
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setForm(formFromPlan(plan))}
-                        >
-                          <PencilIcon aria-hidden="true" />
-                          {canManagePricing ? "Edit" : "View"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <div className="rounded-lg border bg-card p-4">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">
-                  {selectedPlan ? "Edit Plan" : "New Plan"}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {selectedPlan?.code ?? "Define a new pricing plan."}
-                </p>
-              </div>
-              <Badge variant="secondary">{form.status}</Badge>
-            </div>
-
-            <div className="grid gap-3">
-              <TextField
-                label="Plan code"
-                value={form.code}
-                disabled={Boolean(form.id) || !canManagePricing}
-                onChange={(code) =>
-                  setForm((current) => ({ ...current, code }))
-                }
-              />
-              <TextField
-                label="Plan name"
-                value={form.name}
-                disabled={!canManagePricing}
-                onChange={(name) =>
-                  setForm((current) => ({ ...current, name }))
-                }
-              />
-              <label className="grid gap-2 text-sm font-medium">
-                Status
-                <SelectMenu
-                  ariaLabel="Plan status"
-                  value={form.status}
-                  options={statusOptions}
-                  className="h-10"
-                  disabled={!canManagePricing}
-                  onChange={(status) =>
-                    setForm((current) => ({
-                      ...current,
-                      status: status as PricingPlanStatus,
-                    }))
+        {loading ? (
+          <LoadingState label="Loading pricing plans" />
+        ) : plans.length === 0 ? (
+          <EmptyState
+            title="No pricing plans yet"
+            description="Create the first plan to control Try-On credits, trial credits, supported channels and kiosk rental limits."
+            action={
+              canManagePricing
+                ? {
+                    label: "New plan",
+                    href: "/app/platform/pricing/new",
                   }
-                />
-              </label>
-              <TextField
-                label="Currency"
-                value={form.currency}
-                maxLength={3}
-                disabled={!canManagePricing}
-                onChange={(currency) =>
-                  setForm((current) => ({
-                    ...current,
-                    currency: currency.toUpperCase(),
-                  }))
-                }
+                : undefined
+            }
+          />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {plans.map((plan) => (
+              <PricingPlanCard
+                key={plan.id}
+                plan={plan}
+                features={features}
+                canManage={canManagePricing}
+                archiving={archivingPlanId === plan.id}
+                onArchive={() => void archivePlan(plan)}
               />
-              <ChannelPicker
-                value={form.channels}
-                disabled={!canManagePricing}
-                onChange={(channels) =>
-                  setForm((current) => ({ ...current, channels }))
-                }
-              />
-              <NumberField
-                label="Monthly price"
-                value={form.monthlyPrice}
-                disabled={!canManagePricing}
-                onChange={(monthlyPrice) =>
-                  setForm((current) => ({ ...current, monthlyPrice }))
-                }
-              />
-              <NumberField
-                label="Included credits"
-                value={form.includedCredits}
-                disabled={!canManagePricing}
-                onChange={(includedCredits) =>
-                  setForm((current) => ({ ...current, includedCredits }))
-                }
-              />
-              <NumberField
-                label="Trial credits"
-                value={form.trialCredits}
-                disabled={!canManagePricing}
-                onChange={(trialCredits) =>
-                  setForm((current) => ({ ...current, trialCredits }))
-                }
-              />
-              <NumberField
-                label="Extra credit price"
-                value={form.extraCreditPrice}
-                disabled={!canManagePricing}
-                onChange={(extraCreditPrice) =>
-                  setForm((current) => ({ ...current, extraCreditPrice }))
-                }
-              />
-              <NumberField
-                label="Kiosk monthly rent"
-                value={form.kioskMonthlyRent}
-                disabled={!canManagePricing}
-                onChange={(kioskMonthlyRent) =>
-                  setForm((current) => ({ ...current, kioskMonthlyRent }))
-                }
-              />
-              <NumberField
-                label="Kiosk device limit"
-                value={form.kioskDeviceLimit}
-                step="1"
-                disabled={!canManagePricing}
-                onChange={(kioskDeviceLimit) =>
-                  setForm((current) => ({ ...current, kioskDeviceLimit }))
-                }
-              />
-              <Button
-                onClick={() => void savePlan()}
-                disabled={saving || !canManagePricing}
-              >
-                <SaveIcon aria-hidden="true" />
-                {saving ? "Saving..." : "Save plan"}
-              </Button>
-            </div>
+            ))}
           </div>
-        </div>
+        )}
       </PageSection>
     </PageContainer>
   );
 }
 
-function TextField({
-  label,
-  value,
-  maxLength,
-  disabled,
-  onChange,
+function PricingPlanCard({
+  plan,
+  features,
+  canManage,
+  archiving,
+  onArchive,
 }: {
-  label: string;
-  value: string;
-  maxLength?: number;
-  disabled?: boolean;
-  onChange: (value: string) => void;
+  plan: PricingPlan;
+  features: PlanFeature[];
+  canManage: boolean;
+  archiving: boolean;
+  onArchive: () => void;
 }) {
-  return (
-    <label className="grid gap-2 text-sm font-medium">
-      {label}
-      <input
-        className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:border-primary"
-        value={value}
-        maxLength={maxLength}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
-  );
-}
+  const archived = plan.status === "ARCHIVED";
+  const featureLabels = labelsForFeatureKeys(plan.featureKeys, features);
 
-function NumberField({
-  label,
-  value,
-  step = "0.01",
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  step?: string;
-  disabled?: boolean;
-  onChange: (value: string) => void;
-}) {
   return (
-    <label className="grid gap-2 text-sm font-medium">
-      {label}
-      <input
-        className="h-10 rounded-md border bg-background px-3 text-sm outline-none focus:border-primary"
-        type="number"
-        min="0"
-        step={step}
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
-  );
-}
+    <Card className={archived ? "opacity-70" : undefined}>
+      <CardHeader className="gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+            <CreditCardIcon aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="truncate text-lg">{plan.name}</CardTitle>
+            <div className="truncate text-xs text-muted-foreground">
+              {plan.code}
+            </div>
+          </div>
+        </div>
+        <CardAction>
+          <Badge variant={plan.status === "ACTIVE" ? "default" : "secondary"}>
+            {plan.status}
+          </Badge>
+        </CardAction>
+      </CardHeader>
 
-function ChannelPicker({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: PricingPlanChannel[];
-  disabled?: boolean;
-  onChange: (value: PricingPlanChannel[]) => void;
-}) {
-  return (
-    <fieldset className="grid gap-2">
-      <legend className="text-sm font-medium">Channels</legend>
-      <div className="grid gap-2 rounded-md border p-3">
-        {channelOptions.map((channel) => (
-          <label
-            key={channel}
-            className="flex items-center gap-2 text-sm font-medium"
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <PlanMetric
+            label="Monthly"
+            value={money(plan.monthlyPriceCents, plan.currency)}
+          />
+          <PlanMetric
+            label="Credits"
+            value={number(plan.includedCredits)}
+            meta={`${number(plan.trialCredits)} trial`}
+          />
+        </div>
+
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <SparklesIcon size={16} aria-hidden="true" />
+            Channels
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {plan.channels.map((channel) => (
+              <Badge key={channel} variant="secondary">
+                {channelLabel(channel)}
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-2 text-sm">
+          <PlanDetail
+            label="Extra credit"
+            value={
+              plan.extraCreditPriceCents === null
+                ? "-"
+                : money(plan.extraCreditPriceCents, plan.currency)
+            }
+          />
+          <PlanDetail
+            label="Kiosk rent"
+            value={
+              plan.kioskMonthlyRentCents === null
+                ? "-"
+                : `${money(plan.kioskMonthlyRentCents, plan.currency)} / month`
+            }
+          />
+          <PlanDetail
+            label="Kiosk devices"
+            value={
+              plan.kioskDeviceLimit === null
+                ? "Unlimited"
+                : number(plan.kioskDeviceLimit)
+            }
+          />
+        </div>
+
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Included features
+          </div>
+          {featureLabels.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No features assigned yet.
+            </div>
+          ) : (
+            <ul className="grid gap-2 text-sm">
+              {featureLabels.slice(0, 5).map((label) => (
+                <li key={label} className="flex items-start gap-2">
+                  <CheckCircle2Icon
+                    size={16}
+                    aria-hidden="true"
+                    className="mt-0.5 shrink-0 text-emerald-600"
+                  />
+                  <span>{label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {featureLabels.length > 5 ? (
+            <div className="mt-2 text-xs font-medium text-primary">
+              +{featureLabels.length - 5} more
+            </div>
+          ) : null}
+        </div>
+      </CardContent>
+
+      <CardFooter className="justify-between gap-3">
+        <div className="text-xs text-muted-foreground">
+          Updated {formatDate(plan.updatedAt)}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href={`/app/platform/pricing/${plan.id}/edit`}
+            aria-label={`Edit ${plan.name}`}
+            title="Edit plan"
+            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
           >
-            <input
-              type="checkbox"
-              checked={value.includes(channel)}
-              disabled={disabled}
-              onChange={(event) => {
-                const next = event.target.checked
-                  ? [...value, channel]
-                  : value.filter((item) => item !== channel);
-                onChange(next.length > 0 ? next : value);
-              }}
-            />
-            {channel}
-          </label>
-        ))}
-      </div>
-    </fieldset>
+            <PencilIcon aria-hidden="true" />
+          </Link>
+          <ConfirmDialog
+            title="Archive plan?"
+            description={`${plan.name} will be hidden from available plan lists, but kept for reporting and historical subscriptions.`}
+            confirmLabel="Archive"
+            destructive
+            onConfirm={onArchive}
+            trigger={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={`Archive ${plan.name}`}
+                title={archived ? "Already archived" : "Archive plan"}
+                disabled={!canManage || archived || archiving}
+              >
+                {archived ? (
+                  <ArchiveIcon aria-hidden="true" />
+                ) : (
+                  <Trash2Icon aria-hidden="true" />
+                )}
+              </Button>
+            }
+          />
+        </div>
+      </CardFooter>
+    </Card>
   );
 }
 
-function formFromPlan(plan: PricingPlan): PlanFormState {
-  return {
-    id: plan.id,
-    code: plan.code,
-    name: plan.name,
-    status: plan.status,
-    channels: plan.channels,
-    currency: plan.currency,
-    monthlyPrice: centsToMoneyInput(plan.monthlyPriceCents),
-    includedCredits: String(plan.includedCredits),
-    trialCredits: String(plan.trialCredits),
-    extraCreditPrice:
-      plan.extraCreditPriceCents === null
-        ? ""
-        : centsToMoneyInput(plan.extraCreditPriceCents),
-    kioskMonthlyRent:
-      plan.kioskMonthlyRentCents === null
-        ? ""
-        : centsToMoneyInput(plan.kioskMonthlyRentCents),
-    kioskDeviceLimit:
-      plan.kioskDeviceLimit === null ? "" : String(plan.kioskDeviceLimit),
-  };
+function labelsForFeatureKeys(
+  featureKeys: string[],
+  features: PlanFeature[],
+): string[] {
+  const labels = new Map(
+    features.map((feature) => [feature.key, feature.displayName]),
+  );
+  return featureKeys.map((key) => labels.get(key) ?? key);
 }
 
-function formToInput(form: PlanFormState): PricingPlanInput {
-  return {
-    name: form.name.trim(),
-    status: form.status,
-    channels: form.channels,
-    currency: form.currency.trim().toUpperCase(),
-    monthlyPriceCents: moneyInputToCents(form.monthlyPrice),
-    includedCredits: integerInput(form.includedCredits),
-    trialCredits: integerInput(form.trialCredits),
-    extraCreditPriceCents: optionalMoneyInputToCents(form.extraCreditPrice),
-    kioskMonthlyRentCents: optionalMoneyInputToCents(form.kioskMonthlyRent),
-    kioskDeviceLimit: optionalIntegerInput(form.kioskDeviceLimit),
-  };
+function PlanMetric({
+  label,
+  value,
+  meta,
+}: {
+  label: string;
+  value: string;
+  meta?: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <div className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 truncate text-lg font-semibold">{value}</div>
+      {meta ? (
+        <div className="text-xs text-muted-foreground">{meta}</div>
+      ) : null}
+    </div>
+  );
 }
 
-function upsertPlan(plans: PricingPlan[], saved: PricingPlan): PricingPlan[] {
-  const exists = plans.some((plan) => plan.id === saved.id);
-  return exists
-    ? plans.map((plan) => (plan.id === saved.id ? saved : plan))
-    : [saved, ...plans];
+function PlanDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate font-medium">{value}</span>
+    </div>
+  );
 }
 
-function moneyInputToCents(value: string): number {
-  return Math.round(Number(value || "0") * 100);
-}
-
-function optionalMoneyInputToCents(value: string): number | null {
-  return value.trim() === "" ? null : moneyInputToCents(value);
-}
-
-function integerInput(value: string): number {
-  return Math.max(0, Math.trunc(Number(value || "0")));
-}
-
-function optionalIntegerInput(value: string): number | null {
-  return value.trim() === "" ? null : integerInput(value);
-}
-
-function centsToMoneyInput(value: number): string {
-  return (value / 100).toFixed(2);
+function channelLabel(channel: string): string {
+  return channel.replace("_", " ");
 }
 
 function money(value: number, currency: string): string {
@@ -609,6 +470,13 @@ function number(value: number): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
     value,
   );
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function messageFor(caught: unknown): string {

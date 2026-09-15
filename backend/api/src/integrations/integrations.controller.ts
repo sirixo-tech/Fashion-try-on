@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   Res,
+  Optional,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -21,6 +22,7 @@ import { type FastifyReply, type FastifyRequest } from "fastify";
 import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import {
   PLATFORM_PERMISSIONS,
   type PlatformPermission,
@@ -58,6 +60,7 @@ export class IntegrationsController {
     private readonly rbac: StoreRbacService,
     private readonly integrations: IntegrationsService,
     private readonly shopifyOauth: ShopifyOauthService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   @Post("shopify/oauth/start")
@@ -72,6 +75,7 @@ export class IntegrationsController {
       dto.storeId,
       [PLATFORM_PERMISSIONS.integrationsManage],
       STORE_PERMISSION_CODES.integrationsManage,
+      "SHOPIFY_INTEGRATION",
     );
     return this.shopifyOauth.start(user.id, dto.storeId, dto.shop);
   }
@@ -100,6 +104,7 @@ export class IntegrationsController {
       storeId,
       [PLATFORM_PERMISSIONS.integrationsManage],
       STORE_PERMISSION_CODES.integrationsManage,
+      "SHOPIFY_INTEGRATION",
     );
     return this.shopifyOauth.sync(user.id, integrationId);
   }
@@ -140,6 +145,7 @@ export class IntegrationsController {
       dto.storeId,
       [PLATFORM_PERMISSIONS.integrationsManage],
       STORE_PERMISSION_CODES.integrationsManage,
+      featureKeyForIntegration(dto.type),
     );
     return this.integrations.upsertIntegration(user.id, dto);
   }
@@ -211,6 +217,7 @@ export class IntegrationsController {
     storeId: string | undefined,
     platformPermissions: readonly PlatformPermission[],
     storePermission: StorePermissionCode,
+    featureKey?: string,
   ) {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
@@ -222,6 +229,9 @@ export class IntegrationsController {
     }
     if (storeId) {
       await this.rbac.requireStorePermission(user.id, storeId, storePermission);
+      if (featureKey) {
+        await this.entitlements?.assertStoreHasFeature(storeId, featureKey);
+      }
       return user;
     }
     const fallbackPermission = platformPermissions[0];
@@ -234,4 +244,8 @@ export class IntegrationsController {
     );
     return user;
   }
+}
+
+function featureKeyForIntegration(type: "SHOPIFY" | "WOOCOMMERCE"): string {
+  return type === "SHOPIFY" ? "SHOPIFY_INTEGRATION" : "WOOCOMMERCE_INTEGRATION";
 }

@@ -235,6 +235,9 @@ export class EffectiveStorePermissionsResponseDto {
   @ApiProperty()
   platformBypass!: boolean;
 
+  @ApiProperty({ type: [String] })
+  featureKeys!: string[];
+
   @ApiPropertyOptional({ nullable: true })
   membershipId!: string | null;
 }

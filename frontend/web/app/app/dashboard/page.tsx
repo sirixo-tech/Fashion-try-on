@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ActivityIcon,
   BarChart3Icon,
@@ -97,14 +103,22 @@ export default function DashboardPage() {
   );
   const hasStoreBypass = storeAccess?.platformBypass ?? false;
   const storePermissions = storeAccess?.permissions ?? [];
+  const storeFeatureKeys = storeAccess?.featureKeys ?? [];
+  const hasStoreFeature = useCallback(
+    (featureKeys: string[]) =>
+      featureKeys.some((featureKey) => storeFeatureKeys.includes(featureKey)),
+    [storeFeatureKeys],
+  );
   const canViewStoreUsage = Boolean(
-    hasStoreBypass || storePermissions.includes("analytics.view"),
+    (hasStoreBypass || storePermissions.includes("analytics.view")) &&
+    hasStoreFeature(["ANALYTICS"]),
   );
   const canViewStoreDetails = Boolean(
     hasStoreBypass || storePermissions.includes("stores.view"),
   );
   const canViewStoreKiosks = Boolean(
-    hasStoreBypass || storePermissions.includes("kiosks.view"),
+    (hasStoreBypass || storePermissions.includes("kiosks.view")) &&
+    hasStoreFeature(["KIOSK_MANAGEMENT", "KIOSK_RENTAL"]),
   );
   const canViewStoreStaff = Boolean(
     hasStoreBypass || storePermissions.includes("users.view"),
@@ -412,10 +426,7 @@ export default function DashboardPage() {
                       "Completed runs",
                       displayNumber(summary?.totals.completedRuns),
                     ],
-                    [
-                      "Failed runs",
-                      displayNumber(summary?.totals.failedRuns),
-                    ],
+                    ["Failed runs", displayNumber(summary?.totals.failedRuns)],
                     [
                       "Downloads",
                       displayNumber(summary?.totals.downloadsCompleted),
@@ -435,14 +446,16 @@ export default function DashboardPage() {
             loading={loading}
             empty="No kiosks visible for this scope."
             headers={["Kiosk", "Scope", "Status", "Last Seen"]}
-            rows={kiosks.slice(0, 8).map((kiosk) => [
-              kiosk.displayName,
-              kiosk.assignment.organizationName ??
-                kiosk.assignment.storeName ??
-                "Platform fleet",
-              kiosk.status,
-              formatOptionalDate(kiosk.lastSeenAt),
-            ])}
+            rows={kiosks
+              .slice(0, 8)
+              .map((kiosk) => [
+                kiosk.displayName,
+                kiosk.assignment.organizationName ??
+                  kiosk.assignment.storeName ??
+                  "Platform fleet",
+                kiosk.status,
+                formatOptionalDate(kiosk.lastSeenAt),
+              ])}
           />
           <DashboardTable
             title={isStoreScope ? "Products" : "Product Usage"}
@@ -456,12 +469,14 @@ export default function DashboardPage() {
             }
             rows={
               isStoreScope
-                ? products.slice(0, 8).map((product) => [
-                    product.name,
-                    product.categoryName,
-                    product.active ? "Active" : "Inactive",
-                    product.vtoEnabled ? "Enabled" : "Disabled",
-                  ])
+                ? products
+                    .slice(0, 8)
+                    .map((product) => [
+                      product.name,
+                      product.categoryName,
+                      product.active ? "Active" : "Inactive",
+                      product.vtoEnabled ? "Enabled" : "Disabled",
+                    ])
                 : (summary?.products ?? []).map((row) => [
                     row.name,
                     row.category ?? "-",
@@ -488,12 +503,14 @@ export default function DashboardPage() {
             }
             rows={
               isStoreScope
-                ? staff.slice(0, 8).map((user) => [
-                    user.displayName ?? user.email,
-                    user.status,
-                    roleNames(user.roles),
-                    formatOptionalDate(user.joinedAt),
-                  ])
+                ? staff
+                    .slice(0, 8)
+                    .map((user) => [
+                      user.displayName ?? user.email,
+                      user.status,
+                      roleNames(user.roles),
+                      formatOptionalDate(user.joinedAt),
+                    ])
                 : (summary?.channels ?? []).map((row) => [
                     channelName(row.channel),
                     displayNumber(row.runsCreated),
@@ -539,7 +556,9 @@ function DashboardTable({
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={headers.length}>Loading dashboard...</TableCell>
+              <TableCell colSpan={headers.length}>
+                Loading dashboard...
+              </TableCell>
             </TableRow>
           ) : rows.length === 0 ? (
             <TableRow>

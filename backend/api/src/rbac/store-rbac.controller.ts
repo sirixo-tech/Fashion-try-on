@@ -9,6 +9,7 @@ import {
   Put,
   Query,
   Req,
+  Optional,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -23,6 +24,7 @@ import { type FastifyRequest } from "fastify";
 import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import {
   PLATFORM_PERMISSIONS,
   type PlatformPermission,
@@ -60,6 +62,7 @@ export class StoreRbacController {
     private readonly platformAuthorization: PlatformAuthorizationService,
     private readonly rbac: StoreRbacService,
     private readonly impersonation: StoreImpersonationService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   @Get("permissions")
@@ -91,7 +94,12 @@ export class StoreRbacController {
       request.headers.authorization,
     );
     await this.impersonation.resolveStoreContext(user.id, storeId);
-    return this.rbac.effectivePermissions(user.id, storeId);
+    const permissions = await this.rbac.effectivePermissions(user.id, storeId);
+    return {
+      ...permissions,
+      featureKeys:
+        (await this.entitlements?.getStoreFeatureKeys(storeId)) ?? [],
+    };
   }
 
   @Get("roles")

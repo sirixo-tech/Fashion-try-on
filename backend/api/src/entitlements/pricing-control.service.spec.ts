@@ -20,6 +20,7 @@ describe("PricingControlService", () => {
       monthlyPriceCents: 9900,
       includedCredits: 1000,
       trialCredits: 10,
+      featureKeys: ["TRY_ON_WIDGET", "SHOPIFY_INTEGRATION"],
     });
 
     expect(created).toMatchObject({
@@ -30,6 +31,10 @@ describe("PricingControlService", () => {
       monthlyPriceCents: 9900,
       includedCredits: 1000,
       trialCredits: 10,
+      featureKeys: ["TRY_ON_WIDGET", "SHOPIFY_INTEGRATION"],
+      metadata: {
+        featureKeys: ["TRY_ON_WIDGET", "SHOPIFY_INTEGRATION"],
+      },
     });
     await expect(service.listPlans()).resolves.toEqual([created]);
   });
@@ -59,6 +64,31 @@ describe("PricingControlService", () => {
       kioskMonthlyRentCents: 800000,
       kioskDeviceLimit: 2,
     });
+  });
+
+  it("updates plan feature keys without replacing other metadata", async () => {
+    const prisma = new FakePricingPrisma();
+    const service = new PricingControlService(prisma as never);
+    const created = await service.createPlan({
+      code: "growth",
+      name: "Growth",
+      channels: ["SHOPIFY"],
+      currency: "USD",
+      monthlyPriceCents: 9900,
+      includedCredits: 1000,
+      trialCredits: 10,
+      metadata: { source: "manual" },
+    });
+
+    const updated = await service.updatePlan(created.id, {
+      featureKeys: ["ANALYTICS", "PRODUCT_ANALYTICS"],
+    });
+
+    expect(updated.metadata).toEqual({
+      source: "manual",
+      featureKeys: ["ANALYTICS", "PRODUCT_ANALYTICS"],
+    });
+    expect(updated.featureKeys).toEqual(["ANALYTICS", "PRODUCT_ANALYTICS"]);
   });
 
   it("lists only active plans as customer-available plans", async () => {
@@ -180,6 +210,24 @@ class FakePricingPrisma {
         };
         this.plans[index] = updated;
         return updated;
+      },
+    ),
+    findUnique: vi.fn(
+      ({
+        where,
+        select,
+      }: {
+        where: { id: string };
+        select?: Record<string, boolean>;
+      }) => {
+        const plan = this.plans.find((item) => item.id === where.id);
+        if (!plan) {
+          return null;
+        }
+        if (select?.metadata) {
+          return { metadata: plan.metadata };
+        }
+        return plan;
       },
     ),
   };

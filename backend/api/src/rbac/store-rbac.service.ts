@@ -605,6 +605,7 @@ export class StoreRbacService {
         storeId,
         permissions: [],
         platformBypass: false,
+        featureKeys: [],
         membershipId: null,
       };
     }
@@ -616,6 +617,7 @@ export class StoreRbacService {
           (permission) => permission.code,
         ),
         platformBypass: true,
+        featureKeys: [],
         membershipId: null,
       };
     }
@@ -632,6 +634,7 @@ export class StoreRbacService {
         storeId,
         permissions: [],
         platformBypass: false,
+        featureKeys: [],
         membershipId: null,
       };
     }
@@ -659,6 +662,7 @@ export class StoreRbacService {
         storeId,
         permissions: [],
         platformBypass: false,
+        featureKeys: [],
         membershipId: null,
       };
     }
@@ -676,6 +680,7 @@ export class StoreRbacService {
       storeId,
       permissions,
       platformBypass: false,
+      featureKeys: [],
       membershipId: membership.id,
     };
   }

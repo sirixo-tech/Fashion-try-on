@@ -14,11 +14,23 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { featureKeysFromPricingPlanMetadata } from "./pricing-control.service.js";
 
 export const DEFAULT_TRIAL_CREDITS = 10;
+export const DEFAULT_TRIAL_FEATURE_KEYS = [
+  "TRY_ON_WIDGET",
+  "SHOPIFY_INTEGRATION",
+  "WOOCOMMERCE_INTEGRATION",
+  "KIOSK_MANAGEMENT",
+  "MULTI_LANGUAGE",
+  "ANALYTICS",
+  "PRODUCT_ANALYTICS",
+  "CUSTOM_LIMITS",
+] as const;
 
 export const ENTITLEMENT_ERROR_CODES = {
   creditsExhausted: "SELFX_CREDITS_EXHAUSTED",
+  featureUnavailable: "SELFX_FEATURE_UNAVAILABLE",
   pricingPlanUnavailable: "PRICING_PLAN_UNAVAILABLE",
 } as const;
 
@@ -45,6 +57,7 @@ export interface StoreCreditSummary {
     currentPeriodEnd: string | null;
     trialStartedAt: string | null;
     trialEndsAt: string | null;
+    featureKeys: string[];
     pricingPlan: {
       id: string;
       code: string;
@@ -56,6 +69,7 @@ export interface StoreCreditSummary {
       kioskMonthlyRentCents: number | null;
       kioskDeviceLimit: number | null;
       channels: string[];
+      featureKeys: string[];
     } | null;
   } | null;
 }
@@ -138,6 +152,25 @@ export class EntitlementsService {
     return this.getStoreCreditSummaryWithClient(organizationId, this.prisma);
   }
 
+  async getStoreFeatureKeys(organizationId: string): Promise<string[]> {
+    const summary = await this.getStoreCreditSummary(organizationId);
+    return summary.subscription?.featureKeys ?? [];
+  }
+
+  async assertStoreHasFeature(
+    organizationId: string,
+    featureKey: string,
+  ): Promise<void> {
+    const featureKeys = await this.getStoreFeatureKeys(organizationId);
+    if (!featureKeys.includes(featureKey)) {
+      throw new ApiErrorException(
+        HttpStatus.PAYMENT_REQUIRED,
+        ENTITLEMENT_ERROR_CODES.featureUnavailable,
+        "This feature is not included in the Store's current SelfX plan.",
+      );
+    }
+  }
+
   async activatePlanForStore(input: {
     organizationId: string;
     pricingPlanId: string;
@@ -182,6 +215,7 @@ export class EntitlementsService {
           trialCredits: plan.trialCredits,
           currentPeriodStart,
           currentPeriodEnd,
+          metadata: subscriptionMetadataForPlan(plan),
         },
         update: {
           pricingPlanId: plan.id,
@@ -191,6 +225,7 @@ export class EntitlementsService {
           trialCredits: plan.trialCredits,
           currentPeriodStart,
           currentPeriodEnd,
+          metadata: subscriptionMetadataForPlan(plan),
         },
         select: { id: true },
       });
@@ -218,6 +253,7 @@ export class EntitlementsService {
           metadata: {
             pricingPlanCode: plan.code,
             includedCredits: plan.includedCredits,
+            featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
           },
           occurredAt: now,
         });
@@ -372,6 +408,7 @@ export class EntitlementsService {
         includedCredits: 0,
         trialCredits: DEFAULT_TRIAL_CREDITS,
         trialStartedAt: now,
+        metadata: trialSubscriptionMetadata(),
       },
       update: {},
       select: { id: true, pricingPlanId: true },
@@ -502,6 +539,7 @@ export class EntitlementsService {
               subscription.currentPeriodEnd?.toISOString() ?? null,
             trialStartedAt: subscription.trialStartedAt?.toISOString() ?? null,
             trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
+            featureKeys: subscriptionFeatureKeys(subscription),
             pricingPlan: subscription.pricingPlan
               ? {
                   id: subscription.pricingPlan.id,
@@ -517,6 +555,9 @@ export class EntitlementsService {
                   kioskDeviceLimit: subscription.pricingPlan.kioskDeviceLimit,
                   channels: jsonArrayToStrings(
                     subscription.pricingPlan.channels,
+                  ),
+                  featureKeys: featureKeysFromPricingPlanMetadata(
+                    subscription.pricingPlan.metadata,
                   ),
                 }
               : null,
@@ -537,6 +578,41 @@ export class EntitlementsService {
       }
     }
   }
+}
+
+function subscriptionMetadataForPlan(plan: {
+  code: string;
+  metadata: Prisma.JsonValue | null;
+}): Prisma.InputJsonObject {
+  return {
+    pricingPlanCode: plan.code,
+    featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
+  };
+}
+
+function trialSubscriptionMetadata(): Prisma.InputJsonObject {
+  return {
+    trialCredits: DEFAULT_TRIAL_CREDITS,
+    featureKeys: [...DEFAULT_TRIAL_FEATURE_KEYS],
+  };
+}
+
+function subscriptionFeatureKeys(subscription: {
+  status: StoreSubscriptionStatus;
+  pricingPlanId: string | null;
+  metadata: Prisma.JsonValue | null;
+}): string[] {
+  const featureKeys = featureKeysFromPricingPlanMetadata(subscription.metadata);
+  if (featureKeys.length > 0) {
+    return featureKeys;
+  }
+  if (
+    subscription.status === StoreSubscriptionStatus.TRIALING &&
+    subscription.pricingPlanId === null
+  ) {
+    return [...DEFAULT_TRIAL_FEATURE_KEYS];
+  }
+  return [];
 }
 
 function cleanQuantity(value: number | undefined): number {

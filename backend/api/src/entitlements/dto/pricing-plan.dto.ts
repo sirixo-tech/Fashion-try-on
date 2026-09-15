@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { PricingPlanStatus } from "@prisma/client";
 import {
   ArrayNotEmpty,
+  ArrayUnique,
   IsArray,
   IsIn,
   IsInt,
@@ -61,6 +62,9 @@ export class PricingPlanResponseDto {
 
   @ApiPropertyOptional({ nullable: true })
   metadata!: Record<string, unknown> | null;
+
+  @ApiProperty({ type: [String] })
+  featureKeys!: string[];
 
   @ApiProperty()
   createdAt!: string;
@@ -146,6 +150,14 @@ export class CreatePricingPlanDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  @Length(2, 80, { each: true })
+  featureKeys?: string[];
 }
 
 export class UpdatePricingPlanDto {
@@ -220,4 +232,12 @@ export class UpdatePricingPlanDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  @Length(2, 80, { each: true })
+  featureKeys?: string[];
 }

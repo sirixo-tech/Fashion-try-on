@@ -6,10 +6,12 @@ import type {
 } from "react-router";
 import {
   Form,
+  isRouteErrorResponse,
   useActionData,
   useFetcher,
   useLoaderData,
   useLocation,
+  useRouteError,
 } from "react-router";
 
 import {
@@ -170,9 +172,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const formData = await request.formData();
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch (error) {
+    console.error("SelfX Shopify action could not read form data", error);
+    return shopifyActionFailure({
+      message: "SelfX could not read that save request. Refresh and try again.",
+    });
+  }
   const intent = formData.get("intent");
+  let session: Awaited<ReturnType<typeof authenticate.admin>>["session"];
+  try {
+    ({ session } = await authenticate.admin(request));
+  } catch (error) {
+    console.error("SelfX Shopify action authentication failed", error);
+    return shopifyActionFailure({
+      intent,
+      message:
+        "Shopify could not verify this admin session. Refresh the app and try again.",
+    });
+  }
+
   if (intent === "setStorefrontSettings") {
     try {
       const connection = await updateSelfxStorefrontSettings({
@@ -197,13 +218,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         settingsMonthlyStoreTryOnLimit: connection.monthlyStoreTryOnLimit,
       };
     } catch (error) {
+      console.error("SelfX Shopify settings update failed", error);
       return {
         productActionError: null,
         productActionSuccess: null,
-        settingsActionError:
-          error instanceof Error
-            ? error.message
-            : "SelfX could not update storefront settings.",
+        settingsActionError: shopifyActionErrorMessage(
+          error,
+          "SelfX could not update storefront settings.",
+        ),
         settingsActionSuccess: null,
         settingsStorefrontLocale: null,
         settingsAdminLocale: null,
@@ -236,17 +258,59 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       settingsActionSuccess: null,
     };
   } catch (error) {
+    console.error("SelfX Shopify product visibility update failed", error);
     return {
-      productActionError:
-        error instanceof Error
-          ? error.message
-          : "SelfX could not update this product.",
+      productActionError: shopifyActionErrorMessage(
+        error,
+        "SelfX could not update this product.",
+      ),
       productActionSuccess: null,
       settingsActionError: null,
       settingsActionSuccess: null,
     };
   }
 };
+
+function shopifyActionFailure({
+  intent,
+  message,
+}: {
+  intent?: FormDataEntryValue | null;
+  message: string;
+}): Exclude<ProductActionData, undefined> {
+  if (intent === "setStorefrontSettings") {
+    return {
+      productActionError: null,
+      productActionSuccess: null,
+      settingsActionError: message,
+      settingsActionSuccess: null,
+      settingsStorefrontLocale: null,
+      settingsAdminLocale: null,
+      settingsVisitorTryOnLimit: null,
+      settingsVisitorTryOnLimitPeriod: null,
+      settingsMonthlyStoreTryOnLimit: null,
+    };
+  }
+  return {
+    productActionError: message,
+    productActionSuccess: null,
+    settingsActionError: null,
+    settingsActionSuccess: null,
+  };
+}
+
+function shopifyActionErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message;
+  if (
+    message.includes("Unknown argument") ||
+    message.includes("does not exist") ||
+    message.includes("no such column")
+  ) {
+    return "SelfX settings storage is not up to date yet. Run the Shopify database migrations and redeploy this app.";
+  }
+  return message || fallback;
+}
 
 export const shouldRevalidate = ({
   defaultShouldRevalidate,
@@ -1182,6 +1246,32 @@ function LanguageSettingsPanel({
         </s-box>
       </s-stack>
     </s-section>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const message = isRouteErrorResponse(error)
+    ? error.statusText || "Shopify returned an unexpected response."
+    : error instanceof Error
+      ? error.message
+      : "SelfX could not load the Shopify admin app.";
+
+  return (
+    <s-page heading="SelfX Virtual Try-On">
+      <s-section>
+        <s-stack gap="base">
+          <s-banner heading="SelfX could not complete that request" tone="critical">
+            {message}
+          </s-banner>
+          <s-text color="subdued">
+            Refresh the Shopify app. If this happened after saving settings, make
+            sure the Shopify app database migrations have been applied in
+            production.
+          </s-text>
+        </s-stack>
+      </s-section>
+    </s-page>
   );
 }
 

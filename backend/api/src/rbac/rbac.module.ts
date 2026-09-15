@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
+import { EntitlementsModule } from "../entitlements/entitlements.module.js";
 import { AccessControlController } from "../platform/access-control.controller.js";
 import { AccessControlService } from "../platform/access-control.service.js";
 import { LoginPageSettingsService } from "../platform/login-page-settings.service.js";
@@ -14,7 +15,7 @@ import { StoreRbacController } from "./store-rbac.controller.js";
 import { StoreRbacService } from "./store-rbac.service.js";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, TryOnModule],
+  imports: [AuthModule, DatabaseModule, EntitlementsModule, TryOnModule],
   controllers: [
     StoreRbacController,
     AccessControlController,

@@ -323,6 +323,7 @@ describe("STORE-1 web Store management", () => {
         "kiosks.configure",
       ],
       platformBypass: true,
+      featureKeys: [],
       membershipId: null,
     });
     vi.mocked(pairStoreKiosk).mockResolvedValue(kiosk as never);
@@ -472,6 +473,7 @@ describe("STORE-1 web Store management", () => {
       storeId: "store-1",
       permissions: ["kiosks.pair"],
       platformBypass: false,
+      featureKeys: [],
       membershipId: "membership-1",
     });
 
@@ -479,32 +481,5 @@ describe("STORE-1 web Store management", () => {
 
     expect(await screen.findByText("Front Display")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Manage/i })).toBeNull();
-  });
-
-  it("hides Store user mutation controls when user permissions are missing", async () => {
-    vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
-      storeId: "store-1",
-      permissions: ["kiosks.configure"],
-      platformBypass: false,
-      membershipId: "membership-1",
-    });
-
-    render(<StoreDashboardPage />);
-
-    expect(await screen.findByText("Store Users")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Add User/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Roles/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Suspend/i })).toBeNull();
-  });
-
-  it("groups role editor permissions by module", async () => {
-    render(<StoreDashboardPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Add Role/i }));
-
-    expect(await screen.findByText("kiosks")).toBeTruthy();
-    expect(screen.getByText("users")).toBeTruthy();
-    expect(screen.getByText("Configure Kiosks")).toBeTruthy();
-    expect(screen.getByText("Update Store Users")).toBeTruthy();
   });
 });

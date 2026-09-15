@@ -489,6 +489,9 @@ export class StorePricingPlanSummaryDto {
 
   @ApiProperty({ type: [String] })
   channels!: string[];
+
+  @ApiProperty({ type: [String] })
+  featureKeys!: string[];
 }
 
 export class StoreSubscriptionSummaryDto {
@@ -506,6 +509,7 @@ export class StoreSubscriptionSummaryDto {
     currentPeriodEnd: string | null;
     trialStartedAt: string | null;
     trialEndsAt: string | null;
+    featureKeys: string[];
     pricingPlan: StorePricingPlanSummaryDto | null;
   } | null;
 }

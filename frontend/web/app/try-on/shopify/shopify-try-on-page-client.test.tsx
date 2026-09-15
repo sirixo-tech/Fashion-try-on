@@ -75,7 +75,9 @@ describe("ShopifyTryOnPageClient", () => {
     vi.mocked(getShopifyTryOnRun)
       .mockResolvedValueOnce(staleCompletedRun)
       .mockResolvedValueOnce(freshCompletedRun);
-    let clickedAnchor: HTMLAnchorElement | null = null;
+    const clickedAnchor: { current: HTMLAnchorElement | null } = {
+      current: null,
+    };
     const click = vi.fn();
     const createElement = document.createElement.bind(document);
     vi.spyOn(document, "createElement").mockImplementation((tagName) => {
@@ -83,7 +85,7 @@ describe("ShopifyTryOnPageClient", () => {
       if (tagName === "a") {
         const anchor = element as HTMLAnchorElement;
         vi.spyOn(anchor, "click").mockImplementation(() => {
-          clickedAnchor = anchor;
+          clickedAnchor.current = anchor;
           click();
         });
       }
@@ -95,9 +97,8 @@ describe("ShopifyTryOnPageClient", () => {
     expect(screen.getAllByText("floral-shirt")).toHaveLength(2);
     fireEvent.click(screen.getByRole("checkbox"));
     const file = new File(["person"], "person.png", { type: "image/png" });
-    const inputs = document.querySelectorAll<HTMLInputElement>(
-      'input[type="file"]',
-    );
+    const inputs =
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     await act(async () => {
       fireEvent.change(inputs[1]!, { target: { files: [file] } });
     });
@@ -116,8 +117,10 @@ describe("ShopifyTryOnPageClient", () => {
     });
 
     expect(getShopifyTryOnRun).toHaveBeenCalledTimes(2);
-    expect(clickedAnchor?.href).toBe("https://storage.example/fresh-download.png");
-    expect(clickedAnchor?.download).toBe("selfx-try-on-run-1.png");
+    expect(clickedAnchor.current?.href).toBe(
+      "https://storage.example/fresh-download.png",
+    );
+    expect(clickedAnchor.current?.download).toBe("selfx-try-on-run-1.png");
     expect(click).toHaveBeenCalledOnce();
   });
 
@@ -140,9 +143,8 @@ describe("ShopifyTryOnPageClient", () => {
     await act(async () => {});
     fireEvent.click(screen.getByRole("checkbox"));
     const file = new File(["person"], "person.png", { type: "image/png" });
-    const inputs = document.querySelectorAll<HTMLInputElement>(
-      'input[type="file"]',
-    );
+    const inputs =
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     await act(async () => {
       fireEvent.change(inputs[1]!, { target: { files: [file] } });
     });

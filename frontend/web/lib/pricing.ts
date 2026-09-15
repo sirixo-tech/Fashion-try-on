@@ -18,8 +18,18 @@ export interface PricingPlan {
   kioskMonthlyRentCents: number | null;
   kioskDeviceLimit: number | null;
   metadata: Record<string, unknown> | null;
+  featureKeys: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PlanFeature {
+  key: string;
+  displayName: string;
+  description: string | null;
+  group: string;
+  sortOrder: number;
+  active: boolean;
 }
 
 export interface PricingPlanInput {
@@ -35,7 +45,10 @@ export interface PricingPlanInput {
   kioskMonthlyRentCents?: number | null;
   kioskDeviceLimit?: number | null;
   metadata?: Record<string, unknown> | null;
+  featureKeys?: string[];
 }
+
+export type PricingPlanUpdateInput = Partial<Omit<PricingPlanInput, "code">>;
 
 export async function listPricingPlans(
   accessToken: string,
@@ -71,11 +84,36 @@ export async function createPricingPlan(
 export async function updatePricingPlan(
   accessToken: string,
   planId: string,
-  input: PricingPlanInput,
+  input: PricingPlanUpdateInput,
 ): Promise<PricingPlan> {
   return selfxApi<PricingPlan>(`/api/v1/admin/pricing/plans/${planId}`, {
     method: "PATCH",
     accessToken,
     body: JSON.stringify(input),
   });
+}
+
+export async function listPlanFeatures(
+  accessToken: string,
+): Promise<PlanFeature[]> {
+  const response = await selfxApi<{ data: PlanFeature[] }>(
+    "/api/v1/pricing/plans/features",
+    { accessToken },
+  );
+  return response.data;
+}
+
+export async function updatePlanFeature(
+  accessToken: string,
+  featureKey: string,
+  input: Partial<Omit<PlanFeature, "key">>,
+): Promise<PlanFeature> {
+  return selfxApi<PlanFeature>(
+    `/api/v1/admin/pricing/features/${encodeURIComponent(featureKey)}`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: JSON.stringify(input),
+    },
+  );
 }

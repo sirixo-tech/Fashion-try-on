@@ -11,6 +11,8 @@ import { type FastifyRequest } from "fastify";
 import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { PricingPlanListResponseDto } from "./dto/pricing-plan.dto.js";
+import { PlanFeatureListResponseDto } from "./dto/plan-feature.dto.js";
+import { PricingFeaturesService } from "./pricing-features.service.js";
 import { PricingControlService } from "./pricing-control.service.js";
 
 @ApiTags("Pricing")
@@ -20,6 +22,7 @@ export class PricingController {
   constructor(
     private readonly auth: AuthService,
     private readonly pricing: PricingControlService,
+    private readonly pricingFeatures: PricingFeaturesService,
   ) {}
 
   @Get("available")
@@ -31,5 +34,16 @@ export class PricingController {
   ): Promise<PricingPlanListResponseDto> {
     await this.auth.requireAccessUser(request.headers.authorization);
     return { data: await this.pricing.listAvailablePlans() };
+  }
+
+  @Get("features")
+  @ApiOperation({ summary: "List pricing feature labels" })
+  @ApiOkResponse({ type: PlanFeatureListResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  async listFeatures(
+    @Req() request: FastifyRequest,
+  ): Promise<PlanFeatureListResponseDto> {
+    await this.auth.requireAccessUser(request.headers.authorization);
+    return { data: await this.pricingFeatures.listFeatures() };
   }
 }

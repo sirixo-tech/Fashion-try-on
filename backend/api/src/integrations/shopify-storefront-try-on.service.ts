@@ -38,6 +38,7 @@ import {
   type PublicApiUploadPayload,
 } from "../developer-api/public-api-upload.multipart.js";
 import { EntitlementsService } from "../entitlements/entitlements.service.js";
+import { featureKeysFromPricingPlanMetadata } from "../entitlements/pricing-control.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import {
   TryOnExecutionService,
@@ -145,6 +146,10 @@ export class ShopifyStorefrontTryOnService {
     input: CreateShopifyStorefrontTryOnSessionDto,
   ): Promise<ShopifyStorefrontTryOnSessionDto> {
     const context = await this.requireEligibleProduct(input);
+    await this.entitlements.assertStoreHasFeature(
+      context.storeId,
+      "SHOPIFY_INTEGRATION",
+    );
     const shopDomain = normalizeShopDomain(input.shop);
     const limits = storefrontLimitsFromInput(input);
     await this.assertStorefrontLimits({
@@ -307,7 +312,9 @@ export class ShopifyStorefrontTryOnService {
           select: { id: true, name: true, slug: true, imageUrl: true },
         })
       : [];
-    const productsById = new Map(products.map((product) => [product.id, product]));
+    const productsById = new Map(
+      products.map((product) => [product.id, product]),
+    );
 
     return {
       totalTryOns,
@@ -636,12 +643,11 @@ export class ShopifyStorefrontTryOnService {
     if (!validSessionToken(sessionToken)) {
       throw sessionNotFound();
     }
-    const capability = await this.prisma.shopifyStorefrontTryOnSession.findUnique(
-      {
+    const capability =
+      await this.prisma.shopifyStorefrontTryOnSession.findUnique({
         where: { tokenHash: hashSessionToken(sessionToken) },
         include: storefrontCapabilityInclude,
-      },
-    );
+      });
     if (!capability) {
       throw sessionNotFound();
     }
@@ -664,6 +670,10 @@ export class ShopifyStorefrontTryOnService {
       );
     }
     this.assertCapabilityEligible(capability);
+    await this.entitlements.assertStoreHasFeature(
+      capability.organizationId,
+      "SHOPIFY_INTEGRATION",
+    );
     await this.requireActiveMapping(capability);
     return capability;
   }
@@ -702,10 +712,12 @@ export class ShopifyStorefrontTryOnService {
     return mapping;
   }
 
-  private async assertStorefrontLimits(input: {
-    organizationId: string;
-    shopDomain: string;
-  } & StorefrontLimits): Promise<void> {
+  private async assertStorefrontLimits(
+    input: {
+      organizationId: string;
+      shopDomain: string;
+    } & StorefrontLimits,
+  ): Promise<void> {
     const now = new Date();
     if (input.monthlyStoreTryOnLimit > 0) {
       const monthlyRuns = await this.prisma.kioskTryOnRun.count({
@@ -1133,9 +1145,7 @@ async function parseResultImage(resultImage: string): Promise<{
   }
   return {
     contentType: match[1].toLowerCase() as
-      | "image/jpeg"
-      | "image/png"
-      | "image/webp",
+      "image/jpeg" | "image/png" | "image/webp",
     buffer: Buffer.from(match[2], "base64"),
   };
 }
@@ -1210,6 +1220,7 @@ function toPricingPlanDto(plan: {
   extraCreditPriceCents: number | null;
   kioskMonthlyRentCents: number | null;
   kioskDeviceLimit: number | null;
+  metadata: Prisma.JsonValue | null;
 }): ShopifyStorefrontPricingPlanDto {
   return {
     id: plan.id,
@@ -1223,6 +1234,7 @@ function toPricingPlanDto(plan: {
     extraCreditPriceCents: plan.extraCreditPriceCents,
     kioskMonthlyRentCents: plan.kioskMonthlyRentCents,
     kioskDeviceLimit: plan.kioskDeviceLimit,
+    featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
   };
 }
 

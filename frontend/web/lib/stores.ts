@@ -48,6 +48,7 @@ export type StoreSubscriptionSummary = {
     currentPeriodEnd: string | null;
     trialStartedAt: string | null;
     trialEndsAt: string | null;
+    featureKeys: string[];
     pricingPlan: {
       id: string;
       code: string;
@@ -59,6 +60,7 @@ export type StoreSubscriptionSummary = {
       kioskMonthlyRentCents: number | null;
       kioskDeviceLimit: number | null;
       channels: string[];
+      featureKeys: string[];
     } | null;
   } | null;
 };
@@ -153,6 +155,7 @@ export type EffectiveStorePermissions = {
   storeId: string;
   permissions: string[];
   platformBypass: boolean;
+  featureKeys: string[];
   membershipId: string | null;
 };
 

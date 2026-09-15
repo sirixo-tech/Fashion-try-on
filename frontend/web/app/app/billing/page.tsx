@@ -10,10 +10,10 @@ import {
 import {
   ActivityIcon,
   BarChart3Icon,
+  CheckCircle2Icon,
   CreditCardIcon,
   DownloadIcon,
   MonitorIcon,
-  PackageIcon,
   RefreshCwIcon,
   SparklesIcon,
   TimerResetIcon,
@@ -46,7 +46,12 @@ import {
   getCurrentMerchantStore,
   type CurrentStore,
 } from "@/lib/current-store";
-import { listAvailablePricingPlans, type PricingPlan } from "@/lib/pricing";
+import {
+  listAvailablePricingPlans,
+  listPlanFeatures,
+  type PlanFeature,
+  type PricingPlan,
+} from "@/lib/pricing";
 import { useSession } from "@/lib/session";
 import {
   getStore,
@@ -89,6 +94,7 @@ export default function BillingPage() {
   const [creditDiagnostics, setCreditDiagnostics] =
     useState<StoreCreditDiagnostics | null>(null);
   const [availablePlans, setAvailablePlans] = useState<PricingPlan[]>([]);
+  const [planFeatures, setPlanFeatures] = useState<PlanFeature[]>([]);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [billingLoading, setBillingLoading] = useState(true);
@@ -162,8 +168,9 @@ export default function BillingPage() {
     const effectiveStoreId = canChooseStoreScope ? storeId : currentStore?.id;
     setBillingLoading(true);
     try {
-      const [plans, store, diagnostics] = await Promise.all([
+      const [plans, features, store, diagnostics] = await Promise.all([
         listAvailablePricingPlans(accessToken),
+        listPlanFeatures(accessToken).catch(() => []),
         effectiveStoreId ? getStore(accessToken, effectiveStoreId) : null,
         effectiveStoreId
           ? getStoreCreditDiagnostics(accessToken, effectiveStoreId).catch(
@@ -172,6 +179,7 @@ export default function BillingPage() {
           : null,
       ]);
       setAvailablePlans(plans);
+      setPlanFeatures(features);
       setBillingStore(store);
       setCreditDiagnostics(diagnostics);
     } catch (caught) {
@@ -315,6 +323,7 @@ export default function BillingPage() {
           store={billingStore}
           diagnostics={creditDiagnostics}
           plans={availablePlans}
+          features={planFeatures}
           loading={billingLoading}
         />
       )}
@@ -388,18 +397,6 @@ export default function BillingPage() {
               displayNumber(row.downloadsCompleted),
             ])}
           />
-          <UsageTable
-            title="Top Products"
-            icon={<PackageIcon size={18} aria-hidden="true" />}
-            empty="No product usage in this range."
-            loading={loading}
-            headers={["Product", "Looks", "Downloads"]}
-            rows={(summary?.products ?? []).map((row) => [
-              row.name,
-              displayNumber(row.tryOnsGenerated),
-              displayNumber(row.downloadsCompleted),
-            ])}
-          />
         </div>
       </PageSection>
     </PageContainer>
@@ -410,11 +407,13 @@ function MerchantBilling({
   store,
   diagnostics,
   plans,
+  features,
   loading,
 }: {
   store: AdminStoreDetail | null;
   diagnostics: StoreCreditDiagnostics | null;
   plans: PricingPlan[];
+  features: PlanFeature[];
   loading: boolean;
 }) {
   const subscription = store?.subscription ?? null;
@@ -500,7 +499,11 @@ function MerchantBilling({
       <PageSection>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
           <BillingHistoryTable diagnostics={diagnostics} loading={loading} />
-          <AvailablePlansPanel plans={plans} currentPlanId={plan?.id ?? null} />
+          <AvailablePlansPanel
+            plans={plans}
+            features={features}
+            currentPlanId={plan?.id ?? null}
+          />
         </div>
       </PageSection>
     </>
@@ -634,9 +637,11 @@ function BillingHistoryTable({
 
 function AvailablePlansPanel({
   plans,
+  features,
   currentPlanId,
 }: {
   plans: PricingPlan[];
+  features: PlanFeature[];
   currentPlanId: string | null;
 }) {
   return (
@@ -654,47 +659,69 @@ function AvailablePlansPanel({
             No active plans are available right now.
           </div>
         ) : (
-          plans.map((plan) => (
-            <div
-              key={plan.id}
-              className="rounded-lg border bg-background p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="font-semibold">{plan.name}</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {money(plan.monthlyPriceCents, plan.currency)} / month
+          plans.map((plan) => {
+            const featureLabels = labelsForFeatureKeys(
+              plan.featureKeys,
+              features,
+            );
+            return (
+              <div
+                key={plan.id}
+                className="rounded-lg border bg-background p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{plan.name}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {money(plan.monthlyPriceCents, plan.currency)} / month
+                    </div>
                   </div>
+                  {plan.id === currentPlanId ? (
+                    <Badge variant="default">Current</Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      {plan.channels.join(", ")}
+                    </Badge>
+                  )}
                 </div>
-                {plan.id === currentPlanId ? (
-                  <Badge variant="default">Current</Badge>
-                ) : (
-                  <Badge variant="secondary">{plan.channels.join(", ")}</Badge>
-                )}
+                <div className="mt-4 grid gap-2 text-sm">
+                  <PlanLine
+                    label="Included credits"
+                    value={displayNumber(plan.includedCredits)}
+                  />
+                  <PlanLine
+                    label="Trial credits"
+                    value={displayNumber(plan.trialCredits)}
+                  />
+                  <PlanLine
+                    label="Kiosk devices"
+                    value={
+                      plan.kioskDeviceLimit === null
+                        ? "Not limited"
+                        : displayNumber(plan.kioskDeviceLimit)
+                    }
+                  />
+                </div>
+                {featureLabels.length > 0 ? (
+                  <ul className="mt-4 grid gap-2 border-t pt-4 text-sm">
+                    {featureLabels.slice(0, 6).map((label) => (
+                      <li key={label} className="flex items-start gap-2">
+                        <CheckCircle2Icon
+                          size={16}
+                          aria-hidden="true"
+                          className="mt-0.5 shrink-0 text-emerald-600"
+                        />
+                        <span>{label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <Button className="mt-4 w-full" variant="outline" disabled>
+                  Contact support
+                </Button>
               </div>
-              <div className="mt-4 grid gap-2 text-sm">
-                <PlanLine
-                  label="Included credits"
-                  value={displayNumber(plan.includedCredits)}
-                />
-                <PlanLine
-                  label="Trial credits"
-                  value={displayNumber(plan.trialCredits)}
-                />
-                <PlanLine
-                  label="Kiosk devices"
-                  value={
-                    plan.kioskDeviceLimit === null
-                      ? "Not limited"
-                      : displayNumber(plan.kioskDeviceLimit)
-                  }
-                />
-              </div>
-              <Button className="mt-4 w-full" variant="outline" disabled>
-                Contact support
-              </Button>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
@@ -823,6 +850,16 @@ function channelLabel(value: string | null): string {
   if (!value) return "SelfX";
   if (value === "PUBLIC_API") return "Public API";
   return statusLabel(value);
+}
+
+function labelsForFeatureKeys(
+  featureKeys: string[],
+  features: PlanFeature[],
+): string[] {
+  const labels = new Map(
+    features.map((feature) => [feature.key, feature.displayName]),
+  );
+  return featureKeys.map((key) => labels.get(key) ?? key);
 }
 
 function signedNumber(value: number): string {

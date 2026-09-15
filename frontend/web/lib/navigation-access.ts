@@ -6,6 +6,7 @@ export type NavigationAccess = {
   platformPermissions: string[];
   storePermissions: string[];
   storePlatformBypass: boolean;
+  storeFeatureKeys: string[];
   hasActiveStore: boolean;
 };
 
@@ -49,6 +50,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
     "ORGANIZATION_SUSPEND",
   ],
   "/app/platform/pricing": ["PRICING_VIEW", "PRICING_MANAGE"],
+  "/app/platform/pricing/features": ["PRICING_VIEW", "PRICING_MANAGE"],
 };
 
 const storePermissionsByHref: Record<string, string[]> = {
@@ -59,6 +61,14 @@ const storePermissionsByHref: Record<string, string[]> = {
   "/app/developer": ["developer_api.view", "developer_api.manage"],
   "/app/integrations/shopify": ["integrations.view"],
   "/app/integrations/woocommerce": ["integrations.view"],
+};
+
+const storeFeaturesByHref: Record<string, string[]> = {
+  "/app/kiosks": ["KIOSK_MANAGEMENT", "KIOSK_RENTAL"],
+  "/app/analytics": ["ANALYTICS"],
+  "/app/developer": ["PUBLIC_API"],
+  "/app/integrations/shopify": ["SHOPIFY_INTEGRATION"],
+  "/app/integrations/woocommerce": ["WOOCOMMERCE_INTEGRATION"],
 };
 
 const platformOrStoreAccessHrefs = new Set([
@@ -112,12 +122,17 @@ function canSeeHref(href: string, access: NavigationAccess): boolean {
 
   const platformPermissions = platformPermissionsByHref[route] ?? [];
   const storePermissions = storePermissionsByHref[route] ?? [];
+  const storeFeatures = storeFeaturesByHref[route] ?? [];
   const hasStoreRule = storePermissions.length > 0;
+  const hasStoreEntitlement =
+    storeFeatures.length === 0 ||
+    hasAny(access.storeFeatureKeys, storeFeatures);
 
   return (
     hasAny(access.platformPermissions, platformPermissions) ||
     (hasStoreRule &&
       access.hasActiveStore &&
+      hasStoreEntitlement &&
       (access.storePlatformBypass ||
         hasAny(access.storePermissions, storePermissions)))
   );

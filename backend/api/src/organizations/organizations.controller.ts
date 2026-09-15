@@ -20,6 +20,7 @@ import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { CursorPaginationQueryDto } from "../common/pagination.dto.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { UpdateOrganizationDto } from "./dto/tenant-commands.dto.js";
 import {
   CurrentTenantStoreResponseDto,
@@ -37,6 +38,7 @@ export class OrganizationsController {
     private readonly auth: AuthService,
     private readonly tenants: TenantManagementService,
     private readonly rbac: StoreRbacService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   @Get()
@@ -66,11 +68,20 @@ export class OrganizationsController {
       request.headers.authorization,
     );
     const current = await this.tenants.getCurrentStore(user.id);
+    const permissions = current.store
+      ? await this.rbac.effectivePermissions(user.id, current.store.id)
+      : null;
     return {
       ...current,
-      permissions: current.store
-        ? await this.rbac.effectivePermissions(user.id, current.store.id)
-        : null,
+      permissions:
+        current.store && permissions
+          ? {
+              ...permissions,
+              featureKeys: await this.entitlements.getStoreFeatureKeys(
+                current.store.id,
+              ),
+            }
+          : null,
     };
   }
 

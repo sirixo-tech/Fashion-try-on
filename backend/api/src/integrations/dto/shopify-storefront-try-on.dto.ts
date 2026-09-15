@@ -40,7 +40,8 @@ export class CreateShopifyStorefrontTryOnSessionDto {
   locale?: string;
 
   @ApiPropertyOptional({
-    description: "Anonymous visitor token generated after Shopify app proxy verification.",
+    description:
+      "Anonymous visitor token generated after Shopify app proxy verification.",
   })
   @IsOptional()
   @IsString()
@@ -49,7 +50,8 @@ export class CreateShopifyStorefrontTryOnSessionDto {
   visitorToken?: string;
 
   @ApiPropertyOptional({
-    description: "Maximum Try-Ons this visitor can run in the selected period. 0 disables the custom visitor limit.",
+    description:
+      "Maximum Try-Ons this visitor can run in the selected period. 0 disables the custom visitor limit.",
     example: 5,
   })
   @IsOptional()
@@ -64,7 +66,8 @@ export class CreateShopifyStorefrontTryOnSessionDto {
   visitorTryOnLimitPeriod?: "DAY" | "WEEK" | "MONTH";
 
   @ApiPropertyOptional({
-    description: "Maximum Shopify storefront Try-Ons for the store per calendar month. 0 disables the custom monthly cap.",
+    description:
+      "Maximum Shopify storefront Try-Ons for the store per calendar month. 0 disables the custom monthly cap.",
     example: 300,
   })
   @IsOptional()
@@ -207,7 +210,10 @@ export class ShopifyStorefrontPricingPlanDto {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty({ enum: ["SHOPIFY", "WOOCOMMERCE", "KIOSK", "PUBLIC_API"], isArray: true })
+  @ApiProperty({
+    enum: ["SHOPIFY", "WOOCOMMERCE", "KIOSK", "PUBLIC_API"],
+    isArray: true,
+  })
   channels!: string[];
 
   @ApiProperty()
@@ -230,6 +236,9 @@ export class ShopifyStorefrontPricingPlanDto {
 
   @ApiPropertyOptional({ nullable: true })
   kioskDeviceLimit!: number | null;
+
+  @ApiProperty({ type: [String] })
+  featureKeys!: string[];
 }
 
 export class ShopifyStorefrontPricingPlansDto {

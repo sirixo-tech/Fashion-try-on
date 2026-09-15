@@ -11,6 +11,7 @@ import {
   CreditCardIcon,
   FlaskConicalIcon,
   GemIcon,
+  LayersIcon,
   LayoutDashboardIcon,
   LockKeyholeIcon,
   MonitorIcon,
@@ -96,6 +97,7 @@ const navItems: SelfxNavItem[] = [
       },
     ],
   },
+  { href: "/app/platform/pricing", label: "Plans", icon: CreditCardIcon },
   {
     label: "Integrations",
     icon: BlocksIcon,
@@ -132,9 +134,9 @@ const navItems: SelfxNavItem[] = [
     children: [
       { href: "/app/settings", label: "Settings", icon: SettingsIcon },
       {
-        href: "/app/platform/pricing",
-        label: "Plans",
-        icon: CreditCardIcon,
+        href: "/app/platform/pricing/features",
+        label: "Plan features",
+        icon: LayersIcon,
       },
       { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },
     ],
@@ -368,6 +370,7 @@ function navigationAccess({
     platformPermissions: platformAccess?.permissions ?? [],
     storePermissions: storeAccess?.permissions ?? [],
     storePlatformBypass: storeAccess?.platformBypass ?? false,
+    storeFeatureKeys: storeAccess?.featureKeys ?? [],
     hasActiveStore,
   };
 }
