@@ -1,4 +1,5 @@
 import {
+  type ShopifyProductCollection,
   type ShopifyProduct,
   type ShopifyProductPage,
   type ShopifyProductResult,
@@ -42,6 +43,23 @@ type ProductQueryData = {
   product: ProductNode | null;
 };
 
+type ProductCollectionsQueryData = {
+  collections: {
+    nodes: Array<{
+      id: string;
+      title: string;
+      handle: string;
+      productsCount: { count: number };
+      products: {
+        nodes: Array<{
+          id: string;
+          title: string;
+        }>;
+      };
+    }>;
+  };
+};
+
 type ThemeNode = {
   id: string;
   name: string;
@@ -60,11 +78,9 @@ type ThemeFilesQueryData = {
     files: {
       nodes: Array<{
         filename: string;
-        body:
-          | {
-              content?: string;
-            }
-          | null;
+        body: {
+          content?: string;
+        } | null;
       }>;
       userErrors: Array<{
         code?: string;
@@ -152,6 +168,26 @@ export class ShopifyAdminClient {
         ? await this.completeProductVariants(data.product, deadlineAt)
         : null,
     };
+  }
+
+  async listProductCollections(options?: {
+    first?: number;
+    productFirst?: number;
+  }): Promise<ShopifyProductCollection[]> {
+    const data = await this.graphql<ProductCollectionsQueryData>(
+      productCollectionsQuery,
+      {
+        first: Math.min(Math.max(options?.first ?? 20, 1), 50),
+        productFirst: Math.min(Math.max(options?.productFirst ?? 100, 1), 250),
+      },
+    );
+    return data.collections.nodes.map((collection) => ({
+      id: collection.id,
+      title: collection.title,
+      handle: collection.handle,
+      productsCount: collection.productsCount.count,
+      products: collection.products.nodes,
+    }));
   }
 
   async getThemeAppBlockStatus(
@@ -332,6 +368,22 @@ const productVariantsQuery = [
   "}",
 ].join("\n");
 
+const productCollectionsQuery = [
+  "query SelfxProductCollections($first: Int!, $productFirst: Int!) {",
+  "  collections(first: $first, sortKey: TITLE) {",
+  "    nodes {",
+  "      id",
+  "      title",
+  "      handle",
+  "      productsCount { count }",
+  "      products(first: $productFirst) {",
+  "        nodes { id title }",
+  "      }",
+  "    }",
+  "  }",
+  "}",
+].join("\n");
+
 const themesQuery = [
   "query SelfxThemes {",
   "  themes(first: 10) {",
@@ -365,7 +417,10 @@ function themeFileContainsAppBlock(
 ): boolean {
   if (!content) return false;
   try {
-    return jsonValueContainsAppBlock(JSON.parse(content) as unknown, blockHandle);
+    return jsonValueContainsAppBlock(
+      JSON.parse(content) as unknown,
+      blockHandle,
+    );
   } catch {
     return false;
   }

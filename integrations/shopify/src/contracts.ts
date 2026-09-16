@@ -80,6 +80,19 @@ export type ShopifyProductResult = {
   product: ShopifyProduct | null;
 };
 
+export type ShopifyCollectionProduct = {
+  id: string;
+  title: string;
+};
+
+export type ShopifyProductCollection = {
+  id: string;
+  title: string;
+  handle: string;
+  productsCount: number;
+  products: ShopifyCollectionProduct[];
+};
+
 export type ShopifyShopIdentity = {
   id: string;
   name: string;

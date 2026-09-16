@@ -77,6 +77,7 @@ const editorSections = [
   { id: "kiosks", label: "Kiosks" },
 ] as const;
 const defaultStarterPlanCode = "selfx-default-starter";
+type EditorSectionId = (typeof editorSections)[number]["id"];
 
 type PlanFormState = {
   code: string;
@@ -129,6 +130,8 @@ export function PricingPlanEditor({
   const [features, setFeatures] = useState<PlanFeature[]>([]);
   const [accessLoading, setAccessLoading] = useState(true);
   const [platformCurrency, setPlatformCurrency] = useState(emptyForm.currency);
+  const [activeSectionId, setActiveSectionId] =
+    useState<EditorSectionId>("name");
   const { showToast } = useToast();
 
   const canViewPricing = Boolean(
@@ -250,6 +253,51 @@ export function PricingPlanEditor({
       cancelled = true;
     };
   }, [accessToken, canViewPricing]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const sectionIds = new Set(editorSections.map((section) => section.id));
+    const updateFromHash = () => {
+      const nextHash = window.location.hash.slice(1);
+      if (sectionIds.has(nextHash as EditorSectionId)) {
+        setActiveSectionId(nextHash as EditorSectionId);
+      }
+    };
+    const updateFromScroll = () => {
+      const scrollAnchorOffset = 150;
+      let nextActiveSectionId: EditorSectionId = editorSections[0].id;
+      for (const section of editorSections) {
+        const element = document.getElementById(section.id);
+        if (!element) {
+          continue;
+        }
+        if (element.getBoundingClientRect().top <= scrollAnchorOffset) {
+          nextActiveSectionId = section.id;
+        }
+      }
+      setActiveSectionId((current) =>
+        current === nextActiveSectionId ? current : nextActiveSectionId,
+      );
+    };
+    let animationFrame = 0;
+    const requestScrollUpdate = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(updateFromScroll);
+    };
+    updateFromHash();
+    requestScrollUpdate();
+    window.addEventListener("hashchange", updateFromHash);
+    window.addEventListener("scroll", requestScrollUpdate, { passive: true });
+    window.addEventListener("resize", requestScrollUpdate);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("hashchange", updateFromHash);
+      window.removeEventListener("scroll", requestScrollUpdate);
+      window.removeEventListener("resize", requestScrollUpdate);
+    };
+  }, []);
 
   const title = mode === "create" ? "New plan" : "Edit plan";
   const previewTitle = form.name.trim() || "Untitled plan";
@@ -399,15 +447,24 @@ export function PricingPlanEditor({
                 On this page
               </div>
               <nav className="grid gap-1">
-                {editorSections.map((section) => (
-                  <a
-                    key={section.id}
-                    href={`#${section.id}`}
-                    className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    {section.label}
-                  </a>
-                ))}
+                {editorSections.map((section) => {
+                  const active = activeSectionId === section.id;
+                  return (
+                    <a
+                      key={section.id}
+                      href={`#${section.id}`}
+                      aria-current={active ? "true" : undefined}
+                      onClick={() => setActiveSectionId(section.id)}
+                      className={`rounded-md border-l-2 px-3 py-2 text-sm transition-colors ${
+                        active
+                          ? "border-primary bg-primary/10 font-semibold text-primary"
+                          : "border-transparent font-medium text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                      }`}
+                    >
+                      {section.label}
+                    </a>
+                  );
+                })}
               </nav>
             </aside>
 

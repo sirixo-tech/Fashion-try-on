@@ -254,7 +254,18 @@ function serviceFor(
       process: vi.fn(),
     } as never,
     {
+      assertStoreHasFeature: vi.fn(),
       consumeTryOnCredit: vi.fn(),
+    } as never,
+    {
+      listAvailablePlans: vi.fn(async () =>
+        (
+          await prisma.pricingPlan.findMany({
+            where: { status: "ACTIVE" },
+            orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
+          })
+        ).map((plan) => ({ ...plan, featureKeys: [] })),
+      ),
     } as never,
   );
 }
@@ -339,7 +350,7 @@ class FakePrisma {
   };
 
   pricingPlan = {
-    findMany: vi.fn(() => [
+    findMany: vi.fn((_query?: unknown) => [
       {
         id: "plan-shopify-growth",
         code: "shopify-growth",

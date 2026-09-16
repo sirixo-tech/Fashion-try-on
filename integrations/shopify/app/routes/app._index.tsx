@@ -67,6 +67,21 @@ type ProductControlsView = SelfxProductControlsResponse & {
   errorMessage: string | null;
 };
 
+type ProductVisibilityMode = "ALL" | "COLLECTIONS" | "PRODUCTS";
+
+type ProductCollectionView = {
+  id: string;
+  title: string;
+  handle: string;
+  productsCount: number;
+  productIds: string[];
+};
+
+type ProductCollectionsView = {
+  data: ProductCollectionView[];
+  errorMessage: string | null;
+};
+
 type ProductActionData =
   | {
       productActionError: string | null;
@@ -86,9 +101,7 @@ type ShopifyAdminPanelKey =
   | "display"
   | "settings"
   | "analytics"
-  | "leads"
-  | "plans"
-  | "support";
+  | "plans";
 
 type ShopifyAdminPanel = {
   key: ShopifyAdminPanelKey;
@@ -118,19 +131,9 @@ const shopifyAdminPanels: ShopifyAdminPanel[] = [
     summary: "Try-On usage, conversion and product insights.",
   },
   {
-    key: "leads",
-    label: "Leads",
-    summary: "Future shopper capture and follow-up tools.",
-  },
-  {
     key: "plans",
     label: "Plans",
     summary: "Credits, limits and upgrade entry points.",
-  },
-  {
-    key: "support",
-    label: "Support",
-    summary: "Diagnostics and help resources.",
   },
 ];
 
@@ -167,6 +170,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     availablePlans: await safeAvailablePlans(session.shop, connection),
     usageSummary: await safeUsageSummary(session.shop, connection),
     productControls: await safeProductControls(session.shop, connection),
+    productCollections: await safeProductCollections({
+      accessToken: session.accessToken,
+      connected: connection.status === "CONNECTED",
+      shop: session.shop,
+    }),
     selfxBillingUrl: safeSelfxBillingUrl(connection),
     themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
   };
@@ -236,6 +244,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }
   }
+  if (intent === "setProductVisibilityRule") {
+    try {
+      const result = await applyProductVisibilityRule({
+        accessToken: session.accessToken,
+        formData,
+        shop: session.shop,
+      });
+      return {
+        productActionError: null,
+        productActionSuccess: result.message,
+        settingsActionError: null,
+        settingsActionSuccess: null,
+      };
+    } catch (error) {
+      console.error(
+        "SelfX Shopify product visibility rule update failed",
+        error,
+      );
+      return {
+        productActionError: shopifyActionErrorMessage(
+          error,
+          "SelfX could not update product visibility.",
+        ),
+        productActionSuccess: null,
+        settingsActionError: null,
+        settingsActionSuccess: null,
+      };
+    }
+  }
+
   if (intent !== "setProductVto") {
     return {
       productActionError: "That Shopify product action is not supported.",
@@ -328,14 +366,14 @@ export default function Index() {
   const actionData = useActionData<typeof action>();
   const location = useLocation();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [activePanel, setActivePanel] =
-    useState<ShopifyAdminPanelKey>("setup");
+  const [activePanel, setActivePanel] = useState<ShopifyAdminPanelKey>("setup");
   const connection = loaded.connection;
   const themeBlock = loaded.themeBlock;
   const creditSummary = loaded.creditSummary;
   const availablePlans = loaded.availablePlans;
   const usageSummary = loaded.usageSummary;
   const productControls = loaded.productControls;
+  const productCollections = loaded.productCollections;
   const selfxBillingUrl = loaded.selfxBillingUrl;
   const themeEditorUrl = loaded.themeEditorUrl;
   const connectActionPath = selfxActionPath(location.search, "connect");
@@ -436,7 +474,9 @@ export default function Index() {
           label={t("availableCredits")}
           value={connected ? String(availableCredits) : "-"}
           meta={localizedPlanName}
-          badge={<CreditBadge adminLocale={adminLocale} health={creditHealth} />}
+          badge={
+            <CreditBadge adminLocale={adminLocale} health={creditHealth} />
+          }
         />
       </s-grid>
 
@@ -464,12 +504,15 @@ export default function Index() {
           <ShopifyPanelContent
             activePanel={activePanel}
             adminLocale={adminLocale}
+            availablePlans={availablePlans}
             availableCredits={availableCredits}
             connected={connected}
             connection={connection}
             creditHealth={creditHealth}
+            creditSummary={creditSummary}
             includedCredits={includedCredits}
             pending={pending}
+            productCollections={productCollections}
             productControls={productControls}
             selfxBillingUrl={selfxBillingUrl}
             storefrontReady={storefrontReady}
@@ -572,7 +615,8 @@ function MerchantAppHeader({
   const fetcher = useFetcher<ProductActionData>();
   const saving = fetcher.state !== "idle";
   const currentAdminLocale = fetcher.data?.settingsAdminLocale ?? adminLocale;
-  const t = (key: Parameters<typeof adminT>[1]) => adminT(currentAdminLocale, key);
+  const t = (key: Parameters<typeof adminT>[1]) =>
+    adminT(currentAdminLocale, key);
 
   function handleAdminLocaleChange(event: FormEvent<HTMLElement>) {
     const nextLocale = normalizeLanguageLocale(
@@ -584,10 +628,7 @@ function MerchantAppHeader({
     formData.set("intent", "setStorefrontSettings");
     formData.set("storefrontLocale", storefrontLocale);
     formData.set("visitorTryOnLimit", String(connection.visitorTryOnLimit));
-    formData.set(
-      "visitorTryOnLimitPeriod",
-      connection.visitorTryOnLimitPeriod,
-    );
+    formData.set("visitorTryOnLimitPeriod", connection.visitorTryOnLimitPeriod);
     formData.set(
       "monthlyStoreTryOnLimit",
       String(connection.monthlyStoreTryOnLimit),
@@ -618,22 +659,27 @@ function MerchantAppHeader({
         </s-grid-item>
         <s-grid-item>
           <s-stack direction="inline" gap="base" alignItems="center">
-            <s-select
-              label={t("adminPanelLanguage")}
-              name="adminLocale"
-              value={currentAdminLocale}
-              onChange={handleAdminLocaleChange}
-              disabled={saving}
-            >
-              {supportedLanguageLocales.map((locale) => (
-                <s-option key={locale.code} value={locale.code}>
-                  {locale.label}
-                </s-option>
-              ))}
-            </s-select>
-            <s-button href={syncActionPath} variant="secondary" icon="refresh">
-              {t("refresh")}
-            </s-button>
+            <div className="selfx-shopify-locale-select">
+              <s-select
+                label={t("adminPanelLanguage")}
+                name="adminLocale"
+                value={currentAdminLocale}
+                onChange={handleAdminLocaleChange}
+                disabled={saving}
+              >
+                {supportedLanguageLocales.map((locale) => (
+                  <s-option key={locale.code} value={locale.code}>
+                    {locale.label}
+                  </s-option>
+                ))}
+              </s-select>
+            </div>
+            <s-button
+              href={syncActionPath}
+              variant="secondary"
+              icon="refresh"
+              accessibilityLabel={t("refresh")}
+            ></s-button>
             <PrimaryActions
               approvalUrl={connection.approvalUrl}
               completeActionPath={completeActionPath}
@@ -707,26 +753,30 @@ function CreditUsagePanel({
     return null;
   }
   const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
+  const empty = creditHealth === "EMPTY";
+  const creditWarningMessage =
+    creditHealth === "HEALTHY" || creditHealth === "UNKNOWN"
+      ? null
+      : empty
+        ? t("emptyCreditsMessage")
+        : adminFormat(adminLocale, "lowCreditsMessage", {
+            threshold: lowCreditThreshold,
+          });
   return (
     <s-section>
-      <s-stack gap="base">
-        <CreditStatusBanner
-          adminLocale={adminLocale}
-          health={creditHealth}
-          billingUrl={billingUrl}
-        />
-        <s-box
-          padding="base"
-          background="base"
-          borderWidth="small"
-          borderColor="base"
-          borderRadius="base"
-        >
-          <s-stack gap="base">
-            <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
-              <s-grid-item>
-                <s-stack direction="inline" gap="base" alignItems="center">
-                  <CreditBadge adminLocale={adminLocale} health={creditHealth} />
+      <s-box
+        padding="base"
+        background="base"
+        borderWidth="small"
+        borderColor="base"
+        borderRadius="base"
+      >
+        <s-stack gap="base">
+          <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+            <s-grid-item>
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <CreditBadge adminLocale={adminLocale} health={creditHealth} />
+                <s-stack gap="small-200">
                   <s-text>
                     {planName} -{" "}
                     {adminFormat(adminLocale, "creditsLeft", {
@@ -734,36 +784,39 @@ function CreditUsagePanel({
                       included: includedCredits,
                     })}
                   </s-text>
+                  {creditWarningMessage ? (
+                    <s-text color="subdued">{creditWarningMessage}</s-text>
+                  ) : null}
                 </s-stack>
-              </s-grid-item>
-              <s-grid-item>
-                {billingUrl ? (
-                  <s-button href={billingUrl} target="_blank" variant="secondary">
-                    {t("viewPlans")}
-                  </s-button>
-                ) : null}
-              </s-grid-item>
-            </s-grid>
+              </s-stack>
+            </s-grid-item>
+            <s-grid-item>
+              {billingUrl ? (
+                <s-button href={billingUrl} target="_blank" variant="secondary">
+                  {t("viewPlans")}
+                </s-button>
+              ) : null}
+            </s-grid-item>
+          </s-grid>
+          <div
+            aria-label={`${usedCredits} credits used`}
+            style={{
+              background: "#edf2f7",
+              borderRadius: "999px",
+              height: "0.5rem",
+              overflow: "hidden",
+            }}
+          >
             <div
-              aria-label={`${usedCredits} credits used`}
               style={{
-                background: "#edf2f7",
-                borderRadius: "999px",
-                height: "0.5rem",
-                overflow: "hidden",
+                background: "#ff6a1a",
+                height: "100%",
+                width: `${usagePercent}%`,
               }}
-            >
-              <div
-                style={{
-                  background: "#ff6a1a",
-                  height: "100%",
-                  width: `${usagePercent}%`,
-                }}
-              />
-            </div>
-          </s-stack>
-        </s-box>
-      </s-stack>
+            />
+          </div>
+        </s-stack>
+      </s-box>
     </s-section>
   );
 }
@@ -797,12 +850,15 @@ function ShopifyPanelNavigation({
 function ShopifyPanelContent({
   activePanel,
   adminLocale,
+  availablePlans,
   availableCredits,
   connected,
   connection,
   creditHealth,
+  creditSummary,
   includedCredits,
   pending,
+  productCollections,
   productControls,
   selfxBillingUrl,
   storefrontReady,
@@ -815,12 +871,15 @@ function ShopifyPanelContent({
 }: {
   activePanel: ShopifyAdminPanelKey;
   adminLocale: string;
+  availablePlans: SelfxStorefrontPricingPlan[];
   availableCredits: number;
   connected: boolean;
   connection: SelfxConnectionView;
   creditHealth: CreditHealth;
+  creditSummary: SelfxStorefrontCreditSummary | null;
   includedCredits: number;
   pending: boolean;
+  productCollections: ProductCollectionsView;
   productControls: ProductControlsView | null;
   selfxBillingUrl: string | null;
   storefrontReady: boolean;
@@ -837,6 +896,7 @@ function ShopifyPanelContent({
         <DisplaySettingsPreview />
         {connected ? (
           <ProductControlsSection
+            productCollections={productCollections}
             productControls={productControls}
             syncActionPath={syncActionPath}
           />
@@ -867,9 +927,6 @@ function ShopifyPanelContent({
       />
     );
   }
-  if (activePanel === "leads") {
-    return <FuturePanel panelKey="leads" />;
-  }
   if (activePanel === "plans") {
     return (
       <PlansPanel
@@ -882,9 +939,6 @@ function ShopifyPanelContent({
         includedCredits={includedCredits}
       />
     );
-  }
-  if (activePanel === "support") {
-    return <SupportPanel connection={connection} themeBlock={themeBlock} />;
   }
   return (
     <SetupPanel
@@ -979,7 +1033,11 @@ function SetupPanel({
           gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
           gap="base"
         >
-          <LaunchStep label="Store connected" complete={connected} pending={pending} />
+          <LaunchStep
+            label="Store connected"
+            complete={connected}
+            pending={pending}
+          />
           <LaunchStep
             label="Catalog synced"
             complete={synced}
@@ -1124,7 +1182,8 @@ function DisplaySettingsPreview() {
           <s-stack gap="small-200">
             <s-heading>Product visibility</s-heading>
             <s-text color="subdued">
-              Enable or disable Try-On per synced garment below.
+              Choose all products, collections or specific products, then hide
+              exceptions when needed.
             </s-text>
           </s-stack>
         </s-box>
@@ -1153,7 +1212,8 @@ function LanguageSettingsPanel({
   const currentMonthlyLimit =
     fetcher.data?.settingsMonthlyStoreTryOnLimit ??
     connection.monthlyStoreTryOnLimit;
-  const t = (key: Parameters<typeof adminT>[1]) => adminT(currentAdminLocale, key);
+  const t = (key: Parameters<typeof adminT>[1]) =>
+    adminT(currentAdminLocale, key);
 
   return (
     <s-section heading={t("settings")}>
@@ -1288,12 +1348,15 @@ export function ErrorBoundary() {
     <s-page heading="SelfX Virtual Try-On">
       <s-section>
         <s-stack gap="base">
-          <s-banner heading="SelfX could not complete that request" tone="critical">
+          <s-banner
+            heading="SelfX could not complete that request"
+            tone="critical"
+          >
             {message}
           </s-banner>
           <s-text color="subdued">
-            Refresh the Shopify app. If this happened after saving settings, make
-            sure the Shopify app database migrations have been applied in
+            Refresh the Shopify app. If this happened after saving settings,
+            make sure the Shopify app database migrations have been applied in
             production.
           </s-text>
         </s-stack>
@@ -1472,6 +1535,7 @@ function PlansPanel({
                   kioskMonthlyRentCents: null,
                   kioskDeviceLimit: null,
                   channels: ["SHOPIFY"],
+                  featureKeys: [],
                 }}
               />
             ) : null}
@@ -1491,6 +1555,7 @@ function PlansPanel({
                   kioskMonthlyRentCents: currentPlan.kioskMonthlyRentCents,
                   kioskDeviceLimit: currentPlan.kioskDeviceLimit,
                   channels: currentPlan.channels,
+                  featureKeys: [],
                 }}
               />
             ) : null}
@@ -1549,6 +1614,12 @@ function PlanCard({
   const channelLabel = plan.channels.includes("SHOPIFY")
     ? "Shopify storefront"
     : plan.channels.join(", ");
+  const featureKeys = Array.isArray(plan.featureKeys) ? plan.featureKeys : [];
+  const visibleFeatures = featureKeys.slice(0, 5);
+  const hiddenFeatureCount = Math.max(
+    featureKeys.length - visibleFeatures.length,
+    0,
+  );
   return (
     <div className={`selfx-shopify-plan-card${active ? " is-active" : ""}`}>
       <div className="selfx-shopify-plan-card__header">
@@ -1573,10 +1644,33 @@ function PlanCard({
         </div>
         <div>
           <span>Extra credit</span>
-          <strong>{formatOptionalMoney(plan.extraCreditPriceCents, plan.currency)}</strong>
+          <strong>
+            {formatOptionalMoney(plan.extraCreditPriceCents, plan.currency)}
+          </strong>
         </div>
       </div>
       <div className="selfx-shopify-plan-card__meta">{channelLabel}</div>
+      {visibleFeatures.length > 0 ? (
+        <div className="selfx-shopify-plan-card__features">
+          {visibleFeatures.map((featureKey) => (
+            <div
+              className="selfx-shopify-plan-card__feature"
+              key={featureKey}
+            >
+              <span
+                aria-hidden="true"
+                className="selfx-shopify-plan-card__feature-icon"
+              />
+              <span>{planFeatureLabel(featureKey)}</span>
+            </div>
+          ))}
+          {hiddenFeatureCount > 0 ? (
+            <div className="selfx-shopify-plan-card__more">
+              +{hiddenFeatureCount} more
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {active ? (
         <div className="selfx-shopify-plan-card__active-note">
           This is your current plan.
@@ -1595,6 +1689,14 @@ function PlanCard({
   );
 }
 
+function planFeatureLabel(featureKey: string): string {
+  return featureKey
+    .split(/[_:-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function formatMoney(amountCents: number, currency: string): string {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -1610,59 +1712,13 @@ function formatOptionalMoney(
   return amountCents == null ? "-" : formatMoney(amountCents, currency);
 }
 
-function SupportPanel({
-  connection,
-  themeBlock,
+function UnavailablePanel({
+  body,
+  heading,
 }: {
-  connection: SelfxConnectionView;
-  themeBlock: ThemeBlockView;
+  body: string;
+  heading: string;
 }) {
-  return (
-    <s-section heading="Diagnostics">
-      <s-stack gap="base">
-        <s-box
-          padding="base"
-          background="subdued"
-          borderWidth="small"
-          borderColor="base"
-          borderRadius="base"
-        >
-          <s-stack gap="small-200">
-            <s-heading>Store domain registered</s-heading>
-            <s-text>{connection.shop}</s-text>
-          </s-stack>
-        </s-box>
-        <s-box
-          padding="base"
-          background="subdued"
-          borderWidth="small"
-          borderColor="base"
-          borderRadius="base"
-        >
-          <s-stack gap="small-200">
-            <s-heading>Theme block check</s-heading>
-            <s-text color="subdued">{themeBlockMeta(themeBlock)}</s-text>
-          </s-stack>
-        </s-box>
-      </s-stack>
-    </s-section>
-  );
-}
-
-function FuturePanel({ panelKey }: { panelKey: ShopifyAdminPanelKey }) {
-  const panel = shopifyAdminPanels.find((item) => item.key === panelKey);
-  return (
-    <UnavailablePanel
-      heading={panel?.label ?? "Coming soon"}
-      body={
-        panel?.summary ??
-        "This area is reserved for future Shopify storefront controls."
-      }
-    />
-  );
-}
-
-function UnavailablePanel({ body, heading }: { body: string; heading: string }) {
   return (
     <s-section heading={heading}>
       <s-box
@@ -1843,6 +1899,59 @@ function SelfxShopifyStyles() {
           color: #9f3d00;
         }
 
+        .selfx-shopify-locale-select {
+          inline-size: 12rem;
+          max-inline-size: 100%;
+        }
+
+        .selfx-shopify-visibility-mode-grid {
+          display: grid;
+          gap: 0.75rem;
+          grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        }
+
+        .selfx-shopify-visibility-mode {
+          background: #f8fbfd;
+          border: 1px solid #bfd0e0;
+          border-radius: 8px;
+          color: #1f2d3d;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          min-block-size: 5.25rem;
+          padding: 0.875rem 1rem;
+          text-align: start;
+          transition:
+            background-color 0.16s ease,
+            border-color 0.16s ease,
+            box-shadow 0.16s ease,
+            transform 0.16s ease;
+        }
+
+        .selfx-shopify-visibility-mode:hover {
+          border-color: #8eabbe;
+          box-shadow: 0 10px 24px rgba(31, 45, 61, 0.12);
+          transform: translateY(-1px) scale(1.01);
+        }
+
+        .selfx-shopify-visibility-mode--active {
+          background: #fff3ec;
+          border-color: #ff6a1a;
+          box-shadow: 0 0 0 1px rgba(255, 106, 26, 0.2);
+          color: #9f3d00;
+        }
+
+        .selfx-shopify-visibility-mode span {
+          font-weight: 700;
+        }
+
+        .selfx-shopify-visibility-mode small {
+          color: #5f6f82;
+          font-size: 0.82rem;
+          line-height: 1.35;
+        }
+
         .selfx-shopify-panel-layout {
           align-items: start;
           display: grid;
@@ -1951,6 +2060,53 @@ function SelfxShopifyStyles() {
         .selfx-shopify-plan-card__stats strong {
           color: #00112c;
           font-size: 1rem;
+        }
+
+        .selfx-shopify-plan-card__features {
+          display: grid;
+          gap: 0.5rem;
+          margin-block-start: 0.125rem;
+        }
+
+        .selfx-shopify-plan-card__feature {
+          align-items: center;
+          color: #1f2d3d;
+          display: grid;
+          font-size: 0.875rem;
+          gap: 0.5rem;
+          grid-template-columns: auto minmax(0, 1fr);
+          line-height: 1.35;
+        }
+
+        .selfx-shopify-plan-card__feature-icon {
+          align-items: center;
+          border: 1px solid #00a66a;
+          border-radius: 999px;
+          display: inline-flex;
+          block-size: 1rem;
+          inline-size: 1rem;
+          justify-content: center;
+          position: relative;
+        }
+
+        .selfx-shopify-plan-card__feature-icon::after {
+          border-block-end: 2px solid #00a66a;
+          border-inline-end: 2px solid #00a66a;
+          content: "";
+          block-size: 0.45rem;
+          inline-size: 0.25rem;
+          transform: rotate(45deg) translate(-1px, -1px);
+        }
+
+        .selfx-shopify-plan-card__more {
+          color: #ff6a1a;
+          font-size: 0.875rem;
+          font-weight: 700;
+        }
+
+        .selfx-shopify-plan-card > .selfx-shopify-button,
+        .selfx-shopify-plan-card__active-note {
+          margin-block-start: auto;
         }
 
         .selfx-shopify-plan-pill {
@@ -2070,43 +2226,6 @@ function SyncBadge({ status }: { status: SelfxConnectionView["syncStatus"] }) {
   return <s-badge tone="neutral">Not started</s-badge>;
 }
 
-function CreditStatusBanner({
-  adminLocale,
-  billingUrl,
-  health,
-}: {
-  adminLocale: string;
-  billingUrl: string | null;
-  health: CreditHealth;
-}) {
-  if (health === "HEALTHY" || health === "UNKNOWN") {
-    return null;
-  }
-  const empty = health === "EMPTY";
-  const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
-  return (
-    <s-banner
-      heading={empty ? t("tryOnPaused") : t("tryOnCreditsLow")}
-      tone={empty ? "critical" : "warning"}
-    >
-      <s-stack gap="base">
-        <s-text>
-          {empty
-            ? t("emptyCreditsMessage")
-            : adminFormat(adminLocale, "lowCreditsMessage", {
-                threshold: lowCreditThreshold,
-              })}
-        </s-text>
-        {billingUrl ? (
-          <s-button href={billingUrl} target="_blank" variant="secondary">
-            {t("openSelfxBilling")}
-          </s-button>
-        ) : null}
-      </s-stack>
-    </s-banner>
-  );
-}
-
 function CreditBadge({
   adminLocale,
   health,
@@ -2128,20 +2247,25 @@ function CreditBadge({
 }
 
 function ProductControlsSection({
+  productCollections,
   productControls,
   syncActionPath,
 }: {
+  productCollections: ProductCollectionsView;
   productControls: ProductControlsView | null;
   syncActionPath: string;
 }) {
   const products = productControls?.data ?? [];
+  const eligibleProducts = products.filter(isProductEligibleForVisibilityRule);
+  const readyCount = productControls?.summary.ready ?? 0;
+  const [visibilityMode, setVisibilityMode] =
+    useState<ProductVisibilityMode>("ALL");
   return (
     <s-section heading="Try-On products">
       <s-stack gap="base">
         <s-text color="subdued">
-          Manage SelfX Try-On eligibility for products synchronized from this
-          Shopify store. Product details stay read-only and continue to sync
-          from Shopify.
+          Choose where the SelfX Try-On button appears. Exceptions always hide
+          the button, even when a product matches the selected rule.
         </s-text>
 
         {productControls?.errorMessage ? (
@@ -2150,11 +2274,164 @@ function ProductControlsSection({
           </s-banner>
         ) : null}
 
+        {productCollections.errorMessage ? (
+          <s-banner heading="Collection rules unavailable" tone="warning">
+            {productCollections.errorMessage}
+          </s-banner>
+        ) : null}
+
+        {products.length > 0 ? (
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="setProductVisibilityRule"
+            />
+            <input type="hidden" name="visibilityMode" value={visibilityMode} />
+            <s-box
+              padding="base"
+              background="base"
+              borderWidth="small"
+              borderColor="base"
+              borderRadius="base"
+            >
+              <s-stack gap="base">
+                <s-grid
+                  gridTemplateColumns="1fr auto"
+                  gap="base"
+                  alignItems="center"
+                >
+                  <s-grid-item>
+                    <s-stack gap="small-200">
+                      <s-heading>
+                        Where should the Try-On button appear?
+                      </s-heading>
+                      <s-text color="subdued">
+                        Apply visibility in bulk, then use exceptions for
+                        products that should stay hidden.
+                      </s-text>
+                    </s-stack>
+                  </s-grid-item>
+                  <s-grid-item>
+                    <s-badge tone={readyCount > 0 ? "success" : "neutral"}>
+                      {readyCount} currently visible
+                    </s-badge>
+                  </s-grid-item>
+                </s-grid>
+
+                <div className="selfx-shopify-visibility-mode-grid">
+                  <VisibilityModeButton
+                    active={visibilityMode === "ALL"}
+                    label="All products"
+                    meta="Show Try-On on every eligible synced product."
+                    onClick={() => setVisibilityMode("ALL")}
+                  />
+                  <VisibilityModeButton
+                    active={visibilityMode === "COLLECTIONS"}
+                    label="By collection"
+                    meta="Show Try-On only for products in selected collections."
+                    onClick={() => setVisibilityMode("COLLECTIONS")}
+                  />
+                  <VisibilityModeButton
+                    active={visibilityMode === "PRODUCTS"}
+                    label="Specific products"
+                    meta="Show Try-On only for selected synced products."
+                    onClick={() => setVisibilityMode("PRODUCTS")}
+                  />
+                </div>
+
+                {visibilityMode === "COLLECTIONS" ? (
+                  <VisibilityChoicePanel
+                    emptyText="No Shopify collections were found for this store."
+                    title="Select collections"
+                  >
+                    {productCollections.data.map((collection) => (
+                      <s-checkbox
+                        key={collection.id}
+                        label={`${collection.title} (${collection.productsCount} products)`}
+                        name="selectedCollectionIds"
+                        value={collection.id}
+                        details={
+                          collection.productIds.length
+                            ? `${collection.productIds.length} synced products can be matched.`
+                            : "No currently synced SelfX products matched this collection yet."
+                        }
+                      />
+                    ))}
+                  </VisibilityChoicePanel>
+                ) : null}
+
+                {visibilityMode === "PRODUCTS" ? (
+                  <VisibilityChoicePanel
+                    emptyText="No eligible synced products are available yet."
+                    title="Select products"
+                  >
+                    {eligibleProducts.map((product) => (
+                      <s-checkbox
+                        key={product.externalProductId}
+                        label={product.name}
+                        name="selectedProductIds"
+                        value={product.externalProductId}
+                        details={
+                          product.handle
+                            ? `Handle: ${product.handle}`
+                            : product.externalProductId
+                        }
+                        defaultChecked={product.vtoEnabled}
+                      />
+                    ))}
+                  </VisibilityChoicePanel>
+                ) : null}
+
+                <VisibilityChoicePanel
+                  emptyText="No eligible synced products are available for exceptions."
+                  title="Exceptions - always hide on these products"
+                >
+                  {eligibleProducts.map((product) => (
+                    <s-checkbox
+                      key={product.externalProductId}
+                      label={product.name}
+                      name="exceptionProductIds"
+                      value={product.externalProductId}
+                      details={
+                        product.handle
+                          ? `Handle: ${product.handle}`
+                          : product.externalProductId
+                      }
+                    />
+                  ))}
+                </VisibilityChoicePanel>
+
+                <s-grid
+                  gridTemplateColumns="1fr auto"
+                  gap="base"
+                  alignItems="center"
+                >
+                  <s-grid-item>
+                    <s-text color="subdued">
+                      Product details stay read-only and continue to sync from
+                      Shopify.
+                    </s-text>
+                  </s-grid-item>
+                  <s-grid-item>
+                    <SelfxActionButton type="submit" tone="primary">
+                      Apply visibility
+                    </SelfxActionButton>
+                  </s-grid-item>
+                </s-grid>
+              </s-stack>
+            </s-box>
+          </Form>
+        ) : null}
+
         <s-grid
           gridTemplateColumns="repeat(auto-fit, minmax(10rem, 1fr))"
           gap="base"
         >
-          <Metric label="Synced products" value={productControls?.summary.total ?? 0} />
+          <Metric
+            label="Synced products"
+            value={productControls?.summary.total ?? 0}
+          />
           <Metric label="Ready" value={productControls?.summary.ready ?? 0} />
           <Metric
             label="Disabled"
@@ -2169,7 +2446,10 @@ function ProductControlsSection({
         {products.length > 0 ? (
           <s-stack gap="base">
             {products.map((product) => (
-              <ProductControlRow key={product.externalProductId} product={product} />
+              <ProductControlRow
+                key={product.externalProductId}
+                product={product}
+              />
             ))}
           </s-stack>
         ) : (
@@ -2186,7 +2466,11 @@ function ProductControlsSection({
                 Sync the Shopify catalog to import products, then enable Try-On
                 for eligible garments here.
               </s-text>
-              <s-button href={syncActionPath} variant="secondary" icon="refresh">
+              <s-button
+                href={syncActionPath}
+                variant="secondary"
+                icon="refresh"
+              >
                 Sync catalog
               </s-button>
             </s-stack>
@@ -2195,6 +2479,69 @@ function ProductControlsSection({
       </s-stack>
     </s-section>
   );
+}
+
+function VisibilityModeButton({
+  active,
+  label,
+  meta,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  meta: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`selfx-shopify-visibility-mode${
+        active ? " selfx-shopify-visibility-mode--active" : ""
+      }`}
+      type="button"
+      onClick={onClick}
+    >
+      <span>{label}</span>
+      <small>{meta}</small>
+    </button>
+  );
+}
+
+function VisibilityChoicePanel({
+  children,
+  emptyText,
+  title,
+}: {
+  children: ReactNode;
+  emptyText: string;
+  title: string;
+}) {
+  const hasItems = Array.isArray(children)
+    ? children.length > 0
+    : Boolean(children);
+  return (
+    <s-box
+      padding="base"
+      background="subdued"
+      borderWidth="small"
+      borderColor="base"
+      borderRadius="base"
+    >
+      <s-stack gap="base">
+        <s-heading>{title}</s-heading>
+        {hasItems ? (
+          <s-stack gap="small-200">{children}</s-stack>
+        ) : (
+          <s-text color="subdued">{emptyText}</s-text>
+        )}
+      </s-stack>
+    </s-box>
+  );
+}
+
+function isProductEligibleForVisibilityRule(
+  product: SelfxProductControl,
+): boolean {
+  return product.tryOnStatus === "READY" || product.tryOnStatus === "DISABLED";
 }
 
 function ProductControlRow({ product }: { product: SelfxProductControl }) {
@@ -2208,7 +2555,11 @@ function ProductControlRow({ product }: { product: SelfxProductControl }) {
       borderColor="base"
       borderRadius="base"
     >
-      <s-grid gridTemplateColumns="minmax(0, 1fr) auto" gap="base" alignItems="center">
+      <s-grid
+        gridTemplateColumns="minmax(0, 1fr) auto"
+        gap="base"
+        alignItems="center"
+      >
         <s-grid-item>
           <s-stack direction="inline" gap="base" alignItems="center">
             {product.imageUrl ? (
@@ -2274,11 +2625,7 @@ function ProductControlRow({ product }: { product: SelfxProductControl }) {
   );
 }
 
-function ProductStatusBadge({
-  status,
-}: {
-  status: SelfxProductTryOnStatus;
-}) {
+function ProductStatusBadge({ status }: { status: SelfxProductTryOnStatus }) {
   if (status === "READY") return <s-badge tone="success">Ready</s-badge>;
   if (status === "DISABLED") return <s-badge tone="neutral">Disabled</s-badge>;
   if (status === "INACTIVE") return <s-badge tone="warning">Inactive</s-badge>;
@@ -2350,27 +2697,179 @@ async function safeThemeBlockView(input: {
   }
 }
 
-function emptyThemeBlockView(
-  status: ThemeBlockView["status"],
-): ThemeBlockView {
+async function safeProductCollections(input: {
+  accessToken: string | undefined;
+  connected: boolean;
+  shop: string;
+}): Promise<ProductCollectionsView> {
+  if (!input.connected) {
+    return { data: [], errorMessage: null };
+  }
+  const shopDomain = normalizeShopDomain(input.shop);
+  if (!shopDomain || !input.accessToken) {
+    return {
+      data: [],
+      errorMessage:
+        "Collection access is not available for this Shopify session.",
+    };
+  }
+  try {
+    const collections = await new ShopifyAdminClient({
+      shopDomain,
+      accessToken: input.accessToken,
+      apiVersion: shopifyApiVersion(),
+      productPageSize: 50,
+    }).listProductCollections({ first: 25, productFirst: 250 });
+    return {
+      data: collections.map((collection) => ({
+        id: collection.id,
+        title: collection.title,
+        handle: collection.handle,
+        productsCount: collection.productsCount,
+        productIds: collection.products.map((product) => product.id),
+      })),
+      errorMessage: null,
+    };
+  } catch {
+    return {
+      data: [],
+      errorMessage:
+        "SelfX could not load Shopify collections. Confirm the app has read_products access.",
+    };
+  }
+}
+
+async function applyProductVisibilityRule(input: {
+  accessToken: string | undefined;
+  formData: FormData;
+  shop: string;
+}): Promise<{ message: string }> {
+  const mode = normalizeProductVisibilityMode(
+    input.formData.get("visibilityMode"),
+  );
+  const selectedProductIds = formValueSet(input.formData, "selectedProductIds");
+  const selectedCollectionIds = formValueSet(
+    input.formData,
+    "selectedCollectionIds",
+  );
+  const exceptionProductIds = formValueSet(
+    input.formData,
+    "exceptionProductIds",
+  );
+
+  if (mode === "PRODUCTS" && selectedProductIds.size === 0) {
+    throw new Error("Select at least one product for this visibility rule.");
+  }
+  if (mode === "COLLECTIONS" && selectedCollectionIds.size === 0) {
+    throw new Error("Select at least one collection for this visibility rule.");
+  }
+
+  const client = await productControlsClient(input.shop);
+  const products = (await client.listProducts(50)).data;
+  const eligibleProducts = products.filter(isProductEligibleForVisibilityRule);
+  const eligibleIds = new Set(
+    eligibleProducts.map((product) => product.externalProductId),
+  );
+
+  let targetIds = new Set<string>();
+  if (mode === "ALL") {
+    targetIds = new Set(eligibleIds);
+  } else if (mode === "PRODUCTS") {
+    targetIds = intersectSet(selectedProductIds, eligibleIds);
+  } else {
+    targetIds = intersectSet(
+      await resolveCollectionProductIds({
+        accessToken: input.accessToken,
+        collectionIds: selectedCollectionIds,
+        shop: input.shop,
+      }),
+      eligibleIds,
+    );
+  }
+  if (mode !== "ALL" && targetIds.size === 0) {
+    throw new Error(
+      "That visibility rule did not match any eligible synced SelfX products.",
+    );
+  }
+
+  let changed = 0;
+  for (const product of eligibleProducts) {
+    const enabled =
+      targetIds.has(product.externalProductId) &&
+      !exceptionProductIds.has(product.externalProductId);
+    if (product.vtoEnabled === enabled) {
+      continue;
+    }
+    await client.setProductVto({
+      externalProductId: product.externalProductId,
+      enabled,
+    });
+    changed += 1;
+  }
+
+  const visible = eligibleProducts.filter(
+    (product) =>
+      targetIds.has(product.externalProductId) &&
+      !exceptionProductIds.has(product.externalProductId),
+  ).length;
+  return {
+    message: `Product visibility updated. ${visible} products will show Try-On, ${changed} changed.`,
+  };
+}
+
+async function resolveCollectionProductIds(input: {
+  accessToken: string | undefined;
+  collectionIds: Set<string>;
+  shop: string;
+}): Promise<Set<string>> {
+  const shopDomain = normalizeShopDomain(input.shop);
+  if (!shopDomain || !input.accessToken) {
+    throw new Error("Shopify authentication must be refreshed.");
+  }
+  const collections = await new ShopifyAdminClient({
+    shopDomain,
+    accessToken: input.accessToken,
+    apiVersion: shopifyApiVersion(),
+    productPageSize: 50,
+  }).listProductCollections({ first: 50, productFirst: 250 });
+  const productIds = new Set<string>();
+  for (const collection of collections) {
+    if (!input.collectionIds.has(collection.id)) {
+      continue;
+    }
+    for (const product of collection.products) {
+      productIds.add(product.id);
+    }
+  }
+  return productIds;
+}
+
+function normalizeProductVisibilityMode(
+  value: FormDataEntryValue | null,
+): ProductVisibilityMode {
+  return value === "COLLECTIONS" || value === "PRODUCTS" ? value : "ALL";
+}
+
+function formValueSet(formData: FormData, name: string): Set<string> {
+  return new Set(
+    formData
+      .getAll(name)
+      .map((value) => String(value).trim())
+      .filter(Boolean),
+  );
+}
+
+function intersectSet(values: Set<string>, allowed: Set<string>): Set<string> {
+  return new Set([...values].filter((value) => allowed.has(value)));
+}
+
+function emptyThemeBlockView(status: ThemeBlockView["status"]): ThemeBlockView {
   return {
     status,
     themeName: null,
     checkedFilenames: ["templates/product.json"],
     errorMessage: null,
   };
-}
-
-function themeBlockMeta(themeBlock: ThemeBlockView): string {
-  if (themeBlock.status === "INSTALLED" && themeBlock.themeName) {
-    return `Detected on ${themeBlock.themeName}`;
-  }
-  if (themeBlock.status === "NOT_INSTALLED" && themeBlock.themeName) {
-    return `Checked ${themeBlock.themeName}: ${themeBlock.checkedFilenames.join(
-      ", ",
-    )}`;
-  }
-  return themeBlock.errorMessage ?? "Theme block status has not been checked.";
 }
 
 async function safeConnectionView(shop: string): Promise<SelfxConnectionView> {
@@ -2463,7 +2962,7 @@ async function safeProductControls(
   }
   try {
     return {
-      ...(await (await productControlsClient(shop)).listProducts()),
+      ...(await (await productControlsClient(shop)).listProducts(50)),
       errorMessage: null,
     };
   } catch {

@@ -198,6 +198,68 @@ describe("ShopifyAdminClient", () => {
     clock.mockRestore();
   });
 
+  it("lists product collections with their product ids", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: {
+          collections: {
+            nodes: [
+              {
+                id: "gid://shopify/Collection/1",
+                title: "Summer",
+                handle: "summer",
+                productsCount: { count: 2 },
+                products: {
+                  nodes: [
+                    {
+                      id: "gid://shopify/Product/1",
+                      title: "Linen Shirt",
+                    },
+                    {
+                      id: "gid://shopify/Product/2",
+                      title: "Cotton Dress",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      }),
+    );
+    const client = new ShopifyAdminClient({
+      shopDomain: "demo.myshopify.com",
+      accessToken: "secret-shop-token",
+      apiVersion: "2026-07",
+      productPageSize: 50,
+      fetchImpl,
+    });
+
+    await expect(client.listProductCollections()).resolves.toEqual([
+      {
+        id: "gid://shopify/Collection/1",
+        title: "Summer",
+        handle: "summer",
+        productsCount: 2,
+        products: [
+          {
+            id: "gid://shopify/Product/1",
+            title: "Linen Shirt",
+          },
+          {
+            id: "gid://shopify/Product/2",
+            title: "Cotton Dress",
+          },
+        ],
+      },
+    ]);
+    const body = JSON.parse(
+      String((fetchImpl.mock.calls[0]?.[1] as RequestInit).body),
+    ) as { query: string };
+    expect(body.query.trimStart()).toMatch(/^query /);
+    expect(body.query).not.toMatch(/\bmutation\b/i);
+  });
+
   it("detects the SelfX app block in the main product template", async () => {
     const fetchImpl = vi
       .fn()

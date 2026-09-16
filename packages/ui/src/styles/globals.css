@@ -173,8 +173,49 @@ textarea {
   font: inherit;
 }
 
-input[type="checkbox"] {
-  accent-color: var(--selfx-primary);
+input[type="checkbox"]:not(.sr-only) {
+  appearance: none;
+  display: inline-grid;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  place-content: center;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background-color: #ffffff;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 0.75rem 0.75rem;
+  color: var(--selfx-primary);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
+  vertical-align: middle;
+}
+
+input[type="checkbox"]:not(.sr-only):checked {
+  border-color: var(--selfx-primary);
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M3.5 8.25L6.6 11.25L12.75 4.75' stroke='%23ff7119' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e");
+}
+
+input[type="checkbox"]:not(.sr-only):hover {
+  border-color: color-mix(in srgb, var(--selfx-primary), white 35%);
+}
+
+input[type="checkbox"]:not(.sr-only):focus-visible {
+  outline: none;
+  border-color: var(--selfx-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--selfx-primary), transparent 72%);
+}
+
+input[type="checkbox"]:not(.sr-only):disabled {
+  cursor: not-allowed;
+  border-color: var(--input);
+  background-color: var(--muted);
+  opacity: 0.7;
 }
 
 @keyframes selfx-toast-progress {

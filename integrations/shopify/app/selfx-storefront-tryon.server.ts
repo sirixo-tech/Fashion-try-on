@@ -55,6 +55,7 @@ export type SelfxStorefrontPricingPlan = {
   extraCreditPriceCents: number | null;
   kioskMonthlyRentCents: number | null;
   kioskDeviceLimit: number | null;
+  featureKeys: string[];
 };
 
 export type SelfxStorefrontPricingPlans = {

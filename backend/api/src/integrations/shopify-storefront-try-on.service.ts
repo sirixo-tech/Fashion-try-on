@@ -7,7 +7,6 @@ import {
   ExternalProductMappingStatus,
   IntegrationStatus,
   KioskAssignmentScope,
-  PricingPlanStatus,
   type Prisma,
   type Product,
   TryOnAssetPurpose,
@@ -38,7 +37,8 @@ import {
   type PublicApiUploadPayload,
 } from "../developer-api/public-api-upload.multipart.js";
 import { EntitlementsService } from "../entitlements/entitlements.service.js";
-import { featureKeysFromPricingPlanMetadata } from "../entitlements/pricing-control.service.js";
+import { PricingControlService } from "../entitlements/pricing-control.service.js";
+import { type PricingPlanResponseDto } from "../entitlements/dto/pricing-plan.dto.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import {
   TryOnExecutionService,
@@ -140,6 +140,7 @@ export class ShopifyStorefrontTryOnService {
     private readonly storage: ObjectStorageService,
     private readonly execution: TryOnExecutionService,
     private readonly entitlements: EntitlementsService,
+    private readonly pricing: PricingControlService,
   ) {}
 
   async createSession(
@@ -348,10 +349,7 @@ export class ShopifyStorefrontTryOnService {
     shop: string | undefined,
   ): Promise<ShopifyStorefrontPricingPlansDto> {
     await this.requireActiveIntegrationForShop(shop);
-    const plans = await this.prisma.pricingPlan.findMany({
-      where: { status: PricingPlanStatus.ACTIVE },
-      orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
-    });
+    const plans = await this.pricing.listAvailablePlans();
     return {
       data: plans.filter(supportsShopifyChannel).map(toPricingPlanDto),
     };
@@ -1208,25 +1206,14 @@ function toCapabilityProductDto(
   };
 }
 
-function toPricingPlanDto(plan: {
-  id: string;
-  code: string;
-  name: string;
-  channels: Prisma.JsonValue;
-  currency: string;
-  monthlyPriceCents: number;
-  includedCredits: number;
-  trialCredits: number;
-  extraCreditPriceCents: number | null;
-  kioskMonthlyRentCents: number | null;
-  kioskDeviceLimit: number | null;
-  metadata: Prisma.JsonValue | null;
-}): ShopifyStorefrontPricingPlanDto {
+function toPricingPlanDto(
+  plan: PricingPlanResponseDto,
+): ShopifyStorefrontPricingPlanDto {
   return {
     id: plan.id,
     code: plan.code,
     name: plan.name,
-    channels: jsonStringArray(plan.channels),
+    channels: plan.channels,
     currency: plan.currency,
     monthlyPriceCents: plan.monthlyPriceCents,
     includedCredits: plan.includedCredits,
@@ -1234,12 +1221,12 @@ function toPricingPlanDto(plan: {
     extraCreditPriceCents: plan.extraCreditPriceCents,
     kioskMonthlyRentCents: plan.kioskMonthlyRentCents,
     kioskDeviceLimit: plan.kioskDeviceLimit,
-    featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
+    featureKeys: plan.featureKeys,
   };
 }
 
-function supportsShopifyChannel(plan: { channels: Prisma.JsonValue }): boolean {
-  return jsonStringArray(plan.channels).includes("SHOPIFY");
+function supportsShopifyChannel(plan: { channels: string[] }): boolean {
+  return plan.channels.includes("SHOPIFY");
 }
 
 function jsonStringArray(value: Prisma.JsonValue): string[] {

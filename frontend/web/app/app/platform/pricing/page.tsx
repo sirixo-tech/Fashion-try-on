@@ -24,6 +24,12 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -262,170 +268,271 @@ function PricingPlanCard({
   onArchive: () => void;
 }) {
   const archived = plan.status === "ARCHIVED";
-  const featureLabels = labelsForFeatureKeys(plan.featureKeys, features);
+  const featureItems = featureItemsForKeys(plan.featureKeys, features);
+  const [featuresOpen, setFeaturesOpen] = useState(false);
+  const hiddenFeatureCount = Math.max(featureItems.length - 5, 0);
 
   return (
-    <Card className={archived ? "opacity-70" : undefined}>
-      <CardHeader className="gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <CreditCardIcon aria-hidden="true" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <CardTitle className="truncate text-lg">{plan.name}</CardTitle>
-            <div className="truncate text-xs text-muted-foreground">
-              {plan.code}
+    <>
+      <Card className={archived ? "opacity-70" : undefined}>
+        <CardHeader className="gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+              <CreditCardIcon aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="truncate text-lg">{plan.name}</CardTitle>
+              <div className="truncate text-xs text-muted-foreground">
+                {plan.code}
+              </div>
             </div>
           </div>
-        </div>
-        <CardAction>
-          <Badge variant={plan.status === "ACTIVE" ? "default" : "secondary"}>
-            {plan.status}
-          </Badge>
-        </CardAction>
-      </CardHeader>
+          <CardAction>
+            <Badge variant={plan.status === "ACTIVE" ? "default" : "secondary"}>
+              {plan.status}
+            </Badge>
+          </CardAction>
+        </CardHeader>
 
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <PlanMetric
-            label="Monthly"
-            value={money(plan.monthlyPriceCents, plan.currency)}
-          />
-          <PlanMetric
-            label="Credits"
-            value={number(plan.includedCredits)}
-            meta={`${number(plan.trialCredits)} trial`}
-          />
-        </div>
-
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <SparklesIcon size={16} aria-hidden="true" />
-            Channels
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <PlanMetric
+              label="Monthly"
+              value={money(plan.monthlyPriceCents, plan.currency)}
+            />
+            <PlanMetric
+              label="Credits"
+              value={number(plan.includedCredits)}
+              meta={`${number(plan.trialCredits)} trial`}
+            />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {plan.channels.map((channel) => (
-              <Badge key={channel} variant="secondary">
-                {channelLabel(channel)}
-              </Badge>
-            ))}
-          </div>
-        </div>
 
-        <div className="grid gap-2 text-sm">
-          <PlanDetail
-            label="Extra credit"
-            value={
-              plan.extraCreditPriceCents === null
-                ? "-"
-                : money(plan.extraCreditPriceCents, plan.currency)
-            }
-          />
-          <PlanDetail
-            label="Kiosk rent"
-            value={
-              plan.kioskMonthlyRentCents === null
-                ? "-"
-                : `${money(plan.kioskMonthlyRentCents, plan.currency)} / month`
-            }
-          />
-          <PlanDetail
-            label="Kiosk devices"
-            value={
-              plan.kioskDeviceLimit === null
-                ? "Unlimited"
-                : number(plan.kioskDeviceLimit)
-            }
-          />
-        </div>
-
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Included features
-          </div>
-          {featureLabels.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No features assigned yet.
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <SparklesIcon size={16} aria-hidden="true" />
+              Channels
             </div>
-          ) : (
-            <ul className="grid gap-2 text-sm">
-              {featureLabels.slice(0, 5).map((label) => (
-                <li key={label} className="flex items-start gap-2">
-                  <CheckCircle2Icon
-                    size={16}
-                    aria-hidden="true"
-                    className="mt-0.5 shrink-0 text-emerald-600"
-                  />
-                  <span>{label}</span>
-                </li>
+            <div className="flex flex-wrap gap-2">
+              {plan.channels.map((channel) => (
+                <Badge key={channel} variant="secondary">
+                  {channelLabel(channel)}
+                </Badge>
               ))}
-            </ul>
-          )}
-          {featureLabels.length > 5 ? (
-            <div className="mt-2 text-xs font-medium text-primary">
-              +{featureLabels.length - 5} more
             </div>
-          ) : null}
-        </div>
-      </CardContent>
+          </div>
 
-      <CardFooter className="justify-between gap-3">
-        <div
-          className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"
-          title={`Updated ${formatDate(plan.updatedAt)}`}
-        >
-          <StoreIcon size={15} aria-hidden="true" className="shrink-0" />
-          <span className="truncate">
-            {number(plan.assignedStoreCount)}{" "}
-            {plan.assignedStoreCount === 1 ? "store" : "stores"}
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Link
-            href={`/app/platform/pricing/${plan.id}/edit`}
-            aria-label={`Edit ${plan.name}`}
-            title="Edit plan"
-            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
-          >
-            <PencilIcon aria-hidden="true" />
-          </Link>
-          <ConfirmDialog
-            title="Archive plan?"
-            description={`${plan.name} will be hidden from available plan lists, but kept for reporting and historical subscriptions.`}
-            confirmLabel="Archive"
-            destructive
-            onConfirm={onArchive}
-            trigger={
+          <div className="grid gap-2 text-sm">
+            <PlanDetail
+              label="Extra credit"
+              value={
+                plan.extraCreditPriceCents === null
+                  ? "-"
+                  : money(plan.extraCreditPriceCents, plan.currency)
+              }
+            />
+            <PlanDetail
+              label="Kiosk rent"
+              value={
+                plan.kioskMonthlyRentCents === null
+                  ? "-"
+                  : `${money(plan.kioskMonthlyRentCents, plan.currency)} / month`
+              }
+            />
+            <PlanDetail
+              label="Kiosk devices"
+              value={
+                plan.kioskDeviceLimit === null
+                  ? "Unlimited"
+                  : number(plan.kioskDeviceLimit)
+              }
+            />
+          </div>
+
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Included features
+            </div>
+            {featureItems.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No features assigned yet.
+              </div>
+            ) : (
+              <ul className="grid gap-2 text-sm">
+                {featureItems.slice(0, 5).map((feature) => (
+                  <FeatureListItem key={feature.key} feature={feature} />
+                ))}
+              </ul>
+            )}
+            {hiddenFeatureCount > 0 ? (
               <Button
                 type="button"
-                variant="outline"
-                size="icon-sm"
-                aria-label={`Archive ${plan.name}`}
-                title={archived ? "Already archived" : "Archive plan"}
-                disabled={!canManage || archived || archiving}
+                variant="link"
+                size="xs"
+                className="mt-2 h-auto px-0 text-xs"
+                onClick={() => setFeaturesOpen(true)}
               >
-                {archived ? (
-                  <ArchiveIcon aria-hidden="true" />
-                ) : (
-                  <Trash2Icon aria-hidden="true" />
-                )}
+                +{hiddenFeatureCount} more
               </Button>
-            }
-          />
-        </div>
-      </CardFooter>
-    </Card>
+            ) : null}
+          </div>
+        </CardContent>
+
+        <CardFooter className="justify-between gap-3">
+          <div
+            className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"
+            title={`Updated ${formatDate(plan.updatedAt)}`}
+          >
+            <StoreIcon size={15} aria-hidden="true" className="shrink-0" />
+            <span className="truncate">
+              {number(plan.assignedStoreCount)}{" "}
+              {plan.assignedStoreCount === 1 ? "store" : "stores"}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={`/app/platform/pricing/${plan.id}/edit`}
+              aria-label={`Edit ${plan.name}`}
+              title="Edit plan"
+              className={buttonVariants({
+                variant: "outline",
+                size: "icon-sm",
+              })}
+            >
+              <PencilIcon aria-hidden="true" />
+            </Link>
+            <ConfirmDialog
+              title="Archive plan?"
+              description={`${plan.name} will be hidden from available plan lists, but kept for reporting and historical subscriptions.`}
+              confirmLabel="Archive"
+              destructive
+              onConfirm={onArchive}
+              trigger={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={`Archive ${plan.name}`}
+                  title={archived ? "Already archived" : "Archive plan"}
+                  disabled={!canManage || archived || archiving}
+                >
+                  {archived ? (
+                    <ArchiveIcon aria-hidden="true" />
+                  ) : (
+                    <Trash2Icon aria-hidden="true" />
+                  )}
+                </Button>
+              }
+            />
+          </div>
+        </CardFooter>
+      </Card>
+
+      <Dialog open={featuresOpen} onOpenChange={setFeaturesOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{plan.name} features</DialogTitle>
+            <DialogDescription>
+              {number(featureItems.length)} features included on this plan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55dvh] overflow-y-auto pr-1">
+            {featureItems.length === 0 ? (
+              <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                No features assigned yet.
+              </div>
+            ) : (
+              <ul className="grid gap-2">
+                {featureItems.map((feature) => (
+                  <FeatureListItem
+                    key={feature.key}
+                    feature={feature}
+                    spacious
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFeaturesOpen(false)}
+            >
+              Close
+            </Button>
+            <Link
+              href={`/app/platform/pricing/${plan.id}/edit`}
+              className={buttonVariants({ variant: "default" })}
+            >
+              <PencilIcon aria-hidden="true" />
+              Edit plan
+            </Link>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-function labelsForFeatureKeys(
+type PlanFeatureItem = {
+  key: string;
+  label: string;
+  description: string | null;
+};
+
+function FeatureListItem({
+  feature,
+  spacious = false,
+}: {
+  feature: PlanFeatureItem;
+  spacious?: boolean;
+}) {
+  return (
+    <li
+      className={
+        spacious
+          ? "flex items-start gap-3 rounded-lg border bg-muted/30 p-3 text-sm"
+          : "flex items-start gap-2"
+      }
+    >
+      <CheckCircle2Icon
+        size={16}
+        aria-hidden="true"
+        className="mt-0.5 shrink-0 text-emerald-600"
+      />
+      <span className="min-w-0">
+        <span className="block">{feature.label}</span>
+        {spacious && feature.description ? (
+          <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+            {feature.description}
+          </span>
+        ) : null}
+      </span>
+    </li>
+  );
+}
+
+function featureItemsForKeys(
   featureKeys: string[],
   features: PlanFeature[],
-): string[] {
-  const labels = new Map(
-    features.map((feature) => [feature.key, feature.displayName]),
+): PlanFeatureItem[] {
+  const featureDetails = new Map(
+    features.map((feature) => [
+      feature.key,
+      {
+        label: feature.displayName,
+        description: feature.description,
+      },
+    ]),
   );
-  return featureKeys.map((key) => labels.get(key) ?? key);
+  return featureKeys.map((key) => {
+    const feature = featureDetails.get(key);
+    return {
+      key,
+      label: feature?.label ?? key,
+      description: feature?.description ?? null,
+    };
+  });
 }
 
 function PlanMetric({
