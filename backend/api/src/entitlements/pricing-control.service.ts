@@ -1,5 +1,10 @@
 import { HttpStatus, Injectable, Optional } from "@nestjs/common";
-import { PricingPlanStatus, Prisma, type PricingPlan } from "@prisma/client";
+import {
+  PricingPlanStatus,
+  Prisma,
+  StoreSubscriptionStatus,
+  type PricingPlan,
+} from "@prisma/client";
 
 import { createSelfxId } from "@selfx/database";
 
@@ -39,7 +44,11 @@ export class PricingControlService {
     const plans = await this.prisma.pricingPlan.findMany({
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     });
-    return defaultStarterFirst(plans).map(toDto);
+    const orderedPlans = defaultStarterFirst(plans);
+    const assignedStoreCounts = await this.assignedStoreCounts(orderedPlans);
+    return orderedPlans.map((plan) =>
+      toDto(plan, assignedStoreCounts.get(plan.id) ?? 0),
+    );
   }
 
   async listAvailablePlans(): Promise<PricingPlanResponseDto[]> {
@@ -51,7 +60,11 @@ export class PricingControlService {
       where: { status: PricingPlanStatus.ACTIVE },
       orderBy: [{ monthlyPriceCents: "asc" }, { createdAt: "desc" }],
     });
-    return defaultStarterFirst(plans).map(toDto);
+    const orderedPlans = defaultStarterFirst(plans);
+    const assignedStoreCounts = await this.assignedStoreCounts(orderedPlans);
+    return orderedPlans.map((plan) =>
+      toDto(plan, assignedStoreCounts.get(plan.id) ?? 0),
+    );
   }
 
   async createPlan(
@@ -151,7 +164,7 @@ export class PricingControlService {
               : {}),
           },
         });
-        await tx.storeSubscription.updateMany({
+        const updatedSubscriptions = await tx.storeSubscription.updateMany({
           where: { pricingPlanId: plan.id },
           data: {
             channels: jsonStringArray(plan.channels),
@@ -160,7 +173,15 @@ export class PricingControlService {
             metadata: subscriptionMetadataForPlan(plan),
           },
         });
-        return toDto(plan);
+        const legacyStarterCount = starterPlan
+          ? await tx.storeSubscription.count({
+              where: {
+                pricingPlanId: null,
+                status: StoreSubscriptionStatus.TRIALING,
+              },
+            })
+          : 0;
+        return toDto(plan, updatedSubscriptions.count + legacyStarterCount);
       });
     } catch (error) {
       if (isMissingRecord(error)) {
@@ -184,9 +205,47 @@ export class PricingControlService {
       return "USD";
     }
   }
+
+  private async assignedStoreCounts(
+    plans: PricingPlan[],
+  ): Promise<Map<string, number>> {
+    const planIds = plans.map((plan) => plan.id);
+    if (planIds.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.storeSubscription.groupBy({
+      by: ["pricingPlanId"],
+      where: { pricingPlanId: { in: planIds } },
+      _count: { _all: true },
+    });
+    const counts = new Map(
+      rows.flatMap((row) =>
+        row.pricingPlanId ? [[row.pricingPlanId, row._count._all]] : [],
+      ),
+    );
+    const starterPlan = plans.find(
+      (plan) => plan.code === DEFAULT_STARTER_PLAN_CODE,
+    );
+    if (starterPlan) {
+      const legacyStarterCount = await this.prisma.storeSubscription.count({
+        where: {
+          pricingPlanId: null,
+          status: StoreSubscriptionStatus.TRIALING,
+        },
+      });
+      counts.set(
+        starterPlan.id,
+        (counts.get(starterPlan.id) ?? 0) + legacyStarterCount,
+      );
+    }
+    return counts;
+  }
 }
 
-function toDto(plan: PricingPlan): PricingPlanResponseDto {
+function toDto(
+  plan: PricingPlan,
+  assignedStoreCount = 0,
+): PricingPlanResponseDto {
   return {
     id: plan.id,
     code: plan.code,
@@ -207,6 +266,7 @@ function toDto(plan: PricingPlan): PricingPlanResponseDto {
         ? (plan.metadata as Record<string, unknown>)
         : null,
     featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
+    assignedStoreCount,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
   };

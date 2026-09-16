@@ -67,6 +67,9 @@ export class PricingPlanResponseDto {
   featureKeys!: string[];
 
   @ApiProperty()
+  assignedStoreCount!: number;
+
+  @ApiProperty()
   createdAt!: string;
 
   @ApiProperty()

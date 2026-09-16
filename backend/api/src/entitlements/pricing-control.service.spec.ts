@@ -1,5 +1,5 @@
 import { HttpStatus } from "@nestjs/common";
-import { PricingPlanStatus, Prisma } from "@prisma/client";
+import { PricingPlanStatus, Prisma, StoreSubscriptionStatus } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -43,6 +43,7 @@ describe("PricingControlService", () => {
       metadata: {
         featureKeys: ["TRY_ON_WIDGET", "SHOPIFY_INTEGRATION"],
       },
+      assignedStoreCount: 0,
     });
     await expect(service.listPlans()).resolves.toEqual([
       expect.objectContaining({
@@ -55,8 +56,45 @@ describe("PricingControlService", () => {
         metadata: expect.objectContaining({
           starterPack: true,
         }),
+        assignedStoreCount: 0,
       }),
       created,
+    ]);
+  });
+
+  it("counts stores assigned to each pricing plan including the default starter pack", async () => {
+    const prisma = new FakePricingPrisma();
+    const service = new PricingControlService(prisma as never);
+    const paidPlan = await service.createPlan({
+      code: "growth",
+      name: "Growth",
+      channels: ["SHOPIFY"],
+      currency: "USD",
+      monthlyPriceCents: 9900,
+      includedCredits: 1000,
+      trialCredits: 10,
+    });
+    const [starterPlan] = await service.listPlans();
+    if (!starterPlan) {
+      throw new Error("Default starter plan was not listed.");
+    }
+
+    prisma.subscriptions.push(
+      { pricingPlanId: starterPlan.id },
+      { pricingPlanId: paidPlan.id },
+      { pricingPlanId: paidPlan.id },
+      { pricingPlanId: null, status: StoreSubscriptionStatus.TRIALING },
+    );
+
+    await expect(service.listPlans()).resolves.toEqual([
+      expect.objectContaining({
+        code: DEFAULT_STARTER_PLAN_CODE,
+        assignedStoreCount: 2,
+      }),
+      expect.objectContaining({
+        code: "growth",
+        assignedStoreCount: 2,
+      }),
     ]);
   });
 
@@ -213,6 +251,10 @@ describe("PricingControlService", () => {
 
 class FakePricingPrisma {
   plans: Record<string, any>[] = [];
+  subscriptions: {
+    pricingPlanId: string | null;
+    status?: StoreSubscriptionStatus;
+  }[] = [];
 
   pricingPlan = {
     upsert: vi.fn(
@@ -336,7 +378,64 @@ class FakePricingPrisma {
   };
 
   storeSubscription = {
-    updateMany: vi.fn(),
+    count: vi.fn(
+      ({
+        where,
+      }: {
+        where: {
+          pricingPlanId: string | null;
+          status?: StoreSubscriptionStatus;
+        };
+      }): number =>
+        this.subscriptions.filter(
+          (subscription) =>
+            subscription.pricingPlanId === where.pricingPlanId &&
+            (where.status === undefined || subscription.status === where.status),
+        ).length,
+    ),
+    groupBy: vi.fn(
+      ({
+        where,
+      }: {
+        where: { pricingPlanId: { in: string[] } };
+      }): { pricingPlanId: string; _count: { _all: number } }[] => {
+        const planIds = new Set(where.pricingPlanId.in);
+        const counts = new Map<string, number>();
+        for (const subscription of this.subscriptions) {
+          if (
+            subscription.pricingPlanId &&
+            planIds.has(subscription.pricingPlanId)
+          ) {
+            counts.set(
+              subscription.pricingPlanId,
+              (counts.get(subscription.pricingPlanId) ?? 0) + 1,
+            );
+          }
+        }
+        return Array.from(counts, ([pricingPlanId, count]) => ({
+          pricingPlanId,
+          _count: { _all: count },
+        }));
+      },
+    ),
+    updateMany: vi.fn(
+      ({
+        where,
+        data,
+      }: {
+        where: { pricingPlanId: string };
+        data: Record<string, unknown>;
+      }) => {
+        const matching = this.subscriptions.filter(
+          (subscription) =>
+            subscription.pricingPlanId === where.pricingPlanId,
+        );
+        for (const subscription of matching) {
+          Object.assign(subscription, data);
+        }
+        return { count: matching.length };
+      },
+    ),
   };
 
   $transaction = vi.fn((callback: (tx: this) => unknown) => callback(this));

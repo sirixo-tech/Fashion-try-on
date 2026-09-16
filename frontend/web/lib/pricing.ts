@@ -19,6 +19,7 @@ export interface PricingPlan {
   kioskDeviceLimit: number | null;
   metadata: Record<string, unknown> | null;
   featureKeys: string[];
+  assignedStoreCount: number;
   createdAt: string;
   updatedAt: string;
 }

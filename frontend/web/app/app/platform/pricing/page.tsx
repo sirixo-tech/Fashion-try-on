@@ -10,6 +10,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   SparklesIcon,
+  StoreIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -369,8 +370,15 @@ function PricingPlanCard({
       </CardContent>
 
       <CardFooter className="justify-between gap-3">
-        <div className="text-xs text-muted-foreground">
-          Updated {formatDate(plan.updatedAt)}
+        <div
+          className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"
+          title={`Updated ${formatDate(plan.updatedAt)}`}
+        >
+          <StoreIcon size={15} aria-hidden="true" className="shrink-0" />
+          <span className="truncate">
+            {number(plan.assignedStoreCount)}{" "}
+            {plan.assignedStoreCount === 1 ? "store" : "stores"}
+          </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Link
