@@ -82,6 +82,7 @@ export class PricingControlService {
           monthlyPriceCents: input.monthlyPriceCents,
           includedCredits: input.includedCredits,
           trialCredits: input.trialCredits,
+          storeLocationLimit: input.storeLocationLimit ?? null,
           extraCreditPriceCents: input.extraCreditPriceCents ?? null,
           kioskMonthlyRentCents: input.kioskMonthlyRentCents ?? null,
           kioskDeviceLimit: input.kioskDeviceLimit ?? null,
@@ -134,12 +135,19 @@ export class PricingControlService {
               : input.monthlyPriceCents !== undefined
                 ? { monthlyPriceCents: input.monthlyPriceCents }
                 : {}),
-            ...(input.includedCredits !== undefined
-              ? { includedCredits: input.includedCredits }
-              : {}),
+            ...(starterPlan
+              ? { includedCredits: 0 }
+              : input.includedCredits !== undefined
+                ? { includedCredits: input.includedCredits }
+                : {}),
             ...(input.trialCredits !== undefined
               ? { trialCredits: input.trialCredits }
               : {}),
+            ...(starterPlan
+              ? { storeLocationLimit: 0 }
+              : input.storeLocationLimit !== undefined
+                ? { storeLocationLimit: input.storeLocationLimit }
+                : {}),
             ...(starterPlan
               ? { extraCreditPriceCents: null }
               : input.extraCreditPriceCents !== undefined
@@ -150,9 +158,11 @@ export class PricingControlService {
               : input.kioskMonthlyRentCents !== undefined
                 ? { kioskMonthlyRentCents: input.kioskMonthlyRentCents }
                 : {}),
-            ...(input.kioskDeviceLimit !== undefined
-              ? { kioskDeviceLimit: input.kioskDeviceLimit }
-              : {}),
+            ...(starterPlan
+              ? { kioskDeviceLimit: null }
+              : input.kioskDeviceLimit !== undefined
+                ? { kioskDeviceLimit: input.kioskDeviceLimit }
+                : {}),
             ...(input.metadata !== undefined || input.featureKeys !== undefined
               ? {
                   metadata: jsonMetadataWithFeatureKeys(
@@ -258,6 +268,7 @@ function toDto(
     monthlyPriceCents: plan.monthlyPriceCents,
     includedCredits: plan.includedCredits,
     trialCredits: plan.trialCredits,
+    storeLocationLimit: plan.storeLocationLimit,
     extraCreditPriceCents: plan.extraCreditPriceCents,
     kioskMonthlyRentCents: plan.kioskMonthlyRentCents,
     kioskDeviceLimit: plan.kioskDeviceLimit,
@@ -311,10 +322,12 @@ function defaultStarterFirst(plans: PricingPlan[]): PricingPlan[] {
 
 function subscriptionMetadataForPlan(plan: {
   code: string;
+  storeLocationLimit: number | null;
   metadata: Prisma.JsonValue | null;
 }): Prisma.InputJsonObject {
   return {
     pricingPlanCode: plan.code,
+    storeLocationLimit: plan.storeLocationLimit,
     featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
   };
 }

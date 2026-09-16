@@ -74,6 +74,21 @@ Visible product copy on these screens should say Store/Stores/Store Dashboard/
 Store Kiosks. Organization terminology is allowed only as an internal
 diagnostic or implementation detail outside normal product copy.
 
+### `/app/locations` — Store Locations
+
+- Store users see a Team & locations navigation group with Locations and Staff
+  only when their active Store plan includes at least one location or a custom
+  unlimited location allowance.
+- Locations shows the current Store's primary/default location and compares
+  active locations against the Store's pricing-plan location allowance.
+- If the location allowance is exhausted or zero, the page shows a clear
+  upgrade prompt linking to plans/billing.
+- Store staff and Store role management are also locked when the plan has a
+  zero location allowance; platform staff management remains a separate
+  SelfX-admin function.
+- Until dedicated persisted branch/location records are approved, the default
+  location is derived from the Store profile and Store-level kiosk count.
+
 ---
 
 ## RBAC-1 UI Addendum

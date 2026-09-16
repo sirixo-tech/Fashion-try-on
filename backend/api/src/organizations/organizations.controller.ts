@@ -71,15 +71,19 @@ export class OrganizationsController {
     const permissions = current.store
       ? await this.rbac.effectivePermissions(user.id, current.store.id)
       : null;
+    const creditSummary = current.store
+      ? await this.entitlements.getStoreCreditSummary(current.store.id)
+      : null;
     return {
       ...current,
       permissions:
         current.store && permissions
           ? {
               ...permissions,
-              featureKeys: await this.entitlements.getStoreFeatureKeys(
-                current.store.id,
-              ),
+              featureKeys: creditSummary?.subscription?.featureKeys ?? [],
+              storeLocationLimit:
+                creditSummary?.subscription?.pricingPlan?.storeLocationLimit ??
+                0,
             }
           : null,
     };

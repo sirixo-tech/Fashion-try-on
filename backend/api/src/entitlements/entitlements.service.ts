@@ -52,6 +52,7 @@ export interface StoreCreditSummary {
       currency: string;
       monthlyPriceCents: number;
       includedCredits: number;
+      storeLocationLimit: number | null;
       extraCreditPriceCents: number | null;
       kioskMonthlyRentCents: number | null;
       kioskDeviceLimit: number | null;
@@ -244,6 +245,7 @@ export class EntitlementsService {
           metadata: {
             pricingPlanCode: plan.code,
             includedCredits: plan.includedCredits,
+            storeLocationLimit: plan.storeLocationLimit,
             featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
           },
           occurredAt: now,
@@ -562,6 +564,8 @@ export class EntitlementsService {
                   currency: subscription.pricingPlan.currency,
                   monthlyPriceCents: subscription.pricingPlan.monthlyPriceCents,
                   includedCredits: subscription.pricingPlan.includedCredits,
+                  storeLocationLimit:
+                    subscription.pricingPlan.storeLocationLimit,
                   extraCreditPriceCents:
                     subscription.pricingPlan.extraCreditPriceCents,
                   kioskMonthlyRentCents:
@@ -607,10 +611,12 @@ export class EntitlementsService {
 
 function subscriptionMetadataForPlan(plan: {
   code: string;
+  storeLocationLimit: number | null;
   metadata: Prisma.JsonValue | null;
 }): Prisma.InputJsonObject {
   return {
     pricingPlanCode: plan.code,
+    storeLocationLimit: plan.storeLocationLimit,
     featureKeys: featureKeysFromPricingPlanMetadata(plan.metadata),
   };
 }

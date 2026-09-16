@@ -88,6 +88,7 @@ type PlanFormState = {
   monthlyPrice: string;
   includedCredits: string;
   trialCredits: string;
+  storeLocationLimit: string;
   extraCreditPrice: string;
   kioskMonthlyRent: string;
   kioskDeviceLimit: string;
@@ -103,6 +104,7 @@ const emptyForm: PlanFormState = {
   monthlyPrice: "0",
   includedCredits: "1000",
   trialCredits: "10",
+  storeLocationLimit: "1",
   extraCreditPrice: "",
   kioskMonthlyRent: "",
   kioskDeviceLimit: "",
@@ -324,8 +326,11 @@ export function PricingPlanEditor({
       ? {
           ...form,
           monthlyPrice: "0",
+          includedCredits: "0",
+          storeLocationLimit: "0",
           extraCreditPrice: "",
           kioskMonthlyRent: "",
+          kioskDeviceLimit: "",
         }
       : form;
     const validationError = validateForm(saveForm);
@@ -561,8 +566,8 @@ export function PricingPlanEditor({
                     <div>
                       <CardTitle>Credits</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Control included monthly Try-On credits and free trial
-                        credits.
+                        Control included monthly Try-On credits, free trial
+                        credits and store location allowances.
                       </p>
                     </div>
                   </div>
@@ -584,6 +589,19 @@ export function PricingPlanEditor({
                     disabled={!canManagePricing}
                     onChange={(trialCredits) =>
                       setForm((current) => ({ ...current, trialCredits }))
+                    }
+                  />
+                  <NumberField
+                    label="Store locations"
+                    value={form.storeLocationLimit}
+                    step="1"
+                    disabled={!canManagePricing || editingDefaultStarterPlan}
+                    placeholder="Blank means custom"
+                    onChange={(storeLocationLimit) =>
+                      setForm((current) => ({
+                        ...current,
+                        storeLocationLimit,
+                      }))
                     }
                   />
                 </CardContent>
@@ -698,6 +716,10 @@ export function PricingPlanEditor({
                 <PreviewMetric
                   label="Trial"
                   value={`${numberInputLabel(form.trialCredits)} credits`}
+                />
+                <PreviewMetric
+                  label="Store locations"
+                  value={locationLimitInputLabel(form.storeLocationLimit)}
                 />
                 <div className="rounded-lg border bg-muted/30 p-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -1009,6 +1031,8 @@ function formFromPlan(
     monthlyPrice: centsToMoneyInput(plan.monthlyPriceCents),
     includedCredits: String(plan.includedCredits),
     trialCredits: String(plan.trialCredits),
+    storeLocationLimit:
+      plan.storeLocationLimit === null ? "" : String(plan.storeLocationLimit),
     extraCreditPrice:
       plan.extraCreditPriceCents === null
         ? ""
@@ -1032,6 +1056,7 @@ function formToInput(form: PlanFormState): PricingPlanInput {
     monthlyPriceCents: moneyInputToCents(form.monthlyPrice),
     includedCredits: integerInput(form.includedCredits),
     trialCredits: integerInput(form.trialCredits),
+    storeLocationLimit: optionalIntegerInput(form.storeLocationLimit),
     extraCreditPriceCents: optionalMoneyInputToCents(form.extraCreditPrice),
     kioskMonthlyRentCents: optionalMoneyInputToCents(form.kioskMonthlyRent),
     kioskDeviceLimit: optionalIntegerInput(form.kioskDeviceLimit),
@@ -1117,6 +1142,10 @@ function numberInputLabel(value: string): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
     integerInput(value),
   );
+}
+
+function locationLimitInputLabel(value: string): string {
+  return value.trim() === "" ? "Custom" : numberInputLabel(value);
 }
 
 function money(value: number, currency: string): string {

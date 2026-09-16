@@ -28,6 +28,7 @@ describe("PricingControlService", () => {
       monthlyPriceCents: 9900,
       includedCredits: 1000,
       trialCredits: 10,
+      storeLocationLimit: null,
       featureKeys: ["TRY_ON_WIDGET", "SHOPIFY_INTEGRATION"],
     });
 
@@ -52,6 +53,7 @@ describe("PricingControlService", () => {
         currency: "INR",
         includedCredits: 0,
         trialCredits: DEFAULT_TRIAL_CREDITS,
+        storeLocationLimit: 0,
         featureKeys: [...DEFAULT_TRIAL_FEATURE_KEYS],
         metadata: expect.objectContaining({
           starterPack: true,
@@ -128,6 +130,7 @@ describe("PricingControlService", () => {
       name: "Kiosk Standard Plus",
       kioskMonthlyRentCents: 800000,
       kioskDeviceLimit: 2,
+      storeLocationLimit: null,
     });
 
     expect(updated).toMatchObject({
@@ -164,6 +167,8 @@ describe("PricingControlService", () => {
       code: DEFAULT_STARTER_PLAN_CODE,
       name: "Launch starter",
       monthlyPriceCents: 0,
+      includedCredits: 0,
+      storeLocationLimit: 0,
       extraCreditPriceCents: null,
       kioskMonthlyRentCents: null,
       featureKeys: ["TRY_ON_WIDGET"],
@@ -277,6 +282,7 @@ class FakePricingPrisma {
           extraCreditPriceCents: null,
           kioskMonthlyRentCents: null,
           kioskDeviceLimit: null,
+          storeLocationLimit: null,
           metadata: null,
           ...create,
           createdAt: now,
@@ -320,6 +326,7 @@ class FakePricingPrisma {
         extraCreditPriceCents: null,
         kioskMonthlyRentCents: null,
         kioskDeviceLimit: null,
+        storeLocationLimit: null,
         metadata: null,
         ...data,
         createdAt: now,

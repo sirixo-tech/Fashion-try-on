@@ -14,6 +14,7 @@ import {
   LayersIcon,
   LayoutDashboardIcon,
   LockKeyholeIcon,
+  MapPinIcon,
   MonitorIcon,
   PackageIcon,
   SettingsIcon,
@@ -63,6 +64,14 @@ const navItems: SelfxNavItem[] = [
         label: "Onboarding Status",
         icon: Building2Icon,
       },
+    ],
+  },
+  {
+    label: "Team & locations",
+    icon: UsersIcon,
+    children: [
+      { href: "/app/locations", label: "Locations", icon: MapPinIcon },
+      { href: "/app/staff", label: "Staff", icon: UsersIcon },
     ],
   },
   {
@@ -126,7 +135,6 @@ const navItems: SelfxNavItem[] = [
   { href: "/app/activity", label: "Activity", icon: ActivityIcon },
   { href: "/app/developer", label: "Developer / API", icon: Code2Icon },
   { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
-  { href: "/app/staff", label: "Staff", icon: UsersIcon },
   { href: "/app/billing", label: "Usage & Billing", icon: CreditCardIcon },
   {
     label: "Platform",
@@ -371,6 +379,7 @@ function navigationAccess({
     storePermissions: storeAccess?.permissions ?? [],
     storePlatformBypass: storeAccess?.platformBypass ?? false,
     storeFeatureKeys: storeAccess?.featureKeys ?? [],
+    storeLocationLimit: storeAccess?.storeLocationLimit,
     hasActiveStore,
   };
 }

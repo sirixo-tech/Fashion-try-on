@@ -88,6 +88,52 @@ describe("StoreRbacController", () => {
       "018fb642-4fcb-7d6d-8f35-00f1c6f9e001",
     );
   });
+
+  it("blocks Store team APIs when the current plan has no location allowance", async () => {
+    const storeId = "018fb642-4fcb-7d6d-8f35-00f1c6f9e001";
+    const rbac = {
+      listUsers: vi.fn(),
+      requireStorePermission: vi.fn(),
+    };
+    const platformAuthorization = {
+      hasPermission: vi.fn().mockResolvedValue(true),
+    };
+    const entitlements = {
+      getStoreCreditSummary: vi.fn().mockResolvedValue({
+        subscription: {
+          pricingPlan: {
+            storeLocationLimit: 0,
+          },
+        },
+      }),
+    };
+    const controller = new StoreRbacController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "store-user" }),
+      } as never,
+      platformAuthorization as never,
+      rbac as never,
+      createImpersonationMock() as never,
+      entitlements as never,
+    );
+
+    await expect(
+      controller.listUsers(
+        { headers: { authorization: "Bearer token" } } as never,
+        storeId,
+        {},
+      ),
+    ).rejects.toMatchObject({
+      status: HttpStatus.PAYMENT_REQUIRED,
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: "STORE_TEAM_LOCATIONS_PLAN_REQUIRED",
+        }),
+      }),
+    });
+    expect(entitlements.getStoreCreditSummary).toHaveBeenCalledWith(storeId);
+    expect(rbac.listUsers).not.toHaveBeenCalled();
+  });
 });
 
 function createImpersonationMock() {

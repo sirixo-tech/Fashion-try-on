@@ -1218,6 +1218,7 @@ function toPricingPlanDto(
     monthlyPriceCents: plan.monthlyPriceCents,
     includedCredits: plan.includedCredits,
     trialCredits: plan.trialCredits,
+    storeLocationLimit: plan.storeLocationLimit,
     extraCreditPriceCents: plan.extraCreditPriceCents,
     kioskMonthlyRentCents: plan.kioskMonthlyRentCents,
     kioskDeviceLimit: plan.kioskDeviceLimit,

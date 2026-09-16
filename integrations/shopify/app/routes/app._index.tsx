@@ -1531,6 +1531,7 @@ function PlansPanel({
                   monthlyPriceCents: 0,
                   includedCredits,
                   trialCredits: creditSummary?.subscription?.trialCredits ?? 10,
+                  storeLocationLimit: null,
                   extraCreditPriceCents: null,
                   kioskMonthlyRentCents: null,
                   kioskDeviceLimit: null,
@@ -1551,6 +1552,7 @@ function PlansPanel({
                   monthlyPriceCents: currentPlan.monthlyPriceCents,
                   includedCredits: currentPlan.includedCredits,
                   trialCredits: creditSummary?.subscription?.trialCredits ?? 0,
+                  storeLocationLimit: currentPlan.storeLocationLimit,
                   extraCreditPriceCents: currentPlan.extraCreditPriceCents,
                   kioskMonthlyRentCents: currentPlan.kioskMonthlyRentCents,
                   kioskDeviceLimit: currentPlan.kioskDeviceLimit,
@@ -1643,6 +1645,10 @@ function PlanCard({
           <strong>{plan.includedCredits}</strong>
         </div>
         <div>
+          <span>Locations</span>
+          <strong>{formatLocationLimit(plan.storeLocationLimit)}</strong>
+        </div>
+        <div>
           <span>Extra credit</span>
           <strong>
             {formatOptionalMoney(plan.extraCreditPriceCents, plan.currency)}
@@ -1710,6 +1716,10 @@ function formatOptionalMoney(
   currency: string,
 ): string {
   return amountCents == null ? "-" : formatMoney(amountCents, currency);
+}
+
+function formatLocationLimit(value: number | null): string {
+  return value === null ? "Custom" : new Intl.NumberFormat().format(value);
 }
 
 function UnavailablePanel({

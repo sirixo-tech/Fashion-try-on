@@ -7,11 +7,13 @@ export type NavigationAccess = {
   storePermissions: string[];
   storePlatformBypass: boolean;
   storeFeatureKeys: string[];
+  storeLocationLimit?: number | null;
   hasActiveStore: boolean;
 };
 
 const platformPermissionsByHref: Record<string, string[]> = {
   "/app/stores": ["STORES_VIEW"],
+  "/app/locations": ["STORES_VIEW"],
   "/app/onboarding": ["ORGANIZATION_APPLICATION_REVIEW"],
   "/app/products": ["PLATFORM_PRODUCTS_VIEW", "PLATFORM_PRODUCTS_MANAGE"],
   "/app/kiosks": ["KIOSKS_VIEW"],
@@ -54,6 +56,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
 };
 
 const storePermissionsByHref: Record<string, string[]> = {
+  "/app/locations": ["stores.view"],
   "/app/kiosks": ["kiosks.view", "kiosks.pair", "kiosks.configure"],
   "/app/staff": ["users.view"],
   "/app/analytics": ["analytics.view"],
@@ -70,6 +73,8 @@ const storeFeaturesByHref: Record<string, string[]> = {
   "/app/integrations/shopify": ["SHOPIFY_INTEGRATION"],
   "/app/integrations/woocommerce": ["WOOCOMMERCE_INTEGRATION"],
 };
+
+const storeTeamLocationHrefs = new Set(["/app/locations", "/app/staff"]);
 
 const platformOrStoreAccessHrefs = new Set([
   "/app/try-on-lab",
@@ -127,12 +132,15 @@ function canSeeHref(href: string, access: NavigationAccess): boolean {
   const hasStoreEntitlement =
     storeFeatures.length === 0 ||
     hasAny(access.storeFeatureKeys, storeFeatures);
+  const hasStorePlanEntitlement =
+    !storeTeamLocationHrefs.has(route) || hasStoreTeamLocations(access);
 
   return (
     hasAny(access.platformPermissions, platformPermissions) ||
     (hasStoreRule &&
       access.hasActiveStore &&
       hasStoreEntitlement &&
+      hasStorePlanEntitlement &&
       (access.storePlatformBypass ||
         hasAny(access.storePermissions, storePermissions)))
   );
@@ -142,6 +150,14 @@ function hasResolvedStoreAccess(access: NavigationAccess): boolean {
   return (
     access.hasActiveStore &&
     (access.storePlatformBypass || access.storePermissions.length > 0)
+  );
+}
+
+function hasStoreTeamLocations(access: NavigationAccess): boolean {
+  return (
+    access.storeLocationLimit === null ||
+    (typeof access.storeLocationLimit === "number" &&
+      access.storeLocationLimit > 0)
   );
 }
 

@@ -35,6 +35,7 @@ export type SelfxStorefrontCreditSummary = {
       currency: string;
       monthlyPriceCents: number;
       includedCredits: number;
+      storeLocationLimit: number | null;
       extraCreditPriceCents: number | null;
       kioskMonthlyRentCents: number | null;
       kioskDeviceLimit: number | null;
@@ -52,6 +53,7 @@ export type SelfxStorefrontPricingPlan = {
   monthlyPriceCents: number;
   includedCredits: number;
   trialCredits: number;
+  storeLocationLimit: number | null;
   extraCreditPriceCents: number | null;
   kioskMonthlyRentCents: number | null;
   kioskDeviceLimit: number | null;

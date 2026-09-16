@@ -121,7 +121,7 @@ export default function JewelleryTryOnLabPage() {
   const [jewelleryImage, setJewelleryImage] =
     useState<ImageSlot>(emptyImageSlot);
   const [jewelleryType, setJewelleryType] =
-    useState<SelfxJewelleryType>("RING");
+    useState<SelfxJewelleryType | null>(null);
   const [requirements, setRequirements] =
     useState<SelfxJewelleryCaptureRequirements | null>(null);
   const [personSemanticEvidence, setPersonSemanticEvidence] =
@@ -142,7 +142,7 @@ export default function JewelleryTryOnLabPage() {
   );
 
   useEffect(() => {
-    if (session.status !== "authenticated") {
+    if (session.status !== "authenticated" || !jewelleryType) {
       setRequirements(null);
       return;
     }
@@ -165,7 +165,11 @@ export default function JewelleryTryOnLabPage() {
   }, [jewelleryType, session.accessToken, session.status]);
 
   useEffect(() => {
-    if (personImage.file && !imageTechnicalIssue(personImage, "person")) {
+    if (
+      jewelleryType &&
+      personImage.file &&
+      !imageTechnicalIssue(personImage, "person")
+    ) {
       void analyzePersonImage(personImage.file, jewelleryType);
     } else {
       setPersonSemanticEvidence(null);
@@ -241,6 +245,10 @@ export default function JewelleryTryOnLabPage() {
       setError("Add both a person image and a jewellery image.");
       return;
     }
+    if (!jewelleryType) {
+      setError("Select a jewellery type before running the Jewellery Lab.");
+      return;
+    }
     const technicalIssue =
       imageTechnicalIssue(jewelleryImage, "jewellery") ??
       imageTechnicalIssue(personImage, "person");
@@ -309,6 +317,7 @@ export default function JewelleryTryOnLabPage() {
     imageTechnicalIssue(jewelleryImage, "jewellery") ??
     imageTechnicalIssue(personImage, "person");
   const readyToRun = Boolean(
+    jewelleryType &&
     personImage.file &&
     jewelleryImage.file &&
     personSemanticEvidence &&
@@ -316,10 +325,17 @@ export default function JewelleryTryOnLabPage() {
     !dimensionIssue &&
     !semanticIssue,
   );
-  const workflowStep = !jewelleryImage.file ? 1 : !personImage.file ? 2 : 3;
+  const workflowStep = !jewelleryType
+    ? 1
+    : !jewelleryImage.file
+      ? 2
+      : !personImage.file
+        ? 3
+        : 4;
   const selectedType = jewelleryTypeOptions.find(
     (option) => option.value === jewelleryType,
-  )!;
+  );
+  const typeSelectionPending = !jewelleryType;
 
   return (
     <PageContainer width="wide">
@@ -354,13 +370,24 @@ export default function JewelleryTryOnLabPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <div className="text-sm font-medium">Jewellery Type</div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm font-medium">Jewellery Type</div>
+                  {typeSelectionPending ? (
+                    <div className="selfx-jewellery-type-cue inline-flex w-fit items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+                      <HandIcon
+                        className="selfx-jewellery-type-cue__hand size-4"
+                        aria-hidden="true"
+                      />
+                      Choose type first
+                    </div>
+                  ) : null}
+                </div>
                 <div
                   className="grid grid-cols-2 gap-2 sm:grid-cols-4"
                   role="group"
                   aria-label="Jewellery types"
                 >
-                  {jewelleryTypeOptions.map((option) => {
+                  {jewelleryTypeOptions.map((option, index) => {
                     const TypeIcon = option.icon;
                     const selected = option.value === jewelleryType;
                     return (
@@ -370,10 +397,17 @@ export default function JewelleryTryOnLabPage() {
                         variant="outline"
                         aria-pressed={selected}
                         className={cn(
-                          "h-11 justify-center border-border bg-background px-3",
+                          "h-11 justify-center border-border bg-background px-3 transition-[background-color,border-color,box-shadow,transform]",
+                          typeSelectionPending &&
+                            "selfx-jewellery-type-option-pulse",
                           selected &&
-                            "border-primary bg-primary/5 text-primary ring-1 ring-primary/30",
+                            "border-orange-500 bg-orange-50 text-orange-700 shadow-[0_0_0_1px_rgba(249,115,22,0.22)]",
                         )}
+                        style={
+                          typeSelectionPending
+                            ? { animationDelay: `${index * 90}ms` }
+                            : undefined
+                        }
                         onClick={() => selectJewelleryType(option.value)}
                       >
                         <TypeIcon
@@ -390,9 +424,16 @@ export default function JewelleryTryOnLabPage() {
               <div className="grid gap-4 lg:grid-cols-2">
                 <ImageUploadCard
                   title="Jewellery Image"
-                  description="Product image for the selected jewellery type."
+                  description={
+                    jewelleryType
+                      ? "Product image for the selected jewellery type."
+                      : "Select the jewellery type before uploading."
+                  }
                   imageKind="jewellery"
                   slot={jewelleryImage}
+                  disabled={!jewelleryType}
+                  disabledPrompt="Select type first"
+                  disabledHint="Jewellery upload unlocks next"
                   accent="orange"
                   onChange={updateJewelleryImage}
                 />
@@ -402,11 +443,15 @@ export default function JewelleryTryOnLabPage() {
                     jewelleryImage.file
                       ? (requirements?.instruction ??
                         "Add the person photo required for this jewellery type.")
-                      : "Select the jewellery image first."
+                      : jewelleryType
+                        ? "Select the jewellery image first."
+                        : "Select the jewellery type first."
                   }
                   imageKind="person"
                   slot={personImage}
                   disabled={!jewelleryImage.file}
+                  disabledPrompt="Add jewellery first"
+                  disabledHint="Person upload unlocks next"
                   accent="violet"
                   onChange={updatePersonImage}
                 />
@@ -479,12 +524,54 @@ export default function JewelleryTryOnLabPage() {
                 />
                 {readyToRun
                   ? "Inputs are ready. Run the Try-On to send them securely through SelfX."
-                  : "Add valid jewellery and person images to prepare a Try-On."}
+                  : jewelleryType
+                    ? "Add valid jewellery and person images to prepare a Try-On."
+                    : "Select a jewellery type to start preparing a Try-On."}
               </div>
             </CardContent>
           </Card>
         </div>
       </PageSection>
+      <style jsx global>{`
+        @keyframes selfx-jewellery-type-pulse {
+          0%,
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+          }
+          50% {
+            transform: scale(1.035);
+            border-color: rgb(251, 146, 60);
+            box-shadow: 0 10px 24px rgba(249, 115, 22, 0.14);
+          }
+        }
+
+        @keyframes selfx-jewellery-type-point {
+          0%,
+          100% {
+            transform: translateX(0) rotate(-18deg);
+          }
+          50% {
+            transform: translateX(0.35rem) rotate(-18deg);
+          }
+        }
+
+        .selfx-jewellery-type-option-pulse {
+          animation: selfx-jewellery-type-pulse 1.45s ease-in-out infinite;
+        }
+
+        .selfx-jewellery-type-cue__hand {
+          animation: selfx-jewellery-type-point 0.9s ease-in-out infinite;
+          transform-origin: 70% 70%;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .selfx-jewellery-type-option-pulse,
+          .selfx-jewellery-type-cue__hand {
+            animation: none;
+          }
+        }
+      `}</style>
     </PageContainer>
   );
 }
@@ -494,9 +581,9 @@ function JewelleryGuidancePanel({
   selectedType,
 }: {
   requirements: SelfxJewelleryCaptureRequirements | null;
-  selectedType: JewelleryTypeOption;
+  selectedType: JewelleryTypeOption | undefined;
 }) {
-  if (!requirements) {
+  if (!requirements || !selectedType) {
     return null;
   }
 
@@ -530,7 +617,12 @@ function JewelleryGuidancePanel({
 }
 
 function WorkflowSteps({ activeStep }: { activeStep: number }) {
-  const steps = ["Upload Jewellery", "Upload Person", "Review & Run"];
+  const steps = [
+    "Select Type",
+    "Upload Jewellery",
+    "Upload Person",
+    "Review & Run",
+  ];
   return (
     <ol
       className="flex min-w-0 items-center gap-2 text-xs"
@@ -588,6 +680,8 @@ function ImageUploadCard({
   imageKind,
   slot,
   disabled = false,
+  disabledHint,
+  disabledPrompt,
   accent,
   onChange,
 }: {
@@ -596,6 +690,8 @@ function ImageUploadCard({
   imageKind: "person" | "jewellery";
   slot: ImageSlot;
   disabled?: boolean;
+  disabledHint?: string;
+  disabledPrompt?: string;
   accent: "orange" | "violet";
   onChange: (slot: ImageSlot) => void;
 }) {
@@ -681,10 +777,14 @@ function ImageUploadCard({
                 )}
               </span>
               <span className="font-medium text-foreground">
-                {disabled ? "Add jewellery first" : "Choose image"}
+                {disabled
+                  ? (disabledPrompt ?? "Complete previous step")
+                  : "Choose image"}
               </span>
               <span>
-                {disabled ? "Person upload unlocks next" : "Click to upload"}
+                {disabled
+                  ? (disabledHint ?? "Upload unlocks next")
+                  : "Click to upload"}
               </span>
             </div>
           )}

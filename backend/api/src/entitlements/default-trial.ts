@@ -46,12 +46,20 @@ export async function ensureDefaultStarterPricingPlan(
       monthlyPriceCents: 0,
       includedCredits: 0,
       trialCredits: DEFAULT_TRIAL_CREDITS,
+      storeLocationLimit: 0,
       extraCreditPriceCents: null,
       kioskMonthlyRentCents: null,
       kioskDeviceLimit: null,
       metadata: defaultStarterPlanMetadata(),
     },
-    update: {},
+    update: {
+      monthlyPriceCents: 0,
+      includedCredits: 0,
+      storeLocationLimit: 0,
+      extraCreditPriceCents: null,
+      kioskMonthlyRentCents: null,
+      kioskDeviceLimit: null,
+    },
   });
 }
 

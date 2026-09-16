@@ -141,6 +141,7 @@ export class ShopifyStorefrontCreditSummaryDto {
       currency: string;
       monthlyPriceCents: number;
       includedCredits: number;
+      storeLocationLimit: number | null;
       extraCreditPriceCents: number | null;
       kioskMonthlyRentCents: number | null;
       kioskDeviceLimit: number | null;
@@ -227,6 +228,9 @@ export class ShopifyStorefrontPricingPlanDto {
 
   @ApiProperty()
   trialCredits!: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  storeLocationLimit!: number | null;
 
   @ApiPropertyOptional({ nullable: true })
   extraCreditPriceCents!: number | null;

@@ -694,6 +694,14 @@ function AvailablePlansPanel({
                     value={displayNumber(plan.trialCredits)}
                   />
                   <PlanLine
+                    label="Store locations"
+                    value={
+                      plan.storeLocationLimit === null
+                        ? "Custom"
+                        : displayNumber(plan.storeLocationLimit)
+                    }
+                  />
+                  <PlanLine
                     label="Kiosk devices"
                     value={
                       plan.kioskDeviceLimit === null

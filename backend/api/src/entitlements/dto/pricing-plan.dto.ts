@@ -52,6 +52,9 @@ export class PricingPlanResponseDto {
   trialCredits!: number;
 
   @ApiPropertyOptional({ nullable: true })
+  storeLocationLimit!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
   extraCreditPriceCents!: number | null;
 
   @ApiPropertyOptional({ nullable: true })
@@ -127,6 +130,13 @@ export class CreatePricingPlanDto {
   @Min(0)
   @Max(100_000)
   trialCredits!: number;
+
+  @ApiPropertyOptional({ nullable: true, minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  storeLocationLimit?: number | null;
 
   @ApiPropertyOptional({ nullable: true, minimum: 0 })
   @IsOptional()
@@ -209,6 +219,13 @@ export class UpdatePricingPlanDto {
   @Min(0)
   @Max(100_000)
   trialCredits?: number;
+
+  @ApiPropertyOptional({ nullable: true, minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  storeLocationLimit?: number | null;
 
   @ApiPropertyOptional({ nullable: true, minimum: 0 })
   @IsOptional()

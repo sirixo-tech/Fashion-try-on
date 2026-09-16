@@ -1314,6 +1314,7 @@ model PricingPlan {
   monthlyPriceCents     Int                 @default(0) @map("monthly_price_cents")
   includedCredits       Int                 @default(0) @map("included_credits")
   trialCredits          Int                 @default(10) @map("trial_credits")
+  storeLocationLimit    Int?                @map("store_location_limit")
   extraCreditPriceCents Int?                @map("extra_credit_price_cents")
   kioskMonthlyRentCents Int?                @map("kiosk_monthly_rent_cents")
   kioskDeviceLimit      Int?                @map("kiosk_device_limit")

@@ -100,6 +100,7 @@ describe("EntitlementsService", () => {
       monthlyPriceCents: 4900,
       includedCredits: 100,
       trialCredits: 10,
+      storeLocationLimit: 1,
       extraCreditPriceCents: 50,
       kioskMonthlyRentCents: null,
       kioskDeviceLimit: null,

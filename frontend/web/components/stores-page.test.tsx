@@ -93,6 +93,7 @@ const pricingPlan = {
   monthlyPriceCents: 4900,
   includedCredits: 100,
   trialCredits: 10,
+  storeLocationLimit: 1,
   extraCreditPriceCents: 50,
   kioskMonthlyRentCents: 25000,
   kioskDeviceLimit: 2,

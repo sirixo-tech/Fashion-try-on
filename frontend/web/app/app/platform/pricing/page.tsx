@@ -305,6 +305,10 @@ function PricingPlanCard({
               value={number(plan.includedCredits)}
               meta={`${number(plan.trialCredits)} trial`}
             />
+            <PlanMetric
+              label="Store locations"
+              value={locationLimitLabel(plan.storeLocationLimit)}
+            />
           </div>
 
           <div className="rounded-lg border bg-muted/30 p-3">
@@ -581,6 +585,10 @@ function number(value: number): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
     value,
   );
+}
+
+function locationLimitLabel(value: number | null): string {
+  return value === null ? "Custom" : number(value);
 }
 
 function formatDate(value: string): string {

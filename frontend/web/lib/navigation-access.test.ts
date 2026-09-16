@@ -18,6 +18,13 @@ const items: SelfxNavItem[] = [
   { href: "/app/products", label: "Products" },
   { href: "/app/kiosks", label: "Kiosks" },
   {
+    label: "Team & locations",
+    children: [
+      { href: "/app/locations", label: "Locations" },
+      { href: "/app/staff", label: "Staff" },
+    ],
+  },
+  {
     label: "Try-On Lab",
     children: [
       { href: "/app/try-on-lab/garments", label: "Garment Lab" },
@@ -39,7 +46,6 @@ const items: SelfxNavItem[] = [
       { href: "/app/roles", label: "Roles" },
     ],
   },
-  { href: "/app/staff", label: "Staff" },
   { href: "/app/developer", label: "Developer / API" },
   { href: "/app/activity", label: "Activity" },
   {
@@ -75,6 +81,7 @@ describe("permission-aware navigation", () => {
         hasActiveStore: true,
         storePermissions: [
           "kiosks.view",
+          "stores.view",
           "users.view",
           "integrations.view",
           "developer_api.view",
@@ -85,17 +92,20 @@ describe("permission-aware navigation", () => {
           "WOOCOMMERCE_INTEGRATION",
           "PUBLIC_API",
         ],
+        storeLocationLimit: 1,
       }),
     ).toEqual([
       "Dashboard",
       "Kiosks",
+      "Team & locations",
+      "Locations",
+      "Staff",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
       "Integrations",
       "Shopify",
       "WooCommerce",
-      "Staff",
       "Developer / API",
       "Activity",
     ]);
@@ -118,6 +128,8 @@ describe("permission-aware navigation", () => {
       "Stores",
       "Stores",
       "Kiosks",
+      "Team & locations",
+      "Locations",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -183,12 +195,30 @@ describe("permission-aware navigation", () => {
     ]);
   });
 
+  it("hides Store team and locations when the plan does not unlock locations", () => {
+    expect(
+      labelsFor({
+        ...baseAccess,
+        hasActiveStore: true,
+        storePermissions: ["stores.view", "users.view"],
+        storeLocationLimit: 0,
+      }),
+    ).toEqual([
+      "Dashboard",
+      "Try-On Lab",
+      "Garment Lab",
+      "Jewellery Lab",
+      "Activity",
+    ]);
+  });
+
   it("does not let Store platform bypass reveal unrelated platform modules", () => {
     expect(
       labelsFor({
         ...baseAccess,
         hasActiveStore: true,
         storePlatformBypass: true,
+        storeLocationLimit: null,
         storeFeatureKeys: [
           "KIOSK_MANAGEMENT",
           "SHOPIFY_INTEGRATION",
@@ -199,13 +229,15 @@ describe("permission-aware navigation", () => {
     ).toEqual([
       "Dashboard",
       "Kiosks",
+      "Team & locations",
+      "Locations",
+      "Staff",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
       "Integrations",
       "Shopify",
       "WooCommerce",
-      "Staff",
       "Developer / API",
       "Activity",
     ]);
@@ -219,6 +251,9 @@ describe("permission-aware navigation", () => {
       "Onboarding",
       "Products",
       "Kiosks",
+      "Team & locations",
+      "Locations",
+      "Staff",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -229,7 +264,6 @@ describe("permission-aware navigation", () => {
       "Access Control",
       "Permissions",
       "Roles",
-      "Staff",
       "Developer / API",
       "Activity",
       "Platform",

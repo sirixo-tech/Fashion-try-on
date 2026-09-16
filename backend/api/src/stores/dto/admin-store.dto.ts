@@ -479,6 +479,9 @@ export class StorePricingPlanSummaryDto {
   includedCredits!: number;
 
   @ApiPropertyOptional()
+  storeLocationLimit!: number | null;
+
+  @ApiPropertyOptional()
   extraCreditPriceCents!: number | null;
 
   @ApiPropertyOptional()

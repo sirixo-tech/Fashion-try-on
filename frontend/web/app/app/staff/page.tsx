@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CreditCardIcon,
   PencilIcon,
   RefreshCwIcon,
   ShieldAlertIcon,
@@ -121,31 +123,47 @@ export default function StaffPage() {
 
   const storePermissions = storeAccess?.permissions ?? [];
   const hasStoreBypass = storeAccess?.platformBypass ?? false;
+  const storeTeamLocationsUnlocked = Boolean(
+    scope !== "store" ||
+      !storeId ||
+      planAllowsTeamLocations(storeAccess?.storeLocationLimit),
+  );
+  const showStoreTeamLocked = Boolean(
+    scope === "store" &&
+      storeId &&
+      storeAccess &&
+      !planAllowsTeamLocations(storeAccess.storeLocationLimit),
+  );
   const canViewSelectedStoreStaff = Boolean(
-    hasStoreBypass ||
-      canViewStoreStaffGlobally ||
-      storePermissions.includes("users.view"),
+    storeTeamLocationsUnlocked &&
+      (hasStoreBypass ||
+        canViewStoreStaffGlobally ||
+        storePermissions.includes("users.view")),
   );
   const canInviteSelectedStoreStaff = Boolean(
-    hasStoreBypass ||
-      canManageStoreStaffGlobally ||
-      storePermissions.includes("users.invite"),
+    storeTeamLocationsUnlocked &&
+      (hasStoreBypass ||
+        canManageStoreStaffGlobally ||
+        storePermissions.includes("users.invite")),
   );
   const canUpdateSelectedStoreStaff = Boolean(
-    hasStoreBypass ||
-      canManageStoreStaffGlobally ||
-      storePermissions.includes("users.deactivate") ||
-      storePermissions.includes("users.update"),
+    storeTeamLocationsUnlocked &&
+      (hasStoreBypass ||
+        canManageStoreStaffGlobally ||
+        storePermissions.includes("users.deactivate") ||
+        storePermissions.includes("users.update")),
   );
   const canAssignSelectedStoreRoles = Boolean(
-    hasStoreBypass ||
-      canManageStoreStaffGlobally ||
-      storePermissions.includes("roles.assign"),
+    storeTeamLocationsUnlocked &&
+      (hasStoreBypass ||
+        canManageStoreStaffGlobally ||
+        storePermissions.includes("roles.assign")),
   );
   const canLoadSelectedStoreRoles = Boolean(
-    hasStoreBypass ||
-      canViewStoreRolesGlobally ||
-      storePermissions.includes("roles.view"),
+    storeTeamLocationsUnlocked &&
+      (hasStoreBypass ||
+        canViewStoreRolesGlobally ||
+        storePermissions.includes("roles.view")),
   );
 
   const selectedStoreName = useMemo(
@@ -410,60 +428,74 @@ export default function StaffPage() {
 
       {error ? <AccessError message={error} /> : null}
 
-      <PageSection>
-        <StatGrid>
-          <StatCard
-            label="Total Staff"
-            value={displayNumber(visibleUsers.length)}
-            secondaryValue={
-              scope === "platform" ? "Platform users" : "Store memberships"
-            }
-            icon={<UsersIcon size={18} aria-hidden="true" />}
-          />
-          <StatCard
-            label="Active"
-            value={displayNumber(activeCount)}
-            secondaryValue="Ready for assigned access"
-            icon={<UserCogIcon size={18} aria-hidden="true" />}
-          />
-          <StatCard
-            label="Suspended"
-            value={displayNumber(suspendedCount)}
-            secondaryValue="Access currently disabled"
-            icon={<ShieldAlertIcon size={18} aria-hidden="true" />}
-          />
-          <StatCard
-            label="Roles"
-            value={displayNumber(
-              scope === "platform" ? platformRoles.length : storeRoles.length,
-            )}
-            secondaryValue={
-              scope === "platform" ? "Platform role registry" : "Store roles"
-            }
-            icon={<StoreIcon size={18} aria-hidden="true" />}
-          />
-        </StatGrid>
-      </PageSection>
+      {showStoreTeamLocked ? (
+        <LockedStoreTeamNotice />
+      ) : (
+        <>
+          <PageSection>
+            <StatGrid>
+              <StatCard
+                label="Total Staff"
+                value={displayNumber(visibleUsers.length)}
+                secondaryValue={
+                  scope === "platform" ? "Platform users" : "Store memberships"
+                }
+                icon={<UsersIcon size={18} aria-hidden="true" />}
+              />
+              <StatCard
+                label="Active"
+                value={displayNumber(activeCount)}
+                secondaryValue="Ready for assigned access"
+                icon={<UserCogIcon size={18} aria-hidden="true" />}
+              />
+              <StatCard
+                label="Suspended"
+                value={displayNumber(suspendedCount)}
+                secondaryValue="Access currently disabled"
+                icon={<ShieldAlertIcon size={18} aria-hidden="true" />}
+              />
+              <StatCard
+                label="Roles"
+                value={displayNumber(
+                  scope === "platform"
+                    ? platformRoles.length
+                    : storeRoles.length,
+                )}
+                secondaryValue={
+                  scope === "platform"
+                    ? "Platform role registry"
+                    : "Store roles"
+                }
+                icon={<StoreIcon size={18} aria-hidden="true" />}
+              />
+            </StatGrid>
+          </PageSection>
 
-      <PageSection>
-        {scope === "platform" ? (
-          <PlatformStaffTable
-            loading={loading}
-            users={platformUsers}
-            canManage={canManagePlatformUsers}
-            onEdit={setPlatformDialogUser}
-          />
-        ) : (
-          <StoreStaffTable
-            loading={loading}
-            users={storeUsers}
-            canAssignRoles={canAssignSelectedStoreRoles && storeRoles.length > 0}
-            canUpdateStatus={canUpdateSelectedStoreStaff}
-            onEdit={setStoreDialogUser}
-            onStatus={(user, status) => void updateStoreStatus(user, status)}
-          />
-        )}
-      </PageSection>
+          <PageSection>
+            {scope === "platform" ? (
+              <PlatformStaffTable
+                loading={loading}
+                users={platformUsers}
+                canManage={canManagePlatformUsers}
+                onEdit={setPlatformDialogUser}
+              />
+            ) : (
+              <StoreStaffTable
+                loading={loading}
+                users={storeUsers}
+                canAssignRoles={
+                  canAssignSelectedStoreRoles && storeRoles.length > 0
+                }
+                canUpdateStatus={canUpdateSelectedStoreStaff}
+                onEdit={setStoreDialogUser}
+                onStatus={(user, status) =>
+                  void updateStoreStatus(user, status)
+                }
+              />
+            )}
+          </PageSection>
+        </>
+      )}
 
       <PlatformUserDialog
         user={platformDialogUser}
@@ -954,6 +986,29 @@ function AccessError({ message }: { message: string }) {
   );
 }
 
+function LockedStoreTeamNotice() {
+  return (
+    <PageSection>
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">
+        <div className="font-semibold">Store staff is locked</div>
+        <p className="mt-1 text-sm">
+          This Store plan only includes trial Try-On credits. Choose a plan with
+          Store locations to manage branches and Store staff.
+        </p>
+        <Button
+          className="mt-4"
+          render={<Link href="/app/billing" />}
+          variant="outline"
+          size="sm"
+        >
+          <CreditCardIcon aria-hidden="true" />
+          View plans
+        </Button>
+      </div>
+    </PageSection>
+  );
+}
+
 function storeOptionFromAdminStore(store: AdminStore): StoreOption {
   return { id: store.id, name: store.name };
 }
@@ -986,4 +1041,8 @@ function messageFor(caught: unknown): string {
     return caught.message;
   }
   return "The staff request could not be completed.";
+}
+
+function planAllowsTeamLocations(limit: number | null | undefined): boolean {
+  return limit === null || (typeof limit === "number" && limit > 0);
 }

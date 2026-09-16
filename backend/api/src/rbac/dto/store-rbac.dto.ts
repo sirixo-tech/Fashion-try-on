@@ -239,5 +239,8 @@ export class EffectiveStorePermissionsResponseDto {
   featureKeys!: string[];
 
   @ApiPropertyOptional({ nullable: true })
+  storeLocationLimit?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
   membershipId!: string | null;
 }

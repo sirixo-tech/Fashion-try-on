@@ -14,6 +14,7 @@ export interface PricingPlan {
   monthlyPriceCents: number;
   includedCredits: number;
   trialCredits: number;
+  storeLocationLimit: number | null;
   extraCreditPriceCents: number | null;
   kioskMonthlyRentCents: number | null;
   kioskDeviceLimit: number | null;
@@ -42,6 +43,7 @@ export interface PricingPlanInput {
   monthlyPriceCents: number;
   includedCredits: number;
   trialCredits: number;
+  storeLocationLimit?: number | null;
   extraCreditPriceCents?: number | null;
   kioskMonthlyRentCents?: number | null;
   kioskDeviceLimit?: number | null;

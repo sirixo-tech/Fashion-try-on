@@ -56,6 +56,7 @@ export type StoreSubscriptionSummary = {
       currency: string;
       monthlyPriceCents: number;
       includedCredits: number;
+      storeLocationLimit: number | null;
       extraCreditPriceCents: number | null;
       kioskMonthlyRentCents: number | null;
       kioskDeviceLimit: number | null;
@@ -156,6 +157,7 @@ export type EffectiveStorePermissions = {
   permissions: string[];
   platformBypass: boolean;
   featureKeys: string[];
+  storeLocationLimit?: number | null;
   membershipId: string | null;
 };
 

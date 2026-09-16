@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -23,6 +24,7 @@ import { type FastifyRequest } from "fastify";
 
 import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
+import { ApiErrorException } from "../common/api-error.exception.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import {
@@ -95,10 +97,14 @@ export class StoreRbacController {
     );
     await this.impersonation.resolveStoreContext(user.id, storeId);
     const permissions = await this.rbac.effectivePermissions(user.id, storeId);
+    const creditSummary = await this.entitlements?.getStoreCreditSummary(
+      storeId,
+    );
     return {
       ...permissions,
-      featureKeys:
-        (await this.entitlements?.getStoreFeatureKeys(storeId)) ?? [],
+      featureKeys: creditSummary?.subscription?.featureKeys ?? [],
+      storeLocationLimit:
+        creditSummary?.subscription?.pricingPlan?.storeLocationLimit ?? 0,
     };
   }
 
@@ -118,6 +124,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeRolesView,
       STORE_PERMISSION_CODES.rolesView,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.listRoles(storeId, query);
   }
 
@@ -135,6 +142,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeRolesManage,
       STORE_PERMISSION_CODES.rolesCreate,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.createRole(user.id, storeId, dto);
   }
 
@@ -153,6 +161,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeRolesManage,
       STORE_PERMISSION_CODES.rolesUpdate,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.updateRole(user.id, storeId, roleId, dto);
   }
 
@@ -171,6 +180,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeRolesManage,
       STORE_PERMISSION_CODES.rolesUpdate,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.replaceRolePermissions(user.id, storeId, roleId, dto);
   }
 
@@ -188,6 +198,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeRolesManage,
       STORE_PERMISSION_CODES.rolesDelete,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.deleteRole(user.id, storeId, roleId);
   }
 
@@ -205,6 +216,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeUsersView,
       STORE_PERMISSION_CODES.usersView,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.listUsers(storeId, query);
   }
 
@@ -222,6 +234,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeUsersManage,
       STORE_PERMISSION_CODES.usersInvite,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.addUser(user.id, storeId, dto);
   }
 
@@ -240,6 +253,7 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeUsersManage,
       STORE_PERMISSION_CODES.usersDeactivate,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.updateUserStatus(user.id, storeId, membershipId, dto);
   }
 
@@ -258,7 +272,26 @@ export class StoreRbacController {
       PLATFORM_PERMISSIONS.storeUsersManage,
       STORE_PERMISSION_CODES.rolesAssign,
     );
+    await this.requireStoreTeamLocationsEntitlement(storeId);
     return this.rbac.replaceUserRoles(user.id, storeId, membershipId, dto);
+  }
+
+  private async requireStoreTeamLocationsEntitlement(
+    storeId: string,
+  ): Promise<void> {
+    const creditSummary = await this.entitlements?.getStoreCreditSummary(
+      storeId,
+    );
+    const storeLocationLimit =
+      creditSummary?.subscription?.pricingPlan?.storeLocationLimit ?? 0;
+    if (storeLocationLimit === null || storeLocationLimit > 0) {
+      return;
+    }
+    throw new ApiErrorException(
+      HttpStatus.PAYMENT_REQUIRED,
+      "STORE_TEAM_LOCATIONS_PLAN_REQUIRED",
+      "Team and location management is not included in this Store's current SelfX plan.",
+    );
   }
 
   private async requirePlatformPermission(
