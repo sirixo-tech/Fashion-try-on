@@ -223,6 +223,60 @@ void main() {
       expect(controller.imageUsabilityResult?.isUsable, isFalse);
     });
 
+    test('jewellery preflight rejects blurry person capture', () async {
+      final controller = testController(
+        analyzer: FakeQualityAnalyzer(result: blurryPersonQuality()),
+      )..configureJewelleryCaptureRequirements(testNecklaceRequirements());
+
+      await controller.capturePhoto();
+
+      expect(controller.imageUsabilityResult?.isUsable, isFalse);
+      expect(
+        controller.imageUsabilityResult?.message,
+        'Photo is too blurry. Please retake.',
+      );
+
+      final accepted = await controller.usePhoto();
+
+      expect(accepted.accepted, isFalse);
+      expect(controller.acceptedCapture, isNull);
+    });
+
+    test('non-jewellery capture keeps quality warnings advisory', () async {
+      final controller = testController(
+        analyzer: FakeQualityAnalyzer(result: blurryPersonQuality()),
+      );
+
+      await controller.capturePhoto();
+
+      expect(controller.imageUsabilityResult?.isUsable, isTrue);
+
+      final accepted = await controller.usePhoto();
+
+      expect(accepted.accepted, isTrue);
+      expect(controller.acceptedCapture?.originalPath, 'capture-1.jpg');
+    });
+
+    test('necklace preflight rejects lower-body-only capture', () async {
+      final controller = testController(
+        modelCoverageAnalyzer: const FakeModelCoverageAnalyzer(
+          ModelCoverageAnalysis.resolved(
+            coverage: ModelCoverage.lowerBody,
+            confidence: 0.9,
+            reasonCode: 'TEST_LOWER_BODY',
+          ),
+        ),
+      )..configureJewelleryCaptureRequirements(testNecklaceRequirements());
+
+      await controller.capturePhoto();
+
+      expect(controller.imageUsabilityResult?.isUsable, isFalse);
+      expect(
+        controller.imageUsabilityResult?.message,
+        testNecklaceRequirements().instruction,
+      );
+    });
+
     test('Use Photo rejects capture when no model is detected', () async {
       final controller = testController(
         modelCoverageAnalyzer: const FakeModelCoverageAnalyzer(
@@ -2425,6 +2479,34 @@ FakeCameraService readyCamera({
   );
   camera.setReady(supportsLiveFrames: supportsLiveFrames);
   return camera;
+}
+
+ImageQualityResult blurryPersonQuality() {
+  return normalizeImageQualityResult(
+    const CompleteImageQualityMetrics(
+      width: 1024,
+      height: 1536,
+      sharpness: 10,
+      brightness: 120,
+      contrast: 45,
+    ),
+    ImageQualityTarget.person,
+  );
+}
+
+KioskJewelleryCaptureRequirements testNecklaceRequirements() {
+  return const KioskJewelleryCaptureRequirements(
+    schemaVersion: 1,
+    jewelleryType: KioskJewelleryType.necklace,
+    productId: 'necklace-1',
+    targetRegion: KioskJewelleryCaptureTargetRegion.neckShouldersAndUpperChest,
+    guide: KioskJewelleryCaptureGuide.neckAndUpperChest,
+    title: 'Keep your neckline visible',
+    instruction:
+        'Face the camera and keep your neck, shoulders and upper chest visible inside the guide.',
+    checklist: [],
+    requiredChecks: [],
+  );
 }
 
 CaptureSessionController testController({

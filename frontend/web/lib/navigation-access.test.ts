@@ -10,13 +10,7 @@ import {
 
 const items: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard" },
-  {
-    label: "Stores",
-    children: [
-      { href: "/app/stores", label: "Stores" },
-      { href: "/app/onboarding", label: "Onboarding" },
-    ],
-  },
+  { href: "/app/stores", label: "Stores" },
   { href: "/app/products", label: "Products" },
   { href: "/app/kiosks", label: "Kiosks" },
   {
@@ -127,7 +121,6 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
-      "Stores",
       "Stores",
       "Kiosks",
       "Try-On Lab",
@@ -247,8 +240,6 @@ describe("permission-aware navigation", () => {
     expect(labelsFor({ ...baseAccess, isSuperadmin: true })).toEqual([
       "Dashboard",
       "Stores",
-      "Stores",
-      "Onboarding",
       "Products",
       "Kiosks",
       "Try-On Lab",

@@ -178,6 +178,10 @@ export async function parseKioskTryOnRunMultipartRequest(
     ) {
       throwImageInvalid("One or more images exceeds the supported size limit.");
     }
+    const limitMessage = multipartLimitMessage(error);
+    if (limitMessage) {
+      throwMultipartInvalid(limitMessage);
+    }
     throwMultipartInvalid(
       "Kiosk Try-On multipart request could not be processed.",
     );
@@ -535,6 +539,22 @@ function validateImage<TFieldName extends KioskTryOnImageFieldName>(
   } catch {
     throwImageInvalid("Uploaded image is not a supported image file.");
   }
+}
+
+function multipartLimitMessage(error: unknown): string | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+  const code = "code" in error ? String(error.code) : "";
+  const message = "message" in error ? String(error.message) : "";
+  const text = `${code} ${message}`;
+  if (/FIELDS?_LIMIT|fields?\s+limit|too many fields/i.test(text)) {
+    return "Kiosk Try-On request has too many form fields.";
+  }
+  if (/PARTS?_LIMIT|parts?\s+limit|too many parts/i.test(text)) {
+    return "Kiosk Try-On request has too many multipart parts.";
+  }
+  return null;
 }
 
 function parseOptionalClientRequestId(

@@ -59,8 +59,22 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   void initState() {
     super.initState();
     widget.controller.selectCapturePurpose(widget.purpose);
+    _syncJewelleryCaptureRequirements();
     widget.controller.addListener(_handleControllerChanged);
     _start();
+  }
+
+  @override
+  void didUpdateWidget(covariant CameraCaptureScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.purpose != widget.purpose) {
+      widget.controller.selectCapturePurpose(widget.purpose);
+    }
+    if (oldWidget.purpose != widget.purpose ||
+        oldWidget.tryOnController.jewelleryCaptureRequirements !=
+            widget.tryOnController.jewelleryCaptureRequirements) {
+      _syncJewelleryCaptureRequirements();
+    }
   }
 
   @override
@@ -188,6 +202,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
     if (mounted) {
       Navigator.of(context).pop();
     }
+  }
+
+  void _syncJewelleryCaptureRequirements() {
+    widget.controller.configureJewelleryCaptureRequirements(
+      widget.purpose == PhotoAcquisitionPurpose.model
+          ? widget.tryOnController.jewelleryCaptureRequirements
+          : null,
+    );
   }
 
   Future<void> _returnToAcceptedPersonReview() async {

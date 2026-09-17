@@ -38,6 +38,8 @@ SelfX Platform
 
 ### `/app/stores` — Store Directory
 
+- Stores is a direct sidebar destination with no submenu. Current Store
+  onboarding is immediate, so no separate Onboarding Status item is shown.
 - Page title: Stores.
 - Primary action: Add Store.
 - Add Store navigates to `/app/stores/create`, not a popup.
@@ -55,13 +57,18 @@ SelfX Platform
 
 ### `/app/stores/create` - Create Store
 
-- Unframed form sections: Store details, active plan selection, owner account.
-- Plan options use radio selection with current monthly prices, credits and
-  supported location limits; do not invent yearly prices or trial overrides.
+- Use a medium-width workspace with three compact bordered form cards: Store
+  name, Plan and Owner account. A read-only onboarding summary sits beside
+  them on desktop and below them on narrow screens. It reflects the Store
+  name, selected plan, owner and login email live, but never shows passwords.
+- Only Store name is collected for the Store. The server generates the slug and
+  applies its default timezone; optional profile fields can be edited later.
+- Active plans appear as selectable tabs, with the selected plan's current
+  monthly price, credits and supported location limits shown beneath. Do not
+  invent yearly prices or trial overrides.
 - Owner fields: name, login email, password and confirmation; password visibility
-  uses a named icon button. Password values are never included in the summary.
-- A compact responsive summary shows Store, plan, owner and active-on-creation
-  status. Cancel and Create Store are bottom-right; duplicate submits are blocked.
+  uses a named icon button.
+- Cancel and Create Store are bottom-right; duplicate submits are blocked.
 - Creation is one transaction, followed by navigation to View Store. Existing
   email, unavailable plan and validation failures stay on the form for correction.
 - Creation requires platform STORES_CREATE and PRICING_MANAGE permissions.
@@ -75,6 +82,9 @@ SelfX Platform
 - Header actions include Stores, Refresh and Pair Kiosk.
 - Summary metrics show total kiosks, active kiosks, last activity and
   configurable kiosk count.
+- Plan usage is read-only and shows the current plan, total credit allocation,
+  consumed credits, remaining credits and current period end. Manual credit
+  top-ups and credit-ledger administration are not part of Store detail.
 - Store Kiosks table lists device, status, platform/app version, latest
   configuration version, last seen and Manage action.
 - Store Settings shows profile details plus Edit Store and Activate/

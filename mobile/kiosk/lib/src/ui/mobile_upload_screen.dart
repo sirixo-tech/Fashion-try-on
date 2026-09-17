@@ -301,9 +301,20 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
             _preparedModelSessionId == sessionId &&
             sessionId != null
         ? true
-        : await widget.uploadController.useReadyPhoto(widget.captureController);
+        : await widget.uploadController.useReadyPhoto(
+            widget.captureController,
+            jewelleryRequirements: _isJewelleryPersonUpload
+                ? widget.tryOnController.jewelleryCaptureRequirements
+                : null,
+          );
     if (!accepted || !mounted) {
       _stopContinuing();
+      final message = widget.uploadController.message;
+      if (message != null && message.trim().isNotEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
       return false;
     }
     _preparedModelSessionId = sessionId;

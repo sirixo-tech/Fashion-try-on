@@ -94,19 +94,32 @@ describe("Create Store page", () => {
   });
   afterEach(cleanup);
 
-  it("shows only active plans and updates a credential-free live summary", async () => {
+  it("previews entered details and the selected active plan without credentials", async () => {
     mount();
-    await fill();
-    expect(screen.queryByText("Disabled")).toBeNull();
-    fireEvent.click(screen.getByRole("radio", { name: /Growth/ }));
-    const summary = screen.getByRole("complementary", {
+    const summary = await screen.findByRole("complementary", {
       name: "Onboarding summary",
     });
+    expect(within(summary).getAllByText("Not set")).toHaveLength(3);
+    await fill();
+    expect(screen.queryByText("Disabled")).toBeNull();
+    expect(
+      screen
+        .getByRole("tab", { name: "Starter" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: "Growth" }));
+    expect(
+      screen.getByRole("tab", { name: "Growth" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(screen.getByRole("tabpanel").textContent).toContain("49.00");
     expect(within(summary).getByText("Test Store")).toBeTruthy();
-    expect(within(summary).getByText(/Growth.*49.00/)).toBeTruthy();
+    expect(within(summary).getByText("Growth")).toBeTruthy();
+    expect(within(summary).getByText(/49.00.*month/)).toBeTruthy();
+    expect(within(summary).getByText("Jane Owner")).toBeTruthy();
     expect(within(summary).getByText("jane@example.com")).toBeTruthy();
     expect(summary.textContent).not.toContain("OwnerPassword123!");
-    expect(within(summary).getByText("Active on creation")).toBeTruthy();
+    expect(screen.queryByLabelText("Store slug (optional)")).toBeNull();
+    expect(screen.queryByLabelText("Timezone")).toBeNull();
   });
 
   it("submits one onboarding operation with plan and credentials then opens View Store", async () => {
@@ -119,7 +132,6 @@ describe("Create Store page", () => {
     expect(onboardStore).toHaveBeenCalledTimes(1);
     expect(onboardStore).toHaveBeenCalledWith("token", {
       name: "Test Store",
-      timezone: "UTC",
       pricingPlanId: "plan-1",
       ownerName: "Jane Owner",
       ownerEmail: "jane@example.com",

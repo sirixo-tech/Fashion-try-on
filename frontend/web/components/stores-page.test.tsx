@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StoreDashboardPage from "../app/app/stores/[storeId]/page";
 import StoresPage from "../app/app/stores/page";
-import { listPricingPlans } from "@/lib/pricing";
 import {
-  assignStorePricingPlan,
-  createStore,
   deleteStore,
   getEffectiveStorePermissions,
   getStore,
+  getStoreCreditDiagnostics,
   getStoreKioskConfiguration,
   getStoreVirtualTryOnSettings,
   listStorePermissions,
@@ -34,19 +32,15 @@ vi.mock("@/lib/session", () => ({
   useSession: vi.fn(),
 }));
 
-vi.mock("@/lib/pricing", () => ({
-  listPricingPlans: vi.fn(),
-}));
-
 vi.mock("@/lib/stores", () => ({
   activateStore: vi.fn(),
-  assignStorePricingPlan: vi.fn(),
   createStore: vi.fn(),
   createStoreKioskConfigurationAssetUploadIntent: vi.fn(),
   deactivateStore: vi.fn(),
   deleteStore: vi.fn(),
   getEffectiveStorePermissions: vi.fn(),
   getStore: vi.fn(),
+  getStoreCreditDiagnostics: vi.fn(),
   getStoreKioskConfiguration: vi.fn(),
   getStoreVirtualTryOnSettings: vi.fn(),
   listStorePermissions: vi.fn(),
@@ -261,11 +255,6 @@ describe("STORE-1 web Store management", () => {
         hasMore: false,
       },
     } as never);
-    vi.mocked(listPricingPlans).mockResolvedValue([pricingPlan] as never);
-    vi.mocked(assignStorePricingPlan).mockResolvedValue(
-      subscriptionSummary as never,
-    );
-    vi.mocked(createStore).mockResolvedValue(store as never);
     vi.mocked(startStoreImpersonation).mockResolvedValue({
       session: {
         id: "impersonation-1",
@@ -286,7 +275,20 @@ describe("STORE-1 web Store management", () => {
     vi.mocked(getStore).mockResolvedValue({
       ...store,
       kiosks: { data: [kiosk] },
+      subscription: subscriptionSummary,
     } as never);
+    vi.mocked(getStoreCreditDiagnostics).mockResolvedValue({
+      availableCredits: 72,
+      totals: {
+        grantedCredits: 100,
+        consumedCredits: 28,
+        manualAdjustments: 0,
+        netCredits: 72,
+      },
+      byChannel: [],
+      topProducts: [],
+      recentLedgerEntries: [],
+    });
     vi.mocked(listStoreRoles).mockResolvedValue({
       data: [role],
       pagination: {
@@ -392,20 +394,12 @@ describe("STORE-1 web Store management", () => {
     expect(pushMock).toHaveBeenCalledWith("/app/dashboard");
   });
 
-  it("creates a Store from the directory dialog", async () => {
+  it("opens the dedicated Store creation page from the directory", async () => {
     render(<StoresPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Add Store/i }));
-    fireEvent.change(screen.getByText("Store Name *").nextElementSibling!, {
-      target: { value: "New Retail Store" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create Store" }));
 
-    await waitFor(() => expect(createStore).toHaveBeenCalled());
-    expect(createStore).toHaveBeenCalledWith(
-      "staff-token",
-      expect.objectContaining({ name: "New Retail Store" }),
-    );
+    expect(pushMock).toHaveBeenCalledWith("/app/stores/create");
   });
 
   it("allows inactive Stores to be deleted from the directory", async () => {
@@ -442,6 +436,13 @@ describe("STORE-1 web Store management", () => {
 
   it("uses nested Store kiosk configuration APIs from the Store dashboard", async () => {
     render(<StoreDashboardPage />);
+
+    expect(await screen.findByText("Growth")).toBeTruthy();
+    expect(await screen.findByText("28")).toBeTruthy();
+    expect((await screen.findAllByText("72")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Manual credit top-up")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add credits" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Assign plan" })).toBeNull();
 
     fireEvent.click(await screen.findByRole("button", { name: /Manage/i }));
 

@@ -124,7 +124,7 @@ export function NoOrganizationState(props: { action?: StateAction }) {
     <StateCard
       icon={BanIcon}
       title="No active Store"
-      description="Active Store workspaces appear here after SelfX activation."
+      description="No active Store is available for this account."
       action={props.action}
     />
   );

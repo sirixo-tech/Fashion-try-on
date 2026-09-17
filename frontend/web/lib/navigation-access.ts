@@ -14,7 +14,6 @@ export type NavigationAccess = {
 const platformPermissionsByHref: Record<string, string[]> = {
   "/app/stores": ["STORES_VIEW"],
   "/app/locations": ["STORES_VIEW"],
-  "/app/onboarding": ["ORGANIZATION_APPLICATION_REVIEW"],
   "/app/products": ["PLATFORM_PRODUCTS_VIEW", "PLATFORM_PRODUCTS_MANAGE"],
   "/app/kiosks": ["KIOSKS_VIEW"],
   "/app/analytics": ["USAGE_VIEW"],

@@ -10,6 +10,7 @@ import '../session/capture_session_controller.dart';
 import '../session/temporary_capture_store.dart';
 import '../tryon/garment_reference_profile.dart';
 import '../tryon/kiosk_garment_input.dart';
+import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import 'kiosk_customer_upload_gateway.dart';
 import 'kiosk_customer_upload_models.dart';
 
@@ -145,7 +146,10 @@ class KioskCustomerUploadController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> useReadyPhoto(CaptureSessionController captureController) async {
+  Future<bool> useReadyPhoto(
+    CaptureSessionController captureController, {
+    KioskJewelleryCaptureRequirements? jewelleryRequirements,
+  }) async {
     final current = session;
     final photo = current?.photo;
     if (current == null ||
@@ -166,11 +170,18 @@ class KioskCustomerUploadController extends ChangeNotifier {
         readUrl: photo.readUrl,
         targetPath: path,
       );
-      await captureController.acceptMobileUpload(
+      final accepted = await captureController.acceptMobileUpload(
         originalPath: path,
         width: photo.width,
         height: photo.height,
+        jewelleryRequirements: jewelleryRequirements,
       );
+      if (!accepted.accepted) {
+        isBusy = false;
+        message = accepted.message ?? 'Photo could not be used.';
+        notifyListeners();
+        return false;
+      }
       session = await _withDeviceAuth(
         (token) => gateway.consumeSession(
           accessToken: token,

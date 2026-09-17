@@ -229,8 +229,8 @@ describe("TryOnLabService", () => {
       ]),
     );
 
-    expect(TRY_ON_LAB_MULTIPART_LIMITS.fields).toBeGreaterThanOrEqual(15);
-    expect(TRY_ON_LAB_MULTIPART_LIMITS.parts).toBeGreaterThanOrEqual(17);
+    expect(TRY_ON_LAB_MULTIPART_LIMITS.fields).toBeGreaterThanOrEqual(32);
+    expect(TRY_ON_LAB_MULTIPART_LIMITS.parts).toBeGreaterThanOrEqual(40);
     expect(parsed.personImage.mimeType).toBe("image/jpeg");
     expect(parsed.garmentImage.mimeType).toBe("image/jpeg");
     expect(parsed.garmentSource).toBe("DIRECT_UPLOAD");

@@ -656,6 +656,34 @@ void main() {
     captureController.dispose();
   });
 
+  test('jewellery phone upload rejects blurry person photo upfront', () async {
+    final gateway = FakeUploadGateway()
+      ..nextSession = readyUploadSession('upload-session');
+    final uploadController = KioskCustomerUploadController(
+      deviceController: testDeviceController(),
+      gateway: gateway,
+      captureStore: InMemoryTemporaryCaptureStore(),
+    )..session = readyUploadSession('upload-session');
+    final tryOn = testTryOnController();
+    selectTestJewellery(tryOn);
+    final captureController = testCaptureController(
+      qualityResult: blurryPersonQuality(),
+    );
+
+    final accepted = await uploadController.useReadyPhoto(
+      captureController,
+      jewelleryRequirements: tryOn.jewelleryCaptureRequirements,
+    );
+
+    expect(accepted, isFalse);
+    expect(uploadController.message, 'Photo is too blurry. Please retake.');
+    expect(captureController.acceptedCapture, isNull);
+    expect(gateway.consumedSessionId, isNull);
+    uploadController.dispose();
+    captureController.dispose();
+    tryOn.dispose();
+  });
+
   test('phone model upload stores analyzed upper-body coverage', () async {
     final uploadController = KioskCustomerUploadController(
       deviceController: testDeviceController(),
@@ -1125,11 +1153,12 @@ http.Response uploadSessionJsonResponse(Map<String, dynamic> body) {
 
 CaptureSessionController testCaptureController({
   ModelCoverageAnalyzer? modelCoverageAnalyzer,
+  ImageQualityResult? qualityResult,
 }) {
   return CaptureSessionController(
     cameraService: FakeCameraService(),
     settingsStore: FakeSettingsStore(),
-    analyzer: FakeQualityAnalyzer(),
+    analyzer: FakeQualityAnalyzer(result: qualityResult),
     captureStore: InMemoryTemporaryCaptureStore(),
     audioService: const SilentCaptureAudioService(),
     modelCoverageAnalyzer:
@@ -1475,6 +1504,19 @@ void selectTestJewellery(KioskTryOnSessionController controller) {
   );
 }
 
+ImageQualityResult blurryPersonQuality() {
+  return normalizeImageQualityResult(
+    const CompleteImageQualityMetrics(
+      width: 1024,
+      height: 1536,
+      sharpness: 10,
+      brightness: 120,
+      contrast: 45,
+    ),
+    ImageQualityTarget.person,
+  );
+}
+
 class JewellerySessionGateway extends FakeTryOnGateway
     implements KioskTryOnSessionGateway {
   String? attachedSessionId;
@@ -1681,12 +1723,17 @@ class FakeSettingsStore implements CameraSettingsStore {
 }
 
 class FakeQualityAnalyzer implements KioskImageQualityAnalyzer {
+  FakeQualityAnalyzer({this.result});
+
+  final ImageQualityResult? result;
+
   @override
   Future<ImageQualityResult> analyzeStillImage(
     String imagePath,
     ImageQualityTarget target,
   ) async {
-    return createUnavailableImageQualityResult(width: 1024, height: 1536);
+    return result ??
+        createUnavailableImageQualityResult(width: 1024, height: 1536);
   }
 
   @override

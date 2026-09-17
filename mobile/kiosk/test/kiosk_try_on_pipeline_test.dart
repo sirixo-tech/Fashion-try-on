@@ -174,6 +174,43 @@ void main() {
       expect(harness.gateway.createCount, 1);
     });
 
+    test(
+      'stops before generation when person session attachment fails',
+      () async {
+        final harness = await _sessionHarness(failPersonAttachment: true);
+        addTearDown(harness.dispose);
+        harness.session.customerSessionActive = true;
+
+        await harness.session.submitFromCapture(harness.capture);
+
+        expect(harness.gateway.createCount, 0);
+        expect(harness.session.status, KioskTryOnStatus.failed);
+        expect(harness.session.failureCode, KioskTryOnFailureCode.uploadFailed);
+        expect(harness.session.customerTitle, 'Photo upload failed');
+        expect(
+          harness.session.customerMessage,
+          'SelfX could not save this photo for reuse.',
+        );
+      },
+    );
+
+    test('stops before generation when session creation fails', () async {
+      final harness = await _sessionHarness(failSessionCreation: true);
+      addTearDown(harness.dispose);
+      harness.session.customerSessionActive = true;
+
+      await harness.session.submitFromCapture(harness.capture);
+
+      expect(harness.gateway.createCount, 0);
+      expect(harness.session.status, KioskTryOnStatus.failed);
+      expect(harness.session.failureCode, KioskTryOnFailureCode.uploadFailed);
+      expect(harness.session.customerTitle, 'Session unavailable');
+      expect(
+        harness.session.customerMessage,
+        'SelfX session could not be started right now.',
+      );
+    });
+
     test('polling timeout does not create a duplicate run', () async {
       final harness = await _sessionHarness(statuses: const []);
       addTearDown(harness.dispose);
@@ -550,6 +587,8 @@ Future<_SessionHarness> _sessionHarness({
   List<KioskTryOnRun> statuses = const [],
   KioskGarmentIntent garmentIntent = KioskGarmentIntent.top,
   CaptureScope captureScope = CaptureScope.top,
+  bool failSessionCreation = false,
+  bool failPersonAttachment = false,
 }) async {
   final temp = await Directory.systemTemp.createTemp('selfx-kiosk-3a-');
   final person = await _writeImage(temp, 'person.jpg', 800, 1200);
@@ -557,6 +596,8 @@ Future<_SessionHarness> _sessionHarness({
   final gateway = FakeKioskTryOnGateway(
     createRunResult: createRun,
     statuses: statuses,
+    failSessionCreation: failSessionCreation,
+    failPersonAttachment: failPersonAttachment,
   );
   final session =
       KioskTryOnSessionController(
@@ -680,10 +721,14 @@ class FakeKioskTryOnGateway
   FakeKioskTryOnGateway({
     required this.createRunResult,
     required this.statuses,
+    this.failSessionCreation = false,
+    this.failPersonAttachment = false,
   });
 
   final KioskTryOnRun createRunResult;
   final List<KioskTryOnRun> statuses;
+  final bool failSessionCreation;
+  final bool failPersonAttachment;
   List<KioskTryOnLook> sessionLooks = const [];
   int createCount = 0;
   int pollCount = 0;
@@ -710,6 +755,12 @@ class FakeKioskTryOnGateway
 
   @override
   Future<KioskTryOnSession> createTryOnSession() async {
+    if (failSessionCreation) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.uploadFailed,
+        'SelfX session could not be started right now.',
+      );
+    }
     return _activeSession();
   }
 
@@ -718,6 +769,12 @@ class FakeKioskTryOnGateway
     required String sessionId,
     required File personImage,
   }) async {
+    if (failPersonAttachment) {
+      throw const KioskTryOnException(
+        KioskTryOnFailureCode.uploadFailed,
+        'SelfX could not save this photo for reuse.',
+      );
+    }
     return KioskTryOnAsset(
       assetId: 'person-asset',
       purpose: KioskTryOnAssetPurpose.person,

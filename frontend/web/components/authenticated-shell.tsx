@@ -6,7 +6,6 @@ import {
   ActivityIcon,
   BarChart3Icon,
   BlocksIcon,
-  Building2Icon,
   Code2Icon,
   CreditCardIcon,
   FlaskConicalIcon,
@@ -56,18 +55,7 @@ import {
 const navItems: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
-  {
-    label: "Stores",
-    icon: StoreIcon,
-    children: [
-      { href: "/app/stores", label: "Stores", icon: StoreIcon },
-      {
-        href: "/app/onboarding",
-        label: "Onboarding Status",
-        icon: Building2Icon,
-      },
-    ],
-  },
+  { href: "/app/stores", label: "Stores", icon: StoreIcon },
   {
     label: "Team & locations",
     icon: UsersIcon,

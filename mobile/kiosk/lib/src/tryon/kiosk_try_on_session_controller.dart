@@ -597,9 +597,25 @@ class KioskTryOnSessionController extends ChangeNotifier {
     try {
       if (activeSessionId == null && customerSessionActive) {
         await createBackendSession();
+        if (activeSessionId == null) {
+          _fail(
+            KioskTryOnFailureCode.uploadFailed,
+            sessionMessage ?? 'SelfX session could not be started right now.',
+            title: 'Session unavailable',
+          );
+          return;
+        }
       }
       if (activeSessionId != null && currentPersonAssetId == null) {
-        await attachAcceptedPerson(capture);
+        final attached = await attachAcceptedPerson(capture);
+        if (!attached) {
+          _fail(
+            KioskTryOnFailureCode.uploadFailed,
+            sessionMessage ?? 'SelfX could not save this photo for reuse.',
+            title: 'Photo upload failed',
+          );
+          return;
+        }
       }
       _activeClientRequestId ??= _createClientRequestId();
       final sessionId = activeSessionId;

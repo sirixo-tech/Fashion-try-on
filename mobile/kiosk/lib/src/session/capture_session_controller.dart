@@ -14,6 +14,8 @@ import '../live/live_frame.dart';
 import '../live/person_analysis.dart';
 import '../quality/image_quality.dart';
 import '../settings/camera_settings_store.dart';
+import '../tryon/jewellery_person_preflight.dart';
+import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import '../tryon/model_coverage_analyzer.dart';
 import '../tryon/model_garment_compatibility.dart';
 import 'capture_audio_service.dart';
@@ -73,6 +75,7 @@ class CaptureSessionController extends ChangeNotifier {
   ModelCoverageAnalysis? pendingModelCoverageAnalysis;
   ModelCoverage? acceptedModelCoverage;
   ModelCoverageAnalysis? acceptedModelCoverageAnalysis;
+  KioskJewelleryCaptureRequirements? jewelleryCaptureRequirements;
   Duration? poseAnalyzerLatency;
   Duration? imageQualityAnalyzerLatency;
   bool isAnalyzingQuality = false;
@@ -198,6 +201,9 @@ class CaptureSessionController extends ChangeNotifier {
   void selectCapturePurpose(PhotoAcquisitionPurpose purpose) {
     final previousCapture = capture;
     capturePurpose = purpose;
+    if (purpose != PhotoAcquisitionPurpose.model) {
+      jewelleryCaptureRequirements = null;
+    }
     _cancelCountdownTimer();
     _captureRunId++;
     capture = null;
@@ -220,6 +226,16 @@ class CaptureSessionController extends ChangeNotifier {
     if (previousCapture?.originalPath != acceptedCapture?.originalPath) {
       unawaited(captureStore.deleteCapture(previousCapture?.originalPath));
     }
+  }
+
+  void configureJewelleryCaptureRequirements(
+    KioskJewelleryCaptureRequirements? requirements,
+  ) {
+    if (jewelleryCaptureRequirements == requirements) {
+      return;
+    }
+    jewelleryCaptureRequirements = requirements;
+    notifyListeners();
   }
 
   Future<void> loadOperatorSettings() async {
@@ -571,12 +587,15 @@ class CaptureSessionController extends ChangeNotifier {
     return const CaptureUsePhotoResult.accepted();
   }
 
-  Future<void> acceptMobileUpload({
+  Future<CaptureUsePhotoResult> acceptMobileUpload({
     required String originalPath,
     required int width,
     required int height,
+    KioskJewelleryCaptureRequirements? jewelleryRequirements,
   }) async {
     final runId = ++_captureRunId;
+    final activeJewelleryRequirements =
+        jewelleryRequirements ?? jewelleryCaptureRequirements;
     final result = CameraCaptureResult(
       originalPath: originalPath,
       createdAt: DateTime.now(),
@@ -585,36 +604,96 @@ class CaptureSessionController extends ChangeNotifier {
     );
     capture = result;
     captureTargetMetadata = null;
-    imageUsabilityResult = const ImageUsabilityResult.usable(
-      'Photo looks good!',
-    );
     pendingModelCoverage = null;
     pendingModelCoverageAnalysis = null;
     _clearAcceptedPersonPhoto();
-    qualityResult = ImageQualityResult(
-      status: ImageQualityStatus.pass,
-      passed: true,
-      score: 100,
-      metrics: ImageQualityMetrics(
-        width: width,
-        height: height,
-        sharpness: null,
-        brightness: null,
-        contrast: null,
-      ),
-      issues: const [],
+    isAnalyzingQuality = true;
+    _setFlowState(
+      flowState.copyWith(stage: CaptureFlowStage.analyzing, clearError: true),
     );
+    qualityResult = activeJewelleryRequirements == null
+        ? ImageQualityResult(
+            status: ImageQualityStatus.pass,
+            passed: true,
+            score: 100,
+            metrics: ImageQualityMetrics(
+              width: width,
+              height: height,
+              sharpness: null,
+              brightness: null,
+              contrast: null,
+            ),
+            issues: const [],
+          )
+        : await analyzer
+              .analyzeStillImage(originalPath, ImageQualityTarget.person)
+              .catchError(
+                (_) => createUnavailableImageQualityResult(
+                  width: width,
+                  height: height,
+                ),
+              );
+    isAnalyzingQuality = false;
+    final qualityPreflight = activeJewelleryRequirements == null
+        ? const JewelleryPersonPreflightResult.proceed()
+        : evaluateJewelleryPersonPreflight(
+            requirements: activeJewelleryRequirements,
+            quality: qualityResult!,
+          );
+    if (!qualityPreflight.canProceed) {
+      imageUsabilityResult = ImageUsabilityResult.unusable(
+        qualityPreflight.message ?? 'Please retake your photo.',
+      );
+      _setFlowState(
+        flowState.copyWith(
+          stage: CaptureFlowStage.review,
+          clearSecondsRemaining: true,
+          clearError: true,
+        ),
+      );
+      return CaptureUsePhotoResult.rejected(
+        message: imageUsabilityResult?.message,
+      );
+    }
     final coverageAnalysis = await modelCoverageAnalyzer.analyze(
       File(originalPath),
     );
     if (!_isActiveRun(runId)) {
-      return;
+      return const CaptureUsePhotoResult.rejected();
+    }
+    pendingModelCoverageAnalysis = coverageAnalysis;
+    final semanticPreflight = activeJewelleryRequirements == null
+        ? const JewelleryPersonPreflightResult.proceed()
+        : evaluateJewelleryPersonPreflight(
+            requirements: activeJewelleryRequirements,
+            quality: qualityResult!,
+            coverageAnalysis: coverageAnalysis,
+          );
+    if (!semanticPreflight.canProceed) {
+      pendingModelCoverage = coverageAnalysis.coverage;
+      imageUsabilityResult = ImageUsabilityResult.unusable(
+        semanticPreflight.message ?? 'Please retake your photo.',
+      );
+      _setFlowState(
+        flowState.copyWith(
+          stage: CaptureFlowStage.review,
+          clearSecondsRemaining: true,
+          clearError: true,
+        ),
+      );
+      return CaptureUsePhotoResult.rejected(
+        message: imageUsabilityResult?.message,
+      );
     }
     final personImage = CustomerPersonImage(
       originalPath: originalPath,
       source: CustomerPersonImageSource.mobileUpload,
       captureScope: captureScope,
       createdAt: result.createdAt,
+    );
+    pendingModelCoverage = coverageAnalysis.coverage;
+    imageUsabilityResult = const ImageUsabilityResult.usable(
+      'Photo looks good!',
     );
     _setAcceptedPersonPhoto(
       AcceptedPersonPhoto(
@@ -632,6 +711,7 @@ class CaptureSessionController extends ChangeNotifier {
         clearError: true,
       ),
     );
+    return const CaptureUsePhotoResult.accepted();
   }
 
   Future<void> resetSession() async {
@@ -643,6 +723,7 @@ class CaptureSessionController extends ChangeNotifier {
     imageUsabilityResult = null;
     pendingModelCoverage = null;
     pendingModelCoverageAnalysis = null;
+    jewelleryCaptureRequirements = null;
     modelCoverageValidationEnabled = true;
     _clearAcceptedPersonPhoto();
     primarySubject = null;
@@ -677,6 +758,20 @@ class CaptureSessionController extends ChangeNotifier {
       return;
     }
 
+    final activeJewelleryRequirements = jewelleryCaptureRequirements;
+    if (activeJewelleryRequirements != null) {
+      final preflight = evaluateJewelleryPersonPreflight(
+        requirements: activeJewelleryRequirements,
+        quality: quality,
+      );
+      if (!preflight.canProceed) {
+        imageUsabilityResult = ImageUsabilityResult.unusable(
+          preflight.message ?? 'Please retake your photo.',
+        );
+        return;
+      }
+    }
+
     if (!modelCoverageValidationEnabled) {
       pendingModelCoverage = modelCoverageForCaptureScope(captureScope);
       pendingModelCoverageAnalysis = null;
@@ -700,6 +795,20 @@ class CaptureSessionController extends ChangeNotifier {
         "Failed to detect a person. Please retake your photo.",
       );
       return;
+    }
+    if (activeJewelleryRequirements != null) {
+      final preflight = evaluateJewelleryPersonPreflight(
+        requirements: activeJewelleryRequirements,
+        quality: quality,
+        coverageAnalysis: coverageAnalysis,
+      );
+      if (!preflight.canProceed) {
+        pendingModelCoverage = coverageAnalysis.coverage;
+        imageUsabilityResult = ImageUsabilityResult.unusable(
+          preflight.message ?? 'Please retake your photo.',
+        );
+        return;
+      }
     }
     pendingModelCoverage =
         coverageAnalysis.status == ModelCoverageAnalysisStatus.resolved

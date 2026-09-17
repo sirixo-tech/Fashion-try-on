@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowLeftIcon,
-  CheckIcon,
   CreditCardIcon,
   EyeIcon,
   EyeOffIcon,
@@ -18,22 +17,28 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
   FormActions,
-  FormSection,
   Input,
   Label,
   LoadingState,
   ErrorState,
   PageContainer,
   PageHeader,
-  PageSection,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from "@selfx/ui";
-
 import { SafeApiError } from "@/lib/api";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
 import { listPricingPlans, type PricingPlan } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
 import { onboardStore } from "@/lib/stores";
+import styles from "./store-setup.module.css";
 
 export default function CreateStorePage() {
   const router = useRouter();
@@ -50,11 +55,6 @@ export default function CreateStorePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     name: "",
-    slug: "",
-    contactEmail: "",
-    contactPhone: "",
-    address: "",
-    timezone: "UTC",
     ownerName: "",
     ownerEmail: "",
     ownerPassword: "",
@@ -120,15 +120,6 @@ export default function CreateStorePage() {
     try {
       const store = await onboardStore(token, {
         name: form.name.trim(),
-        ...(form.slug.trim() ? { slug: form.slug.trim() } : {}),
-        ...(form.contactEmail.trim()
-          ? { contactEmail: form.contactEmail.trim() }
-          : {}),
-        ...(form.contactPhone.trim()
-          ? { contactPhone: form.contactPhone.trim() }
-          : {}),
-        ...(form.address.trim() ? { address: form.address.trim() } : {}),
-        timezone: form.timezone.trim() || "UTC",
         pricingPlanId: selected.id,
         ownerName: form.ownerName.trim(),
         ownerEmail: form.ownerEmail.trim().toLowerCase(),
@@ -150,13 +141,13 @@ export default function CreateStorePage() {
 
   if (loading)
     return (
-      <PageContainer width="wide">
+      <PageContainer width="form">
         <LoadingState label="Loading Store setup" />
       </PageContainer>
     );
   if (!allowed)
     return (
-      <PageContainer width="wide">
+      <PageContainer width="form">
         <ErrorState
           title="Store creation unavailable"
           description={
@@ -172,139 +163,100 @@ export default function CreateStorePage() {
     );
 
   return (
-    <PageContainer width="wide">
-      <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-        <Link
-          href="/app/stores"
-          className="inline-flex items-center gap-2 hover:text-foreground"
-        >
-          <ArrowLeftIcon size={16} />
-          Stores
-        </Link>
-        <span className="mx-2">/</span>
-        <span className="text-foreground">Create Store</span>
-      </nav>
-      <PageHeader eyebrow="Platform" title="Create Store" />
-      <form onSubmit={(event) => void submit(event)} className="space-y-6">
+    <PageContainer width="medium">
+      <div className="space-y-2">
+        <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
+          <Link
+            href="/app/stores"
+            className="inline-flex items-center gap-2 hover:text-foreground"
+          >
+            <ArrowLeftIcon size={16} />
+            Stores
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-foreground">Create Store</span>
+        </nav>
+        <PageHeader title="Create Store" />
+      </div>
+      <form onSubmit={(event) => void submit(event)} className={styles.form}>
         {error ? (
           <Alert variant="destructive">
             <AlertTitle>Unable to create Store</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <fieldset disabled={saving} className="min-w-0 space-y-6">
-            <PageSection>
-              <FormSection title="Store details">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="store-name">Store name</Label>
-                    <Input
-                      id="store-name"
-                      required
-                      maxLength={200}
-                      value={form.name}
-                      onChange={(event) => update("name", event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="store-slug">Store slug (optional)</Label>
-                    <Input
-                      id="store-slug"
-                      minLength={3}
-                      maxLength={120}
-                      pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                      value={form.slug}
-                      onChange={(event) => update("slug", event.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="contact-email">
-                      Contact email (optional)
-                    </Label>
-                    <Input
-                      id="contact-email"
-                      type="email"
-                      maxLength={254}
-                      value={form.contactEmail}
-                      onChange={(event) =>
-                        update("contactEmail", event.target.value)
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="contact-phone">
-                      Contact phone (optional)
-                    </Label>
-                    <Input
-                      id="contact-phone"
-                      type="tel"
-                      maxLength={40}
-                      value={form.contactPhone}
-                      onChange={(event) =>
-                        update("contactPhone", event.target.value)
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="store-address">Address (optional)</Label>
-                    <Input
-                      id="store-address"
-                      maxLength={240}
-                      value={form.address}
-                      onChange={(event) =>
-                        update("address", event.target.value)
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="store-timezone">Timezone</Label>
-                    <Input
-                      id="store-timezone"
-                      required
-                      maxLength={64}
-                      value={form.timezone}
-                      onChange={(event) =>
-                        update("timezone", event.target.value)
-                      }
-                    />
-                  </div>
-                </div>
-              </FormSection>
-            </PageSection>
-            <PageSection>
-              <FormSection title="Plan">
-                {plans.length ? (
-                  <div
-                    className="grid gap-3 md:grid-cols-2"
-                    role="radiogroup"
-                    aria-label="Store plan"
-                  >
-                    {plans.map((plan) => (
-                      <label
-                        key={plan.id}
-                        className={`flex min-w-0 cursor-pointer items-start gap-3 rounded-md border p-4 ${planId === plan.id ? "border-primary bg-primary/5" : "bg-background"}`}
-                      >
-                        <input
-                          type="radio"
-                          name="plan"
-                          value={plan.id}
-                          checked={planId === plan.id}
-                          onChange={() => setPlanId(plan.id)}
-                          className="mt-1 h-4 w-4 shrink-0 accent-primary"
-                          required
-                        />
-                        <span className="min-w-0 space-y-2">
-                          <span className="block break-words font-semibold">
+        <div className={styles.layout}>
+          <div className="min-w-0 space-y-4">
+            <fieldset disabled={saving} className="min-w-0 space-y-3">
+              <Card size="sm" className={styles.card}>
+                <CardHeader className="border-b">
+                  <CardTitle>
+                    <h2 className="flex items-center gap-2 text-base font-semibold">
+                      <StoreIcon
+                        size={18}
+                        className="text-primary"
+                        aria-hidden="true"
+                      />
+                      Store name
+                    </h2>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label htmlFor="store-name" className="sr-only">
+                    Store name
+                  </Label>
+                  <Input
+                    id="store-name"
+                    placeholder="Store name"
+                    required
+                    maxLength={200}
+                    value={form.name}
+                    onChange={(event) => update("name", event.target.value)}
+                  />
+                </CardContent>
+              </Card>
+              <Card size="sm" className={styles.card}>
+                <CardHeader className="border-b">
+                  <CardTitle>
+                    <h2 className="flex items-center gap-2 text-base font-semibold">
+                      <CreditCardIcon
+                        size={18}
+                        className="text-primary"
+                        aria-hidden="true"
+                      />
+                      Plan
+                    </h2>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {plans.length ? (
+                    <Tabs
+                      value={planId}
+                      onValueChange={(value) => {
+                        if (typeof value === "string" && !saving)
+                          setPlanId(value);
+                      }}
+                    >
+                      <TabsList aria-label="Store plan">
+                        {plans.map((plan) => (
+                          <TabsTrigger
+                            key={plan.id}
+                            value={plan.id}
+                            disabled={saving}
+                          >
                             {plan.name}
-                          </span>
-                          <span className="block font-medium">
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                      {plans.map((plan) => (
+                        <TabsContent key={plan.id} value={plan.id}>
+                          <p className="break-words text-lg font-semibold">
                             {priceFor(plan)}{" "}
                             <span className="text-sm font-normal text-muted-foreground">
                               / month
                             </span>
-                          </span>
-                          <span className="block text-sm text-muted-foreground">
+                          </p>
+                          <p className="mt-2 text-sm text-muted-foreground">
                             {plan.includedCredits.toLocaleString()} credits
                             {plan.trialCredits > 0
                               ? ` + ${plan.trialCredits.toLocaleString()} trial`
@@ -312,34 +264,46 @@ export default function CreateStorePage() {
                             {plan.storeLocationLimit !== 0
                               ? ` | ${plan.storeLocationLimit === null ? "Unlimited" : plan.storeLocationLimit} locations`
                               : ""}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <Alert>
-                    <AlertTitle>No active plans available</AlertTitle>
-                    <AlertDescription>
+                          </p>
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                      <span className="text-muted-foreground">
+                        No active plans available
+                      </span>
                       <Button
                         variant="outline"
+                        size="sm"
                         type="button"
                         onClick={() => setReload((value) => value + 1)}
                       >
                         Reload plans
                       </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </FormSection>
-            </PageSection>
-            <PageSection>
-              <FormSection title="Owner account">
-                <div className="grid gap-4 sm:grid-cols-2">
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card size="sm" className={styles.card}>
+                <CardHeader className="border-b">
+                  <CardTitle>
+                    <h2 className="flex items-center gap-2 text-base font-semibold">
+                      <UserIcon
+                        size={18}
+                        className="text-primary"
+                        aria-hidden="true"
+                      />
+                      Owner account
+                    </h2>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className={styles.fields}>
                   <div className="space-y-2">
                     <Label htmlFor="owner-name">Owner full name</Label>
                     <Input
                       id="owner-name"
+                      placeholder="Full name"
                       required
                       maxLength={120}
                       autoComplete="off"
@@ -353,6 +317,7 @@ export default function CreateStorePage() {
                     <Label htmlFor="owner-email">Login email</Label>
                     <Input
                       id="owner-email"
+                      placeholder="owner@example.com"
                       type="email"
                       required
                       maxLength={254}
@@ -368,6 +333,7 @@ export default function CreateStorePage() {
                     <div className="relative">
                       <Input
                         id="owner-password"
+                        placeholder="At least 12 characters"
                         type={showPassword ? "text" : "password"}
                         autoComplete="new-password"
                         required
@@ -398,6 +364,7 @@ export default function CreateStorePage() {
                     <Label htmlFor="confirm-password">Confirm password</Label>
                     <Input
                       id="confirm-password"
+                      placeholder="Re-enter password"
                       type="password"
                       autoComplete="new-password"
                       required
@@ -409,71 +376,68 @@ export default function CreateStorePage() {
                       }
                     />
                   </div>
-                </div>
-              </FormSection>
-            </PageSection>
-          </fieldset>
-          <aside
-            className="min-w-0 space-y-4 border-t pt-4 xl:sticky xl:top-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0"
-            aria-label="Onboarding summary"
-          >
-            <h2 className="text-base font-semibold">Onboarding summary</h2>
-            <dl className="space-y-5 text-sm">
-              <div>
-                <dt className="mb-1 flex items-center gap-2 text-muted-foreground">
-                  <StoreIcon size={16} />
-                  Store
-                </dt>
-                <dd className="break-words">{form.name.trim() || "Not set"}</dd>
-              </div>
-              <div>
-                <dt className="mb-1 flex items-center gap-2 text-muted-foreground">
-                  <CreditCardIcon size={16} />
-                  Plan
-                </dt>
-                <dd className="break-words">
-                  {selected
-                    ? `${selected.name} | ${priceFor(selected)} / month`
-                    : "Not selected"}
-                </dd>
-              </div>
-              <div>
-                <dt className="mb-1 flex items-center gap-2 text-muted-foreground">
-                  <UserIcon size={16} />
-                  Owner
-                </dt>
-                <dd className="break-words">
-                  {form.ownerName.trim() || "Not set"}
-                </dd>
-                <dd className="break-all text-muted-foreground">
-                  {form.ownerEmail.trim()}
-                </dd>
-              </div>
-              <div>
-                <dt className="mb-1 text-muted-foreground">Status</dt>
-                <dd className="flex items-center gap-2">
-                  <CheckIcon size={16} className="text-emerald-600" />
-                  Active on creation
-                </dd>
-              </div>
-            </dl>
+                </CardContent>
+              </Card>
+            </fieldset>
+            <FormActions>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={() => router.push("/app/stores")}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving || !selected}>
+                <SaveIcon aria-hidden="true" />
+                {saving ? "Creating Store..." : "Create Store"}
+              </Button>
+            </FormActions>
+          </div>
+          <aside className={styles.summary} aria-label="Onboarding summary">
+            <Card size="sm" className={styles.card}>
+              <CardHeader className="border-b">
+                <CardTitle>
+                  <h2 className="text-base font-semibold">
+                    Onboarding summary
+                  </h2>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-4 text-sm">
+                  <div>
+                    <dt className="text-muted-foreground">Store</dt>
+                    <dd className="mt-1 break-words font-medium">
+                      {form.name.trim() || "Not set"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Plan</dt>
+                    <dd className="mt-1 break-words font-medium">
+                      {selected?.name ?? "Not selected"}
+                    </dd>
+                    {selected ? (
+                      <dd className="mt-1 text-muted-foreground">
+                        {priceFor(selected)} / month
+                      </dd>
+                    ) : null}
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Owner</dt>
+                    <dd className="mt-1 break-words font-medium">
+                      {form.ownerName.trim() || "Not set"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Login email</dt>
+                    <dd className="mt-1 break-all font-medium">
+                      {form.ownerEmail.trim() || "Not set"}
+                    </dd>
+                  </div>
+                </dl>
+              </CardContent>
+            </Card>
           </aside>
-        </div>
-        <div className="border-t pt-4">
-          <FormActions>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={() => router.push("/app/stores")}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving || !selected}>
-              <SaveIcon aria-hidden="true" />
-              {saving ? "Creating Store..." : "Create Store"}
-            </Button>
-          </FormActions>
         </div>
       </form>
     </PageContainer>
