@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ActivityIcon,
   BarChart3Icon,
@@ -33,14 +39,9 @@ import {
   TableRow,
 } from "@selfx/ui";
 
-import {
-  getCurrentPlatformAccess,
-  type CurrentPlatformAccess,
-} from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
 import { getCurrentMerchantStore } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
-import { listStores, type AdminStore } from "@/lib/stores";
 import {
   getUsageSummary,
   type UsageChannelFilter,
@@ -70,21 +71,11 @@ export default function AnalyticsPage() {
   const [range, setRange] = useState<UsageRangePreset>("7d");
   const [channel, setChannel] = useState<UsageChannelFilter>("ALL");
   const [storeId, setStoreId] = useState("");
-  const [platformAccess, setPlatformAccess] =
-    useState<CurrentPlatformAccess | null>(null);
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const hasPlatformUsageAccess = Boolean(
-    platformAccess?.isSuperadmin ||
-      platformAccess?.permissions.includes("USAGE_VIEW"),
-  );
-  const canChooseStoreScope = Boolean(
-    platformAccess?.isSuperadmin ||
-      platformAccess?.permissions.includes("STORES_VIEW"),
-  );
   const selectedStoreName = useMemo(
     () =>
       storeId
@@ -95,7 +86,6 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (!accessToken) {
-      setPlatformAccess(null);
       setStoreOptions([]);
       setStoreId("");
       return;
@@ -106,20 +96,6 @@ export default function AnalyticsPage() {
 
     async function loadAccess() {
       try {
-        const access = await getCurrentPlatformAccess(token);
-        if (cancelled) {
-          return;
-        }
-        setPlatformAccess(access);
-
-        if (access.isSuperadmin || access.permissions.includes("STORES_VIEW")) {
-          const stores = await listStores(token, { pageSize: 100 });
-          if (!cancelled) {
-            setStoreOptions(stores.data.map(storeOptionFromAdminStore));
-          }
-          return;
-        }
-
         const currentStore = await getCurrentMerchantStore(token);
         if (!cancelled) {
           const options = currentStore
@@ -131,7 +107,6 @@ export default function AnalyticsPage() {
       } catch (caught) {
         if (!cancelled) {
           setError(messageFor(caught));
-          setPlatformAccess({ isSuperadmin: false, permissions: [] });
         }
       }
     }
@@ -147,7 +122,7 @@ export default function AnalyticsPage() {
     if (!accessToken) {
       return;
     }
-    if (!hasPlatformUsageAccess && !storeId) {
+    if (!storeId) {
       setSummary(null);
       setLoading(false);
       return;
@@ -158,7 +133,7 @@ export default function AnalyticsPage() {
       const nextSummary = await getUsageSummary(accessToken, {
         range,
         channel,
-        storeId: storeId || undefined,
+        storeId,
         limit: 10,
       });
       setSummary(nextSummary);
@@ -167,7 +142,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken, channel, hasPlatformUsageAccess, range, storeId]);
+  }, [accessToken, channel, range, storeId]);
 
   useEffect(() => {
     void loadSummary();
@@ -176,7 +151,7 @@ export default function AnalyticsPage() {
   const scopeLabel =
     summary?.scope.mode === "STORE"
       ? (summary.scope.storeName ?? selectedStoreName ?? "Selected Store")
-      : "All Stores";
+      : (selectedStoreName ?? "Your Store");
   const maxDaily = Math.max(
     1,
     ...(summary?.daily ?? []).map((row) => row.tryOnsGenerated),
@@ -187,7 +162,7 @@ export default function AnalyticsPage() {
       <PageHeader
         eyebrow="Workspace"
         title="Analytics"
-        description="Hierarchical usage visibility for platform teams and Store teams without exposing customer images."
+        description="Try-On activity and product performance for your Store."
         status={<Badge variant="secondary">{scopeLabel}</Badge>}
         actions={
           <Button variant="outline" onClick={() => void loadSummary()}>
@@ -219,34 +194,12 @@ export default function AnalyticsPage() {
               onChange={setChannel}
             />
           </label>
-          {canChooseStoreScope ? (
-            <label className="grid gap-2 text-sm font-medium">
-              Store
-              <SelectMenu
-                ariaLabel="Store"
-                value={storeId}
-                disabled={storeOptions.length === 0}
-                options={[
-                  ...(hasPlatformUsageAccess
-                    ? [{ value: "", label: "All Stores" }]
-                    : []),
-                  ...storeOptions.map((store) => ({
-                    value: store.id,
-                    label: store.name,
-                  })),
-                ]}
-                className="h-11"
-                onChange={setStoreId}
-              />
-            </label>
-          ) : (
-            <div className="grid gap-2 text-sm font-medium">
-              SelfX account
-              <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
-                {selectedStoreName ?? "Your Store"}
-              </div>
+          <div className="grid gap-2 text-sm font-medium">
+            SelfX account
+            <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
+              {selectedStoreName ?? "Your Store"}
             </div>
-          )}
+          </div>
           <div className="flex items-end text-sm text-muted-foreground">
             {summary
               ? `${formatDate(summary.range.from)} to ${formatDate(summary.range.to)}`
@@ -296,7 +249,11 @@ export default function AnalyticsPage() {
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
           <TableContainer
             title="Daily Try-On Activity"
-            actions={<div className="text-primary"><BarChart3Icon size={18} /></div>}
+            actions={
+              <div className="text-primary">
+                <BarChart3Icon size={18} />
+              </div>
+            }
           >
             <div className="grid gap-2 p-1">
               {loading ? (
@@ -338,7 +295,11 @@ export default function AnalyticsPage() {
 
           <TableContainer
             title="Channel Split"
-            actions={<div className="text-primary"><Layers3Icon size={18} /></div>}
+            actions={
+              <div className="text-primary">
+                <Layers3Icon size={18} />
+              </div>
+            }
           >
             <Table>
               <TableHeader>
@@ -379,7 +340,7 @@ export default function AnalyticsPage() {
       <PageSection>
         <div className="grid gap-4 xl:grid-cols-2">
           <UsageTable
-            title={hasPlatformUsageAccess && !storeId ? "Store Usage" : "Store Summary"}
+            title="Store Summary"
             icon={<StoreIcon size={18} aria-hidden="true" />}
             empty="No Store usage in this range."
             loading={loading}
@@ -434,20 +395,6 @@ export default function AnalyticsPage() {
               displayNumber(row.downloadsCompleted),
             ])}
           />
-          <UsageTable
-            title="Provider Health"
-            icon={<WorkflowIcon size={18} aria-hidden="true" />}
-            empty="No provider activity in this range."
-            loading={loading}
-            headers={["Provider", "Model", "Runs", "Failed", "Looks"]}
-            rows={(summary?.providerUsage ?? []).map((row) => [
-              row.provider,
-              row.providerModel ?? "-",
-              displayNumber(row.runsCreated),
-              displayNumber(row.failedRuns),
-              displayNumber(row.tryOnsGenerated),
-            ])}
-          />
         </div>
       </PageSection>
     </PageContainer>
@@ -485,7 +432,9 @@ function UsageTable({
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={headers.length}>Loading analytics...</TableCell>
+              <TableCell colSpan={headers.length}>
+                Loading analytics...
+              </TableCell>
             </TableRow>
           ) : rows.length === 0 ? (
             <TableRow>
@@ -511,12 +460,10 @@ function UsageTable({
   );
 }
 
-function storeOptionFromAdminStore(store: AdminStore): StoreOption {
-  return { id: store.id, name: store.name };
-}
-
 function productLabel(row: UsageSummary["products"][number]): string {
-  const source = row.catalogSource ? ` (${sourceLabel(row.catalogSource)})` : "";
+  const source = row.catalogSource
+    ? ` (${sourceLabel(row.catalogSource)})`
+    : "";
   return `${row.name}${source}`;
 }
 

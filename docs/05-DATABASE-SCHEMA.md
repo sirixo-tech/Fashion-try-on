@@ -10,6 +10,19 @@
 
 ---
 
+## Store Onboarding Policy Update - 2026-09-17
+
+Current Store onboarding supersedes older pending-owner activation rules for
+platform-created Stores and self-service signup used by Shopify. It writes an
+ACTIVE `organizations` tenant, ACTIVE user and ACTIVE ORGANIZATION_OWNER
+membership with all-Store scope; shared RBAC assigns the default owner role.
+Subscription/credit ledger records use existing structures and the same
+transaction as platform owner creation. No schema migration is required.
+Passwords remain Argon2id hashes on users; emails and Store slugs remain unique.
+Audit metadata contains identifiers and status, never passwords or hashes.
+Legacy organization applications/pending states are retained; suspended Stores
+cannot be revived by onboarding or installation.
+
 ## 1. Purpose
 
 This document defines the approved logical PostgreSQL data model for SelfX Virtual Try-On.

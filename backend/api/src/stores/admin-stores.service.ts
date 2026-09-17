@@ -5,6 +5,10 @@ import {
   KioskAssignmentScope,
   KioskDeviceStatus,
   OrganizationStatus,
+  MembershipStatus,
+  MembershipStoreScopeMode,
+  OrganizationMembershipRole,
+  UserStatus,
   Prisma,
   type KioskDevice,
   type KioskDeviceConfiguration,
@@ -15,6 +19,7 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { PasswordService } from "../auth/password.service.js";
 import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { KioskService, mapDevice } from "../kiosks/kiosk.service.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
@@ -45,6 +50,7 @@ import {
   type CreateStoreProductDto,
   type CreateStoreProductImageUploadDto,
   type CreateAdminStoreDto,
+  type OnboardAdminStoreDto,
   type ManualStoreCreditAdjustmentDto,
   type PairStoreKioskDto,
   type StoreCreditDiagnosticsDto,
@@ -65,6 +71,7 @@ export const STORE_ERROR_CODES = {
   storeInactive: "STORE_INACTIVE",
   storeDeleteRequiresInactive: "STORE_DELETE_REQUIRES_INACTIVE",
   storeSlugConflict: "STORE_SLUG_CONFLICT",
+  ownerEmailConflict: "STORE_OWNER_EMAIL_CONFLICT",
   storeFeatureUnavailable: "STORE_FEATURE_UNAVAILABLE",
   pricingPlanUnavailable: "STORE_PRICING_PLAN_UNAVAILABLE",
   kioskNotFound: "KIOSK_NOT_FOUND",
@@ -148,6 +155,8 @@ export class AdminStoresService {
     private readonly garmentPreviewSettings: GarmentPreviewSettingsService,
     @Optional() private readonly storage?: ObjectStorageService,
     @Optional() private readonly entitlements?: EntitlementsService,
+    @Optional()
+    private readonly passwords: PasswordService = new PasswordService(),
   ) {}
 
   async listStores(
@@ -231,6 +240,106 @@ export class AdminStoresService {
     };
   }
 
+  async onboardStore(
+    input: OnboardAdminStoreDto,
+    actorUserId: string,
+  ): Promise<AdminStoreResponseDto> {
+    const entitlements = this.entitlements;
+    if (!entitlements) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        STORE_ERROR_CODES.pricingPlanUnavailable,
+        "Store entitlements are not available.",
+      );
+    }
+    const email = input.ownerEmail.trim().toLowerCase();
+    const passwordHash = await this.passwords.hashPassword(input.ownerPassword);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (
+          await tx.user.findUnique({ where: { email }, select: { id: true } })
+        ) {
+          throw new ApiErrorException(
+            HttpStatus.CONFLICT,
+            STORE_ERROR_CODES.ownerEmailConflict,
+            "This email already has an account. Use the controlled Store membership flow to link an existing user.",
+          );
+        }
+        const store = await tx.organization.create({
+          data: {
+            id: createSelfxId(),
+            name: input.name.trim(),
+            slug: normalizeSlug(input.slug ?? slugFromName(input.name)),
+            status: OrganizationStatus.ACTIVE,
+            timezone: input.timezone?.trim() || "UTC",
+            settings: storeSettingsFromInput(input),
+          },
+        });
+        const owner = await tx.user.create({
+          data: {
+            id: createSelfxId(),
+            email,
+            passwordHash,
+            displayName: input.ownerName.trim(),
+            status: UserStatus.ACTIVE,
+          },
+          select: { id: true },
+        });
+        await tx.organizationMembership.create({
+          data: {
+            id: createSelfxId(),
+            orgId: store.id,
+            userId: owner.id,
+            role: OrganizationMembershipRole.ORGANIZATION_OWNER,
+            storeScopeMode: MembershipStoreScopeMode.ALL_STORES,
+            status: MembershipStatus.ACTIVE,
+            joinedAt: new Date(),
+          },
+        });
+        await this.rbac.ensureStoreRbacInTransaction(tx, store.id, true);
+        const subscription = await entitlements.activatePlanForStore(
+          {
+            organizationId: store.id,
+            pricingPlanId: input.pricingPlanId,
+          },
+          tx,
+        );
+        await tx.auditLog.create({
+          data: {
+            id: createSelfxId(),
+            action: "STORE_ONBOARDED",
+            actorUserId,
+            organizationId: store.id,
+            resourceType: "store",
+            resourceId: store.id,
+            metadata: {
+              ownerUserId: owner.id,
+              pricingPlanId: input.pricingPlanId,
+              status: OrganizationStatus.ACTIVE,
+            },
+          },
+        });
+        return mapStore(store, undefined, subscription);
+      });
+    } catch (error) {
+      if (isUniqueConflict(error)) {
+        const target = (error as Prisma.PrismaClientKnownRequestError).meta
+          ?.target;
+        const emailConflict = Array.isArray(target) && target.includes("email");
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          emailConflict
+            ? STORE_ERROR_CODES.ownerEmailConflict
+            : STORE_ERROR_CODES.storeSlugConflict,
+          emailConflict
+            ? "This email already has an account."
+            : "Store slug is already in use.",
+        );
+      }
+      throw error;
+    }
+  }
+
   async assignPricingPlan(
     storeId: string,
     input: AssignStorePricingPlanDto,
@@ -301,10 +410,13 @@ export class AdminStoresService {
       return summaries;
     }
     const rows = await Promise.all(
-      storeIds.map(async (storeId) => [
-        storeId,
-        await this.entitlements!.getStoreCreditSummary(storeId),
-      ] as const),
+      storeIds.map(
+        async (storeId) =>
+          [
+            storeId,
+            await this.entitlements!.getStoreCreditSummary(storeId),
+          ] as const,
+      ),
     );
     for (const [storeId, summary] of rows) {
       summaries.set(storeId, summary);

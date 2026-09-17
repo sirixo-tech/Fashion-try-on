@@ -331,6 +331,24 @@ export function createStore(
   });
 }
 
+export type StoreOnboardingInput = StoreInput & {
+  pricingPlanId: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPassword: string;
+};
+
+export function onboardStore(
+  accessToken: string,
+  input: StoreOnboardingInput,
+): Promise<AdminStore> {
+  return selfxApi<AdminStore>("/api/v1/admin/stores/onboard", {
+    method: "POST",
+    accessToken,
+    body: JSON.stringify(input),
+  });
+}
+
 export function startStoreImpersonation(
   accessToken: string,
   storeId: string,

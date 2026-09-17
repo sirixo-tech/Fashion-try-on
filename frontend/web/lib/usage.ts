@@ -39,36 +39,38 @@ export type UsageSummary = {
   };
   providerUsage: Array<
     Omit<UsageCountRow, "sessionsStarted"> & {
-    provider: string;
-    providerModel: string | null;
+      provider: string;
+      providerModel: string | null;
     }
   >;
   stores: Array<
     UsageCountRow & {
-    storeId: string | null;
-    storeName: string;
+      storeId: string | null;
+      storeName: string;
     }
   >;
   kiosks: Array<
     UsageCountRow & {
-    kioskDeviceId: string;
-    displayName: string;
-    storeId: string | null;
-    storeName: string | null;
+      kioskDeviceId: string;
+      displayName: string;
+      storeId: string | null;
+      storeName: string | null;
     }
   >;
   products: Array<
-    UsageCountRow & {
-    productId: string | null;
-    name: string;
-    category?: string;
-    catalogSource?: string | null;
-    externalProductId?: string;
-    externalVariantId?: string;
-    sku?: string;
+    Omit<UsageCountRow, "sessionsStarted"> & {
+      productId: string | null;
+      name: string;
+      category?: string;
+      productVertical?: "GARMENT" | "JEWELLERY";
+      thumbnailUrl?: string | null;
+      catalogSource?: string | null;
+      externalProductId?: string;
+      externalVariantId?: string;
+      sku?: string;
     }
   >;
-  categories: Array<UsageCountRow & { category: string }>;
+  categories: Array<Omit<UsageCountRow, "sessionsStarted"> & { category: string }>;
   channels: Array<UsageCountRow & { channel: "KIOSK" | "PUBLIC_API" }>;
   daily: Array<UsageCountRow & { date: string }>;
 };
@@ -81,11 +83,15 @@ export function getUsageSummary(
     kioskDeviceId?: string;
     channel?: UsageChannelFilter;
     limit?: number;
+    from?: string;
+    to?: string;
   } = {},
 ): Promise<UsageSummary> {
   const params = new URLSearchParams();
   params.set("range", query.range ?? "7d");
   params.set("limit", String(query.limit ?? 10));
+  if (query.from) params.set("from", query.from);
+  if (query.to) params.set("to", query.to);
   if (query.storeId) {
     params.set("storeId", query.storeId);
   }

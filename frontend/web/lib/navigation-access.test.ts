@@ -3,6 +3,8 @@ import type { SelfxNavItem } from "@selfx/ui";
 
 import {
   filterNavigationItems,
+  canSeeHref,
+  isMerchantOnlyRoute,
   type NavigationAccess,
 } from "@/lib/navigation-access";
 
@@ -128,8 +130,6 @@ describe("permission-aware navigation", () => {
       "Stores",
       "Stores",
       "Kiosks",
-      "Team & locations",
-      "Locations",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -243,7 +243,7 @@ describe("permission-aware navigation", () => {
     ]);
   });
 
-  it("lets protected Superadmin see the complete navigation tree", () => {
+  it("keeps merchant-only modules out of Superadmin navigation", () => {
     expect(labelsFor({ ...baseAccess, isSuperadmin: true })).toEqual([
       "Dashboard",
       "Stores",
@@ -251,9 +251,6 @@ describe("permission-aware navigation", () => {
       "Onboarding",
       "Products",
       "Kiosks",
-      "Team & locations",
-      "Locations",
-      "Staff",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -272,6 +269,45 @@ describe("permission-aware navigation", () => {
       "Platform Admin",
       "Unknown",
     ]);
+  });
+
+  it("blocks merchant routes for platform roles even with Store bypass", () => {
+    const access = {
+      ...baseAccess,
+      isSuperadmin: true,
+      hasPlatformAccess: true,
+      hasActiveStore: true,
+      storePlatformBypass: true,
+      storeLocationLimit: 3,
+      storeFeatureKeys: ["ANALYTICS"],
+    };
+    for (const href of ["/app/analytics", "/app/staff", "/app/locations"]) {
+      expect(canSeeHref(href, access)).toBe(false);
+      expect(isMerchantOnlyRoute(`${href}/details`)).toBe(true);
+    }
+  });
+
+  it("requires Store analytics permission and plan, including impersonation", () => {
+    const access = {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["analytics.view"],
+      storeFeatureKeys: ["ANALYTICS"],
+    };
+    expect(canSeeHref("/app/analytics", access)).toBe(true);
+    expect(
+      canSeeHref("/app/analytics", { ...access, storePermissions: [] }),
+    ).toBe(false);
+    expect(
+      canSeeHref("/app/analytics", { ...access, storeFeatureKeys: [] }),
+    ).toBe(false);
+    expect(
+      canSeeHref("/app/analytics", {
+        ...access,
+        storePermissions: [],
+        storePlatformBypass: true,
+      }),
+    ).toBe(true);
   });
 });
 

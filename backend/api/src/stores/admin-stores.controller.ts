@@ -53,6 +53,7 @@ import {
   BulkImportedProductVtoDto,
   BulkImportedProductVtoResponseDto,
   CreateAdminStoreDto,
+  OnboardAdminStoreDto,
   CreateStoreProductDto,
   CreateStoreProductImageUploadDto,
   ManualStoreCreditAdjustmentDto,
@@ -111,6 +112,27 @@ export class AdminStoresController {
   ): Promise<AdminStoreResponseDto> {
     await this.requirePermission(request, PLATFORM_PERMISSIONS.storesCreate);
     return this.stores.createStore(dto);
+  }
+
+  @Post("onboard")
+  @ApiOperation({
+    summary: "Create an active Store, owner login and assigned plan atomically",
+  })
+  @ApiCreatedResponse({ type: AdminStoreResponseDto })
+  @ApiResponse({ status: 400, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, type: ApiErrorResponseDto })
+  @ApiResponse({ status: 409, type: ApiErrorResponseDto })
+  async onboard(
+    @Req() request: FastifyRequest,
+    @Body() dto: OnboardAdminStoreDto,
+  ): Promise<AdminStoreResponseDto> {
+    const user = await this.requirePermission(
+      request,
+      PLATFORM_PERMISSIONS.storesCreate,
+    );
+    await this.requirePermission(request, PLATFORM_PERMISSIONS.pricingManage);
+    return this.stores.onboardStore(dto, user.id);
   }
 
   @Get(":storeId")

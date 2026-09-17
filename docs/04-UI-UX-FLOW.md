@@ -40,6 +40,7 @@ SelfX Platform
 
 - Page title: Stores.
 - Primary action: Add Store.
+- Add Store navigates to `/app/stores/create`, not a popup.
 - Store results use responsive cards rather than table rows.
 - Each card shows Store name, slug, status, kiosk totals, active/offline kiosk
   counts, owner/contact email, location, last activity and created date.
@@ -51,6 +52,22 @@ SelfX Platform
 - Status filter supports All Stores, Active and Inactive.
 - Empty state explains that a Store is required before pairing/managing SelfX
   kiosks.
+
+### `/app/stores/create` - Create Store
+
+- Unframed form sections: Store details, active plan selection, owner account.
+- Plan options use radio selection with current monthly prices, credits and
+  supported location limits; do not invent yearly prices or trial overrides.
+- Owner fields: name, login email, password and confirmation; password visibility
+  uses a named icon button. Password values are never included in the summary.
+- A compact responsive summary shows Store, plan, owner and active-on-creation
+  status. Cancel and Create Store are bottom-right; duplicate submits are blocked.
+- Creation is one transaction, followed by navigation to View Store. Existing
+  email, unavailable plan and validation failures stay on the form for correction.
+- Creation requires platform STORES_CREATE and PRICING_MANAGE permissions.
+- Current Store creation and Shopify self-service signup do not require separate
+  activation, superseding older pending-activation UI rules for these paths.
+  Legacy organization-application review and suspension controls remain unchanged.
 
 ### `/app/stores/[storeId]` — Store Dashboard
 
@@ -1247,10 +1264,21 @@ Raw provider credentials and sensitive customer data must never appear.
 - kiosk utilization
 - usage against allowance
 
-The Analytics screen must be hierarchical:
+The detailed Analytics screen is Store-scoped:
 
-- SelfX platform users with usage visibility see platform totals, store-wise
-  usage, channel split, provider health and kiosk activity.
+- SelfX platform users with usage visibility see aggregate usage through the
+  Dashboard and Usage & Billing, not the merchant Analytics menu.
+- Team & locations and detailed Analytics are merchant-only navigation and
+  routes. Controlled Store impersonation uses the target Store's permissions
+  and plan gates. Platform Staff/Roles remain separate.
+- Provider Health is not displayed in merchant Analytics. Underlying telemetry
+  remains available for internal diagnostics.
+- The platform View Store page may show a read-only usage overview for that
+  Store with usage visibility permission: top five products and categories by
+  completed Try-Ons, garment/jewellery labels and catalog-only thumbnails.
+  Date filters are last 7 days, last 30 days and the current billing cycle when
+  valid subscription dates are available. Customer photos and generated results
+  are never included, and the overview replaces duplicate product diagnostics.
 - Store users with analytics visibility see only their Store scope, including
   product usage, category usage, kiosk activity and channel split.
 - Kiosk analytics must show operational counts and product references only, not

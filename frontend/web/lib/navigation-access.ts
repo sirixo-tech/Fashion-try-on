@@ -88,10 +88,6 @@ export function filterNavigationItems(
   items: SelfxNavItem[],
   access: NavigationAccess,
 ): SelfxNavItem[] {
-  if (access.isSuperadmin) {
-    return items;
-  }
-
   return items
     .map((item) => filterNavigationItem(item, access))
     .filter((item): item is SelfxNavItem => item !== null);
@@ -116,8 +112,23 @@ function filterNavigationItem(
   return null;
 }
 
-function canSeeHref(href: string, access: NavigationAccess): boolean {
+export function isMerchantOnlyRoute(href: string): boolean {
   const route = normalizeAccessRoute(href);
+  return ["/app/locations", "/app/staff", "/app/analytics"].some(
+    (merchantRoute) =>
+      route === merchantRoute || route.startsWith(`${merchantRoute}/`),
+  );
+}
+
+export function canSeeHref(href: string, access: NavigationAccess): boolean {
+  const route = normalizeAccessRoute(href);
+  if (
+    isMerchantOnlyRoute(route) &&
+    (access.hasPlatformAccess || access.isSuperadmin)
+  ) {
+    return false;
+  }
+  if (access.isSuperadmin) return true;
   if (alwaysVisibleHrefs.has(route)) {
     return true;
   }

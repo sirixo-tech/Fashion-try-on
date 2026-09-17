@@ -10,6 +10,17 @@
 
 ---
 
+## Store Onboarding Policy Update - 2026-09-17
+
+Approved current Store onboarding supersedes the earlier Phase 3 manual
+activation requirement for platform-created Stores and Shopify self-service
+signup only. Implement a dedicated Create Store page and atomic server operation
+for ACTIVE tenant, new owner, RBAC and assigned plan; reuse entitlement services.
+Preserve legacy application review, suspension, tenant guards and shared signup.
+Verification covers required platform permissions, existing-email protection,
+inactive plans, rollback, password hashing, active owner scope, summary/validation,
+submit protection and unchanged self-service/Shopify authorization paths.
+
 ## 1. Purpose
 
 This document defines the recommended implementation order for the SelfX Virtual Try-On platform.

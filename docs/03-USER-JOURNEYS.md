@@ -24,6 +24,21 @@ Material changes must:
 
 ---
 
+## Store Onboarding Policy Update - 2026-09-17
+
+Current Store onboarding supersedes older pending-activation journeys below:
+
+1. Authorized platform administrator opens Stores and selects Add Store.
+2. The Create Store page collects Store details, active plan and owner login.
+3. Administrator reviews the live summary and submits once.
+4. SelfX atomically creates the ACTIVE Store, owner membership and assigned plan.
+5. Administrator lands on View Store; the owner can sign in immediately.
+
+Self-service signup used for Shopify also creates an ACTIVE Store with Starter.
+No separate activation step is needed. Existing-email conflicts use controlled
+membership linking instead of password replacement. Plan/permission restrictions
+and platform suspension remain applicable. Legacy application review is unchanged.
+
 ## STORE-1 Journey Addendum
 
 **Status:** UPDATED

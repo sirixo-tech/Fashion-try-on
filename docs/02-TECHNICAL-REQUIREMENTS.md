@@ -22,6 +22,22 @@ Document: `02-TECHNICAL-REQUIREMENTS.md`
 
 ---
 
+## Store Onboarding Policy Update - 2026-09-17
+
+This addendum supersedes pending-activation requirements for current Store
+creation paths, not the legacy organization-application APIs.
+`POST /api/v1/admin/stores/onboard` requires STORES_CREATE and PRICING_MANAGE.
+It validates Store profile, selected plan and new owner credentials; normalizes
+owner email, hashes passwords with the shared Argon2id PasswordService, and
+creates ACTIVE Store, ACTIVE owner membership, RBAC, subscription, credits and
+credential-free actor-attributed audit metadata in one database transaction.
+Inactive/unavailable plans and existing owner emails fail without partial rows.
+No password/hash is returned. Existing users require controlled membership linking.
+
+Self-service signup used by Shopify already creates an ACTIVE Store with the
+default Starter plan. Keep Shopify ownership/link approval security separate
+from tenant activation. Suspended Stores remain blocked; no install auto-resume.
+
 ## STORE-1 Technical Addendum
 
 **Status:** UPDATED

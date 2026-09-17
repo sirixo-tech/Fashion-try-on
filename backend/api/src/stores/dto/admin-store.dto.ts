@@ -13,6 +13,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -87,6 +88,7 @@ export class AdminStoreListQueryDto {
 export class CreateAdminStoreDto {
   @IsString()
   @Length(1, 200)
+  @Matches(/\S/)
   name!: string;
 
   @IsOptional()
@@ -139,6 +141,28 @@ export class CreateAdminStoreDto {
   @IsString()
   @MaxLength(64)
   timezone?: string;
+}
+
+export class OnboardAdminStoreDto extends CreateAdminStoreDto {
+  @ApiProperty({ format: "uuid" })
+  @IsUUID()
+  pricingPlanId!: string;
+
+  @ApiProperty({ minLength: 1, maxLength: 120 })
+  @IsString()
+  @Length(1, 120)
+  @Matches(/\S/)
+  ownerName!: string;
+
+  @ApiProperty({ format: "email", maxLength: 254 })
+  @IsEmail()
+  @MaxLength(254)
+  ownerEmail!: string;
+
+  @ApiProperty({ minLength: 12, maxLength: 256, writeOnly: true })
+  @IsString()
+  @Length(12, 256)
+  ownerPassword!: string;
 }
 
 export class UpdateAdminStoreDto {

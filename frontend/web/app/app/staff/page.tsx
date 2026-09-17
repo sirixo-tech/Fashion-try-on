@@ -51,7 +51,10 @@ import {
   type PlatformUser,
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
-import { getCurrentMerchantStore } from "@/lib/current-store";
+import {
+  getCurrentMerchantStore,
+  getCurrentMerchantStoreAccess,
+} from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import {
   addStoreUser,
@@ -97,73 +100,73 @@ export default function StaffPage() {
   const platformPermissions = platformAccess?.permissions ?? [];
   const canViewPlatformUsers = Boolean(
     platformAccess?.isSuperadmin ||
-      platformPermissions.includes("PERMISSIONS_VIEW") ||
-      platformPermissions.includes("PERMISSIONS_MANAGE") ||
-      platformPermissions.includes("PLATFORM_USERS_MANAGE"),
+    platformPermissions.includes("PERMISSIONS_VIEW") ||
+    platformPermissions.includes("PERMISSIONS_MANAGE") ||
+    platformPermissions.includes("PLATFORM_USERS_MANAGE"),
   );
   const canManagePlatformUsers = Boolean(
     platformAccess?.isSuperadmin ||
-      platformPermissions.includes("PERMISSIONS_MANAGE") ||
-      platformPermissions.includes("PLATFORM_USERS_MANAGE"),
+    platformPermissions.includes("PERMISSIONS_MANAGE") ||
+    platformPermissions.includes("PLATFORM_USERS_MANAGE"),
   );
   const canViewStoreStaffGlobally = Boolean(
     platformAccess?.isSuperadmin ||
-      platformPermissions.includes("STORE_USERS_VIEW") ||
-      platformPermissions.includes("STORE_USERS_MANAGE"),
+    platformPermissions.includes("STORE_USERS_VIEW") ||
+    platformPermissions.includes("STORE_USERS_MANAGE"),
   );
   const canManageStoreStaffGlobally = Boolean(
     platformAccess?.isSuperadmin ||
-      platformPermissions.includes("STORE_USERS_MANAGE"),
+    platformPermissions.includes("STORE_USERS_MANAGE"),
   );
   const canViewStoreRolesGlobally = Boolean(
     platformAccess?.isSuperadmin ||
-      platformPermissions.includes("STORE_ROLES_VIEW") ||
-      platformPermissions.includes("STORE_ROLES_MANAGE"),
+    platformPermissions.includes("STORE_ROLES_VIEW") ||
+    platformPermissions.includes("STORE_ROLES_MANAGE"),
   );
 
   const storePermissions = storeAccess?.permissions ?? [];
   const hasStoreBypass = storeAccess?.platformBypass ?? false;
   const storeTeamLocationsUnlocked = Boolean(
     scope !== "store" ||
-      !storeId ||
-      planAllowsTeamLocations(storeAccess?.storeLocationLimit),
+    !storeId ||
+    planAllowsTeamLocations(storeAccess?.storeLocationLimit),
   );
   const showStoreTeamLocked = Boolean(
     scope === "store" &&
-      storeId &&
-      storeAccess &&
-      !planAllowsTeamLocations(storeAccess.storeLocationLimit),
+    storeId &&
+    storeAccess &&
+    !planAllowsTeamLocations(storeAccess.storeLocationLimit),
   );
   const canViewSelectedStoreStaff = Boolean(
     storeTeamLocationsUnlocked &&
-      (hasStoreBypass ||
-        canViewStoreStaffGlobally ||
-        storePermissions.includes("users.view")),
+    (hasStoreBypass ||
+      canViewStoreStaffGlobally ||
+      storePermissions.includes("users.view")),
   );
   const canInviteSelectedStoreStaff = Boolean(
     storeTeamLocationsUnlocked &&
-      (hasStoreBypass ||
-        canManageStoreStaffGlobally ||
-        storePermissions.includes("users.invite")),
+    (hasStoreBypass ||
+      canManageStoreStaffGlobally ||
+      storePermissions.includes("users.invite")),
   );
   const canUpdateSelectedStoreStaff = Boolean(
     storeTeamLocationsUnlocked &&
-      (hasStoreBypass ||
-        canManageStoreStaffGlobally ||
-        storePermissions.includes("users.deactivate") ||
-        storePermissions.includes("users.update")),
+    (hasStoreBypass ||
+      canManageStoreStaffGlobally ||
+      storePermissions.includes("users.deactivate") ||
+      storePermissions.includes("users.update")),
   );
   const canAssignSelectedStoreRoles = Boolean(
     storeTeamLocationsUnlocked &&
-      (hasStoreBypass ||
-        canManageStoreStaffGlobally ||
-        storePermissions.includes("roles.assign")),
+    (hasStoreBypass ||
+      canManageStoreStaffGlobally ||
+      storePermissions.includes("roles.assign")),
   );
   const canLoadSelectedStoreRoles = Boolean(
     storeTeamLocationsUnlocked &&
-      (hasStoreBypass ||
-        canViewStoreRolesGlobally ||
-        storePermissions.includes("roles.view")),
+    (hasStoreBypass ||
+      canViewStoreRolesGlobally ||
+      storePermissions.includes("roles.view")),
   );
 
   const selectedStoreName = useMemo(
@@ -187,7 +190,10 @@ export default function StaffPage() {
     async function loadAccess() {
       setError(null);
       try {
-        const nextAccess = await getCurrentPlatformAccess(token);
+        const context = await getCurrentMerchantStoreAccess(token);
+        const nextAccess = context.impersonation
+          ? { isSuperadmin: false, permissions: [] }
+          : await getCurrentPlatformAccess(token);
         if (cancelled) {
           return;
         }
@@ -817,7 +823,10 @@ function PlatformUserDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={saving || !email.trim()} onClick={() => void save()}>
+          <Button
+            disabled={saving || !email.trim()}
+            onClick={() => void save()}
+          >
             Save
           </Button>
         </DialogFooter>

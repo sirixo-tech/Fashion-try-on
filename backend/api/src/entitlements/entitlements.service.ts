@@ -163,11 +163,14 @@ export class EntitlementsService {
     }
   }
 
-  async activatePlanForStore(input: {
-    organizationId: string;
-    pricingPlanId: string;
-  }): Promise<StoreCreditSummary> {
-    return this.prisma.$transaction(async (tx) => {
+  async activatePlanForStore(
+    input: {
+      organizationId: string;
+      pricingPlanId: string;
+    },
+    transaction?: Prisma.TransactionClient,
+  ): Promise<StoreCreditSummary> {
+    const activate = async (tx: Prisma.TransactionClient) => {
       const now = new Date();
       const plan = await tx.pricingPlan.findFirst({
         where: {
@@ -253,7 +256,10 @@ export class EntitlementsService {
       }
 
       return this.getStoreCreditSummaryWithClient(input.organizationId, tx);
-    });
+    };
+    return transaction
+      ? activate(transaction)
+      : this.prisma.$transaction(activate);
   }
 
   async topUpStoreCredits(

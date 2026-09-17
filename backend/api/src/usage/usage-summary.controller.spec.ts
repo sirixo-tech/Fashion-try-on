@@ -86,6 +86,48 @@ describe("UsageSummaryController", () => {
     );
     expect(usage.summary).not.toHaveBeenCalled();
   });
+
+  it("keeps the requested Store scope for platform usage viewers", async () => {
+    const usage = { summary: vi.fn().mockResolvedValue({ totals: {} }) };
+    const controller = new UsageSummaryController(
+      auth(),
+      {
+        hasPermission: vi.fn().mockResolvedValue(true),
+        requirePermission: vi.fn(),
+      } as never,
+      { requireStorePermission: vi.fn() } as never,
+      usage as never,
+    );
+    await controller.summary(request(), {
+      range: "30d",
+      storeId: "store-a",
+      limit: 5,
+    });
+    expect(usage.summary).toHaveBeenCalledWith({
+      range: "30d",
+      storeId: "store-a",
+      limit: 5,
+    });
+  });
+
+  it("does not load another Store's data when Store permission is denied", async () => {
+    const usage = { summary: vi.fn() };
+    const controller = new UsageSummaryController(
+      auth(),
+      {
+        hasPermission: vi.fn().mockResolvedValue(false),
+        requirePermission: vi.fn(),
+      } as never,
+      {
+        requireStorePermission: vi.fn().mockRejectedValue(new Error("denied")),
+      } as never,
+      usage as never,
+    );
+    await expect(
+      controller.summary(request(), { storeId: "store-b" }),
+    ).rejects.toThrow("denied");
+    expect(usage.summary).not.toHaveBeenCalled();
+  });
 });
 
 function auth() {

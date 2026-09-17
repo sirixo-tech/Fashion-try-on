@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { SELFX_CATALOG_SOURCES, type SelfxCatalogSource } from "@selfx/shared";
 
 import { PrismaService } from "../database/prisma.service.js";
+import { ObjectStorageService } from "../storage/object-storage.js";
 import {
   KIOSK_USAGE_EVENTS,
   PUBLIC_API_USAGE_EVENTS,
@@ -56,7 +57,10 @@ const downloadEventNames = [
 
 @Injectable()
 export class UsageSummaryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: ObjectStorageService,
+  ) {}
 
   async summary(
     input: UsageEventFilterInput,
@@ -127,7 +131,9 @@ export class UsageSummaryService {
       ),
     );
     const statusCounts = foldRunStatusRows(statusRows);
-    const storeNameById = new Map(stores.map((store) => [store.id, store.name]));
+    const storeNameById = new Map(
+      stores.map((store) => [store.id, store.name]),
+    );
     const kioskById = new Map(kiosks.map((kiosk) => [kiosk.id, kiosk]));
     const context = buildRollupContext(
       runs,
@@ -150,7 +156,10 @@ export class UsageSummaryService {
       context.channels,
       await this.groupEventByChannel(baseEventWhere),
     );
-    addDailyEventCounts(context.daily, await this.groupEventByDay(baseEventWhere));
+    addDailyEventCounts(
+      context.daily,
+      await this.groupEventByDay(baseEventWhere),
+    );
 
     return {
       range: {
@@ -188,14 +197,38 @@ export class UsageSummaryService {
         .sort(byGeneratedThenRuns)
         .slice(0, limit),
       products: [...context.products.values()]
-        .sort(byGeneratedThenRuns)
-        .slice(0, limit),
+        .sort(byCompletedThenName)
+        .slice(0, limit)
+        .map((row) => ({
+          ...row,
+          thumbnailUrl: this.productThumbnail(row.productId, runs),
+        })),
       categories: [...context.categories.values()]
-        .sort(byGeneratedThenRuns)
+        .sort(byCompletedThenName)
         .slice(0, limit),
       channels: channelRows(context.channels),
       daily: dailyRows(context.daily, range),
     };
+  }
+
+  private productThumbnail(
+    productId: string | null,
+    runs: AnalyticsRun[],
+  ): string | null {
+    const product = productId
+      ? runs.find((run) => run.product?.id === productId)?.product
+      : null;
+    if (!product) return null;
+    if (product.imageUrl) return product.imageUrl;
+    if (!product.imageStorageKey) return null;
+    try {
+      return this.storage.createReadUrl({
+        key: product.imageStorageKey,
+        expiresInSeconds: 900,
+      });
+    } catch {
+      return null;
+    }
   }
 
   private async sumQuantity(
@@ -226,6 +259,8 @@ export class UsageSummaryService {
         provider: true,
         providerModel: true,
         garmentCategory: true,
+        tryOnVertical: true,
+        jewelleryType: true,
         catalogSource: true,
         externalProductId: true,
         externalVariantId: true,
@@ -237,7 +272,17 @@ export class UsageSummaryService {
             id: true,
             name: true,
             garmentCategory: true,
+            imageUrl: true,
+            imageStorageKey: true,
             category: { select: { name: true } },
+            externalMappings: {
+              where: { externalVariantId: null },
+              select: {
+                organizationId: true,
+                externalProductId: true,
+                metadata: true,
+              },
+            },
           },
         },
       },
@@ -521,7 +566,11 @@ function buildRollupContext(
       downloads,
     );
     if (run.kioskDeviceId) {
-      addRunToCounts(getKioskRow(context.kiosks, run, kioskById), run, downloads);
+      addRunToCounts(
+        getKioskRow(context.kiosks, run, kioskById),
+        run,
+        downloads,
+      );
     }
     addRunToCounts(
       getCategoryRow(context.categories, categoryName(run)),
@@ -530,7 +579,11 @@ function buildRollupContext(
     );
     const reference = productReference(run);
     if (reference) {
-      addRunToCounts(getProductRow(context.products, reference), run, downloads);
+      addRunToCounts(
+        getProductRow(context.products, reference),
+        run,
+        downloads,
+      );
     }
     addRunToCounts(
       getDailyRow(context.daily, dateKey(run.createdAt)),
@@ -626,6 +679,7 @@ function getProductRow(
       productId: reference.productId,
       name: reference.name,
       category: reference.category,
+      productVertical: reference.productVertical,
       catalogSource: reference.catalogSource,
       externalProductId: reference.externalProductId,
       externalVariantId: reference.externalVariantId,
@@ -774,6 +828,7 @@ type ProductReference = Pick<
   | "productId"
   | "name"
   | "category"
+  | "productVertical"
   | "catalogSource"
   | "externalProductId"
   | "externalVariantId"
@@ -786,7 +841,8 @@ function productReference(run: AnalyticsRun): ProductReference | null {
       key: `selfx:${run.product.id}`,
       productId: run.product.id,
       name: run.product.name,
-      category: run.product.category?.name ?? run.product.garmentCategory,
+      category: categoryName(run),
+      productVertical: run.tryOnVertical,
       catalogSource: cleanCatalogSource(run.catalogSource),
     };
   }
@@ -803,15 +859,14 @@ function productReference(run: AnalyticsRun): ProductReference | null {
   return {
     key: [
       "external",
+      run.organizationId ?? run.storeId,
       catalogSource,
-      run.externalProductId,
-      run.externalVariantId,
-      run.externalSku,
-      name,
+      run.externalProductId ?? run.externalSku ?? name,
     ].join("\u001f"),
     productId: run.productId,
     name: name ?? "External product",
     category: categoryName(run),
+    productVertical: run.tryOnVertical,
     catalogSource,
     externalProductId: run.externalProductId ?? undefined,
     externalVariantId: run.externalVariantId ?? undefined,
@@ -820,14 +875,67 @@ function productReference(run: AnalyticsRun): ProductReference | null {
 }
 
 function categoryName(run: AnalyticsRun): string {
-  return run.product?.category?.name ?? run.garmentCategory ?? "Uncategorized";
+  const name = run.product?.category?.name;
+  if (name && name !== "Shopify products" && name !== "WooCommerce products") {
+    return name;
+  }
+  if (run.tryOnVertical === "JEWELLERY" && run.jewelleryType) {
+    return classificationLabel(run.jewelleryType);
+  }
+  const mapping = run.product?.externalMappings?.find(
+    (item) =>
+      item.organizationId === run.organizationId &&
+      item.externalProductId === run.externalProductId,
+  );
+  const metadata = mapping?.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const category = metadata.shopifyCategoryName;
+    if (typeof category === "string" && category.trim()) {
+      return category.split(" > ").at(-1)!.trim();
+    }
+  }
+  const classification = run.product?.garmentCategory ?? run.garmentCategory;
+  return classification && classification !== "AUTO"
+    ? classificationLabel(classification)
+    : "Uncategorized";
+}
+
+function classificationLabel(value: string): string {
+  const labels: Record<string, string> = {
+    RING: "Rings",
+    BRACELET: "Bracelets",
+    NECKLACE: "Necklaces",
+    EARRING: "Earrings",
+    TOP: "Tops",
+    tops: "Tops",
+    BOTTOM: "Bottoms",
+    bottoms: "Bottoms",
+    ONE_PIECE: "One-piece garments",
+    one_pieces: "One-piece garments",
+    FULL_OUTFIT: "Full outfits",
+  };
+  return labels[value] ?? value;
+}
+
+function byCompletedThenName(
+  left: { completedRuns: number; name?: string; category?: string },
+  right: { completedRuns: number; name?: string; category?: string },
+): number {
+  return (
+    right.completedRuns - left.completedRuns ||
+    (left.name ?? left.category ?? "").localeCompare(
+      right.name ?? right.category ?? "",
+    )
+  );
 }
 
 function runChannel(run: AnalyticsRun): UsageChannelRowDto["channel"] {
   return run.apiKeyId ? "PUBLIC_API" : "KIOSK";
 }
 
-function channelRows(rows: Map<string, UsageChannelRowDto>): UsageChannelRowDto[] {
+function channelRows(
+  rows: Map<string, UsageChannelRowDto>,
+): UsageChannelRowDto[] {
   return (["KIOSK", "PUBLIC_API"] as const).map(
     (channel) =>
       rows.get(channel) ??
@@ -853,7 +961,9 @@ function dailyRows(
   );
 }
 
-function seedDailyRows(range: ResolvedUsageRange): Map<string, UsageDailyRowDto> {
+function seedDailyRows(
+  range: ResolvedUsageRange,
+): Map<string, UsageDailyRowDto> {
   const rows = new Map<string, UsageDailyRowDto>();
   const current = new Date(range.from);
   current.setUTCHours(0, 0, 0, 0);
@@ -882,10 +992,7 @@ function emptyCounts(): NumberRow {
 
 function byGeneratedThenRuns<
   T extends Pick<RunNumberRow, "tryOnsGenerated" | "runsCreated">,
->(
-  left: T,
-  right: T,
-): number {
+>(left: T, right: T): number {
   const byGenerated = right.tryOnsGenerated - left.tryOnsGenerated;
   return byGenerated !== 0 ? byGenerated : right.runsCreated - left.runsCreated;
 }

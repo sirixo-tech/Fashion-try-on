@@ -37,6 +37,8 @@ import {
 } from "@/lib/access-control";
 import {
   filterNavigationItems,
+  canSeeHref,
+  isMerchantOnlyRoute,
   type NavigationAccess,
 } from "@/lib/navigation-access";
 import {
@@ -156,6 +158,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const session = useSession();
   const [currentStore, setCurrentStore] = useState<CurrentStore | null>(null);
+  const [storeContextLoaded, setStoreContextLoaded] = useState(false);
   const [impersonation, setImpersonation] =
     useState<StoreImpersonationSession | null>(null);
   const [endingImpersonation, setEndingImpersonation] = useState(false);
@@ -181,6 +184,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
+    setStoreContextLoaded(false);
     getCurrentMerchantStoreAccess(session.accessToken)
       .then((access) => {
         if (cancelled) {
@@ -192,10 +196,12 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         setCurrentStore(access.store);
         setStoreAccess(access.permissions);
         setImpersonation(access.impersonation);
+        setStoreContextLoaded(true);
       })
       .catch(() => {
         if (!cancelled) {
           setOrganizationError(true);
+          setStoreContextLoaded(true);
         }
       });
 
@@ -253,17 +259,23 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     router.replace(loginUrlForCurrentPage());
   }, [pathname, router, session.status]);
 
+  const resolvedNavigationAccess = navigationAccess({
+    sessionHasPlatformAccess: impersonation
+      ? false
+      : (session.user?.hasPlatformAccess ?? false),
+    platformAccess: impersonation ? null : platformAccess,
+    storeAccess,
+    hasActiveStore: currentStore !== null,
+  });
   const filteredNavItems = filterNavigationItems(
     navItems,
-    navigationAccess({
-      sessionHasPlatformAccess: impersonation
-        ? false
-        : (session.user?.hasPlatformAccess ?? false),
-      platformAccess: impersonation ? null : platformAccess,
-      storeAccess,
-      hasActiveStore: currentStore !== null,
-    }),
+    resolvedNavigationAccess,
   );
+  const merchantRoute = isMerchantOnlyRoute(pathname);
+  const merchantContextPending =
+    merchantRoute && (!storeContextLoaded || !platformAccess);
+  const merchantRouteAllowed =
+    !merchantRoute || canSeeHref(pathname, resolvedNavigationAccess);
 
   if (session.status === "loading") {
     return <LoadingState label="Checking session" />;
@@ -334,6 +346,17 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
             action={{ label: "Retry", onClick: () => void session.refresh() }}
           />
         </div>
+      ) : merchantContextPending ? (
+        <LoadingState label="Checking Store access" />
+      ) : !merchantRouteAllowed ? (
+        <ErrorState
+          title="Store access required"
+          description="This page requires a Store workspace with the appropriate plan and permissions."
+          action={{
+            label: "Open dashboard",
+            onClick: () => router.push("/app/dashboard"),
+          }}
+        />
       ) : (
         children
       )}

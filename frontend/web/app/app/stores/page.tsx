@@ -57,7 +57,6 @@ import { useSession } from "@/lib/session";
 import {
   activateStore,
   assignStorePricingPlan,
-  createStore,
   deactivateStore,
   deleteStore,
   listStores,
@@ -81,7 +80,6 @@ export default function StoresPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
   const [deletingStoreId, setDeletingStoreId] = useState<string | null>(null);
   const [statusStoreId, setStatusStoreId] = useState<string | null>(null);
   const [impersonatingStoreId, setImpersonatingStoreId] = useState<
@@ -249,7 +247,7 @@ export default function StoresPage() {
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button onClick={() => setCreateOpen(true)}>
+            <Button onClick={() => router.push("/app/stores/create")}>
               <PlusIcon aria-hidden="true" />
               Add Store
             </Button>
@@ -371,22 +369,6 @@ export default function StoresPage() {
           </div>
         </div>
       </PageSection>
-
-      <StoreFormDialog
-        open={createOpen}
-        title="Add Store"
-        description="Create the merchant tenant that will own SelfX kiosks."
-        submitLabel="Create Store"
-        onOpenChange={setCreateOpen}
-        onSubmit={async (input) => {
-          if (!accessToken) {
-            return;
-          }
-          await createStore(accessToken, input);
-          setCreateOpen(false);
-          await load();
-        }}
-      />
 
       <StorePlanDialog
         store={planDialogStore}
@@ -663,7 +645,8 @@ function StorePlanDialog({
   onReloadPlans: () => Promise<void>;
   onAssign: (store: AdminStore, pricingPlanId: string) => Promise<void>;
 }) {
-  const currentPlanId = store?.subscription?.subscription?.pricingPlan?.id ?? "";
+  const currentPlanId =
+    store?.subscription?.subscription?.pricingPlan?.id ?? "";
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -729,7 +712,9 @@ function StorePlanDialog({
             <PlanSummaryTile
               label="Selected plan"
               value={selectedPlan?.name ?? "Choose a plan"}
-              detail={selectedPlan ? planDetail(selectedPlan) : "Ready to assign"}
+              detail={
+                selectedPlan ? planDetail(selectedPlan) : "Ready to assign"
+              }
             />
           </div>
 

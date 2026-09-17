@@ -221,17 +221,16 @@ kiosk assignment contracts. Treat this as an implementation detail named
 legacy/location-scoped model and must not be used as the basis for new STORE-1
 Store management.
 
-Store registration and Store activation are separate actions.
+Current Store onboarding activates the tenant and owner membership immediately
+with an assigned plan. Platform-admin creation creates Store, new owner login,
+membership, RBAC and subscription atomically. Self-service Store signup used
+by Shopify receives the default Starter plan without separate activation.
+Plan entitlements, permissions and tenant isolation remain mandatory.
 
-A Store must never become operational immediately simply because a user
-registers or submits it. Registration creates or updates an onboarding
-application and may create a pending tenant shell. Normal Store, product,
-kiosk, membership and paid Try-On functionality is available only after an
-authorized SelfX platform administrator activates the Store.
-
-Store review, approval, activation and suspension belong to the SelfX platform
-authorization domain, not merchant roles. Use centralized platform permission
-resolution for platform approval actions.
+Legacy organization-application review remains a separate workflow and may
+retain pending activation. Platform suspension/reactivation remains controlled
+by centralized platform permissions; installation must not reactivate a
+suspended Store. Never replace an existing user's credentials during onboarding.
 
 ---
 

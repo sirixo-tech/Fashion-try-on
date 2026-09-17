@@ -40,6 +40,7 @@ import {
 import { SafeApiError } from "@/lib/api";
 import {
   getCurrentMerchantStore,
+  getCurrentMerchantStoreAccess,
   hasCurrentStorePermission,
 } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
@@ -85,19 +86,21 @@ export default function LocationsPage() {
   );
   const canViewLocations = Boolean(
     store &&
-      planAllowsTeamLocations(store.subscription.subscription?.pricingPlan
-        ?.storeLocationLimit) &&
-      (platformAccess?.isSuperadmin ||
-        platformPermissions.includes("STORES_VIEW") ||
-        hasCurrentStorePermission(storeAccess, ["stores.view"])),
+    planAllowsTeamLocations(
+      store.subscription.subscription?.pricingPlan?.storeLocationLimit,
+    ) &&
+    (platformAccess?.isSuperadmin ||
+      platformPermissions.includes("STORES_VIEW") ||
+      hasCurrentStorePermission(storeAccess, ["stores.view"])),
   );
   const canManageLocations = Boolean(
     store &&
-      planAllowsTeamLocations(store.subscription.subscription?.pricingPlan
-        ?.storeLocationLimit) &&
-      (platformAccess?.isSuperadmin ||
-        platformPermissions.includes("STORES_UPDATE") ||
-        hasCurrentStorePermission(storeAccess, ["stores.update"])),
+    planAllowsTeamLocations(
+      store.subscription.subscription?.pricingPlan?.storeLocationLimit,
+    ) &&
+    (platformAccess?.isSuperadmin ||
+      platformPermissions.includes("STORES_UPDATE") ||
+      hasCurrentStorePermission(storeAccess, ["stores.update"])),
   );
   const locationLimit =
     store?.subscription.subscription?.pricingPlan?.storeLocationLimit ?? null;
@@ -136,8 +139,9 @@ export default function LocationsPage() {
     : teamLocationsUnlocked
       ? `${locations.length} / ${locationLimit ?? "Custom"}`
       : "Locked";
-  const selectedStoreName = storeOptions.find((item) => item.id === storeId)
-    ?.name;
+  const selectedStoreName = storeOptions.find(
+    (item) => item.id === storeId,
+  )?.name;
 
   useEffect(() => {
     if (!accessToken) {
@@ -153,7 +157,10 @@ export default function LocationsPage() {
     async function loadContext() {
       setError(null);
       try {
-        const nextAccess = await getCurrentPlatformAccess(token);
+        const context = await getCurrentMerchantStoreAccess(token);
+        const nextAccess = context.impersonation
+          ? { isSuperadmin: false, permissions: [] }
+          : await getCurrentPlatformAccess(token);
         if (cancelled) {
           return;
         }

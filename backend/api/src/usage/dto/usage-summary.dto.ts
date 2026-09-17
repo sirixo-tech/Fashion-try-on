@@ -206,6 +206,12 @@ export class UsageProductRowDto {
   @ApiPropertyOptional()
   category?: string;
 
+  @ApiPropertyOptional({ enum: ["GARMENT", "JEWELLERY"] })
+  productVertical?: "GARMENT" | "JEWELLERY";
+
+  @ApiPropertyOptional({ nullable: true })
+  thumbnailUrl?: string | null;
+
   @ApiPropertyOptional({ enum: SELFX_CATALOG_SOURCES, nullable: true })
   catalogSource?: SelfxCatalogSource | null;
 

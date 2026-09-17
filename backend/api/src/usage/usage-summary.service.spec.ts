@@ -79,7 +79,10 @@ describe("UsageSummaryService", () => {
         }),
       ],
     });
-    const service = new UsageSummaryService(prisma as never);
+    const service = new UsageSummaryService(
+      prisma as never,
+      storage() as never,
+    );
 
     const summary = await service.summary({
       range: "custom",
@@ -166,8 +169,8 @@ describe("UsageSummaryService", () => {
       }),
     ]);
     expect(summary.categories).toEqual([
-      expect.objectContaining({ category: "Tops", runsCreated: 2 }),
       expect.objectContaining({ category: "dress", runsCreated: 1 }),
+      expect.objectContaining({ category: "Tops", runsCreated: 2 }),
     ]);
     expect(summary.daily).toContainEqual(
       expect.objectContaining({
@@ -178,6 +181,191 @@ describe("UsageSummaryService", () => {
       }),
     );
     expect("tryOnAsset" in prisma).toBe(false);
+  });
+
+  it("ranks completed runs across channels and preserves counts after result expiry", async () => {
+    const shirt = run({ productId: "product-1" }).product!;
+    const ring = {
+      ...shirt,
+      id: "ring-1",
+      name: "Gold ring",
+      imageUrl: null,
+      imageStorageKey: "catalog/ring.jpg",
+      category: { name: "Shopify products" },
+    };
+    const prisma = new FakePrisma({
+      events: [],
+      runs: [
+        run({
+          id: "ring-run",
+          organizationId: "store-a",
+          productId: ring.id,
+          product: ring,
+          catalogSource: "SHOPIFY",
+          tryOnVertical: "JEWELLERY",
+          jewelleryType: "RING",
+          status: "COMPLETED",
+          resultAssetId: null,
+        }),
+        run({
+          id: "kiosk-run",
+          organizationId: "store-a",
+          productId: ring.id,
+          product: ring,
+          tryOnVertical: "JEWELLERY",
+          jewelleryType: "RING",
+          status: "COMPLETED",
+        }),
+        run({
+          id: "shirt-run",
+          apiKeyId: "key-1",
+          organizationId: "store-a",
+          productId: shirt.id,
+          product: { ...shirt, category: { name: "WooCommerce products" } },
+          status: "COMPLETED",
+          resultAssetId: "result-1",
+        }),
+        ...Array.from({ length: 6 }, (_, index) =>
+          run({
+            id: `failed-${index}`,
+            organizationId: "store-a",
+            productId: "failed-product",
+            status: "FAILED",
+          }),
+        ),
+        run({
+          id: "other-store",
+          organizationId: "store-b",
+          productId: "other-product",
+          status: "COMPLETED",
+        }),
+        run({
+          id: "outside-range",
+          organizationId: "store-a",
+          productId: "older-product",
+          status: "COMPLETED",
+          createdAt: new Date("2026-07-01T00:00:00Z"),
+        }),
+      ],
+    });
+    const objectStorage = storage();
+    const service = new UsageSummaryService(
+      prisma as never,
+      objectStorage as never,
+    );
+    const summary = await service.summary({
+      range: "custom",
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-09-01T00:00:00Z",
+      storeId: "store-a",
+      limit: 2,
+    });
+
+    expect(summary.products).toEqual([
+      expect.objectContaining({
+        name: "Gold ring",
+        category: "Rings",
+        productVertical: "JEWELLERY",
+        completedRuns: 2,
+        tryOnsGenerated: 0,
+        thumbnailUrl: "https://storage.test/catalog/ring.jpg",
+      }),
+      expect.objectContaining({
+        name: "Linen Shirt",
+        category: "Tops",
+        productVertical: "GARMENT",
+        completedRuns: 1,
+        thumbnailUrl: "https://cdn.test/shirt.jpg",
+      }),
+    ]);
+    expect(summary.categories).toEqual([
+      expect.objectContaining({ category: "Rings", completedRuns: 2 }),
+      expect.objectContaining({ category: "Tops", completedRuns: 1 }),
+    ]);
+    expect(objectStorage.createReadUrl).toHaveBeenCalledWith({
+      key: "catalog/ring.jpg",
+      expiresInSeconds: 900,
+    });
+    expect(prisma.kioskTryOnRun.findMany.mock.calls[0]![0]).toMatchObject({
+      where: { OR: [{ organizationId: "store-a" }, { storeId: "store-a" }] },
+    });
+  });
+
+  it("uses the Shopify category and aggregates external product variants within a Store", async () => {
+    const shirt = run({ productId: "product-1" }).product!;
+    const prisma = new FakePrisma({
+      events: [],
+      runs: [
+        run({
+          id: "shopify-run",
+          organizationId: "store-a",
+          status: "COMPLETED",
+          catalogSource: "SHOPIFY",
+          externalProductId: "shopify-1",
+          productId: shirt.id,
+          product: {
+            ...shirt,
+            category: { name: "Shopify products" },
+            externalMappings: [
+              {
+                organizationId: "store-a",
+                externalProductId: "shopify-1",
+                metadata: {
+                  shopifyCategoryName:
+                    "Apparel & Accessories > Clothing > Shirts",
+                },
+              },
+            ],
+          },
+        }),
+        run({
+          id: "variant-1",
+          organizationId: "store-a",
+          status: "COMPLETED",
+          catalogSource: "PUBLIC_API",
+          externalProductId: "external-1",
+          externalVariantId: "size-s",
+          externalProductName: "Dress S",
+        }),
+        run({
+          id: "variant-2",
+          organizationId: "store-a",
+          status: "COMPLETED",
+          catalogSource: "PUBLIC_API",
+          externalProductId: "external-1",
+          externalVariantId: "size-m",
+          externalProductName: "Dress M",
+        }),
+        run({
+          id: "store-b-variant",
+          organizationId: "store-b",
+          status: "COMPLETED",
+          catalogSource: "PUBLIC_API",
+          externalProductId: "external-1",
+          externalProductName: "Other Store Dress",
+        }),
+      ],
+    });
+    const service = new UsageSummaryService(
+      prisma as never,
+      storage() as never,
+    );
+    const summary = await service.summary({
+      range: "custom",
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-09-01T00:00:00Z",
+    });
+    expect(summary.products).toHaveLength(3);
+    expect(summary.products[0]).toMatchObject({
+      externalProductId: "external-1",
+      completedRuns: 2,
+    });
+    expect(summary.categories).toContainEqual(
+      expect.objectContaining({ category: "Shirts", completedRuns: 1 }),
+    );
+    expect(summary.products).toContainEqual(
+      expect.objectContaining({ name: "Other Store Dress", completedRuns: 1 }),
+    );
   });
 });
 
@@ -208,6 +396,8 @@ type FakeRun = {
   provider: string;
   providerModel: string;
   garmentCategory: string;
+  tryOnVertical: "GARMENT" | "JEWELLERY";
+  jewelleryType: string | null;
   catalogSource: string | null;
   externalProductId: string | null;
   externalVariantId: string | null;
@@ -218,6 +408,13 @@ type FakeRun = {
     id: string;
     name: string;
     garmentCategory: string;
+    imageUrl: string | null;
+    imageStorageKey: string | null;
+    externalMappings: Array<{
+      organizationId: string;
+      externalProductId: string;
+      metadata: Record<string, unknown>;
+    }>;
     category: { name: string } | null;
   } | null;
 };
@@ -233,13 +430,8 @@ class FakePrisma {
       },
     })),
     groupBy: vi.fn(
-      async ({
-        by,
-        where,
-      }: {
-        by: string[];
-        where: Record<string, unknown>;
-      }) => groupBy(this.filterEvents(where), by),
+      async ({ by, where }: { by: string[]; where: Record<string, unknown> }) =>
+        groupBy(this.filterEvents(where), by),
     ),
   };
   readonly kioskTryOnRun = {
@@ -247,61 +439,45 @@ class FakePrisma {
       async ({ where }: { where: Record<string, unknown> }) =>
         this.filterRuns(where).length,
     ),
-    findMany: vi.fn(
-      async ({ where }: { where: Record<string, unknown> }) =>
-        this.filterRuns(where),
+    findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
+      this.filterRuns(where),
     ),
     groupBy: vi.fn(
-      async ({
-        by,
-        where,
-      }: {
-        by: string[];
-        where: Record<string, unknown>;
-      }) => groupBy(this.filterRuns(where), by),
+      async ({ by, where }: { by: string[]; where: Record<string, unknown> }) =>
+        groupBy(this.filterRuns(where), by),
     ),
   };
   readonly organization = {
-    findMany: vi.fn(
-      async ({
-        where,
-      }: {
-        where: { id: { in: string[] } };
-      }) =>
-        [
-          { id: "store-a", name: "Store A" },
-          { id: "store-b", name: "Store B" },
-        ].filter((store) => where.id.in.includes(store.id)),
+    findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+      [
+        { id: "store-a", name: "Store A" },
+        { id: "store-b", name: "Store B" },
+      ].filter((store) => where.id.in.includes(store.id)),
     ),
     findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
       where.id === "store-a" ? { id: "store-a", name: "Store A" } : null,
     ),
   };
   readonly kioskDevice = {
-    findMany: vi.fn(
-      async ({
-        where,
-      }: {
-        where: { id: { in: string[] } };
-      }) =>
-        [
-          {
-            id: "kiosk-1",
-            displayName: "Front Kiosk",
-            organizationId: "store-a",
-            storeId: null,
-            organization: { name: "Store A" },
-            store: null,
-          },
-          {
-            id: "kiosk-2",
-            displayName: "Lobby Kiosk",
-            organizationId: "store-b",
-            storeId: null,
-            organization: { name: "Store B" },
-            store: null,
-          },
-        ].filter((kiosk) => where.id.in.includes(kiosk.id)),
+    findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+      [
+        {
+          id: "kiosk-1",
+          displayName: "Front Kiosk",
+          organizationId: "store-a",
+          storeId: null,
+          organization: { name: "Store A" },
+          store: null,
+        },
+        {
+          id: "kiosk-2",
+          displayName: "Lobby Kiosk",
+          organizationId: "store-b",
+          storeId: null,
+          organization: { name: "Store B" },
+          store: null,
+        },
+      ].filter((kiosk) => where.id.in.includes(kiosk.id)),
     ),
   };
 
@@ -354,6 +530,8 @@ function run(input: Partial<FakeRun>): FakeRun {
     provider: "google",
     providerModel: "virtual-try-on-001",
     garmentCategory: "tops",
+    tryOnVertical: "GARMENT",
+    jewelleryType: null,
     catalogSource: "SELFX",
     externalProductId: null,
     externalVariantId: null,
@@ -365,6 +543,9 @@ function run(input: Partial<FakeRun>): FakeRun {
           id: productId,
           name: productId === "product-1" ? "Linen Shirt" : "Grey Trouser",
           garmentCategory: productId === "product-1" ? "tops" : "bottoms",
+          imageUrl: "https://cdn.test/shirt.jpg",
+          imageStorageKey: null,
+          externalMappings: [],
           category: {
             name: productId === "product-1" ? "Tops" : "Bottoms",
           },
@@ -374,10 +555,15 @@ function run(input: Partial<FakeRun>): FakeRun {
   };
 }
 
-function groupBy<T extends Record<string, unknown>>(
-  items: T[],
-  by: string[],
-) {
+function storage() {
+  return {
+    createReadUrl: vi.fn(
+      ({ key }: { key: string }) => `https://storage.test/${key}`,
+    ),
+  };
+}
+
+function groupBy<T extends Record<string, unknown>>(items: T[], by: string[]) {
   const groups = new Map<string, T[]>();
   for (const item of items) {
     const key = JSON.stringify(by.map((field) => item[field]));

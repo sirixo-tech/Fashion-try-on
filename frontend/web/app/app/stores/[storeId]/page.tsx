@@ -53,6 +53,7 @@ import {
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
+import { StoreTryOnUsage } from "@/components/store-try-on-usage";
 import {
   getCurrentPlatformAccess,
   type CurrentPlatformAccess,
@@ -105,6 +106,7 @@ export default function StoreDashboardPage() {
   );
   const [platformBypass, setPlatformBypass] = useState(false);
   const [canManagePricing, setCanManagePricing] = useState(false);
+  const [canViewUsage, setCanViewUsage] = useState(false);
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [assigningPlan, setAssigningPlan] = useState(false);
@@ -153,6 +155,13 @@ export default function StoreDashboardPage() {
       setEffectivePermissions(nextEffectivePermissionCodes);
       setPlatformBypass(nextEffectivePermissions.platformBypass);
       setCanManagePricing(nextCanManagePricing);
+      setCanViewUsage(
+        nextPlatformAccess.isSuperadmin ||
+          nextPlatformAccess.permissions.includes("USAGE_VIEW") ||
+          ((nextEffectivePermissions.platformBypass ||
+            nextEffectivePermissionCodes.includes("analytics.view")) &&
+            nextEffectivePermissions.featureKeys.includes("ANALYTICS")),
+      );
       setSelectedPlanId(
         nextStore.subscription?.subscription?.pricingPlan?.id ?? "",
       );
@@ -422,31 +431,6 @@ export default function StoreDashboardPage() {
                     ))
                   )}
                 </div>
-                <div className="space-y-2">
-                  <div className="text-sm font-semibold">
-                    Most-used products
-                  </div>
-                  {creditDiagnostics.topProducts.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                      Product usage appears after Try-On runs.
-                    </div>
-                  ) : (
-                    creditDiagnostics.topProducts.map((product) => (
-                      <div
-                        key={product.productId}
-                        className="flex items-center justify-between rounded-lg border p-3 text-sm"
-                      >
-                        <span className="font-medium">
-                          {product.productName}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {product.consumedCredits} credits / {product.runs}{" "}
-                          runs
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
 
               <div className="space-y-4">
@@ -479,6 +463,16 @@ export default function StoreDashboardPage() {
           ) : null}
         </div>
       </PageSection>
+
+      {store?.id === storeId && accessToken && canViewUsage ? (
+        <StoreTryOnUsage
+          key={storeId}
+          accessToken={accessToken}
+          storeId={storeId}
+          currentPeriodStart={store.subscription?.subscription?.currentPeriodStart}
+          currentPeriodEnd={store.subscription?.subscription?.currentPeriodEnd}
+        />
+      ) : null}
 
       <PageSection>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.55fr)]">

@@ -25,6 +25,20 @@ Material changes must:
 
 ---
 
+## Store Onboarding Policy Update - 2026-09-17
+
+This current Store policy supersedes the registration-is-not-activation rules
+below for platform-admin Store creation and self-service Store signup used by
+Shopify. Successful creation assigns a plan and immediately creates an ACTIVE
+tenant and ACTIVE owner membership. No additional approval is required.
+Plan entitlements and permissions still limit normal operations. Shopify
+installation/linking must not reactivate suspended Stores or bypass account
+ownership authorization. Legacy organization-application review is unchanged.
+
+Platform onboarding creates the Store, new owner account, membership, RBAC,
+subscription and initial credits atomically. Existing accounts are not modified
+or silently linked by email. Platform suspension/reactivation remains available.
+
 ## STORE-1 Product Hierarchy Update
 
 **Status:** UPDATED

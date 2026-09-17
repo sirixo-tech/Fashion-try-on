@@ -13,6 +13,15 @@ import {
 } from "./entitlements.service.js";
 
 describe("EntitlementsService", () => {
+  it("uses a supplied onboarding transaction and rejects inactive plans without opening a nested transaction", async () => {
+    const prisma = new FakeEntitlementsPrisma();
+    const service = new EntitlementsService(prisma as never);
+    await expect(service.activatePlanForStore({ organizationId: "new-store", pricingPlanId: "inactive" },
+      prisma as never)).rejects.toMatchObject({ response: { error: { code: "PRICING_PLAN_UNAVAILABLE" } } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.ledger).toHaveLength(0);
+  });
+
   it("grants one-time trial credits for a store", async () => {
     const prisma = new FakeEntitlementsPrisma();
     const service = new EntitlementsService(prisma as never);
