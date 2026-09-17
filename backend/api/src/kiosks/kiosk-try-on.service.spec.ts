@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-normalization.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { TRY_ON_RESULT_MAX_IMAGE_BYTES } from "../try-on/try-on.constants.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import type { CreateKioskTryOnRunPayload } from "./kiosk-try-on.multipart.js";
 import type { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
@@ -10,6 +11,95 @@ import type { JewelleryTryOnService } from "../try-on/jewellery/jewellery-try-on
 import type { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 
 describe("KIOSK-4B production Try-On service", () => {
+  it.each([
+    ["GARMENT", 14 * 1024 * 1024],
+    ["GARMENT", 50 * 1024 * 1024],
+    ["GARMENT", 50 * 1024 * 1024 + 1],
+    ["JEWELLERY", 14 * 1024 * 1024],
+    ["JEWELLERY", 50 * 1024 * 1024],
+    ["JEWELLERY", 50 * 1024 * 1024 + 1],
+  ] as const)(
+    "enforces the generated-result limit for %s at %i bytes",
+    async (vertical, sizeBytes) => {
+      expect(TRY_ON_RESULT_MAX_IMAGE_BYTES).toBe(50 * 1024 * 1024);
+      // Pad a tiny PNG to test transport size independently of pixel dimensions.
+      const image = Buffer.alloc(sizeBytes);
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+        "base64",
+      ).copy(image);
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "image/png" }),
+        arrayBuffer: async () => image.buffer,
+      } as Response);
+      const storage = { putObject: vi.fn().mockResolvedValue(undefined) };
+      const sessions = {
+        recordLook: vi.fn().mockResolvedValue({
+          id: "look-1",
+          assignmentScope: KioskAssignmentScope.PLATFORM,
+          organizationId: null,
+          storeId: null,
+        }),
+      };
+      const service = new KioskTryOnService(
+        {
+          kioskTryOnRun: { findUnique: vi.fn().mockResolvedValue(null) },
+        } as never,
+        new FakeExecution() as never,
+        sessions as never,
+        storage as never,
+      );
+      const assets = {
+        sessionId: "session-1",
+        kioskDeviceId: "device-1",
+        personAssetId: "person-1",
+        garmentAssetId: null,
+        jewelleryAssetId: null,
+        productId: null,
+        executionPayload: {
+          ...payload(),
+          personImage: uploadedImage("personImage"),
+          garmentImage: uploadedImage("garmentImage"),
+        },
+        personImage: uploadedImage("personImage"),
+        jewelleryImage: uploadedImage("jewelleryImage"),
+        jewelleryType: "RING" as const,
+      };
+      try {
+        const saving =
+          vertical === "GARMENT"
+            ? service["recordSessionLook"](
+                "run-1",
+                assets,
+                "https://results.example/result.png",
+              )
+            : service["recordJewellerySessionLook"](
+                "run-1",
+                assets,
+                "https://results.example/result.png",
+              );
+        if (sizeBytes > TRY_ON_RESULT_MAX_IMAGE_BYTES) {
+          await expect(saving).rejects.toMatchObject({
+            code: "IMAGE_TOO_LARGE",
+          });
+          expect(storage.putObject).not.toHaveBeenCalled();
+          expect(sessions.recordLook).not.toHaveBeenCalled();
+        } else {
+          await saving;
+          expect(storage.putObject).toHaveBeenCalledOnce();
+          expect(sessions.recordLook).toHaveBeenCalledWith(
+            expect.objectContaining({
+              resultAsset: expect.objectContaining({ sizeBytes }),
+            }),
+          );
+        }
+      } finally {
+        fetchMock.mockRestore();
+      }
+    },
+  );
+
   it("creates a PLATFORM kiosk run while TRYON_LAB_ENABLED is false", async () => {
     const restore = setLabEnabled(false);
     const prisma = new FakePrisma();

@@ -31,11 +31,13 @@ import { ObjectStorageService } from "../storage/object-storage.js";
 import { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
 import { throwJewelleryTryOnNotEnabled } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
 import { JewelleryTryOnService } from "../try-on/jewellery/jewellery-try-on.service.js";
-import { TRY_ON_RESULT_RETENTION_MS } from "../try-on/try-on.constants.js";
+import {
+  TRY_ON_RESULT_MAX_IMAGE_BYTES,
+  TRY_ON_RESULT_RETENTION_MS,
+} from "../try-on/try-on.constants.js";
 import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
 import type { CreateTryOnLabRunPayload } from "../try-on-lab/try-on-lab-multipart.js";
-import { TRY_ON_LAB_MAX_IMAGE_BYTES } from "../try-on-lab/try-on-lab.constants.js";
 import {
   KIOSK_USAGE_EVENTS,
   UsageEventService,
@@ -888,7 +890,7 @@ export class KioskTryOnService {
     const metadata = validateTechnicalImageBuffer({
       buffer: result.buffer,
       declaredContentType: result.contentType,
-      maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
+      maxBytes: TRY_ON_RESULT_MAX_IMAGE_BYTES,
     });
     const key = objectKeyFor(
       sessionRun.sessionId,
@@ -958,7 +960,7 @@ export class KioskTryOnService {
     const metadata = validateTechnicalImageBuffer({
       buffer: result.buffer,
       declaredContentType: result.contentType,
-      maxBytes: TRY_ON_LAB_MAX_IMAGE_BYTES,
+      maxBytes: TRY_ON_RESULT_MAX_IMAGE_BYTES,
     });
     const key = objectKeyFor(
       jewelleryRun.sessionId,
