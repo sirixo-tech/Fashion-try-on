@@ -25,7 +25,7 @@
         tools:node="remove" />
 
     <application
-        android:label="SelfX Kiosk"
+        android:label="SelfX Tryon"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:resizeableActivity="true"

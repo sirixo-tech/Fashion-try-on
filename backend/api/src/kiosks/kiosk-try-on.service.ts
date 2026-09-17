@@ -25,7 +25,10 @@ import { CatalogService } from "../catalog/catalog.service.js";
 import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-normalization.js";
 import type { JewelleryType } from "../catalog/product-kind.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
-import { validateTechnicalImageBuffer } from "../common/image-validation.js";
+import {
+  detectImageMimeType,
+  validateTechnicalImageBuffer,
+} from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
@@ -886,7 +889,11 @@ export class KioskTryOnService {
     sessionRun: SessionRunAssets,
     resultImage: string,
   ): Promise<void> {
-    const result = await parseResultImage(resultImage);
+    const result = await parseResultImage(resultImage, {
+      runId,
+      tryOnVertical: "GARMENT",
+      logger: this.logger,
+    });
     const metadata = validateTechnicalImageBuffer({
       buffer: result.buffer,
       declaredContentType: result.contentType,
@@ -956,7 +963,11 @@ export class KioskTryOnService {
       return;
     }
 
-    const result = await parseResultImage(resultImage);
+    const result = await parseResultImage(resultImage, {
+      runId,
+      tryOnVertical: "JEWELLERY",
+      logger: this.logger,
+    });
     const metadata = validateTechnicalImageBuffer({
       buffer: result.buffer,
       declaredContentType: result.contentType,
@@ -1427,12 +1438,21 @@ function objectKeyFor(
   return `try-on-sessions/${sessionId}/${purpose}/${assetId}.${extension}`;
 }
 
-async function parseResultImage(resultImage: string): Promise<{
+interface ResultDownloadDiagnostics {
+  runId: string;
+  tryOnVertical: "GARMENT" | "JEWELLERY";
+  logger: Logger;
+}
+
+async function parseResultImage(
+  resultImage: string,
+  diagnostics: ResultDownloadDiagnostics,
+): Promise<{
   contentType: "image/jpeg" | "image/png" | "image/webp";
   buffer: Buffer;
 }> {
   if (!resultImage.startsWith("data:")) {
-    return fetchResultImage(resultImage);
+    return fetchResultImage(resultImage, diagnostics);
   }
   const match =
     /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i.exec(
@@ -1461,7 +1481,10 @@ async function parseResultImage(resultImage: string): Promise<{
   };
 }
 
-async function fetchResultImage(resultImage: string): Promise<{
+async function fetchResultImage(
+  resultImage: string,
+  diagnostics: ResultDownloadDiagnostics,
+): Promise<{
   contentType: "image/jpeg" | "image/png" | "image/webp";
   buffer: Buffer;
 }> {
@@ -1469,28 +1492,151 @@ async function fetchResultImage(resultImage: string): Promise<{
   try {
     url = new URL(resultImage);
   } catch {
+    logResultDownload(diagnostics, "INVALID_URL");
     throwInvalidResultImage();
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") {
+    logResultDownload(diagnostics, "UNSUPPORTED_SCHEME");
     throwInvalidResultImage();
   }
-  const response = await fetch(url);
-  if (!response.ok) {
-    throwInvalidResultImage();
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    logResultDownload(diagnostics, "DOWNLOAD_FAILED");
+    throw error;
   }
   const contentType = response.headers
     .get("content-type")
     ?.split(";")[0]
     ?.trim();
+  // Only log a bounded MIME token, never arbitrary headers or signed URLs.
+  const safeContentType =
+    contentType &&
+    contentType.length <= 80 &&
+    /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(contentType)
+      ? contentType.toLowerCase()
+      : contentType == null
+        ? "missing"
+        : "unrecognized";
+  const responseDetails = {
+    httpStatus: response.status,
+    contentType: safeContentType,
+  };
+  if (!response.ok) {
+    logResultDownload(diagnostics, "HTTP_ERROR", {
+      ...responseDetails,
+      detectedMediaType: await inspectResultPrefix(response),
+    });
+    throwInvalidResultImage();
+  }
   if (
     contentType !== "image/jpeg" &&
     contentType !== "image/png" &&
     contentType !== "image/webp"
   ) {
+    logResultDownload(diagnostics, "UNSUPPORTED_CONTENT_TYPE", {
+      ...responseDetails,
+      detectedMediaType: await inspectResultPrefix(response),
+    });
     throwInvalidResultImage();
   }
-  const buffer = Buffer.from(await response.arrayBuffer());
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    logResultDownload(diagnostics, "BODY_READ_FAILED", responseDetails);
+    throw error;
+  }
+  logResultDownload(diagnostics, "DOWNLOADED", {
+    ...responseDetails,
+    detectedMediaType: detectResultMediaType(buffer),
+    sizeBytes: buffer.length,
+  });
   return { contentType, buffer };
+}
+
+function logResultDownload(
+  diagnostics: ResultDownloadDiagnostics,
+  outcome: string,
+  details: {
+    httpStatus?: number;
+    contentType?: string;
+    detectedMediaType?: string;
+    sizeBytes?: number;
+  } = {},
+): void {
+  const entry = {
+    event: "kiosk_try_on_result_download",
+    runId: diagnostics.runId,
+    tryOnVertical: diagnostics.tryOnVertical,
+    outcome,
+    ...details,
+  };
+  if (outcome === "DOWNLOADED") {
+    diagnostics.logger.log(entry);
+  } else {
+    diagnostics.logger.warn(entry);
+  }
+}
+
+function detectResultMediaType(buffer: Buffer): string {
+  const imageType = detectImageMimeType(buffer);
+  if (imageType) {
+    return imageType;
+  }
+  if (buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) {
+    return "application/zip";
+  }
+  const prefix = buffer.subarray(0, 32).toString("ascii");
+  if (prefix.startsWith("GIF87a") || prefix.startsWith("GIF89a")) {
+    return "image/gif";
+  }
+  if (prefix.startsWith("%PDF-")) {
+    return "application/pdf";
+  }
+  if (/^\s*(?:<!doctype html|<html)/i.test(prefix)) {
+    return "text/html";
+  }
+  return "unknown";
+}
+
+async function inspectResultPrefix(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return "unavailable";
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const readPrefix = async (): Promise<string> => {
+      const prefix = Buffer.alloc(32);
+      let length = 0;
+      while (length < prefix.length) {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          break;
+        }
+        const bytes = Buffer.from(
+          chunk.value.buffer,
+          chunk.value.byteOffset,
+          chunk.value.byteLength,
+        );
+        length += bytes.copy(prefix, length, 0, prefix.length - length);
+      }
+      return detectResultMediaType(prefix.subarray(0, length));
+    };
+    return await Promise.race([
+      readPrefix(),
+      new Promise<string>((resolve) => {
+        timer = setTimeout(() => resolve("unavailable"), 1_500);
+      }),
+    ]);
+  } catch {
+    return "unavailable";
+  } finally {
+    clearTimeout(timer);
+    void reader.cancel().catch(() => undefined);
+  }
 }
 
 function throwInvalidResultImage(): never {
