@@ -30,7 +30,10 @@ describe("KIOSK-4B production Try-On service", () => {
       ).copy(image);
       const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
-        headers: new Headers({ "content-type": "image/png" }),
+        headers: new Headers({
+          "content-type":
+            vertical === "JEWELLERY" ? "binary/octet-stream" : "image/png",
+        }),
         arrayBuffer: async () => image.buffer,
       } as Response);
       const storage = { putObject: vi.fn().mockResolvedValue(undefined) };

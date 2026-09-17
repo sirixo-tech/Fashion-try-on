@@ -1509,7 +1509,8 @@ async function fetchResultImage(
   const contentType = response.headers
     .get("content-type")
     ?.split(";")[0]
-    ?.trim();
+    ?.trim()
+    .toLowerCase();
   // Only log a bounded MIME token, never arbitrary headers or signed URLs.
   const safeContentType =
     contentType &&
@@ -1530,11 +1531,16 @@ async function fetchResultImage(
     });
     throwInvalidResultImage();
   }
-  if (
-    contentType !== "image/jpeg" &&
-    contentType !== "image/png" &&
-    contentType !== "image/webp"
-  ) {
+  const declaredImageType =
+    contentType === "image/jpeg" ||
+    contentType === "image/png" ||
+    contentType === "image/webp"
+      ? contentType
+      : null;
+  const isGenericBinary =
+    contentType === "application/octet-stream" ||
+    contentType === "binary/octet-stream";
+  if (!declaredImageType && !isGenericBinary) {
     logResultDownload(diagnostics, "UNSUPPORTED_CONTENT_TYPE", {
       ...responseDetails,
       detectedMediaType: await inspectResultPrefix(response),
@@ -1548,12 +1554,22 @@ async function fetchResultImage(
     logResultDownload(diagnostics, "BODY_READ_FAILED", responseDetails);
     throw error;
   }
+  // Generic transport labels do not identify the image format; use its signature.
+  const resolvedImageType = declaredImageType ?? detectImageMimeType(buffer);
+  if (!resolvedImageType) {
+    logResultDownload(diagnostics, "INVALID_IMAGE_SIGNATURE", {
+      ...responseDetails,
+      detectedMediaType: detectResultMediaType(buffer),
+      sizeBytes: buffer.length,
+    });
+    throwInvalidResultImage();
+  }
   logResultDownload(diagnostics, "DOWNLOADED", {
     ...responseDetails,
     detectedMediaType: detectResultMediaType(buffer),
     sizeBytes: buffer.length,
   });
-  return { contentType, buffer };
+  return { contentType: resolvedImageType, buffer };
 }
 
 function logResultDownload(

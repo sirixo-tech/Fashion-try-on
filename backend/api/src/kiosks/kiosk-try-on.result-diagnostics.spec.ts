@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
 import { KioskAssignmentScope } from "@prisma/client";
+import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
@@ -73,6 +74,103 @@ function setup() {
 
 describe("kiosk generated-result download diagnostics", () => {
   it.each([
+    ["binary/octet-stream", "png"],
+    ["binary/octet-stream", "jpeg"],
+    ["binary/octet-stream", "webp"],
+    ["application/octet-stream", "png"],
+    ["application/octet-stream", "jpeg"],
+    ["application/octet-stream", "webp"],
+  ] as const)(
+    "saves %s results using detected %s format",
+    async (contentType, format) => {
+      const { save, storage, log, warn } = setup();
+      const image = await sharp({
+        create: { width: 8, height: 8, channels: 3, background: "#ffffff" },
+      })
+        .toFormat(format)
+        .toBuffer();
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(new Uint8Array(image), {
+          headers: { "content-type": contentType },
+        }),
+      );
+
+      await save();
+
+      expect(storage.putObject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contentType: `image/${format}`,
+          body: image,
+        }),
+      );
+      expect(log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: "DOWNLOADED",
+          contentType,
+          detectedMediaType: `image/${format}`,
+        }),
+      );
+      expect(warn).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [Buffer.from([0x50, 0x4b, 0x03, 0x04]), "application/zip"],
+    [Buffer.from("<html>private error body</html>"), "text/html"],
+    [Buffer.from("GIF89a"), "image/gif"],
+    [Buffer.alloc(0), "unknown"],
+  ])(
+    "rejects generic binary results that are not supported images (%s)",
+    async (body, detectedMediaType) => {
+      const { save, storage, warn } = setup();
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(body, {
+          headers: { "content-type": "binary/octet-stream" },
+        }),
+      );
+
+      await expectInvalidResult(save());
+
+      expect(storage.putObject).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: "INVALID_IMAGE_SIGNATURE",
+          detectedMediaType,
+        }),
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(
+        "private error body",
+      );
+    },
+  );
+
+  it("still rejects a truncated PNG with a generic binary label", async () => {
+    const { save, storage } = setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(png.subarray(0, 8), {
+        headers: { "content-type": "binary/octet-stream" },
+      }),
+    );
+
+    await expect(save()).rejects.toMatchObject({ code: "IMAGE_DECODE_FAILED" });
+
+    expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
+  it("still rejects a PNG explicitly mislabeled as JPEG", async () => {
+    const { save, storage } = setup();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(png, {
+        headers: { "content-type": "image/jpeg" },
+      }),
+    );
+
+    await expect(save()).rejects.toMatchObject({ code: "IMAGE_TYPE_MISMATCH" });
+
+    expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
+  it.each([
     ["not a URL", "INVALID_URL"],
     ["ftp://results.example/result.png", "UNSUPPORTED_SCHEME"],
   ])(
@@ -118,13 +216,6 @@ describe("kiosk generated-result download diagnostics", () => {
   });
 
   it.each([
-    [
-      200,
-      "application/octet-stream",
-      png,
-      "UNSUPPORTED_CONTENT_TYPE",
-      "image/png",
-    ],
     [
       200,
       "application/zip",
@@ -209,7 +300,7 @@ describe("kiosk generated-result download diagnostics", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       status: 200,
-      headers: new Headers({ "content-type": "application/octet-stream" }),
+      headers: new Headers({ "content-type": "application/zip" }),
       body: { getReader: () => ({ read, cancel: async () => cancel() }) },
     } as unknown as Response);
 
@@ -230,7 +321,7 @@ describe("kiosk generated-result download diagnostics", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,
         status: 200,
-        headers: new Headers({ "content-type": "application/octet-stream" }),
+        headers: new Headers({ "content-type": "application/zip" }),
         body: {
           getReader: () => ({ read: () => new Promise(() => {}), cancel }),
         },
