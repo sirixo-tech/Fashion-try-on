@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import sharp from "sharp";
 
 import { TRY_ON_LAB_ERROR_CODES, type TryOnLabErrorCode } from "@selfx/shared";
@@ -40,6 +40,8 @@ interface PerfectCorpUploadDescriptor {
 
 @Injectable()
 export class PerfectCorpJewelleryTryOnProvider implements JewelleryTryOnProvider {
+  private readonly logger = new Logger(PerfectCorpJewelleryTryOnProvider.name);
+
   metadata(): JewelleryTryOnProviderMetadata {
     return {
       provider: "perfect-corp",
@@ -126,6 +128,12 @@ export class PerfectCorpJewelleryTryOnProvider implements JewelleryTryOnProvider
       return { status: "COMPLETED", resultImage };
     }
     if (taskStatus === "error") {
+      this.logger.warn({
+        event: "jewellery_provider_failure",
+        operation: "POLL",
+        jewelleryType: prediction.jewelleryType,
+        providerErrorCode: diagnosticProviderErrorCode(response),
+      });
       return {
         status: "FAILED",
         ...mapPerfectCorpRuntimeError(readPerfectCorpRuntimeError(response)),
@@ -182,6 +190,11 @@ export class PerfectCorpJewelleryTryOnProvider implements JewelleryTryOnProvider
         signal: AbortSignal.timeout(readHttpTimeoutMs()),
       });
       if (!response.ok) {
+        this.logger.warn({
+          event: "jewellery_provider_failure",
+          operation: "IMAGE_UPLOAD",
+          httpStatus: response.status,
+        });
         throw new ApiErrorException(
           HttpStatus.SERVICE_UNAVAILABLE,
           TRY_ON_LAB_ERROR_CODES.providerUnavailable,
@@ -192,6 +205,11 @@ export class PerfectCorpJewelleryTryOnProvider implements JewelleryTryOnProvider
       if (error instanceof ApiErrorException) {
         throw error;
       }
+      this.logger.warn({
+        event: "jewellery_provider_failure",
+        operation: "IMAGE_UPLOAD",
+        failureKind: diagnosticFailureKind(error),
+      });
       throwProviderUnavailable();
     }
   }
@@ -226,13 +244,31 @@ export class PerfectCorpJewelleryTryOnProvider implements JewelleryTryOnProvider
         !response.ok ||
         (payloadStatus !== undefined && payloadStatus >= 400)
       ) {
+        this.logger.warn({
+          event: "jewellery_provider_failure",
+          operation: init.method === "GET" ? "POLL" : "SUBMIT_OR_UPLOAD_SETUP",
+          httpStatus: response.status,
+          providerStatus: payloadStatus,
+          providerErrorCode: diagnosticProviderErrorCode(payload),
+        });
         throwPerfectCorpHttpError(payloadStatus ?? response.status, payload);
       }
       return payload;
     } catch (error) {
       if (error instanceof ApiErrorException) {
+        // Includes malformed successful responses; never log the payload or URL.
+        this.logger.warn({
+          event: "jewellery_provider_request_failure",
+          operation: init.method === "GET" ? "POLL" : "SUBMIT_OR_UPLOAD_SETUP",
+          failureKind: "API_ERROR",
+        });
         throw error;
       }
+      this.logger.warn({
+        event: "jewellery_provider_request_failure",
+        operation: init.method === "GET" ? "POLL" : "SUBMIT_OR_UPLOAD_SETUP",
+        failureKind: diagnosticFailureKind(error),
+      });
       throwProviderUnavailable();
     }
   }
@@ -590,6 +626,26 @@ function readPerfectCorpRuntimeError(value: unknown): string | undefined {
     readNestedString(value, "data", "message") ??
     readString(value, "message")
   );
+}
+
+function diagnosticProviderErrorCode(value: unknown): string {
+  const nestedError = readProperty(readProperty(value, "data"), "error");
+  const code =
+    readString(value, "error_code") ??
+    readString(value, "code") ??
+    readString(nestedError, "error_code") ??
+    readString(nestedError, "code");
+  // Free-form messages may contain image URLs or credentials; only code fields qualify.
+  return code && /^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(code)
+    ? code
+    : "UNAVAILABLE";
+}
+
+function diagnosticFailureKind(error: unknown): string {
+  return error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+    ? "TIMEOUT"
+    : "TRANSPORT_OR_RESPONSE_ERROR";
 }
 
 function readApiBaseUrl(): string {

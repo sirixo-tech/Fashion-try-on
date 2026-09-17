@@ -1,6 +1,6 @@
 import { createHmac, createHash } from "node:crypto";
 
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 
@@ -41,6 +41,7 @@ export interface ObjectStorageConfig {
 
 @Injectable()
 export class ObjectStorageService implements ObjectStorage {
+  private readonly logger = new Logger(ObjectStorageService.name);
   private readonly config: ObjectStorageConfig;
 
   constructor() {
@@ -52,12 +53,32 @@ export class ObjectStorageService implements ObjectStorage {
     contentType: string;
     body: Buffer;
   }): Promise<void> {
-    const response = await fetch(this.presign("PUT", input.key, 60), {
-      method: "PUT",
-      headers: { "Content-Type": input.contentType },
-      body: new Uint8Array(input.body),
-    });
+    const startedAt = Date.now();
+    const url = this.presign("PUT", input.key, 60);
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": input.contentType },
+        body: new Uint8Array(input.body),
+      });
+    } catch (error) {
+      this.logger.warn({
+        event: "object_storage_write_failure",
+        outcome: "TRANSPORT_ERROR",
+        durationMs: Date.now() - startedAt,
+        sizeBytes: input.body.length,
+      });
+      throw error;
+    }
     if (!response.ok) {
+      this.logger.warn({
+        event: "object_storage_write_failure",
+        outcome: "HTTP_REJECTED",
+        httpStatus: response.status,
+        durationMs: Date.now() - startedAt,
+        sizeBytes: input.body.length,
+      });
       throwStorageUnavailable("Object could not be stored.");
     }
   }
@@ -216,7 +237,9 @@ function objectUrl(config: Required<ObjectStorageConfig>, key: string): URL {
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/");
-  return new URL(`${endpoint}/${encodeURIComponent(config.bucket)}/${encodedKey}`);
+  return new URL(
+    `${endpoint}/${encodeURIComponent(config.bucket)}/${encodedKey}`,
+  );
 }
 
 function canonicalQuery(params: URLSearchParams): string {

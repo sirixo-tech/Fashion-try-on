@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -16,6 +18,95 @@ import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/model_garment_compatibility.dart';
 
 void main() {
+  for (final scenario in [
+    'success',
+    'malformed',
+    'rejected',
+    'timeout',
+    'connection',
+  ]) {
+    test('person attachment logs safe diagnostics for $scenario', () async {
+      final logs = <String>[];
+      final previousDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = previousDebugPrint);
+      final directory = await Directory.systemTemp.createTemp(
+        'selfx-diagnostics-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final photo = File('${directory.path}/private-photo.jpg');
+      await photo.writeAsString('private-image');
+      final device = testDeviceController('secret-device-token');
+      addTearDown(device.dispose);
+      final gateway = SelfxKioskTryOnGateway(
+        config: const KioskTryOnApiConfig(apiBaseUrl: 'https://api.selfx.test'),
+        deviceController: device,
+        client: MockClient((request) async {
+          if (scenario == 'timeout') {
+            throw TimeoutException('secret-url');
+          }
+          if (scenario == 'connection') {
+            throw const SocketException('secret-url');
+          }
+          if (scenario == 'malformed') {
+            return http.Response('secret-invalid-json', 201);
+          }
+          if (scenario == 'rejected') {
+            return http.Response(
+              jsonEncode({
+                'error': {
+                  'code': 'OBJECT_STORAGE_UNAVAILABLE',
+                  'message': 'secret-message',
+                },
+              }),
+              503,
+            );
+          }
+          return jsonResponse({
+            'assetId': 'private-asset',
+            'purpose': 'PERSON',
+            'contentType': 'image/jpeg',
+            'sizeBytes': 13,
+            'width': 640,
+            'height': 640,
+            'expiresAt': '2026-09-24T00:00:00Z',
+          });
+        }),
+      );
+      final future = gateway.setSessionPerson(
+        sessionId: 'private-session',
+        personImage: photo,
+      );
+      if (scenario == 'success') {
+        await future;
+        expect(
+          logs.join('\n'),
+          contains('TRYON_PERSON_ATTACH_OK httpStatus=201'),
+        );
+      } else {
+        await expectLater(future, throwsA(anything));
+        expect(logs.join('\n'), contains('TRYON_PERSON_ATTACH_FAILED'));
+        if (scenario == 'malformed' || scenario == 'rejected') {
+          expect(logs.join('\n'), contains('stage=RESPONSE_DECODE'));
+          expect(
+            logs.join('\n'),
+            contains('httpStatus=${scenario == 'rejected' ? 503 : 201}'),
+          );
+        } else {
+          expect(
+            logs.join('\n'),
+            contains(
+              'failureKind=${scenario == 'timeout' ? 'TIMEOUT' : 'CONNECTION_ERROR'}',
+            ),
+          );
+        }
+      }
+      expect(logs.join('\n'), isNot(matches('secret|private|https://|Bearer')));
+    });
+  }
+
   test(
     'uses production kiosk endpoint with device session token and preview garment',
     () async {

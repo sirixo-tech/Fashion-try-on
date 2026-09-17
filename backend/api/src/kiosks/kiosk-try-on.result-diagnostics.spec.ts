@@ -2,8 +2,10 @@ import { Logger } from "@nestjs/common";
 import { KioskAssignmentScope } from "@prisma/client";
 import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TRY_ON_LAB_ERROR_CODES } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import type { JewelleryTryOnExecutionObserver } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
 import { KioskTryOnService } from "./kiosk-try-on.service.js";
 
 const resultUrl =
@@ -73,6 +75,73 @@ function setup() {
 }
 
 describe("kiosk generated-result download diagnostics", () => {
+  it.each(["PROVIDER_EXECUTION", "RESULT_FINALIZATION"])(
+    "identifies jewellery failures in %s without logging error messages",
+    async (phase) => {
+      const warn = vi
+        .spyOn(Logger.prototype, "warn")
+        .mockImplementation(() => {});
+      const execution = {
+        process: vi.fn(
+          async (
+            _input: unknown,
+            observer: JewelleryTryOnExecutionObserver,
+          ) => {
+            if (phase === "RESULT_FINALIZATION") {
+              try {
+                await observer.onStatus({
+                  status: "COMPLETED",
+                  resultImage: resultUrl,
+                });
+              } catch {
+                // Mimic the execution service's normalized error callback.
+              }
+            }
+            await observer.onError(
+              {
+                status: "FAILED",
+                errorCode: TRY_ON_LAB_ERROR_CODES.failed,
+                errorMessage: "secret error",
+              },
+              new Date(),
+            );
+          },
+        ),
+      };
+      const service = new KioskTryOnService(
+        { kioskTryOnRun: { update: vi.fn().mockResolvedValue({}) } } as never,
+        {} as never,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        execution as never,
+      );
+      vi.spyOn(
+        service as unknown as { recordJewellerySessionLook(): Promise<void> },
+        "recordJewellerySessionLook",
+      ).mockRejectedValue(new Error("secret storage URL"));
+      await service["processJewelleryRun"]("run-1", {
+        jewelleryType: "BRACELET",
+        personImage: { dataUri: "private-person" },
+        jewelleryImage: { dataUri: "private-product" },
+      } as never);
+      expect(warn).toHaveBeenCalledWith({
+        event: "kiosk_jewellery_run_failure",
+        runId: "run-1",
+        jewelleryType: "BRACELET",
+        phase,
+        outcome: "EXECUTION_ERROR",
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toMatch(
+        /secret|private|https/,
+      );
+    },
+  );
+
   it.each([
     ["binary/octet-stream", "png"],
     ["binary/octet-stream", "jpeg"],

@@ -1032,6 +1032,7 @@ export class KioskTryOnService {
     runId: string,
     jewelleryRun: JewelleryRunAssets,
   ): Promise<void> {
+    let phase = "PROVIDER_EXECUTION";
     await this.requireJewelleryExecution().process(
       {
         personImageDataUri: jewelleryRun.personImage.dataUri,
@@ -1059,6 +1060,15 @@ export class KioskTryOnService {
           });
         },
         onStatus: async (status) => {
+          if (status.status === "FAILED") {
+            this.logger.warn({
+              event: "kiosk_jewellery_run_failure",
+              runId,
+              jewelleryType: jewelleryRun.jewelleryType,
+              phase,
+              outcome: "PROVIDER_REPORTED_FAILURE",
+            });
+          }
           await this.prisma.kioskTryOnRun.update({
             where: { id: runId },
             data: {
@@ -1070,6 +1080,7 @@ export class KioskTryOnService {
             },
           });
           if (status.status === "COMPLETED" && status.resultImage) {
+            phase = "RESULT_FINALIZATION";
             await this.recordJewellerySessionLook(
               runId,
               jewelleryRun,
@@ -1078,6 +1089,13 @@ export class KioskTryOnService {
           }
         },
         onTimedOut: async (completedAt) => {
+          this.logger.warn({
+            event: "kiosk_jewellery_run_failure",
+            runId,
+            jewelleryType: jewelleryRun.jewelleryType,
+            phase,
+            outcome: "TIMEOUT",
+          });
           await this.prisma.kioskTryOnRun.update({
             where: { id: runId },
             data: {
@@ -1089,6 +1107,13 @@ export class KioskTryOnService {
           });
         },
         onError: async (error, completedAt) => {
+          this.logger.warn({
+            event: "kiosk_jewellery_run_failure",
+            runId,
+            jewelleryType: jewelleryRun.jewelleryType,
+            phase,
+            outcome: "EXECUTION_ERROR",
+          });
           await this.prisma.kioskTryOnRun.update({
             where: { id: runId },
             data: {

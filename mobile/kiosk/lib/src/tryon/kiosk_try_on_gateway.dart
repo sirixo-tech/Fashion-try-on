@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:flutter/foundation.dart';
 
 import '../device/kiosk_device_models.dart';
 import '../device/kiosk_device_session_controller.dart';
@@ -89,34 +90,64 @@ class SelfxKioskTryOnGateway
     required String sessionId,
     required File personImage,
   }) async {
-    _assertConfigured();
-    if (!await personImage.exists()) {
-      throw const KioskTryOnException(
-        KioskTryOnFailureCode.personMissing,
-        'Customer photo is unavailable.',
-      );
-    }
+    final stopwatch = Stopwatch()..start();
+    var stage = 'UPLOAD';
+    int? httpStatus;
+    debugPrint('TRYON_PERSON_ATTACH_START');
+    try {
+      _assertConfigured();
+      if (!await personImage.exists()) {
+        throw const KioskTryOnException(
+          KioskTryOnFailureCode.personMissing,
+          'Customer photo is unavailable.',
+        );
+      }
 
-    final response = await _sendWithDeviceAuth(
-      forceRefresh: false,
-      requestFactory: (accessToken) async {
-        final multipart = http.MultipartRequest(
-          'POST',
-          _sessionsUri('$sessionId/person'),
-        );
-        multipart.headers[HttpHeaders.authorizationHeader] =
-            'Bearer ${accessToken.trim()}';
-        multipart.files.add(
-          await http.MultipartFile.fromPath(
-            'personImage',
-            personImage.path,
-            contentType: _contentTypeFor(personImage.path),
-          ),
-        );
-        return multipart;
-      },
-    );
-    return _decodeAsset(response);
+      final response = await _sendWithDeviceAuth(
+        forceRefresh: false,
+        requestFactory: (accessToken) async {
+          final multipart = http.MultipartRequest(
+            'POST',
+            _sessionsUri('$sessionId/person'),
+          );
+          multipart.headers[HttpHeaders.authorizationHeader] =
+              'Bearer ${accessToken.trim()}';
+          multipart.files.add(
+            await http.MultipartFile.fromPath(
+              'personImage',
+              personImage.path,
+              contentType: _contentTypeFor(personImage.path),
+            ),
+          );
+          return multipart;
+        },
+      );
+      httpStatus = response.statusCode;
+      stage = 'RESPONSE_DECODE';
+      final asset = _decodeAsset(response);
+      debugPrint(
+        'TRYON_PERSON_ATTACH_OK httpStatus=$httpStatus '
+        'durationMs=${stopwatch.elapsedMilliseconds}',
+      );
+      return asset;
+    } catch (error) {
+      final failureKind = switch (error) {
+        TimeoutException() => 'TIMEOUT',
+        SocketException() || http.ClientException() => 'CONNECTION_ERROR',
+        FormatException() => 'INVALID_RESPONSE',
+        KioskTryOnException() => 'API_OR_CONTRACT_ERROR',
+        _ => 'UNEXPECTED_ERROR',
+      };
+      final code = error is KioskTryOnException
+          ? error.code.name
+          : 'unavailable';
+      debugPrint(
+        'TRYON_PERSON_ATTACH_FAILED stage=$stage httpStatus=$httpStatus '
+        'failureKind=$failureKind code=$code '
+        'durationMs=${stopwatch.elapsedMilliseconds}',
+      );
+      rethrow;
+    }
   }
 
   @override

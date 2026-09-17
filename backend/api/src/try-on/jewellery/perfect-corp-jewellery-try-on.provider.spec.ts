@@ -1,5 +1,6 @@
 import sharp from "sharp";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Logger } from "@nestjs/common";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TRY_ON_LAB_ERROR_CODES } from "@selfx/shared";
 
@@ -19,10 +20,87 @@ describe("PerfectCorpJewelleryTryOnProvider", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     delete process.env.SELFX_PERFECT_CORP_JEWELLERY_TRY_ON_ENABLED;
     delete process.env.PERFECT_CORP_API_KEY;
     delete process.env.PERFECT_CORP_API_BASE_URL;
     delete process.env.PERFECT_CORP_HTTP_TIMEOUT_MS;
+  });
+
+  it("logs runtime failure codes without task IDs, messages or image links", async () => {
+    const warn = vi
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => {});
+    const provider = new TestPerfectCorpProvider([
+      jsonResponse({
+        data: {
+          task_status: "error",
+          error: {
+            code: "RUNTIME_ERROR",
+            message: "secret https://private.test",
+          },
+        },
+      }),
+    ]);
+    await provider.poll(
+      `perfect-corp:v1:BRACELET:${Buffer.from("secret-task").toString("base64url")}`,
+    );
+    expect(warn).toHaveBeenCalledWith({
+      event: "jewellery_provider_failure",
+      operation: "POLL",
+      jewelleryType: "BRACELET",
+      providerErrorCode: "RUNTIME_ERROR",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("secret");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("https://");
+  });
+
+  it("does not log unsafe error codes or free-form messages", async () => {
+    const warn = vi
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => {});
+    const provider = new TestPerfectCorpProvider([
+      jsonResponse({
+        data: {
+          task_status: "error",
+          error: {
+            code: "https://private.test?secret=token",
+            message: "private-image",
+          },
+        },
+      }),
+    ]);
+    await provider.poll(
+      `perfect-corp:v1:RING:${Buffer.from("task").toString("base64url")}`,
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ providerErrorCode: "UNAVAILABLE" }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/private|secret|token/);
+  });
+
+  it("logs HTTP rejection status and canonical provider code", async () => {
+    const warn = vi
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => {});
+    const provider = new TestPerfectCorpProvider([
+      jsonResponse(
+        { error_code: "CreditInsufficiency", message: "secret-key" },
+        400,
+      ),
+    ]);
+    await expect(
+      provider.poll(
+        `perfect-corp:v1:NECKLACE:${Buffer.from("task").toString("base64url")}`,
+      ),
+    ).rejects.toBeInstanceOf(ApiErrorException);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        httpStatus: 400,
+        providerErrorCode: "CreditInsufficiency",
+      }),
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("secret-key");
   });
 
   it("uploads images and completes an earring task through type-specific routes", async () => {
