@@ -407,13 +407,12 @@ export default function Index() {
     creditSummary?.subscription?.includedCredits ??
     0;
   const availableCredits = creditSummary?.availableCredits ?? 0;
-  const usedCredits = Math.max(0, includedCredits - availableCredits);
+  const creditAllowance = Math.max(
+    includedCredits + (creditSummary?.subscription?.trialCredits ?? 0),
+    availableCredits,
+  );
   const totalTryOns = usageSummary?.totalTryOns ?? 0;
   const thisMonthTryOns = usageSummary?.thisMonth.tryOns ?? 0;
-  const usagePercent =
-    includedCredits > 0
-      ? Math.min(100, Math.round((usedCredits / includedCredits) * 100))
-      : 0;
   const [adminLocale, setAdminLocale] = useState(connection.adminLocale);
 
   useEffect(() => {
@@ -483,10 +482,8 @@ export default function Index() {
         billingUrl={selfxBillingUrl}
         connected={connected}
         creditHealth={creditHealth}
-        includedCredits={includedCredits}
+        totalCredits={creditAllowance}
         planName={localizedPlanName}
-        usagePercent={usagePercent}
-        usedCredits={usedCredits}
       />
 
       <div className="selfx-shopify-panel-layout">
@@ -656,7 +653,7 @@ function MerchantAppHeader({
           </s-stack>
         </s-grid-item>
         <s-grid-item>
-          <s-stack direction="inline" gap="base" alignItems="center">
+          <s-stack direction="inline" gap="base" alignItems="end">
             <div className="selfx-shopify-locale-select">
               <s-select
                 label={t("adminPanelLanguage")}
@@ -672,12 +669,14 @@ function MerchantAppHeader({
                 ))}
               </s-select>
             </div>
-            <s-button
+            <a
+              className="selfx-shopify-header-refresh"
               href={syncActionPath}
-              variant="secondary"
-              icon="refresh"
-              accessibilityLabel={t("refresh")}
-            ></s-button>
+              aria-label={t("refresh")}
+              title={t("refresh")}
+            >
+              <s-icon type="reset" />
+            </a>
             <PrimaryActions
               approvalUrl={connection.approvalUrl}
               completeActionPath={completeActionPath}
@@ -732,26 +731,26 @@ function CreditUsagePanel({
   billingUrl,
   connected,
   creditHealth,
-  includedCredits,
+  totalCredits,
   planName,
-  usagePercent,
-  usedCredits,
 }: {
   adminLocale: string;
   availableCredits: number;
   billingUrl: string | null;
   connected: boolean;
   creditHealth: CreditHealth;
-  includedCredits: number;
+  totalCredits: number;
   planName: string;
-  usagePercent: number;
-  usedCredits: number;
 }) {
   if (!connected) {
     return null;
   }
   const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
   const empty = creditHealth === "EMPTY";
+  const remainingPercent =
+    totalCredits > 0
+      ? Math.min(100, Math.max(0, (availableCredits / totalCredits) * 100))
+      : 0;
   const creditWarningMessage =
     creditHealth === "HEALTHY" || creditHealth === "UNKNOWN"
       ? null
@@ -779,7 +778,7 @@ function CreditUsagePanel({
                     {planName} -{" "}
                     {adminFormat(adminLocale, "creditsLeft", {
                       available: availableCredits,
-                      included: includedCredits,
+                      included: totalCredits,
                     })}
                   </s-text>
                   {creditWarningMessage ? (
@@ -797,7 +796,18 @@ function CreditUsagePanel({
             </s-grid-item>
           </s-grid>
           <div
-            aria-label={`${usedCredits} credits used`}
+            role="progressbar"
+            aria-label={t("availableCredits")}
+            aria-valuemin={0}
+            aria-valuemax={Math.max(1, totalCredits)}
+            aria-valuenow={Math.max(
+              0,
+              Math.min(availableCredits, totalCredits),
+            )}
+            aria-valuetext={adminFormat(adminLocale, "creditsLeft", {
+              available: availableCredits,
+              included: totalCredits,
+            })}
             style={{
               background: "#edf2f7",
               borderRadius: "999px",
@@ -807,9 +817,14 @@ function CreditUsagePanel({
           >
             <div
               style={{
-                background: "#ff6a1a",
+                background: empty
+                  ? "#d92d20"
+                  : creditHealth === "LOW"
+                    ? "#ff6a1a"
+                    : "#008a63",
                 height: "100%",
-                width: `${usagePercent}%`,
+                width: `${remainingPercent}%`,
+                transition: "width 200ms ease",
               }}
             />
           </div>
@@ -893,7 +908,6 @@ function ShopifyPanelContent({
   if (activePanel === "display") {
     return (
       <s-stack gap="base">
-        <DisplaySettingsPreview />
         {connected ? (
           <ProductControlsSection
             productCollections={productCollections}
@@ -1002,6 +1016,7 @@ function SetupPanel({
             target="_blank"
             disabled={!connected || !themeEditorUrl}
           >
+            <s-icon type="external" />
             Open Theme Editor - Product Pages
           </SelfxActionButton>
           <s-stack gap="base">
@@ -1147,48 +1162,6 @@ function CatalogSyncPanel({
           prices, inventory, orders and store settings.
         </s-text>
       </s-stack>
-    </s-section>
-  );
-}
-
-function DisplaySettingsPreview() {
-  return (
-    <s-section heading="Display controls">
-      <s-grid
-        gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
-        gap="base"
-      >
-        <s-box
-          padding="base"
-          background="subdued"
-          borderWidth="small"
-          borderColor="base"
-          borderRadius="base"
-        >
-          <s-stack gap="small-200">
-            <s-heading>Button block</s-heading>
-            <s-text color="subdued">
-              Installed through Shopify's theme editor so it can follow each
-              merchant's theme.
-            </s-text>
-          </s-stack>
-        </s-box>
-        <s-box
-          padding="base"
-          background="subdued"
-          borderWidth="small"
-          borderColor="base"
-          borderRadius="base"
-        >
-          <s-stack gap="small-200">
-            <s-heading>Product visibility</s-heading>
-            <s-text color="subdued">
-              Choose all products, collections or specific products, then hide
-              exceptions when needed.
-            </s-text>
-          </s-stack>
-        </s-box>
-      </s-grid>
     </s-section>
   );
 }
@@ -1930,6 +1903,31 @@ function SelfxShopifyStyles() {
           max-inline-size: 100%;
         }
 
+        .selfx-shopify-header-refresh {
+          align-items: center;
+          background: #ffffff;
+          border: 1px solid #c8d7e6;
+          border-radius: 8px;
+          box-sizing: border-box;
+          color: #43566b;
+          display: inline-flex;
+          flex: 0 0 2rem;
+          block-size: 2rem;
+          inline-size: 2rem;
+          justify-content: center;
+          text-decoration: none;
+        }
+
+        .selfx-shopify-header-refresh:hover {
+          background: #f8fbfd;
+          border-color: #899caf;
+        }
+
+        .selfx-shopify-header-refresh:focus-visible {
+          outline: 2px solid #ff6a1a;
+          outline-offset: 2px;
+        }
+
         .selfx-shopify-visibility-switch {
           align-items: center;
           background: #f8fbfd;
@@ -1986,12 +1984,16 @@ function SelfxShopifyStyles() {
         }
 
         .selfx-shopify-rule-tab {
+          align-items: center;
           background: #ffffff;
           border: 1px solid #d6e3ee;
           color: #607589;
           cursor: pointer;
+          display: inline-flex;
           font: inherit;
           font-weight: 800;
+          gap: 0.5rem;
+          justify-content: center;
           min-block-size: 2.75rem;
           transition:
             background-color 0.16s ease,
@@ -2500,9 +2502,7 @@ function ProductControlsSection({
     )
     .filter((product): product is SelfxProductControl => Boolean(product));
   const exceptionProducts = exceptionProductIds
-    .map((id) =>
-      eligibleProducts.find((product) => product.externalProductId === id),
-    )
+    .map((id) => products.find((product) => product.externalProductId === id))
     .filter((product): product is SelfxProductControl => Boolean(product));
 
   function enableAllProducts() {
@@ -2607,195 +2607,176 @@ function ProductControlsSection({
                 value={productId}
               />
             ))}
-            <s-box
-              padding="base"
-              background="base"
-              borderWidth="small"
-              borderColor="base"
-              borderRadius="base"
-            >
-              <s-stack gap="base">
-                <s-grid
-                  gridTemplateColumns="1fr auto"
-                  gap="base"
-                  alignItems="center"
-                >
-                  <s-grid-item>
-                    <s-stack gap="small-200">
-                      <s-heading>
-                        Where should the Try-On button appear?
-                      </s-heading>
-                      <s-text color="subdued">
-                        Apply visibility in bulk, then use exceptions for
-                        products that should stay hidden.
-                      </s-text>
-                    </s-stack>
-                  </s-grid-item>
-                  <s-grid-item>
-                    <s-badge tone={readyCount > 0 ? "success" : "neutral"}>
-                      {readyCount} currently visible
-                    </s-badge>
-                  </s-grid-item>
-                </s-grid>
+            <s-stack gap="base">
+              <s-box
+                padding="base"
+                background="base"
+                borderWidth="small"
+                borderColor="base"
+                borderRadius="base"
+              >
+                <s-stack gap="base">
+                  <s-grid
+                    gridTemplateColumns="1fr auto"
+                    gap="base"
+                    alignItems="center"
+                  >
+                    <s-grid-item>
+                      <s-stack gap="small-200">
+                        <s-heading>
+                          Where should the Try-On button appear?
+                        </s-heading>
+                        <s-text color="subdued">
+                          Apply visibility in bulk, then use exceptions for
+                          products that should stay hidden.
+                        </s-text>
+                      </s-stack>
+                    </s-grid-item>
+                    <s-grid-item>
+                      <s-badge tone={readyCount > 0 ? "success" : "neutral"}>
+                        {readyCount} currently visible
+                      </s-badge>
+                    </s-grid-item>
+                  </s-grid>
 
-                <div
-                  className={`selfx-shopify-visibility-switch${
-                    allProductsEnabled
-                      ? " selfx-shopify-visibility-switch--on"
-                      : ""
-                  }`}
-                >
-                  <s-stack gap="small-200">
-                    <s-heading>All products</s-heading>
-                    <s-text color="subdued">
-                      {allProductsEnabled
-                        ? "On - Try-On appears on every eligible synced product."
-                        : visibilityMode === "SELECTED"
-                          ? "Off - button limited to selected items below."
-                          : "Off - Try-On is hidden from all products."}
-                    </s-text>
-                  </s-stack>
-                  <button
-                    aria-label={
+                  <div
+                    className={`selfx-shopify-visibility-switch${
                       allProductsEnabled
-                        ? "Turn off all products"
-                        : "Turn on all products"
-                    }
-                    aria-checked={allProductsEnabled}
-                    className={`selfx-shopify-switch-button${
-                      allProductsEnabled
-                        ? " selfx-shopify-switch-button--on"
+                        ? " selfx-shopify-visibility-switch--on"
                         : ""
                     }`}
-                    role="switch"
-                    type="button"
-                    onClick={() =>
-                      allProductsEnabled
-                        ? disableAllProducts()
-                        : enableAllProducts()
-                    }
                   >
-                    <span aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="selfx-shopify-rule-tabs">
-                  <VisibilityRuleTab
-                    active={activeTab === "COLLECTIONS"}
-                    label="By Collection"
-                    onClick={() => setActiveTab("COLLECTIONS")}
-                  />
-                  <VisibilityRuleTab
-                    active={activeTab === "PRODUCTS"}
-                    label="Specific Products"
-                    onClick={() => setActiveTab("PRODUCTS")}
-                  />
-                </div>
-
-                {activeTab === "COLLECTIONS" ? (
-                  <SelectedCollectionsPanel
-                    collections={selectedCollections}
-                    onAdd={() => setPicker("COLLECTIONS")}
-                    onRemove={removeSelectedCollection}
-                  />
-                ) : (
-                  <SelectedProductsPanel
-                    emptyText="No products selected - use All products or add specific products."
-                    onAdd={() => setPicker("PRODUCTS")}
-                    onRemove={removeSelectedProduct}
-                    products={selectedProducts}
-                    title="Select Products"
-                  />
-                )}
-
-                <SelectedProductsPanel
-                  emptyText="No exceptions set - selected products can show Try-On."
-                  onAdd={() => setPicker("EXCEPTIONS")}
-                  onRemove={(id) =>
-                    setExceptionProductIds((current) =>
-                      current.filter((productId) => productId !== id),
-                    )
-                  }
-                  products={exceptionProducts}
-                  title="Exceptions - always hide on these products"
-                />
-
-                <s-grid
-                  gridTemplateColumns="1fr auto"
-                  gap="base"
-                  alignItems="center"
-                >
-                  <s-grid-item>
-                    <s-text color="subdued">
-                      Product details stay read-only and continue to sync from
-                      Shopify.
-                    </s-text>
-                  </s-grid-item>
-                  <s-grid-item>
-                    <SelfxActionButton type="submit" tone="primary">
-                      Apply visibility
-                    </SelfxActionButton>
-                  </s-grid-item>
-                </s-grid>
-
-                {picker ? (
-                  <VisibilityPickerModal
-                    collections={productCollections.data}
-                    eligibleProducts={eligibleProducts}
-                    picker={picker}
-                    selectedCollectionIds={selectedCollectionIds}
-                    selectedProductIds={
-                      picker === "EXCEPTIONS"
-                        ? exceptionProductIds
-                        : selectedProductIds
-                    }
-                    onClose={() => setPicker(null)}
-                    onSave={(ids) => {
-                      if (picker === "COLLECTIONS") {
-                        selectCollections(ids);
-                      } else if (picker === "PRODUCTS") {
-                        selectProducts(ids);
-                      } else {
-                        setExceptionProductIds(ids);
+                    <s-stack direction="inline" gap="base" alignItems="center">
+                      <s-icon type="view" />
+                      <s-stack gap="small-200">
+                        <s-heading>All Products</s-heading>
+                        <s-text color="subdued">
+                          {allProductsEnabled
+                            ? "On - Try-On appears on every eligible synced product."
+                            : visibilityMode === "SELECTED"
+                              ? "Off - button limited to selected items below."
+                              : "Off - Try-On is hidden from all products."}
+                        </s-text>
+                      </s-stack>
+                    </s-stack>
+                    <button
+                      aria-label={
+                        allProductsEnabled
+                          ? "Turn off all products"
+                          : "Turn on all products"
                       }
-                      setPicker(null);
-                    }}
-                  />
-                ) : null}
-              </s-stack>
-            </s-box>
+                      aria-checked={allProductsEnabled}
+                      className={`selfx-shopify-switch-button${
+                        allProductsEnabled
+                          ? " selfx-shopify-switch-button--on"
+                          : ""
+                      }`}
+                      role="switch"
+                      type="button"
+                      onClick={() =>
+                        allProductsEnabled
+                          ? disableAllProducts()
+                          : enableAllProducts()
+                      }
+                    >
+                      <span aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className="selfx-shopify-rule-tabs">
+                    <VisibilityRuleTab
+                      active={activeTab === "COLLECTIONS"}
+                      icon={<s-icon type="collection" />}
+                      label="By Collection"
+                      onClick={() => setActiveTab("COLLECTIONS")}
+                    />
+                    <VisibilityRuleTab
+                      active={activeTab === "PRODUCTS"}
+                      icon={<s-icon type="product" />}
+                      label="Specific Products"
+                      onClick={() => setActiveTab("PRODUCTS")}
+                    />
+                  </div>
+
+                  {activeTab === "COLLECTIONS" ? (
+                    <SelectedCollectionsPanel
+                      collections={selectedCollections}
+                      onAdd={() => setPicker("COLLECTIONS")}
+                      onRemove={removeSelectedCollection}
+                    />
+                  ) : (
+                    <SelectedProductsPanel
+                      emptyText="No products selected - use All products or add specific products."
+                      onAdd={() => setPicker("PRODUCTS")}
+                      onRemove={removeSelectedProduct}
+                      products={selectedProducts}
+                      title="Select Products"
+                    />
+                  )}
+                </s-stack>
+              </s-box>
+
+              <SelectedProductsPanel
+                emptyText="No products excluded."
+                onAdd={() => setPicker("EXCEPTIONS")}
+                onRemove={(id) =>
+                  setExceptionProductIds((current) =>
+                    current.filter((productId) => productId !== id),
+                  )
+                }
+                products={exceptionProducts}
+                title="Exceptions - Hide on Specific Products"
+              />
+
+              <s-grid
+                gridTemplateColumns="1fr auto"
+                gap="base"
+                alignItems="center"
+              >
+                <s-grid-item>
+                  <s-text color="subdued">
+                    Product details stay read-only and continue to sync from
+                    Shopify.
+                  </s-text>
+                </s-grid-item>
+                <s-grid-item>
+                  <SelfxActionButton type="submit" tone="primary">
+                    Apply visibility
+                  </SelfxActionButton>
+                </s-grid-item>
+              </s-grid>
+
+              {picker ? (
+                <VisibilityPickerModal
+                  collections={productCollections.data}
+                  eligibleProducts={
+                    picker === "EXCEPTIONS" ? products : eligibleProducts
+                  }
+                  picker={picker}
+                  selectedCollectionIds={selectedCollectionIds}
+                  selectedProductIds={
+                    picker === "EXCEPTIONS"
+                      ? exceptionProductIds
+                      : selectedProductIds
+                  }
+                  onClose={() => setPicker(null)}
+                  onSave={(ids) => {
+                    if (picker === "COLLECTIONS") {
+                      selectCollections(ids);
+                    } else if (picker === "PRODUCTS") {
+                      selectProducts(ids);
+                    } else {
+                      setExceptionProductIds(ids);
+                    }
+                    setPicker(null);
+                  }}
+                />
+              ) : null}
+            </s-stack>
           </Form>
         ) : null}
 
-        <s-grid
-          gridTemplateColumns="repeat(auto-fit, minmax(10rem, 1fr))"
-          gap="base"
-        >
-          <Metric
-            label="Synced products"
-            value={productControls?.summary.total ?? 0}
-          />
-          <Metric label="Ready" value={productControls?.summary.ready ?? 0} />
-          <Metric
-            label="Disabled"
-            value={productControls?.summary.disabled ?? 0}
-          />
-          <Metric
-            label="Needs attention"
-            value={productControls?.summary.needsAttention ?? 0}
-          />
-        </s-grid>
-
-        {products.length > 0 ? (
-          <s-stack gap="base">
-            {products.map((product) => (
-              <ProductControlRow
-                key={product.externalProductId}
-                product={product}
-              />
-            ))}
-          </s-stack>
-        ) : (
+        {products.length === 0 ? (
           <s-box
             padding="base"
             background="subdued"
@@ -2818,7 +2799,7 @@ function ProductControlsSection({
               </s-button>
             </s-stack>
           </s-box>
-        )}
+        ) : null}
       </s-stack>
     </s-section>
   );
@@ -2826,21 +2807,25 @@ function ProductControlsSection({
 
 function VisibilityRuleTab({
   active,
+  icon,
   label,
   onClick,
 }: {
   active: boolean;
+  icon: ReactNode;
   label: string;
   onClick: () => void;
 }) {
   return (
     <button
+      aria-pressed={active}
       className={`selfx-shopify-rule-tab${
         active ? " selfx-shopify-rule-tab--active" : ""
       }`}
       type="button"
       onClick={onClick}
     >
+      {icon}
       {label}
     </button>
   );
@@ -2875,7 +2860,7 @@ function SelectedCollectionsPanel({
           </s-grid-item>
           <s-grid-item>
             <SelfxActionButton onClick={onAdd}>
-              + Add Collection
+              <s-icon type="plus" /> Add Collection
             </SelfxActionButton>
           </s-grid-item>
         </s-grid>
@@ -2936,9 +2921,10 @@ function SelectedProductsPanel({
           </s-grid-item>
           <s-grid-item>
             <SelfxActionButton onClick={onAdd}>
+              <s-icon type="plus" />
               {title.startsWith("Exceptions")
-                ? "+ Add Exception"
-                : "+ Add Products"}
+                ? "Add Exception"
+                : "Add Products"}
             </SelfxActionButton>
           </s-grid-item>
         </s-grid>
@@ -2996,7 +2982,7 @@ function SelectedRow({
         type="button"
         onClick={onRemove}
       >
-        x
+        <s-icon type="x" />
       </button>
     </div>
   );
@@ -3224,87 +3210,6 @@ function isProductEligibleForVisibilityRule(
   return product.tryOnStatus === "READY" || product.tryOnStatus === "DISABLED";
 }
 
-function ProductControlRow({ product }: { product: SelfxProductControl }) {
-  const canEnable = product.tryOnStatus === "DISABLED";
-  const canDisable = product.tryOnStatus === "READY";
-  return (
-    <s-box
-      padding="base"
-      background="subdued"
-      borderWidth="small"
-      borderColor="base"
-      borderRadius="base"
-    >
-      <s-grid
-        gridTemplateColumns="minmax(0, 1fr) auto"
-        gap="base"
-        alignItems="center"
-      >
-        <s-grid-item>
-          <s-stack direction="inline" gap="base" alignItems="center">
-            {product.imageUrl ? (
-              <s-thumbnail
-                src={product.imageUrl}
-                alt={product.name}
-                size="small"
-              />
-            ) : (
-              <s-box
-                padding="base"
-                background="base"
-                borderWidth="small"
-                borderColor="base"
-                borderRadius="base"
-              >
-                <s-icon type="product" />
-              </s-box>
-            )}
-            <s-stack gap="small-200">
-              <s-stack direction="inline" gap="base" alignItems="center">
-                <s-heading>{product.name}</s-heading>
-                <ProductStatusBadge status={product.tryOnStatus} />
-              </s-stack>
-              <s-text color="subdued">
-                {product.handle
-                  ? `Handle: ${product.handle}`
-                  : product.externalProductId}
-              </s-text>
-              <s-text color="subdued">{productStatusHelp(product)}</s-text>
-            </s-stack>
-          </s-stack>
-        </s-grid-item>
-        <s-grid-item>
-          {canEnable || canDisable ? (
-            <Form method="post">
-              <input type="hidden" name="intent" value="setProductVto" />
-              <input
-                type="hidden"
-                name="externalProductId"
-                value={product.externalProductId}
-              />
-              <input
-                type="hidden"
-                name="enabled"
-                value={canEnable ? "true" : "false"}
-              />
-              <SelfxActionButton
-                type="submit"
-                tone={canEnable ? "primary" : "secondary"}
-              >
-                {canEnable ? "Enable Try-On" : "Disable Try-On"}
-              </SelfxActionButton>
-            </Form>
-          ) : (
-            <s-button disabled variant="secondary">
-              Enable unavailable
-            </s-button>
-          )}
-        </s-grid-item>
-      </s-grid>
-    </s-box>
-  );
-}
-
 function ProductStatusBadge({ status }: { status: SelfxProductTryOnStatus }) {
   if (status === "READY") return <s-badge tone="success">Ready</s-badge>;
   if (status === "DISABLED") return <s-badge tone="neutral">Disabled</s-badge>;
@@ -3313,22 +3218,6 @@ function ProductStatusBadge({ status }: { status: SelfxProductTryOnStatus }) {
     return <s-badge tone="warning">Missing image</s-badge>;
   }
   return <s-badge tone="warning">Not garment</s-badge>;
-}
-
-function productStatusHelp(product: SelfxProductControl): string {
-  if (product.tryOnStatus === "READY") {
-    return "Try-On is available on the storefront for this product.";
-  }
-  if (product.tryOnStatus === "DISABLED") {
-    return "This eligible product is synced but Try-On is disabled.";
-  }
-  if (product.tryOnStatus === "INACTIVE") {
-    return "This Shopify product is not active in the synced catalog.";
-  }
-  if (product.tryOnStatus === "MISSING_IMAGE") {
-    return "Add a Shopify product image and sync again before enabling Try-On.";
-  }
-  return "Only garment products can be enabled for SelfX Try-On.";
 }
 
 async function safeThemeBlockView(input: {

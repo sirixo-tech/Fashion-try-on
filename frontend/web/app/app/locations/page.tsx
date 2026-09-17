@@ -12,7 +12,6 @@ import {
   SearchIcon,
   ShieldAlertIcon,
   StoreIcon,
-  UsersIcon,
 } from "lucide-react";
 
 import {
