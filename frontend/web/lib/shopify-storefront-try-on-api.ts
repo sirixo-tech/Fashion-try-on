@@ -6,6 +6,8 @@ export interface ShopifyTryOnProduct {
   handle?: string;
   externalProductId?: string;
   imageUrl?: string;
+  priceAmountCents?: number | null;
+  priceCurrency?: string | null;
 }
 
 export interface ShopifyTryOnSession {

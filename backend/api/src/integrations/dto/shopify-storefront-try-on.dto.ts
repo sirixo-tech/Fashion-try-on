@@ -100,6 +100,12 @@ export class ShopifyStorefrontTryOnProductDto {
 
   @ApiPropertyOptional()
   imageUrl?: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  priceAmountCents?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  priceCurrency?: string | null;
 }
 
 export class ShopifyStorefrontTryOnSessionDto {

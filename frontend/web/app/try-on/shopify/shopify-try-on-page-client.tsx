@@ -13,7 +13,6 @@ import {
   SelfxLogo,
 } from "@selfx/ui";
 import {
-  CameraIcon,
   CheckCircle2Icon,
   DownloadIcon,
   ImageIcon,
@@ -72,7 +71,6 @@ type ShopifyTryOnCopy = {
   unavailableTitle: string;
   productFallback: string;
   consent: string;
-  takePhoto: string;
   uploadPhoto: string;
   startTryOn: string;
   starting: string;
@@ -134,8 +132,8 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     preparing: "Preparing Try-On...",
     unavailableTitle: "Try-On unavailable",
     productFallback: "Shopify product",
-    consent: "I consent to SelfX processing my photo to generate this virtual try-on.",
-    takePhoto: "Take Photo",
+    consent:
+      "I consent to SelfX processing my photo to generate this virtual try-on.",
     uploadPhoto: "Upload Photo",
     startTryOn: "Start Try-On",
     starting: "Starting...",
@@ -171,7 +169,8 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     invalidLinkBody: "Return to the product page and select Try It On again.",
     chooseSupportedPhoto: "Choose a JPG, PNG or WebP photo.",
     sessionNotReady: "Try-On session is not ready yet.",
-    resultNotReadyToDownload: "Your Try-On result is not ready to download yet.",
+    resultNotReadyToDownload:
+      "Your Try-On result is not ready to download yet.",
     temporarilyUnavailable:
       "Try-On is temporarily unavailable for this store. Please try again later.",
     productNotEnabled: "This product is not enabled for SelfX Try-On yet.",
@@ -190,21 +189,23 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     secureSession: "Sesion segura",
     title: "SelfX Try-On",
     invalidDescription: "A este enlace de prueba le falta una sesion valida.",
-    readyDescription: "Tu producto de Shopify esta listo para la prueba virtual.",
+    readyDescription:
+      "Tu producto de Shopify esta listo para la prueba virtual.",
     productStep: "Producto",
     photoStep: "Foto",
     resultStep: "Resultado",
     preparing: "Preparando prueba...",
     unavailableTitle: "Prueba no disponible",
     productFallback: "Producto de Shopify",
-    consent: "Acepto que SelfX procese mi foto para generar esta prueba virtual.",
-    takePhoto: "Tomar foto",
+    consent:
+      "Acepto que SelfX procese mi foto para generar esta prueba virtual.",
     uploadPhoto: "Subir foto",
     startTryOn: "Iniciar prueba",
     starting: "Iniciando...",
     creatingTryOn: "Creando tu prueba...",
     inputsTitle: "Entradas",
-    inputsDescription: "Imagen del producto y foto del comprador usadas para esta prueba.",
+    inputsDescription:
+      "Imagen del producto y foto del comprador usadas para esta prueba.",
     inputsReady: "Entradas listas",
     photoNeeded: "Foto necesaria",
     reviewInputsTitle: "Revisa tus entradas de prueba",
@@ -231,12 +232,15 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     working: "Procesando",
     pending: "Pendiente",
     invalidLinkTitle: "Enlace de prueba invalido",
-    invalidLinkBody: "Vuelve a la pagina del producto y selecciona Try It On otra vez.",
+    invalidLinkBody:
+      "Vuelve a la pagina del producto y selecciona Try It On otra vez.",
     chooseSupportedPhoto: "Elige una foto JPG, PNG o WebP.",
     sessionNotReady: "La sesion de prueba aun no esta lista.",
     resultNotReadyToDownload: "Tu resultado aun no esta listo para descargar.",
-    temporarilyUnavailable: "La prueba no esta disponible temporalmente. Intentalo mas tarde.",
-    productNotEnabled: "Este producto aun no esta habilitado para SelfX Try-On.",
+    temporarilyUnavailable:
+      "La prueba no esta disponible temporalmente. Intentalo mas tarde.",
+    productNotEnabled:
+      "Este producto aun no esta habilitado para SelfX Try-On.",
     personRequired: "Agrega tu foto antes de iniciar la prueba.",
     uploadsNotConfigured: "Las subidas de SelfX aun no estan configuradas.",
     genericFailure: "La prueba no pudo completarse ahora.",
@@ -260,7 +264,6 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     unavailableTitle: "التجربة غير متاحة",
     productFallback: "منتج Shopify",
     consent: "أوافق على معالجة SelfX لصورتي لإنشاء هذه التجربة الافتراضية.",
-    takePhoto: "التقاط صورة",
     uploadPhoto: "رفع صورة",
     startTryOn: "بدء التجربة",
     starting: "جار البدء...",
@@ -321,8 +324,8 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     preparing: "Try-On तैयार हो रहा है...",
     unavailableTitle: "Try-On उपलब्ध नहीं है",
     productFallback: "Shopify उत्पाद",
-    consent: "मैं इस वर्चुअल try-on को बनाने के लिए SelfX को मेरी फोटो प्रोसेस करने की सहमति देता/देती हूं.",
-    takePhoto: "फोटो लें",
+    consent:
+      "मैं इस वर्चुअल try-on को बनाने के लिए SelfX को मेरी फोटो प्रोसेस करने की सहमति देता/देती हूं.",
     uploadPhoto: "फोटो अपलोड करें",
     startTryOn: "Try-On शुरू करें",
     starting: "शुरू हो रहा है...",
@@ -358,8 +361,10 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     invalidLinkBody: "उत्पाद पेज पर वापस जाएं और Try It On फिर से चुनें.",
     chooseSupportedPhoto: "JPG, PNG या WebP फोटो चुनें.",
     sessionNotReady: "Try-On सेशन अभी तैयार नहीं है.",
-    resultNotReadyToDownload: "आपका Try-On परिणाम अभी डाउनलोड के लिए तैयार नहीं है.",
-    temporarilyUnavailable: "इस स्टोर के लिए Try-On अस्थायी रूप से उपलब्ध नहीं है. बाद में फिर कोशिश करें.",
+    resultNotReadyToDownload:
+      "आपका Try-On परिणाम अभी डाउनलोड के लिए तैयार नहीं है.",
+    temporarilyUnavailable:
+      "इस स्टोर के लिए Try-On अस्थायी रूप से उपलब्ध नहीं है. बाद में फिर कोशिश करें.",
     productNotEnabled: "यह उत्पाद अभी SelfX Try-On के लिए सक्षम नहीं है.",
     personRequired: "Try-On शुरू करने से पहले अपनी फोटो जोड़ें.",
     uploadsNotConfigured: "SelfX अपलोड अभी कॉन्फिगर नहीं हैं.",
@@ -383,14 +388,15 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     preparing: "Preparation du Try-On...",
     unavailableTitle: "Try-On indisponible",
     productFallback: "Produit Shopify",
-    consent: "J'accepte que SelfX traite ma photo pour generer cet essayage virtuel.",
-    takePhoto: "Prendre une photo",
+    consent:
+      "J'accepte que SelfX traite ma photo pour generer cet essayage virtuel.",
     uploadPhoto: "Importer une photo",
     startTryOn: "Demarrer Try-On",
     starting: "Demarrage...",
     creatingTryOn: "Creation de votre Try-On...",
     inputsTitle: "Entrees",
-    inputsDescription: "Image produit et photo client utilisees pour ce Try-On.",
+    inputsDescription:
+      "Image produit et photo client utilisees pour ce Try-On.",
     inputsReady: "Entrees pretes",
     photoNeeded: "Photo requise",
     reviewInputsTitle: "Verifier vos entrees Try-On",
@@ -417,11 +423,14 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     working: "En cours",
     pending: "En attente",
     invalidLinkTitle: "Lien Try-On invalide",
-    invalidLinkBody: "Retournez a la page produit et selectionnez Try It On a nouveau.",
+    invalidLinkBody:
+      "Retournez a la page produit et selectionnez Try It On a nouveau.",
     chooseSupportedPhoto: "Choisissez une photo JPG, PNG ou WebP.",
     sessionNotReady: "La session Try-On n'est pas encore prete.",
-    resultNotReadyToDownload: "Votre resultat Try-On n'est pas encore pret a telecharger.",
-    temporarilyUnavailable: "Try-On est temporairement indisponible pour cette boutique. Reessayez plus tard.",
+    resultNotReadyToDownload:
+      "Votre resultat Try-On n'est pas encore pret a telecharger.",
+    temporarilyUnavailable:
+      "Try-On est temporairement indisponible pour cette boutique. Reessayez plus tard.",
     productNotEnabled: "Ce produit n'est pas encore active pour SelfX Try-On.",
     personRequired: "Ajoutez votre photo avant de demarrer Try-On.",
     uploadsNotConfigured: "Les imports SelfX ne sont pas encore configures.",
@@ -438,15 +447,16 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     secureSession: "Sichere Sitzung",
     title: "SelfX Try-On",
     invalidDescription: "Diesem Try-On-Link fehlt eine gueltige Sitzung.",
-    readyDescription: "Dein Shopify-Produkt ist bereit fuer die virtuelle Anprobe.",
+    readyDescription:
+      "Dein Shopify-Produkt ist bereit fuer die virtuelle Anprobe.",
     productStep: "Produkt",
     photoStep: "Foto",
     resultStep: "Ergebnis",
     preparing: "Try-On wird vorbereitet...",
     unavailableTitle: "Try-On nicht verfuegbar",
     productFallback: "Shopify-Produkt",
-    consent: "Ich stimme zu, dass SelfX mein Foto verarbeitet, um diese virtuelle Anprobe zu erstellen.",
-    takePhoto: "Foto aufnehmen",
+    consent:
+      "Ich stimme zu, dass SelfX mein Foto verarbeitet, um diese virtuelle Anprobe zu erstellen.",
     uploadPhoto: "Foto hochladen",
     startTryOn: "Try-On starten",
     starting: "Startet...",
@@ -479,12 +489,16 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     working: "In Arbeit",
     pending: "Ausstehend",
     invalidLinkTitle: "Ungueltiger Try-On-Link",
-    invalidLinkBody: "Gehe zur Produktseite zurueck und waehle Try It On erneut.",
+    invalidLinkBody:
+      "Gehe zur Produktseite zurueck und waehle Try It On erneut.",
     chooseSupportedPhoto: "Waehle ein JPG-, PNG- oder WebP-Foto.",
     sessionNotReady: "Die Try-On-Sitzung ist noch nicht bereit.",
-    resultNotReadyToDownload: "Dein Try-On-Ergebnis ist noch nicht zum Download bereit.",
-    temporarilyUnavailable: "Try-On ist fuer diesen Shop voruebergehend nicht verfuegbar. Bitte spaeter erneut versuchen.",
-    productNotEnabled: "Dieses Produkt ist noch nicht fuer SelfX Try-On aktiviert.",
+    resultNotReadyToDownload:
+      "Dein Try-On-Ergebnis ist noch nicht zum Download bereit.",
+    temporarilyUnavailable:
+      "Try-On ist fuer diesen Shop voruebergehend nicht verfuegbar. Bitte spaeter erneut versuchen.",
+    productNotEnabled:
+      "Dieses Produkt ist noch nicht fuer SelfX Try-On aktiviert.",
     personRequired: "Fuege dein Foto hinzu, bevor du Try-On startest.",
     uploadsNotConfigured: "SelfX-Uploads sind noch nicht konfiguriert.",
     genericFailure: "Try-On konnte gerade nicht abgeschlossen werden.",
@@ -507,14 +521,15 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     preparing: "Preparando Try-On...",
     unavailableTitle: "Try-On indisponivel",
     productFallback: "Produto Shopify",
-    consent: "Concordo que a SelfX processe minha foto para gerar esta prova virtual.",
-    takePhoto: "Tirar foto",
+    consent:
+      "Concordo que a SelfX processe minha foto para gerar esta prova virtual.",
     uploadPhoto: "Enviar foto",
     startTryOn: "Iniciar Try-On",
     starting: "Iniciando...",
     creatingTryOn: "Criando seu Try-On...",
     inputsTitle: "Entradas",
-    inputsDescription: "Imagem do produto e foto do comprador usadas neste Try-On.",
+    inputsDescription:
+      "Imagem do produto e foto do comprador usadas neste Try-On.",
     inputsReady: "Entradas prontas",
     photoNeeded: "Foto necessaria",
     reviewInputsTitle: "Revise suas entradas do Try-On",
@@ -541,11 +556,14 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     working: "Processando",
     pending: "Pendente",
     invalidLinkTitle: "Link de Try-On invalido",
-    invalidLinkBody: "Volte para a pagina do produto e selecione Try It On novamente.",
+    invalidLinkBody:
+      "Volte para a pagina do produto e selecione Try It On novamente.",
     chooseSupportedPhoto: "Escolha uma foto JPG, PNG ou WebP.",
     sessionNotReady: "A sessao de Try-On ainda nao esta pronta.",
-    resultNotReadyToDownload: "Seu resultado de Try-On ainda nao esta pronto para baixar.",
-    temporarilyUnavailable: "Try-On esta temporariamente indisponivel para esta loja. Tente novamente mais tarde.",
+    resultNotReadyToDownload:
+      "Seu resultado de Try-On ainda nao esta pronto para baixar.",
+    temporarilyUnavailable:
+      "Try-On esta temporariamente indisponivel para esta loja. Tente novamente mais tarde.",
     productNotEnabled: "Este produto ainda nao esta ativado para SelfX Try-On.",
     personRequired: "Adicione sua foto antes de iniciar o Try-On.",
     uploadsNotConfigured: "Os uploads da SelfX ainda nao estao configurados.",
@@ -569,14 +587,15 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     preparing: "Preparazione Try-On...",
     unavailableTitle: "Try-On non disponibile",
     productFallback: "Prodotto Shopify",
-    consent: "Acconsento al trattamento della mia foto da parte di SelfX per generare questa prova virtuale.",
-    takePhoto: "Scatta foto",
+    consent:
+      "Acconsento al trattamento della mia foto da parte di SelfX per generare questa prova virtuale.",
     uploadPhoto: "Carica foto",
     startTryOn: "Avvia Try-On",
     starting: "Avvio...",
     creatingTryOn: "Creazione del tuo Try-On...",
     inputsTitle: "Input",
-    inputsDescription: "Immagine prodotto e foto shopper usate per questo Try-On.",
+    inputsDescription:
+      "Immagine prodotto e foto shopper usate per questo Try-On.",
     inputsReady: "Input pronti",
     photoNeeded: "Foto necessaria",
     reviewInputsTitle: "Controlla gli input Try-On",
@@ -603,12 +622,16 @@ const shopifyTryOnCopies: Record<ShopifyTryOnLocale, ShopifyTryOnCopy> = {
     working: "In corso",
     pending: "In attesa",
     invalidLinkTitle: "Link Try-On non valido",
-    invalidLinkBody: "Torna alla pagina prodotto e seleziona di nuovo Try It On.",
+    invalidLinkBody:
+      "Torna alla pagina prodotto e seleziona di nuovo Try It On.",
     chooseSupportedPhoto: "Scegli una foto JPG, PNG o WebP.",
     sessionNotReady: "La sessione Try-On non e ancora pronta.",
-    resultNotReadyToDownload: "Il risultato Try-On non e ancora pronto per il download.",
-    temporarilyUnavailable: "Try-On e temporaneamente non disponibile per questo negozio. Riprova piu tardi.",
-    productNotEnabled: "Questo prodotto non e ancora abilitato per SelfX Try-On.",
+    resultNotReadyToDownload:
+      "Il risultato Try-On non e ancora pronto per il download.",
+    temporarilyUnavailable:
+      "Try-On e temporaneamente non disponibile per questo negozio. Riprova piu tardi.",
+    productNotEnabled:
+      "Questo prodotto non e ancora abilitato per SelfX Try-On.",
     personRequired: "Aggiungi la tua foto prima di avviare Try-On.",
     uploadsNotConfigured: "I caricamenti SelfX non sono ancora configurati.",
     genericFailure: "Try-On non puo essere completato ora.",
@@ -627,7 +650,6 @@ export function ShopifyTryOnPageClient({
 }: {
   sessionToken: string | null;
 }) {
-  const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<PageState>(() =>
     validSessionToken(sessionToken)
@@ -681,7 +703,10 @@ export function ShopifyTryOnPageClient({
     let cancelled = false;
     const poll = async () => {
       try {
-        const next = await getShopifyTryOnRun(state.session.session, state.run.id);
+        const next = await getShopifyTryOnRun(
+          state.session.session,
+          state.run.id,
+        );
         if (cancelled) {
           return;
         }
@@ -806,7 +831,8 @@ export function ShopifyTryOnPageClient({
         run: refreshedRun,
       });
       const link = document.createElement("a");
-      link.href = refreshedRun.result.downloadUrl ?? refreshedRun.result.readUrl;
+      link.href =
+        refreshedRun.result.downloadUrl ?? refreshedRun.result.readUrl;
       link.download = downloadFilename(refreshedRun);
       link.rel = "noopener noreferrer";
       document.body.append(link);
@@ -820,8 +846,14 @@ export function ShopifyTryOnPageClient({
   }
 
   const productLabel =
+    session?.product.name ??
     session?.product.handle ??
     session?.product.externalProductId;
+  const productPrice = formatProductPrice(
+    session?.product.priceAmountCents,
+    session?.product.priceCurrency,
+    locale,
+  );
   const isActiveSession =
     state.status !== "INVALID" &&
     state.status !== "LOADING" &&
@@ -868,6 +900,7 @@ export function ShopifyTryOnPageClient({
                   copy={copy}
                   label={productLabel ?? copy.productFallback}
                   imageUrl={session?.product.imageUrl}
+                  price={productPrice}
                 />
 
                 <label className="flex items-start gap-3 rounded-lg border border-border/80 bg-[#edf5f5] px-4 py-3 text-sm leading-relaxed">
@@ -877,22 +910,9 @@ export function ShopifyTryOnPageClient({
                     onChange={(event) => setConsented(event.target.checked)}
                     className="mt-1"
                   />
-                  <span>
-                    {copy.consent}
-                  </span>
+                  <span>{copy.consent}</span>
                 </label>
 
-                <input
-                  ref={cameraInput}
-                  className="hidden"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="user"
-                  onChange={(event) => {
-                    void selectPersonImage(event.target.files?.[0]);
-                    event.currentTarget.value = "";
-                  }}
-                />
                 <input
                   ref={galleryInput}
                   className="hidden"
@@ -904,25 +924,16 @@ export function ShopifyTryOnPageClient({
                   }}
                 />
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    disabled={!consented || busy || state.status === "RUNNING"}
-                    onClick={() => cameraInput.current?.click()}
-                  >
-                    <CameraIcon data-icon="inline-start" />
-                    {copy.takePhoto}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!consented || busy || state.status === "RUNNING"}
-                    onClick={() => galleryInput.current?.click()}
-                  >
-                    <UploadIcon data-icon="inline-start" />
-                    {copy.uploadPhoto}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  className="w-full"
+                  variant="outline"
+                  disabled={!consented || busy || state.status === "RUNNING"}
+                  onClick={() => galleryInput.current?.click()}
+                >
+                  <UploadIcon data-icon="inline-start" />
+                  {copy.uploadPhoto}
+                </Button>
 
                 {state.status === "PHOTO_READY" ? (
                   <Button
@@ -956,6 +967,7 @@ export function ShopifyTryOnPageClient({
           onDownload={() => void downloadResult()}
           productImageUrl={session?.product.imageUrl}
           productLabel={productLabel ?? copy.productFallback}
+          productPrice={productPrice}
           state={state}
         />
       </div>
@@ -1015,6 +1027,7 @@ function ResultPanel({
   onDownload,
   productImageUrl,
   productLabel,
+  productPrice,
   state,
 }: {
   copy: ShopifyTryOnCopy;
@@ -1022,6 +1035,7 @@ function ResultPanel({
   onDownload: () => void;
   productImageUrl?: string;
   productLabel: string;
+  productPrice?: string;
   state: PageState;
 }) {
   const personImageUrl =
@@ -1044,9 +1058,7 @@ function ResultPanel({
                 <UploadIcon className="size-5 text-primary" />
                 {copy.inputsTitle}
               </CardTitle>
-              <CardDescription>
-                {copy.inputsDescription}
-              </CardDescription>
+              <CardDescription>{copy.inputsDescription}</CardDescription>
             </div>
             <Badge variant="secondary" className="h-7 px-3">
               {personImageUrl ? copy.inputsReady : copy.photoNeeded}
@@ -1072,6 +1084,7 @@ function ResultPanel({
               copy={copy}
               title={copy.productTitle}
               label={productLabel}
+              price={productPrice}
               imageUrl={productImageUrl}
               emptyLabel={copy.productImageUnavailable}
               state={productImageUrl ? "ready" : "empty"}
@@ -1079,11 +1092,7 @@ function ResultPanel({
             <VisualTile
               copy={copy}
               title={copy.yourPhotoTitle}
-              label={
-                personImageUrl
-                  ? copy.uploadedImage
-                  : copy.waitingForImage
-              }
+              label={personImageUrl ? copy.uploadedImage : copy.waitingForImage}
               imageUrl={personImageUrl}
               emptyLabel={copy.uploadedPhotoWillAppear}
               state={personImageUrl ? "ready" : "empty"}
@@ -1127,25 +1136,23 @@ function ResultPanel({
             }
             imageUrl={resultImageUrl}
             emptyLabel={
-              isRunning
-                ? copy.creatingVirtualTryOn
-                : copy.addPhotoThenStart
+              isRunning ? copy.creatingVirtualTryOn : copy.addPhotoThenStart
             }
             featured
             state={resultImageUrl ? "ready" : isRunning ? "active" : "empty"}
           />
-        {state.status === "COMPLETED" ? (
-          <Button
-            className="w-full"
-            disabled={downloading}
-            onClick={onDownload}
-            size="lg"
-            type="button"
-          >
-            <DownloadIcon data-icon="inline-start" />
-            {downloading ? copy.preparingDownload : copy.download}
-          </Button>
-        ) : null}
+          {state.status === "COMPLETED" ? (
+            <Button
+              className="w-full"
+              disabled={downloading}
+              onClick={onDownload}
+              size="lg"
+              type="button"
+            >
+              <DownloadIcon data-icon="inline-start" />
+              {downloading ? copy.preparingDownload : copy.download}
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
     </div>
@@ -1158,6 +1165,7 @@ function VisualTile({
   featured = false,
   imageUrl,
   label,
+  price,
   state,
   title,
 }: {
@@ -1166,6 +1174,7 @@ function VisualTile({
   featured?: boolean;
   imageUrl?: string;
   label: string;
+  price?: string;
   state: "active" | "empty" | "ready";
   title: string;
 }) {
@@ -1176,7 +1185,10 @@ function VisualTile({
           <div className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
             {title}
           </div>
-          <div className="truncate text-sm font-semibold">{label}</div>
+          <div className="flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
+            <span className="min-w-0 break-words">{label}</span>
+            {price ? <span className="whitespace-nowrap">{price}</span> : null}
+          </div>
         </div>
         <TileBadge copy={copy} state={state} />
       </div>
@@ -1237,20 +1249,18 @@ function ProductSummary({
   copy,
   label,
   imageUrl,
+  price,
 }: {
   copy: ShopifyTryOnCopy;
   label: string;
   imageUrl?: string;
+  price?: string;
 }) {
   return (
     <div className="grid grid-cols-[78px_1fr] gap-4 rounded-lg border border-border/80 bg-[#edf5f5] p-3">
       <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-background">
         {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt=""
-            className="h-full w-full object-contain"
-          />
+          <img src={imageUrl} alt="" className="h-full w-full object-contain" />
         ) : (
           <span className="text-xs font-semibold uppercase text-muted-foreground">
             {copy.productTitle}
@@ -1261,9 +1271,33 @@ function ProductSummary({
         <div className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
           {copy.productTitle}
         </div>
-        <div className="mt-1 break-words text-sm font-medium">{label}</div>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm font-medium">
+          <span className="min-w-0 break-words">{label}</span>
+          {price ? (
+            <span className="whitespace-nowrap font-semibold">{price}</span>
+          ) : null}
+        </div>
       </div>
     </div>
+  );
+}
+
+function formatProductPrice(
+  amountCents: number | null | undefined,
+  currency: string | null | undefined,
+  locale: string,
+): string | undefined {
+  if (
+    amountCents == null ||
+    !Number.isSafeInteger(amountCents) ||
+    amountCents < 0 ||
+    !currency ||
+    !/^[A-Z]{3}$/.test(currency)
+  ) {
+    return undefined;
+  }
+  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(
+    amountCents / 100,
   );
 }
 
@@ -1306,7 +1340,9 @@ function sessionFrom(state: PageState): ShopifyTryOnSession | null {
   return "session" in state ? (state.session ?? null) : null;
 }
 
-function validSessionToken(sessionToken: string | null): sessionToken is string {
+function validSessionToken(
+  sessionToken: string | null,
+): sessionToken is string {
   return Boolean(sessionToken && /^[A-Za-z0-9_-]{43}$/.test(sessionToken));
 }
 

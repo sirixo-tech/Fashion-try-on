@@ -1309,11 +1309,11 @@ function LanguageSettingsPanel({
                   })}
             </s-text>
             <s-divider />
-            <s-box>
+            <s-stack direction="inline" justifyContent="end">
               <SelfxActionButton type="submit" tone="primary" disabled={saving}>
                 {saving ? t("saving") : t("saveSettings")}
               </SelfxActionButton>
-            </s-box>
+            </s-stack>
           </s-stack>
         </fetcher.Form>
       </s-stack>
@@ -1910,11 +1910,13 @@ function SelfxShopifyStyles() {
           border-radius: 8px;
           box-sizing: border-box;
           color: #43566b;
+          cursor: pointer;
           display: inline-flex;
           flex: 0 0 2rem;
           block-size: 2rem;
           inline-size: 2rem;
           justify-content: center;
+          padding: 0;
           text-decoration: none;
         }
 
@@ -2011,7 +2013,7 @@ function SelfxShopifyStyles() {
           border-start-end-radius: 8px;
         }
 
-        .selfx-shopify-rule-tab:hover {
+        .selfx-shopify-rule-tab:not(.selfx-shopify-rule-tab--active):hover {
           background: #f3f8fc;
           border-color: #9fb9cf;
         }
@@ -2020,6 +2022,25 @@ function SelfxShopifyStyles() {
           background: #00996b;
           border-color: #00996b;
           color: #ffffff;
+        }
+
+        .selfx-shopify-rule-tab--active:hover {
+          background: #007f59;
+          border-color: #007f59;
+          color: #ffffff;
+        }
+
+        .selfx-shopify-rule-tab:focus-visible {
+          outline: 2px solid #ff6a1a;
+          outline-offset: 2px;
+        }
+
+        .selfx-shopify-rule-tab__icon {
+          display: inline-flex;
+        }
+
+        .selfx-shopify-rule-tab--active .selfx-shopify-rule-tab__icon {
+          filter: brightness(0) invert(1);
         }
 
         .selfx-shopify-selected-list {
@@ -2073,17 +2094,20 @@ function SelfxShopifyStyles() {
           inset: 0;
           justify-content: center;
           padding: 1rem;
+          box-sizing: border-box;
           position: fixed;
           z-index: 40;
         }
 
         .selfx-shopify-picker-modal {
           background: #ffffff;
-          border-radius: 12px;
+          border-radius: 8px;
           box-shadow: 0 20px 60px rgba(0, 17, 44, 0.28);
           display: grid;
-          max-block-size: min(42rem, calc(100vh - 2rem));
-          max-inline-size: min(48rem, calc(100vw - 2rem));
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          block-size: min(34rem, calc(100dvh - 2rem));
+          max-inline-size: 42rem;
+          min-block-size: 0;
           overflow: hidden;
           width: 100%;
         }
@@ -2092,9 +2116,9 @@ function SelfxShopifyStyles() {
         .selfx-shopify-picker-footer {
           align-items: center;
           display: flex;
-          gap: 1rem;
+          gap: 0.5rem;
           justify-content: space-between;
-          padding: 1rem;
+          padding: 0.5rem 0.75rem;
         }
 
         .selfx-shopify-picker-header {
@@ -2103,19 +2127,27 @@ function SelfxShopifyStyles() {
 
         .selfx-shopify-picker-footer {
           border-block-start: 1px solid #dce8f2;
+          flex-wrap: wrap;
+        }
+
+        .selfx-shopify-picker-footer .selfx-shopify-button {
+          min-block-size: 2.25rem;
+          padding: 0.375rem 0.75rem;
         }
 
         .selfx-shopify-picker-body {
           display: grid;
-          gap: 0.75rem;
-          overflow: auto;
-          padding: 1rem;
+          gap: 0.5rem;
+          grid-template-rows: auto minmax(0, 1fr);
+          min-block-size: 0;
+          overflow: hidden;
+          padding: 0.75rem;
         }
 
         .selfx-shopify-picker-filters {
           display: grid;
-          gap: 0.75rem;
-          grid-template-columns: minmax(0, 1fr) 12rem;
+          gap: 0.5rem;
+          grid-template-columns: minmax(0, 1fr) minmax(7rem, 9rem);
         }
 
         .selfx-shopify-picker-input,
@@ -2123,16 +2155,21 @@ function SelfxShopifyStyles() {
           border: 1px solid #b8c9d9;
           border-radius: 8px;
           font: inherit;
-          min-block-size: 2.5rem;
-          padding: 0.5rem 0.75rem;
+          box-sizing: border-box;
+          block-size: 2.25rem;
+          min-inline-size: 0;
+          inline-size: 100%;
+          padding: 0.375rem 0.625rem;
         }
 
         .selfx-shopify-picker-list {
           border: 1px solid #dce8f2;
           border-radius: 8px;
           display: grid;
-          max-block-size: 22rem;
+          align-content: start;
+          min-block-size: 0;
           overflow: auto;
+          overscroll-behavior: contain;
         }
 
         .selfx-shopify-picker-row {
@@ -2141,8 +2178,13 @@ function SelfxShopifyStyles() {
           display: grid;
           gap: 0.75rem;
           grid-template-columns: auto auto minmax(0, 1fr) auto;
-          min-block-size: 3.5rem;
-          padding: 0.625rem 0.75rem;
+          min-block-size: 3rem;
+          padding: 0.5rem 0.625rem;
+        }
+
+        .selfx-shopify-picker-row > span,
+        .selfx-shopify-picker-row > small {
+          overflow-wrap: anywhere;
         }
 
         .selfx-shopify-picker-row:last-child {
@@ -2242,30 +2284,25 @@ function SelfxShopifyStyles() {
 
         .selfx-shopify-plan-card__stats {
           display: grid;
-          gap: 0.625rem;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.375rem;
         }
 
         .selfx-shopify-plan-card__stats div {
-          background: #f3f8fc;
-          border: 1px solid #dce8f2;
-          border-radius: 8px;
+          align-items: baseline;
           display: grid;
-          gap: 0.25rem;
-          min-height: 4.25rem;
-          padding: 0.625rem;
+          gap: 0.5rem;
+          grid-template-columns: minmax(0, 1fr) auto;
+          line-height: 1.5;
         }
 
         .selfx-shopify-plan-card__stats span {
           color: #607589;
-          font-size: 0.75rem;
-          font-weight: 700;
-          text-transform: uppercase;
+          font-size: 0.875rem;
         }
 
         .selfx-shopify-plan-card__stats strong {
           color: #00112c;
-          font-size: 1rem;
+          font-size: 0.875rem;
         }
 
         .selfx-shopify-plan-card__features {
@@ -2556,7 +2593,7 @@ function ProductControlsSection({
   }
 
   return (
-    <s-section heading="Try-On products">
+    <div>
       <s-stack gap="base">
         <s-text color="subdued">
           Choose where the SelfX Try-On button appears. Exceptions always hide
@@ -2608,13 +2645,7 @@ function ProductControlsSection({
               />
             ))}
             <s-stack gap="base">
-              <s-box
-                padding="base"
-                background="base"
-                borderWidth="small"
-                borderColor="base"
-                borderRadius="base"
-              >
+              <s-section heading="Try-On products">
                 <s-stack gap="base">
                   <s-grid
                     gridTemplateColumns="1fr auto"
@@ -2714,7 +2745,7 @@ function ProductControlsSection({
                     />
                   )}
                 </s-stack>
-              </s-box>
+              </s-section>
 
               <SelectedProductsPanel
                 emptyText="No products excluded."
@@ -2801,7 +2832,7 @@ function ProductControlsSection({
           </s-box>
         ) : null}
       </s-stack>
-    </s-section>
+    </div>
   );
 }
 
@@ -2825,7 +2856,7 @@ function VisibilityRuleTab({
       type="button"
       onClick={onClick}
     >
-      {icon}
+      <span className="selfx-shopify-rule-tab__icon">{icon}</span>
       {label}
     </button>
   );
@@ -2899,7 +2930,50 @@ function SelectedProductsPanel({
   products: SelfxProductControl[];
   title: string;
 }) {
-  return (
+  const content = (
+    <s-stack gap="base">
+      <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+        <s-grid-item>
+          <s-stack gap="small-200">
+            <s-heading>{title}</s-heading>
+            <s-text color="subdued">
+              {title.startsWith("Exceptions")
+                ? "These products never show the Try-On button."
+                : "The Try-On button shows only on these exact products."}
+            </s-text>
+          </s-stack>
+        </s-grid-item>
+        <s-grid-item>
+          <SelfxActionButton onClick={onAdd}>
+            <s-icon type="plus" />
+            {title.startsWith("Exceptions") ? "Add Exception" : "Add Products"}
+          </SelfxActionButton>
+        </s-grid-item>
+      </s-grid>
+      {products.length > 0 ? (
+        <div className="selfx-shopify-selected-list">
+          {products.map((product) => (
+            <SelectedRow
+              key={product.externalProductId}
+              imageUrl={product.imageUrl}
+              meta={
+                product.handle
+                  ? `Handle: ${product.handle}`
+                  : product.externalProductId
+              }
+              title={product.name}
+              onRemove={() => onRemove(product.externalProductId)}
+            />
+          ))}
+        </div>
+      ) : (
+        <s-text color="subdued">{emptyText}</s-text>
+      )}
+    </s-stack>
+  );
+  return title.startsWith("Exceptions") ? (
+    <s-section>{content}</s-section>
+  ) : (
     <s-box
       padding="base"
       background="subdued"
@@ -2907,47 +2981,7 @@ function SelectedProductsPanel({
       borderColor="base"
       borderRadius="base"
     >
-      <s-stack gap="base">
-        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
-          <s-grid-item>
-            <s-stack gap="small-200">
-              <s-heading>{title}</s-heading>
-              <s-text color="subdued">
-                {title.startsWith("Exceptions")
-                  ? "These products never show the Try-On button."
-                  : "The Try-On button shows only on these exact products."}
-              </s-text>
-            </s-stack>
-          </s-grid-item>
-          <s-grid-item>
-            <SelfxActionButton onClick={onAdd}>
-              <s-icon type="plus" />
-              {title.startsWith("Exceptions")
-                ? "Add Exception"
-                : "Add Products"}
-            </SelfxActionButton>
-          </s-grid-item>
-        </s-grid>
-        {products.length > 0 ? (
-          <div className="selfx-shopify-selected-list">
-            {products.map((product) => (
-              <SelectedRow
-                key={product.externalProductId}
-                imageUrl={product.imageUrl}
-                meta={
-                  product.handle
-                    ? `Handle: ${product.handle}`
-                    : product.externalProductId
-                }
-                title={product.name}
-                onRemove={() => onRemove(product.externalProductId)}
-              />
-            ))}
-          </div>
-        ) : (
-          <s-text color="subdued">{emptyText}</s-text>
-        )}
-      </s-stack>
+      {content}
     </s-box>
   );
 }
@@ -3067,6 +3101,7 @@ function VisibilityPickerModal({
 
   return (
     <div
+      aria-label={heading}
       aria-modal="true"
       className="selfx-shopify-picker-backdrop"
       role="dialog"
@@ -3076,11 +3111,12 @@ function VisibilityPickerModal({
           <s-heading>{heading}</s-heading>
           <button
             aria-label="Close"
-            className="selfx-shopify-remove-button"
+            className="selfx-shopify-header-refresh"
+            title="Close"
             type="button"
             onClick={onClose}
           >
-            x
+            <s-icon type="x" />
           </button>
         </div>
         <div className="selfx-shopify-picker-body">

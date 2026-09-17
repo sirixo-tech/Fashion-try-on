@@ -58,6 +58,29 @@ describe("ShopifyTryOnPageClient", () => {
     vi.restoreAllMocks();
   });
 
+  it("shows the synced Shopify price next to the product name", async () => {
+    vi.mocked(getShopifyTryOnSession).mockResolvedValue({
+      ...session,
+      product: {
+        ...session.product,
+        priceAmountCents: 2999,
+        priceCurrency: "USD",
+      },
+    });
+    render(<ShopifyTryOnPageClient sessionToken={sessionToken} />);
+    await act(async () => {});
+    expect(screen.getAllByText("Floral Shirt")).toHaveLength(2);
+    expect(screen.getAllByText("$29.99")).toHaveLength(2);
+  });
+
+  it("keeps the product name visible when its price is unavailable", async () => {
+    vi.mocked(getShopifyTryOnSession).mockResolvedValue(session);
+    render(<ShopifyTryOnPageClient sessionToken={sessionToken} />);
+    await act(async () => {});
+    expect(screen.getAllByText("Floral Shirt")).toHaveLength(2);
+    expect(screen.queryByText("$0.00")).toBeNull();
+  });
+
   it("refreshes the generated result URL before downloading", async () => {
     vi.useFakeTimers();
     vi.mocked(getShopifyTryOnSession).mockResolvedValue(session);
@@ -94,13 +117,13 @@ describe("ShopifyTryOnPageClient", () => {
 
     render(<ShopifyTryOnPageClient sessionToken={sessionToken} />);
     await act(async () => {});
-    expect(screen.getAllByText("floral-shirt")).toHaveLength(2);
+    expect(screen.getAllByText("Floral Shirt")).toHaveLength(2);
     fireEvent.click(screen.getByRole("checkbox"));
     const file = new File(["person"], "person.png", { type: "image/png" });
     const inputs =
       document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     await act(async () => {
-      fireEvent.change(inputs[1]!, { target: { files: [file] } });
+      fireEvent.change(inputs[0]!, { target: { files: [file] } });
     });
     expect(screen.getByRole("button", { name: "Start Try-On" })).toBeTruthy();
     await act(async () => {
@@ -146,7 +169,7 @@ describe("ShopifyTryOnPageClient", () => {
     const inputs =
       document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     await act(async () => {
-      fireEvent.change(inputs[1]!, { target: { files: [file] } });
+      fireEvent.change(inputs[0]!, { target: { files: [file] } });
     });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Start Try-On" }));

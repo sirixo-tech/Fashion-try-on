@@ -50,8 +50,15 @@ describe("ShopifyStorefrontTryOnService", () => {
       visitorLimitPeriod: "DAY",
       monthlyStoreTryOnLimit: 20,
     });
-    expect(prisma.createdCapability?.visitorTokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(prisma.createdCapability?.visitorTokenHash).toMatch(
+      /^[a-f0-9]{64}$/,
+    );
     expect(created.locale).toBe("es");
+    expect(created.product).toMatchObject({
+      name: "Linen Shirt",
+      priceAmountCents: 12900,
+      priceCurrency: "USD",
+    });
     expect(JSON.stringify(prisma.createdCapability)).not.toContain(
       created.session,
     );
@@ -387,7 +394,6 @@ class FakePrisma {
       },
     ]),
   };
-
 }
 
 class FakeTryOnSessions {

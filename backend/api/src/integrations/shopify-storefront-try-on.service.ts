@@ -1191,6 +1191,8 @@ function toProductDto(
     handle: context.mapping.externalHandle ?? undefined,
     externalProductId: context.mapping.externalProductId,
     imageUrl: context.product.imageUrl ?? undefined,
+    priceAmountCents: context.product.priceAmountCents,
+    priceCurrency: context.product.priceCurrency,
   };
 }
 
@@ -1203,6 +1205,8 @@ function toCapabilityProductDto(
     handle: capability.productHandle ?? undefined,
     externalProductId: capability.externalProductId,
     imageUrl: capability.product.imageUrl ?? undefined,
+    priceAmountCents: capability.product.priceAmountCents,
+    priceCurrency: capability.product.priceCurrency,
   };
 }
 
