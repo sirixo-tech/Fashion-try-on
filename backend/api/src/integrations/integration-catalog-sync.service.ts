@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import {
   CatalogProductScope,
   ExternalProductMappingStatus,
+  JewelleryType,
   Prisma,
   type IntegrationType,
 } from "@prisma/client";
@@ -10,6 +11,11 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import {
+  PRODUCT_VERTICALS,
+  jewelleryLegacyGarmentFields,
+  resolveCreateProductKind,
+} from "../catalog/product-kind.js";
 import {
   type IntegrationCatalogProductInputDto,
   type IntegrationCatalogSyncInputDto,
@@ -22,14 +28,20 @@ import {
   type IntegrationProductControlsResponseDto,
   type IntegrationProductTryOnStatus,
   type UpdateIntegrationProductVtoDto,
+  type UpdateIntegrationProductKindDto,
 } from "./dto/integration-product-controls.dto.js";
 import { type IntegrationCredentialContext } from "./integration-token-auth.service.js";
+import {
+  needsShopifyJewelleryClassification,
+  shopifyTryOnModeAllowsProduct,
+} from "./shopify-product-category.js";
 
 export const INTEGRATION_CATALOG_SYNC_ERROR_CODES = {
   duplicateProduct: "INTEGRATION_CATALOG_DUPLICATE_PRODUCT",
   duplicateVariant: "INTEGRATION_CATALOG_DUPLICATE_VARIANT",
   productNotFound: "INTEGRATION_PRODUCT_NOT_FOUND",
   productNotEligible: "INTEGRATION_PRODUCT_NOT_ELIGIBLE",
+  invalidProductKind: "INTEGRATION_PRODUCT_KIND_INVALID",
 } as const;
 
 type SyncCounts = Pick<
@@ -54,6 +66,7 @@ type ProductControlMapping = Prisma.ExternalProductMappingGetPayload<{
         active: true;
         vtoEnabled: true;
         productVertical: true;
+        jewelleryType: true;
         imageUrl: true;
         imageStorageKey: true;
         updatedAt: true;
@@ -70,12 +83,37 @@ export class IntegrationCatalogSyncService {
     credential: IntegrationCredentialContext,
     query: IntegrationProductControlsQueryDto,
   ): Promise<IntegrationProductControlsResponseDto> {
+    const limit = boundedProductControlsLimit(query.limit);
+    const search = nullableTrim(query.search);
     const mappings = await this.prisma.externalProductMapping.findMany({
       where: {
         integrationId: credential.integrationId,
         organizationId: credential.storeId,
         externalVariantId: null,
         status: ExternalProductMappingStatus.ACTIVE,
+        ...(search
+          ? {
+              OR: [
+                {
+                  product: {
+                    name: { contains: search, mode: "insensitive" as const },
+                  },
+                },
+                {
+                  externalHandle: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
+                {
+                  externalProductId: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
+              ],
+            }
+          : {}),
       },
       include: {
         product: {
@@ -85,6 +123,7 @@ export class IntegrationCatalogSyncService {
             active: true,
             vtoEnabled: true,
             productVertical: true,
+            jewelleryType: true,
             imageUrl: true,
             imageStorageKey: true,
             updatedAt: true,
@@ -92,15 +131,16 @@ export class IntegrationCatalogSyncService {
         },
       },
       orderBy: [{ lastSeenAt: "desc" }, { externalProductId: "asc" }],
-      take: boundedProductControlsLimit(query.limit),
+      take: limit + 1,
+      skip: query.offset ?? 0,
     });
-    const data = mappings.map(mapProductControl);
+    const data = mappings.slice(0, limit).map(mapProductControl);
     return {
       data,
+      hasMore: mappings.length > limit,
       summary: {
         total: data.length,
-        ready: data.filter((product) => product.tryOnStatus === "READY")
-          .length,
+        ready: data.filter((product) => product.tryOnStatus === "READY").length,
         disabled: data.filter((product) => product.tryOnStatus === "DISABLED")
           .length,
         needsAttention: data.filter(
@@ -136,6 +176,7 @@ export class IntegrationCatalogSyncService {
             active: true,
             vtoEnabled: true,
             productVertical: true,
+            jewelleryType: true,
             imageUrl: true,
             imageStorageKey: true,
             updatedAt: true,
@@ -146,7 +187,37 @@ export class IntegrationCatalogSyncService {
     if (!mapping) {
       throwProductNotFound();
     }
-    if (input.enabled && !isProductEligibleForTryOn(mapping.product)) {
+    if (input.enabled && credential.integrationType === "SHOPIFY") {
+      const integration = await this.prisma.integration.findFirst({
+        where: {
+          id: credential.integrationId,
+          organizationId: credential.storeId,
+          type: "SHOPIFY",
+        },
+        select: { metadata: true },
+      });
+      if (
+        !integration ||
+        !shopifyTryOnModeAllowsProduct(
+          integration.metadata,
+          mapping.product.productVertical,
+        )
+      ) {
+        throw new ApiErrorException(
+          HttpStatus.BAD_REQUEST,
+          INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotEligible,
+          "This product type is not enabled for this Shopify store.",
+        );
+      }
+    }
+    if (
+      input.enabled &&
+      (!isProductEligibleForTryOn(mapping.product) ||
+        needsShopifyJewelleryClassification(
+          mapping.metadata,
+          mapping.product.productVertical,
+        ))
+    ) {
       throw new ApiErrorException(
         HttpStatus.BAD_REQUEST,
         INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotEligible,
@@ -162,10 +233,78 @@ export class IntegrationCatalogSyncService {
         active: true,
         vtoEnabled: true,
         productVertical: true,
+        jewelleryType: true,
         imageUrl: true,
         imageStorageKey: true,
         updatedAt: true,
       },
+    });
+    return mapProductControl({ ...mapping, product });
+  }
+
+  async updateProductKind(
+    credential: IntegrationCredentialContext,
+    input: UpdateIntegrationProductKindDto,
+  ): Promise<IntegrationProductControlsDto> {
+    const invalid = (message: string): never => {
+      throw new ApiErrorException(
+        HttpStatus.BAD_REQUEST,
+        INTEGRATION_CATALOG_SYNC_ERROR_CODES.invalidProductKind,
+        message,
+      );
+    };
+    if (!PRODUCT_VERTICALS.includes(input.productVertical)) {
+      invalid("Product vertical must be GARMENT or JEWELLERY.");
+    }
+    const kind = resolveCreateProductKind(input, invalid);
+    const mapping = await this.prisma.externalProductMapping.findFirst({
+      where: {
+        integrationId: credential.integrationId,
+        organizationId: credential.storeId,
+        externalProductId: nullableTrim(input.externalProductId) ?? "",
+        externalVariantId: null,
+        status: ExternalProductMappingStatus.ACTIVE,
+      },
+      include: { product: true },
+    });
+    if (!mapping) throwProductNotFound();
+    const changed =
+      mapping.product.productVertical !== kind.productVertical ||
+      mapping.product.jewelleryType !== kind.jewelleryType;
+    const previousMetadata = asMappingMetadata(mapping.metadata);
+    const product = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.product.update({
+        where: {
+          id: mapping.productId,
+          organizationId: credential.storeId,
+          scope: CatalogProductScope.STORE,
+        },
+        data: {
+          ...kind,
+          ...(changed
+            ? {
+                vtoEnabled: false,
+                ...(kind.productVertical === "JEWELLERY"
+                  ? jewelleryLegacyGarmentFields(kind.jewelleryType)
+                  : {
+                      garmentIntent: "AUTO",
+                      garmentCategory: "AUTO",
+                      garmentPhotoType: "AUTO",
+                    }),
+              }
+            : {}),
+        },
+      });
+      await tx.externalProductMapping.update({
+        where: { id: mapping.id },
+        data: {
+          metadata: {
+            ...previousMetadata,
+            classificationSource: "MANUAL",
+          },
+        },
+      });
+      return updated;
     });
     return mapProductControl({ ...mapping, product });
   }
@@ -267,6 +406,8 @@ async function syncProduct(
       externalProductId: true,
       externalUpdatedAt: true,
       lastSeenAt: true,
+      metadata: true,
+      product: { select: { productVertical: true, jewelleryType: true } },
     },
   });
 
@@ -323,20 +464,41 @@ async function syncProduct(
   let productId: string;
   if (mapping) {
     productId = mapping.productId;
+    const metadata = asMappingMetadata(mapping.metadata);
+    const autoClassification = automaticClassification(
+      credential,
+      input,
+      metadata,
+      mapping.product,
+    );
     await tx.product.update({
       where: { id: productId },
       data: {
         ...sourceFields,
         ...sourceEligibilityFields,
+        ...autoClassification,
       },
     });
     await tx.externalProductMapping.update({
       where: { id: mapping.id },
-      data: rootMappingFields(credential, input, sourceUpdatedAt, observedAt),
+      data: rootMappingFields(
+        credential,
+        input,
+        sourceUpdatedAt,
+        observedAt,
+        metadata.classificationSource === "MANUAL"
+          ? "MANUAL"
+          : autoClassification.productVertical
+            ? "AUTO"
+            : typeof metadata.classificationSource === "string"
+              ? metadata.classificationSource
+              : undefined,
+      ),
     });
     counts.updated += 1;
   } else {
     productId = createSelfxId();
+    const inferredKind = inferredProductKind(credential, input);
     await tx.product.create({
       data: {
         id: productId,
@@ -354,8 +516,7 @@ async function syncProduct(
         garmentIntent: "AUTO",
         garmentCategory: "AUTO",
         garmentPhotoType: "AUTO",
-        productVertical: "GARMENT",
-        jewelleryType: null,
+        ...inferredKind,
         imageStorageKey: null,
         imageContentType: null,
         imageWidth: null,
@@ -370,7 +531,13 @@ async function syncProduct(
         productId,
         externalProductId: input.externalProductId,
         externalVariantId: null,
-        ...rootMappingFields(credential, input, sourceUpdatedAt, observedAt),
+        ...rootMappingFields(
+          credential,
+          input,
+          sourceUpdatedAt,
+          observedAt,
+          inferredKind.productVertical === "JEWELLERY" ? "AUTO" : undefined,
+        ),
       },
     });
     counts.created += 1;
@@ -569,11 +736,83 @@ function sourceOwnedEligibilityFields(
       } satisfies Prisma.ProductUncheckedUpdateInput);
 }
 
+function asMappingMetadata(
+  value: Prisma.JsonValue | null | undefined,
+): Prisma.InputJsonObject {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Prisma.InputJsonObject)
+    : {};
+}
+
+function inferredProductKind(
+  credential: IntegrationCredentialContext,
+  input: IntegrationCatalogProductInputDto,
+):
+  | { productVertical: "GARMENT"; jewelleryType: null }
+  | { productVertical: "JEWELLERY"; jewelleryType: JewelleryType } {
+  const jewelleryType =
+    credential.integrationType === "SHOPIFY"
+      ? (input.suggestedJewelleryType ?? null)
+      : null;
+  return jewelleryType
+    ? {
+        productVertical: "JEWELLERY",
+        jewelleryType: jewelleryType as JewelleryType,
+      }
+    : { productVertical: "GARMENT", jewelleryType: null };
+}
+
+function automaticClassification(
+  credential: IntegrationCredentialContext,
+  input: IntegrationCatalogProductInputDto,
+  metadata: Prisma.InputJsonObject,
+  current?: { productVertical: string; jewelleryType: JewelleryType | null },
+): Prisma.ProductUncheckedUpdateInput {
+  if (
+    credential.integrationType !== "SHOPIFY" ||
+    metadata.classificationSource === "MANUAL"
+  ) {
+    return {};
+  }
+  const inferred = inferredProductKind(credential, input);
+  if (
+    metadata.classificationSource !== "AUTO" &&
+    !(
+      input.suggestedJewelleryType &&
+      current?.productVertical === "GARMENT" &&
+      !current.jewelleryType
+    )
+  ) {
+    return {};
+  }
+  if (
+    current?.productVertical === inferred.productVertical &&
+    current.jewelleryType === inferred.jewelleryType
+  ) {
+    return {
+      productVertical: inferred.productVertical,
+      jewelleryType: inferred.jewelleryType,
+    };
+  }
+  return {
+    ...inferred,
+    vtoEnabled: false,
+    ...(inferred.productVertical === "JEWELLERY"
+      ? jewelleryLegacyGarmentFields(inferred.jewelleryType)
+      : {
+          garmentIntent: "AUTO",
+          garmentCategory: "AUTO",
+          garmentPhotoType: "AUTO",
+        }),
+  };
+}
+
 function rootMappingFields(
   credential: IntegrationCredentialContext,
   input: IntegrationCatalogProductInputDto,
   sourceUpdatedAt: Date,
   observedAt: Date,
+  classificationSource?: string,
 ) {
   return {
     externalSku: null,
@@ -584,6 +823,13 @@ function rootMappingFields(
       syncDirection: "COMMERCE_TO_SELFX",
       sourceStatus: input.status,
       variantCount: input.variants?.length ?? null,
+      ...(credential.integrationType === "SHOPIFY"
+        ? {
+            shopifyCategoryId: input.shopifyCategoryId ?? null,
+            shopifyCategoryName: input.shopifyCategoryName ?? null,
+          }
+        : {}),
+      ...(classificationSource ? { classificationSource } : {}),
     } satisfies Prisma.InputJsonObject,
     externalUpdatedAt: sourceUpdatedAt,
     lastSeenAt: observedAt,
@@ -694,8 +940,14 @@ function mapProductControl(
     active: mapping.product.active,
     vtoEnabled: mapping.product.vtoEnabled,
     productVertical: mapping.product.productVertical,
+    jewelleryType: mapping.product.jewelleryType,
     imageUrl: mapping.product.imageUrl,
-    tryOnStatus: productTryOnStatus(mapping.product),
+    tryOnStatus: needsShopifyJewelleryClassification(
+      mapping.metadata,
+      mapping.product.productVertical,
+    )
+      ? "NEEDS_CLASSIFICATION"
+      : productTryOnStatus(mapping.product),
     updatedAt: mapping.product.updatedAt.toISOString(),
   };
 }
@@ -703,14 +955,19 @@ function mapProductControl(
 function productTryOnStatus(
   product: Pick<
     ProductControlMapping["product"],
-    "active" | "vtoEnabled" | "productVertical" | "imageUrl" | "imageStorageKey"
+    | "active"
+    | "vtoEnabled"
+    | "productVertical"
+    | "jewelleryType"
+    | "imageUrl"
+    | "imageStorageKey"
   >,
 ): IntegrationProductTryOnStatus {
   if (!product.active) {
     return "INACTIVE";
   }
-  if (product.productVertical !== "GARMENT") {
-    return "NOT_GARMENT";
+  if (product.productVertical === "JEWELLERY" && !product.jewelleryType) {
+    return "MISSING_JEWELLERY_TYPE";
   }
   if (!hasProductImage(product)) {
     return "MISSING_IMAGE";
@@ -721,18 +978,26 @@ function productTryOnStatus(
 function isProductEligibleForTryOn(
   product: Pick<
     ProductControlMapping["product"],
-    "active" | "productVertical" | "imageUrl" | "imageStorageKey"
+    | "active"
+    | "productVertical"
+    | "jewelleryType"
+    | "imageUrl"
+    | "imageStorageKey"
   >,
 ): boolean {
   return (
     product.active &&
-    product.productVertical === "GARMENT" &&
+    (product.productVertical === "GARMENT" ||
+      (product.productVertical === "JEWELLERY" && !!product.jewelleryType)) &&
     hasProductImage(product)
   );
 }
 
 function hasProductImage(
-  product: Pick<ProductControlMapping["product"], "imageUrl" | "imageStorageKey">,
+  product: Pick<
+    ProductControlMapping["product"],
+    "imageUrl" | "imageStorageKey"
+  >,
 ): boolean {
   return Boolean(nullableTrim(product.imageUrl) || product.imageStorageKey);
 }

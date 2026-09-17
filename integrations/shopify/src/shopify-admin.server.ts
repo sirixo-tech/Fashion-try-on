@@ -314,6 +314,7 @@ const productFields = [
   "description",
   "status",
   "tags",
+  "category { id fullName }",
   "updatedAt",
   "onlineStoreUrl",
   "featuredMedia { preview { image { url } } }",

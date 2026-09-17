@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   ActionFunctionArgs,
   LoaderFunctionArgs,
@@ -17,6 +17,7 @@ import {
 import {
   getSelfxIntegrationToken,
   getSelfxConnectionView,
+  updateSelfxProductVisibilityRule,
   updateSelfxStorefrontSettings,
   type SelfxConnectionView,
 } from "../selfx-connection.server";
@@ -28,6 +29,7 @@ import {
   supportedLanguageLocales,
   supportedStorefrontLocales,
   storefrontLocaleLabel,
+  type LanguageLocale,
 } from "../selfx-localization";
 import {
   SelfxProductControlsClient,
@@ -44,6 +46,16 @@ import {
 import { loadSelfxLinkConfig } from "../selfx-link.server";
 import { authenticate } from "../shopify.server";
 import { ShopifyAdminClient } from "../../src/shopify-admin.server";
+import {
+  parseShopifyTryOnMode,
+  parseShopifyTryOnVertical,
+  tryOnModeAllowsVertical,
+  type ShopifyProductVisibilityRule,
+  type ShopifyProductVisibilityRules,
+  type ShopifyTryOnMode,
+  type ShopifyTryOnVertical,
+} from "../selfx-tryon-settings";
+import { ProductClassificationModal } from "../product-classification-modal";
 
 const tryOnBlockHandle = "selfx_try_it_on";
 const lowCreditThreshold = 20;
@@ -91,6 +103,7 @@ type ProductActionData =
       settingsActionSuccess?: string | null;
       settingsStorefrontLocale?: string | null;
       settingsAdminLocale?: string | null;
+      settingsTryOnMode?: ShopifyTryOnMode | null;
       settingsVisitorTryOnLimit?: number | null;
       settingsVisitorTryOnLimitPeriod?: string | null;
       settingsMonthlyStoreTryOnLimit?: number | null;
@@ -202,12 +215,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "setStorefrontSettings") {
     try {
+      if (formData.has("tryOnMode")) {
+        const client = await productControlsClient(session.shop);
+        await client.updateShopifySettings({
+          tryOnMode: parseShopifyTryOnMode(formData.get("tryOnMode")),
+        });
+      }
       const connection = await updateSelfxStorefrontSettings({
         shop: session.shop,
         storefrontLocale: normalizeStorefrontLocale(
           formData.get("storefrontLocale"),
         ),
         adminLocale: normalizeLanguageLocale(formData.get("adminLocale")),
+        tryOnMode: formData.has("tryOnMode")
+          ? formData.get("tryOnMode")
+          : undefined,
         visitorTryOnLimit: formData.get("visitorTryOnLimit"),
         visitorTryOnLimitPeriod: formData.get("visitorTryOnLimitPeriod"),
         monthlyStoreTryOnLimit: formData.get("monthlyStoreTryOnLimit"),
@@ -219,6 +241,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         settingsActionSuccess: "Storefront settings updated.",
         settingsStorefrontLocale: connection.storefrontLocale,
         settingsAdminLocale: connection.adminLocale,
+        settingsTryOnMode: connection.tryOnMode,
         settingsVisitorTryOnLimit: connection.visitorTryOnLimit,
         settingsVisitorTryOnLimitPeriod: connection.visitorTryOnLimitPeriod,
         settingsMonthlyStoreTryOnLimit: connection.monthlyStoreTryOnLimit,
@@ -267,6 +290,43 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         productActionSuccess: null,
         settingsActionError: null,
         settingsActionSuccess: null,
+      };
+    }
+  }
+
+  if (intent === "listProductTypes" || intent === "setProductKind") {
+    try {
+      const client = await productControlsClient(session.shop);
+      if (intent === "listProductTypes") {
+        const classificationProducts = await client.listProducts(25, {
+          search: String(formData.get("search") ?? ""),
+          offset: Number(formData.get("offset") ?? 0),
+        });
+        return {
+          productActionError: null,
+          productActionSuccess: null,
+          classificationProducts,
+        };
+      }
+      const classificationProduct = await client.setProductKind({
+        externalProductId: String(formData.get("externalProductId") ?? ""),
+        productVertical: String(formData.get("productVertical") ?? ""),
+        jewelleryType: formData.get("jewelleryType")
+          ? String(formData.get("jewelleryType"))
+          : null,
+      });
+      return {
+        productActionError: null,
+        productActionSuccess: "Product type saved.",
+        classificationProduct,
+      };
+    } catch (error) {
+      return {
+        productActionError: shopifyActionErrorMessage(
+          error,
+          "SelfX could not update product types.",
+        ),
+        productActionSuccess: null,
       };
     }
   }
@@ -352,7 +412,10 @@ export const shouldRevalidate = ({
   defaultShouldRevalidate,
   formData,
 }: ShouldRevalidateFunctionArgs) => {
-  if (formData?.get("intent") === "setStorefrontSettings") {
+  if (
+    formData?.get("intent") === "setStorefrontSettings" ||
+    formData?.get("intent") === "listProductTypes"
+  ) {
     return false;
   }
   return defaultShouldRevalidate;
@@ -437,6 +500,7 @@ export default function Index() {
       <MerchantAppHeader
         connected={connected}
         connection={connection}
+        pending={pending}
         storefrontLocale={connection.storefrontLocale}
         adminLocale={adminLocale}
         completeActionPath={completeActionPath}
@@ -601,7 +665,7 @@ function MerchantAppHeader({
   connectActionPath: string;
   connected: boolean;
   connection: SelfxConnectionView;
-  onAdminLocaleChange: (locale: string) => void;
+  onAdminLocaleChange: (locale: LanguageLocale) => void;
   storefrontLocale: string;
   pending: boolean;
   restartActionPath: string;
@@ -613,10 +677,10 @@ function MerchantAppHeader({
   const t = (key: Parameters<typeof adminT>[1]) =>
     adminT(currentAdminLocale, key);
 
-  function handleAdminLocaleChange(event: FormEvent<HTMLElement>) {
-    const nextLocale = normalizeLanguageLocale(
-      (event.currentTarget as HTMLSelectElement).value,
-    );
+  function handleAdminLocaleChange(event: {
+    currentTarget: { value: string };
+  }) {
+    const nextLocale = normalizeLanguageLocale(event.currentTarget.value);
     onAdminLocaleChange(nextLocale);
 
     const formData = new FormData();
@@ -892,7 +956,7 @@ function ShopifyPanelContent({
   creditHealth: CreditHealth;
   creditSummary: SelfxStorefrontCreditSummary | null;
   includedCredits: number;
-  onAdminLocaleChange: (locale: string) => void;
+  onAdminLocaleChange: (locale: LanguageLocale) => void;
   pending: boolean;
   productCollections: ProductCollectionsView;
   productControls: ProductControlsView | null;
@@ -913,6 +977,8 @@ function ShopifyPanelContent({
             productCollections={productCollections}
             productControls={productControls}
             syncActionPath={syncActionPath}
+            tryOnMode={connection.tryOnMode}
+            visibilityRules={connection.productVisibilityRules}
           />
         ) : (
           <UnavailablePanel
@@ -1173,8 +1239,9 @@ function LanguageSettingsPanel({
 }: {
   adminLocale: string;
   connection: SelfxConnectionView;
-  onAdminLocaleChange: (locale: string) => void;
+  onAdminLocaleChange: (locale: LanguageLocale) => void;
 }) {
+  const [classifyingProducts, setClassifyingProducts] = useState(false);
   const fetcher = useFetcher<ProductActionData>();
   const saving = fetcher.state !== "idle";
   const currentLocale =
@@ -1188,18 +1255,33 @@ function LanguageSettingsPanel({
   const currentMonthlyLimit =
     fetcher.data?.settingsMonthlyStoreTryOnLimit ??
     connection.monthlyStoreTryOnLimit;
+  const currentTryOnMode =
+    fetcher.data?.settingsTryOnMode ?? connection.tryOnMode;
   const t = (key: Parameters<typeof adminT>[1]) =>
     adminT(currentAdminLocale, key);
 
-  function handleAdminLocaleChange(event: FormEvent<HTMLElement>) {
-    onAdminLocaleChange(
-      normalizeLanguageLocale((event.currentTarget as HTMLSelectElement).value),
-    );
+  function handleAdminLocaleChange(event: {
+    currentTarget: { value: string };
+  }) {
+    onAdminLocaleChange(normalizeLanguageLocale(event.currentTarget.value));
   }
 
   return (
     <s-section heading={t("settings")}>
       <s-stack gap="base">
+        <s-stack direction="inline" justifyContent="end">
+          <SelfxActionButton
+            disabled={connection.status !== "CONNECTED"}
+            onClick={() => setClassifyingProducts(true)}
+          >
+            <s-icon type="edit" /> Product types
+          </SelfxActionButton>
+        </s-stack>
+        {classifyingProducts ? (
+          <ProductClassificationModal
+            onClose={() => setClassifyingProducts(false)}
+          />
+        ) : null}
         {fetcher.data?.settingsActionError ? (
           <s-banner heading={t("settingsFailed")} tone="critical">
             {fetcher.data.settingsActionError}
@@ -1213,6 +1295,17 @@ function LanguageSettingsPanel({
         <fetcher.Form method="post">
           <input type="hidden" name="intent" value="setStorefrontSettings" />
           <s-stack gap="base">
+            <s-select
+              label={t("tryOnTypes")}
+              name="tryOnMode"
+              value={currentTryOnMode}
+              required
+            >
+              <s-option value="GARMENT">{t("garments")}</s-option>
+              <s-option value="JEWELLERY">{t("jewellery")}</s-option>
+              <s-option value="BOTH">{t("bothTryOnTypes")}</s-option>
+            </s-select>
+            <s-divider />
             <s-grid
               gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
               gap="base"
@@ -2197,6 +2290,64 @@ function SelfxShopifyStyles() {
           line-height: 1.35;
         }
 
+        .selfx-shopify-classification-modal {
+          border: 0;
+          margin: auto;
+          padding: 0;
+          max-block-size: calc(100dvh - 2rem);
+          inline-size: min(42rem, calc(100vw - 2rem));
+        }
+
+        .selfx-shopify-classification-modal:not([open]) {
+          display: none;
+        }
+
+        .selfx-shopify-classification-modal::backdrop {
+          background: rgba(0, 0, 0, 0.55);
+        }
+
+        .selfx-shopify-classification-search {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .selfx-shopify-classification-row {
+          display: grid;
+          gap: 0.5rem;
+          padding: 0.625rem;
+          border-block-end: 1px solid #edf2f7;
+        }
+
+        .selfx-shopify-classification-product {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          min-inline-size: 0;
+          overflow-wrap: anywhere;
+        }
+
+        .selfx-shopify-classification-product img {
+          inline-size: 2.5rem;
+          block-size: 2.5rem;
+          object-fit: contain;
+          flex-shrink: 0;
+          border-radius: 4px;
+        }
+
+        .selfx-shopify-classification-controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .selfx-shopify-classification-controls select {
+          flex: 1 1 8rem;
+          inline-size: auto;
+        }
+
         .selfx-shopify-panel-layout {
           align-items: start;
           display: grid;
@@ -2493,39 +2644,51 @@ function ProductControlsSection({
   productCollections,
   productControls,
   syncActionPath,
+  tryOnMode,
+  visibilityRules,
 }: {
   productCollections: ProductCollectionsView;
   productControls: ProductControlsView | null;
   syncActionPath: string;
+  tryOnMode: ShopifyTryOnMode;
+  visibilityRules: ShopifyProductVisibilityRules;
 }) {
   const products = productControls?.data ?? [];
-  const eligibleProducts = products.filter(isProductEligibleForVisibilityRule);
-  const readyCount = productControls?.summary.ready ?? 0;
-  const allEligibleProductsEnabled =
-    eligibleProducts.length > 0 &&
-    eligibleProducts.every((product) => product.vtoEnabled);
-  const [allProductsEnabled, setAllProductsEnabled] = useState(
-    allEligibleProductsEnabled,
+  const [activeVertical, setActiveVertical] = useState<ShopifyTryOnVertical>(
+    tryOnMode === "JEWELLERY" ? "JEWELLERY" : "GARMENT",
   );
+  const [rules, setRules] = useState<
+    Record<ShopifyTryOnVertical, ShopifyProductVisibilityRule>
+  >(() => ({
+    GARMENT: initialVisibilityRule(
+      products,
+      "GARMENT",
+      visibilityRules.GARMENT,
+    ),
+    JEWELLERY: initialVisibilityRule(
+      products,
+      "JEWELLERY",
+      visibilityRules.JEWELLERY,
+    ),
+  }));
   const [activeTab, setActiveTab] =
     useState<ProductVisibilityTab>("COLLECTIONS");
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(
-    [],
-  );
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>(
-    allEligibleProductsEnabled
-      ? []
-      : eligibleProducts
-          .filter((product) => product.vtoEnabled)
-          .map((product) => product.externalProductId),
-  );
-  const [exceptionProductIds, setExceptionProductIds] = useState<string[]>([]);
   const [picker, setPicker] = useState<ProductVisibilityPicker | null>(null);
-  const visibilityMode: ProductVisibilityMode = allProductsEnabled
-    ? "ALL"
-    : selectedCollectionIds.length > 0 || selectedProductIds.length > 0
-      ? "SELECTED"
-      : "OFF";
+  const currentRule = rules[activeVertical];
+  const selectedCollectionIds = currentRule.selectedCollectionIds;
+  const selectedProductIds = currentRule.selectedProductIds;
+  const exceptionProductIds = currentRule.exceptionProductIds;
+  const visibilityMode = currentRule.mode;
+  const allProductsEnabled = visibilityMode === "ALL";
+  const verticalProducts = products.filter(
+    (product) => product.productVertical === activeVertical,
+  );
+  const eligibleProducts = verticalProducts.filter(
+    isProductEligibleForVisibilityRule,
+  );
+  const readyCount = eligibleProducts.filter(
+    (product) => product.vtoEnabled,
+  ).length;
   const selectedCollections = selectedCollectionIds
     .map((id) =>
       productCollections.data.find((collection) => collection.id === id),
@@ -2539,57 +2702,94 @@ function ProductControlsSection({
     )
     .filter((product): product is SelfxProductControl => Boolean(product));
   const exceptionProducts = exceptionProductIds
-    .map((id) => products.find((product) => product.externalProductId === id))
+    .map((id) =>
+      verticalProducts.find((product) => product.externalProductId === id),
+    )
     .filter((product): product is SelfxProductControl => Boolean(product));
 
+  function updateCurrentRule(
+    update: (
+      rule: ShopifyProductVisibilityRule,
+    ) => ShopifyProductVisibilityRule,
+  ) {
+    setRules((current) => ({
+      ...current,
+      [activeVertical]: update(current[activeVertical]),
+    }));
+  }
+
   function enableAllProducts() {
-    setAllProductsEnabled(true);
-    setSelectedCollectionIds([]);
-    setSelectedProductIds([]);
+    updateCurrentRule((rule) => ({
+      ...rule,
+      mode: "ALL",
+      selectedCollectionIds: [],
+      selectedProductIds: [],
+    }));
   }
 
   function disableAllProducts() {
-    setAllProductsEnabled(false);
-    setSelectedCollectionIds([]);
-    setSelectedProductIds([]);
+    updateCurrentRule((rule) => ({
+      ...rule,
+      mode: "OFF",
+      selectedCollectionIds: [],
+      selectedProductIds: [],
+    }));
   }
 
   function selectCollections(ids: string[]) {
-    setSelectedCollectionIds(ids);
-    if (ids.length > 0 || selectedProductIds.length > 0) {
-      setAllProductsEnabled(false);
-    } else {
-      setAllProductsEnabled(true);
-    }
+    updateCurrentRule((rule) => ({
+      ...rule,
+      mode:
+        ids.length > 0 || rule.selectedProductIds.length > 0
+          ? "SELECTED"
+          : "ALL",
+      selectedCollectionIds: ids,
+    }));
   }
 
   function selectProducts(ids: string[]) {
-    setSelectedProductIds(ids);
-    if (selectedCollectionIds.length > 0 || ids.length > 0) {
-      setAllProductsEnabled(false);
-    } else {
-      setAllProductsEnabled(true);
-    }
+    updateCurrentRule((rule) => ({
+      ...rule,
+      mode:
+        rule.selectedCollectionIds.length > 0 || ids.length > 0
+          ? "SELECTED"
+          : "ALL",
+      selectedProductIds: ids,
+    }));
   }
 
   function removeSelectedCollection(id: string) {
-    const nextCollectionIds = selectedCollectionIds.filter(
-      (collectionId) => collectionId !== id,
-    );
-    setSelectedCollectionIds(nextCollectionIds);
-    if (nextCollectionIds.length === 0 && selectedProductIds.length === 0) {
-      setAllProductsEnabled(true);
-    }
+    updateCurrentRule((rule) => {
+      const selectedCollectionIds = rule.selectedCollectionIds.filter(
+        (collectionId) => collectionId !== id,
+      );
+      return {
+        ...rule,
+        mode:
+          selectedCollectionIds.length === 0 &&
+          rule.selectedProductIds.length === 0
+            ? "ALL"
+            : "SELECTED",
+        selectedCollectionIds,
+      };
+    });
   }
 
   function removeSelectedProduct(id: string) {
-    const nextProductIds = selectedProductIds.filter(
-      (productId) => productId !== id,
-    );
-    setSelectedProductIds(nextProductIds);
-    if (selectedCollectionIds.length === 0 && nextProductIds.length === 0) {
-      setAllProductsEnabled(true);
-    }
+    updateCurrentRule((rule) => {
+      const selectedProductIds = rule.selectedProductIds.filter(
+        (productId) => productId !== id,
+      );
+      return {
+        ...rule,
+        mode:
+          rule.selectedCollectionIds.length === 0 &&
+          selectedProductIds.length === 0
+            ? "ALL"
+            : "SELECTED",
+        selectedProductIds,
+      };
+    });
   }
 
   return (
@@ -2599,6 +2799,29 @@ function ProductControlsSection({
           Choose where the SelfX Try-On button appears. Exceptions always hide
           the button, even when a product matches the selected rule.
         </s-text>
+
+        {tryOnMode === "BOTH" ? (
+          <div className="selfx-shopify-rule-tabs" aria-label="Try-On type">
+            <VisibilityRuleTab
+              active={activeVertical === "GARMENT"}
+              icon={<s-icon type="product" />}
+              label="Garments"
+              onClick={() => {
+                setActiveVertical("GARMENT");
+                setPicker(null);
+              }}
+            />
+            <VisibilityRuleTab
+              active={activeVertical === "JEWELLERY"}
+              icon={<s-icon type="product" />}
+              label="Jewellery"
+              onClick={() => {
+                setActiveVertical("JEWELLERY");
+                setPicker(null);
+              }}
+            />
+          </div>
+        ) : null}
 
         {productControls?.errorMessage ? (
           <s-banner heading="Product controls unavailable" tone="warning">
@@ -2620,6 +2843,11 @@ function ProductControlsSection({
               value="setProductVisibilityRule"
             />
             <input type="hidden" name="visibilityMode" value={visibilityMode} />
+            <input
+              type="hidden"
+              name="productVertical"
+              value={activeVertical}
+            />
             {selectedCollectionIds.map((collectionId) => (
               <input
                 key={collectionId}
@@ -2655,7 +2883,11 @@ function ProductControlsSection({
                     <s-grid-item>
                       <s-stack gap="small-200">
                         <s-heading>
-                          Where should the Try-On button appear?
+                          Where should{" "}
+                          {activeVertical === "GARMENT"
+                            ? "garment"
+                            : "jewellery"}{" "}
+                          Try-On appear?
                         </s-heading>
                         <s-text color="subdued">
                           Apply visibility in bulk, then use exceptions for
@@ -2751,9 +2983,12 @@ function ProductControlsSection({
                 emptyText="No products excluded."
                 onAdd={() => setPicker("EXCEPTIONS")}
                 onRemove={(id) =>
-                  setExceptionProductIds((current) =>
-                    current.filter((productId) => productId !== id),
-                  )
+                  updateCurrentRule((rule) => ({
+                    ...rule,
+                    exceptionProductIds: rule.exceptionProductIds.filter(
+                      (productId) => productId !== id,
+                    ),
+                  }))
                 }
                 products={exceptionProducts}
                 title="Exceptions - Hide on Specific Products"
@@ -2781,7 +3016,9 @@ function ProductControlsSection({
                 <VisibilityPickerModal
                   collections={productCollections.data}
                   eligibleProducts={
-                    picker === "EXCEPTIONS" ? products : eligibleProducts
+                    picker === "EXCEPTIONS"
+                      ? verticalProducts
+                      : eligibleProducts
                   }
                   picker={picker}
                   selectedCollectionIds={selectedCollectionIds}
@@ -2797,7 +3034,10 @@ function ProductControlsSection({
                     } else if (picker === "PRODUCTS") {
                       selectProducts(ids);
                     } else {
-                      setExceptionProductIds(ids);
+                      updateCurrentRule((rule) => ({
+                        ...rule,
+                        exceptionProductIds: ids,
+                      }));
                     }
                     setPicker(null);
                   }}
@@ -2834,6 +3074,33 @@ function ProductControlsSection({
       </s-stack>
     </div>
   );
+}
+
+function initialVisibilityRule(
+  products: SelfxProductControl[],
+  vertical: ShopifyTryOnVertical,
+  persisted: ShopifyProductVisibilityRule | undefined,
+): ShopifyProductVisibilityRule {
+  if (persisted) return persisted;
+  const eligible = products.filter(
+    (product) =>
+      product.productVertical === vertical &&
+      isProductEligibleForVisibilityRule(product),
+  );
+  const enabledIds = eligible
+    .filter((product) => product.vtoEnabled)
+    .map((product) => product.externalProductId);
+  return {
+    mode:
+      eligible.length > 0 && enabledIds.length === eligible.length
+        ? "ALL"
+        : enabledIds.length > 0
+          ? "SELECTED"
+          : "OFF",
+    selectedCollectionIds: [],
+    selectedProductIds: enabledIds.length === eligible.length ? [] : enabledIds,
+    exceptionProductIds: [],
+  };
 }
 
 function VisibilityRuleTab({
@@ -3253,7 +3520,10 @@ function ProductStatusBadge({ status }: { status: SelfxProductTryOnStatus }) {
   if (status === "MISSING_IMAGE") {
     return <s-badge tone="warning">Missing image</s-badge>;
   }
-  return <s-badge tone="warning">Not garment</s-badge>;
+  if (status === "NEEDS_CLASSIFICATION") {
+    return <s-badge tone="warning">Set product type</s-badge>;
+  }
+  return <s-badge tone="warning">Set jewellery type</s-badge>;
 }
 
 async function safeThemeBlockView(input: {
@@ -3349,6 +3619,15 @@ async function applyProductVisibilityRule(input: {
   formData: FormData;
   shop: string;
 }): Promise<{ message: string }> {
+  const vertical = parseShopifyTryOnVertical(
+    input.formData.get("productVertical"),
+  );
+  const connection = await getSelfxConnectionView(input.shop);
+  if (!tryOnModeAllowsVertical(connection.tryOnMode, vertical)) {
+    throw new Error(
+      `${vertical === "GARMENT" ? "Garment" : "Jewellery"} Try-On is not enabled in Settings.`,
+    );
+  }
   const mode = normalizeProductVisibilityMode(
     input.formData.get("visibilityMode"),
   );
@@ -3364,9 +3643,18 @@ async function applyProductVisibilityRule(input: {
 
   const client = await productControlsClient(input.shop);
   const products = (await client.listProducts(50)).data;
-  const eligibleProducts = products.filter(isProductEligibleForVisibilityRule);
+  const eligibleProducts = products.filter(
+    (product) =>
+      product.productVertical === vertical &&
+      isProductEligibleForVisibilityRule(product),
+  );
   const eligibleIds = new Set(
     eligibleProducts.map((product) => product.externalProductId),
+  );
+  const verticalIds = new Set(
+    products
+      .filter((product) => product.productVertical === vertical)
+      .map((product) => product.externalProductId),
   );
 
   let targetIds = new Set<string>();
@@ -3412,13 +3700,28 @@ async function applyProductVisibilityRule(input: {
     changed += 1;
   }
 
+  const allowedExceptionProductIds = intersectSet(
+    exceptionProductIds,
+    verticalIds,
+  );
+  await updateSelfxProductVisibilityRule({
+    shop: input.shop,
+    vertical,
+    rule: {
+      mode,
+      selectedCollectionIds: [...selectedCollectionIds],
+      selectedProductIds: [...intersectSet(selectedProductIds, eligibleIds)],
+      exceptionProductIds: [...allowedExceptionProductIds],
+    },
+  });
+
   const visible = eligibleProducts.filter(
     (product) =>
       targetIds.has(product.externalProductId) &&
       !exceptionProductIds.has(product.externalProductId),
   ).length;
   return {
-    message: `Product visibility updated. ${visible} products will show Try-On, ${changed} changed.`,
+    message: `${vertical === "GARMENT" ? "Garment" : "Jewellery"} visibility updated. ${visible} products will show Try-On, ${changed} changed.`,
   };
 }
 
@@ -3497,6 +3800,7 @@ async function safeConnectionView(shop: string): Promise<SelfxConnectionView> {
       storeName: null,
       storefrontLocale: "auto",
       adminLocale: "en",
+      tryOnMode: "BOTH",
       visitorTryOnLimit: 0,
       visitorTryOnLimitPeriod: "DAY",
       monthlyStoreTryOnLimit: 0,
@@ -3580,6 +3884,7 @@ async function safeProductControls(
   } catch {
     return {
       data: [],
+      hasMore: false,
       summary: {
         total: 0,
         ready: 0,

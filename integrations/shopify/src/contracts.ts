@@ -17,6 +17,9 @@ export type SelfxCatalogProduct = {
   description: string | null;
   status: CommerceProductStatus;
   vtoEnabled?: boolean;
+  shopifyCategoryId?: string | null;
+  shopifyCategoryName?: string | null;
+  suggestedJewelleryType?: "RING" | "EARRING" | "NECKLACE" | "BRACELET" | null;
   productUrl: string | null;
   featuredImageUrl: string | null;
   priceAmountCents: number | null;
@@ -60,6 +63,7 @@ export type ShopifyProduct = {
   description: string;
   status: "ACTIVE" | "ARCHIVED" | "DRAFT" | "UNLISTED";
   tags: string[];
+  category: { id: string; fullName: string } | null;
   updatedAt: string;
   onlineStoreUrl: string | null;
   featuredMedia: {

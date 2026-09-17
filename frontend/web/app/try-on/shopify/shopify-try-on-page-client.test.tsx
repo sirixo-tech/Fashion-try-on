@@ -24,6 +24,7 @@ const session = {
   garmentAssetId: "garment-1",
   expiresAt: "2026-09-11T00:15:00.000Z",
   product: {
+    tryOnVertical: "GARMENT" as const,
     id: "product-1",
     name: "Floral Shirt",
     handle: "floral-shirt",

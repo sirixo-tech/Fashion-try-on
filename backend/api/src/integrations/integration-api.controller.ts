@@ -26,8 +26,14 @@ import {
   IntegrationProductControlsResponseDto,
   UpdateIntegrationProductVtoDto,
   IntegrationProductControlsDto,
+  UpdateIntegrationProductKindDto,
 } from "./dto/integration-product-controls.dto.js";
 import { IntegrationCatalogSyncService } from "./integration-catalog-sync.service.js";
+import {
+  IntegrationShopifySettingsDto,
+  UpdateIntegrationShopifySettingsDto,
+} from "./dto/integration-settings.dto.js";
+import { IntegrationSettingsService } from "./integration-settings.service.js";
 import {
   IntegrationCredential,
   RequireIntegrationScopes,
@@ -38,7 +44,10 @@ import { type IntegrationCredentialContext } from "./integration-token-auth.serv
 @ApiSecurity("SelfXIntegrationToken")
 @Controller("api/v1/integrations")
 export class IntegrationApiController {
-  constructor(private readonly catalogSync: IntegrationCatalogSyncService) {}
+  constructor(
+    private readonly catalogSync: IntegrationCatalogSyncService,
+    private readonly settings: IntegrationSettingsService,
+  ) {}
 
   @Get("me")
   @RequireIntegrationScopes()
@@ -135,5 +144,27 @@ export class IntegrationApiController {
     @Body() input: UpdateIntegrationProductVtoDto,
   ): Promise<IntegrationProductControlsDto> {
     return this.catalogSync.updateProductVto(credential, input);
+  }
+
+  @Patch("products/kind")
+  @RequireIntegrationScopes("catalog:sync")
+  @ApiOperation({ summary: "Classify an imported product for SelfX Try-On" })
+  @ApiOkResponse({ type: IntegrationProductControlsDto })
+  updateProductKind(
+    @IntegrationCredential() credential: IntegrationCredentialContext,
+    @Body() input: UpdateIntegrationProductKindDto,
+  ): Promise<IntegrationProductControlsDto> {
+    return this.catalogSync.updateProductKind(credential, input);
+  }
+
+  @Patch("settings/shopify")
+  @RequireIntegrationScopes("catalog:sync")
+  @ApiOperation({ summary: "Update Shopify Try-On integration settings" })
+  @ApiOkResponse({ type: IntegrationShopifySettingsDto })
+  updateShopifySettings(
+    @IntegrationCredential() credential: IntegrationCredentialContext,
+    @Body() input: UpdateIntegrationShopifySettingsDto,
+  ): Promise<IntegrationShopifySettingsDto> {
+    return this.settings.updateShopifySettings(credential, input);
   }
 }

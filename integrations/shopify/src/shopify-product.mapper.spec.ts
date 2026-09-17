@@ -74,4 +74,55 @@ describe("Shopify product normalization", () => {
       ),
     ).not.toHaveProperty("vtoEnabled");
   });
+
+  it.each([
+    ["Rings", "RING"],
+    ["Earrings", "EARRING"],
+    ["Necklaces", "NECKLACE"],
+    ["Bracelets", "BRACELET"],
+  ])("maps Shopify Jewelry > %s to %s", (name, type) => {
+    const result = mapShopifyProduct(
+      shopifyProduct({
+        category: {
+          id: `gid://shopify/TaxonomyCategory/${name}`,
+          fullName: `Apparel & Accessories > Jewelry > ${name}`,
+        },
+      }),
+      "USD",
+    );
+    expect(result.suggestedJewelleryType).toBe(type);
+    expect(result.shopifyCategoryName).toContain(name);
+  });
+
+  it.each(["Engagement Rings", "Wedding Bands"])(
+    "inherits Ring for Shopify %s",
+    (name) => {
+      const result = mapShopifyProduct(
+        shopifyProduct({
+          category: {
+            id: `gid://shopify/TaxonomyCategory/${name}`,
+            fullName: `Apparel & Accessories > Jewelry > Rings > ${name}`,
+          },
+        }),
+        "USD",
+      );
+      expect(result.suggestedJewelleryType).toBe("RING");
+    },
+  );
+
+  it.each(["Jewelry", "Brooches & Lapel Pins", "Rings > Ring Sets"])(
+    "does not guess a type for unsupported %s",
+    (name) => {
+      const result = mapShopifyProduct(
+        shopifyProduct({
+          category: {
+            id: "gid://shopify/TaxonomyCategory/unsupported",
+            fullName: `Apparel & Accessories > Jewelry > ${name}`,
+          },
+        }),
+        "USD",
+      );
+      expect(result.suggestedJewelleryType).toBeNull();
+    },
+  );
 });

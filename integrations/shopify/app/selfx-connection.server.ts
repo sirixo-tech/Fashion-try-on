@@ -3,6 +3,14 @@ import { ShopifyAdminClient } from "../src/shopify-admin.server.js";
 import { ShopifyCatalogConnector } from "../src/shopify-catalog.connector.js";
 import db from "./db.server";
 import {
+  parseShopifyProductVisibilityRules,
+  parseShopifyTryOnMode,
+  type ShopifyProductVisibilityRule,
+  type ShopifyProductVisibilityRules,
+  type ShopifyTryOnVertical,
+  type ShopifyTryOnMode,
+} from "./selfx-tryon-settings";
+import {
   SelfxLinkApiError,
   SelfxLinkClient,
   loadSelfxLinkConfig,
@@ -29,6 +37,8 @@ export type SelfxConnectionView = {
   storeName: string | null;
   storefrontLocale: StorefrontLocale;
   adminLocale: LanguageLocale;
+  tryOnMode: ShopifyTryOnMode;
+  productVisibilityRules: ShopifyProductVisibilityRules;
   visitorTryOnLimit: number;
   visitorTryOnLimitPeriod: TryOnLimitPeriod;
   monthlyStoreTryOnLimit: number;
@@ -50,6 +60,7 @@ export type SelfxStorefrontSettingsInput = {
   shop: string;
   storefrontLocale: string;
   adminLocale: string;
+  tryOnMode?: unknown;
   visitorTryOnLimit: unknown;
   visitorTryOnLimitPeriod: unknown;
   monthlyStoreTryOnLimit: unknown;
@@ -84,6 +95,10 @@ export async function getSelfxConnectionView(
     storeName: connection.selfxStoreName,
     storefrontLocale: normalizeStorefrontLocale(connection.storefrontLocale),
     adminLocale: normalizeLanguageLocale(connection.adminLocale),
+    tryOnMode: parseShopifyTryOnMode(connection.tryOnMode),
+    productVisibilityRules: parseShopifyProductVisibilityRules(
+      connection.productVisibilityRules,
+    ),
     visitorTryOnLimit: normalizeLimit(connection.visitorTryOnLimit),
     visitorTryOnLimitPeriod: normalizeTryOnLimitPeriod(
       connection.visitorTryOnLimitPeriod,
@@ -100,6 +115,32 @@ export async function getSelfxConnectionView(
     errorCode: connection.lastErrorCode,
     errorMessage: connection.lastErrorMessage,
   };
+}
+
+export async function updateSelfxProductVisibilityRule(input: {
+  shop: string;
+  vertical: ShopifyTryOnVertical;
+  rule: ShopifyProductVisibilityRule;
+}): Promise<void> {
+  const connection = await db.selfxConnection.findUnique({
+    where: { shop: input.shop },
+    select: { productVisibilityRules: true },
+  });
+  if (!connection) {
+    throw new Error("Connect this Shopify shop to SelfX before continuing.");
+  }
+  const current = parseShopifyProductVisibilityRules(
+    connection.productVisibilityRules,
+  );
+  await db.selfxConnection.update({
+    where: { shop: input.shop },
+    data: {
+      productVisibilityRules: {
+        ...current,
+        [input.vertical]: input.rule,
+      },
+    },
+  });
 }
 
 export async function updateSelfxStorefrontLocale(input: {
@@ -120,6 +161,10 @@ export async function updateSelfxStorefrontLocale(input: {
 export async function updateSelfxStorefrontSettings(
   input: SelfxStorefrontSettingsInput,
 ): Promise<SelfxConnectionView> {
+  const tryOnMode =
+    input.tryOnMode === undefined
+      ? undefined
+      : parseShopifyTryOnMode(input.tryOnMode);
   const connection = await db.selfxConnection.findUnique({
     where: { shop: input.shop },
     select: { shop: true },
@@ -135,6 +180,7 @@ export async function updateSelfxStorefrontSettings(
     data: {
       storefrontLocale: normalizeStorefrontLocale(input.storefrontLocale),
       adminLocale: normalizeLanguageLocale(input.adminLocale),
+      ...(tryOnMode === undefined ? {} : { tryOnMode }),
       visitorTryOnLimit: normalizeLimit(input.visitorTryOnLimit),
       visitorTryOnLimitPeriod: normalizeTryOnLimitPeriod(
         input.visitorTryOnLimitPeriod,
@@ -467,6 +513,8 @@ function emptyView(shop: string): SelfxConnectionView {
     storeName: null,
     storefrontLocale: "auto",
     adminLocale: "en",
+    tryOnMode: "BOTH",
+    productVisibilityRules: {},
     visitorTryOnLimit: 0,
     visitorTryOnLimitPeriod: "DAY",
     monthlyStoreTryOnLimit: 0,
@@ -485,13 +533,17 @@ function emptyView(shop: string): SelfxConnectionView {
 
 function normalizeLimit(value: unknown): number {
   const parsed =
-    typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+    typeof value === "number"
+      ? value
+      : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return Math.min(Math.floor(parsed), 1_000_000);
 }
 
 function normalizeTryOnLimitPeriod(value: unknown): TryOnLimitPeriod {
-  const clean = String(value ?? "").trim().toUpperCase();
+  const clean = String(value ?? "")
+    .trim()
+    .toUpperCase();
   return clean === "WEEK" || clean === "MONTH" ? clean : "DAY";
 }
 

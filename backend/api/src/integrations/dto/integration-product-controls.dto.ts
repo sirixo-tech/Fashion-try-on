@@ -3,19 +3,27 @@ import { Type } from "class-transformer";
 import {
   IsBoolean,
   IsInt,
+  IsIn,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
 } from "class-validator";
+import {
+  PRODUCT_VERTICALS,
+  JEWELLERY_TYPES,
+  type ProductVertical,
+  type JewelleryType,
+} from "../../catalog/product-kind.js";
 
 export const integrationProductTryOnStatuses = [
   "READY",
   "DISABLED",
   "INACTIVE",
   "MISSING_IMAGE",
-  "NOT_GARMENT",
+  "MISSING_JEWELLERY_TYPE",
+  "NEEDS_CLASSIFICATION",
 ] as const;
 export type IntegrationProductTryOnStatus =
   (typeof integrationProductTryOnStatuses)[number];
@@ -27,6 +35,31 @@ export class IntegrationProductControlsQueryDto {
   @Min(1)
   @Max(50)
   limit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  offset?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  search?: string;
+}
+
+export class UpdateIntegrationProductKindDto {
+  @IsString()
+  @MaxLength(180)
+  externalProductId!: string;
+
+  @IsIn(PRODUCT_VERTICALS)
+  productVertical!: ProductVertical;
+
+  @IsOptional()
+  @IsIn(JEWELLERY_TYPES)
+  jewelleryType?: JewelleryType | null;
 }
 
 export class UpdateIntegrationProductVtoDto {
@@ -60,6 +93,9 @@ export class IntegrationProductControlsDto {
   @ApiProperty()
   productVertical!: string;
 
+  @ApiPropertyOptional({ enum: JEWELLERY_TYPES, nullable: true })
+  jewelleryType!: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   imageUrl!: string | null;
 
@@ -73,6 +109,9 @@ export class IntegrationProductControlsDto {
 export class IntegrationProductControlsResponseDto {
   @ApiProperty({ type: [IntegrationProductControlsDto] })
   data!: IntegrationProductControlsDto[];
+
+  @ApiProperty()
+  hasMore!: boolean;
 
   @ApiProperty()
   summary!: {

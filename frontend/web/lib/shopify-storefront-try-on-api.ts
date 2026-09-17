@@ -3,6 +3,8 @@ import { selfxApi } from "@/lib/api";
 export interface ShopifyTryOnProduct {
   id: string;
   name: string;
+  tryOnVertical: "GARMENT" | "JEWELLERY";
+  jewelleryType?: "RING" | "EARRING" | "NECKLACE" | "BRACELET" | null;
   handle?: string;
   externalProductId?: string;
   imageUrl?: string;

@@ -28,6 +28,9 @@ export function mapShopifyProduct(
     handle: nullableTrim(product.handle),
     description: nullableTrim(product.description),
     status: mapStatus(product.status),
+    shopifyCategoryId: product.category?.id ?? null,
+    shopifyCategoryName: product.category?.fullName ?? null,
+    suggestedJewelleryType: jewelleryTypeFromShopifyCategory(product.category),
     productUrl: product.onlineStoreUrl,
     featuredImageUrl,
     priceAmountCents: firstVariant?.priceAmountCents ?? null,
@@ -35,6 +38,29 @@ export function mapShopifyProduct(
     sourceUpdatedAt: new Date(product.updatedAt).toISOString(),
     variants,
   };
+}
+
+export function jewelleryTypeFromShopifyCategory(
+  category: ShopifyProduct["category"],
+): SelfxCatalogProduct["suggestedJewelleryType"] {
+  if (!category) return null;
+  const parts = category.fullName.split(" > ").map((part) => part.trim());
+  if (parts[0] !== "Apparel & Accessories" || parts[1] !== "Jewelry") {
+    return null;
+  }
+  if (parts.length === 4) {
+    return parts[2] === "Rings" &&
+      (parts[3] === "Engagement Rings" || parts[3] === "Wedding Bands")
+      ? "RING"
+      : null;
+  }
+  if (parts.length !== 3) return null;
+  const type = parts[2];
+  if (type === "Rings") return "RING";
+  if (type === "Earrings") return "EARRING";
+  if (type === "Necklaces") return "NECKLACE";
+  if (type === "Bracelets") return "BRACELET";
+  return null;
 }
 
 export function moneyToCents(value: string): number | null {

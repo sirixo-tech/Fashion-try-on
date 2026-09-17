@@ -48,6 +48,8 @@ model SelfxConnection {
   selfxCredentialId          String?
   storefrontLocale           String    @default("auto")
   adminLocale                String    @default("en")
+  tryOnMode                  String    @default("BOTH")
+  productVisibilityRules     Json      @default("{}")
   visitorTryOnLimit          Int       @default(0)
   visitorTryOnLimitPeriod    String    @default("DAY")
   monthlyStoreTryOnLimit     Int       @default(0)

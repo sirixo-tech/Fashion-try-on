@@ -12,6 +12,7 @@ import { IntegrationApiController } from "./integration-api.controller.js";
 import { IntegrationCatalogSyncService } from "./integration-catalog-sync.service.js";
 import { IntegrationTokenAuthService } from "./integration-token-auth.service.js";
 import { IntegrationTokenGuard } from "./integration-token.guard.js";
+import { IntegrationSettingsService } from "./integration-settings.service.js";
 import { IntegrationsController } from "./integrations.controller.js";
 import { IntegrationsService } from "./integrations.service.js";
 import { ShopifyOauthService } from "./shopify-oauth.service.js";
@@ -38,6 +39,7 @@ import { ShopifyWebhookService } from "./shopify-webhook.service.js";
     IntegrationCatalogSyncService,
     IntegrationTokenAuthService,
     IntegrationTokenGuard,
+    IntegrationSettingsService,
     PlatformAuthorizationService,
     StoreRbacService,
     ShopifyOauthService,

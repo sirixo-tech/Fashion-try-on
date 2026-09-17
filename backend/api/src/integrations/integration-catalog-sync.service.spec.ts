@@ -71,6 +71,8 @@ describe("IntegrationCatalogSyncService", () => {
         garmentIntent: "AUTO",
         garmentCategory: "AUTO",
         garmentPhotoType: "AUTO",
+        productVertical: "GARMENT",
+        jewelleryType: null,
         productUrl: "https://shop.example/products/black-tee",
       }),
     });
@@ -105,6 +107,76 @@ describe("IntegrationCatalogSyncService", () => {
     });
   });
 
+  it("classifies a new Shopify ring from its category", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue(null);
+    await createService(tx).sync(credential, {
+      mode: "INCREMENTAL",
+      products: [
+        {
+          ...productInput,
+          shopifyCategoryName: "Apparel & Accessories > Jewelry > Rings",
+          suggestedJewelleryType: "RING",
+        },
+      ],
+    });
+    expect(tx.product.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        productVertical: "JEWELLERY",
+        jewelleryType: "RING",
+      }),
+    });
+    expect(tx.externalProductMapping.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({ classificationSource: "AUTO" }),
+      }),
+    });
+  });
+
+  it("keeps a manual type when Shopify changes the category", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      id: "mapping-1",
+      productId: "selfx-product-1",
+      externalProductId: "shopify-product-1",
+      externalUpdatedAt: new Date("2026-09-07T08:00:00.000Z"),
+      metadata: { classificationSource: "MANUAL" },
+      product: { productVertical: "GARMENT", jewelleryType: null },
+    });
+    await createService(tx).sync(credential, {
+      mode: "INCREMENTAL",
+      products: [{ ...productInput, suggestedJewelleryType: "RING" }],
+    });
+    expect(tx.product.update.mock.calls[0]?.[0]?.data).not.toHaveProperty(
+      "jewelleryType",
+    );
+    expect(
+      tx.externalProductMapping.update.mock.calls[0]?.[0]?.data.metadata
+        .classificationSource,
+    ).toBe("MANUAL");
+  });
+
+  it("reclassifies an automatic type and disables Try-On when the category changes", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      id: "mapping-1",
+      productId: "selfx-product-1",
+      externalProductId: "shopify-product-1",
+      externalUpdatedAt: new Date("2026-09-07T08:00:00.000Z"),
+      metadata: { classificationSource: "AUTO" },
+      product: { productVertical: "JEWELLERY", jewelleryType: "RING" },
+    });
+    await createService(tx).sync(credential, {
+      mode: "INCREMENTAL",
+      products: [{ ...productInput, suggestedJewelleryType: "EARRING" }],
+    });
+    expect(tx.product.update.mock.calls[0]?.[0]?.data).toMatchObject({
+      productVertical: "JEWELLERY",
+      jewelleryType: "EARRING",
+      vtoEnabled: false,
+    });
+  });
+
   it("updates commerce fields without changing SelfX-owned VTO settings", async () => {
     const tx = createTransaction();
     tx.externalProductMapping.findFirst.mockResolvedValue({
@@ -134,6 +206,7 @@ describe("IntegrationCatalogSyncService", () => {
     expect(updateData).not.toHaveProperty("garmentCategory");
     expect(updateData).not.toHaveProperty("garmentPhotoType");
     expect(updateData).not.toHaveProperty("productVertical");
+    expect(updateData).not.toHaveProperty("jewelleryType");
   });
 
   it("updates VTO eligibility when commerce sends an explicit eligibility signal", async () => {
@@ -543,6 +616,229 @@ describe("IntegrationCatalogSyncService", () => {
     expect(tx.product.update).not.toHaveBeenCalled();
   });
 
+  it("rejects enabling a Shopify product outside the configured Try-On mode", async () => {
+    const tx = createTransaction();
+    tx.integration.findFirst.mockResolvedValue({
+      metadata: { tryOnMode: "GARMENT" },
+    });
+    tx.externalProductMapping.findFirst.mockResolvedValue(
+      productControlMapping({
+        product: {
+          id: "selfx-product-1",
+          name: "Gold Ring",
+          active: true,
+          vtoEnabled: false,
+          productVertical: "JEWELLERY",
+          jewelleryType: "RING",
+          imageUrl: "https://cdn.example/gold-ring.jpg",
+          imageStorageKey: null,
+          updatedAt: new Date("2026-09-17T10:00:00.000Z"),
+        },
+      }),
+    );
+
+    await expect(
+      createService(tx).updateProductVto(credential, {
+        externalProductId: "gid://shopify/Product/1001",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotEligible,
+        }),
+      }),
+    });
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
+  it("requires manual classification for broad Shopify jewellery categories", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      ...classificationMapping(),
+      metadata: {
+        authoritativeSource: "SHOPIFY",
+        shopifyCategoryName: "Apparel & Accessories > Jewelry",
+      },
+    });
+    await expect(
+      createService(tx).updateProductVto(credential, {
+        externalProductId: "gid://shopify/Product/1001",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotEligible,
+        }),
+      }),
+    });
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
+  it.each(["RING", "BRACELET", "NECKLACE", "EARRING"] as const)(
+    "classifies jewellery as %s and disables existing Try-On",
+    async (jewelleryType) => {
+      const tx = createTransaction();
+      const mapping = classificationMapping();
+      tx.externalProductMapping.findFirst.mockResolvedValue(mapping);
+      tx.product.update.mockResolvedValue({
+        ...mapping.product,
+        productVertical: "JEWELLERY",
+        jewelleryType,
+        vtoEnabled: false,
+      });
+      const result = await createService(tx).updateProductKind(credential, {
+        externalProductId: mapping.externalProductId,
+        productVertical: "JEWELLERY",
+        jewelleryType,
+      });
+      expect(result).toMatchObject({
+        productVertical: "JEWELLERY",
+        jewelleryType,
+        vtoEnabled: false,
+      });
+      expect(tx.externalProductMapping.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            integrationId: credential.integrationId,
+            organizationId: credential.storeId,
+            externalVariantId: null,
+            status: "ACTIVE",
+          }),
+        }),
+      );
+      expect(tx.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: mapping.productId,
+            organizationId: credential.storeId,
+            scope: "STORE",
+          },
+          data: {
+            productVertical: "JEWELLERY",
+            jewelleryType,
+            vtoEnabled: false,
+            garmentIntent: "JEWELLERY",
+            garmentCategory: jewelleryType,
+            garmentPhotoType: "PRODUCT",
+          },
+        }),
+      );
+    },
+  );
+
+  it("clears jewellery fields when switching back to garment", async () => {
+    const tx = createTransaction();
+    const mapping = classificationMapping();
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      ...mapping,
+      product: {
+        ...mapping.product,
+        productVertical: "JEWELLERY",
+        jewelleryType: "RING",
+      },
+    });
+    tx.product.update.mockResolvedValue(mapping.product);
+    await createService(tx).updateProductKind(credential, {
+      externalProductId: mapping.externalProductId,
+      productVertical: "GARMENT",
+      jewelleryType: null,
+    });
+    expect(tx.product.update.mock.calls[0]?.[0]?.data).toEqual({
+      productVertical: "GARMENT",
+      jewelleryType: null,
+      vtoEnabled: false,
+      garmentIntent: "AUTO",
+      garmentCategory: "AUTO",
+      garmentPhotoType: "AUTO",
+    });
+  });
+
+  it("preserves Try-On and garment policy for unchanged classification", async () => {
+    const tx = createTransaction();
+    const mapping = classificationMapping();
+    tx.externalProductMapping.findFirst.mockResolvedValue(mapping);
+    tx.product.update.mockResolvedValue(mapping.product);
+    await createService(tx).updateProductKind(credential, {
+      externalProductId: mapping.externalProductId,
+      productVertical: "GARMENT",
+    });
+    expect(tx.product.update.mock.calls[0]?.[0]?.data).toEqual({
+      productVertical: "GARMENT",
+      jewelleryType: null,
+    });
+  });
+
+  it.each([
+    { productVertical: "JEWELLERY", jewelleryType: null },
+    { productVertical: "JEWELLERY", jewelleryType: "OTHER" },
+    { productVertical: "GARMENT", jewelleryType: "RING" },
+    { productVertical: "OTHER", jewelleryType: null },
+  ])("rejects invalid classification %j", async (input) => {
+    const tx = createTransaction();
+    await expect(
+      createService(tx).updateProductKind(credential, {
+        externalProductId: "product-1",
+        ...input,
+      } as never),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: INTEGRATION_CATALOG_SYNC_ERROR_CODES.invalidProductKind,
+        }),
+      }),
+    });
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects products outside the authenticated integration", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findFirst.mockResolvedValue(null);
+    await expect(
+      createService(tx).updateProductKind(credential, {
+        externalProductId: "another-store-product",
+        productVertical: "GARMENT",
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: INTEGRATION_CATALOG_SYNC_ERROR_CODES.productNotFound,
+        }),
+      }),
+    });
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
+  it("searches and paginates within the credential's products", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findMany.mockResolvedValue([
+      classificationMapping(),
+      classificationMapping(),
+      classificationMapping(),
+    ]);
+    const result = await createService(tx).listProductControls(credential, {
+      limit: 2,
+      offset: 25,
+      search: "ring",
+    });
+    expect(result.data).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+    expect(tx.externalProductMapping.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 3,
+        skip: 25,
+        where: expect.objectContaining({
+          organizationId: credential.storeId,
+          integrationId: credential.integrationId,
+          OR: expect.arrayContaining([
+            { product: { name: { contains: "ring", mode: "insensitive" } } },
+          ]),
+        }),
+      }),
+    );
+  });
+
   it("rejects duplicate external product identities", async () => {
     const tx = createTransaction();
     const service = createService(tx);
@@ -573,6 +869,11 @@ function createService(tx: ReturnType<typeof createTransaction>) {
 
 function createTransaction() {
   return {
+    integration: {
+      findFirst: vi.fn().mockResolvedValue({
+        metadata: { tryOnMode: "BOTH" },
+      }),
+    },
     productCategory: {
       upsert: vi.fn().mockResolvedValue({ id: "category-1" }),
     },
@@ -600,6 +901,7 @@ function productControlMapping(overrides: {
     active: boolean;
     vtoEnabled: boolean;
     productVertical: "GARMENT" | "JEWELLERY";
+    jewelleryType?: string | null;
     imageUrl: string | null;
     imageStorageKey: string | null;
     updatedAt: Date;
@@ -613,6 +915,22 @@ function productControlMapping(overrides: {
     externalVariantId: null,
     externalHandle: overrides.externalHandle ?? "floral-shirt",
     status: ExternalProductMappingStatus.ACTIVE,
-    product: overrides.product,
+    product: { jewelleryType: null, ...overrides.product },
   };
+}
+
+function classificationMapping() {
+  return productControlMapping({
+    product: {
+      id: "selfx-product-1",
+      name: "Product",
+      active: true,
+      vtoEnabled: true,
+      productVertical: "GARMENT",
+      jewelleryType: null,
+      imageUrl: "https://cdn.example/product.jpg",
+      imageStorageKey: null,
+      updatedAt: new Date("2026-09-17T00:00:00.000Z"),
+    },
+  });
 }

@@ -43,8 +43,12 @@ import { ObjectStorageService } from "../storage/object-storage.js";
 import {
   TryOnExecutionService,
   type NormalizedTryOnProcessError,
+  type TryOnExecutionObserver,
 } from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
+import { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
+import { JewelleryTryOnService } from "../try-on/jewellery/jewellery-try-on.service.js";
+import type { JewelleryTryOnProviderSubmitInput } from "../try-on/jewellery/jewellery-try-on.provider.js";
 import { TRY_ON_RESULT_RETENTION_MS } from "../try-on/try-on.constants.js";
 import {
   type CreateTryOnLabRunPayload,
@@ -62,6 +66,10 @@ import {
   type ShopifyStorefrontTryOnRunDto,
   type ShopifyStorefrontTryOnSessionDto,
 } from "./dto/shopify-storefront-try-on.dto.js";
+import {
+  needsShopifyJewelleryClassification,
+  shopifyTryOnModeAllowsProduct,
+} from "./shopify-product-category.js";
 
 const storefrontProductImageMaxBytes = PUBLIC_API_UPLOAD_MAX_IMAGE_BYTES;
 export const SHOPIFY_STOREFRONT_TRY_ON_SESSION_LIFETIME_MS = 15 * 60 * 1000;
@@ -102,6 +110,7 @@ type ShopifyProductRecord = Pick<
   | "priceAmountCents"
   | "priceCurrency"
   | "productVertical"
+  | "jewelleryType"
   | "garmentIntent"
   | "garmentCategory"
   | "garmentPhotoType"
@@ -141,12 +150,20 @@ export class ShopifyStorefrontTryOnService {
     private readonly execution: TryOnExecutionService,
     private readonly entitlements: EntitlementsService,
     private readonly pricing: PricingControlService,
+    private readonly jewelleryTryOn: JewelleryTryOnService,
+    private readonly jewelleryExecution: JewelleryTryOnExecutionService,
   ) {}
 
   async createSession(
     input: CreateShopifyStorefrontTryOnSessionDto,
   ): Promise<ShopifyStorefrontTryOnSessionDto> {
     const context = await this.requireEligibleProduct(input);
+    if (context.product.productVertical === "JEWELLERY") {
+      await this.jewelleryTryOn.assertStoreCanRunJewelleryTryOn(
+        context.storeId,
+      );
+      this.jewelleryExecution.assertConfigured();
+    }
     await this.entitlements.assertStoreHasFeature(
       context.storeId,
       "SHOPIFY_INTEGRATION",
@@ -446,8 +463,22 @@ export class ShopifyStorefrontTryOnService {
       this.readAssetAsUploadedImage(personAsset, "personImage"),
       this.readAssetAsUploadedImage(garmentAsset, "garmentImage"),
     ]);
-    const provider = this.execution.metadata();
-    this.execution.assertConfigured();
+    const isJewellery = capability.product.productVertical === "JEWELLERY";
+    const jewelleryFoundation = isJewellery
+      ? await this.jewelleryTryOn.prepareRunFoundation({
+          storeId: capability.organizationId,
+          personImageDataUri: personImage.dataUri,
+          jewelleryImageDataUri: garmentImage.dataUri,
+          jewelleryType: capability.product.jewelleryType!,
+          productReference: {
+            productId: capability.product.id,
+            productName: capability.product.name,
+            sku: mapping.externalSku ?? undefined,
+          },
+        })
+      : null;
+    if (!isJewellery) this.execution.assertConfigured();
+    const provider = jewelleryFoundation?.provider ?? this.execution.metadata();
     const clientRequestId = input.clientRequestId?.trim() || randomUUID();
     await this.entitlements.consumeTryOnCredit({
       organizationId: capability.organizationId,
@@ -492,8 +523,8 @@ export class ShopifyStorefrontTryOnService {
         provider: provider.provider,
         providerDisplayName: provider.providerDisplayName,
         providerModel: provider.model,
-        tryOnVertical: "GARMENT",
-        jewelleryType: null,
+        tryOnVertical: isJewellery ? "JEWELLERY" : "GARMENT",
+        jewelleryType: jewelleryFoundation?.jewelleryType ?? null,
         garmentSource: "SHOPIFY",
         garmentIntent: normalizeGarmentIntent(capability.product.garmentIntent),
         garmentCategory: normalizeGarmentCategory(
@@ -514,26 +545,40 @@ export class ShopifyStorefrontTryOnService {
       productId: capability.product.id,
       personAssetId: personAsset.id,
       garmentAssetId: garmentAsset.id,
-      payload: {
-        clientRequestId: run.clientRequestId,
-        personImage,
-        garmentImage,
-        garmentSource: "SHOPIFY",
-        garmentIntent: normalizeGarmentIntent(capability.product.garmentIntent),
-        category: normalizeGarmentCategory(capability.product.garmentCategory),
-        garmentPhotoType: normalizeGarmentPhotoType(
-          capability.product.garmentPhotoType,
-        ),
-        generationProfile: DEFAULT_TRY_ON_GENERATION_PROFILE,
-        categoryResolutionSource: "SHOPIFY_CATALOG_METADATA",
-        photoTypeResolutionSource: "SHOPIFY_CATALOG_METADATA",
-        profileResolutionSource: "PLATFORM_DEFAULT",
-        disambiguationRequired: false,
-        disambiguationResolved: true,
-        garmentAnalysisReasonCodes: [],
-        qualityWarningCodes: [],
-        qualityOverrideAccepted: false,
-      },
+      jewelleryPayload: jewelleryFoundation
+        ? {
+            personImageDataUri: personImage.dataUri,
+            jewelleryImageDataUri: garmentImage.dataUri,
+            jewelleryType: jewelleryFoundation.jewelleryType,
+            productReference: jewelleryFoundation.productReference,
+          }
+        : undefined,
+      payload: isJewellery
+        ? undefined
+        : {
+            clientRequestId: run.clientRequestId,
+            personImage,
+            garmentImage,
+            garmentSource: "SHOPIFY",
+            garmentIntent: normalizeGarmentIntent(
+              capability.product.garmentIntent,
+            ),
+            category: normalizeGarmentCategory(
+              capability.product.garmentCategory,
+            ),
+            garmentPhotoType: normalizeGarmentPhotoType(
+              capability.product.garmentPhotoType,
+            ),
+            generationProfile: DEFAULT_TRY_ON_GENERATION_PROFILE,
+            categoryResolutionSource: "SHOPIFY_CATALOG_METADATA",
+            photoTypeResolutionSource: "SHOPIFY_CATALOG_METADATA",
+            profileResolutionSource: "PLATFORM_DEFAULT",
+            disambiguationRequired: false,
+            disambiguationResolved: true,
+            garmentAnalysisReasonCodes: [],
+            qualityWarningCodes: [],
+            qualityOverrideAccepted: false,
+          },
     });
 
     return this.toRunDto(run, sessionToken, toCapabilityProductDto(capability));
@@ -571,7 +616,7 @@ export class ShopifyStorefrontTryOnService {
         metadata: { path: ["shopDomain"], equals: shopDomain },
         organization: { status: "ACTIVE" },
       },
-      select: { id: true, organizationId: true },
+      select: { id: true, organizationId: true, metadata: true },
     });
     if (!integration) {
       throw productUnavailable();
@@ -600,7 +645,7 @@ export class ShopifyStorefrontTryOnService {
         metadata: { path: ["shopDomain"], equals: shop },
         organization: { status: "ACTIVE" },
       },
-      select: { id: true, organizationId: true },
+      select: { id: true, organizationId: true, metadata: true },
     });
     if (!integration) {
       throw productUnavailable();
@@ -620,6 +665,7 @@ export class ShopifyStorefrontTryOnService {
         externalProductId: true,
         externalHandle: true,
         externalSku: true,
+        metadata: true,
         product: { select: productSelect },
       },
     });
@@ -627,6 +673,26 @@ export class ShopifyStorefrontTryOnService {
       throw productUnavailable();
     }
     assertProductEligible(mapping.product);
+    if (
+      !shopifyTryOnModeAllowsProduct(
+        integration.metadata,
+        mapping.product.productVertical,
+      )
+    ) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.productNotEnabled,
+        "This product type is not enabled for this Shopify store.",
+      );
+    }
+    if (
+      needsShopifyJewelleryClassification(
+        mapping.metadata,
+        mapping.product.productVertical,
+      )
+    ) {
+      throw productUnavailable();
+    }
     return {
       integrationId: integration.id,
       storeId: integration.organizationId,
@@ -685,6 +751,18 @@ export class ShopifyStorefrontTryOnService {
       throw productUnavailable();
     }
     assertProductEligible(capability.product);
+    if (
+      !shopifyTryOnModeAllowsProduct(
+        capability.integration.metadata,
+        capability.product.productVertical,
+      )
+    ) {
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.productNotEnabled,
+        "This product type is not enabled for this Shopify store.",
+      );
+    }
   }
 
   private async requireActiveMapping(
@@ -702,9 +780,18 @@ export class ShopifyStorefrontTryOnService {
         externalProductId: true,
         externalHandle: true,
         externalSku: true,
+        metadata: true,
       },
     });
     if (!mapping) {
+      throw productUnavailable();
+    }
+    if (
+      needsShopifyJewelleryClassification(
+        mapping.metadata,
+        capability.product.productVertical,
+      )
+    ) {
       throw productUnavailable();
     }
     return mapping;
@@ -831,11 +918,12 @@ export class ShopifyStorefrontTryOnService {
       productId: string;
       personAssetId: string;
       garmentAssetId: string;
-      payload: CreateTryOnLabRunPayload;
+      payload?: CreateTryOnLabRunPayload;
+      jewelleryPayload?: JewelleryTryOnProviderSubmitInput;
     },
   ): Promise<void> {
     try {
-      await this.execution.process(input.payload, {
+      const observer: TryOnExecutionObserver = {
         onStarted: async (startedAt) => {
           await this.prisma.kioskTryOnRun.update({
             where: { id: runId },
@@ -894,7 +982,12 @@ export class ShopifyStorefrontTryOnService {
             },
           });
         },
-      });
+      };
+      if (input.jewelleryPayload) {
+        await this.jewelleryExecution.process(input.jewelleryPayload, observer);
+      } else if (input.payload) {
+        await this.execution.process(input.payload, observer);
+      }
     } catch (error) {
       this.logger.warn({
         event: "shopify_storefront_try_on_process_failed",
@@ -1041,6 +1134,7 @@ const productSelect = {
   priceAmountCents: true,
   priceCurrency: true,
   productVertical: true,
+  jewelleryType: true,
   garmentIntent: true,
   garmentCategory: true,
   garmentPhotoType: true,
@@ -1052,6 +1146,7 @@ const storefrontCapabilityInclude = {
       id: true,
       type: true,
       status: true,
+      metadata: true,
       organization: { select: { id: true, status: true } },
     },
   },
@@ -1188,6 +1283,8 @@ function toProductDto(
   return {
     id: context.product.id,
     name: context.product.name,
+    tryOnVertical: context.product.productVertical,
+    jewelleryType: context.product.jewelleryType,
     handle: context.mapping.externalHandle ?? undefined,
     externalProductId: context.mapping.externalProductId,
     imageUrl: context.product.imageUrl ?? undefined,
@@ -1202,6 +1299,8 @@ function toCapabilityProductDto(
   return {
     id: capability.product.id,
     name: capability.product.name,
+    tryOnVertical: capability.product.productVertical,
+    jewelleryType: capability.product.jewelleryType,
     handle: capability.productHandle ?? undefined,
     externalProductId: capability.externalProductId,
     imageUrl: capability.product.imageUrl ?? undefined,
@@ -1232,12 +1331,6 @@ function toPricingPlanDto(
 
 function supportsShopifyChannel(plan: { channels: string[] }): boolean {
   return plan.channels.includes("SHOPIFY");
-}
-
-function jsonStringArray(value: Prisma.JsonValue): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
 }
 
 function objectKeyFor(input: {
@@ -1319,7 +1412,8 @@ function assertProductEligible(product: ShopifyProductRecord): void {
   if (
     !product.active ||
     !product.vtoEnabled ||
-    product.productVertical !== "GARMENT"
+    (product.productVertical !== "GARMENT" &&
+      (product.productVertical !== "JEWELLERY" || !product.jewelleryType))
   ) {
     throw new ApiErrorException(
       HttpStatus.CONFLICT,

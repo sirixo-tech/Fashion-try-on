@@ -1,7 +1,4 @@
-import {
-  SelfxLinkApiError,
-  type SelfxLinkConfig,
-} from "./selfx-link.server";
+import { SelfxLinkApiError, type SelfxLinkConfig } from "./selfx-link.server";
 
 const requestTimeoutMs = 15_000;
 
@@ -10,7 +7,8 @@ export type SelfxProductTryOnStatus =
   | "DISABLED"
   | "INACTIVE"
   | "MISSING_IMAGE"
-  | "NOT_GARMENT";
+  | "MISSING_JEWELLERY_TYPE"
+  | "NEEDS_CLASSIFICATION";
 
 export type SelfxProductControl = {
   id: string;
@@ -20,6 +18,7 @@ export type SelfxProductControl = {
   active: boolean;
   vtoEnabled: boolean;
   productVertical: string;
+  jewelleryType: string | null;
   imageUrl: string | null;
   tryOnStatus: SelfxProductTryOnStatus;
   updatedAt: string;
@@ -27,6 +26,7 @@ export type SelfxProductControl = {
 
 export type SelfxProductControlsResponse = {
   data: SelfxProductControl[];
+  hasMore: boolean;
   summary: {
     total: number;
     ready: number;
@@ -35,6 +35,8 @@ export type SelfxProductControlsResponse = {
   };
 };
 
+export type SelfxShopifyTryOnMode = "GARMENT" | "JEWELLERY" | "BOTH";
+
 export class SelfxProductControlsClient {
   constructor(
     private readonly config: SelfxLinkConfig,
@@ -42,8 +44,13 @@ export class SelfxProductControlsClient {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
-  async listProducts(limit = 25): Promise<SelfxProductControlsResponse> {
+  async listProducts(
+    limit = 25,
+    query: { search?: string; offset?: number } = {},
+  ): Promise<SelfxProductControlsResponse> {
     const search = new URLSearchParams({ limit: String(limit) });
+    if (query.search) search.set("search", query.search);
+    if (query.offset != null) search.set("offset", String(query.offset));
     const result = await this.request<SelfxProductControlsResponse>(
       `/products?${search.toString()}`,
       { method: "GET" },
@@ -63,6 +70,41 @@ export class SelfxProductControlsClient {
       body: JSON.stringify(input),
     });
     if (!result.externalProductId || !result.tryOnStatus) {
+      throw invalidResponse();
+    }
+    return result;
+  }
+
+  async setProductKind(input: {
+    externalProductId: string;
+    productVertical: string;
+    jewelleryType: string | null;
+  }): Promise<SelfxProductControl> {
+    const result = await this.request<SelfxProductControl>("/products/kind", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    if (!result.externalProductId || !result.productVertical) {
+      throw invalidResponse();
+    }
+    return result;
+  }
+
+  async updateShopifySettings(input: {
+    tryOnMode: SelfxShopifyTryOnMode;
+  }): Promise<{ tryOnMode: SelfxShopifyTryOnMode }> {
+    const result = await this.request<{ tryOnMode: SelfxShopifyTryOnMode }>(
+      "/settings/shopify",
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    );
+    if (
+      result.tryOnMode !== "GARMENT" &&
+      result.tryOnMode !== "JEWELLERY" &&
+      result.tryOnMode !== "BOTH"
+    ) {
       throw invalidResponse();
     }
     return result;

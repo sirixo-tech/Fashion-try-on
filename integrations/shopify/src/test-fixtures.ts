@@ -10,6 +10,7 @@ export function shopifyProduct(
     description: "A black tee",
     status: "ACTIVE",
     tags: [],
+    category: null,
     updatedAt: "2026-09-07T09:00:00.000Z",
     onlineStoreUrl: "https://shop.example/products/black-tee",
     featuredMedia: null,

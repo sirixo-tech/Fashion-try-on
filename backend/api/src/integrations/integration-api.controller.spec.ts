@@ -2,10 +2,24 @@ import { IntegrationType } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { IntegrationApiController } from "./integration-api.controller.js";
+import { INTEGRATION_SCOPES_METADATA } from "./integration-token.constants.js";
+import { IntegrationTokenGuard } from "./integration-token.guard.js";
 
 describe("IntegrationApiController", () => {
+  it("protects product classification with integration scope and authentication", () => {
+    const handler = IntegrationApiController.prototype.updateProductKind;
+    expect(Reflect.getMetadata(INTEGRATION_SCOPES_METADATA, handler)).toEqual([
+      "catalog:sync",
+    ]);
+    expect(Reflect.getMetadata("__guards__", handler)).toContain(
+      IntegrationTokenGuard,
+    );
+  });
   it("returns safe integration credential context for plugin callers", () => {
-    const controller = new IntegrationApiController({ sync: vi.fn() } as never);
+    const controller = new IntegrationApiController(
+      { sync: vi.fn() } as never,
+      { updateShopifySettings: vi.fn() } as never,
+    );
 
     const response = controller.me({
       credentialId: "credential-1",
@@ -47,7 +61,10 @@ describe("IntegrationApiController", () => {
       skippedWithoutImage: 0,
       processedAt: "2026-09-07T00:00:00.000Z",
     });
-    const controller = new IntegrationApiController({ sync } as never);
+    const controller = new IntegrationApiController(
+      { sync } as never,
+      { updateShopifySettings: vi.fn() } as never,
+    );
     const credential = {
       credentialId: "credential-1",
       integrationId: "integration-1",

@@ -15,7 +15,8 @@ export const supportedStorefrontLocales = [
 ] as const;
 
 export type LanguageLocale = (typeof supportedLanguageLocales)[number]["code"];
-export type StorefrontLocale = (typeof supportedStorefrontLocales)[number]["code"];
+export type StorefrontLocale =
+  (typeof supportedStorefrontLocales)[number]["code"];
 
 const supportedLocaleCodes = new Set<string>(
   supportedStorefrontLocales.map((locale) => locale.code),
@@ -25,20 +26,30 @@ const supportedLanguageLocaleCodes = new Set<string>(
 );
 
 export function normalizeStorefrontLocale(value: unknown): StorefrontLocale {
-  const clean = String(value ?? "").trim().toLowerCase().split("-")[0];
+  const clean = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .split("-")[0];
   return supportedLocaleCodes.has(clean) ? (clean as StorefrontLocale) : "auto";
 }
 
 export function normalizeLanguageLocale(value: unknown): LanguageLocale {
-  const clean = String(value ?? "").trim().toLowerCase().split("-")[0];
-  return supportedLanguageLocaleCodes.has(clean) ? (clean as LanguageLocale) : "en";
+  const clean = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .split("-")[0];
+  return supportedLanguageLocaleCodes.has(clean)
+    ? (clean as LanguageLocale)
+    : "en";
 }
 
-export function storefrontLocaleLabel(locale: string | null | undefined): string {
+export function storefrontLocaleLabel(
+  locale: string | null | undefined,
+): string {
   const normalized = normalizeStorefrontLocale(locale);
   return (
-    supportedStorefrontLocales.find((item) => item.code === normalized)?.label ??
-    "English"
+    supportedStorefrontLocales.find((item) => item.code === normalized)
+      ?.label ?? "English"
   );
 }
 
@@ -61,6 +72,10 @@ type AdminTextKey =
   | "support"
   | "refresh"
   | "saveSettings"
+  | "tryOnTypes"
+  | "garments"
+  | "jewellery"
+  | "bothTryOnTypes"
   | "saving"
   | "settingsUpdated"
   | "settingsFailed"
@@ -103,6 +118,10 @@ type AdminTextKey =
 
 const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
   en: {
+    tryOnTypes: "Try-On types",
+    garments: "Garments",
+    jewellery: "Jewellery",
+    bothTryOnTypes: "Both",
     appHeading: "SelfX Virtual Try-On",
     setup: "Setup",
     display: "Display",
@@ -161,6 +180,10 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
     monthly: "Monthly",
   },
   es: {
+    tryOnTypes: "Tipos de prueba virtual",
+    garments: "Ropa",
+    jewellery: "Joyeria",
+    bothTryOnTypes: "Ambos",
     appHeading: "SelfX Probador Virtual",
     setup: "Configuracion",
     display: "Visualizacion",
@@ -220,6 +243,10 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
     monthly: "Mensual",
   },
   ar: {
+    tryOnTypes: "أنواع التجربة الافتراضية",
+    garments: "الملابس",
+    jewellery: "المجوهرات",
+    bothTryOnTypes: "كلاهما",
     appHeading: "SelfX تجربة افتراضية",
     setup: "الإعداد",
     display: "العرض",
@@ -261,8 +288,7 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
     adminPanelLanguage: "لغة لوحة الإدارة",
     visitorLimitEnabled:
       "يمكن لكل زائر استخدام حتى {limit} تجربة خلال {period}.",
-    visitorLimitsOff:
-      "حدود الزائر متوقفة. ما زالت أرصدة الخطة مطبقة.",
+    visitorLimitsOff: "حدود الزائر متوقفة. ما زالت أرصدة الخطة مطبقة.",
     monthlyStoreCapEnabled:
       "يمكن لهذا متجر Shopify تشغيل حتى {limit} تجربة في الشهر التقويمي.",
     monthlyStoreCapOff:
@@ -279,6 +305,10 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
     monthly: "شهري",
   },
   hi: {
+    tryOnTypes: "ट्राय-ऑन प्रकार",
+    garments: "कपड़े",
+    jewellery: "आभूषण",
+    bothTryOnTypes: "दोनों",
     appHeading: "SelfX वर्चुअल ट्राय-ऑन",
     setup: "सेटअप",
     display: "डिस्प्ले",
@@ -338,6 +368,10 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
     monthly: "मासिक",
   },
   fr: {
+    tryOnTypes: "Types d'essayage",
+    garments: "Vetements",
+    jewellery: "Bijoux",
+    bothTryOnTypes: "Les deux",
     appHeading: "SelfX Essayage Virtuel",
     setup: "Configuration",
     display: "Affichage",
@@ -397,6 +431,10 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
     monthly: "Mensuel",
   },
   de: {
+    tryOnTypes: "Anprobearten",
+    garments: "Kleidung",
+    jewellery: "Schmuck",
+    bothTryOnTypes: "Beide",
     appHeading: "SelfX Virtuelle Anprobe",
     setup: "Einrichtung",
     display: "Anzeige",
@@ -450,13 +488,16 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
       "Kaufer sehen {language} auf der SelfX Try-On-Startseite.",
     currentAdminLanguage: "Aktuelle Admin-Sprache: {language}.",
     currentStorefrontLanguage: "Aktuelle Storefront-Sprache: {language}.",
-    arabicRtlNote:
-      "Arabisch verwendet ein Layout von rechts nach links.",
+    arabicRtlNote: "Arabisch verwendet ein Layout von rechts nach links.",
     daily: "Taglich",
     weekly: "Wochentlich",
     monthly: "Monatlich",
   },
   pt: {
+    tryOnTypes: "Tipos de prova virtual",
+    garments: "Roupas",
+    jewellery: "Joias",
+    bothTryOnTypes: "Ambos",
     appHeading: "SelfX Prova Virtual",
     setup: "Configuracao",
     display: "Exibicao",
@@ -516,6 +557,10 @@ const adminText: Record<LanguageLocale, Record<AdminTextKey, string>> = {
     monthly: "Mensal",
   },
   it: {
+    tryOnTypes: "Tipi di prova virtuale",
+    garments: "Abbigliamento",
+    jewellery: "Gioielli",
+    bothTryOnTypes: "Entrambi",
     appHeading: "SelfX Prova Virtuale",
     setup: "Configurazione",
     display: "Visualizza",
@@ -589,8 +634,7 @@ export function adminFormat(
   replacements: Record<string, string | number>,
 ): string {
   return Object.entries(replacements).reduce(
-    (text, [name, value]) =>
-      text.replaceAll(`{${name}}`, String(value)),
+    (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
     adminT(locale, key),
   );
 }

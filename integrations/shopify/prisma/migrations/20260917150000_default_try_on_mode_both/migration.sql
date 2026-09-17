@@ -1,0 +1,2 @@
+ALTER TABLE "SelfxConnection"
+ALTER COLUMN "tryOnMode" SET DEFAULT 'BOTH';

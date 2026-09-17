@@ -117,6 +117,26 @@ export class IntegrationCatalogProductInputDto {
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  shopifyCategoryId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  shopifyCategoryName?: string | null;
+
+  @ApiPropertyOptional({
+    enum: ["RING", "EARRING", "NECKLACE", "BRACELET"],
+    nullable: true,
+  })
+  @IsOptional()
+  @IsIn(["RING", "EARRING", "NECKLACE", "BRACELET"])
+  suggestedJewelleryType?: "RING" | "EARRING" | "NECKLACE" | "BRACELET" | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
   @IsUrl({ require_protocol: true, protocols: ["https", "http"] })
   @MaxLength(2048)
   productUrl?: string | null;

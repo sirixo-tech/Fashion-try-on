@@ -92,6 +92,15 @@ export class ShopifyStorefrontTryOnProductDto {
   @ApiProperty()
   name!: string;
 
+  @ApiProperty({ enum: ["GARMENT", "JEWELLERY"] })
+  tryOnVertical!: "GARMENT" | "JEWELLERY";
+
+  @ApiPropertyOptional({
+    enum: ["RING", "EARRING", "NECKLACE", "BRACELET"],
+    nullable: true,
+  })
+  jewelleryType?: "RING" | "EARRING" | "NECKLACE" | "BRACELET" | null;
+
   @ApiPropertyOptional()
   handle?: string;
 
