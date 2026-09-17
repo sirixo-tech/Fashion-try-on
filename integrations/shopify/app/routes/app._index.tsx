@@ -23,7 +23,6 @@ import {
 import {
   adminFormat,
   adminT,
-  languageLocaleLabel,
   normalizeLanguageLocale,
   normalizeStorefrontLocale,
   supportedLanguageLocales,
@@ -67,7 +66,9 @@ type ProductControlsView = SelfxProductControlsResponse & {
   errorMessage: string | null;
 };
 
-type ProductVisibilityMode = "ALL" | "COLLECTIONS" | "PRODUCTS";
+type ProductVisibilityMode = "ALL" | "SELECTED" | "OFF";
+type ProductVisibilityTab = "COLLECTIONS" | "PRODUCTS";
+type ProductVisibilityPicker = ProductVisibilityTab | "EXCEPTIONS";
 
 type ProductCollectionView = {
   id: string;
@@ -97,11 +98,7 @@ type ProductActionData =
   | undefined;
 
 type ShopifyAdminPanelKey =
-  | "setup"
-  | "display"
-  | "settings"
-  | "analytics"
-  | "plans";
+  "setup" | "display" | "settings" | "analytics" | "plans";
 
 type ShopifyAdminPanel = {
   key: ShopifyAdminPanelKey;
@@ -514,6 +511,7 @@ export default function Index() {
             pending={pending}
             productCollections={productCollections}
             productControls={productControls}
+            onAdminLocaleChange={setAdminLocale}
             selfxBillingUrl={selfxBillingUrl}
             storefrontReady={storefrontReady}
             syncActionPath={syncActionPath}
@@ -857,6 +855,7 @@ function ShopifyPanelContent({
   creditHealth,
   creditSummary,
   includedCredits,
+  onAdminLocaleChange,
   pending,
   productCollections,
   productControls,
@@ -878,6 +877,7 @@ function ShopifyPanelContent({
   creditHealth: CreditHealth;
   creditSummary: SelfxStorefrontCreditSummary | null;
   includedCredits: number;
+  onAdminLocaleChange: (locale: string) => void;
   pending: boolean;
   productCollections: ProductCollectionsView;
   productControls: ProductControlsView | null;
@@ -914,6 +914,7 @@ function ShopifyPanelContent({
       <LanguageSettingsPanel
         adminLocale={adminLocale}
         connection={connection}
+        onAdminLocaleChange={onAdminLocaleChange}
       />
     );
   }
@@ -1195,9 +1196,11 @@ function DisplaySettingsPreview() {
 function LanguageSettingsPanel({
   adminLocale,
   connection,
+  onAdminLocaleChange,
 }: {
   adminLocale: string;
   connection: SelfxConnectionView;
+  onAdminLocaleChange: (locale: string) => void;
 }) {
   const fetcher = useFetcher<ProductActionData>();
   const saving = fetcher.state !== "idle";
@@ -1215,6 +1218,12 @@ function LanguageSettingsPanel({
   const t = (key: Parameters<typeof adminT>[1]) =>
     adminT(currentAdminLocale, key);
 
+  function handleAdminLocaleChange(event: FormEvent<HTMLElement>) {
+    onAdminLocaleChange(
+      normalizeLanguageLocale((event.currentTarget as HTMLSelectElement).value),
+    );
+  }
+
   return (
     <s-section heading={t("settings")}>
       <s-stack gap="base">
@@ -1230,7 +1239,6 @@ function LanguageSettingsPanel({
         ) : null}
         <fetcher.Form method="post">
           <input type="hidden" name="intent" value="setStorefrontSettings" />
-          <input type="hidden" name="adminLocale" value={currentAdminLocale} />
           <s-stack gap="base">
             <s-grid
               gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
@@ -1288,17 +1296,38 @@ function LanguageSettingsPanel({
                 : t("monthlyStoreCapOff")}
             </s-text>
             <s-divider />
-            <s-select
-              label={t("storefrontWidgetLanguage")}
-              name="storefrontLocale"
-              value={currentLocale}
+            <s-grid
+              gridTemplateColumns="repeat(auto-fit, minmax(14rem, 1fr))"
+              gap="base"
             >
-              {supportedStorefrontLocales.map((locale) => (
-                <s-option key={locale.code} value={locale.code}>
-                  {locale.label}
-                </s-option>
-              ))}
-            </s-select>
+              <s-grid-item>
+                <s-select
+                  label={t("adminPanelLanguage")}
+                  name="adminLocale"
+                  value={currentAdminLocale}
+                  onChange={handleAdminLocaleChange}
+                >
+                  {supportedLanguageLocales.map((locale) => (
+                    <s-option key={locale.code} value={locale.code}>
+                      {locale.label}
+                    </s-option>
+                  ))}
+                </s-select>
+              </s-grid-item>
+              <s-grid-item>
+                <s-select
+                  label={t("storefrontWidgetLanguage")}
+                  name="storefrontLocale"
+                  value={currentLocale}
+                >
+                  {supportedStorefrontLocales.map((locale) => (
+                    <s-option key={locale.code} value={locale.code}>
+                      {locale.label}
+                    </s-option>
+                  ))}
+                </s-select>
+              </s-grid-item>
+            </s-grid>
             <s-text color="subdued">
               {currentLocale === "auto"
                 ? t("storefrontAutoHelp")
@@ -1314,23 +1343,6 @@ function LanguageSettingsPanel({
             </s-box>
           </s-stack>
         </fetcher.Form>
-        <s-box
-          padding="base"
-          background="subdued"
-          borderWidth="small"
-          borderColor="base"
-          borderRadius="base"
-        >
-          <s-text color="subdued">
-            {adminFormat(currentAdminLocale, "currentAdminLanguage", {
-              language: languageLocaleLabel(currentAdminLocale),
-            })}{" "}
-            {adminFormat(currentAdminLocale, "currentStorefrontLanguage", {
-              language: storefrontLocaleLabel(currentLocale),
-            })}{" "}
-            {t("arabicRtlNote")}
-          </s-text>
-        </s-box>
       </s-stack>
     </s-section>
   );
@@ -1659,10 +1671,7 @@ function PlanCard({
       {visibleFeatures.length > 0 ? (
         <div className="selfx-shopify-plan-card__features">
           {visibleFeatures.map((featureKey) => (
-            <div
-              className="selfx-shopify-plan-card__feature"
-              key={featureKey}
-            >
+            <div className="selfx-shopify-plan-card__feature" key={featureKey}>
               <span
                 aria-hidden="true"
                 className="selfx-shopify-plan-card__feature-icon"
@@ -1765,6 +1774,7 @@ function SelfxActionButton({
   children,
   disabled = false,
   href,
+  onClick,
   target,
   tone = "secondary",
   type = "button",
@@ -1772,6 +1782,7 @@ function SelfxActionButton({
   children: ReactNode;
   disabled?: boolean;
   href?: string;
+  onClick?: () => void;
   target?: string;
   tone?: "primary" | "secondary";
   type?: "button" | "submit";
@@ -1790,7 +1801,12 @@ function SelfxActionButton({
     );
   }
   return (
-    <button className={className} type={type} disabled={disabled}>
+    <button
+      className={className}
+      type={type}
+      disabled={disabled}
+      onClick={onClick}
+    >
       {children}
     </button>
   );
@@ -1914,50 +1930,225 @@ function SelfxShopifyStyles() {
           max-inline-size: 100%;
         }
 
-        .selfx-shopify-visibility-mode-grid {
-          display: grid;
-          gap: 0.75rem;
-          grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-        }
-
-        .selfx-shopify-visibility-mode {
+        .selfx-shopify-visibility-switch {
+          align-items: center;
           background: #f8fbfd;
           border: 1px solid #bfd0e0;
           border-radius: 8px;
           color: #1f2d3d;
-          cursor: pointer;
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-          min-block-size: 5.25rem;
+          display: grid;
+          gap: 1rem;
+          grid-template-columns: minmax(0, 1fr) auto;
           padding: 0.875rem 1rem;
-          text-align: start;
           transition:
             background-color 0.16s ease,
             border-color 0.16s ease,
-            box-shadow 0.16s ease,
-            transform 0.16s ease;
+            box-shadow 0.16s ease;
         }
 
-        .selfx-shopify-visibility-mode:hover {
-          border-color: #8eabbe;
-          box-shadow: 0 10px 24px rgba(31, 45, 61, 0.12);
-          transform: translateY(-1px) scale(1.01);
+        .selfx-shopify-visibility-switch--on {
+          background: #ecfdf4;
+          border-color: #00996b;
+          box-shadow: inset 4px 0 0 #00996b;
         }
 
-        .selfx-shopify-visibility-mode--active {
-          background: #fff3ec;
-          border-color: #ff6a1a;
-          box-shadow: 0 0 0 1px rgba(255, 106, 26, 0.2);
-          color: #9f3d00;
+        .selfx-shopify-switch-button {
+          align-items: center;
+          background: #cfd8e3;
+          border: 0;
+          border-radius: 999px;
+          cursor: pointer;
+          display: inline-flex;
+          inline-size: 2.75rem;
+          justify-content: flex-start;
+          min-block-size: 1.5rem;
+          padding: 0.1875rem;
+          transition: background-color 0.16s ease;
         }
 
-        .selfx-shopify-visibility-mode span {
-          font-weight: 700;
+        .selfx-shopify-switch-button--on {
+          background: #ff6a1a;
+          justify-content: flex-end;
         }
 
-        .selfx-shopify-visibility-mode small {
+        .selfx-shopify-switch-button span {
+          background: #ffffff;
+          border-radius: 999px;
+          box-shadow: 0 1px 3px rgba(18, 50, 74, 0.25);
+          display: block;
+          block-size: 1.125rem;
+          inline-size: 1.125rem;
+        }
+
+        .selfx-shopify-rule-tabs {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .selfx-shopify-rule-tab {
+          background: #ffffff;
+          border: 1px solid #d6e3ee;
+          color: #607589;
+          cursor: pointer;
+          font: inherit;
+          font-weight: 800;
+          min-block-size: 2.75rem;
+          transition:
+            background-color 0.16s ease,
+            border-color 0.16s ease,
+            color 0.16s ease;
+        }
+
+        .selfx-shopify-rule-tab:first-child {
+          border-end-start-radius: 8px;
+          border-start-start-radius: 8px;
+        }
+
+        .selfx-shopify-rule-tab:last-child {
+          border-end-end-radius: 8px;
+          border-start-end-radius: 8px;
+        }
+
+        .selfx-shopify-rule-tab:hover {
+          background: #f3f8fc;
+          border-color: #9fb9cf;
+        }
+
+        .selfx-shopify-rule-tab--active {
+          background: #00996b;
+          border-color: #00996b;
+          color: #ffffff;
+        }
+
+        .selfx-shopify-selected-list {
+          display: grid;
+          gap: 0.5rem;
+        }
+
+        .selfx-shopify-selected-row {
+          align-items: center;
+          background: #ffffff;
+          border: 1px solid #d6e3ee;
+          border-radius: 8px;
+          display: grid;
+          gap: 0.75rem;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          min-block-size: 3.25rem;
+          padding: 0.625rem 0.75rem;
+        }
+
+        .selfx-shopify-selected-row__meta {
           color: #5f6f82;
+          font-size: 0.82rem;
+          line-height: 1.35;
+        }
+
+        .selfx-shopify-remove-button {
+          align-items: center;
+          background: transparent;
+          border: 0;
+          border-radius: 999px;
+          color: #6f7f91;
+          cursor: pointer;
+          display: inline-flex;
+          font: inherit;
+          font-size: 1.4rem;
+          justify-content: center;
+          line-height: 1;
+          min-block-size: 2rem;
+          min-inline-size: 2rem;
+        }
+
+        .selfx-shopify-remove-button:hover {
+          background: #fff0e6;
+          color: #d84f00;
+        }
+
+        .selfx-shopify-picker-backdrop {
+          align-items: center;
+          background: rgba(0, 0, 0, 0.55);
+          display: flex;
+          inset: 0;
+          justify-content: center;
+          padding: 1rem;
+          position: fixed;
+          z-index: 40;
+        }
+
+        .selfx-shopify-picker-modal {
+          background: #ffffff;
+          border-radius: 12px;
+          box-shadow: 0 20px 60px rgba(0, 17, 44, 0.28);
+          display: grid;
+          max-block-size: min(42rem, calc(100vh - 2rem));
+          max-inline-size: min(48rem, calc(100vw - 2rem));
+          overflow: hidden;
+          width: 100%;
+        }
+
+        .selfx-shopify-picker-header,
+        .selfx-shopify-picker-footer {
+          align-items: center;
+          display: flex;
+          gap: 1rem;
+          justify-content: space-between;
+          padding: 1rem;
+        }
+
+        .selfx-shopify-picker-header {
+          border-block-end: 1px solid #dce8f2;
+        }
+
+        .selfx-shopify-picker-footer {
+          border-block-start: 1px solid #dce8f2;
+        }
+
+        .selfx-shopify-picker-body {
+          display: grid;
+          gap: 0.75rem;
+          overflow: auto;
+          padding: 1rem;
+        }
+
+        .selfx-shopify-picker-filters {
+          display: grid;
+          gap: 0.75rem;
+          grid-template-columns: minmax(0, 1fr) 12rem;
+        }
+
+        .selfx-shopify-picker-input,
+        .selfx-shopify-picker-select {
+          border: 1px solid #b8c9d9;
+          border-radius: 8px;
+          font: inherit;
+          min-block-size: 2.5rem;
+          padding: 0.5rem 0.75rem;
+        }
+
+        .selfx-shopify-picker-list {
+          border: 1px solid #dce8f2;
+          border-radius: 8px;
+          display: grid;
+          max-block-size: 22rem;
+          overflow: auto;
+        }
+
+        .selfx-shopify-picker-row {
+          align-items: center;
+          border-block-end: 1px solid #edf2f7;
+          display: grid;
+          gap: 0.75rem;
+          grid-template-columns: auto auto minmax(0, 1fr) auto;
+          min-block-size: 3.5rem;
+          padding: 0.625rem 0.75rem;
+        }
+
+        .selfx-shopify-picker-row:last-child {
+          border-block-end: 0;
+        }
+
+        .selfx-shopify-picker-row small {
+          color: #607589;
           font-size: 0.82rem;
           line-height: 1.35;
         }
@@ -1988,7 +2179,8 @@ function SelfxShopifyStyles() {
         .selfx-shopify-plan-grid {
           display: grid;
           gap: 1rem;
-          grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(15.5rem, 18rem));
+          justify-content: start;
         }
 
         .selfx-shopify-plan-card {
@@ -1998,8 +2190,9 @@ function SelfxShopifyStyles() {
           box-shadow: 0 8px 20px rgba(18, 50, 74, 0.06);
           display: flex;
           flex-direction: column;
-          gap: 1rem;
-          min-height: 16rem;
+          gap: 0.875rem;
+          inline-size: 100%;
+          min-height: 15rem;
           padding: 1rem;
         }
 
@@ -2047,7 +2240,7 @@ function SelfxShopifyStyles() {
 
         .selfx-shopify-plan-card__stats {
           display: grid;
-          gap: 0.75rem;
+          gap: 0.625rem;
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
@@ -2057,7 +2250,8 @@ function SelfxShopifyStyles() {
           border-radius: 8px;
           display: grid;
           gap: 0.25rem;
-          padding: 0.75rem;
+          min-height: 4.25rem;
+          padding: 0.625rem;
         }
 
         .selfx-shopify-plan-card__stats span {
@@ -2268,8 +2462,99 @@ function ProductControlsSection({
   const products = productControls?.data ?? [];
   const eligibleProducts = products.filter(isProductEligibleForVisibilityRule);
   const readyCount = productControls?.summary.ready ?? 0;
-  const [visibilityMode, setVisibilityMode] =
-    useState<ProductVisibilityMode>("ALL");
+  const allEligibleProductsEnabled =
+    eligibleProducts.length > 0 &&
+    eligibleProducts.every((product) => product.vtoEnabled);
+  const [allProductsEnabled, setAllProductsEnabled] = useState(
+    allEligibleProductsEnabled,
+  );
+  const [activeTab, setActiveTab] =
+    useState<ProductVisibilityTab>("COLLECTIONS");
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(
+    [],
+  );
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>(
+    allEligibleProductsEnabled
+      ? []
+      : eligibleProducts
+          .filter((product) => product.vtoEnabled)
+          .map((product) => product.externalProductId),
+  );
+  const [exceptionProductIds, setExceptionProductIds] = useState<string[]>([]);
+  const [picker, setPicker] = useState<ProductVisibilityPicker | null>(null);
+  const visibilityMode: ProductVisibilityMode = allProductsEnabled
+    ? "ALL"
+    : selectedCollectionIds.length > 0 || selectedProductIds.length > 0
+      ? "SELECTED"
+      : "OFF";
+  const selectedCollections = selectedCollectionIds
+    .map((id) =>
+      productCollections.data.find((collection) => collection.id === id),
+    )
+    .filter((collection): collection is ProductCollectionView =>
+      Boolean(collection),
+    );
+  const selectedProducts = selectedProductIds
+    .map((id) =>
+      eligibleProducts.find((product) => product.externalProductId === id),
+    )
+    .filter((product): product is SelfxProductControl => Boolean(product));
+  const exceptionProducts = exceptionProductIds
+    .map((id) =>
+      eligibleProducts.find((product) => product.externalProductId === id),
+    )
+    .filter((product): product is SelfxProductControl => Boolean(product));
+
+  function enableAllProducts() {
+    setAllProductsEnabled(true);
+    setSelectedCollectionIds([]);
+    setSelectedProductIds([]);
+  }
+
+  function disableAllProducts() {
+    setAllProductsEnabled(false);
+    setSelectedCollectionIds([]);
+    setSelectedProductIds([]);
+  }
+
+  function selectCollections(ids: string[]) {
+    setSelectedCollectionIds(ids);
+    if (ids.length > 0 || selectedProductIds.length > 0) {
+      setAllProductsEnabled(false);
+    } else {
+      setAllProductsEnabled(true);
+    }
+  }
+
+  function selectProducts(ids: string[]) {
+    setSelectedProductIds(ids);
+    if (selectedCollectionIds.length > 0 || ids.length > 0) {
+      setAllProductsEnabled(false);
+    } else {
+      setAllProductsEnabled(true);
+    }
+  }
+
+  function removeSelectedCollection(id: string) {
+    const nextCollectionIds = selectedCollectionIds.filter(
+      (collectionId) => collectionId !== id,
+    );
+    setSelectedCollectionIds(nextCollectionIds);
+    if (nextCollectionIds.length === 0 && selectedProductIds.length === 0) {
+      setAllProductsEnabled(true);
+    }
+  }
+
+  function removeSelectedProduct(id: string) {
+    const nextProductIds = selectedProductIds.filter(
+      (productId) => productId !== id,
+    );
+    setSelectedProductIds(nextProductIds);
+    if (selectedCollectionIds.length === 0 && nextProductIds.length === 0) {
+      setAllProductsEnabled(true);
+    }
+  }
+
   return (
     <s-section heading="Try-On products">
       <s-stack gap="base">
@@ -2298,6 +2583,30 @@ function ProductControlsSection({
               value="setProductVisibilityRule"
             />
             <input type="hidden" name="visibilityMode" value={visibilityMode} />
+            {selectedCollectionIds.map((collectionId) => (
+              <input
+                key={collectionId}
+                type="hidden"
+                name="selectedCollectionIds"
+                value={collectionId}
+              />
+            ))}
+            {selectedProductIds.map((productId) => (
+              <input
+                key={productId}
+                type="hidden"
+                name="selectedProductIds"
+                value={productId}
+              />
+            ))}
+            {exceptionProductIds.map((productId) => (
+              <input
+                key={productId}
+                type="hidden"
+                name="exceptionProductIds"
+                value={productId}
+              />
+            ))}
             <s-box
               padding="base"
               background="base"
@@ -2329,88 +2638,87 @@ function ProductControlsSection({
                   </s-grid-item>
                 </s-grid>
 
-                <div className="selfx-shopify-visibility-mode-grid">
-                  <VisibilityModeButton
-                    active={visibilityMode === "ALL"}
-                    label="All products"
-                    meta="Show Try-On on every eligible synced product."
-                    onClick={() => setVisibilityMode("ALL")}
+                <div
+                  className={`selfx-shopify-visibility-switch${
+                    allProductsEnabled
+                      ? " selfx-shopify-visibility-switch--on"
+                      : ""
+                  }`}
+                >
+                  <s-stack gap="small-200">
+                    <s-heading>All products</s-heading>
+                    <s-text color="subdued">
+                      {allProductsEnabled
+                        ? "On - Try-On appears on every eligible synced product."
+                        : visibilityMode === "SELECTED"
+                          ? "Off - button limited to selected items below."
+                          : "Off - Try-On is hidden from all products."}
+                    </s-text>
+                  </s-stack>
+                  <button
+                    aria-label={
+                      allProductsEnabled
+                        ? "Turn off all products"
+                        : "Turn on all products"
+                    }
+                    aria-checked={allProductsEnabled}
+                    className={`selfx-shopify-switch-button${
+                      allProductsEnabled
+                        ? " selfx-shopify-switch-button--on"
+                        : ""
+                    }`}
+                    role="switch"
+                    type="button"
+                    onClick={() =>
+                      allProductsEnabled
+                        ? disableAllProducts()
+                        : enableAllProducts()
+                    }
+                  >
+                    <span aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="selfx-shopify-rule-tabs">
+                  <VisibilityRuleTab
+                    active={activeTab === "COLLECTIONS"}
+                    label="By Collection"
+                    onClick={() => setActiveTab("COLLECTIONS")}
                   />
-                  <VisibilityModeButton
-                    active={visibilityMode === "COLLECTIONS"}
-                    label="By collection"
-                    meta="Show Try-On only for products in selected collections."
-                    onClick={() => setVisibilityMode("COLLECTIONS")}
-                  />
-                  <VisibilityModeButton
-                    active={visibilityMode === "PRODUCTS"}
-                    label="Specific products"
-                    meta="Show Try-On only for selected synced products."
-                    onClick={() => setVisibilityMode("PRODUCTS")}
+                  <VisibilityRuleTab
+                    active={activeTab === "PRODUCTS"}
+                    label="Specific Products"
+                    onClick={() => setActiveTab("PRODUCTS")}
                   />
                 </div>
 
-                {visibilityMode === "COLLECTIONS" ? (
-                  <VisibilityChoicePanel
-                    emptyText="No Shopify collections were found for this store."
-                    title="Select collections"
-                  >
-                    {productCollections.data.map((collection) => (
-                      <s-checkbox
-                        key={collection.id}
-                        label={`${collection.title} (${collection.productsCount} products)`}
-                        name="selectedCollectionIds"
-                        value={collection.id}
-                        details={
-                          collection.productIds.length
-                            ? `${collection.productIds.length} synced products can be matched.`
-                            : "No currently synced SelfX products matched this collection yet."
-                        }
-                      />
-                    ))}
-                  </VisibilityChoicePanel>
-                ) : null}
+                {activeTab === "COLLECTIONS" ? (
+                  <SelectedCollectionsPanel
+                    collections={selectedCollections}
+                    onAdd={() => setPicker("COLLECTIONS")}
+                    onRemove={removeSelectedCollection}
+                  />
+                ) : (
+                  <SelectedProductsPanel
+                    emptyText="No products selected - use All products or add specific products."
+                    onAdd={() => setPicker("PRODUCTS")}
+                    onRemove={removeSelectedProduct}
+                    products={selectedProducts}
+                    title="Select Products"
+                  />
+                )}
 
-                {visibilityMode === "PRODUCTS" ? (
-                  <VisibilityChoicePanel
-                    emptyText="No eligible synced products are available yet."
-                    title="Select products"
-                  >
-                    {eligibleProducts.map((product) => (
-                      <s-checkbox
-                        key={product.externalProductId}
-                        label={product.name}
-                        name="selectedProductIds"
-                        value={product.externalProductId}
-                        details={
-                          product.handle
-                            ? `Handle: ${product.handle}`
-                            : product.externalProductId
-                        }
-                        defaultChecked={product.vtoEnabled}
-                      />
-                    ))}
-                  </VisibilityChoicePanel>
-                ) : null}
-
-                <VisibilityChoicePanel
-                  emptyText="No eligible synced products are available for exceptions."
+                <SelectedProductsPanel
+                  emptyText="No exceptions set - selected products can show Try-On."
+                  onAdd={() => setPicker("EXCEPTIONS")}
+                  onRemove={(id) =>
+                    setExceptionProductIds((current) =>
+                      current.filter((productId) => productId !== id),
+                    )
+                  }
+                  products={exceptionProducts}
                   title="Exceptions - always hide on these products"
-                >
-                  {eligibleProducts.map((product) => (
-                    <s-checkbox
-                      key={product.externalProductId}
-                      label={product.name}
-                      name="exceptionProductIds"
-                      value={product.externalProductId}
-                      details={
-                        product.handle
-                          ? `Handle: ${product.handle}`
-                          : product.externalProductId
-                      }
-                    />
-                  ))}
-                </VisibilityChoicePanel>
+                />
 
                 <s-grid
                   gridTemplateColumns="1fr auto"
@@ -2429,6 +2737,31 @@ function ProductControlsSection({
                     </SelfxActionButton>
                   </s-grid-item>
                 </s-grid>
+
+                {picker ? (
+                  <VisibilityPickerModal
+                    collections={productCollections.data}
+                    eligibleProducts={eligibleProducts}
+                    picker={picker}
+                    selectedCollectionIds={selectedCollectionIds}
+                    selectedProductIds={
+                      picker === "EXCEPTIONS"
+                        ? exceptionProductIds
+                        : selectedProductIds
+                    }
+                    onClose={() => setPicker(null)}
+                    onSave={(ids) => {
+                      if (picker === "COLLECTIONS") {
+                        selectCollections(ids);
+                      } else if (picker === "PRODUCTS") {
+                        selectProducts(ids);
+                      } else {
+                        setExceptionProductIds(ids);
+                      }
+                      setPicker(null);
+                    }}
+                  />
+                ) : null}
               </s-stack>
             </s-box>
           </Form>
@@ -2491,43 +2824,37 @@ function ProductControlsSection({
   );
 }
 
-function VisibilityModeButton({
+function VisibilityRuleTab({
   active,
   label,
-  meta,
   onClick,
 }: {
   active: boolean;
   label: string;
-  meta: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`selfx-shopify-visibility-mode${
-        active ? " selfx-shopify-visibility-mode--active" : ""
+      className={`selfx-shopify-rule-tab${
+        active ? " selfx-shopify-rule-tab--active" : ""
       }`}
       type="button"
       onClick={onClick}
     >
-      <span>{label}</span>
-      <small>{meta}</small>
+      {label}
     </button>
   );
 }
 
-function VisibilityChoicePanel({
-  children,
-  emptyText,
-  title,
+function SelectedCollectionsPanel({
+  collections,
+  onAdd,
+  onRemove,
 }: {
-  children: ReactNode;
-  emptyText: string;
-  title: string;
+  collections: ProductCollectionView[];
+  onAdd: () => void;
+  onRemove: (id: string) => void;
 }) {
-  const hasItems = Array.isArray(children)
-    ? children.length > 0
-    : Boolean(children);
   return (
     <s-box
       padding="base"
@@ -2537,14 +2864,357 @@ function VisibilityChoicePanel({
       borderRadius="base"
     >
       <s-stack gap="base">
-        <s-heading>{title}</s-heading>
-        {hasItems ? (
-          <s-stack gap="small-200">{children}</s-stack>
+        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+          <s-grid-item>
+            <s-stack gap="small-200">
+              <s-heading>Select Collections</s-heading>
+              <s-text color="subdued">
+                Products inside these collections inherit the Try-On button.
+              </s-text>
+            </s-stack>
+          </s-grid-item>
+          <s-grid-item>
+            <SelfxActionButton onClick={onAdd}>
+              + Add Collection
+            </SelfxActionButton>
+          </s-grid-item>
+        </s-grid>
+        {collections.length > 0 ? (
+          <div className="selfx-shopify-selected-list">
+            {collections.map((collection) => (
+              <SelectedRow
+                key={collection.id}
+                icon="collection"
+                meta={`${collection.productsCount} products`}
+                title={collection.title}
+                onRemove={() => onRemove(collection.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <s-text color="subdued">
+            No collections selected - use All products or add collections.
+          </s-text>
+        )}
+      </s-stack>
+    </s-box>
+  );
+}
+
+function SelectedProductsPanel({
+  emptyText,
+  onAdd,
+  onRemove,
+  products,
+  title,
+}: {
+  emptyText: string;
+  onAdd: () => void;
+  onRemove: (id: string) => void;
+  products: SelfxProductControl[];
+  title: string;
+}) {
+  return (
+    <s-box
+      padding="base"
+      background="subdued"
+      borderWidth="small"
+      borderColor="base"
+      borderRadius="base"
+    >
+      <s-stack gap="base">
+        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+          <s-grid-item>
+            <s-stack gap="small-200">
+              <s-heading>{title}</s-heading>
+              <s-text color="subdued">
+                {title.startsWith("Exceptions")
+                  ? "These products never show the Try-On button."
+                  : "The Try-On button shows only on these exact products."}
+              </s-text>
+            </s-stack>
+          </s-grid-item>
+          <s-grid-item>
+            <SelfxActionButton onClick={onAdd}>
+              {title.startsWith("Exceptions")
+                ? "+ Add Exception"
+                : "+ Add Products"}
+            </SelfxActionButton>
+          </s-grid-item>
+        </s-grid>
+        {products.length > 0 ? (
+          <div className="selfx-shopify-selected-list">
+            {products.map((product) => (
+              <SelectedRow
+                key={product.externalProductId}
+                imageUrl={product.imageUrl}
+                meta={
+                  product.handle
+                    ? `Handle: ${product.handle}`
+                    : product.externalProductId
+                }
+                title={product.name}
+                onRemove={() => onRemove(product.externalProductId)}
+              />
+            ))}
+          </div>
         ) : (
           <s-text color="subdued">{emptyText}</s-text>
         )}
       </s-stack>
     </s-box>
+  );
+}
+
+function SelectedRow({
+  icon,
+  imageUrl,
+  meta,
+  title,
+  onRemove,
+}: {
+  icon?: "collection";
+  imageUrl?: string | null;
+  meta: string;
+  title: string;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="selfx-shopify-selected-row">
+      {imageUrl ? (
+        <s-thumbnail src={imageUrl} alt={title} size="small" />
+      ) : (
+        <s-icon type={icon ?? "product"} />
+      )}
+      <div>
+        <div>{title}</div>
+        <div className="selfx-shopify-selected-row__meta">{meta}</div>
+      </div>
+      <button
+        aria-label={`Remove ${title}`}
+        className="selfx-shopify-remove-button"
+        type="button"
+        onClick={onRemove}
+      >
+        x
+      </button>
+    </div>
+  );
+}
+
+function VisibilityPickerModal({
+  collections,
+  eligibleProducts,
+  onClose,
+  onSave,
+  picker,
+  selectedCollectionIds,
+  selectedProductIds,
+}: {
+  collections: ProductCollectionView[];
+  eligibleProducts: SelfxProductControl[];
+  onClose: () => void;
+  onSave: (ids: string[]) => void;
+  picker: ProductVisibilityPicker;
+  selectedCollectionIds: string[];
+  selectedProductIds: string[];
+}) {
+  const isCollectionPicker = picker === "COLLECTIONS";
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("ALL");
+  const [draftIds, setDraftIds] = useState<string[]>(
+    isCollectionPicker ? selectedCollectionIds : selectedProductIds,
+  );
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredCollections = collections.filter((collection) => {
+    if (
+      normalizedQuery &&
+      !`${collection.title} ${collection.handle}`
+        .toLowerCase()
+        .includes(normalizedQuery)
+    ) {
+      return false;
+    }
+    if (filter === "WITH_SYNCED_PRODUCTS") {
+      return collection.productIds.length > 0;
+    }
+    if (filter === "SELECTED") {
+      return draftIds.includes(collection.id);
+    }
+    return true;
+  });
+  const filteredProducts = eligibleProducts.filter((product) => {
+    if (
+      normalizedQuery &&
+      !`${product.name} ${product.handle ?? ""} ${product.externalProductId}`
+        .toLowerCase()
+        .includes(normalizedQuery)
+    ) {
+      return false;
+    }
+    if (filter === "READY") {
+      return product.tryOnStatus === "READY";
+    }
+    if (filter === "DISABLED") {
+      return product.tryOnStatus === "DISABLED";
+    }
+    if (filter === "SELECTED") {
+      return draftIds.includes(product.externalProductId);
+    }
+    return true;
+  });
+  const heading =
+    picker === "COLLECTIONS"
+      ? "Add collections"
+      : picker === "PRODUCTS"
+        ? "Add products"
+        : "Add exceptions";
+  const selectedCount = draftIds.length;
+
+  function toggleDraftId(id: string) {
+    setDraftIds((current) =>
+      current.includes(id)
+        ? current.filter((currentId) => currentId !== id)
+        : [...current, id],
+    );
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="selfx-shopify-picker-backdrop"
+      role="dialog"
+    >
+      <div className="selfx-shopify-picker-modal">
+        <div className="selfx-shopify-picker-header">
+          <s-heading>{heading}</s-heading>
+          <button
+            aria-label="Close"
+            className="selfx-shopify-remove-button"
+            type="button"
+            onClick={onClose}
+          >
+            x
+          </button>
+        </div>
+        <div className="selfx-shopify-picker-body">
+          <div className="selfx-shopify-picker-filters">
+            <input
+              aria-label={
+                isCollectionPicker ? "Search collections" : "Search products"
+              }
+              className="selfx-shopify-picker-input"
+              placeholder={
+                isCollectionPicker ? "Search collections" : "Search products"
+              }
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+            />
+            <select
+              aria-label="Filter"
+              className="selfx-shopify-picker-select"
+              value={filter}
+              onChange={(event) => setFilter(event.currentTarget.value)}
+            >
+              <option value="ALL">All</option>
+              <option value="SELECTED">Selected</option>
+              {isCollectionPicker ? (
+                <option value="WITH_SYNCED_PRODUCTS">
+                  With synced products
+                </option>
+              ) : (
+                <>
+                  <option value="READY">Ready</option>
+                  <option value="DISABLED">Disabled</option>
+                </>
+              )}
+            </select>
+          </div>
+          <div className="selfx-shopify-picker-list">
+            {isCollectionPicker ? (
+              filteredCollections.length > 0 ? (
+                filteredCollections.map((collection) => (
+                  <label
+                    key={collection.id}
+                    className="selfx-shopify-picker-row"
+                  >
+                    <input
+                      checked={draftIds.includes(collection.id)}
+                      type="checkbox"
+                      onChange={() => toggleDraftId(collection.id)}
+                    />
+                    <s-icon type="collection" />
+                    <span>
+                      {collection.title}
+                      <br />
+                      <small>
+                        {collection.productsCount} products,{" "}
+                        {collection.productIds.length} synced matches
+                      </small>
+                    </span>
+                    <small>{collection.handle}</small>
+                  </label>
+                ))
+              ) : (
+                <s-box padding="base">
+                  <s-text color="subdued">
+                    No collections match this search.
+                  </s-text>
+                </s-box>
+              )
+            ) : filteredProducts.length > 0 ? (
+              filteredProducts.map((product) => (
+                <label
+                  key={product.externalProductId}
+                  className="selfx-shopify-picker-row"
+                >
+                  <input
+                    checked={draftIds.includes(product.externalProductId)}
+                    type="checkbox"
+                    onChange={() => toggleDraftId(product.externalProductId)}
+                  />
+                  {product.imageUrl ? (
+                    <s-thumbnail
+                      src={product.imageUrl}
+                      alt={product.name}
+                      size="small"
+                    />
+                  ) : (
+                    <s-icon type="product" />
+                  )}
+                  <span>
+                    {product.name}
+                    <br />
+                    <small>
+                      {product.handle
+                        ? `Handle: ${product.handle}`
+                        : product.externalProductId}
+                    </small>
+                  </span>
+                  <ProductStatusBadge status={product.tryOnStatus} />
+                </label>
+              ))
+            ) : (
+              <s-box padding="base">
+                <s-text color="subdued">No products match this search.</s-text>
+              </s-box>
+            )}
+          </div>
+        </div>
+        <div className="selfx-shopify-picker-footer">
+          <s-text color="subdued">
+            {selectedCount} {isCollectionPicker ? "collections" : "products"}{" "}
+            selected
+          </s-text>
+          <s-stack direction="inline" gap="base">
+            <SelfxActionButton onClick={onClose}>Cancel</SelfxActionButton>
+            <SelfxActionButton tone="primary" onClick={() => onSave(draftIds)}>
+              Add
+            </SelfxActionButton>
+          </s-stack>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2767,13 +3437,6 @@ async function applyProductVisibilityRule(input: {
     "exceptionProductIds",
   );
 
-  if (mode === "PRODUCTS" && selectedProductIds.size === 0) {
-    throw new Error("Select at least one product for this visibility rule.");
-  }
-  if (mode === "COLLECTIONS" && selectedCollectionIds.size === 0) {
-    throw new Error("Select at least one collection for this visibility rule.");
-  }
-
   const client = await productControlsClient(input.shop);
   const products = (await client.listProducts(50)).data;
   const eligibleProducts = products.filter(isProductEligibleForVisibilityRule);
@@ -2784,19 +3447,26 @@ async function applyProductVisibilityRule(input: {
   let targetIds = new Set<string>();
   if (mode === "ALL") {
     targetIds = new Set(eligibleIds);
-  } else if (mode === "PRODUCTS") {
+  } else if (mode === "SELECTED") {
+    if (selectedProductIds.size === 0 && selectedCollectionIds.size === 0) {
+      throw new Error("Select at least one collection or product.");
+    }
     targetIds = intersectSet(selectedProductIds, eligibleIds);
-  } else {
-    targetIds = intersectSet(
-      await resolveCollectionProductIds({
-        accessToken: input.accessToken,
-        collectionIds: selectedCollectionIds,
-        shop: input.shop,
-      }),
-      eligibleIds,
-    );
+    if (selectedCollectionIds.size > 0) {
+      targetIds = unionSet(
+        targetIds,
+        intersectSet(
+          await resolveCollectionProductIds({
+            accessToken: input.accessToken,
+            collectionIds: selectedCollectionIds,
+            shop: input.shop,
+          }),
+          eligibleIds,
+        ),
+      );
+    }
   }
-  if (mode !== "ALL" && targetIds.size === 0) {
+  if (mode === "SELECTED" && targetIds.size === 0) {
     throw new Error(
       "That visibility rule did not match any eligible synced SelfX products.",
     );
@@ -2857,7 +3527,10 @@ async function resolveCollectionProductIds(input: {
 function normalizeProductVisibilityMode(
   value: FormDataEntryValue | null,
 ): ProductVisibilityMode {
-  return value === "COLLECTIONS" || value === "PRODUCTS" ? value : "ALL";
+  if (value === "SELECTED" || value === "COLLECTIONS" || value === "PRODUCTS") {
+    return "SELECTED";
+  }
+  return value === "OFF" ? "OFF" : "ALL";
 }
 
 function formValueSet(formData: FormData, name: string): Set<string> {
@@ -2871,6 +3544,10 @@ function formValueSet(formData: FormData, name: string): Set<string> {
 
 function intersectSet(values: Set<string>, allowed: Set<string>): Set<string> {
   return new Set([...values].filter((value) => allowed.has(value)));
+}
+
+function unionSet(values: Set<string>, extraValues: Set<string>): Set<string> {
+  return new Set([...values, ...extraValues]);
 }
 
 function emptyThemeBlockView(status: ThemeBlockView["status"]): ThemeBlockView {

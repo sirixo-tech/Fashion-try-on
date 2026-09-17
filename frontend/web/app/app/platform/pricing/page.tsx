@@ -271,6 +271,8 @@ function PricingPlanCard({
   const featureItems = featureItemsForKeys(plan.featureKeys, features);
   const [featuresOpen, setFeaturesOpen] = useState(false);
   const hiddenFeatureCount = Math.max(featureItems.length - 5, 0);
+  const supportsLocations =
+    plan.storeLocationLimit === null || plan.storeLocationLimit > 0;
 
   return (
     <>
@@ -305,10 +307,12 @@ function PricingPlanCard({
               value={number(plan.includedCredits)}
               meta={`${number(plan.trialCredits)} trial`}
             />
-            <PlanMetric
-              label="Store locations"
-              value={locationLimitLabel(plan.storeLocationLimit)}
-            />
+            {supportsLocations ? (
+              <PlanMetric
+                label="Locations"
+                value={locationLimitLabel(plan.storeLocationLimit)}
+              />
+            ) : null}
           </div>
 
           <div className="rounded-lg border bg-muted/30 p-3">
@@ -323,33 +327,6 @@ function PricingPlanCard({
                 </Badge>
               ))}
             </div>
-          </div>
-
-          <div className="grid gap-2 text-sm">
-            <PlanDetail
-              label="Extra credit"
-              value={
-                plan.extraCreditPriceCents === null
-                  ? "-"
-                  : money(plan.extraCreditPriceCents, plan.currency)
-              }
-            />
-            <PlanDetail
-              label="Kiosk rent"
-              value={
-                plan.kioskMonthlyRentCents === null
-                  ? "-"
-                  : `${money(plan.kioskMonthlyRentCents, plan.currency)} / month`
-              }
-            />
-            <PlanDetail
-              label="Kiosk devices"
-              value={
-                plan.kioskDeviceLimit === null
-                  ? "Unlimited"
-                  : number(plan.kioskDeviceLimit)
-              }
-            />
           </div>
 
           <div className="rounded-lg border bg-muted/30 p-3">
@@ -557,15 +534,6 @@ function PlanMetric({
       {meta ? (
         <div className="text-xs text-muted-foreground">{meta}</div>
       ) : null}
-    </div>
-  );
-}
-
-function PlanDetail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="truncate font-medium">{value}</span>
     </div>
   );
 }
