@@ -107,4 +107,46 @@ void main() {
       expect(rect.bottom, lessThanOrEqualTo(size.height));
     }
   });
+
+  test('ring and bracelet guides reserve room for full hand and wrist', () {
+    const size = Size(600, 900);
+    final ringRect = captureFramingGuideRectForTesting(
+      size,
+      purpose: PhotoAcquisitionPurpose.model,
+      captureScope: CaptureScope.top,
+      jewelleryGuide: KioskJewelleryCaptureGuide.handCloseUp,
+    );
+    final braceletRect = captureFramingGuideRectForTesting(
+      size,
+      purpose: PhotoAcquisitionPurpose.model,
+      captureScope: CaptureScope.top,
+      jewelleryGuide: KioskJewelleryCaptureGuide.wristCloseUp,
+    );
+
+    expect(ringRect.height / size.height, greaterThanOrEqualTo(0.68));
+    expect(braceletRect.height / size.height, greaterThanOrEqualTo(0.72));
+    expect(ringRect.width / size.width, greaterThanOrEqualTo(0.8));
+    expect(braceletRect.width / size.width, greaterThanOrEqualTo(0.84));
+  });
+
+  test('necklace and earring guides reserve premium face framing space', () {
+    const size = Size(600, 900);
+    final necklaceRect = captureFramingGuideRectForTesting(
+      size,
+      purpose: PhotoAcquisitionPurpose.model,
+      captureScope: CaptureScope.top,
+      jewelleryGuide: KioskJewelleryCaptureGuide.neckAndUpperChest,
+    );
+    final earringRect = captureFramingGuideRectForTesting(
+      size,
+      purpose: PhotoAcquisitionPurpose.model,
+      captureScope: CaptureScope.top,
+      jewelleryGuide: KioskJewelleryCaptureGuide.faceAndEars,
+    );
+
+    expect(necklaceRect.height / size.height, greaterThanOrEqualTo(0.74));
+    expect(necklaceRect.width / size.width, greaterThanOrEqualTo(0.88));
+    expect(earringRect.height / size.height, greaterThanOrEqualTo(0.72));
+    expect(earringRect.width / size.width, greaterThanOrEqualTo(0.78));
+  });
 }

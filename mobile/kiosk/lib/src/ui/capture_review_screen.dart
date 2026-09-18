@@ -185,6 +185,10 @@ class _ReviewActions extends StatelessWidget {
     final isChecking = controller.isAnalyzingQuality || usability == null;
     final isUsable = usability?.isUsable == true;
     final experience = tryOnExperienceFor(tryOnController.activeTryOnVertical);
+    final hasSelectedCatalogProduct =
+        tryOnController.garmentInput?.isCatalogProduct == true;
+    final needsPhysicalProductCapture =
+        experience.supportsPhysicalProductCapture && !hasSelectedCatalogProduct;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,17 +212,21 @@ class _ReviewActions extends StatelessWidget {
           SelfxKioskButton(
             key: const Key('take-garment-photo'),
             onPressed: null,
-            icon: experience.supportsPhysicalProductCapture
+            icon: needsPhysicalProductCapture
                 ? Icons.camera_alt_outlined
                 : experience.icon,
-            label: experience.reviewWaitingActionLabel,
+            label: needsPhysicalProductCapture
+                ? experience.reviewWaitingActionLabel
+                : 'Continue',
             variant: SelfxKioskButtonVariant.primary,
             textAlign: TextAlign.center,
             mainAxisAlignment: MainAxisAlignment.center,
           ),
         ] else if (isUsable) ...[
           Text(
-            experience.reviewInstruction,
+            hasSelectedCatalogProduct
+                ? 'Your photo is ready for this garment.'
+                : experience.reviewInstruction,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: Colors.white,
@@ -241,7 +249,7 @@ class _ReviewActions extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (experience.supportsPhysicalProductCapture) ...[
+                  if (needsPhysicalProductCapture) ...[
                     SelfxActionPulse(
                       child: SelfxKioskButton(
                         key: const Key('take-garment-photo'),
@@ -257,11 +265,13 @@ class _ReviewActions extends StatelessWidget {
                   ] else ...[
                     SelfxActionPulse(
                       child: SelfxKioskButton(
-                        key: const Key('continue-jewellery-try-on'),
+                        key: const Key('continue-selected-product-try-on'),
                         onPressed: () =>
-                            unawaited(_continueJewelleryTryOn(context)),
+                            unawaited(_continueSelectedProductTryOn(context)),
                         icon: Icons.play_arrow_rounded,
-                        label: experience.reviewWaitingActionLabel,
+                        label: hasSelectedCatalogProduct
+                            ? 'Continue'
+                            : experience.reviewWaitingActionLabel,
                         variant: SelfxKioskButtonVariant.primary,
                         textAlign: TextAlign.center,
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -436,7 +446,7 @@ class _ReviewActions extends StatelessWidget {
     );
   }
 
-  Future<void> _continueJewelleryTryOn(BuildContext context) async {
+  Future<void> _continueSelectedProductTryOn(BuildContext context) async {
     if (!await _acceptModelPhoto(context) || !context.mounted) {
       return;
     }

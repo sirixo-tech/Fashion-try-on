@@ -121,6 +121,13 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                 widget.purpose == PhotoAcquisitionPurpose.model
                 ? widget.tryOnController.jewelleryCaptureRequirements
                 : null;
+            final canUploadPersonFromMobile =
+                widget.purpose == PhotoAcquisitionPurpose.model &&
+                (jewelleryRequirements != null ||
+                    widget.tryOnController.garmentInput?.isCatalogProduct ==
+                        true) &&
+                (flowState.stage == CaptureFlowStage.preview ||
+                    flowState.stage == CaptureFlowStage.error);
             return Stack(
               fit: StackFit.expand,
               children: [
@@ -167,11 +174,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                     onCapture: _capture,
                     onCancelCountdown: widget.controller.cancelCountdown,
                     onCaptureAnyway: widget.controller.captureAnyway,
-                    onUploadFromMobile:
-                        jewelleryRequirements != null &&
-                            (flowState.stage == CaptureFlowStage.preview ||
-                                flowState.stage == CaptureFlowStage.error)
-                        ? _uploadJewelleryPersonPhoto
+                    onUploadFromMobile: canUploadPersonFromMobile
+                        ? _uploadPersonPhotoFromMobile
                         : null,
                     canFlipCamera:
                         widget.purpose == PhotoAcquisitionPurpose.model &&
@@ -258,7 +262,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
     }
   }
 
-  Future<void> _uploadJewelleryPersonPhoto() async {
+  Future<void> _uploadPersonPhotoFromMobile() async {
     if (_openingMobileUpload) return;
     _openingMobileUpload = true;
     await Navigator.of(context).push(
@@ -746,10 +750,10 @@ IconData _iconForJewelleryGuide(KioskJewelleryCaptureGuide guide) {
 
 Rect _jewelleryGuideRect(Size size, KioskJewelleryCaptureGuide guide) {
   final (widthFactor, heightFactor, centerYFactor) = switch (guide) {
-    KioskJewelleryCaptureGuide.handCloseUp => (0.74, 0.54, 0.5),
-    KioskJewelleryCaptureGuide.wristCloseUp => (0.84, 0.48, 0.52),
-    KioskJewelleryCaptureGuide.neckAndUpperChest => (0.86, 0.66, 0.48),
-    KioskJewelleryCaptureGuide.faceAndEars => (0.72, 0.68, 0.45),
+    KioskJewelleryCaptureGuide.handCloseUp => (0.8, 0.68, 0.51),
+    KioskJewelleryCaptureGuide.wristCloseUp => (0.84, 0.72, 0.52),
+    KioskJewelleryCaptureGuide.neckAndUpperChest => (0.88, 0.74, 0.48),
+    KioskJewelleryCaptureGuide.faceAndEars => (0.78, 0.72, 0.45),
   };
   final guideWidth = size.width * widthFactor;
   final guideHeight = size.height * heightFactor;
@@ -771,9 +775,17 @@ void _drawJewelleryGuide(
 ) {
   switch (guide) {
     case KioskJewelleryCaptureGuide.handCloseUp:
-      _drawHandGuide(canvas, rect, paint);
+      _drawHandAndWristGuide(
+        canvas,
+        rect,
+        emphasis: _HandJewelleryEmphasis.ring,
+      );
     case KioskJewelleryCaptureGuide.wristCloseUp:
-      _drawWristGuide(canvas, rect, paint);
+      _drawHandAndWristGuide(
+        canvas,
+        rect,
+        emphasis: _HandJewelleryEmphasis.bracelet,
+      );
     case KioskJewelleryCaptureGuide.neckAndUpperChest:
       _drawNeckGuide(canvas, rect, paint);
     case KioskJewelleryCaptureGuide.faceAndEars:
@@ -781,125 +793,514 @@ void _drawJewelleryGuide(
   }
 }
 
-void _drawHandGuide(Canvas canvas, Rect rect, Paint paint) {
-  final palm = RRect.fromRectAndRadius(
-    Rect.fromCenter(
-      center: Offset(rect.center.dx, rect.top + rect.height * 0.61),
-      width: rect.width * 0.34,
-      height: rect.height * 0.42,
-    ),
-    Radius.circular(rect.width * 0.13),
-  );
-  canvas.drawRRect(palm, paint);
+enum _HandJewelleryEmphasis { ring, bracelet }
 
-  final fingerTop = rect.top + rect.height * 0.14;
-  final fingerBottom = rect.top + rect.height * 0.44;
-  for (final factor in const [0.38, 0.46, 0.54, 0.62]) {
-    final x = rect.left + rect.width * factor;
-    canvas.drawLine(Offset(x, fingerBottom), Offset(x, fingerTop), paint);
-  }
-  canvas.drawArc(
-    Rect.fromCenter(
-      center: Offset(rect.left + rect.width * 0.34, rect.center.dy),
-      width: rect.width * 0.2,
-      height: rect.height * 0.26,
-    ),
-    -1.2,
-    2.2,
-    false,
-    paint,
+void _drawHandAndWristGuide(
+  Canvas canvas,
+  Rect rect, {
+  required _HandJewelleryEmphasis emphasis,
+}) {
+  final handRect = Rect.fromCenter(
+    center: Offset(rect.center.dx, rect.top + rect.height * 0.49),
+    width: rect.width * 0.76,
+    height: rect.height * 0.88,
   );
+  final handPath = _backOfHandGuidePath(handRect);
+  final accent = emphasis == _HandJewelleryEmphasis.ring
+      ? SelfxKioskTokens.secondary
+      : SelfxKioskTokens.primary;
+
+  final haloPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.028).clamp(8.0, 16.0)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14)
+    ..color = accent.withValues(alpha: 0.34);
+  canvas.drawPath(handPath, haloPaint);
+
+  final fillPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = Colors.white.withValues(alpha: 0.075);
+  canvas.drawPath(handPath, fillPaint);
+
+  final outlinePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.01).clamp(2.4, 4.2)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = Colors.white.withValues(alpha: 0.88);
+  canvas.drawPath(handPath, outlinePaint);
+
+  final premiumAccentPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.006).clamp(1.4, 2.4)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = accent.withValues(alpha: 0.8);
+
+  final detailPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.0048).clamp(1.2, 2.0)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = Colors.white.withValues(alpha: 0.42);
+
+  for (final line in _handGuideDetailPaths(handRect)) {
+    canvas.drawPath(line, detailPaint);
+  }
+
+  canvas.drawPath(_handGuideKnucklePath(handRect), premiumAccentPaint);
+
+  if (emphasis == _HandJewelleryEmphasis.ring) {
+    _drawRingFingerFocus(canvas, handRect, premiumAccentPaint);
+  } else {
+    _drawBraceletWristFocus(canvas, handRect, premiumAccentPaint);
+  }
 }
 
-void _drawWristGuide(Canvas canvas, Rect rect, Paint paint) {
-  final leftTop = Offset(rect.left + rect.width * 0.31, rect.top);
-  final rightTop = Offset(rect.right - rect.width * 0.31, rect.top);
-  final leftBottom = Offset(rect.left + rect.width * 0.4, rect.bottom);
-  final rightBottom = Offset(rect.right - rect.width * 0.4, rect.bottom);
-  canvas.drawLine(leftTop, leftBottom, paint);
-  canvas.drawLine(rightTop, rightBottom, paint);
-  canvas.drawOval(
-    Rect.fromCenter(
-      center: Offset(rect.center.dx, rect.top + rect.height * 0.58),
-      width: rect.width * 0.36,
-      height: rect.height * 0.16,
+Path _backOfHandGuidePath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.39, 0.98).dx, p(0.39, 0.98).dy)
+    ..cubicTo(
+      p(0.36, 0.9).dx,
+      p(0.36, 0.9).dy,
+      p(0.34, 0.82).dx,
+      p(0.34, 0.82).dy,
+      p(0.31, 0.75).dx,
+      p(0.31, 0.75).dy,
+    )
+    ..cubicTo(
+      p(0.25, 0.69).dx,
+      p(0.25, 0.69).dy,
+      p(0.16, 0.63).dx,
+      p(0.16, 0.63).dy,
+      p(0.11, 0.55).dx,
+      p(0.11, 0.55).dy,
+    )
+    ..cubicTo(
+      p(0.08, 0.5).dx,
+      p(0.08, 0.5).dy,
+      p(0.09, 0.45).dx,
+      p(0.09, 0.45).dy,
+      p(0.13, 0.43).dx,
+      p(0.13, 0.43).dy,
+    )
+    ..cubicTo(
+      p(0.2, 0.39).dx,
+      p(0.2, 0.39).dy,
+      p(0.26, 0.43).dx,
+      p(0.26, 0.43).dy,
+      p(0.31, 0.49).dx,
+      p(0.31, 0.49).dy,
+    )
+    ..lineTo(p(0.31, 0.18).dx, p(0.31, 0.18).dy)
+    ..cubicTo(
+      p(0.31, 0.11).dx,
+      p(0.31, 0.11).dy,
+      p(0.35, 0.06).dx,
+      p(0.35, 0.06).dy,
+      p(0.39, 0.06).dx,
+      p(0.39, 0.06).dy,
+    )
+    ..cubicTo(
+      p(0.44, 0.06).dx,
+      p(0.44, 0.06).dy,
+      p(0.46, 0.11).dx,
+      p(0.46, 0.11).dy,
+      p(0.46, 0.18).dx,
+      p(0.46, 0.18).dy,
+    )
+    ..lineTo(p(0.46, 0.12).dx, p(0.46, 0.12).dy)
+    ..cubicTo(
+      p(0.46, 0.05).dx,
+      p(0.46, 0.05).dy,
+      p(0.5, 0.01).dx,
+      p(0.5, 0.01).dy,
+      p(0.54, 0.01).dx,
+      p(0.54, 0.01).dy,
+    )
+    ..cubicTo(
+      p(0.59, 0.01).dx,
+      p(0.59, 0.01).dy,
+      p(0.61, 0.06).dx,
+      p(0.61, 0.06).dy,
+      p(0.61, 0.14).dx,
+      p(0.61, 0.14).dy,
+    )
+    ..lineTo(p(0.61, 0.18).dx, p(0.61, 0.18).dy)
+    ..cubicTo(
+      p(0.62, 0.1).dx,
+      p(0.62, 0.1).dy,
+      p(0.66, 0.06).dx,
+      p(0.66, 0.06).dy,
+      p(0.7, 0.07).dx,
+      p(0.7, 0.07).dy,
+    )
+    ..cubicTo(
+      p(0.75, 0.08).dx,
+      p(0.75, 0.08).dy,
+      p(0.77, 0.13).dx,
+      p(0.77, 0.13).dy,
+      p(0.76, 0.21).dx,
+      p(0.76, 0.21).dy,
+    )
+    ..lineTo(p(0.74, 0.31).dx, p(0.74, 0.31).dy)
+    ..cubicTo(
+      p(0.76, 0.25).dx,
+      p(0.76, 0.25).dy,
+      p(0.8, 0.23).dx,
+      p(0.8, 0.23).dy,
+      p(0.84, 0.25).dx,
+      p(0.84, 0.25).dy,
+    )
+    ..cubicTo(
+      p(0.88, 0.28).dx,
+      p(0.88, 0.28).dy,
+      p(0.88, 0.34).dx,
+      p(0.88, 0.34).dy,
+      p(0.85, 0.42).dx,
+      p(0.85, 0.42).dy,
+    )
+    ..lineTo(p(0.75, 0.72).dx, p(0.75, 0.72).dy)
+    ..cubicTo(
+      p(0.72, 0.82).dx,
+      p(0.72, 0.82).dy,
+      p(0.68, 0.91).dx,
+      p(0.68, 0.91).dy,
+      p(0.65, 0.98).dx,
+      p(0.65, 0.98).dy,
+    )
+    ..close();
+}
+
+List<Path> _handGuideDetailPaths(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return [
+    Path()
+      ..moveTo(p(0.46, 0.2).dx, p(0.46, 0.2).dy)
+      ..lineTo(p(0.45, 0.58).dx, p(0.45, 0.58).dy),
+    Path()
+      ..moveTo(p(0.61, 0.2).dx, p(0.61, 0.2).dy)
+      ..lineTo(p(0.6, 0.58).dx, p(0.6, 0.58).dy),
+    Path()
+      ..moveTo(p(0.74, 0.32).dx, p(0.74, 0.32).dy)
+      ..lineTo(p(0.68, 0.61).dx, p(0.68, 0.61).dy),
+    Path()
+      ..moveTo(p(0.29, 0.51).dx, p(0.29, 0.51).dy)
+      ..cubicTo(
+        p(0.35, 0.58).dx,
+        p(0.35, 0.58).dy,
+        p(0.38, 0.64).dx,
+        p(0.38, 0.64).dy,
+        p(0.39, 0.75).dx,
+        p(0.39, 0.75).dy,
+      ),
+  ];
+}
+
+Path _handGuideKnucklePath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.35, 0.5).dx, p(0.35, 0.5).dy)
+    ..cubicTo(
+      p(0.43, 0.46).dx,
+      p(0.43, 0.46).dy,
+      p(0.56, 0.45).dx,
+      p(0.56, 0.45).dy,
+      p(0.69, 0.5).dx,
+      p(0.69, 0.5).dy,
+    );
+}
+
+void _drawRingFingerFocus(Canvas canvas, Rect rect, Paint paint) {
+  final ringCenter = Offset(
+    rect.left + rect.width * 0.67,
+    rect.top + rect.height * 0.35,
+  );
+  final ringRect = Rect.fromCenter(
+    center: ringCenter,
+    width: rect.width * 0.09,
+    height: rect.height * 0.052,
+  );
+  canvas.drawOval(ringRect, paint);
+  canvas.drawOval(ringRect.inflate(rect.shortestSide * 0.025), paint);
+}
+
+void _drawBraceletWristFocus(Canvas canvas, Rect rect, Paint paint) {
+  final wristRect = Rect.fromCenter(
+    center: Offset(rect.center.dx, rect.top + rect.height * 0.84),
+    width: rect.width * 0.33,
+    height: rect.height * 0.075,
+  );
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(wristRect, Radius.circular(wristRect.height)),
+    paint,
+  );
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      wristRect.inflate(rect.shortestSide * 0.025),
+      Radius.circular(wristRect.height),
     ),
     paint,
   );
 }
 
 void _drawNeckGuide(Canvas canvas, Rect rect, Paint paint) {
-  final headCenter = Offset(rect.center.dx, rect.top + rect.height * 0.2);
-  canvas.drawCircle(headCenter, rect.width * 0.09, paint);
+  final silhouette = _necklaceGuideSilhouettePath(rect);
+  final accentPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.007).clamp(1.6, 2.8)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = SelfxKioskTokens.secondary.withValues(alpha: 0.82);
+  final fillPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = Colors.white.withValues(alpha: 0.07);
+  final outlinePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.008).clamp(2.0, 3.4)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = Colors.white.withValues(alpha: 0.82);
 
-  final neckTop = rect.top + rect.height * 0.29;
-  final neckBottom = rect.top + rect.height * 0.46;
-  final leftNeck = rect.center.dx - rect.width * 0.08;
-  final rightNeck = rect.center.dx + rect.width * 0.08;
-  final shoulderY = rect.top + rect.height * 0.57;
-  final bodyPath = Path()
-    ..moveTo(leftNeck, neckTop)
-    ..lineTo(leftNeck, neckBottom)
-    ..quadraticBezierTo(
-      rect.center.dx - rect.width * 0.22,
-      shoulderY,
-      rect.left + rect.width * 0.18,
-      shoulderY + rect.height * 0.08,
-    )
-    ..moveTo(rightNeck, neckTop)
-    ..lineTo(rightNeck, neckBottom)
-    ..quadraticBezierTo(
-      rect.center.dx + rect.width * 0.22,
-      shoulderY,
-      rect.right - rect.width * 0.18,
-      shoulderY + rect.height * 0.08,
-    );
-  canvas.drawPath(bodyPath, paint);
-  canvas.drawArc(
-    Rect.fromCenter(
-      center: Offset(rect.center.dx, rect.top + rect.height * 0.55),
-      width: rect.width * 0.38,
-      height: rect.height * 0.28,
-    ),
-    0.12,
-    2.9,
-    false,
-    paint,
-  );
+  canvas.drawPath(silhouette, fillPaint);
+  canvas.drawPath(silhouette, outlinePaint);
+  canvas.drawPath(_necklaceCollarbonePath(rect), accentPaint);
+  canvas.drawPath(_necklaceChainFocusPath(rect), accentPaint);
 }
 
 void _drawFaceAndEarsGuide(Canvas canvas, Rect rect, Paint paint) {
-  final faceRect = Rect.fromCenter(
-    center: Offset(rect.center.dx, rect.top + rect.height * 0.42),
-    width: rect.width * 0.46,
-    height: rect.height * 0.56,
+  final faceRect = _earringFaceRect(rect);
+  final earFocusPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.007).clamp(1.6, 2.8)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = SelfxKioskTokens.secondary.withValues(alpha: 0.84);
+  final fillPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = Colors.white.withValues(alpha: 0.065);
+  final outlinePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.008).clamp(2.0, 3.5)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = Colors.white.withValues(alpha: 0.82);
+
+  canvas.drawOval(faceRect, fillPaint);
+  canvas.drawOval(faceRect, outlinePaint);
+  canvas.drawPath(_earringJawAndNeckPath(rect, faceRect), outlinePaint);
+
+  final leftEar = _earringEarRect(faceRect, left: true);
+  final rightEar = _earringEarRect(faceRect, left: false);
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(leftEar, Radius.circular(leftEar.width)),
+    outlinePaint,
   );
-  canvas.drawOval(faceRect, paint);
-  final earWidth = rect.width * 0.12;
-  final earHeight = rect.height * 0.18;
-  final earY = faceRect.center.dy;
-  canvas.drawArc(
-    Rect.fromCenter(
-      center: Offset(faceRect.left - earWidth * 0.18, earY),
-      width: earWidth,
-      height: earHeight,
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(rightEar, Radius.circular(rightEar.width)),
+    outlinePaint,
+  );
+  canvas.drawOval(leftEar.inflate(rect.shortestSide * 0.025), earFocusPaint);
+  canvas.drawOval(rightEar.inflate(rect.shortestSide * 0.025), earFocusPaint);
+  canvas.drawPath(_earringSideViewGuidePath(rect), earFocusPaint);
+}
+
+Path _necklaceGuideSilhouettePath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.5, 0.04).dx, p(0.5, 0.04).dy)
+    ..cubicTo(
+      p(0.4, 0.04).dx,
+      p(0.4, 0.04).dy,
+      p(0.34, 0.13).dx,
+      p(0.34, 0.13).dy,
+      p(0.34, 0.25).dx,
+      p(0.34, 0.25).dy,
+    )
+    ..cubicTo(
+      p(0.34, 0.37).dx,
+      p(0.34, 0.37).dy,
+      p(0.41, 0.44).dx,
+      p(0.41, 0.44).dy,
+      p(0.45, 0.48).dx,
+      p(0.45, 0.48).dy,
+    )
+    ..lineTo(p(0.43, 0.58).dx, p(0.43, 0.58).dy)
+    ..cubicTo(
+      p(0.34, 0.61).dx,
+      p(0.34, 0.61).dy,
+      p(0.24, 0.67).dx,
+      p(0.24, 0.67).dy,
+      p(0.14, 0.77).dx,
+      p(0.14, 0.77).dy,
+    )
+    ..cubicTo(
+      p(0.08, 0.83).dx,
+      p(0.08, 0.83).dy,
+      p(0.05, 0.91).dx,
+      p(0.05, 0.91).dy,
+      p(0.04, 0.98).dx,
+      p(0.04, 0.98).dy,
+    )
+    ..lineTo(p(0.96, 0.98).dx, p(0.96, 0.98).dy)
+    ..cubicTo(
+      p(0.95, 0.91).dx,
+      p(0.95, 0.91).dy,
+      p(0.92, 0.83).dx,
+      p(0.92, 0.83).dy,
+      p(0.86, 0.77).dx,
+      p(0.86, 0.77).dy,
+    )
+    ..cubicTo(
+      p(0.76, 0.67).dx,
+      p(0.76, 0.67).dy,
+      p(0.66, 0.61).dx,
+      p(0.66, 0.61).dy,
+      p(0.57, 0.58).dx,
+      p(0.57, 0.58).dy,
+    )
+    ..lineTo(p(0.55, 0.48).dx, p(0.55, 0.48).dy)
+    ..cubicTo(
+      p(0.59, 0.44).dx,
+      p(0.59, 0.44).dy,
+      p(0.66, 0.37).dx,
+      p(0.66, 0.37).dy,
+      p(0.66, 0.25).dx,
+      p(0.66, 0.25).dy,
+    )
+    ..cubicTo(
+      p(0.66, 0.13).dx,
+      p(0.66, 0.13).dy,
+      p(0.6, 0.04).dx,
+      p(0.6, 0.04).dy,
+      p(0.5, 0.04).dx,
+      p(0.5, 0.04).dy,
+    )
+    ..close();
+}
+
+Path _necklaceCollarbonePath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.18, 0.73).dx, p(0.18, 0.73).dy)
+    ..cubicTo(
+      p(0.32, 0.68).dx,
+      p(0.32, 0.68).dy,
+      p(0.41, 0.7).dx,
+      p(0.41, 0.7).dy,
+      p(0.48, 0.76).dx,
+      p(0.48, 0.76).dy,
+    )
+    ..moveTo(p(0.82, 0.73).dx, p(0.82, 0.73).dy)
+    ..cubicTo(
+      p(0.68, 0.68).dx,
+      p(0.68, 0.68).dy,
+      p(0.59, 0.7).dx,
+      p(0.59, 0.7).dy,
+      p(0.52, 0.76).dx,
+      p(0.52, 0.76).dy,
+    );
+}
+
+Path _necklaceChainFocusPath(Rect rect) {
+  final chainRect = Rect.fromCenter(
+    center: Offset(rect.center.dx, rect.top + rect.height * 0.67),
+    width: rect.width * 0.42,
+    height: rect.height * 0.34,
+  );
+  return Path()
+    ..addArc(chainRect, 0.18, 2.78)
+    ..addArc(chainRect, 0.18, 2.78);
+}
+
+Rect _earringFaceRect(Rect rect) {
+  return Rect.fromCenter(
+    center: Offset(rect.center.dx, rect.top + rect.height * 0.39),
+    width: rect.width * 0.48,
+    height: rect.height * 0.58,
+  );
+}
+
+Rect _earringEarRect(Rect faceRect, {required bool left}) {
+  final earWidth = faceRect.width * 0.2;
+  final earHeight = faceRect.height * 0.28;
+  return Rect.fromCenter(
+    center: Offset(
+      left ? faceRect.left - earWidth * 0.18 : faceRect.right + earWidth * 0.18,
+      faceRect.top + faceRect.height * 0.48,
     ),
-    1.35,
-    3.6,
-    false,
-    paint,
+    width: earWidth,
+    height: earHeight,
   );
-  canvas.drawArc(
-    Rect.fromCenter(
-      center: Offset(faceRect.right + earWidth * 0.18, earY),
-      width: earWidth,
-      height: earHeight,
-    ),
-    -1.8,
-    3.6,
-    false,
-    paint,
-  );
+}
+
+Path _earringJawAndNeckPath(Rect rect, Rect faceRect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(faceRect.left + faceRect.width * 0.2, faceRect.bottom)
+    ..cubicTo(
+      p(0.42, 0.72).dx,
+      p(0.42, 0.72).dy,
+      p(0.4, 0.8).dx,
+      p(0.4, 0.8).dy,
+      p(0.34, 0.9).dx,
+      p(0.34, 0.9).dy,
+    )
+    ..moveTo(faceRect.right - faceRect.width * 0.2, faceRect.bottom)
+    ..cubicTo(
+      p(0.58, 0.72).dx,
+      p(0.58, 0.72).dy,
+      p(0.6, 0.8).dx,
+      p(0.6, 0.8).dy,
+      p(0.66, 0.9).dx,
+      p(0.66, 0.9).dy,
+    );
+}
+
+Path _earringSideViewGuidePath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.61, 0.14).dx, p(0.61, 0.14).dy)
+    ..cubicTo(
+      p(0.76, 0.2).dx,
+      p(0.76, 0.2).dy,
+      p(0.82, 0.36).dx,
+      p(0.82, 0.36).dy,
+      p(0.75, 0.52).dx,
+      p(0.75, 0.52).dy,
+    )
+    ..cubicTo(
+      p(0.71, 0.61).dx,
+      p(0.71, 0.61).dy,
+      p(0.66, 0.68).dx,
+      p(0.66, 0.68).dy,
+      p(0.58, 0.73).dx,
+      p(0.58, 0.73).dy,
+    );
 }
 
 void _drawGarmentGuide(Canvas canvas, Rect rect, Paint paint) {

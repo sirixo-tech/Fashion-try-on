@@ -1283,8 +1283,12 @@ void main() {
 
         expect(find.text('Try On Garments'), findsOneWidget);
         expect(find.text('Try On Jewellery'), findsOneWidget);
+        expect(find.text('Garment Catalog'), findsOneWidget);
         final uploadTop = tester.getTopLeft(
           find.byKey(const Key('upload-from-mobile-start')),
+        );
+        final catalogTop = tester.getTopLeft(
+          find.byKey(const Key('garment-catalog-start')),
         );
         final garmentTop = tester.getTopLeft(
           find.byKey(const Key('start-try-on')),
@@ -1293,7 +1297,8 @@ void main() {
           find.byKey(const Key('start-jewellery-try-on')),
         );
 
-        expect(uploadTop.dy, lessThan(garmentTop.dy));
+        expect(uploadTop.dy, lessThan(catalogTop.dy));
+        expect(catalogTop.dy, lessThan(garmentTop.dy));
         expect(garmentTop.dy, closeTo(jewelleryTop.dy, 1));
       },
     );
@@ -1874,6 +1879,61 @@ void main() {
 
       captureController.dispose();
     });
+
+    testWidgets(
+      'catalog continue without a person photo opens capture with mobile upload',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(630, 1365);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final captureController = testController();
+        final tryOnController = KioskTryOnSessionController(
+          gateway: FakeKioskTryOnGateway(),
+        )..applyMultiGarmentSelectionEnabled(false);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: BrowseProductsScreen(
+              captureController: captureController,
+              tryOnController: tryOnController,
+              uploadController: testUploadController(
+                captureController.captureStore,
+              ),
+              catalogGateway: FakeKioskCatalogGateway(
+                products: [
+                  testCatalogProduct(
+                    id: 'product-1',
+                    name: 'Formal trouser',
+                    priceAmountCents: 149900,
+                    priceCurrency: 'INR',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1));
+
+        await tester.tap(find.text('Formal trouser'));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('continue-selected-product')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tryOnController.garmentInput?.productId, 'product-1');
+        expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+        expect(
+          find.byKey(const Key('upload-jewellery-person-photo')),
+          findsOneWidget,
+        );
+        expect(find.text('Creating Try-On'), findsNothing);
+
+        captureController.dispose();
+      },
+    );
 
     testWidgets('my picks sheet separates close and clear all actions', (
       tester,

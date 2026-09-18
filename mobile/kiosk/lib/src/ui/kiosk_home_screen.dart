@@ -258,6 +258,45 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     }
   }
 
+  Future<void> _openGarmentCatalog() async {
+    if (_startingTryOn || _startingMobileUpload) {
+      return;
+    }
+    setState(() => _startingTryOn = true);
+    final consented = await _requestCustomerConsent();
+    if (!mounted) {
+      return;
+    }
+    if (!consented) {
+      setState(() => _startingTryOn = false);
+      return;
+    }
+    final started = await _prepareCustomerSession();
+    if (!mounted) {
+      return;
+    }
+    if (!started) {
+      setState(() => _startingTryOn = false);
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BrowseProductsScreen(
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+          productVertical: garmentTryOnExperience.productVertical,
+        ),
+      ),
+    );
+    await _handleReturnedHome();
+    if (mounted) {
+      setState(() => _startingTryOn = false);
+    }
+  }
+
   Future<void> _uploadFromMobile() async {
     if (_startingTryOn || _startingMobileUpload) {
       return;
@@ -550,6 +589,22 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                               ),
                             );
 
+                            Widget buildGarmentCatalogButton() =>
+                                SelfxKioskButton(
+                                  key: const Key('garment-catalog-start'),
+                                  label: 'Garment Catalog',
+                                  icon: Icons.inventory_2_outlined,
+                                  variant: SelfxKioskButtonVariant.primary,
+                                  minHeight: buttonHeight,
+                                  borderRadius: 999,
+                                  textAlign: TextAlign.center,
+                                  onPressed: _openGarmentCatalog,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: compact ? 24 : 36,
+                                    vertical: compact ? 18 : 28,
+                                  ),
+                                );
+
                             Widget buildStartButton() => SelfxKioskButton(
                               key: const Key('start-try-on'),
                               label: multipleTryOnModesEnabled
@@ -624,6 +679,8 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                   children: [
                                     if (garmentTryOnEnabled) ...[
                                       buildUploadButton(),
+                                      SizedBox(height: buttonGap),
+                                      buildGarmentCatalogButton(),
                                       SizedBox(height: buttonGap),
                                     ],
                                     capabilityButtons,

@@ -248,6 +248,23 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       if (_experience.vertical == KioskTryOnVertical.jewellery) {
         await _continueWithJewellery(product!);
       } else {
+        final hasAcceptedPerson =
+            widget.captureController.activeAcceptedPersonPhoto != null;
+        if (!hasAcceptedPerson) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => CameraCaptureScreen(
+                controller: widget.captureController,
+                tryOnController: widget.tryOnController,
+                uploadController: widget.uploadController,
+                catalogGateway: widget.catalogGateway,
+                extractionService: widget.extractionService,
+                purpose: PhotoAcquisitionPurpose.model,
+              ),
+            ),
+          );
+          return;
+        }
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => TryOnGenerationScreen(

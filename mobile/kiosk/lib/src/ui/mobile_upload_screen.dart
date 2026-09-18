@@ -59,6 +59,12 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       widget.tryOnController.activeTryOnVertical ==
           KioskTryOnVertical.jewellery;
 
+  bool get _isSelectedCatalogGarmentPersonUpload =>
+      widget.purpose == PhotoAcquisitionPurpose.model &&
+      widget.tryOnController.activeTryOnVertical ==
+          KioskTryOnVertical.garment &&
+      widget.tryOnController.garmentInput?.isCatalogProduct == true;
+
   @override
   void initState() {
     super.initState();
@@ -132,6 +138,8 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
                 purpose: widget.purpose,
                 busy: _continuing,
                 jewelleryPersonUpload: _isJewelleryPersonUpload,
+                selectedCatalogGarmentPersonUpload:
+                    _isSelectedCatalogGarmentPersonUpload,
                 onUploadAgain: _uploadAgain,
                 onUseReadyUpload: _useReadyUpload,
                 onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
@@ -146,6 +154,8 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
                 purpose: widget.purpose,
                 busy: _continuing,
                 jewelleryPersonUpload: _isJewelleryPersonUpload,
+                selectedCatalogGarmentPersonUpload:
+                    _isSelectedCatalogGarmentPersonUpload,
                 onUploadAgain: _uploadAgain,
                 onUseReadyUpload: _useReadyUpload,
                 onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
@@ -188,6 +198,23 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
 
   Future<void> _useReadyUpload() async {
     if (_isJewelleryPersonUpload) {
+      if (!await _acceptReadyModelUpload() || !mounted) {
+        return;
+      }
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => TryOnGenerationScreen(
+            captureController: widget.captureController,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
+            extractionService: widget.extractionService,
+          ),
+        ),
+      );
+      return;
+    }
+    if (_isSelectedCatalogGarmentPersonUpload) {
       if (!await _acceptReadyModelUpload() || !mounted) {
         return;
       }
@@ -307,7 +334,10 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
                 ? widget.tryOnController.jewelleryCaptureRequirements
                 : null,
           );
-    if (!accepted || !mounted) {
+    if (!mounted) {
+      return false;
+    }
+    if (!accepted) {
       _stopContinuing();
       final message = widget.uploadController.message;
       if (message != null && message.trim().isNotEmpty) {
@@ -593,6 +623,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
     required this.onTakeGarmentPhoto,
     required this.onBrowseCatalog,
     required this.jewelleryPersonUpload,
+    required this.selectedCatalogGarmentPersonUpload,
     required this.onUploadAgain,
   });
 
@@ -604,6 +635,7 @@ class _ReadyPhotoPanel extends StatelessWidget {
   final Future<void> Function() onTakeGarmentPhoto;
   final Future<void> Function() onBrowseCatalog;
   final bool jewelleryPersonUpload;
+  final bool selectedCatalogGarmentPersonUpload;
   final Future<void> Function() onUploadAgain;
 
   @override
@@ -631,7 +663,8 @@ class _ReadyPhotoPanel extends StatelessWidget {
             const Center(child: SelfxLogo(height: 44, maxWidth: 160)),
             const SizedBox(height: 18),
             if (purpose == PhotoAcquisitionPurpose.model &&
-                !jewelleryPersonUpload) ...[
+                !jewelleryPersonUpload &&
+                !selectedCatalogGarmentPersonUpload) ...[
               Text(
                 "You're Ready",
                 textAlign: TextAlign.center,
@@ -745,7 +778,8 @@ class _ReadyPhotoPanel extends StatelessWidget {
                 minHeight: 76,
               ),
             if (purpose == PhotoAcquisitionPurpose.garment ||
-                jewelleryPersonUpload) ...[
+                jewelleryPersonUpload ||
+                selectedCatalogGarmentPersonUpload) ...[
               const SizedBox(height: 16),
               SelfxKioskButton(
                 key: const Key('use-mobile-photo'),
