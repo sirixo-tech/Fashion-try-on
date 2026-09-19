@@ -1283,7 +1283,7 @@ void main() {
 
         expect(find.text('Try On Garments'), findsOneWidget);
         expect(find.text('Try On Jewellery'), findsOneWidget);
-        expect(find.text('Garment Catalog'), findsOneWidget);
+        expect(find.text('Browse Garments'), findsOneWidget);
         final uploadTop = tester.getTopLeft(
           find.byKey(const Key('upload-from-mobile-start')),
         );

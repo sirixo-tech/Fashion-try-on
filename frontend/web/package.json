@@ -16,7 +16,9 @@
     "@selfx/shared": "0.0.0",
     "@selfx/ui": "0.0.0",
     "@techstark/opencv-js": "^5.0.0-release.1",
+    "@types/qrcode": "^1.5.6",
     "next": "^15.4.6",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwindcss": "^4.1.12"

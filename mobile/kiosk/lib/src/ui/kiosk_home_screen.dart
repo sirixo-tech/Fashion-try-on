@@ -592,7 +592,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                             Widget buildGarmentCatalogButton() =>
                                 SelfxKioskButton(
                                   key: const Key('garment-catalog-start'),
-                                  label: 'Garment Catalog',
+                                  label: 'Browse Garments',
                                   icon: Icons.inventory_2_outlined,
                                   variant: SelfxKioskButtonVariant.primary,
                                   minHeight: buttonHeight,

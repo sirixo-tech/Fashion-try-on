@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>SelfX Kiosk</title>
+  <rect width="512" height="512" rx="88" fill="#020617"/>
+  <rect x="52" y="52" width="408" height="408" rx="64" fill="#ffffff"/>
+  <path d="M137 180c0-36 29-65 65-65h108c36 0 65 29 65 65v152c0 36-29 65-65 65H202c-36 0-65-29-65-65V180Z" fill="#ff7119"/>
+  <path d="M190 184h132v45H190v-45Zm0 82h132v45H190v-45Z" fill="#ffffff"/>
+  <path d="M182 347c33-20 115-20 148 0" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+</svg>

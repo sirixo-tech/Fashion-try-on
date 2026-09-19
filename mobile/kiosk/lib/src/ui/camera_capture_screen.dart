@@ -802,8 +802,8 @@ void _drawHandAndWristGuide(
 }) {
   final handRect = Rect.fromCenter(
     center: Offset(rect.center.dx, rect.top + rect.height * 0.49),
-    width: rect.width * 0.76,
-    height: rect.height * 0.88,
+    width: rect.width * 0.82,
+    height: rect.height * 0.94,
   );
   final handPath = _backOfHandGuidePath(handRect);
   final accent = emphasis == _HandJewelleryEmphasis.ring
@@ -849,6 +849,12 @@ void _drawHandAndWristGuide(
   for (final line in _handGuideDetailPaths(handRect)) {
     canvas.drawPath(line, detailPaint);
   }
+  for (final nail in _handGuideNailRects(handRect)) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(nail, Radius.circular(nail.shortestSide * 0.42)),
+      detailPaint,
+    );
+  }
 
   canvas.drawPath(_handGuideKnucklePath(handRect), premiumAccentPaint);
 
@@ -865,115 +871,131 @@ Path _backOfHandGuidePath(Rect rect) {
   }
 
   return Path()
-    ..moveTo(p(0.39, 0.98).dx, p(0.39, 0.98).dy)
+    ..moveTo(p(0.39, 0.99).dx, p(0.39, 0.99).dy)
     ..cubicTo(
-      p(0.36, 0.9).dx,
-      p(0.36, 0.9).dy,
-      p(0.34, 0.82).dx,
-      p(0.34, 0.82).dy,
-      p(0.31, 0.75).dx,
-      p(0.31, 0.75).dy,
+      p(0.36, 0.88).dx,
+      p(0.36, 0.88).dy,
+      p(0.36, 0.76).dx,
+      p(0.36, 0.76).dy,
+      p(0.34, 0.65).dx,
+      p(0.34, 0.65).dy,
     )
     ..cubicTo(
-      p(0.25, 0.69).dx,
-      p(0.25, 0.69).dy,
-      p(0.16, 0.63).dx,
-      p(0.16, 0.63).dy,
-      p(0.11, 0.55).dx,
-      p(0.11, 0.55).dy,
+      p(0.28, 0.61).dx,
+      p(0.28, 0.61).dy,
+      p(0.24, 0.54).dx,
+      p(0.24, 0.54).dy,
+      p(0.21, 0.45).dx,
+      p(0.21, 0.45).dy,
     )
     ..cubicTo(
-      p(0.08, 0.5).dx,
-      p(0.08, 0.5).dy,
-      p(0.09, 0.45).dx,
-      p(0.09, 0.45).dy,
-      p(0.13, 0.43).dx,
-      p(0.13, 0.43).dy,
+      p(0.18, 0.36).dx,
+      p(0.18, 0.36).dy,
+      p(0.14, 0.29).dx,
+      p(0.14, 0.29).dy,
+      p(0.12, 0.22).dx,
+      p(0.12, 0.22).dy,
     )
     ..cubicTo(
-      p(0.2, 0.39).dx,
-      p(0.2, 0.39).dy,
-      p(0.26, 0.43).dx,
-      p(0.26, 0.43).dy,
-      p(0.31, 0.49).dx,
-      p(0.31, 0.49).dy,
-    )
-    ..lineTo(p(0.31, 0.18).dx, p(0.31, 0.18).dy)
-    ..cubicTo(
-      p(0.31, 0.11).dx,
-      p(0.31, 0.11).dy,
-      p(0.35, 0.06).dx,
-      p(0.35, 0.06).dy,
-      p(0.39, 0.06).dx,
-      p(0.39, 0.06).dy,
+      p(0.11, 0.16).dx,
+      p(0.11, 0.16).dy,
+      p(0.14, 0.11).dx,
+      p(0.14, 0.11).dy,
+      p(0.18, 0.11).dx,
+      p(0.18, 0.11).dy,
     )
     ..cubicTo(
-      p(0.44, 0.06).dx,
-      p(0.44, 0.06).dy,
-      p(0.46, 0.11).dx,
-      p(0.46, 0.11).dy,
-      p(0.46, 0.18).dx,
-      p(0.46, 0.18).dy,
+      p(0.22, 0.11).dx,
+      p(0.22, 0.11).dy,
+      p(0.24, 0.15).dx,
+      p(0.24, 0.15).dy,
+      p(0.25, 0.2).dx,
+      p(0.25, 0.2).dy,
     )
-    ..lineTo(p(0.46, 0.12).dx, p(0.46, 0.12).dy)
+    ..lineTo(p(0.32, 0.43).dx, p(0.32, 0.43).dy)
+    ..lineTo(p(0.32, 0.13).dx, p(0.32, 0.13).dy)
     ..cubicTo(
-      p(0.46, 0.05).dx,
-      p(0.46, 0.05).dy,
-      p(0.5, 0.01).dx,
-      p(0.5, 0.01).dy,
-      p(0.54, 0.01).dx,
-      p(0.54, 0.01).dy,
-    )
-    ..cubicTo(
-      p(0.59, 0.01).dx,
-      p(0.59, 0.01).dy,
-      p(0.61, 0.06).dx,
-      p(0.61, 0.06).dy,
-      p(0.61, 0.14).dx,
-      p(0.61, 0.14).dy,
-    )
-    ..lineTo(p(0.61, 0.18).dx, p(0.61, 0.18).dy)
-    ..cubicTo(
-      p(0.62, 0.1).dx,
-      p(0.62, 0.1).dy,
-      p(0.66, 0.06).dx,
-      p(0.66, 0.06).dy,
-      p(0.7, 0.07).dx,
-      p(0.7, 0.07).dy,
+      p(0.32, 0.06).dx,
+      p(0.32, 0.06).dy,
+      p(0.36, 0.02).dx,
+      p(0.36, 0.02).dy,
+      p(0.4, 0.02).dx,
+      p(0.4, 0.02).dy,
     )
     ..cubicTo(
-      p(0.75, 0.08).dx,
-      p(0.75, 0.08).dy,
-      p(0.77, 0.13).dx,
-      p(0.77, 0.13).dy,
-      p(0.76, 0.21).dx,
-      p(0.76, 0.21).dy,
+      p(0.44, 0.02).dx,
+      p(0.44, 0.02).dy,
+      p(0.47, 0.06).dx,
+      p(0.47, 0.06).dy,
+      p(0.47, 0.13).dx,
+      p(0.47, 0.13).dy,
     )
-    ..lineTo(p(0.74, 0.31).dx, p(0.74, 0.31).dy)
+    ..lineTo(p(0.47, 0.08).dx, p(0.47, 0.08).dy)
     ..cubicTo(
-      p(0.76, 0.25).dx,
-      p(0.76, 0.25).dy,
-      p(0.8, 0.23).dx,
-      p(0.8, 0.23).dy,
-      p(0.84, 0.25).dx,
-      p(0.84, 0.25).dy,
+      p(0.47, 0.02).dx,
+      p(0.47, 0.02).dy,
+      p(0.51, 0.0).dx,
+      p(0.51, 0.0).dy,
+      p(0.55, 0.0).dx,
+      p(0.55, 0.0).dy,
     )
     ..cubicTo(
-      p(0.88, 0.28).dx,
-      p(0.88, 0.28).dy,
-      p(0.88, 0.34).dx,
-      p(0.88, 0.34).dy,
-      p(0.85, 0.42).dx,
-      p(0.85, 0.42).dy,
+      p(0.59, 0.0).dx,
+      p(0.59, 0.0).dy,
+      p(0.62, 0.04).dx,
+      p(0.62, 0.04).dy,
+      p(0.62, 0.11).dx,
+      p(0.62, 0.11).dy,
     )
-    ..lineTo(p(0.75, 0.72).dx, p(0.75, 0.72).dy)
+    ..lineTo(p(0.62, 0.15).dx, p(0.62, 0.15).dy)
     ..cubicTo(
-      p(0.72, 0.82).dx,
-      p(0.72, 0.82).dy,
-      p(0.68, 0.91).dx,
-      p(0.68, 0.91).dy,
-      p(0.65, 0.98).dx,
-      p(0.65, 0.98).dy,
+      p(0.63, 0.08).dx,
+      p(0.63, 0.08).dy,
+      p(0.67, 0.05).dx,
+      p(0.67, 0.05).dy,
+      p(0.71, 0.06).dx,
+      p(0.71, 0.06).dy,
+    )
+    ..cubicTo(
+      p(0.75, 0.07).dx,
+      p(0.75, 0.07).dy,
+      p(0.77, 0.11).dx,
+      p(0.77, 0.11).dy,
+      p(0.77, 0.17).dx,
+      p(0.77, 0.17).dy,
+    )
+    ..lineTo(p(0.73, 0.39).dx, p(0.73, 0.39).dy)
+    ..cubicTo(
+      p(0.79, 0.28).dx,
+      p(0.79, 0.28).dy,
+      p(0.86, 0.25).dx,
+      p(0.86, 0.25).dy,
+      p(0.9, 0.29).dx,
+      p(0.9, 0.29).dy,
+    )
+    ..cubicTo(
+      p(0.94, 0.33).dx,
+      p(0.94, 0.33).dy,
+      p(0.91, 0.4).dx,
+      p(0.91, 0.4).dy,
+      p(0.85, 0.47).dx,
+      p(0.85, 0.47).dy,
+    )
+    ..cubicTo(
+      p(0.8, 0.54).dx,
+      p(0.8, 0.54).dy,
+      p(0.75, 0.6).dx,
+      p(0.75, 0.6).dy,
+      p(0.69, 0.65).dx,
+      p(0.69, 0.65).dy,
+    )
+    ..cubicTo(
+      p(0.66, 0.76).dx,
+      p(0.66, 0.76).dy,
+      p(0.66, 0.88).dx,
+      p(0.66, 0.88).dy,
+      p(0.63, 0.99).dx,
+      p(0.63, 0.99).dy,
     )
     ..close();
 }
@@ -985,24 +1007,66 @@ List<Path> _handGuideDetailPaths(Rect rect) {
 
   return [
     Path()
-      ..moveTo(p(0.46, 0.2).dx, p(0.46, 0.2).dy)
-      ..lineTo(p(0.45, 0.58).dx, p(0.45, 0.58).dy),
-    Path()
-      ..moveTo(p(0.61, 0.2).dx, p(0.61, 0.2).dy)
-      ..lineTo(p(0.6, 0.58).dx, p(0.6, 0.58).dy),
-    Path()
-      ..moveTo(p(0.74, 0.32).dx, p(0.74, 0.32).dy)
-      ..lineTo(p(0.68, 0.61).dx, p(0.68, 0.61).dy),
-    Path()
-      ..moveTo(p(0.29, 0.51).dx, p(0.29, 0.51).dy)
+      ..moveTo(p(0.32, 0.45).dx, p(0.32, 0.45).dy)
       ..cubicTo(
-        p(0.35, 0.58).dx,
-        p(0.35, 0.58).dy,
-        p(0.38, 0.64).dx,
-        p(0.38, 0.64).dy,
-        p(0.39, 0.75).dx,
-        p(0.39, 0.75).dy,
+        p(0.38, 0.5).dx,
+        p(0.38, 0.5).dy,
+        p(0.41, 0.56).dx,
+        p(0.41, 0.56).dy,
+        p(0.41, 0.63).dx,
+        p(0.41, 0.63).dy,
       ),
+    Path()
+      ..moveTo(p(0.47, 0.17).dx, p(0.47, 0.17).dy)
+      ..lineTo(p(0.47, 0.52).dx, p(0.47, 0.52).dy),
+    Path()
+      ..moveTo(p(0.62, 0.18).dx, p(0.62, 0.18).dy)
+      ..lineTo(p(0.61, 0.53).dx, p(0.61, 0.53).dy),
+    Path()
+      ..moveTo(p(0.73, 0.4).dx, p(0.73, 0.4).dy)
+      ..cubicTo(
+        p(0.68, 0.48).dx,
+        p(0.68, 0.48).dy,
+        p(0.67, 0.56).dx,
+        p(0.67, 0.56).dy,
+        p(0.68, 0.63).dx,
+        p(0.68, 0.63).dy,
+      ),
+    Path()
+      ..moveTo(p(0.42, 0.58).dx, p(0.42, 0.58).dy)
+      ..cubicTo(
+        p(0.47, 0.54).dx,
+        p(0.47, 0.54).dy,
+        p(0.56, 0.54).dx,
+        p(0.56, 0.54).dy,
+        p(0.62, 0.58).dx,
+        p(0.62, 0.58).dy,
+      ),
+    Path()
+      ..moveTo(p(0.43, 0.68).dx, p(0.43, 0.68).dy)
+      ..lineTo(p(0.38, 0.78).dx, p(0.38, 0.78).dy)
+      ..moveTo(p(0.55, 0.66).dx, p(0.55, 0.66).dy)
+      ..lineTo(p(0.51, 0.79).dx, p(0.51, 0.79).dy)
+      ..moveTo(p(0.63, 0.68).dx, p(0.63, 0.68).dy)
+      ..lineTo(p(0.59, 0.8).dx, p(0.59, 0.8).dy),
+  ];
+}
+
+List<Rect> _handGuideNailRects(Rect rect) {
+  Rect nail(double x, double y, double width, double height) {
+    return Rect.fromCenter(
+      center: Offset(rect.left + rect.width * x, rect.top + rect.height * y),
+      width: rect.width * width,
+      height: rect.height * height,
+    );
+  }
+
+  return [
+    nail(0.18, 0.17, 0.07, 0.046),
+    nail(0.39, 0.075, 0.066, 0.045),
+    nail(0.55, 0.05, 0.063, 0.045),
+    nail(0.71, 0.12, 0.062, 0.044),
+    nail(0.88, 0.34, 0.064, 0.04),
   ];
 }
 
@@ -1025,13 +1089,13 @@ Path _handGuideKnucklePath(Rect rect) {
 
 void _drawRingFingerFocus(Canvas canvas, Rect rect, Paint paint) {
   final ringCenter = Offset(
-    rect.left + rect.width * 0.67,
+    rect.left + rect.width * 0.62,
     rect.top + rect.height * 0.35,
   );
   final ringRect = Rect.fromCenter(
     center: ringCenter,
-    width: rect.width * 0.09,
-    height: rect.height * 0.052,
+    width: rect.width * 0.08,
+    height: rect.height * 0.045,
   );
   canvas.drawOval(ringRect, paint);
   canvas.drawOval(ringRect.inflate(rect.shortestSide * 0.025), paint);
@@ -1039,8 +1103,8 @@ void _drawRingFingerFocus(Canvas canvas, Rect rect, Paint paint) {
 
 void _drawBraceletWristFocus(Canvas canvas, Rect rect, Paint paint) {
   final wristRect = Rect.fromCenter(
-    center: Offset(rect.center.dx, rect.top + rect.height * 0.84),
-    width: rect.width * 0.33,
+    center: Offset(rect.center.dx, rect.top + rect.height * 0.86),
+    width: rect.width * 0.29,
     height: rect.height * 0.075,
   );
   canvas.drawRRect(
@@ -1057,249 +1121,264 @@ void _drawBraceletWristFocus(Canvas canvas, Rect rect, Paint paint) {
 }
 
 void _drawNeckGuide(Canvas canvas, Rect rect, Paint paint) {
-  final silhouette = _necklaceGuideSilhouettePath(rect);
-  final accentPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = (rect.shortestSide * 0.007).clamp(1.6, 2.8)
-    ..strokeCap = StrokeCap.round
-    ..strokeJoin = StrokeJoin.round
-    ..color = SelfxKioskTokens.secondary.withValues(alpha: 0.82);
-  final fillPaint = Paint()
-    ..style = PaintingStyle.fill
-    ..color = Colors.white.withValues(alpha: 0.07);
-  final outlinePaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = (rect.shortestSide * 0.008).clamp(2.0, 3.4)
-    ..strokeCap = StrokeCap.round
-    ..strokeJoin = StrokeJoin.round
-    ..color = Colors.white.withValues(alpha: 0.82);
-
-  canvas.drawPath(silhouette, fillPaint);
-  canvas.drawPath(silhouette, outlinePaint);
-  canvas.drawPath(_necklaceCollarbonePath(rect), accentPaint);
-  canvas.drawPath(_necklaceChainFocusPath(rect), accentPaint);
+  _drawPortraitJewelleryGuide(
+    canvas,
+    rect,
+    emphasis: _PortraitJewelleryEmphasis.necklace,
+  );
 }
 
 void _drawFaceAndEarsGuide(Canvas canvas, Rect rect, Paint paint) {
-  final faceRect = _earringFaceRect(rect);
-  final earFocusPaint = Paint()
+  _drawPortraitJewelleryGuide(
+    canvas,
+    rect,
+    emphasis: _PortraitJewelleryEmphasis.earrings,
+  );
+}
+
+enum _PortraitJewelleryEmphasis { necklace, earrings }
+
+void _drawPortraitJewelleryGuide(
+  Canvas canvas,
+  Rect rect, {
+  required _PortraitJewelleryEmphasis emphasis,
+}) {
+  final haloPaint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = (rect.shortestSide * 0.007).clamp(1.6, 2.8)
+    ..strokeWidth = (rect.shortestSide * 0.022).clamp(6.0, 13.0)
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round
-    ..color = SelfxKioskTokens.secondary.withValues(alpha: 0.84);
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
+    ..color = SelfxKioskTokens.secondary.withValues(alpha: 0.2);
+  final accentPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = (rect.shortestSide * 0.0085).clamp(1.8, 3.2)
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = SelfxKioskTokens.secondary.withValues(alpha: 0.86);
   final fillPaint = Paint()
     ..style = PaintingStyle.fill
-    ..color = Colors.white.withValues(alpha: 0.065);
+    ..color = Colors.white.withValues(alpha: 0.055);
   final outlinePaint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = (rect.shortestSide * 0.008).clamp(2.0, 3.5)
+    ..strokeWidth = (rect.shortestSide * 0.011).clamp(2.5, 4.4)
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round
-    ..color = Colors.white.withValues(alpha: 0.82);
+    ..color = Colors.white.withValues(alpha: 0.86);
 
-  canvas.drawOval(faceRect, fillPaint);
-  canvas.drawOval(faceRect, outlinePaint);
-  canvas.drawPath(_earringJawAndNeckPath(rect, faceRect), outlinePaint);
+  final bust = _portraitBustPath(rect);
+  final hair = _portraitHairPath(rect);
+  final face = _portraitFacePath(rect);
+  final hairPart = _portraitHairPartPath(rect);
+  final neck = _portraitNeckPath(rect);
 
-  final leftEar = _earringEarRect(faceRect, left: true);
-  final rightEar = _earringEarRect(faceRect, left: false);
-  canvas.drawRRect(
-    RRect.fromRectAndRadius(leftEar, Radius.circular(leftEar.width)),
-    outlinePaint,
-  );
-  canvas.drawRRect(
-    RRect.fromRectAndRadius(rightEar, Radius.circular(rightEar.width)),
-    outlinePaint,
-  );
-  canvas.drawOval(leftEar.inflate(rect.shortestSide * 0.025), earFocusPaint);
-  canvas.drawOval(rightEar.inflate(rect.shortestSide * 0.025), earFocusPaint);
-  canvas.drawPath(_earringSideViewGuidePath(rect), earFocusPaint);
+  canvas.drawPath(hair, haloPaint);
+  canvas.drawPath(bust, fillPaint);
+  canvas.drawPath(bust, outlinePaint);
+  canvas.drawPath(hair, outlinePaint);
+  canvas.drawPath(face, outlinePaint);
+  canvas.drawPath(hairPart, outlinePaint);
+  canvas.drawPath(neck, outlinePaint);
+
+  if (emphasis == _PortraitJewelleryEmphasis.necklace) {
+    canvas.drawPath(_portraitNecklaceFocusPath(rect), accentPaint);
+  } else {
+    canvas.drawPath(_portraitEarFocusPath(rect, left: true), accentPaint);
+    canvas.drawPath(_portraitEarFocusPath(rect, left: false), accentPaint);
+  }
 }
 
-Path _necklaceGuideSilhouettePath(Rect rect) {
+Path _portraitHairPath(Rect rect) {
   Offset p(double x, double y) {
     return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
   }
 
   return Path()
-    ..moveTo(p(0.5, 0.04).dx, p(0.5, 0.04).dy)
+    ..moveTo(p(0.5, 0.08).dx, p(0.5, 0.08).dy)
     ..cubicTo(
-      p(0.4, 0.04).dx,
-      p(0.4, 0.04).dy,
-      p(0.34, 0.13).dx,
-      p(0.34, 0.13).dy,
-      p(0.34, 0.25).dx,
-      p(0.34, 0.25).dy,
+      p(0.3, 0.08).dx,
+      p(0.3, 0.08).dy,
+      p(0.22, 0.25).dx,
+      p(0.22, 0.25).dy,
+      p(0.24, 0.43).dx,
+      p(0.24, 0.43).dy,
     )
     ..cubicTo(
-      p(0.34, 0.37).dx,
-      p(0.34, 0.37).dy,
-      p(0.41, 0.44).dx,
-      p(0.41, 0.44).dy,
-      p(0.45, 0.48).dx,
-      p(0.45, 0.48).dy,
-    )
-    ..lineTo(p(0.43, 0.58).dx, p(0.43, 0.58).dy)
-    ..cubicTo(
-      p(0.34, 0.61).dx,
-      p(0.34, 0.61).dy,
-      p(0.24, 0.67).dx,
-      p(0.24, 0.67).dy,
-      p(0.14, 0.77).dx,
-      p(0.14, 0.77).dy,
+      p(0.25, 0.58).dx,
+      p(0.25, 0.58).dy,
+      p(0.2, 0.69).dx,
+      p(0.2, 0.69).dy,
+      p(0.15, 0.78).dx,
+      p(0.15, 0.78).dy,
     )
     ..cubicTo(
-      p(0.08, 0.83).dx,
-      p(0.08, 0.83).dy,
-      p(0.05, 0.91).dx,
-      p(0.05, 0.91).dy,
-      p(0.04, 0.98).dx,
-      p(0.04, 0.98).dy,
+      p(0.2, 0.85).dx,
+      p(0.2, 0.85).dy,
+      p(0.31, 0.83).dx,
+      p(0.31, 0.83).dy,
+      p(0.36, 0.73).dx,
+      p(0.36, 0.73).dy,
     )
-    ..lineTo(p(0.96, 0.98).dx, p(0.96, 0.98).dy)
+    ..moveTo(p(0.5, 0.08).dx, p(0.5, 0.08).dy)
     ..cubicTo(
-      p(0.95, 0.91).dx,
-      p(0.95, 0.91).dy,
-      p(0.92, 0.83).dx,
-      p(0.92, 0.83).dy,
-      p(0.86, 0.77).dx,
-      p(0.86, 0.77).dy,
-    )
-    ..cubicTo(
-      p(0.76, 0.67).dx,
-      p(0.76, 0.67).dy,
-      p(0.66, 0.61).dx,
-      p(0.66, 0.61).dy,
-      p(0.57, 0.58).dx,
-      p(0.57, 0.58).dy,
-    )
-    ..lineTo(p(0.55, 0.48).dx, p(0.55, 0.48).dy)
-    ..cubicTo(
-      p(0.59, 0.44).dx,
-      p(0.59, 0.44).dy,
-      p(0.66, 0.37).dx,
-      p(0.66, 0.37).dy,
-      p(0.66, 0.25).dx,
-      p(0.66, 0.25).dy,
+      p(0.7, 0.08).dx,
+      p(0.7, 0.08).dy,
+      p(0.78, 0.25).dx,
+      p(0.78, 0.25).dy,
+      p(0.76, 0.43).dx,
+      p(0.76, 0.43).dy,
     )
     ..cubicTo(
-      p(0.66, 0.13).dx,
-      p(0.66, 0.13).dy,
-      p(0.6, 0.04).dx,
-      p(0.6, 0.04).dy,
-      p(0.5, 0.04).dx,
-      p(0.5, 0.04).dy,
+      p(0.75, 0.58).dx,
+      p(0.75, 0.58).dy,
+      p(0.8, 0.69).dx,
+      p(0.8, 0.69).dy,
+      p(0.85, 0.78).dx,
+      p(0.85, 0.78).dy,
     )
-    ..close();
-}
-
-Path _necklaceCollarbonePath(Rect rect) {
-  Offset p(double x, double y) {
-    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
-  }
-
-  return Path()
-    ..moveTo(p(0.18, 0.73).dx, p(0.18, 0.73).dy)
     ..cubicTo(
-      p(0.32, 0.68).dx,
-      p(0.32, 0.68).dy,
-      p(0.41, 0.7).dx,
-      p(0.41, 0.7).dy,
-      p(0.48, 0.76).dx,
-      p(0.48, 0.76).dy,
-    )
-    ..moveTo(p(0.82, 0.73).dx, p(0.82, 0.73).dy)
-    ..cubicTo(
-      p(0.68, 0.68).dx,
-      p(0.68, 0.68).dy,
-      p(0.59, 0.7).dx,
-      p(0.59, 0.7).dy,
-      p(0.52, 0.76).dx,
-      p(0.52, 0.76).dy,
+      p(0.8, 0.85).dx,
+      p(0.8, 0.85).dy,
+      p(0.69, 0.83).dx,
+      p(0.69, 0.83).dy,
+      p(0.64, 0.73).dx,
+      p(0.64, 0.73).dy,
     );
 }
 
-Path _necklaceChainFocusPath(Rect rect) {
-  final chainRect = Rect.fromCenter(
-    center: Offset(rect.center.dx, rect.top + rect.height * 0.67),
-    width: rect.width * 0.42,
-    height: rect.height * 0.34,
-  );
-  return Path()
-    ..addArc(chainRect, 0.18, 2.78)
-    ..addArc(chainRect, 0.18, 2.78);
-}
-
-Rect _earringFaceRect(Rect rect) {
-  return Rect.fromCenter(
-    center: Offset(rect.center.dx, rect.top + rect.height * 0.39),
-    width: rect.width * 0.48,
-    height: rect.height * 0.58,
-  );
-}
-
-Rect _earringEarRect(Rect faceRect, {required bool left}) {
-  final earWidth = faceRect.width * 0.2;
-  final earHeight = faceRect.height * 0.28;
-  return Rect.fromCenter(
-    center: Offset(
-      left ? faceRect.left - earWidth * 0.18 : faceRect.right + earWidth * 0.18,
-      faceRect.top + faceRect.height * 0.48,
-    ),
-    width: earWidth,
-    height: earHeight,
-  );
-}
-
-Path _earringJawAndNeckPath(Rect rect, Rect faceRect) {
+Path _portraitHairPartPath(Rect rect) {
   Offset p(double x, double y) {
     return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
   }
 
   return Path()
-    ..moveTo(faceRect.left + faceRect.width * 0.2, faceRect.bottom)
+    ..moveTo(p(0.27, 0.37).dx, p(0.27, 0.37).dy)
     ..cubicTo(
-      p(0.42, 0.72).dx,
-      p(0.42, 0.72).dy,
-      p(0.4, 0.8).dx,
-      p(0.4, 0.8).dy,
-      p(0.34, 0.9).dx,
-      p(0.34, 0.9).dy,
+      p(0.39, 0.34).dx,
+      p(0.39, 0.34).dy,
+      p(0.47, 0.27).dx,
+      p(0.47, 0.27).dy,
+      p(0.53, 0.18).dx,
+      p(0.53, 0.18).dy,
     )
-    ..moveTo(faceRect.right - faceRect.width * 0.2, faceRect.bottom)
     ..cubicTo(
-      p(0.58, 0.72).dx,
-      p(0.58, 0.72).dy,
-      p(0.6, 0.8).dx,
-      p(0.6, 0.8).dy,
-      p(0.66, 0.9).dx,
-      p(0.66, 0.9).dy,
+      p(0.6, 0.29).dx,
+      p(0.6, 0.29).dy,
+      p(0.68, 0.36).dx,
+      p(0.68, 0.36).dy,
+      p(0.73, 0.39).dx,
+      p(0.73, 0.39).dy,
     );
 }
 
-Path _earringSideViewGuidePath(Rect rect) {
+Path _portraitFacePath(Rect rect) {
   Offset p(double x, double y) {
     return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
   }
 
   return Path()
-    ..moveTo(p(0.61, 0.14).dx, p(0.61, 0.14).dy)
+    ..moveTo(p(0.31, 0.39).dx, p(0.31, 0.39).dy)
     ..cubicTo(
-      p(0.76, 0.2).dx,
-      p(0.76, 0.2).dy,
-      p(0.82, 0.36).dx,
-      p(0.82, 0.36).dy,
-      p(0.75, 0.52).dx,
-      p(0.75, 0.52).dy,
+      p(0.31, 0.52).dx,
+      p(0.31, 0.52).dy,
+      p(0.39, 0.64).dx,
+      p(0.39, 0.64).dy,
+      p(0.5, 0.66).dx,
+      p(0.5, 0.66).dy,
     )
     ..cubicTo(
-      p(0.71, 0.61).dx,
-      p(0.71, 0.61).dy,
-      p(0.66, 0.68).dx,
-      p(0.66, 0.68).dy,
-      p(0.58, 0.73).dx,
-      p(0.58, 0.73).dy,
+      p(0.61, 0.64).dx,
+      p(0.61, 0.64).dy,
+      p(0.69, 0.52).dx,
+      p(0.69, 0.52).dy,
+      p(0.69, 0.39).dx,
+      p(0.69, 0.39).dy,
+    );
+}
+
+Path _portraitNeckPath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.42, 0.64).dx, p(0.42, 0.64).dy)
+    ..lineTo(p(0.39, 0.74).dx, p(0.39, 0.74).dy)
+    ..moveTo(p(0.58, 0.64).dx, p(0.58, 0.64).dy)
+    ..lineTo(p(0.61, 0.74).dx, p(0.61, 0.74).dy);
+}
+
+Path _portraitBustPath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.15, 0.96).dx, p(0.15, 0.96).dy)
+    ..lineTo(p(0.15, 0.88).dx, p(0.15, 0.88).dy)
+    ..cubicTo(
+      p(0.16, 0.78).dx,
+      p(0.16, 0.78).dy,
+      p(0.28, 0.74).dx,
+      p(0.28, 0.74).dy,
+      p(0.38, 0.71).dx,
+      p(0.38, 0.71).dy,
+    )
+    ..lineTo(p(0.5, 0.92).dx, p(0.5, 0.92).dy)
+    ..lineTo(p(0.62, 0.71).dx, p(0.62, 0.71).dy)
+    ..cubicTo(
+      p(0.72, 0.74).dx,
+      p(0.72, 0.74).dy,
+      p(0.84, 0.78).dx,
+      p(0.84, 0.78).dy,
+      p(0.85, 0.88).dx,
+      p(0.85, 0.88).dy,
+    )
+    ..lineTo(p(0.85, 0.96).dx, p(0.85, 0.96).dy);
+}
+
+Path _portraitNecklaceFocusPath(Rect rect) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  return Path()
+    ..moveTo(p(0.36, 0.69).dx, p(0.36, 0.69).dy)
+    ..cubicTo(
+      p(0.43, 0.8).dx,
+      p(0.43, 0.8).dy,
+      p(0.57, 0.8).dx,
+      p(0.57, 0.8).dy,
+      p(0.64, 0.69).dx,
+      p(0.64, 0.69).dy,
+    );
+}
+
+Path _portraitEarFocusPath(Rect rect, {required bool left}) {
+  Offset p(double x, double y) {
+    return Offset(rect.left + rect.width * x, rect.top + rect.height * y);
+  }
+
+  final side = left ? -1.0 : 1.0;
+  final x = left ? 0.25 : 0.75;
+  return Path()
+    ..moveTo(p(x, 0.39).dx, p(x, 0.39).dy)
+    ..cubicTo(
+      p(x + side * 0.08, 0.42).dx,
+      p(x + side * 0.08, 0.42).dy,
+      p(x + side * 0.08, 0.53).dx,
+      p(x + side * 0.08, 0.53).dy,
+      p(x, 0.56).dx,
+      p(x, 0.56).dy,
+    )
+    ..moveTo(p(x + side * 0.06, 0.4).dx, p(x + side * 0.06, 0.4).dy)
+    ..cubicTo(
+      p(x + side * 0.14, 0.44).dx,
+      p(x + side * 0.14, 0.44).dy,
+      p(x + side * 0.14, 0.51).dx,
+      p(x + side * 0.14, 0.51).dy,
+      p(x + side * 0.06, 0.55).dx,
+      p(x + side * 0.06, 0.55).dy,
     );
 }
 

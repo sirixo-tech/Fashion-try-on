@@ -1,0 +1,27 @@
+{
+  "name": "SelfX Kiosk",
+  "short_name": "SelfX Kiosk",
+  "description": "Customer-facing SelfX Virtual Try-On kiosk web app.",
+  "start_url": "/kiosk",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#ff7119",
+  "icons": [
+    {
+      "src": "/brand/selfx-logo.png",
+      "sizes": "1380x513",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/kiosk/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "lifestyle"],
+  "prefer_related_applications": false
+}
