@@ -143,37 +143,7 @@ describe("STORE-1 admin Stores", () => {
     expect(kiosks.pairKiosk).not.toHaveBeenCalled();
   });
 
-  it("archives inactive Stores without hard-deleting their records", async () => {
-    const prisma = createPrismaMock();
-    const service = new AdminStoresService(
-      prisma as never,
-      createKioskMock() as never,
-      createRbacMock() as never,
-      createGarmentPreviewSettingsMock() as never,
-    );
-    prisma.organization.findUnique.mockResolvedValue(
-      organizationRecord({
-        id: "store-inactive",
-        status: OrganizationStatus.SUSPENDED,
-      }),
-    );
-    prisma.organization.update.mockResolvedValue(
-      organizationRecord({
-        id: "store-inactive",
-        status: OrganizationStatus.ARCHIVED,
-      }),
-    );
-
-    const archived = await service.archiveStore("store-inactive");
-
-    expect(prisma.organization.update).toHaveBeenCalledWith({
-      where: { id: "store-inactive" },
-      data: { status: OrganizationStatus.ARCHIVED },
-    });
-    expect(archived.status).toBe(AdminStoreStatus.INACTIVE);
-  });
-
-  it("rejects Store deletion while the Store is active", async () => {
+  it("archives Stores without hard-deleting their records", async () => {
     const prisma = createPrismaMock();
     const service = new AdminStoresService(
       prisma as never,
@@ -187,12 +157,20 @@ describe("STORE-1 admin Stores", () => {
         status: OrganizationStatus.ACTIVE,
       }),
     );
-
-    await expectApiCode(
-      service.archiveStore("store-active"),
-      STORE_ERROR_CODES.storeDeleteRequiresInactive,
+    prisma.organization.update.mockResolvedValue(
+      organizationRecord({
+        id: "store-active",
+        status: OrganizationStatus.ARCHIVED,
+      }),
     );
-    expect(prisma.organization.update).not.toHaveBeenCalled();
+
+    const archived = await service.archiveStore("store-active");
+
+    expect(prisma.organization.update).toHaveBeenCalledWith({
+      where: { id: "store-active" },
+      data: { status: OrganizationStatus.ARCHIVED },
+    });
+    expect(archived.status).toBe(AdminStoreStatus.INACTIVE);
   });
 
   it("excludes archived Stores from normal Store lists", async () => {

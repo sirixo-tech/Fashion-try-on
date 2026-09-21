@@ -24,6 +24,7 @@ describe("GoogleVirtualTryOnProvider", () => {
       {
         personImageDataUri: dataUri("image/jpeg", personImage),
         garmentImageDataUri: dataUri("image/png", garmentImage),
+        garmentMaskImageDataUri: dataUri("image/png", await smallPng()),
         category: "TOP",
         garmentPhotoType: "FLAT_LAY",
         generationProfile: "QUALITY",

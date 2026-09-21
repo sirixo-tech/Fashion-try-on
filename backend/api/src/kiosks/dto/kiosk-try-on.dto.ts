@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 import type {
+  SelfxGarmentPreprocessingProviderInputImage,
+  SelfxGarmentPreprocessingStatus,
   SelfxTryOnAssetPurpose,
   SelfxTryOnRunStatus,
   SelfxTryOnSessionStatus,
@@ -41,6 +43,21 @@ export class KioskTryOnRunResponseDto {
 
   @ApiPropertyOptional()
   errorMessage?: string;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingStatus?: SelfxGarmentPreprocessingStatus;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingProviderInputImage?: SelfxGarmentPreprocessingProviderInputImage;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingMaskGenerated?: boolean;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingFallbackReason?: string;
 }
 
 export class KioskTryOnSessionResponseDto {

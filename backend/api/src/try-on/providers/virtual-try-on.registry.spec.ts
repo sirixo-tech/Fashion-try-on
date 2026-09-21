@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { FashnVirtualTryOnProvider } from "./fashn-virtual-try-on.provider.js";
 import { GoogleVirtualTryOnProvider } from "./google-virtual-try-on.provider.js";
-import { readVirtualTryOnProviderName } from "./virtual-try-on.config.js";
+import {
+  readGarmentMaskGenerationEnabled,
+  readGarmentPreprocessingEnabled,
+  readVirtualTryOnProviderName,
+} from "./virtual-try-on.config.js";
 import { VirtualTryOnProviderRegistry } from "./virtual-try-on.registry.js";
 
 describe("VirtualTryOnProviderRegistry", () => {
@@ -32,6 +36,38 @@ describe("VirtualTryOnProviderRegistry", () => {
     expect(() => readVirtualTryOnProviderName()).toThrow(
       /Unsupported SELFX_TRYON_PROVIDER/,
     );
+    restore();
+  });
+
+  it("keeps garment preprocessing disabled unless explicitly enabled", () => {
+    const restore = setEnv({ GARMENT_PREPROCESSING_ENABLED: undefined });
+
+    expect(readGarmentPreprocessingEnabled()).toBe(false);
+
+    restore();
+  });
+
+  it("enables garment preprocessing only for the exact true flag value", () => {
+    const restore = setEnv({ GARMENT_PREPROCESSING_ENABLED: "true" });
+
+    expect(readGarmentPreprocessingEnabled()).toBe(true);
+
+    restore();
+  });
+
+  it("keeps garment mask generation disabled unless explicitly enabled", () => {
+    const restore = setEnv({ GARMENT_MASK_GENERATION_ENABLED: undefined });
+
+    expect(readGarmentMaskGenerationEnabled()).toBe(false);
+
+    restore();
+  });
+
+  it("enables garment mask generation only for the exact true flag value", () => {
+    const restore = setEnv({ GARMENT_MASK_GENERATION_ENABLED: "true" });
+
+    expect(readGarmentMaskGenerationEnabled()).toBe(true);
+
     restore();
   });
 });

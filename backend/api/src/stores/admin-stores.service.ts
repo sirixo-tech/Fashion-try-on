@@ -69,7 +69,6 @@ import {
 export const STORE_ERROR_CODES = {
   storeNotFound: "STORE_NOT_FOUND",
   storeInactive: "STORE_INACTIVE",
-  storeDeleteRequiresInactive: "STORE_DELETE_REQUIRES_INACTIVE",
   storeSlugConflict: "STORE_SLUG_CONFLICT",
   ownerEmailConflict: "STORE_OWNER_EMAIL_CONFLICT",
   storeFeatureUnavailable: "STORE_FEATURE_UNAVAILABLE",
@@ -525,14 +524,7 @@ export class AdminStoresService {
   }
 
   async archiveStore(storeId: string): Promise<AdminStoreResponseDto> {
-    const existing = await this.findStoreOrThrow(storeId);
-    if (existing.status === OrganizationStatus.ACTIVE) {
-      throw new ApiErrorException(
-        HttpStatus.CONFLICT,
-        STORE_ERROR_CODES.storeDeleteRequiresInactive,
-        "Only inactive Stores can be deleted.",
-      );
-    }
+    await this.findStoreOrThrow(storeId);
     const store = await this.prisma.organization.update({
       where: { id: storeId },
       data: { status: OrganizationStatus.ARCHIVED },

@@ -7,6 +7,8 @@ import type {
   SelfxGarmentCategory,
   SelfxGarmentIntent,
   SelfxGarmentPhotoType,
+  SelfxGarmentPreprocessingProviderInputImage,
+  SelfxGarmentPreprocessingStatus,
   SelfxGarmentSource,
   SelfxGenerationProfile,
   SelfxGenerationPolicyResolutionSource,
@@ -44,6 +46,11 @@ export interface TryOnLabRunRecord {
   disambiguationResolved: boolean;
   garmentAnalysisBodyCoverage?: SelfxGarmentBodyCoverage;
   garmentAnalysisReasonCodes: SelfxGarmentAnalysisReasonCode[];
+  garmentPreprocessingEnabled?: boolean;
+  garmentPreprocessingStatus?: SelfxGarmentPreprocessingStatus;
+  garmentPreprocessingProviderInputImage?: SelfxGarmentPreprocessingProviderInputImage;
+  garmentPreprocessingMaskGenerated?: boolean;
+  garmentPreprocessingFallbackReason?: string;
   createdAt: Date;
   startedAt?: Date;
   completedAt?: Date;
@@ -137,6 +144,11 @@ export class TryOnLabRunRegistryService {
         | "resultImage"
         | "errorCode"
         | "errorMessage"
+        | "garmentPreprocessingEnabled"
+        | "garmentPreprocessingStatus"
+        | "garmentPreprocessingProviderInputImage"
+        | "garmentPreprocessingMaskGenerated"
+        | "garmentPreprocessingFallbackReason"
       >
     >,
   ): TryOnLabRunRecord | null {
@@ -189,6 +201,14 @@ export class TryOnLabRunRegistryService {
       disambiguationResolved: run.disambiguationResolved,
       garmentAnalysisBodyCoverage: run.garmentAnalysisBodyCoverage,
       garmentAnalysisReasonCodes: run.garmentAnalysisReasonCodes,
+      garmentPreprocessingEnabled: run.garmentPreprocessingEnabled,
+      garmentPreprocessingStatus: run.garmentPreprocessingStatus,
+      garmentPreprocessingProviderInputImage:
+        run.garmentPreprocessingProviderInputImage,
+      garmentPreprocessingMaskGenerated:
+        run.garmentPreprocessingMaskGenerated,
+      garmentPreprocessingFallbackReason:
+        run.garmentPreprocessingFallbackReason,
       createdAt: run.createdAt.toISOString(),
       startedAt: run.startedAt?.toISOString(),
       completedAt,

@@ -896,6 +896,24 @@ export const SELFX_TRY_ON_CHANNELS = [
 
 export type SelfxTryOnChannel = (typeof SELFX_TRY_ON_CHANNELS)[number];
 
+export const SELFX_GARMENT_PREPROCESSING_STATUSES = [
+  "DISABLED",
+  "NORMALIZED",
+  "PASSTHROUGH",
+  "FALLBACK",
+] as const;
+
+export type SelfxGarmentPreprocessingStatus =
+  (typeof SELFX_GARMENT_PREPROCESSING_STATUSES)[number];
+
+export const SELFX_GARMENT_PREPROCESSING_PROVIDER_INPUT_IMAGES = [
+  "ORIGINAL",
+  "PREPROCESSED",
+] as const;
+
+export type SelfxGarmentPreprocessingProviderInputImage =
+  (typeof SELFX_GARMENT_PREPROCESSING_PROVIDER_INPUT_IMAGES)[number];
+
 export interface SelfxTryOnTelemetry {
   selfxRunId: string;
   channel: SelfxTryOnChannel;
@@ -923,6 +941,11 @@ export interface SelfxTryOnTelemetry {
   failureCode?: TryOnLabErrorCode;
   qualityWarningCodes: ImageQualityIssueCode[];
   qualityOverrideAccepted: boolean;
+  garmentPreprocessingEnabled?: boolean;
+  garmentPreprocessingStatus?: SelfxGarmentPreprocessingStatus;
+  garmentPreprocessingProviderInputImage?: SelfxGarmentPreprocessingProviderInputImage;
+  garmentPreprocessingMaskGenerated?: boolean;
+  garmentPreprocessingFallbackReason?: string;
   providerCreditUsage?: number;
   estimatedProviderCostCents?: number;
   estimatedProviderCostCurrency?: string;

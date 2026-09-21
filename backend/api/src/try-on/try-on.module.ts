@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { DatabaseModule } from "../database/database.module.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
+import { GarmentPreprocessingService } from "./garment-preprocessing.service.js";
 import { GarmentPreviewSettingsService } from "./garment-preview-settings.service.js";
 import { JewelleryCaptureRequirementsService } from "./jewellery/jewellery-capture-requirements.service.js";
 import { JewelleryPersonImageValidatorService } from "./jewellery/jewellery-person-image-validator.service.js";
@@ -28,6 +29,7 @@ import { TryOnSessionService } from "./try-on-session.service.js";
     PerfectCorpJewelleryTryOnProvider,
     JewelleryTryOnProviderRegistry,
     JewelleryCaptureRequirementsService,
+    GarmentPreprocessingService,
     JewelleryPersonImageValidatorService,
     JewelleryTryOnExecutionService,
     JewelleryTryOnService,

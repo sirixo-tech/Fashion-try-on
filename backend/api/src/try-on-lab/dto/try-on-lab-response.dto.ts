@@ -6,6 +6,8 @@ import {
   SELFX_GARMENT_BODY_COVERAGES,
   SELFX_GARMENT_CATEGORIES,
   SELFX_GARMENT_PHOTO_TYPES,
+  SELFX_GARMENT_PREPROCESSING_PROVIDER_INPUT_IMAGES,
+  SELFX_GARMENT_PREPROCESSING_STATUSES,
   SELFX_GARMENT_INTENTS,
   SELFX_GARMENT_SOURCES,
   SELFX_GENERATION_PROFILES,
@@ -18,6 +20,8 @@ import {
   type SelfxGarmentCategory,
   type SelfxGarmentIntent,
   type SelfxGarmentPhotoType,
+  type SelfxGarmentPreprocessingProviderInputImage,
+  type SelfxGarmentPreprocessingStatus,
   type SelfxGarmentSource,
   type SelfxGenerationProfile,
   type SelfxGenerationPolicyResolutionSource,
@@ -104,6 +108,23 @@ export class TryOnLabTelemetryDto {
 
   @ApiProperty()
   qualityOverrideAccepted!: boolean;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingEnabled?: boolean;
+
+  @ApiPropertyOptional({ enum: SELFX_GARMENT_PREPROCESSING_STATUSES })
+  garmentPreprocessingStatus?: SelfxGarmentPreprocessingStatus;
+
+  @ApiPropertyOptional({
+    enum: SELFX_GARMENT_PREPROCESSING_PROVIDER_INPUT_IMAGES,
+  })
+  garmentPreprocessingProviderInputImage?: SelfxGarmentPreprocessingProviderInputImage;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingMaskGenerated?: boolean;
+
+  @ApiPropertyOptional()
+  garmentPreprocessingFallbackReason?: string;
 
   @ApiPropertyOptional()
   providerCreditUsage?: number;

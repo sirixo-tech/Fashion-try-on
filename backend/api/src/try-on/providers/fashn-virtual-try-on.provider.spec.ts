@@ -12,6 +12,7 @@ describe("FashnVirtualTryOnProvider", () => {
       provider.submit({
         personImageDataUri: "data:image/jpeg;base64,cGVyc29u",
         garmentImageDataUri: "data:image/jpeg;base64,Z2FybWVudA==",
+        garmentMaskImageDataUri: "data:image/png;base64,bWFzaw==",
         category: "TOP",
         garmentPhotoType: "FLAT_LAY",
         generationProfile: "BALANCED",

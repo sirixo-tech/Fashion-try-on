@@ -127,18 +127,41 @@ describe("KIOSK-4B production Try-On service", () => {
     restore();
   });
 
+  it("persists safe garment preprocessing metadata for garment runs", async () => {
+    const prisma = new FakePrisma();
+    const execution = new FakeExecution();
+    const service = new KioskTryOnService(prisma as never, execution as never);
+
+    const created = await service.createRun(
+      platformDevice("device-1"),
+      payload(),
+    );
+    await flushPromises();
+
+    const stored = await service.getRun(platformDevice("device-1"), created.id);
+    expect(stored).toMatchObject({
+      garmentPreprocessingEnabled: true,
+      garmentPreprocessingStatus: "NORMALIZED",
+      garmentPreprocessingProviderInputImage: "PREPROCESSED",
+      garmentPreprocessingMaskGenerated: false,
+    });
+    expect(JSON.stringify(stored)).not.toContain("base64");
+  });
+
   it("records store catalog reference metadata for Store-owned kiosk runs", async () => {
     const prisma = new FakePrisma();
     const execution = new FakeExecution();
     const service = new KioskTryOnService(prisma as never, execution as never);
+    const externalProductId = "p".repeat(180);
+    const externalVariantId = "v".repeat(180);
 
     await service.createRun(
       storeDevice("device-1", "store-1"),
       payload({
         productId: "0198a9b3-d0bc-7000-8000-000000000701",
         catalogSource: "SHOPIFY",
-        externalProductId: "shopify-product-1",
-        externalVariantId: "variant-blue-xl",
+        externalProductId,
+        externalVariantId,
         sku: "LINEN-BLUE-XL",
         productName: "Blue Linen Shirt",
         price: "2499.00",
@@ -152,8 +175,8 @@ describe("KIOSK-4B production Try-On service", () => {
       storeId: null,
       productId: "0198a9b3-d0bc-7000-8000-000000000701",
       catalogSource: "SHOPIFY",
-      externalProductId: "shopify-product-1",
-      externalVariantId: "variant-blue-xl",
+      externalProductId,
+      externalVariantId,
       externalSku: "LINEN-BLUE-XL",
       externalProductName: "Blue Linen Shirt",
       externalProductPrice: "2499.00",
@@ -519,6 +542,12 @@ class FakeExecution implements Pick<
   ): Promise<void> {
     this.submissions += 1;
     await observer.onStarted(new Date());
+    await observer.onGarmentPreprocessed?.({
+      enabled: true,
+      status: "NORMALIZED",
+      providerInputImage: "PREPROCESSED",
+      maskGenerated: false,
+    });
     await observer.onSubmitted(`provider-${this.submissions}`);
   }
 }
@@ -676,6 +705,11 @@ interface CreateRunData {
   garmentCategory: string;
   garmentPhotoType: string;
   generationProfile: string;
+  garmentPreprocessingEnabled?: boolean | null;
+  garmentPreprocessingStatus?: string | null;
+  garmentPreprocessingProviderInputImage?: string | null;
+  garmentPreprocessingMaskGenerated?: boolean | null;
+  garmentPreprocessingFallbackReason?: string | null;
   expiresAt: Date;
 }
 

@@ -996,6 +996,16 @@ Protected route coverage:
     Current lab override state is ephemeral and provider-neutral; it must not
     add OpenCV-specific fields to the FASHN adapter contract.
 
+    Garment preprocessing may produce an optional provider-neutral garment mask
+    alongside the selected provider garment image. The SelfX execution contract
+    may carry this mask between preprocessing and provider adapters, but
+    provider-specific adapters must opt in before sending it to an AI provider.
+    Unsupported adapters ignore the mask while still recording safe metadata
+    such as whether a mask was generated.
+    `GARMENT_MASK_GENERATION_ENABLED=true` enables only local placeholder mask
+    generation for pipe testing. It does not perform real segmentation, call an
+    external API or consume provider credits.
+
     OpenCV's primary future production role is live camera/capture quality
     guidance. Kiosk/live capture may use OpenCV more strictly because SelfX
     controls the capture process and can guide users before taking the photo.

@@ -72,6 +72,16 @@ export class TryOnLabService {
       onStarted: (startedAt) => {
         this.registry.update(runId, { startedAt });
       },
+      onGarmentPreprocessed: (metadata) => {
+        this.registry.update(runId, {
+          garmentPreprocessingEnabled: metadata.enabled,
+          garmentPreprocessingStatus: metadata.status,
+          garmentPreprocessingProviderInputImage:
+            metadata.providerInputImage,
+          garmentPreprocessingMaskGenerated: metadata.maskGenerated,
+          garmentPreprocessingFallbackReason: metadata.fallbackReason,
+        });
+      },
       onSubmitted: (providerPredictionId) => {
         this.registry.update(runId, {
           status: "PROCESSING",

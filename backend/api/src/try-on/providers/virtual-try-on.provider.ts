@@ -9,6 +9,7 @@ import type {
 export interface VirtualTryOnProviderSubmitInput {
   personImageDataUri: string;
   garmentImageDataUri: string;
+  garmentMaskImageDataUri?: string;
   category: SelfxGarmentCategory;
   garmentPhotoType: SelfxGarmentPhotoType;
   generationProfile: SelfxGenerationProfile;

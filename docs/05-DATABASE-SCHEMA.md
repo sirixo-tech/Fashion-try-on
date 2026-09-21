@@ -5,7 +5,7 @@
 **Version:** 1.1  
 **Status:** ACTIVE BASELINE  
 **Document Type:** Living Document  
-**Last Updated:** 2026-08-11  
+**Last Updated:** 2026-09-19
 **Document:** `05-DATABASE-SCHEMA.md`
 
 ---
@@ -999,8 +999,8 @@ Important fields:
 - `organization_id`
 - `integration_id`
 - `product_id`
-- `external_product_id`
-- `external_variant_id`
+- `external_product_id` (up to 180 chars)
+- `external_variant_id` (up to 180 chars)
 - `external_sku`
 - `external_handle`
 - `status`
@@ -1383,8 +1383,8 @@ Important fields:
 - `garment_asset_id`
 - `product_id`
 - `catalog_source`
-- `external_product_id`
-- `external_variant_id`
+- `external_product_id` (up to 180 chars)
+- `external_variant_id` (up to 180 chars)
 - `external_sku`
 - `external_product_name`
 - `external_product_price`
@@ -1400,6 +1400,11 @@ Important fields:
 - `garment_category`
 - `garment_photo_type`
 - `generation_profile`
+- `garment_preprocessing_enabled`
+- `garment_preprocessing_status` (`DISABLED`, `NORMALIZED`, `PASSTHROUGH`, `FALLBACK`)
+- `garment_preprocessing_provider_input_image` (`ORIGINAL`, `PREPROCESSED`)
+- `garment_preprocessing_mask_generated`
+- `garment_preprocessing_fallback_reason`
 - `result_image`
 - `error_code`
 - `error_message`
@@ -1435,6 +1440,8 @@ Rules:
   current device record at run creation and are not accepted from Flutter;
 - the table stores safe provider metadata and provider execution state but does
   not expose provider prediction IDs to Flutter customer UI;
+- garment preprocessing fields store safe operational metadata only. They must
+  not contain raw image bytes, Base64 image content, masks or provider secrets;
 - raw person and garment input bytes are not stored in PostgreSQL by this
   model;
 - `try_on_vertical` defaults to `GARMENT` for existing and legacy runs.

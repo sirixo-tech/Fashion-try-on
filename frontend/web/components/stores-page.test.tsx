@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import StoreDashboardPage from "../app/app/stores/[storeId]/page";
 import StoresPage from "../app/app/stores/page";
 import {
+  activateStore,
   deleteStore,
+  deactivateStore,
   getEffectiveStorePermissions,
   getStore,
   getStoreCreditDiagnostics,
@@ -272,6 +274,14 @@ describe("STORE-1 web Store management", () => {
       ...store,
       status: "INACTIVE",
     } as never);
+    vi.mocked(activateStore).mockResolvedValue({
+      ...store,
+      status: "ACTIVE",
+    } as never);
+    vi.mocked(deactivateStore).mockResolvedValue({
+      ...store,
+      status: "INACTIVE",
+    } as never);
     vi.mocked(getStore).mockResolvedValue({
       ...store,
       kiosks: { data: [kiosk] },
@@ -402,7 +412,7 @@ describe("STORE-1 web Store management", () => {
     expect(pushMock).toHaveBeenCalledWith("/app/stores/create");
   });
 
-  it("allows inactive Stores to be deleted from the directory", async () => {
+  it("shows suspended Stores with a reactivation action", async () => {
     vi.mocked(listStores).mockResolvedValue({
       data: [
         {
@@ -423,7 +433,23 @@ describe("STORE-1 web Store management", () => {
     render(<StoresPage />);
 
     expect(await screen.findByText("SelfX Demo Store")).toBeTruthy();
+    expect(screen.getByText("Suspended")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Reactivate Store" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate" }));
+
+    await waitFor(() =>
+      expect(activateStore).toHaveBeenCalledWith("staff-token", "store-1"),
+    );
+  });
+
+  it("allows active Stores to be deleted from the directory while retaining history", async () => {
+    render(<StoresPage />);
+
+    expect(await screen.findByText("SelfX Demo Store")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Delete Store" }));
+    expect(
+      await screen.findByText(/audit history are retained for later review/i),
+    ).toBeTruthy();
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
     await waitFor(() =>

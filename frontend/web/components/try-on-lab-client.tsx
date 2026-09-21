@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type Ref,
   type ReactNode,
 } from "react";
 import {
@@ -51,7 +52,6 @@ import {
   type ImageQualityIssueCode,
   type ImageQualityResult,
   type ImageQualityTarget,
-  type SelfxGarmentIntent,
   type TryOnLabRunResponse,
   resolveGenerationPolicy,
 } from "@selfx/shared";
@@ -82,33 +82,6 @@ const emptySlot: ImageSlot = {
   quality: null,
 };
 
-const DISAMBIGUATION_OPTIONS: {
-  label: string;
-  value: SelfxGarmentIntent;
-  description: string;
-}[] = [
-  {
-    label: "Upper garment",
-    value: "TOP",
-    description: "Shirts, tops, jackets and similar upper-body items.",
-  },
-  {
-    label: "Lower garment",
-    value: "BOTTOM",
-    description: "Pants, skirts, shorts and similar lower-body items.",
-  },
-  {
-    label: "One-piece",
-    value: "ONE_PIECE",
-    description: "Dresses, jumpsuits and single garments covering both areas.",
-  },
-  {
-    label: "Full outfit",
-    value: "FULL_OUTFIT",
-    description: "Use the complete outfit shown in the reference image.",
-  },
-];
-
 function Stack({
   children,
   gap = "md",
@@ -134,64 +107,6 @@ function Stack({
                 ? "gap-0.5"
                 : "gap-4",
         align === "flex-start" && "items-start",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function Group({
-  children,
-  gap = "md",
-  justify,
-  align,
-  wrap,
-  className,
-}: {
-  children: ReactNode;
-  gap?: "xs" | "sm" | "md";
-  justify?: "space-between" | "flex-end";
-  align?: "center";
-  wrap?: "wrap";
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex",
-        gap === "xs" ? "gap-2" : gap === "sm" ? "gap-3" : "gap-4",
-        justify === "space-between" && "justify-between",
-        justify === "flex-end" && "justify-end",
-        align === "center" && "items-center",
-        wrap === "wrap" && "flex-wrap",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function SimpleGrid({
-  children,
-  cols,
-  className,
-}: {
-  children: ReactNode;
-  cols: { base?: number; sm?: number; md?: number; lg?: number };
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "grid gap-4",
-        cols.base === 1 && "grid-cols-1",
-        cols.sm === 2 && "sm:grid-cols-2",
-        cols.md === 3 && "md:grid-cols-3",
-        cols.lg === 2 && "lg:grid-cols-2",
-        cols.lg === 4 && "lg:grid-cols-4",
         className,
       )}
     >
@@ -228,44 +143,6 @@ function Text({
     >
       {children}
     </p>
-  );
-}
-
-function Button({
-  children,
-  variant,
-  color,
-  onClick,
-  disabled,
-  justify,
-  className,
-}: {
-  children: ReactNode;
-  variant?: "light" | "subtle" | "default";
-  color?: "gray";
-  onClick?: () => void;
-  disabled?: boolean;
-  justify?: "flex-start";
-  className?: string;
-}) {
-  const mappedVariant =
-    variant === "light" || variant === "subtle" || color === "gray"
-      ? "outline"
-      : "default";
-
-  return (
-    <ShadcnButton
-      variant={mappedVariant}
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        justify === "flex-start" &&
-          "h-auto justify-start whitespace-normal p-4 text-left",
-        className,
-      )}
-    >
-      {children}
-    </ShadcnButton>
   );
 }
 
@@ -389,34 +266,20 @@ function ThemeIcon({
   );
 }
 
-const List = Object.assign(
-  function ListRoot({ children }: { children: ReactNode; size?: string }) {
-    return <ul className="list-disc space-y-1 pl-5 text-sm">{children}</ul>;
-  },
-  {
-    Item({ children }: { children: ReactNode }) {
-      return <li>{children}</li>;
-    },
-  },
-);
-
 export function TryOnLabClient() {
   const session = useSession();
   const [person, setPerson] = useState<ImageSlot>(emptySlot);
   const [garment, setGarment] = useState<ImageSlot>(emptySlot);
   const [garmentAnalysis, setGarmentAnalysis] =
     useState<GarmentInputAnalysisResult | null>(null);
-  const [disambiguationIntent, setDisambiguationIntent] =
-    useState<SelfxGarmentIntent | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [run, setRun] = useState<TryOnLabRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [warningModalOpened, setWarningModalOpened] = useState(false);
-  const [ambiguityModalOpened, setAmbiguityModalOpened] = useState(false);
   const [qualityOverrideAccepted, setQualityOverrideAccepted] = useState(false);
   const [previewModal, setPreviewModal] =
     useState<ImagePreviewModalState>(null);
+  const garmentInputRef = useRef<HTMLInputElement>(null);
   const previewUrlsRef = useRef<Record<ImageQualityTarget, string | null>>({
     person: null,
     garment: null,
@@ -428,7 +291,6 @@ export function TryOnLabClient() {
 
   const resetGarmentResolutionState = useCallback(() => {
     setGarmentAnalysis(null);
-    setDisambiguationIntent(null);
   }, []);
 
   useEffect(() => {
@@ -443,10 +305,10 @@ export function TryOnLabClient() {
       resolveGenerationPolicy({
         garmentSource: "DIRECT_UPLOAD",
         directUploadAnalysis: garmentAnalysis,
-        userDisambiguationIntent: disambiguationIntent,
+        userDisambiguationIntent: null,
         internalLabOverride: null,
       }),
-    [disambiguationIntent, garmentAnalysis],
+    [garmentAnalysis],
   );
 
   const canGenerate =
@@ -473,8 +335,6 @@ export function TryOnLabClient() {
     async (file: File | null, target: ImageQualityTarget) => {
       setError(null);
       setRun(null);
-      setWarningModalOpened(false);
-      setAmbiguityModalOpened(false);
       setQualityOverrideAccepted(false);
       const setter = target === "person" ? setPerson : setGarment;
       const analysisVersion = analysisVersionRef.current[target] + 1;
@@ -635,27 +495,17 @@ export function TryOnLabClient() {
       return;
     }
 
-    if (
-      resolvedPolicy.disambiguationRequired &&
-      !resolvedPolicy.disambiguationResolved
-    ) {
-      setAmbiguityModalOpened(true);
-      return;
-    }
-
+    const acceptWarnings = hasQualityWarnings || qualityOverrideAccepted;
     if (hasQualityWarnings && !qualityOverrideAccepted) {
-      setWarningModalOpened(true);
-      return;
+      setQualityOverrideAccepted(true);
     }
-
-    void handleSubmit();
+    void handleSubmit(acceptWarnings, resolvedPolicy);
   }, [
     canGenerate,
     handleSubmit,
     hasQualityWarnings,
     qualityOverrideAccepted,
-    resolvedPolicy.disambiguationRequired,
-    resolvedPolicy.disambiguationResolved,
+    resolvedPolicy,
   ]);
 
   const reset = useCallback(() => {
@@ -667,8 +517,6 @@ export function TryOnLabClient() {
     setGarment(emptySlot);
     setRun(null);
     setError(null);
-    setWarningModalOpened(false);
-    setAmbiguityModalOpened(false);
     setQualityOverrideAccepted(false);
     setPreviewModal(null);
     resetGarmentResolutionState();
@@ -680,11 +528,13 @@ export function TryOnLabClient() {
     setGarment(emptySlot);
     setRun(null);
     setError(null);
-    setWarningModalOpened(false);
-    setAmbiguityModalOpened(false);
     setQualityOverrideAccepted(false);
     setPreviewModal(null);
     resetGarmentResolutionState();
+    if (garmentInputRef.current) {
+      garmentInputRef.current.value = "";
+      garmentInputRef.current.click();
+    }
   }, [resetGarmentResolutionState]);
 
   return (
@@ -740,6 +590,7 @@ export function TryOnLabClient() {
                   target="garment"
                   slot={garment}
                   className="lg:order-1"
+                  inputRef={garmentInputRef}
                   onChange={(file) => void handleFileChange(file, "garment")}
                   onPreviewOpen={setPreviewModal}
                 />
@@ -827,84 +678,6 @@ export function TryOnLabClient() {
           </Card>
         </div>
       </PageSection>
-
-      <Modal
-        opened={warningModalOpened}
-        onClose={() => setWarningModalOpened(false)}
-        title="Image quality warning"
-        centered
-      >
-        <Stack gap="md">
-          <Text size="sm">
-            One or more uploaded images may not meet the recommended quality
-            guidelines. You can continue, but the Try-On result may be less
-            accurate.
-          </Text>
-          <WarningGroup title="Person photo" issues={qualityWarnings.person} />
-          <WarningGroup
-            title="Garment photo"
-            issues={qualityWarnings.garment}
-          />
-          <Group justify="flex-end">
-            <Button
-              variant="light"
-              color="gray"
-              onClick={() => setWarningModalOpened(false)}
-            >
-              Re-upload
-            </Button>
-            <Button
-              onClick={() => {
-                setQualityOverrideAccepted(true);
-                setWarningModalOpened(false);
-                void handleSubmit(true);
-              }}
-            >
-              Proceed anyway
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={ambiguityModalOpened}
-        onClose={() => setAmbiguityModalOpened(false)}
-        title="We found multiple clothing areas in this image. Which item would you like to try on?"
-        centered
-      >
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          {DISAMBIGUATION_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              variant="light"
-              color="gray"
-              justify="flex-start"
-              onClick={() => {
-                const selectedPolicy = resolveGenerationPolicy({
-                  garmentSource: "DIRECT_UPLOAD",
-                  directUploadAnalysis: garmentAnalysis,
-                  userDisambiguationIntent: option.value,
-                  internalLabOverride: null,
-                });
-                setDisambiguationIntent(option.value);
-                setAmbiguityModalOpened(false);
-                if (hasQualityWarnings && !qualityOverrideAccepted) {
-                  setWarningModalOpened(true);
-                  return;
-                }
-                void handleSubmit(qualityOverrideAccepted, selectedPolicy);
-              }}
-            >
-              <Stack gap={2} align="flex-start">
-                <Text fw={700}>{option.label}</Text>
-                <Text size="xs" c="dimmed">
-                  {option.description}
-                </Text>
-              </Stack>
-            </Button>
-          ))}
-        </SimpleGrid>
-      </Modal>
 
       <Modal
         opened={Boolean(previewModal)}
@@ -1049,6 +822,7 @@ function ImageInputCard({
   target,
   slot,
   className,
+  inputRef,
   onChange,
   onPreviewOpen,
 }: {
@@ -1056,6 +830,7 @@ function ImageInputCard({
   target: ImageQualityTarget;
   slot: ImageSlot;
   className?: string;
+  inputRef?: Ref<HTMLInputElement>;
   onChange: (file: File | null) => void;
   onPreviewOpen: (preview: { title: string; imageUrl: string }) => void;
 }) {
@@ -1085,8 +860,13 @@ function ImageInputCard({
         id={inputId}
         className="sr-only"
         type="file"
+        ref={inputRef}
         accept={TRY_ON_LAB_BROWSER_ACCEPTED_IMAGE_TYPES.join(",")}
-        onChange={(event) => onChange(event.currentTarget.files?.[0] ?? null)}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0] ?? null;
+          onChange(file);
+          event.currentTarget.value = "";
+        }}
       />
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3">
@@ -1283,29 +1063,6 @@ function QualitySummary({ result }: { result: ImageQualityResult | null }) {
         {formatMetric(result.metrics.contrast)}
       </div>
     </div>
-  );
-}
-
-function WarningGroup({
-  title,
-  issues,
-}: {
-  title: string;
-  issues: ImageQualityIssue[];
-}) {
-  if (issues.length === 0) {
-    return null;
-  }
-
-  return (
-    <Stack gap="xs">
-      <Text fw={700}>{title}</Text>
-      <List size="sm">
-        {issues.map((issue) => (
-          <List.Item key={`${title}-${issue.code}`}>{issue.message}</List.Item>
-        ))}
-      </List>
-    </Stack>
   );
 }
 

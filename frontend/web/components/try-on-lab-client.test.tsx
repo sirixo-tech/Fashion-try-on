@@ -179,42 +179,31 @@ describe("TryOnLabClient", () => {
     ).toBeNull();
   });
 
-  it("asks one focused question for ambiguous full-body garment images", async () => {
+  it("submits ambiguous full-body garment images with automatic fallback", async () => {
     qualityByTarget = {
       person: qualityPass(),
       garment: qualityPass(),
     };
     garmentAnalysisResult = garmentAnalysis("FULL_BODY_MODEL");
-    vi.mocked(createTryOnLabRun).mockResolvedValue(
-      completedResponse({
-        garmentIntent: "FULL_OUTFIT",
-        garmentCategory: "AUTO",
-        categoryResolutionSource: "USER_DISAMBIGUATION",
-        disambiguationRequired: true,
-        disambiguationResolved: true,
-      }),
-    );
+    vi.mocked(createTryOnLabRun).mockResolvedValue(completedResponse());
     vi.mocked(getTryOnLabRun).mockResolvedValue(completedResponse());
 
     renderWithUi(<TryOnLabClient />);
     await chooseImages("Score 100/100");
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/which item would you like to try on/i),
-      ).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /full outfit/i }));
-
     await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
     const submittedFormData = vi.mocked(createTryOnLabRun).mock.calls[0]![0];
-    expect(submittedFormData.get("garmentIntent")).toBe("FULL_OUTFIT");
+    expect(submittedFormData.get("garmentIntent")).toBe("AUTO");
     expect(submittedFormData.get("category")).toBe("AUTO");
     expect(submittedFormData.get("categoryResolutionSource")).toBe(
-      "USER_DISAMBIGUATION",
+      "AUTO_FALLBACK",
     );
-    expect(submittedFormData.get("disambiguationResolved")).toBe("true");
+    expect(submittedFormData.get("disambiguationRequired")).toBe("true");
+    expect(submittedFormData.get("disambiguationResolved")).toBe("false");
+    expect(
+      screen.queryByText(/which item would you like to try on/i),
+    ).toBeNull();
   });
 
   it("recomputes automatic garment resolution when the garment is replaced", async () => {
@@ -230,16 +219,9 @@ describe("TryOnLabClient", () => {
     await chooseImages("Score 100/100");
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/which item would you like to try on/i),
-      ).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /lower garment/i }));
-
     await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
     expect(vi.mocked(createTryOnLabRun).mock.calls[0]![0].get("category")).toBe(
-      "BOTTOM",
+      "AUTO",
     );
 
     vi.mocked(createTryOnLabRun).mockClear();
@@ -272,7 +254,7 @@ describe("TryOnLabClient", () => {
     expect(submittedFormData.get("disambiguationResolved")).toBe("false");
   });
 
-  it("asks again after replacing an ambiguous garment instead of reusing stale disambiguation", async () => {
+  it("does not reuse stale full-body analysis after replacing the garment", async () => {
     qualityByTarget = {
       person: qualityPass(),
       garment: qualityPass(),
@@ -285,15 +267,13 @@ describe("TryOnLabClient", () => {
     await chooseImages("Score 100/100");
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/which item would you like to try on/i),
-      ).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /top/i }));
     await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
+    expect(vi.mocked(createTryOnLabRun).mock.calls[0]![0].get("category")).toBe(
+      "AUTO",
+    );
 
     vi.mocked(createTryOnLabRun).mockClear();
+    garmentAnalysisResult = garmentAnalysis("LOWER_BODY_MODEL");
     const fileInputs =
       document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     fireEvent.change(fileInputs[1]!, {
@@ -312,12 +292,13 @@ describe("TryOnLabClient", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/which item would you like to try on/i),
-      ).toBeTruthy(),
+    await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
+    expect(vi.mocked(createTryOnLabRun).mock.calls[0]![0].get("category")).toBe(
+      "BOTTOM",
     );
-    expect(createTryOnLabRun).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(/which item would you like to try on/i),
+    ).toBeNull();
   });
 
   it("continues with automatic resolution when garment analysis is unavailable", async () => {
@@ -516,27 +497,29 @@ describe("TryOnLabClient", () => {
     );
   });
 
-  it("shows grouped warnings before submission and allows re-upload", async () => {
+  it("submits immediately with passive quality warning telemetry", async () => {
+    const completedRun = completedResponse();
+    vi.mocked(createTryOnLabRun).mockResolvedValue(completedRun);
+    vi.mocked(getTryOnLabRun).mockResolvedValue(completedRun);
+
     renderWithUi(<TryOnLabClient />);
     await chooseImages();
 
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText("Image quality warning")).toBeTruthy(),
+    await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
+    const submittedFormData = vi.mocked(createTryOnLabRun).mock.calls[0]![0];
+    expect(submittedFormData.get("qualityOverrideAccepted")).toBe("true");
+    expect(submittedFormData.get("qualityWarningCodes")).toBe(
+      JSON.stringify(["IMAGE_TOO_BLURRY"]),
     );
-    expect(screen.getAllByText("Garment photo").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Image quality warning")).toBeNull();
     expect(screen.getAllByText("Image may be blurry.").length).toBeGreaterThan(
       0,
     );
-
-    fireEvent.click(screen.getByRole("button", { name: /re-upload/i }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(createTryOnLabRun).not.toHaveBeenCalled();
   });
 
-  it("submits the existing Try-On request after Proceed anyway", async () => {
+  it("keeps warning telemetry accepted for repeat submissions with unchanged images", async () => {
     const completedRun = completedResponse();
     vi.mocked(createTryOnLabRun).mockResolvedValue(completedRun);
     vi.mocked(getTryOnLabRun).mockResolvedValue(completedRun);
@@ -544,16 +527,16 @@ describe("TryOnLabClient", () => {
     renderWithUi(<TryOnLabClient />);
     await chooseImages();
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
-    await waitFor(() =>
-      expect(screen.getByText("Image quality warning")).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /proceed anyway/i }));
-
     await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
-    expect(screen.getByText("Result comparison")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
+
+    await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledTimes(2));
+    const submittedFormData = vi.mocked(createTryOnLabRun).mock.calls[1]![0];
+    expect(submittedFormData.get("qualityOverrideAccepted")).toBe("true");
+    expect(screen.queryByText("Image quality warning")).toBeNull();
   });
 
-  it("resets warning override when an uploaded image changes", async () => {
+  it("continues without a quality warning popup when an uploaded image changes", async () => {
     const completedRun = completedResponse();
     vi.mocked(createTryOnLabRun).mockResolvedValue(completedRun);
     vi.mocked(getTryOnLabRun).mockResolvedValue(completedRun);
@@ -561,10 +544,6 @@ describe("TryOnLabClient", () => {
     renderWithUi(<TryOnLabClient />);
     await chooseImages();
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
-    await waitFor(() =>
-      expect(screen.getByText("Image quality warning")).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /proceed anyway/i }));
     await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
 
     const fileInputs =
@@ -580,9 +559,8 @@ describe("TryOnLabClient", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
 
-    await waitFor(() =>
-      expect(screen.getByText("Image quality warning")).toBeTruthy(),
-    );
+    await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Image quality warning")).toBeNull();
   });
 
   it("replacing person image revokes only the old person preview URL", async () => {
@@ -747,6 +725,12 @@ describe("TryOnLabClient", () => {
 
     renderWithUi(<TryOnLabClient />);
     await chooseImages("Score 100/100");
+    const garmentInput = document.querySelectorAll<HTMLInputElement>(
+      'input[type="file"]',
+    )[1]!;
+    const filePickerClick = vi
+      .spyOn(garmentInput, "click")
+      .mockImplementation(() => {});
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
     await waitFor(() =>
       expect(screen.getByText("Result comparison")).toBeTruthy(),
@@ -760,6 +744,7 @@ describe("TryOnLabClient", () => {
       "src",
       "blob:selfx-preview-1",
     );
+    expect(filePickerClick).toHaveBeenCalledOnce();
     expect(screen.queryByAltText("Garment photo preview")).toBeNull();
     expect(screen.queryByText("Result comparison")).toBeNull();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:selfx-preview-2");
@@ -781,10 +766,6 @@ describe("TryOnLabClient", () => {
     renderWithUi(<TryOnLabClient />);
     await chooseImages();
     fireEvent.click(screen.getByRole("button", { name: /generate try-on/i }));
-    await waitFor(() =>
-      expect(screen.getByText("Image quality warning")).toBeTruthy(),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /proceed anyway/i }));
 
     await waitFor(() => expect(createTryOnLabRun).toHaveBeenCalledOnce());
     const submittedFormData = vi.mocked(createTryOnLabRun).mock.calls[0]![0];
@@ -793,6 +774,7 @@ describe("TryOnLabClient", () => {
     expect(submittedFormData.get("qualityWarningCodes")).toBe(
       JSON.stringify(["IMAGE_TOO_BLURRY"]),
     );
+    expect(screen.queryByText("Image quality warning")).toBeNull();
     expect(screen.queryByText("IMAGE_TOO_BLURRY")).toBeNull();
     expect(screen.queryByText("Yes")).toBeNull();
   });

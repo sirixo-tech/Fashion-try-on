@@ -1,4 +1,4 @@
-import { HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Optional } from "@nestjs/common";
 
 import { TRY_ON_LAB_ERROR_CODES } from "@selfx/shared";
 
@@ -14,11 +14,19 @@ import {
   TRY_ON_PROVIDER_POLL_INTERVAL_MS,
   TRY_ON_PROVIDER_TIMEOUT_MS,
 } from "./try-on.constants.js";
+import {
+  GarmentPreprocessingService,
+  garmentPreprocessingTelemetry,
+  type GarmentPreprocessingTelemetry,
+} from "./garment-preprocessing.service.js";
 
 type MaybePromise<T> = T | Promise<T>;
 
 export interface TryOnExecutionObserver {
   onStarted(startedAt: Date): MaybePromise<void>;
+  onGarmentPreprocessed?(
+    metadata: GarmentPreprocessingTelemetry,
+  ): MaybePromise<void>;
   onSubmitted(providerPredictionId: string): MaybePromise<void>;
   onStatus(
     status: VirtualTryOnProviderStatusResult & { completedAt?: Date },
@@ -38,9 +46,15 @@ export interface NormalizedTryOnProcessError {
 
 @Injectable()
 export class TryOnExecutionService {
+  private readonly garmentPreprocessing: GarmentPreprocessingService;
+
   constructor(
     @Inject(TRY_ON_PROVIDER) private readonly provider: VirtualTryOnProvider,
-  ) {}
+    @Optional() garmentPreprocessing?: GarmentPreprocessingService,
+  ) {
+    this.garmentPreprocessing =
+      garmentPreprocessing ?? new GarmentPreprocessingService();
+  }
 
   assertConfigured(): void {
     this.provider.assertConfigured();
@@ -58,9 +72,18 @@ export class TryOnExecutionService {
     await observer.onStarted(startedAt);
 
     try {
+      const preparedGarment = await this.garmentPreprocessing.prepare({
+        garmentImageDataUri: payload.garmentImage.dataUri,
+      });
+      await observer.onGarmentPreprocessed?.(
+        garmentPreprocessingTelemetry(preparedGarment),
+      );
       const submitted = await this.provider.submit({
         personImageDataUri: payload.personImage.dataUri,
-        garmentImageDataUri: payload.garmentImage.dataUri,
+        garmentImageDataUri: preparedGarment.providerGarmentImageDataUri,
+        ...(preparedGarment.maskImageDataUri
+          ? { garmentMaskImageDataUri: preparedGarment.maskImageDataUri }
+          : {}),
         category: payload.category,
         garmentPhotoType: payload.garmentPhotoType,
         generationProfile: payload.generationProfile,

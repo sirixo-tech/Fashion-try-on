@@ -18,6 +18,8 @@ import {
   TRY_ON_LAB_ERROR_CODES,
   isModelCoverageCompatibleWithGarment,
   type SelfxCatalogSource,
+  type SelfxGarmentPreprocessingProviderInputImage,
+  type SelfxGarmentPreprocessingStatus,
   type SelfxTryOnRunStatus,
 } from "@selfx/shared";
 
@@ -364,6 +366,27 @@ export class KioskTryOnService {
           where: { id: runId },
           data: { startedAt },
         });
+      },
+      onGarmentPreprocessed: async (metadata) => {
+        try {
+          await this.prisma.kioskTryOnRun.update({
+            where: { id: runId },
+            data: {
+              garmentPreprocessingEnabled: metadata.enabled,
+              garmentPreprocessingStatus: metadata.status,
+              garmentPreprocessingProviderInputImage:
+                metadata.providerInputImage,
+              garmentPreprocessingMaskGenerated: metadata.maskGenerated,
+              garmentPreprocessingFallbackReason: metadata.fallbackReason,
+            },
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Unable to persist garment preprocessing metadata for kiosk try-on run ${runId}: ${
+              error instanceof Error ? error.message : "unknown error"
+            }`,
+          );
+        }
       },
       onSubmitted: async (providerPredictionId) => {
         await this.prisma.kioskTryOnRun.update({
@@ -1362,6 +1385,11 @@ function toResponse(run: {
   resultImage: string | null;
   errorCode: string | null;
   errorMessage: string | null;
+  garmentPreprocessingEnabled?: boolean | null;
+  garmentPreprocessingStatus?: string | null;
+  garmentPreprocessingProviderInputImage?: string | null;
+  garmentPreprocessingMaskGenerated?: boolean | null;
+  garmentPreprocessingFallbackReason?: string | null;
 }): KioskTryOnRunResponseDto {
   return {
     id: run.id,
@@ -1379,6 +1407,23 @@ function toResponse(run: {
         ? undefined
         : (run.errorCode as KioskTryOnRunResponseDto["errorCode"]),
     errorMessage: run.errorMessage ?? undefined,
+    garmentPreprocessingEnabled:
+      run.garmentPreprocessingEnabled ?? undefined,
+    garmentPreprocessingStatus:
+      run.garmentPreprocessingStatus === null ||
+      run.garmentPreprocessingStatus === undefined
+        ? undefined
+        : (run.garmentPreprocessingStatus as SelfxGarmentPreprocessingStatus),
+    garmentPreprocessingProviderInputImage:
+      run.garmentPreprocessingProviderInputImage === null ||
+      run.garmentPreprocessingProviderInputImage === undefined
+        ? undefined
+        : (run.garmentPreprocessingProviderInputImage as
+            SelfxGarmentPreprocessingProviderInputImage),
+    garmentPreprocessingMaskGenerated:
+      run.garmentPreprocessingMaskGenerated ?? undefined,
+    garmentPreprocessingFallbackReason:
+      run.garmentPreprocessingFallbackReason ?? undefined,
   };
 }
 

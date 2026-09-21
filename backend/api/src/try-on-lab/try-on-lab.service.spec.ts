@@ -85,6 +85,10 @@ describe("TryOnLabService", () => {
       status: "COMPLETED",
       qualityWarningCodes: ["IMAGE_TOO_BLURRY"],
       qualityOverrideAccepted: true,
+      garmentPreprocessingEnabled: false,
+      garmentPreprocessingStatus: "DISABLED",
+      garmentPreprocessingProviderInputImage: "ORIGINAL",
+      garmentPreprocessingMaskGenerated: false,
     });
     expect(completed.telemetry.elapsedMs).toEqual(expect.any(Number));
     restore();

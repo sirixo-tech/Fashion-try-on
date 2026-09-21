@@ -299,7 +299,7 @@ export class AdminStoresController {
   }
 
   @Delete(":storeId")
-  @ApiOperation({ summary: "Delete an inactive Store" })
+  @ApiOperation({ summary: "Archive a Store while retaining audit history" })
   @ApiOkResponse({ type: AdminStoreResponseDto })
   async archive(
     @Req() request: FastifyRequest,

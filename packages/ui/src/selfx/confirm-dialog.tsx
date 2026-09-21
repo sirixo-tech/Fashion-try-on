@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { Button } from "@selfx/ui/components/button";
+import type { buttonVariants } from "@selfx/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   destructive = false,
+  confirmVariant,
   onConfirm,
 }: {
   trigger: ReactNode;
@@ -27,6 +29,9 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  confirmVariant?: NonNullable<
+    Parameters<typeof buttonVariants>[0]
+  >["variant"];
   onConfirm?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -45,7 +50,9 @@ export function ConfirmDialog({
               {cancelLabel}
             </Button>
             <Button
-              variant={destructive ? "destructive" : "default"}
+              variant={
+                confirmVariant ?? (destructive ? "destructive" : "default")
+              }
               onClick={() => {
                 onConfirm?.();
                 setOpen(false);

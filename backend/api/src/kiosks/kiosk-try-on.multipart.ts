@@ -41,6 +41,8 @@ import {
 import { TRY_ON_LAB_MULTIPART_LIMITS } from "../try-on-lab/try-on-lab.constants.js";
 import { KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES } from "./kiosk.constants.js";
 
+const KIOSK_EXTERNAL_PRODUCT_REFERENCE_MAX_LENGTH = 180;
+
 type MultipartPart = Awaited<ReturnType<FastifyRequest["file"]>>;
 type MultipartIteratorPart = NonNullable<MultipartPart> | MultipartField;
 
@@ -257,12 +259,12 @@ export async function parseKioskTryOnRunMultipartRequest(
       ),
       externalProductId: parseOptionalText(
         fields.get("externalProductId"),
-        160,
+        KIOSK_EXTERNAL_PRODUCT_REFERENCE_MAX_LENGTH,
         "Invalid external product ID.",
       ),
       externalVariantId: parseOptionalText(
         fields.get("externalVariantId"),
-        160,
+        KIOSK_EXTERNAL_PRODUCT_REFERENCE_MAX_LENGTH,
         "Invalid external variant ID.",
       ),
       sku: parseOptionalText(fields.get("sku"), 160, "Invalid SKU."),
@@ -344,12 +346,12 @@ export async function parseKioskTryOnRunMultipartRequest(
     ),
     externalProductId: parseOptionalText(
       fields.get("externalProductId"),
-      160,
+      KIOSK_EXTERNAL_PRODUCT_REFERENCE_MAX_LENGTH,
       "Invalid external product ID.",
     ),
     externalVariantId: parseOptionalText(
       fields.get("externalVariantId"),
-      160,
+      KIOSK_EXTERNAL_PRODUCT_REFERENCE_MAX_LENGTH,
       "Invalid external variant ID.",
     ),
     sku: parseOptionalText(fields.get("sku"), 160, "Invalid SKU."),

@@ -18,7 +18,6 @@ import {
   MapPinIcon,
   MonitorIcon,
   PlusIcon,
-  PowerIcon,
   RefreshCwIcon,
   SearchIcon,
   ShieldAlertIcon,
@@ -66,6 +65,11 @@ import {
 } from "@/lib/stores";
 
 const statusOptions: Array<StoreStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
+const statusLabels: Record<StoreStatus | "ALL", string> = {
+  ALL: "All Stores",
+  ACTIVE: "Active",
+  INACTIVE: "Suspended",
+};
 
 export default function StoresPage() {
   const router = useRouter();
@@ -294,7 +298,7 @@ export default function StoresPage() {
                 value={status}
                 options={statusOptions.map((option) => ({
                   value: option,
-                  label: option === "ALL" ? "All Stores" : option,
+                  label: statusLabels[option],
                 }))}
                 className="min-w-40"
                 onChange={(value) => {
@@ -434,7 +438,10 @@ function StoreDirectoryCard({
           </div>
         </div>
         <CardAction>
-          <StatusBadge status={store.status} label={store.status} />
+          <StatusBadge
+            status={store.status}
+            label={active ? "Active" : "Suspended"}
+          />
         </CardAction>
       </CardHeader>
 
@@ -520,7 +527,7 @@ function StoreDirectoryCard({
             title={active ? "Suspend Store?" : "Reactivate Store?"}
             description={
               active
-                ? "The Store will remain in SelfX, but inactive Stores cannot receive new kiosk assignments."
+                ? "The Store will remain in SelfX, but suspended Stores cannot receive new kiosk assignments."
                 : "The Store will become active again and can receive kiosk assignments."
             }
             confirmLabel={active ? "Suspend" : "Reactivate"}
@@ -538,7 +545,7 @@ function StoreDirectoryCard({
                 {active ? (
                   <BanIcon aria-hidden="true" />
                 ) : (
-                  <PowerIcon aria-hidden="true" />
+                  <RefreshCwIcon aria-hidden="true" />
                 )}
               </Button>
             }
@@ -556,38 +563,26 @@ function StoreDirectoryCard({
             <UserCircleIcon aria-hidden="true" />
           </Button>
 
-          {active ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              aria-label="Delete Store"
-              title="Suspend the Store before deleting"
-              disabled
-            >
-              <Trash2Icon aria-hidden="true" />
-            </Button>
-          ) : (
-            <ConfirmDialog
-              title="Delete Store?"
-              description="This archives the inactive Store and removes it from Store lists. Kiosk records, settings, products and audit history are retained."
-              confirmLabel="Delete"
-              destructive
-              onConfirm={onDelete}
-              trigger={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Delete Store"
-                  title="Delete Store"
-                  disabled={deleting}
-                >
-                  <Trash2Icon aria-hidden="true" />
-                </Button>
-              }
-            />
-          )}
+          <ConfirmDialog
+            title="Delete Store?"
+            description="This removes the Store from normal Store management. Kiosk records, settings, products and audit history are retained for later review."
+            confirmLabel="Delete"
+            destructive
+            confirmVariant="default"
+            onConfirm={onDelete}
+            trigger={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="Delete Store"
+                title="Delete Store"
+                disabled={deleting}
+              >
+                <Trash2Icon aria-hidden="true" />
+              </Button>
+            }
+          />
         </div>
       </CardFooter>
     </Card>
