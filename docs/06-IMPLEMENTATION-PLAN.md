@@ -2319,6 +2319,10 @@ is not yet connected to the complete production Try-On flow.
 - product webhooks (implemented with signed, retry-safe incremental sync)
 - app uninstall webhook (implemented with credential cleanup and local catalog
   archival)
+- privacy webhook ingress plus `customers/data_request`, `customers/redact`
+  and `shop/redact` handling (implemented with exact-body forwarding,
+  independent HMAC verification, durable deduplication, no customer payload
+  persistence and targeted Shopify-data cleanup that preserves the SelfX Store)
 - reconciliation
 - VTO eligibility management (Store-scoped bulk enable/disable for imported
   products implemented; active, imaged products can be enabled together)

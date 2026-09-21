@@ -9,6 +9,7 @@ import {
   createKioskTryOnRun,
   createKioskTryOnSession,
   exchangeKioskProvisioningGrant,
+  getCurrentKioskConfiguration,
   getCurrentKioskDevice,
   getKioskJewelleryCaptureRequirements,
   getKioskCustomerUploadSession,
@@ -129,6 +130,31 @@ describe("web kiosk device API", () => {
     ).toBe("Bearer access-token");
     expect(
       new Headers(fetchMock.mock.calls[3]?.[1]?.headers).get("Authorization"),
+    ).toBe("Bearer access-token");
+  });
+
+  it("fetches the device-authenticated runtime configuration", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SELFX_API_BASE_URL", "");
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        version: 2,
+        experience: {
+          enabledTryOnCapabilities: ["GARMENT_TRY_ON"],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getCurrentKioskConfiguration("access-token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/kiosk/configuration",
+      expect.anything(),
+    );
+    expect(
+      new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("Authorization"),
     ).toBe("Bearer access-token");
   });
 

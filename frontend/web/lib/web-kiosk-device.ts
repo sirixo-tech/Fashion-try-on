@@ -1,5 +1,5 @@
 import { SafeApiError, selfxApi } from "@/lib/api";
-import type { KioskDevice } from "@/lib/kiosks";
+import type { KioskConfiguration, KioskDevice } from "@/lib/kiosks";
 
 export type KioskPairingSession = {
   pairingSessionId: string;
@@ -201,6 +201,14 @@ export function refreshKioskDeviceSession(
 
 export function getCurrentKioskDevice(accessToken: string): Promise<KioskDevice> {
   return selfxApi<KioskDevice>("/api/v1/kiosk/session/me", { accessToken });
+}
+
+export function getCurrentKioskConfiguration(
+  accessToken: string,
+): Promise<KioskConfiguration> {
+  return selfxApi<KioskConfiguration>("/api/v1/kiosk/configuration", {
+    accessToken,
+  });
 }
 
 export function sendKioskHeartbeat(accessToken: string): Promise<KioskDevice> {

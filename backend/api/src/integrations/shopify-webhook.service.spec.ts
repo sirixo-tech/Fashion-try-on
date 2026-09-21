@@ -78,7 +78,6 @@ describe("Shopify webhook security and synchronization", () => {
             externalProductId: "gid://shopify/Product/123",
             title: "Black Tee",
             status: "ACTIVE",
-            vtoEnabled: true,
           }),
         ],
       }),
@@ -92,7 +91,7 @@ describe("Shopify webhook security and synchronization", () => {
     );
   });
 
-  it("does not process an already completed delivery twice", async () => {
+  it("does not process a completed customer data request twice", async () => {
     const { prisma } = prismaMock({ duplicate: true });
     const oauth = {
       webhookConnection: vi.fn().mockResolvedValue(connection()),
@@ -105,9 +104,284 @@ describe("Shopify webhook security and synchronization", () => {
     );
 
     await expect(
-      service.handle(request("products/delete", { id: 123 })),
+      service.handle(request("customers/data_request", customerDataRequest())),
     ).resolves.toEqual({ accepted: true, duplicate: true });
     expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("records a customer data request without retaining customer data", async () => {
+    const { prisma, eventCreate } = prismaMock();
+    const oauth = {
+      webhookConnection: vi.fn().mockResolvedValue(connection()),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+
+    await expect(
+      service.handle(request("customers/data_request", customerDataRequest())),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(oauth.webhookConnection).toHaveBeenCalledWith(
+      "demo.myshopify.com",
+      false,
+    );
+    expect(eventCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "customers/data_request",
+          payload: {
+            apiVersion: "2026-07",
+            triggeredAt: "2026-09-07T10:00:00.000Z",
+            outcome: "NO_CUSTOMER_DATA_STORED",
+          },
+        }),
+      }),
+    );
+    const stored = JSON.stringify(eventCreate.mock.calls[0]?.[0]);
+    expect(stored).not.toContain("demo.myshopify.com");
+    expect(stored).not.toContain("954889");
+    expect(stored).not.toContain("191167");
+    expect(stored).not.toContain("customer@example.com");
+    expect(stored).not.toContain("555-0100");
+    expect(stored).not.toContain("299938");
+    expect(stored).not.toContain("9999");
+  });
+
+  it("accepts an email-only Shopify customer data request", async () => {
+    const { prisma } = prismaMock();
+    const oauth = {
+      webhookConnection: vi
+        .fn()
+        .mockResolvedValue(
+          connection({ status: IntegrationStatus.DISCONNECTED }),
+        ),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const payload = customerDataRequest();
+    payload.customer = { email: "customer@example.com" };
+
+    await expect(
+      service.handle(request("customers/data_request", payload)),
+    ).resolves.toEqual({ accepted: true });
+  });
+
+  it("rejects a malformed customer data request before persistence", async () => {
+    const { prisma, eventCreate } = prismaMock();
+    const oauth = { webhookConnection: vi.fn() };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const payload = customerDataRequest();
+    payload.customer = {};
+
+    await expect(
+      service.handle(request("customers/data_request", payload)),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        error: {
+          code: "SHOPIFY_WEBHOOK_REQUEST_INVALID",
+          message: "Shopify customer data request payload is invalid.",
+        },
+      },
+    });
+    expect(oauth.webhookConnection).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a customer data request with an invalid HMAC", async () => {
+    const { prisma, eventCreate } = prismaMock();
+    const oauth = { webhookConnection: vi.fn() };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const webhook = request("customers/data_request", customerDataRequest());
+    webhook.headers["x-shopify-hmac-sha256"] = "invalid";
+
+    await expect(service.handle(webhook)).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(oauth.webhookConnection).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
+  it("records a customer redaction without retaining customer data", async () => {
+    const { prisma, eventCreate, eventUpdate } = prismaMock();
+    const oauth = {
+      webhookConnection: vi.fn().mockResolvedValue(connection()),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+
+    await expect(
+      service.handle(request("customers/redact", customerRedact())),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(eventCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "customers/redact",
+          payload: {
+            apiVersion: "2026-07",
+            triggeredAt: "2026-09-07T10:00:00.000Z",
+            outcome: "NO_CUSTOMER_DATA_STORED",
+          },
+        }),
+      }),
+    );
+    expect(eventUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: IntegrationEventStatus.PROCESSED,
+        }),
+      }),
+    );
+    const stored = JSON.stringify(eventCreate.mock.calls[0]?.[0]);
+    expect(stored).not.toContain("demo.myshopify.com");
+    expect(stored).not.toContain("954889");
+    expect(stored).not.toContain("191167");
+    expect(stored).not.toContain("customer@example.com");
+    expect(stored).not.toContain("555-0100");
+    expect(stored).not.toContain("299938");
+  });
+
+  it("does not process a completed customer redaction twice", async () => {
+    const { prisma, eventUpdate } = prismaMock({ duplicate: true });
+    const oauth = {
+      webhookConnection: vi.fn().mockResolvedValue(connection()),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+
+    await expect(
+      service.handle(request("customers/redact", customerRedact())),
+    ).resolves.toEqual({ accepted: true, duplicate: true });
+    expect(eventUpdate).not.toHaveBeenCalled();
+  });
+
+  it("redacts Shopify shop data without retaining the shop payload", async () => {
+    const { prisma, eventCreate, eventUpdate } = prismaMock();
+    const oauth = {
+      webhookConnection: vi
+        .fn()
+        .mockResolvedValue(
+          connection({ status: IntegrationStatus.DISCONNECTED }),
+        ),
+    };
+    const redact = vi.fn().mockResolvedValue(undefined);
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+      { redact } as never,
+    );
+
+    await expect(
+      service.handle(
+        request("shop/redact", {
+          shop_id: 954889,
+          shop_domain: "demo.myshopify.com",
+        }),
+      ),
+    ).resolves.toEqual({ accepted: true });
+
+    expect(redact).toHaveBeenCalledWith({
+      connection: expect.objectContaining({ integrationId: "integration-1" }),
+      eventId: expect.any(String),
+      webhookId: "webhook-1",
+      triggeredAt: new Date("2026-09-07T10:00:00.000Z"),
+      apiVersion: "2026-07",
+      shopDomain: "demo.myshopify.com",
+    });
+    expect(eventCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "shop/redact",
+          payload: {
+            apiVersion: "2026-07",
+            triggeredAt: "2026-09-07T10:00:00.000Z",
+            outcome: "SHOP_DATA_REDACTION_PENDING",
+          },
+        }),
+      }),
+    );
+    expect(JSON.stringify(eventCreate.mock.calls[0]?.[0])).not.toContain(
+      "demo.myshopify.com",
+    );
+    expect(eventUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed shop redaction before persistence", async () => {
+    const { prisma, eventCreate } = prismaMock();
+    const oauth = { webhookConnection: vi.fn() };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+      { redact: vi.fn() } as never,
+    );
+
+    await expect(
+      service.handle(
+        request("shop/redact", {
+          shop_id: 0,
+          shop_domain: "another.myshopify.com",
+        }),
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        error: {
+          code: "SHOPIFY_WEBHOOK_REQUEST_INVALID",
+          message: "Shopify shop redaction payload is invalid.",
+        },
+      },
+    });
+    expect(oauth.webhookConnection).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed customer redaction before persistence", async () => {
+    const { prisma, eventCreate } = prismaMock();
+    const oauth = { webhookConnection: vi.fn() };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const payload = customerRedact();
+    payload.orders_to_redact = "not-an-array";
+
+    await expect(
+      service.handle(request("customers/redact", payload)),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        error: {
+          code: "SHOPIFY_WEBHOOK_REQUEST_INVALID",
+          message: "Shopify customer redaction payload is invalid.",
+        },
+      },
+    });
+    expect(oauth.webhookConnection).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
   });
 
   it("archives the local product reference for a delete webhook", async () => {
@@ -220,10 +494,11 @@ function prismaMock(options?: {
   transaction?: Record<string, unknown>;
 }) {
   const eventUpdate = vi.fn().mockResolvedValue({});
+  const eventCreate = options?.duplicate
+    ? vi.fn().mockRejectedValue({ code: "P2002" })
+    : vi.fn().mockResolvedValue({});
   const integrationEvent = {
-    create: options?.duplicate
-      ? vi.fn().mockRejectedValue({ code: "P2002" })
-      : vi.fn().mockResolvedValue({}),
+    create: eventCreate,
     findUniqueOrThrow: vi.fn().mockResolvedValue({
       id: "existing-event",
       status: IntegrationEventStatus.PROCESSED,
@@ -232,6 +507,7 @@ function prismaMock(options?: {
     update: eventUpdate,
   };
   return {
+    eventCreate,
     eventUpdate,
     prisma: {
       integrationEvent,
@@ -240,6 +516,33 @@ function prismaMock(options?: {
           callback(options?.transaction ?? {}),
       ),
     },
+  };
+}
+
+function customerDataRequest(): Record<string, unknown> {
+  return {
+    shop_id: 954889,
+    shop_domain: "demo.myshopify.com",
+    orders_requested: [299938],
+    customer: {
+      id: 191167,
+      email: "customer@example.com",
+      phone: "555-0100",
+    },
+    data_request: { id: 9999 },
+  };
+}
+
+function customerRedact(): Record<string, unknown> {
+  return {
+    shop_id: 954889,
+    shop_domain: "demo.myshopify.com",
+    customer: {
+      id: 191167,
+      email: "customer@example.com",
+      phone: "555-0100",
+    },
+    orders_to_redact: [299938],
   };
 }
 

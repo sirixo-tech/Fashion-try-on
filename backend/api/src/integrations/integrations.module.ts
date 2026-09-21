@@ -23,6 +23,7 @@ import { ShopifyStorefrontTryOnController } from "./shopify-storefront-try-on.co
 import { ShopifyStorefrontTryOnService } from "./shopify-storefront-try-on.service.js";
 import { ShopifyWebhookController } from "./shopify-webhook.controller.js";
 import { ShopifyWebhookService } from "./shopify-webhook.service.js";
+import { ShopifyShopRedactionService } from "./shopify-shop-redaction.service.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule, EntitlementsModule, TryOnModule],
@@ -44,6 +45,7 @@ import { ShopifyWebhookService } from "./shopify-webhook.service.js";
     StoreRbacService,
     ShopifyOauthService,
     ShopifyWebhookService,
+    ShopifyShopRedactionService,
     ShopifyAppServiceAuthService,
     ShopifyLinkService,
     ShopifyStorefrontTryOnService,

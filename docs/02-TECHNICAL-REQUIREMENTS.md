@@ -1986,7 +1986,18 @@ Protected route coverage:
     Product deletion archives only SelfX's local reference. App uninstall
     disconnects the integration, removes provider credentials, revokes plugin
     credentials and archives imported local catalog references. Scheduled
-    reconciliation remains a separate implementation step.
+    reconciliation remains a separate implementation step. The Shopify app has
+    a dedicated privacy-webhook ingress that authenticates Shopify before
+    forwarding the exact signed body to this central endpoint for independent
+    HMAC verification. `customers/data_request` and `customers/redact` are
+    handled idempotently. Because SelfX does not currently associate Shopify
+    customer or order identifiers with Try-On records, these events store only
+    delivery metadata and the `NO_CUSTOMER_DATA_STORED` outcome, never the
+    customer payload. `shop/redact` removes Shopify credentials, link and
+    storefront sessions, imported catalog records, private storefront Try-On
+    assets and Shopify identifiers from retained usage records. The independent
+    SelfX Store, owner memberships, plan, kiosks and aggregate billing/usage
+    history remain; only minimal redaction audit evidence is retained.
     Products require explicit VTO eligibility/configuration before Try-On is exposed.
     SelfX adds the Try-On experience.
     Shopify retains:

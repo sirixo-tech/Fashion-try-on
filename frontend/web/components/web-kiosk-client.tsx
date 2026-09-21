@@ -37,7 +37,7 @@ import {
   createJewelleryPersonAnalyzer,
   type JewelleryPersonAnalyzer,
 } from "@/lib/jewellery-analysis/jewellery-person-analyzer";
-import type { KioskDevice } from "@/lib/kiosks";
+import type { KioskConfiguration, KioskDevice } from "@/lib/kiosks";
 import {
   cancelKioskCustomerUploadSession,
   completeKioskTryOnSession,
@@ -47,6 +47,7 @@ import {
   createKioskTryOnRun,
   createKioskTryOnSession,
   exchangeKioskProvisioningGrant,
+  getCurrentKioskConfiguration,
   getCurrentKioskDevice,
   getKioskCustomerUploadSession,
   getKioskJewelleryCaptureRequirements,
@@ -83,6 +84,7 @@ type KioskScreen =
   | "result";
 type CameraStatus = "idle" | "starting" | "ready" | "capturing" | "error";
 type DeviceState = "checking" | "unpaired" | "pairing" | "paired" | "blocked";
+type ConfigurationStatus = "idle" | "loading" | "ready" | "error";
 type PersonUploadStatus = "idle" | "checking" | "saving" | "ready" | "error";
 type CatalogStatus = "idle" | "loading" | "ready" | "empty" | "error";
 type ProductVertical = KioskCatalogProduct["productVertical"];
@@ -126,6 +128,13 @@ type CompletedLook = {
   completedAt: string;
 };
 
+type KioskCapabilityAvailability = {
+  loading: boolean;
+  garmentTryOnEnabled: boolean;
+  jewelleryTryOnEnabled: boolean;
+  mobileUploadEnabled: boolean;
+};
+
 const cameraConstraints: MediaStreamConstraints = {
   audio: false,
   video: {
@@ -138,7 +147,7 @@ const cameraConstraints: MediaStreamConstraints = {
 const deviceSessionStorageKey = "selfx.webKiosk.deviceSession.v1";
 const installationIdStorageKey = "selfx.webKiosk.installationId.v1";
 const heartbeatIntervalMs = 60_000;
-const customerSessionIdleTimeoutMs = 5 * 60_000;
+const defaultCustomerSessionIdleTimeoutMs = 5 * 60_000;
 const customerSessionIdleCheckMs = 15_000;
 
 function getCameraErrorMessage(error: unknown) {
@@ -169,6 +178,13 @@ export function WebKioskClient() {
   const [screen, setScreen] = useState<KioskScreen>("start");
   const [deviceState, setDeviceState] = useState<DeviceState>("checking");
   const [deviceSession, setDeviceSession] = useState<KioskDeviceAuth | null>(null);
+  const [kioskConfiguration, setKioskConfiguration] =
+    useState<KioskConfiguration | null>(null);
+  const [configurationStatus, setConfigurationStatus] =
+    useState<ConfigurationStatus>("idle");
+  const [configurationError, setConfigurationError] = useState<string | null>(
+    null,
+  );
   const [pairingSession, setPairingSession] =
     useState<KioskPairingSession | null>(null);
   const [pairingState, setPairingState] = useState<PairingState>("idle");
@@ -213,6 +229,12 @@ export function WebKioskClient() {
   const [endSessionBusy, setEndSessionBusy] = useState(false);
   const [completedLooks, setCompletedLooks] = useState<CompletedLook[]>([]);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const kioskCapabilities = getKioskCapabilityAvailability(
+    kioskConfiguration,
+    configurationStatus,
+  );
+  const customerSessionIdleTimeoutMs =
+    getCustomerSessionIdleTimeoutMs(kioskConfiguration);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -385,6 +407,21 @@ export function WebKioskClient() {
   }, [deviceSession?.accessToken, deviceSession?.refreshToken, deviceState]);
 
   useEffect(() => {
+    if (!deviceSession || deviceState !== "paired") {
+      setKioskConfiguration(null);
+      setConfigurationStatus("idle");
+      setConfigurationError(null);
+      return;
+    }
+
+    void loadKioskConfiguration();
+  }, [
+    deviceSession?.accessToken,
+    deviceSession?.device.latestConfigurationVersion,
+    deviceState,
+  ]);
+
+  useEffect(() => {
     if (deviceState !== "paired" || screen === "start") {
       return;
     }
@@ -399,7 +436,13 @@ export function WebKioskClient() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [deviceState, screen, tryOnSession?.sessionId, tryOnSession?.status]);
+  }, [
+    customerSessionIdleTimeoutMs,
+    deviceState,
+    screen,
+    tryOnSession?.sessionId,
+    tryOnSession?.status,
+  ]);
 
   useEffect(() => {
     if (screen !== "catalog" || catalogStatus !== "idle") {
@@ -619,6 +662,11 @@ export function WebKioskClient() {
 
   function startGarmentCapture() {
     lastActivityAtRef.current = Date.now();
+    if (!kioskCapabilities.garmentTryOnEnabled) {
+      setSessionNotice("Garment Try-On is not enabled for this kiosk.");
+      return;
+    }
+
     setSessionNotice(null);
     setActiveVertical("GARMENT");
     setConsented(false);
@@ -630,6 +678,11 @@ export function WebKioskClient() {
 
   async function startMobileUpload() {
     lastActivityAtRef.current = Date.now();
+    if (!kioskCapabilities.mobileUploadEnabled) {
+      setSessionNotice("Mobile upload is not available for this kiosk.");
+      return;
+    }
+
     setSessionNotice(null);
     stopCamera();
     setActiveVertical("GARMENT");
@@ -678,6 +731,11 @@ export function WebKioskClient() {
 
   function startJewellerySelection() {
     lastActivityAtRef.current = Date.now();
+    if (!kioskCapabilities.jewelleryTryOnEnabled) {
+      setSessionNotice("Jewellery Try-On is not enabled for this kiosk.");
+      return;
+    }
+
     setSessionNotice(null);
     stopCamera();
     setActiveVertical("JEWELLERY");
@@ -1113,9 +1171,34 @@ export function WebKioskClient() {
     }
   }
 
+  async function loadKioskConfiguration() {
+    if (!deviceSession || deviceState !== "paired") {
+      return;
+    }
+
+    setConfigurationStatus("loading");
+    setConfigurationError(null);
+
+    try {
+      const configuration = await withDeviceAccess((accessToken) =>
+        getCurrentKioskConfiguration(accessToken),
+      );
+      setKioskConfiguration(configuration);
+      setConfigurationStatus("ready");
+    } catch (error) {
+      setConfigurationStatus("error");
+      setConfigurationError(
+        getSafeMessage(error, "Kiosk settings could not be loaded."),
+      );
+    }
+  }
+
   async function hydrateDeviceSession() {
     const stored = loadStoredDeviceAuth();
     if (!stored) {
+      setKioskConfiguration(null);
+      setConfigurationStatus("idle");
+      setConfigurationError(null);
       setDeviceState("unpaired");
       return;
     }
@@ -1178,6 +1261,9 @@ export function WebKioskClient() {
     ) {
       clearStoredDeviceAuth();
       setDeviceSession(null);
+      setKioskConfiguration(null);
+      setConfigurationStatus("idle");
+      setConfigurationError(null);
       setDeviceError(error.message);
       setDeviceState("unpaired");
       setPairingState("idle");
@@ -1189,6 +1275,9 @@ export function WebKioskClient() {
       error instanceof SafeApiError &&
       error.code === "DEVICE_INACTIVE"
     ) {
+      setKioskConfiguration(null);
+      setConfigurationStatus("idle");
+      setConfigurationError(null);
       setDeviceError(error.message);
       setDeviceState("blocked");
       return;
@@ -1196,6 +1285,9 @@ export function WebKioskClient() {
 
     clearStoredDeviceAuth();
     setDeviceSession(null);
+    setKioskConfiguration(null);
+    setConfigurationStatus("idle");
+    setConfigurationError(null);
     setDeviceError(getSafeMessage(error, "Kiosk session could not be verified."));
     setDeviceState("unpaired");
     setPairingState("idle");
@@ -1207,6 +1299,9 @@ export function WebKioskClient() {
     clearCapturedPhoto();
     clearStoredDeviceAuth();
     setDeviceSession(null);
+    setKioskConfiguration(null);
+    setConfigurationStatus("idle");
+    setConfigurationError(null);
     setPairingSession(null);
     setPairingState("idle");
     setDeviceError(null);
@@ -1309,9 +1404,13 @@ export function WebKioskClient() {
             <StartScreen
               device={deviceSession?.device ?? null}
               notice={sessionNotice}
+              capabilities={kioskCapabilities}
+              configurationStatus={configurationStatus}
+              configurationError={configurationError}
               onStartMobileUpload={() => void startMobileUpload()}
               onStartGarmentCapture={startGarmentCapture}
               onStartJewellerySelection={startJewellerySelection}
+              onRetryConfiguration={() => void loadKioskConfiguration()}
               onResetPairing={resetPairing}
             />
           ) : null}
@@ -1536,18 +1635,48 @@ function EndSessionConfirmDialog({
 function StartScreen({
   device,
   notice,
+  capabilities,
+  configurationStatus,
+  configurationError,
   onStartMobileUpload,
   onStartGarmentCapture,
   onStartJewellerySelection,
+  onRetryConfiguration,
   onResetPairing,
 }: {
   device: KioskDevice | null;
   notice: string | null;
+  capabilities: KioskCapabilityAvailability;
+  configurationStatus: ConfigurationStatus;
+  configurationError: string | null;
   onStartMobileUpload: () => void;
   onStartGarmentCapture: () => void;
   onStartJewellerySelection: () => void;
+  onRetryConfiguration: () => void;
   onResetPairing: () => void;
 }) {
+  const noTryOnCapability =
+    configurationStatus === "ready" &&
+    !capabilities.garmentTryOnEnabled &&
+    !capabilities.jewelleryTryOnEnabled;
+  const mobileUploadStatus = capabilities.loading
+    ? "Checking settings"
+    : !capabilities.garmentTryOnEnabled
+      ? "Garment Try-On disabled"
+      : !capabilities.mobileUploadEnabled
+        ? "Mobile upload unavailable"
+        : undefined;
+  const garmentStatus = capabilities.loading
+    ? "Checking settings"
+    : !capabilities.garmentTryOnEnabled
+      ? "Disabled for this kiosk"
+      : undefined;
+  const jewelleryStatus = capabilities.loading
+    ? "Checking settings"
+    : !capabilities.jewelleryTryOnEnabled
+      ? "Disabled for this kiosk"
+      : undefined;
+
   return (
     <div className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,520px)]">
       <div className="max-w-3xl">
@@ -1571,6 +1700,36 @@ function StartScreen({
             {notice}
           </p>
         ) : null}
+        {configurationStatus === "loading" && !configurationError ? (
+          <p className="mt-4 inline-flex rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-base font-semibold text-white backdrop-blur">
+            <RefreshCwIcon
+              className="mr-2 size-5 shrink-0 animate-spin"
+              aria-hidden="true"
+            />
+            Checking kiosk settings...
+          </p>
+        ) : null}
+        {configurationError ? (
+          <div className="mt-4 rounded-lg border border-destructive/25 bg-white p-4 text-stone-950 shadow-soft">
+            <p className="text-base font-semibold text-destructive">
+              {configurationError}
+            </p>
+            <Button
+              variant="outline"
+              className="mt-3 h-11 px-4 text-base"
+              onClick={onRetryConfiguration}
+            >
+              <RefreshCwIcon className="size-5" aria-hidden="true" />
+              Retry Settings
+            </Button>
+          </div>
+        ) : null}
+        {noTryOnCapability ? (
+          <p className="mt-4 rounded-lg border border-orange-200/40 bg-orange-200/15 px-4 py-3 text-base font-semibold text-orange-100 backdrop-blur">
+            No Try-On capabilities are enabled for this kiosk. Ask staff to
+            update the kiosk settings.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-4">
@@ -1579,6 +1738,8 @@ function StartScreen({
           description="Send a person photo from a phone."
           icon={MonitorSmartphoneIcon}
           onClick={onStartMobileUpload}
+          disabled={!capabilities.mobileUploadEnabled}
+          status={mobileUploadStatus}
           tone="primary"
         />
         <KioskActionButton
@@ -1586,12 +1747,16 @@ function StartScreen({
           description="Take a photo at this kiosk."
           icon={ShirtIcon}
           onClick={onStartGarmentCapture}
+          disabled={!capabilities.garmentTryOnEnabled}
+          status={garmentStatus}
         />
         <KioskActionButton
           title="Try On Jewellery"
           description="Choose jewellery before photo capture."
           icon={GemIcon}
           onClick={onStartJewellerySelection}
+          disabled={!capabilities.jewelleryTryOnEnabled}
+          status={jewelleryStatus}
         />
         <Button
           variant="ghost"
@@ -2822,6 +2987,50 @@ function ResultSharePanel({
       </Button>
     </section>
   );
+}
+
+function getKioskCapabilityAvailability(
+  configuration: KioskConfiguration | null,
+  status: ConfigurationStatus,
+): KioskCapabilityAvailability {
+  const loading = !configuration && (status === "idle" || status === "loading");
+  const enabledCapabilities =
+    configuration?.experience.enabledTryOnCapabilities ?? [];
+  const garmentTryOnEnabled = enabledCapabilities.includes("GARMENT_TRY_ON");
+  const jewelleryTryOnEnabled =
+    enabledCapabilities.includes("JEWELLERY_TRY_ON");
+  const mobileUploadEnabled =
+    garmentTryOnEnabled && isCustomerCaptureUploadSupported(configuration);
+
+  return {
+    loading,
+    garmentTryOnEnabled,
+    jewelleryTryOnEnabled,
+    mobileUploadEnabled,
+  };
+}
+
+function isCustomerCaptureUploadSupported(
+  configuration: KioskConfiguration | null,
+): boolean {
+  return Boolean(
+    configuration &&
+      configuration.captureUpload.maxImageBytes > 0 &&
+      configuration.captureUpload.supportedContentTypes.some((contentType) =>
+        contentType.toLowerCase().startsWith("image/"),
+      ),
+  );
+}
+
+function getCustomerSessionIdleTimeoutMs(
+  configuration: KioskConfiguration | null,
+): number {
+  const seconds = configuration?.experience.sessionIdleTimeoutSeconds;
+  if (!seconds || seconds <= 0) {
+    return defaultCustomerSessionIdleTimeoutMs;
+  }
+
+  return seconds * 1000;
 }
 
 function getOrCreateInstallationId(): string {

@@ -212,8 +212,8 @@ function Image({
       src={src}
       alt={alt}
       className={cn(
-        "h-full w-full",
-        fit === "contain" && "object-contain",
+        "block",
+        fit === "contain" && "max-h-full max-w-full object-contain",
         className,
       )}
     />
@@ -906,7 +906,7 @@ function ImageInputCard({
         {slot.previewUrl ? (
           <button
             type="button"
-            className="relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-md border bg-background p-0"
+            className="relative grid aspect-[4/5] w-full place-items-center overflow-hidden rounded-md border bg-background p-0"
             aria-label={`Open ${previewTitle} preview larger`}
             onClick={() =>
               onPreviewOpen({ title: previewTitle, imageUrl: slot.previewUrl! })
@@ -924,7 +924,7 @@ function ImageInputCard({
         ) : (
           <label
             htmlFor={inputId}
-            className="grid aspect-[4/3] cursor-pointer place-items-center rounded-md border bg-background transition-colors hover:border-primary hover:bg-primary/5"
+            className="grid aspect-[4/5] cursor-pointer place-items-center rounded-md border bg-background transition-colors hover:border-primary hover:bg-primary/5"
           >
             <span className="flex flex-col items-center gap-2 px-4 text-center text-sm text-muted-foreground">
               <span
@@ -970,7 +970,8 @@ function PreviewPanel({
         }
         style={{
           position: "relative",
-          display: "block",
+          display: "grid",
+          placeItems: "center",
           width: "100%",
           aspectRatio: "4 / 5",
           border: "1px solid var(--border)",

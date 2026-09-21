@@ -20,7 +20,7 @@ export class ShopifyWebhookController {
 
   @Post("webhooks")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Receive signed Shopify catalog webhooks" })
+  @ApiOperation({ summary: "Receive signed Shopify webhooks" })
   @ApiHeader({ name: "X-Shopify-Hmac-Sha256", required: true })
   @ApiHeader({ name: "X-Shopify-Topic", required: true })
   @ApiHeader({ name: "X-Shopify-Shop-Domain", required: true })

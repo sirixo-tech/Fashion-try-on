@@ -24,12 +24,22 @@ import {
   ShopifyOauthService,
   type ShopifyWebhookConnection,
 } from "./shopify-oauth.service.js";
+import { ShopifyShopRedactionService } from "./shopify-shop-redaction.service.js";
 
 const productTopics = new Set(["products/create", "products/update"]);
+const customerDataRequestTopic = "customers/data_request";
+const customerRedactTopic = "customers/redact";
+const shopRedactTopic = "shop/redact";
+const customerPrivacyTopics = new Set([
+  customerDataRequestTopic,
+  customerRedactTopic,
+]);
 const supportedTopics = new Set([
   ...productTopics,
   "products/delete",
   "app/uninstalled",
+  shopRedactTopic,
+  ...customerPrivacyTopics,
 ]);
 const receivedEventLeaseMs = 2 * 60 * 1000;
 
@@ -59,6 +69,7 @@ export class ShopifyWebhookService {
     private readonly prisma: PrismaService,
     private readonly oauth: ShopifyOauthService,
     private readonly catalogSync: IntegrationCatalogSyncService,
+    private readonly shopRedaction?: ShopifyShopRedactionService,
   ) {}
 
   async handle(
@@ -94,6 +105,13 @@ export class ShopifyWebhookService {
       throw invalidRequest("Shopify webhook topic is not supported.");
     }
     const payload = parsePayload(rawBody);
+    if (topic === customerDataRequestTopic) {
+      validateCustomerDataRequest(payload, shop);
+    } else if (topic === customerRedactTopic) {
+      validateCustomerRedact(payload, shop);
+    } else if (topic === shopRedactTopic) {
+      validateShopRedact(payload, shop);
+    }
     const needsAdminClient = productTopics.has(topic);
     const connection = await this.oauth.webhookConnection(
       shop,
@@ -104,10 +122,14 @@ export class ShopifyWebhookService {
     }
 
     const claimed = await this.claimEvent(connection, webhookId, topic, {
-      shopDomain: shop,
       apiVersion:
         singleHeader(request.headers["x-shopify-api-version"]) ?? null,
       triggeredAt: triggeredAt.toISOString(),
+      ...(customerPrivacyTopics.has(topic)
+        ? { outcome: "NO_CUSTOMER_DATA_STORED" }
+        : topic === shopRedactTopic
+          ? { outcome: "SHOP_DATA_REDACTION_PENDING" }
+          : { shopDomain: shop }),
     });
     if (!claimed.shouldProcess) {
       return { accepted: true, duplicate: true };
@@ -116,7 +138,9 @@ export class ShopifyWebhookService {
     try {
       if (
         connection.status === IntegrationStatus.DISCONNECTED &&
-        topic !== "app/uninstalled"
+        topic !== "app/uninstalled" &&
+        topic !== shopRedactTopic &&
+        !customerPrivacyTopics.has(topic)
       ) {
         await this.finishEvent(claimed.eventId, IntegrationEventStatus.IGNORED);
         return { accepted: true, ignored: true };
@@ -125,6 +149,23 @@ export class ShopifyWebhookService {
         await this.syncProduct(connection, payload, triggeredAt);
       } else if (topic === "products/delete") {
         await this.archiveProduct(connection, payload, triggeredAt);
+      } else if (customerPrivacyTopics.has(topic)) {
+        // SelfX does not currently associate Shopify customers or orders with
+        // Try-On records, so there is no customer-linked data to export or redact.
+      } else if (topic === shopRedactTopic) {
+        if (!this.shopRedaction) {
+          throw new Error("Shopify shop redaction service is unavailable.");
+        }
+        await this.shopRedaction.redact({
+          connection,
+          eventId: claimed.eventId,
+          webhookId,
+          triggeredAt,
+          apiVersion:
+            singleHeader(request.headers["x-shopify-api-version"]) ?? null,
+          shopDomain: shop,
+        });
+        return { accepted: true };
       } else {
         await this.disconnectUninstalledApp(connection, webhookId, triggeredAt);
       }
@@ -357,6 +398,89 @@ function productGid(payload: Record<string, unknown>): string {
     throw invalidRequest("Shopify product identifier is invalid.");
   }
   return `gid://shopify/Product/${numericId}`;
+}
+
+function validateCustomerDataRequest(
+  payload: Record<string, unknown>,
+  headerShop: string,
+): void {
+  const dataRequest = objectValue(payload.data_request);
+  const orders = payload.orders_requested;
+  const ordersAreValid =
+    Array.isArray(orders) && orders.every((orderId) => validShopifyId(orderId));
+
+  if (
+    !validCustomerPrivacyIdentity(payload, headerShop) ||
+    dataRequest === null ||
+    !validShopifyId(dataRequest.id) ||
+    !ordersAreValid
+  ) {
+    throw invalidRequest("Shopify customer data request payload is invalid.");
+  }
+}
+
+function validateCustomerRedact(
+  payload: Record<string, unknown>,
+  headerShop: string,
+): void {
+  const orders = payload.orders_to_redact;
+  const ordersAreValid =
+    Array.isArray(orders) && orders.every((orderId) => validShopifyId(orderId));
+
+  if (!validCustomerPrivacyIdentity(payload, headerShop) || !ordersAreValid) {
+    throw invalidRequest("Shopify customer redaction payload is invalid.");
+  }
+}
+
+function validateShopRedact(
+  payload: Record<string, unknown>,
+  headerShop: string,
+): void {
+  const payloadShop = payload.shop_domain;
+  if (
+    !validShopifyId(payload.shop_id) ||
+    typeof payloadShop !== "string" ||
+    payloadShop.trim().toLowerCase() !== headerShop
+  ) {
+    throw invalidRequest("Shopify shop redaction payload is invalid.");
+  }
+}
+
+function validCustomerPrivacyIdentity(
+  payload: Record<string, unknown>,
+  headerShop: string,
+): boolean {
+  const payloadShop = payload.shop_domain;
+  const customer = objectValue(payload.customer);
+  return (
+    typeof payloadShop === "string" &&
+    payloadShop.trim().toLowerCase() === headerShop &&
+    validShopifyId(payload.shop_id) &&
+    customer !== null &&
+    (validShopifyId(customer.id) || validCustomerEmail(customer.email))
+  );
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function validShopifyId(value: unknown): boolean {
+  return (
+    (typeof value === "number" && Number.isSafeInteger(value) && value > 0) ||
+    (typeof value === "string" && /^\d+$/.test(value) && value !== "0")
+  );
+}
+
+function validCustomerEmail(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.length <= 320 &&
+    /^[^\s@]+@[^\s@]+$/.test(value)
+  );
 }
 
 function parsePayload(rawBody: Buffer): Record<string, unknown> {

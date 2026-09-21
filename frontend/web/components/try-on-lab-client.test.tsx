@@ -366,9 +366,15 @@ describe("TryOnLabClient", () => {
       "src",
       "blob:selfx-preview-1",
     );
+    expect(screen.getByAltText("Person photo preview").className).toContain(
+      "object-contain",
+    );
     expect(screen.getByAltText("Garment photo preview")).toHaveProperty(
       "src",
       "blob:selfx-preview-2",
+    );
+    expect(screen.getByAltText("Garment photo preview").className).toContain(
+      "object-contain",
     );
     expect(
       screen.getByRole("button", { name: /generate try-on/i }),

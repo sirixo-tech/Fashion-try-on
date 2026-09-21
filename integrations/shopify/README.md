@@ -119,6 +119,18 @@ example domains and client ID. It subscribes to `products/create`,
 
 `{SELFX_API_BASE_URL}/api/v1/integrations/shopify/webhooks`
 
+Shopify privacy webhooks use the Shopify app route `/webhooks/privacy` as the
+public ingress. The app authenticates Shopify's request, preserves the exact
+request bytes, and forwards only the signed Shopify webhook headers to the
+central endpoint above. The central API verifies the Shopify HMAC again and is
+the authority for durable deduplication and privacy processing. Compliance
+subscriptions are activated only after all privacy handlers are deployed.
+`customers/data_request` and `customers/redact` retain no customer payload.
+`shop/redact` first purges Shopify-owned data in the central API and then
+deletes the Shopify app's local sessions and SelfX connection row. Failures
+return a retryable status. The SelfX Store, memberships, plan, kiosks and
+aggregate usage remain independent of the deleted Shopify connection.
+
 Create/update notifications cause SelfX to read the complete current product
 through Shopify's GraphQL Admin API before normalization. This avoids treating
 Shopify webhook payload limits as a complete variant snapshot. Webhook-triggered
