@@ -34,7 +34,7 @@ compliance_topics = [
 uri = "/webhooks/privacy"
 
 [app_proxy]
-url = "/apps/selfx-tryon"
+url = "https://fashion-try-on-production.up.railway.app/apps/selfx-tryon"
 subpath = "selfx-tryon"
 prefix = "apps"
 
