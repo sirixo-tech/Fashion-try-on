@@ -24,6 +24,7 @@ export async function forwardShopifyWebhookToSelfx(input: {
   const config = input.config ?? loadSelfxWebhookForwardingConfig();
   const fetchImpl = input.fetchImpl ?? fetch;
   const headers = forwardedHeaders(input.request.headers);
+  const requestBodyText = new TextDecoder().decode(input.rawBody);
 
   try {
     const response = await fetchImpl(
@@ -42,7 +43,9 @@ export async function forwardShopifyWebhookToSelfx(input: {
     if (!response.ok) {
       console.error("SelfX Shopify webhook forward failed", {
         status: response.status,
-        body: responseText,
+        apiError: responseText,
+        topic: headers.get("x-shopify-topic"),
+        requestBody: requestBodyText,
       });
     }
 
