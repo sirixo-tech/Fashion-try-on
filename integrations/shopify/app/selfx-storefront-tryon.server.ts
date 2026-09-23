@@ -44,6 +44,16 @@ export type SelfxStorefrontCreditSummary = {
   } | null;
 };
 
+export type SelfxStorefrontConnectionHealth = {
+  state: "CONNECTED" | "NEEDS_RECONNECT" | "NOT_CONNECTED" | "ERROR";
+  shopDomain: string;
+  storeName: string | null;
+  integrationId: string | null;
+  storeId: string | null;
+  reasons: string[];
+  message: string;
+};
+
 export type SelfxStorefrontPricingPlan = {
   id: string;
   code: string;
@@ -123,6 +133,25 @@ export class SelfxStorefrontTryOnClient {
       { method: "GET" },
     );
     if (!Number.isFinite(result.availableCredits)) {
+      throw invalidResponse();
+    }
+    return result;
+  }
+
+  async getConnectionHealth(
+    shop: string,
+  ): Promise<SelfxStorefrontConnectionHealth> {
+    const search = new URLSearchParams({ shop });
+    const result = await this.request<SelfxStorefrontConnectionHealth>(
+      `/connection-health?${search.toString()}`,
+      { method: "GET" },
+    );
+    if (
+      !["CONNECTED", "NEEDS_RECONNECT", "NOT_CONNECTED", "ERROR"].includes(
+        result.state,
+      ) ||
+      !Array.isArray(result.reasons)
+    ) {
       throw invalidResponse();
     }
     return result;

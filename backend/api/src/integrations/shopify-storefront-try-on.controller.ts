@@ -25,6 +25,7 @@ import {
   CreateShopifyStorefrontTryOnRunDto,
   CreateShopifyStorefrontTryOnSessionDto,
   ShopifyStorefrontCreditSummaryDto,
+  ShopifyStorefrontConnectionHealthDto,
   ShopifyStorefrontPricingPlansDto,
   ShopifyStorefrontUsageSummaryDto,
   ShopifyStorefrontTryOnPersonUploadDto,
@@ -103,6 +104,21 @@ export class ShopifyStorefrontTryOnController {
   ): Promise<ShopifyStorefrontPricingPlansDto> {
     this.serviceAuth.requireServiceToken(serviceToken);
     return this.tryOns.getAvailablePlansForShop(shop);
+  }
+
+  @Get("connection-health")
+  @ApiOperation({
+    summary: "Read Shopify connection health",
+    description:
+      "Requires Shopify app service authentication and returns the central SelfX connection state for a Shopify shop domain.",
+  })
+  @ApiOkResponse({ type: ShopifyStorefrontConnectionHealthDto })
+  getConnectionHealth(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) serviceToken: string | undefined,
+    @Query("shop") shop: string | undefined,
+  ): Promise<ShopifyStorefrontConnectionHealthDto> {
+    this.serviceAuth.requireServiceToken(serviceToken);
+    return this.tryOns.getConnectionHealthForShop(shop);
   }
 
   @Get(":session")

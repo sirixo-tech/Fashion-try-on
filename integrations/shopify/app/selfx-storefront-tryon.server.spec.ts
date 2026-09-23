@@ -89,6 +89,41 @@ describe("SelfxStorefrontTryOnClient", () => {
     expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
   });
 
+  it("reads connection health with server authentication", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        state: "CONNECTED",
+        shopDomain: "merchant.myshopify.com",
+        storeName: "Merchant Store",
+        integrationId: "integration-1",
+        storeId: "store-1",
+        reasons: [
+          "CENTRAL_INTEGRATION_ACTIVE",
+          "SELFX_STORE_ACTIVE",
+          "INTEGRATION_CREDENTIAL_ACTIVE",
+        ],
+        message: "This Shopify shop is connected to SelfX.",
+      }),
+    );
+    const client = new SelfxStorefrontTryOnClient(config, fetchImpl);
+
+    await expect(
+      client.getConnectionHealth("merchant.myshopify.com"),
+    ).resolves.toMatchObject({
+      state: "CONNECTED",
+      storeName: "Merchant Store",
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.selfx.test/api/v1/public/integrations/shopify/try-on-sessions/connection-health?shop=merchant.myshopify.com",
+      expect.any(Object),
+    );
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(request.headers);
+    expect(request.method).toBe("GET");
+    expect(headers.get("x-selfx-shopify-service-token")).toBe("s".repeat(32));
+  });
+
   it("reads Shopify storefront usage summary with server authentication", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({

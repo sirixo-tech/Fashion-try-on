@@ -5,6 +5,7 @@ import {
   CreditLedgerEntryType,
   CreditLedgerChannel,
   ExternalProductMappingStatus,
+  IntegrationCredentialStatus,
   IntegrationStatus,
   KioskAssignmentScope,
   type Prisma,
@@ -60,6 +61,7 @@ import {
   type ShopifyStorefrontCreditSummaryDto,
   type ShopifyStorefrontPricingPlanDto,
   type ShopifyStorefrontPricingPlansDto,
+  type ShopifyStorefrontConnectionHealthDto,
   type ShopifyStorefrontUsageSummaryDto,
   type ShopifyStorefrontTryOnPersonUploadDto,
   type ShopifyStorefrontTryOnProductDto,
@@ -369,6 +371,93 @@ export class ShopifyStorefrontTryOnService {
     const plans = await this.pricing.listAvailablePlans();
     return {
       data: plans.filter(supportsShopifyChannel).map(toPricingPlanDto),
+    };
+  }
+
+  async getConnectionHealthForShop(
+    shop: string | undefined,
+  ): Promise<ShopifyStorefrontConnectionHealthDto> {
+    const shopDomain = normalizeShopDomainForHealth(shop);
+    if (!shopDomain) {
+      return {
+        state: "ERROR",
+        shopDomain: nullableTrim(shop) ?? "",
+        storeName: null,
+        integrationId: null,
+        storeId: null,
+        reasons: ["SHOP_DOMAIN_INVALID"],
+        message: "Shopify shop domain is missing or invalid.",
+      };
+    }
+
+    const integration = await this.prisma.integration.findFirst({
+      where: {
+        type: "SHOPIFY",
+        metadata: { path: ["shopDomain"], equals: shopDomain },
+      },
+      select: {
+        id: true,
+        organizationId: true,
+        status: true,
+        externalAccountId: true,
+        externalAccountName: true,
+        organization: { select: { name: true, status: true } },
+        credentials: {
+          where: {
+            status: IntegrationCredentialStatus.ACTIVE,
+            revokedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!integration) {
+      return {
+        state: "NOT_CONNECTED",
+        shopDomain,
+        storeName: null,
+        integrationId: null,
+        storeId: null,
+        reasons: ["CENTRAL_INTEGRATION_NOT_FOUND"],
+        message: "This Shopify shop is not connected to a SelfX Store.",
+      };
+    }
+
+    const reasons: string[] = [];
+    if (integration.status === IntegrationStatus.ACTIVE) {
+      reasons.push("CENTRAL_INTEGRATION_ACTIVE");
+    } else {
+      reasons.push(`CENTRAL_INTEGRATION_${integration.status}`);
+    }
+    if (integration.organization.status === "ACTIVE") {
+      reasons.push("SELFX_STORE_ACTIVE");
+    } else {
+      reasons.push(`SELFX_STORE_${integration.organization.status}`);
+    }
+    if (integration.credentials.length > 0) {
+      reasons.push("INTEGRATION_CREDENTIAL_ACTIVE");
+    } else {
+      reasons.push("INTEGRATION_CREDENTIAL_MISSING");
+    }
+
+    const connected =
+      integration.status === IntegrationStatus.ACTIVE &&
+      integration.organization.status === "ACTIVE" &&
+      integration.credentials.length > 0;
+
+    return {
+      state: connected ? "CONNECTED" : "NEEDS_RECONNECT",
+      shopDomain,
+      storeName: integration.organization.name,
+      integrationId: integration.id,
+      storeId: integration.organizationId,
+      reasons,
+      message: connected
+        ? "This Shopify shop is connected to SelfX."
+        : "This Shopify shop connection needs to be reconnected.",
     };
   }
 
@@ -1416,6 +1505,15 @@ function normalizeShopDomain(value: string): string {
     throw productUnavailable();
   }
   return clean;
+}
+
+function normalizeShopDomainForHealth(
+  value: string | undefined,
+): string | null {
+  const clean = nullableTrim(value)?.toLowerCase();
+  return clean && /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(clean)
+    ? clean
+    : null;
 }
 
 function currentUtcMonthStart(now: Date): Date {

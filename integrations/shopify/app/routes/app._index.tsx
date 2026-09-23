@@ -39,6 +39,7 @@ import {
 } from "../selfx-product-controls.server";
 import {
   SelfxStorefrontTryOnClient,
+  type SelfxStorefrontConnectionHealth,
   type SelfxStorefrontCreditSummary,
   type SelfxStorefrontPricingPlan,
   type SelfxStorefrontUsageSummary,
@@ -169,8 +170,13 @@ const setupSteps = [
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const connection = await safeConnectionView(session.shop);
+  const connectionHealth = await safeConnectionHealth(
+    session.shop,
+    connection,
+  );
   return {
     connection,
+    connectionHealth,
     themeBlock: await safeThemeBlockView({
       accessToken: session.accessToken,
       connected: connection.status === "CONNECTED",
@@ -428,6 +434,7 @@ export default function Index() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<ShopifyAdminPanelKey>("setup");
   const connection = loaded.connection;
+  const connectionHealth = loaded.connectionHealth;
   const themeBlock = loaded.themeBlock;
   const creditSummary = loaded.creditSummary;
   const availablePlans = loaded.availablePlans;
@@ -500,6 +507,7 @@ export default function Index() {
       <MerchantAppHeader
         connected={connected}
         connection={connection}
+        connectionHealth={connectionHealth}
         pending={pending}
         storefrontLocale={connection.storefrontLocale}
         adminLocale={adminLocale}
@@ -654,6 +662,7 @@ function MerchantAppHeader({
   connectActionPath,
   connected,
   connection,
+  connectionHealth,
   onAdminLocaleChange,
   storefrontLocale,
   pending,
@@ -665,6 +674,7 @@ function MerchantAppHeader({
   connectActionPath: string;
   connected: boolean;
   connection: SelfxConnectionView;
+  connectionHealth: SelfxStorefrontConnectionHealth;
   onAdminLocaleChange: (locale: LanguageLocale) => void;
   storefrontLocale: string;
   pending: boolean;
@@ -676,6 +686,20 @@ function MerchantAppHeader({
   const currentAdminLocale = fetcher.data?.settingsAdminLocale ?? adminLocale;
   const t = (key: Parameters<typeof adminT>[1]) =>
     adminT(currentAdminLocale, key);
+  const connectedStoreName =
+    connectionHealth.state === "CONNECTED" && connectionHealth.storeName?.trim()
+      ? connectionHealth.storeName.trim()
+      : null;
+  const headerConnected = Boolean(connectedStoreName);
+  const headerTitle = connectedStoreName
+    ? connectedStoreName
+    : pending
+      ? "Waiting for SelfX approval"
+      : connectionHealth.state === "NEEDS_RECONNECT" ||
+          connectionHealth.state === "ERROR" ||
+          connected
+        ? "Store connection needs attention"
+        : "No SelfX Store connected";
 
   function handleAdminLocaleChange(event: {
     currentTarget: { value: string };
@@ -711,7 +735,7 @@ function MerchantAppHeader({
               <s-icon type="product" />
             </s-box>
             <s-stack gap="small-200">
-              <s-heading>SelfX Try-On</s-heading>
+              <s-heading>{headerTitle}</s-heading>
               <s-text color="subdued">{connection.shop}</s-text>
             </s-stack>
           </s-stack>
@@ -745,7 +769,9 @@ function MerchantAppHeader({
               approvalUrl={connection.approvalUrl}
               completeActionPath={completeActionPath}
               connectActionPath={connectActionPath}
-              connected={connected}
+              connected={headerConnected}
+              connectionHealth={connectionHealth}
+              connectionStatus={connection.status}
               pending={pending}
               restartActionPath={restartActionPath}
             />
@@ -2541,6 +2567,8 @@ function PrimaryActions({
   completeActionPath,
   connectActionPath,
   connected,
+  connectionHealth,
+  connectionStatus,
   pending,
   restartActionPath,
 }: {
@@ -2548,6 +2576,8 @@ function PrimaryActions({
   completeActionPath: string;
   connectActionPath: string;
   connected: boolean;
+  connectionHealth: SelfxStorefrontConnectionHealth;
+  connectionStatus: SelfxConnectionView["status"];
   pending: boolean;
   restartActionPath: string;
 }) {
@@ -2571,9 +2601,21 @@ function PrimaryActions({
       </s-stack>
     );
   }
+  if (
+    connectionStatus === "CONNECTED" ||
+    connectionStatus === "ERROR" ||
+    connectionHealth.state === "NEEDS_RECONNECT" ||
+    connectionHealth.state === "ERROR"
+  ) {
+    return (
+      <SelfxActionButton href={restartActionPath} tone="primary">
+        Reconnect Store
+      </SelfxActionButton>
+    );
+  }
   return (
     <SelfxActionButton href={connectActionPath} tone="primary">
-      Connect SelfX
+      Connect Store
     </SelfxActionButton>
   );
 }
@@ -3832,6 +3874,67 @@ async function safeCreditSummary(
     ).getCreditSummary(shop);
   } catch {
     return null;
+  }
+}
+
+async function safeConnectionHealth(
+  shop: string,
+  connection: SelfxConnectionView,
+): Promise<SelfxStorefrontConnectionHealth> {
+  try {
+    const centralHealth = await new SelfxStorefrontTryOnClient(
+      loadSelfxLinkConfig(),
+    ).getConnectionHealth(shop);
+    const localStoreName = connection.storeName?.trim() ?? "";
+    const centralStoreName = centralHealth.storeName?.trim() ?? "";
+    if (
+      centralHealth.state === "CONNECTED" &&
+      connection.status !== "CONNECTED"
+    ) {
+      return {
+        ...centralHealth,
+        state: "NEEDS_RECONNECT",
+        reasons: [
+          ...centralHealth.reasons,
+          `LOCAL_CONNECTION_${connection.status}`,
+        ],
+        message:
+          "SelfX is connected centrally, but this Shopify app needs to reconnect.",
+      };
+    }
+    if (
+      centralHealth.state === "CONNECTED" &&
+      (!localStoreName ||
+        (centralStoreName && localStoreName !== centralStoreName))
+    ) {
+      return {
+        ...centralHealth,
+        state: "NEEDS_RECONNECT",
+        reasons: [
+          ...centralHealth.reasons,
+          localStoreName
+            ? "LOCAL_STORE_NAME_MISMATCH"
+            : "LOCAL_STORE_NAME_MISSING",
+        ],
+        message:
+          "SelfX is connected centrally, but this Shopify app has incomplete local connection state.",
+      };
+    }
+    return centralHealth;
+  } catch {
+    return {
+      state:
+        connection.status === "CONNECTED" || connection.status === "ERROR"
+          ? "ERROR"
+          : "NOT_CONNECTED",
+      shopDomain: shop,
+      storeName: null,
+      integrationId: null,
+      storeId: null,
+      reasons: ["CENTRAL_CONNECTION_HEALTH_UNAVAILABLE"],
+      message:
+        "SelfX could not verify the central Shopify connection health.",
+    };
   }
 }
 

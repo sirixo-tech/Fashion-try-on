@@ -265,6 +265,31 @@ export class ShopifyStorefrontPricingPlansDto {
   data!: ShopifyStorefrontPricingPlanDto[];
 }
 
+export class ShopifyStorefrontConnectionHealthDto {
+  @ApiProperty({
+    enum: ["CONNECTED", "NEEDS_RECONNECT", "NOT_CONNECTED", "ERROR"],
+  })
+  state!: "CONNECTED" | "NEEDS_RECONNECT" | "NOT_CONNECTED" | "ERROR";
+
+  @ApiProperty()
+  shopDomain!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  storeName!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  integrationId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  storeId!: string | null;
+
+  @ApiProperty({ type: [String] })
+  reasons!: string[];
+
+  @ApiProperty()
+  message!: string;
+}
+
 export class ShopifyStorefrontTryOnPersonUploadDto {
   @ApiProperty()
   session!: string;

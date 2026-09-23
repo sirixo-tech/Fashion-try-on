@@ -105,4 +105,37 @@ describe("ShopifyStorefrontTryOnController", () => {
       "merchant.myshopify.com",
     );
   });
+
+  it("returns connection health only for a server-authenticated Shopify app request", async () => {
+    const health = {
+      state: "CONNECTED",
+      shopDomain: "merchant.myshopify.com",
+      storeName: "Merchant Store",
+      integrationId: "integration-1",
+      storeId: "store-1",
+      reasons: ["CENTRAL_INTEGRATION_ACTIVE"],
+      message: "This Shopify shop is connected to SelfX.",
+    };
+    const serviceAuth = {
+      requireServiceToken: vi.fn(),
+    };
+    const tryOns = {
+      getConnectionHealthForShop: vi.fn().mockResolvedValue(health),
+    };
+    const controller = new ShopifyStorefrontTryOnController(
+      serviceAuth as never,
+      tryOns as never,
+    );
+
+    await expect(
+      controller.getConnectionHealth("server-token", "merchant.myshopify.com"),
+    ).resolves.toEqual(health);
+
+    expect(serviceAuth.requireServiceToken).toHaveBeenCalledWith(
+      "server-token",
+    );
+    expect(tryOns.getConnectionHealthForShop).toHaveBeenCalledWith(
+      "merchant.myshopify.com",
+    );
+  });
 });
