@@ -1,13 +1,11 @@
 import { randomBytes } from "node:crypto";
 
 import type { LoaderFunctionArgs } from "react-router";
+import { redirect } from "react-router";
 
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
-import {
-  storefrontTryOnErrorMarkup,
-  storefrontTryOnRedirectMarkup,
-} from "../selfx-storefront-error.server";
+import { storefrontTryOnErrorMarkup } from "../selfx-storefront-error.server";
 import {
   normalizeLanguageLocale,
   normalizeStorefrontLocale,
@@ -116,11 +114,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       productHandle: product.productHandle,
       locale,
     });
-    const response = htmlResponse(storefrontTryOnRedirectMarkup(targetUrl));
-    if (visitor.setCookie) {
-      response.headers.append("Set-Cookie", visitor.setCookie);
-    }
-    return response;
+    const headers = new Headers();
+    if (visitor.setCookie) headers.append("Set-Cookie", visitor.setCookie);
+    return redirect(targetUrl, { headers });
   } catch (error) {
     console.error(
       "SelfX storefront Try-On launch failed",
