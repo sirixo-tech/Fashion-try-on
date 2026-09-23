@@ -116,9 +116,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       productHandle: product.productHandle,
       locale,
     });
-    const response = context.liquid(storefrontTryOnRedirectMarkup(targetUrl), {
-      layout: false,
-    });
+    const response = htmlResponse(storefrontTryOnRedirectMarkup(targetUrl));
     if (visitor.setCookie) {
       response.headers.append("Set-Cookie", visitor.setCookie);
     }
@@ -284,12 +282,16 @@ function statusForLaunchError(error: unknown): number {
 }
 
 function launchError(
-  context: AppProxyContext,
+  _context: AppProxyContext,
   input: { message: string; status: number },
 ): Response {
-  return context.liquid(storefrontTryOnErrorMarkup(input.message), {
-    status: input.status,
-    layout: false,
+  return htmlResponse(storefrontTryOnErrorMarkup(input.message), input.status);
+}
+
+function htmlResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
 
