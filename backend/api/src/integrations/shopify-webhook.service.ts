@@ -436,11 +436,9 @@ function validateShopRedact(
   payload: Record<string, unknown>,
   headerShop: string,
 ): void {
-  const payloadShop = payload.shop_domain;
   if (
     !validShopifyId(payload.shop_id) ||
-    typeof payloadShop !== "string" ||
-    payloadShop.trim().toLowerCase() !== headerShop
+    !validOptionalPrivacyShopDomain(payload.shop_domain, headerShop)
   ) {
     throw invalidRequest("Shopify shop redaction payload is invalid.");
   }
@@ -450,15 +448,35 @@ function validCustomerPrivacyIdentity(
   payload: Record<string, unknown>,
   headerShop: string,
 ): boolean {
-  const payloadShop = payload.shop_domain;
   const customer = objectValue(payload.customer);
   return (
-    typeof payloadShop === "string" &&
-    payloadShop.trim().toLowerCase() === headerShop &&
+    validOptionalPrivacyShopDomain(payload.shop_domain, headerShop) &&
     validShopifyId(payload.shop_id) &&
     customer !== null &&
     (validShopifyId(customer.id) || validCustomerEmail(customer.email))
   );
+}
+
+function validOptionalPrivacyShopDomain(
+  value: unknown,
+  headerShop: string,
+): boolean {
+  if (value == null) {
+    return true;
+  }
+
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const clean = value.trim().toLowerCase();
+
+  // Shopify CLI webhook trigger can send this placeholder in sample payloads.
+  if (clean === "{shop}.myshopify.com") {
+    return true;
+  }
+
+  return clean === headerShop;
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {

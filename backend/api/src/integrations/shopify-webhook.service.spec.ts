@@ -150,6 +150,47 @@ describe("Shopify webhook security and synchronization", () => {
     expect(stored).not.toContain("9999");
   });
 
+  it("accepts a customer data request with Shopify CLI placeholder shop domain", async () => {
+    const { prisma } = prismaMock();
+    const oauth = {
+      webhookConnection: vi.fn().mockResolvedValue(connection()),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const payload = customerDataRequest();
+    payload.shop_domain = "{shop}.myshopify.com";
+
+    await expect(
+      service.handle(request("customers/data_request", payload)),
+    ).resolves.toEqual({ accepted: true });
+  });
+
+  it("accepts a customer data request with missing or null payload shop domain", async () => {
+    const { prisma } = prismaMock();
+    const oauth = {
+      webhookConnection: vi.fn().mockResolvedValue(connection()),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const missing = customerDataRequest();
+    delete missing.shop_domain;
+    const nullShop = customerDataRequest();
+    nullShop.shop_domain = null;
+
+    await expect(
+      service.handle(request("customers/data_request", missing)),
+    ).resolves.toEqual({ accepted: true });
+    await expect(
+      service.handle(request("customers/data_request", nullShop)),
+    ).resolves.toEqual({ accepted: true });
+  });
+
   it("accepts an email-only Shopify customer data request", async () => {
     const { prisma } = prismaMock();
     const oauth = {
@@ -182,6 +223,58 @@ describe("Shopify webhook security and synchronization", () => {
     );
     const payload = customerDataRequest();
     payload.customer = {};
+
+    await expect(
+      service.handle(request("customers/data_request", payload)),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        error: {
+          code: "SHOPIFY_WEBHOOK_REQUEST_INVALID",
+          message: "Shopify customer data request payload is invalid.",
+        },
+      },
+    });
+    expect(oauth.webhookConnection).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a customer data request with a wrong payload shop domain", async () => {
+    const { prisma, eventCreate } = prismaMock();
+    const oauth = { webhookConnection: vi.fn() };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const payload = customerDataRequest();
+    payload.shop_domain = "another.myshopify.com";
+
+    await expect(
+      service.handle(request("customers/data_request", payload)),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        error: {
+          code: "SHOPIFY_WEBHOOK_REQUEST_INVALID",
+          message: "Shopify customer data request payload is invalid.",
+        },
+      },
+    });
+    expect(oauth.webhookConnection).not.toHaveBeenCalled();
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a customer data request with a non-string payload shop domain", async () => {
+    const { prisma, eventCreate } = prismaMock();
+    const oauth = { webhookConnection: vi.fn() };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const payload = customerDataRequest();
+    payload.shop_domain = 123;
 
     await expect(
       service.handle(request("customers/data_request", payload)),
@@ -259,6 +352,24 @@ describe("Shopify webhook security and synchronization", () => {
     expect(stored).not.toContain("299938");
   });
 
+  it("accepts a customer redaction with Shopify CLI placeholder shop domain", async () => {
+    const { prisma } = prismaMock();
+    const oauth = {
+      webhookConnection: vi.fn().mockResolvedValue(connection()),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+    );
+    const payload = customerRedact();
+    payload.shop_domain = "{shop}.myshopify.com";
+
+    await expect(
+      service.handle(request("customers/redact", payload)),
+    ).resolves.toEqual({ accepted: true });
+  });
+
   it("does not process a completed customer redaction twice", async () => {
     const { prisma, eventUpdate } = prismaMock({ duplicate: true });
     const oauth = {
@@ -326,6 +437,40 @@ describe("Shopify webhook security and synchronization", () => {
       "demo.myshopify.com",
     );
     expect(eventUpdate).not.toHaveBeenCalled();
+  });
+
+  it("accepts shop redaction with Shopify CLI placeholder or missing shop domain", async () => {
+    const { prisma } = prismaMock({ duplicate: true });
+    const oauth = {
+      webhookConnection: vi
+        .fn()
+        .mockResolvedValue(
+          connection({ status: IntegrationStatus.DISCONNECTED }),
+        ),
+    };
+    const service = new ShopifyWebhookService(
+      prisma as never,
+      oauth as never,
+      {} as never,
+      { redact: vi.fn() } as never,
+    );
+
+    await expect(
+      service.handle(
+        request("shop/redact", {
+          shop_id: 954889,
+          shop_domain: "{shop}.myshopify.com",
+        }),
+      ),
+    ).resolves.toEqual({ accepted: true, duplicate: true });
+
+    await expect(
+      service.handle(
+        request("shop/redact", {
+          shop_id: 954889,
+        }),
+      ),
+    ).resolves.toEqual({ accepted: true, duplicate: true });
   });
 
   it("rejects a malformed shop redaction before persistence", async () => {
