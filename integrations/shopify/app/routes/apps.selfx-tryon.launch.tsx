@@ -1,11 +1,13 @@
 import { randomBytes } from "node:crypto";
 
 import type { LoaderFunctionArgs } from "react-router";
-import { redirect } from "react-router";
 
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
-import { storefrontTryOnErrorMarkup } from "../selfx-storefront-error.server";
+import {
+  storefrontTryOnErrorMarkup,
+  storefrontTryOnRedirectMarkup,
+} from "../selfx-storefront-error.server";
 import {
   normalizeLanguageLocale,
   normalizeStorefrontLocale,
@@ -98,16 +100,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         : {}),
       ...(product.productHandle ? { productHandle: product.productHandle } : {}),
     });
-    const response = redirect(
-      buildStorefrontTryOnSessionUrl({
-        baseUrl: launchBaseUrl,
-        session: session.session,
-        shop,
-        productId: product.externalProductId,
-        productHandle: product.productHandle,
-        locale,
-      }),
-    );
+    const targetUrl = buildStorefrontTryOnSessionUrl({
+      baseUrl: launchBaseUrl,
+      session: session.session,
+      shop,
+      productId: product.externalProductId,
+      productHandle: product.productHandle,
+      locale,
+    });
+    const response = context.liquid(storefrontTryOnRedirectMarkup(targetUrl), {
+      layout: false,
+    });
     if (visitor.setCookie) {
       response.headers.append("Set-Cookie", visitor.setCookie);
     }

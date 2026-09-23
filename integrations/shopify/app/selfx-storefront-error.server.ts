@@ -143,6 +143,109 @@ export function storefrontTryOnErrorMarkup(message: string): string {
 </html>`;
 }
 
+export function storefrontTryOnRedirectMarkup(targetUrl: string): string {
+  const safeUrl = escapeHtml(targetUrl);
+  const jsUrl = JSON.stringify(targetUrl).replaceAll("</", "<\\/");
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="0;url=${safeUrl}">
+    <title>Opening SelfX Try-On</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #07172d;
+        background: #f4f8f8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          linear-gradient(135deg, rgba(255, 106, 0, 0.08), transparent 38%),
+          #f4f8f8;
+      }
+
+      main {
+        width: min(100%, 460px);
+        border: 1px solid #c7d6dc;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 24px 80px rgba(18, 38, 45, 0.14);
+        padding: 28px;
+        text-align: center;
+      }
+
+      .mark {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 18px;
+        border-radius: 14px;
+        background: #ff6a00;
+        color: white;
+        font-size: 15px;
+        font-weight: 900;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.15;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 12px 0 0;
+        color: #35515c;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      a {
+        display: inline-flex;
+        justify-content: center;
+        width: 100%;
+        margin-top: 22px;
+        border-radius: 12px;
+        padding: 14px 18px;
+        background: #ff6a00;
+        color: white;
+        font-size: 15px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      a:hover {
+        background: #e85f00;
+      }
+    </style>
+    <script>
+      window.location.replace(${jsUrl});
+    </script>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">SX</div>
+      <h1>Opening SelfX Try-On</h1>
+      <p>Your virtual try-on is opening now.</p>
+      <a href="${safeUrl}" rel="noopener">Continue to Try-On</a>
+    </main>
+  </body>
+</html>`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")

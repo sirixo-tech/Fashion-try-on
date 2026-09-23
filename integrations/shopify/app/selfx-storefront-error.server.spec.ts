@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { storefrontTryOnErrorMarkup } from "./selfx-storefront-error.server";
+import {
+  storefrontTryOnErrorMarkup,
+  storefrontTryOnRedirectMarkup,
+} from "./selfx-storefront-error.server";
 
 describe("storefrontTryOnErrorMarkup", () => {
   it("renders a branded storefront error page", () => {
@@ -25,5 +28,31 @@ describe("storefrontTryOnErrorMarkup", () => {
       "&lt;script&gt;alert(&quot;bad&quot;)&lt;/script&gt;",
     );
     expect(markup).not.toContain('<script>alert("bad")</script>');
+  });
+});
+
+describe("storefrontTryOnRedirectMarkup", () => {
+  it("renders a branded redirect page with a fallback link", () => {
+    const markup = storefrontTryOnRedirectMarkup(
+      "https://app.selfx.test/try-on/shopify?session=abc&shop=test.myshopify.com",
+    );
+
+    expect(markup).toContain("<title>Opening SelfX Try-On</title>");
+    expect(markup).toContain("window.location.replace");
+    expect(markup).toContain("Continue to Try-On");
+    expect(markup).toContain(
+      "https://app.selfx.test/try-on/shopify?session=abc&amp;shop=test.myshopify.com",
+    );
+  });
+
+  it("escapes redirect URLs in HTML attributes", () => {
+    const markup = storefrontTryOnRedirectMarkup(
+      'https://app.selfx.test/try-on/shopify?next=<script>alert("bad")</script>',
+    );
+
+    expect(markup).toContain(
+      "next=&lt;script&gt;alert(&quot;bad&quot;)&lt;/script&gt;",
+    );
+    expect(markup).not.toContain('href="https://app.selfx.test/try-on/shopify?next=<script>');
   });
 });
