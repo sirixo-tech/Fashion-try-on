@@ -25,6 +25,14 @@ topics = [
 ]
 uri = "https://selfxapi-production.up.railway.app/api/v1/integrations/shopify/webhooks"
 
+[[webhooks.subscriptions]]
+compliance_topics = [
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact"
+]
+uri = "/webhooks/privacy"
+
 [app_proxy]
 url = "/apps/selfx-tryon"
 subpath = "selfx-tryon"

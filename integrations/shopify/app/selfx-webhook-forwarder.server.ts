@@ -37,8 +37,27 @@ export async function forwardShopifyWebhookToSelfx(input: {
       },
     );
 
-    return new Response(null, { status: response.status });
-  } catch {
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      console.error("SelfX Shopify webhook forward failed", {
+        status: response.status,
+        body: responseText,
+      });
+    }
+
+    return new Response(responseText || null, {
+      status: response.status,
+      headers: responseText
+        ? {
+            "content-type":
+              response.headers.get("content-type") ?? "text/plain",
+          }
+        : undefined,
+    });
+  } catch (error) {
+    console.error("SelfX Shopify webhook forward crashed", error);
+
     // A non-2xx response makes Shopify retry instead of losing the delivery.
     return new Response(null, { status: 503 });
   }
