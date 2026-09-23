@@ -198,11 +198,31 @@ export class SelfxStorefrontTryOnClient {
 export function buildStorefrontTryOnSessionUrl(input: {
   baseUrl: string;
   session: string;
+  shop?: string | null;
+  productId?: string | null;
+  productHandle?: string | null;
+  locale?: string | null;
 }): string {
   const url = new URL(input.baseUrl);
   url.search = "";
+  url.hash = "";
   url.searchParams.set("session", input.session);
+  setOptionalSearchParam(url, "shop", input.shop);
+  setOptionalSearchParam(url, "productId", input.productId);
+  setOptionalSearchParam(url, "productHandle", input.productHandle);
+  setOptionalSearchParam(url, "locale", input.locale);
   return url.toString();
+}
+
+function setOptionalSearchParam(
+  url: URL,
+  name: string,
+  value: string | null | undefined,
+): void {
+  const clean = value?.trim();
+  if (clean) {
+    url.searchParams.set(name, clean);
+  }
 }
 
 export function productReference(

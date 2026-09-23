@@ -102,6 +102,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       buildStorefrontTryOnSessionUrl({
         baseUrl: launchBaseUrl,
         session: session.session,
+        shop,
+        productId: product.externalProductId,
+        productHandle: product.productHandle,
+        locale,
       }),
     );
     if (visitor.setCookie) {

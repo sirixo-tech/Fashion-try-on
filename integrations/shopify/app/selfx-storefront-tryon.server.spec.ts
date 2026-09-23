@@ -195,7 +195,7 @@ describe("Shopify storefront Try-On launch helpers", () => {
     });
   });
 
-  it("builds a shopper redirect URL with only the capability token", () => {
+  it("builds a shopper redirect URL with only the capability token by default", () => {
     expect(
       buildStorefrontTryOnSessionUrl({
         baseUrl:
@@ -203,6 +203,24 @@ describe("Shopify storefront Try-On launch helpers", () => {
         session: "a".repeat(43),
       }),
     ).toBe(`https://app.selfx.test/try-on/shopify?session=${"a".repeat(43)}`);
+  });
+
+  it("preserves safe Shopify launch context in the shopper redirect URL", () => {
+    expect(
+      buildStorefrontTryOnSessionUrl({
+        baseUrl:
+          "https://app.selfx.test/try-on/shopify?stale=true#ignored-section",
+        session: "a".repeat(43),
+        shop: "merchant.myshopify.com",
+        productId: "gid://shopify/Product/1001",
+        productHandle: "linen-shirt",
+        locale: "en",
+      }),
+    ).toBe(
+      `https://app.selfx.test/try-on/shopify?session=${"a".repeat(
+        43,
+      )}&shop=merchant.myshopify.com&productId=gid%3A%2F%2Fshopify%2FProduct%2F1001&productHandle=linen-shirt&locale=en`,
+    );
   });
 });
 
