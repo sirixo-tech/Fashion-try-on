@@ -627,10 +627,22 @@ export class ShopifyStorefrontTryOnService {
   private async requireEligibleProduct(
     input: CreateShopifyStorefrontTryOnSessionDto,
   ): Promise<ShopifyProductContext> {
-    const shop = normalizeShopDomain(input.shop);
-    const externalProductId = nullableTrim(input.externalProductId);
-    const productHandle = nullableTrim(input.productHandle);
-    if (!externalProductId && !productHandle) {
+    const rawExternalProductId = nullableTrim(input.externalProductId);
+    const externalProductIds = shopifyProductIdCandidates(rawExternalProductId);
+    const productHandle = normalizeShopifyHandle(input.productHandle);
+    let shop: string;
+    try {
+      shop = normalizeShopDomain(input.shop);
+    } catch (error) {
+      this.logProductUnavailable({
+        reason: "invalid_shop_domain",
+        shop: nullableTrim(input.shop),
+        externalProductId: externalProductIds[0] ?? rawExternalProductId,
+        productHandle,
+      });
+      throw error;
+    }
+    if (!rawExternalProductId && !productHandle) {
       throw new ApiErrorException(
         HttpStatus.BAD_REQUEST,
         SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.productContextMissing,
@@ -648,6 +660,12 @@ export class ShopifyStorefrontTryOnService {
       select: { id: true, organizationId: true, metadata: true },
     });
     if (!integration) {
+      this.logProductUnavailable({
+        reason: "active_integration_not_found",
+        shop,
+        externalProductId: externalProductIds[0] ?? rawExternalProductId,
+        productHandle,
+      });
       throw productUnavailable();
     }
 
@@ -657,7 +675,9 @@ export class ShopifyStorefrontTryOnService {
         status: ExternalProductMappingStatus.ACTIVE,
         externalVariantId: null,
         OR: [
-          ...(externalProductId ? [{ externalProductId }] : []),
+          ...externalProductIds.map((externalProductId) => ({
+            externalProductId,
+          })),
           ...(productHandle ? [{ externalHandle: productHandle }] : []),
         ],
       },
@@ -670,6 +690,13 @@ export class ShopifyStorefrontTryOnService {
       },
     });
     if (!mapping) {
+      this.logProductUnavailable({
+        reason: "active_product_mapping_not_found",
+        shop,
+        externalProductId: externalProductIds[0] ?? rawExternalProductId,
+        productHandle,
+        integrationId: integration.id,
+      });
       throw productUnavailable();
     }
     assertProductEligible(mapping.product);
@@ -691,6 +718,13 @@ export class ShopifyStorefrontTryOnService {
         mapping.product.productVertical,
       )
     ) {
+      this.logProductUnavailable({
+        reason: "jewellery_classification_required",
+        shop,
+        externalProductId: mapping.externalProductId,
+        productHandle: mapping.externalHandle,
+        integrationId: integration.id,
+      });
       throw productUnavailable();
     }
     return {
@@ -699,6 +733,23 @@ export class ShopifyStorefrontTryOnService {
       mapping,
       product: mapping.product,
     };
+  }
+
+  private logProductUnavailable(input: {
+    reason: string;
+    shop: string | null;
+    externalProductId: string | null;
+    productHandle: string | null;
+    integrationId?: string;
+  }): void {
+    this.logger.warn({
+      event: "shopify_storefront_try_on_product_unavailable",
+      reason: input.reason,
+      shop: input.shop,
+      externalProductId: input.externalProductId,
+      productHandle: input.productHandle,
+      integrationId: input.integrationId,
+    });
   }
 
   private async requireCapability(
@@ -1451,6 +1502,33 @@ function priceDecimal(amountCents: number | null): string | null {
 function nullableTrim(value: string | null | undefined): string | null {
   const clean = value?.trim();
   return clean ? clean : null;
+}
+
+function normalizeShopifyHandle(
+  value: string | null | undefined,
+): string | null {
+  const clean = value?.trim().toLowerCase();
+  return clean || null;
+}
+
+function shopifyProductIdCandidates(
+  value: string | null | undefined,
+): string[] {
+  const clean = nullableTrim(value);
+  if (!clean) return [];
+
+  const candidates = new Set<string>();
+  const gidMatch = /^gid:\/\/shopify\/Product\/(\d+)$/i.exec(clean);
+  const numericId = gidMatch?.[1] ?? (/^\d+$/.test(clean) ? clean : null);
+
+  if (numericId) {
+    candidates.add(`gid://shopify/Product/${numericId}`);
+    candidates.add(numericId);
+    return [...candidates];
+  }
+
+  candidates.add(clean);
+  return [...candidates];
 }
 
 function productUnavailable(): ApiErrorException {

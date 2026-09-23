@@ -25,12 +25,18 @@ const visitorCookieName = "selfx_tryon_visitor";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let context: AppProxyContext | null = null;
+  const logContext: {
+    shop?: string | null;
+    externalProductId?: string | null;
+    productHandle?: string | null;
+  } = {};
   try {
     context = await authenticate.public.appProxy(request);
     const url = new URL(request.url);
     const shop = normalizeShopDomain(
       context.session?.shop ?? url.searchParams.get("shop"),
     );
+    logContext.shop = shop;
 
     if (!shop) {
       return launchError(context, {
@@ -58,6 +64,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const product = productReference(url.searchParams);
+    logContext.externalProductId = product.externalProductId;
+    logContext.productHandle = product.productHandle;
     if (!product.externalProductId && !product.productHandle) {
       return launchError(context, {
         message: "SelfX could not identify this Shopify product.",
@@ -92,13 +100,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       visitorTryOnLimitPeriod: normalizeLimitPeriod(
         connection.visitorTryOnLimitPeriod,
       ),
-      monthlyStoreTryOnLimit: normalizeLimit(
-        connection.monthlyStoreTryOnLimit,
-      ),
+      monthlyStoreTryOnLimit: normalizeLimit(connection.monthlyStoreTryOnLimit),
       ...(product.externalProductId
         ? { externalProductId: product.externalProductId }
         : {}),
-      ...(product.productHandle ? { productHandle: product.productHandle } : {}),
+      ...(product.productHandle
+        ? { productHandle: product.productHandle }
+        : {}),
     });
     const targetUrl = buildStorefrontTryOnSessionUrl({
       baseUrl: launchBaseUrl,
@@ -116,7 +124,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
     return response;
   } catch (error) {
-    console.error("SelfX storefront Try-On launch failed", safeErrorLog(error));
+    console.error(
+      "SelfX storefront Try-On launch failed",
+      safeErrorLog(error, logContext),
+    );
     if (context) {
       return launchError(context, {
         message: messageForLaunchError(error),
@@ -139,8 +150,13 @@ export default function SelfxTryOnLaunchRoute(): null {
   return null;
 }
 
-function visitorToken(request: Request): { value: string; setCookie: string | null } {
-  const existing = parseCookie(request.headers.get("cookie"))[visitorCookieName];
+function visitorToken(request: Request): {
+  value: string;
+  setCookie: string | null;
+} {
+  const existing = parseCookie(request.headers.get("cookie"))[
+    visitorCookieName
+  ];
   if (existing && /^[A-Za-z0-9_-]{43}$/.test(existing)) {
     return { value: existing, setCookie: null };
   }
@@ -170,13 +186,17 @@ function parseCookie(header: string | null): Record<string, string> {
 
 function normalizeLimit(value: unknown): number {
   const parsed =
-    typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+    typeof value === "number"
+      ? value
+      : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return Math.min(Math.floor(parsed), 1_000_000);
 }
 
 function normalizeLimitPeriod(value: unknown): "DAY" | "WEEK" | "MONTH" {
-  const clean = String(value ?? "").trim().toUpperCase();
+  const clean = String(value ?? "")
+    .trim()
+    .toUpperCase();
   return clean === "WEEK" || clean === "MONTH" ? clean : "DAY";
 }
 
@@ -273,7 +293,14 @@ function launchError(
   });
 }
 
-function safeErrorLog(error: unknown): Record<string, unknown> {
+function safeErrorLog(
+  error: unknown,
+  context: {
+    shop?: string | null;
+    externalProductId?: string | null;
+    productHandle?: string | null;
+  } = {},
+): Record<string, unknown> {
   if (error instanceof Error) {
     const maybeApiError =
       error instanceof SelfxLinkApiError
@@ -282,8 +309,17 @@ function safeErrorLog(error: unknown): Record<string, unknown> {
     return {
       name: error.name,
       message: error.message,
+      shop: context.shop ?? undefined,
+      externalProductId: context.externalProductId ?? undefined,
+      productHandle: context.productHandle ?? undefined,
       ...maybeApiError,
     };
   }
-  return { name: "UnknownError", message: String(error) };
+  return {
+    name: "UnknownError",
+    message: String(error),
+    shop: context.shop ?? undefined,
+    externalProductId: context.externalProductId ?? undefined,
+    productHandle: context.productHandle ?? undefined,
+  };
 }

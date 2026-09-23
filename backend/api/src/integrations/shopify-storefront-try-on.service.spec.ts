@@ -72,6 +72,91 @@ describe("ShopifyStorefrontTryOnService", () => {
     expect(storage.putObject).toHaveBeenCalledOnce();
   });
 
+  it("matches numeric Shopify product IDs against canonical GID mappings", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+
+    const created = await service.createSession({
+      source: "shopify",
+      shop: "merchant.myshopify.com",
+      externalProductId: "1001",
+    });
+
+    expect(created.product.externalProductId).toBe(
+      "gid://shopify/Product/1001",
+    );
+    expect(prisma.externalProductMapping.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { externalProductId: "gid://shopify/Product/1001" },
+            { externalProductId: "1001" },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it("can match legacy numeric Shopify product mappings from GID storefront input", async () => {
+    const prisma = new FakePrisma();
+    prisma.externalProductMapping.findFirst.mockReturnValue({
+      externalProductId: "1001",
+      externalHandle: "linen-shirt",
+      externalSku: "LINEN-SHIRT",
+      product: prisma.product,
+    });
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+
+    const created = await service.createSession({
+      source: "shopify",
+      shop: "merchant.myshopify.com",
+      externalProductId: "gid://shopify/Product/1001",
+    });
+
+    expect(created.product.externalProductId).toBe("1001");
+    expect(prisma.externalProductMapping.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { externalProductId: "gid://shopify/Product/1001" },
+            { externalProductId: "1001" },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it("normalizes Shopify handles at the storefront API boundary", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+
+    await service.createSession({
+      source: "shopify",
+      shop: "merchant.myshopify.com",
+      productHandle: " Linen-Shirt ",
+    });
+
+    expect(prisma.externalProductMapping.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([{ externalHandle: "linen-shirt" }]),
+        }),
+      }),
+    );
+  });
+
   it("fails safely when the Shopify integration is disconnected", async () => {
     const prisma = new FakePrisma();
     prisma.integrationConnected = false;
