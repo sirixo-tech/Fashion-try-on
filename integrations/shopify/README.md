@@ -81,11 +81,10 @@ Configure these values on the Shopify app server:
 - `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY` (a separate Base64-encoded 32-byte key)
 - `SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY_VERSION`
 - `SHOPIFY_API_VERSION`
-- `SCOPES=read_products,read_themes,read_orders,write_app_proxy`
+- `SCOPES=read_products,read_themes,write_app_proxy`
 
-`read_orders` is reserved for Shopify Try-On sales attribution analytics. Keep
-order reads limited to the minimum order, line-item and total fields required
-for reporting.
+Order reads are intentionally not requested until SelfX implements Shopify
+Try-On sales attribution analytics.
 
 The storefront theme app block launches through the Shopify App Proxy at
 `/apps/selfx-tryon/launch`. The proxy route verifies Shopify's signed request,

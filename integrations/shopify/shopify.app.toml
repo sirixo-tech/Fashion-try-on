@@ -6,7 +6,7 @@ application_url = "https://fashion-try-on-production.up.railway.app"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,read_themes,read_orders,write_app_proxy"
+scopes = "read_products,read_themes,write_app_proxy"
 
 [auth]
 redirect_urls = [
