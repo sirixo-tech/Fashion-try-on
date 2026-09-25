@@ -17,6 +17,13 @@ import {
 export const integrationTypeOptions = ["SHOPIFY", "WOOCOMMERCE"] as const;
 export type IntegrationTypeDto = (typeof integrationTypeOptions)[number];
 
+export const integrationHealthOptions = [
+  "CONNECTED",
+  "NEEDS_ATTENTION",
+  "DISCONNECTED",
+] as const;
+export type IntegrationHealthDto = (typeof integrationHealthOptions)[number];
+
 export const integrationCredentialScopeOptions = [
   "catalog:sync",
   "products:read",
@@ -143,6 +150,12 @@ export class IntegrationDto {
 
   @ApiProperty()
   status!: "ACTIVE" | "DISCONNECTED" | "ERROR";
+
+  @ApiProperty({ enum: integrationHealthOptions })
+  health!: IntegrationHealthDto;
+
+  @ApiProperty({ type: [String] })
+  healthReasons!: string[];
 
   @ApiPropertyOptional({ nullable: true })
   externalAccountId!: string | null;

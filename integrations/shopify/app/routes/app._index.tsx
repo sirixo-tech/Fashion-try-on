@@ -192,6 +192,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: session.shop,
     }),
     selfxBillingUrl: safeSelfxBillingUrl(connection),
+    selfxPublicUrls: safeSelfxPublicUrls(),
     themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
   };
 };
@@ -442,6 +443,7 @@ export default function Index() {
   const productControls = loaded.productControls;
   const productCollections = loaded.productCollections;
   const selfxBillingUrl = loaded.selfxBillingUrl;
+  const selfxPublicUrls = loaded.selfxPublicUrls;
   const themeEditorUrl = loaded.themeEditorUrl;
   const connectActionPath = selfxActionPath(location.search, "connect");
   const completeActionPath = selfxActionPath(location.search, "complete");
@@ -592,7 +594,34 @@ export default function Index() {
           />
         </main>
       </div>
+
+      <SelfxShopifyFooterLinks
+        privacyUrl={selfxPublicUrls.privacyUrl}
+        supportUrl={selfxPublicUrls.supportUrl}
+      />
     </s-page>
+  );
+}
+
+function SelfxShopifyFooterLinks({
+  privacyUrl,
+  supportUrl,
+}: {
+  privacyUrl: string;
+  supportUrl: string;
+}) {
+  return (
+    <s-box padding="base">
+      <s-stack direction="inline" gap="base" alignItems="center">
+        <s-text color="subdued">SelfX</s-text>
+        <s-link href={privacyUrl} target="_blank">
+          Privacy
+        </s-link>
+        <s-link href={supportUrl} target="_blank">
+          Support
+        </s-link>
+      </s-stack>
+    </s-box>
   );
 }
 
@@ -4017,6 +4046,21 @@ function safeSelfxBillingUrl(connection: SelfxConnectionView): string | null {
     return new URL("/app/billing", loadSelfxLinkConfig().webBaseUrl).toString();
   } catch {
     return null;
+  }
+}
+
+function safeSelfxPublicUrls(): { privacyUrl: string; supportUrl: string } {
+  try {
+    const webBaseUrl = loadSelfxLinkConfig().webBaseUrl;
+    return {
+      privacyUrl: new URL("/privacy", webBaseUrl).toString(),
+      supportUrl: new URL("/support", webBaseUrl).toString(),
+    };
+  } catch {
+    return {
+      privacyUrl: "https://selfxweb-production.up.railway.app/privacy",
+      supportUrl: "https://selfxweb-production.up.railway.app/support",
+    };
   }
 }
 

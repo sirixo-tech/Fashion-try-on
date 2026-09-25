@@ -88,6 +88,50 @@ describe("IntegrationsService", () => {
     expect(JSON.stringify(prisma.auditLogs)).not.toContain(response.secret);
   });
 
+  it("reports integration health from active credentials", async () => {
+    const prisma = new FakePrisma();
+    const service = new IntegrationsService(prisma as never);
+    const integration = await service.upsertIntegration("user-1", {
+      storeId: "store-1",
+      type: "SHOPIFY",
+    });
+
+    await expect(
+      service.listIntegrations({ type: "SHOPIFY" }),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: integration.id,
+          status: "ACTIVE",
+          health: "NEEDS_ATTENTION",
+          healthReasons: ["INTEGRATION_CREDENTIAL_MISSING"],
+        },
+      ],
+    });
+
+    await service.createCredential("user-1", integration.id, {
+      name: "Shopify app",
+      scopes: ["catalog:sync"],
+    });
+
+    await expect(
+      service.listIntegrations({ type: "SHOPIFY" }),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: integration.id,
+          status: "ACTIVE",
+          health: "CONNECTED",
+          healthReasons: [
+            "CENTRAL_INTEGRATION_ACTIVE",
+            "SELFX_STORE_ACTIVE",
+            "INTEGRATION_CREDENTIAL_ACTIVE",
+          ],
+        },
+      ],
+    });
+  });
+
   it("revokes credentials and rejects duplicate revocation", async () => {
     const prisma = new FakePrisma();
     const service = new IntegrationsService(prisma as never);
@@ -130,6 +174,7 @@ describe("IntegrationsService", () => {
     );
 
     expect(disconnected.status).toBe("DISCONNECTED");
+    expect(disconnected.health).toBe("DISCONNECTED");
     expect(disconnected.credentials[0]?.status).toBe("REVOKED");
   });
 });
@@ -419,7 +464,11 @@ class FakePrisma {
   private withIntegrationRelations(integration: StoredIntegration) {
     return {
       ...integration,
-      organization: { id: integration.organizationId, name: "Store One" },
+      organization: {
+        id: integration.organizationId,
+        name: "Store One",
+        status: this.storeStatus,
+      },
       credentials: this.credentials
         .filter((credential) => credential.integrationId === integration.id)
         .map((credential) => this.withCredentialRelations(credential)),

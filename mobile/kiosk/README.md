@@ -87,6 +87,14 @@ flutter run `
   --dart-define=SELFX_KIOSK_API_BASE_URL=https://selfxapi-production.up.railway.app
 ```
 
+Build installable Android APKs. The production API base URL is loaded from
+`assets/config/production.json`; a `SELFX_KIOSK_API_BASE_URL` Dart define is
+only needed when intentionally overriding it for development:
+
+```powershell
+flutter build apk --release --split-per-abi
+```
+
 Device provisioning does not use `SELFX_KIOSK_DEV_ACCESS_TOKEN`. The backend
 must provide the KIOSK-4A server-side peppers/secrets and
 `KIOSK_PAIRING_TTL_SECONDS=480`.

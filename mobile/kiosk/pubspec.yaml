@@ -77,6 +77,7 @@ flutter:
     - assets/audio/capture/classic/
     - assets/audio/capture/digital/
     - assets/audio/capture/minimal/
+    - assets/config/production.json
     - assets/branding/
     - assets/wallpapers/
     - assets/videos/

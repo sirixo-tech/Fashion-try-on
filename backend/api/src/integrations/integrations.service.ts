@@ -17,6 +17,7 @@ import {
   type CreateIntegrationCredentialDto,
   type CreateIntegrationCredentialResponseDto,
   type IntegrationCredentialDto,
+  type IntegrationHealthDto,
   type IntegrationCredentialScopeDto,
   type IntegrationDto,
   type IntegrationListQueryDto,
@@ -55,7 +56,7 @@ const credentialInclude =
   });
 
 const integrationInclude = Prisma.validator<Prisma.IntegrationInclude>()({
-  organization: { select: { id: true, name: true } },
+  organization: { select: { id: true, name: true, status: true } },
   credentials: {
     include: credentialInclude,
     orderBy: [{ createdAt: "desc" }],
@@ -431,12 +432,15 @@ function cleanExpiresAt(value: string | null | undefined): Date | null {
 }
 
 function mapIntegration(integration: IntegrationWithRelations): IntegrationDto {
+  const health = resolveIntegrationHealth(integration);
   return {
     id: integration.id,
     storeId: integration.organization.id,
     storeName: integration.organization.name,
     type: integration.type,
     status: integration.status,
+    health: health.state,
+    healthReasons: health.reasons,
     externalAccountId: integration.externalAccountId,
     externalAccountName: integration.externalAccountName,
     connectedAt: integration.connectedAt?.toISOString() ?? null,
@@ -445,6 +449,47 @@ function mapIntegration(integration: IntegrationWithRelations): IntegrationDto {
     createdAt: integration.createdAt.toISOString(),
     updatedAt: integration.updatedAt.toISOString(),
   };
+}
+
+function resolveIntegrationHealth(integration: IntegrationWithRelations): {
+  state: IntegrationHealthDto;
+  reasons: string[];
+} {
+  const reasons: string[] = [];
+  if (integration.status === IntegrationStatus.DISCONNECTED) {
+    return {
+      state: "DISCONNECTED",
+      reasons: ["CENTRAL_INTEGRATION_DISCONNECTED"],
+    };
+  }
+  if (integration.status === IntegrationStatus.ERROR) {
+    reasons.push("CENTRAL_INTEGRATION_ERROR");
+  }
+  if (integration.organization.status !== OrganizationStatus.ACTIVE) {
+    reasons.push(`SELFX_STORE_${integration.organization.status}`);
+  }
+
+  const now = new Date();
+  const activeCredential = integration.credentials.some(
+    (credential) =>
+      credential.status === IntegrationCredentialStatus.ACTIVE &&
+      !credential.revokedAt &&
+      (!credential.expiresAt || credential.expiresAt > now),
+  );
+  if (!activeCredential) {
+    reasons.push("INTEGRATION_CREDENTIAL_MISSING");
+  }
+
+  return reasons.length > 0
+    ? { state: "NEEDS_ATTENTION", reasons }
+    : {
+        state: "CONNECTED",
+        reasons: [
+          "CENTRAL_INTEGRATION_ACTIVE",
+          "SELFX_STORE_ACTIVE",
+          "INTEGRATION_CREDENTIAL_ACTIVE",
+        ],
+      };
 }
 
 function mapCredential(

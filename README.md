@@ -526,6 +526,15 @@ flutter run \
   --dart-define=SELFX_KIOSK_API_BASE_URL=http://localhost:3001
 ```
 
+Build installable Android kiosk APKs. The production API base URL is loaded
+from `mobile/kiosk/assets/config/production.json`; a
+`SELFX_KIOSK_API_BASE_URL` Dart define is only needed when intentionally
+overriding it for development:
+
+```bash
+flutter build apk --release --split-per-abi
+```
+
 The kiosk uses its paired device session for `/api/v1/kiosk/try-on/runs`.
 `SELFX_KIOSK_DEV_ACCESS_TOKEN` is not required for normal paired generation,
 and `TRYON_LAB_ENABLED=true` is not required for the production kiosk endpoint.

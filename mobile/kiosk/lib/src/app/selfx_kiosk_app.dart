@@ -8,6 +8,7 @@ import '../camera/camera_plugin_service.dart';
 import '../camera/camera_service.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../catalog/kiosk_catalog_repository.dart';
+import '../config/kiosk_bootstrap_config.dart';
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_gateway.dart';
 import '../device/kiosk_device_session_controller.dart';
@@ -43,11 +44,14 @@ class SelfxKioskApp extends StatefulWidget {
     this.customerSessionIdleTimeoutOverride,
   });
 
-  factory SelfxKioskApp.production() {
+  factory SelfxKioskApp.production({
+    required KioskBootstrapConfig bootstrapConfig,
+  }) {
     final preferences = SharedPreferencesAsync();
     final settingsStore = SharedPreferencesCameraSettingsStore(preferences);
+    final apiBaseUrl = bootstrapConfig.apiBaseUrl;
     final deviceGateway = SelfxKioskDeviceGateway(
-      config: KioskDeviceApiConfig.fromEnvironment(),
+      config: KioskDeviceApiConfig(apiBaseUrl: apiBaseUrl),
     );
     final deviceController = KioskDeviceSessionController(
       gateway: deviceGateway,
@@ -60,13 +64,13 @@ class SelfxKioskApp extends StatefulWidget {
     );
     final tryOnController = KioskTryOnSessionController(
       gateway: SelfxKioskTryOnGateway(
-        config: KioskTryOnApiConfig.fromEnvironment(),
+        config: KioskTryOnApiConfig(apiBaseUrl: apiBaseUrl),
         deviceController: deviceController,
       ),
     );
     final catalogGateway = KioskCatalogRepository(
       remote: SelfxKioskCatalogGateway(
-        config: KioskCatalogApiConfig.fromEnvironment(),
+        config: KioskCatalogApiConfig(apiBaseUrl: apiBaseUrl),
         deviceController: deviceController,
       ),
       preferences: preferences,
@@ -99,13 +103,13 @@ class SelfxKioskApp extends StatefulWidget {
       uploadController: KioskCustomerUploadController(
         deviceController: deviceController,
         gateway: SelfxKioskCustomerUploadGateway(
-          config: KioskCustomerUploadApiConfig.fromEnvironment(),
+          config: KioskCustomerUploadApiConfig(apiBaseUrl: apiBaseUrl),
         ),
         captureStore: captureStore,
       ),
       catalogGateway: catalogGateway,
       extractionService: SelfxGarmentExtractionService(
-        config: KioskGarmentExtractionApiConfig.fromEnvironment(),
+        config: KioskGarmentExtractionApiConfig(apiBaseUrl: apiBaseUrl),
         deviceController: deviceController,
         captureStore: captureStore,
       ),

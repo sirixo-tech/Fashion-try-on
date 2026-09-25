@@ -148,13 +148,13 @@ export function IntegrationSettingsPage({
     [platformIntegrations, stores],
   );
   const overviewActiveCount = platformIntegrations.filter(
-    (currentIntegration) => currentIntegration.status === "ACTIVE",
+    (currentIntegration) => currentIntegration.health === "CONNECTED",
   ).length;
   const overviewDisconnectedCount = platformIntegrations.filter(
-    (currentIntegration) => currentIntegration.status === "DISCONNECTED",
+    (currentIntegration) => currentIntegration.health === "DISCONNECTED",
   ).length;
-  const overviewErrorCount = platformIntegrations.filter(
-    (currentIntegration) => currentIntegration.status === "ERROR",
+  const overviewNeedsAttentionCount = platformIntegrations.filter(
+    (currentIntegration) => currentIntegration.health === "NEEDS_ATTENTION",
   ).length;
 
   const loadAccess = useCallback(async () => {
@@ -416,7 +416,7 @@ export function IntegrationSettingsPage({
         <ShopifyPlatformOverview
           activeCount={overviewActiveCount}
           disconnectedCount={overviewDisconnectedCount}
-          errorCount={overviewErrorCount}
+          needsAttentionCount={overviewNeedsAttentionCount}
           loading={loading}
           rows={overviewRows}
           totalStores={stores.length}
@@ -651,14 +651,14 @@ export function IntegrationSettingsPage({
 function ShopifyPlatformOverview({
   activeCount,
   disconnectedCount,
-  errorCount,
+  needsAttentionCount,
   loading,
   rows,
   totalStores,
 }: {
   activeCount: number;
   disconnectedCount: number;
-  errorCount: number;
+  needsAttentionCount: number;
   loading: boolean;
   rows: Array<{
     integration: StoreIntegration;
@@ -675,7 +675,10 @@ function ShopifyPlatformOverview({
           <SummaryTile label="Shopify stores" value={String(rows.length)} />
           <SummaryTile label="Active" value={String(activeCount)} />
           <SummaryTile label="Disconnected" value={String(disconnectedCount)} />
-          <SummaryTile label="Needs attention" value={String(errorCount)} />
+          <SummaryTile
+            label="Needs attention"
+            value={String(needsAttentionCount)}
+          />
         </div>
       </PageSection>
 
@@ -741,7 +744,21 @@ function ShopifyPlatformOverview({
                           ) : null}
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={integration.status} />
+                          <StatusBadge
+                            status={
+                              integration.health === "CONNECTED"
+                                ? integration.status
+                                : integration.health
+                            }
+                          />
+                          {integration.health === "NEEDS_ATTENTION" &&
+                          integration.healthReasons.length > 0 ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {formatHealthReason(
+                                integration.healthReasons[0]!,
+                              )}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="px-4 py-3">{planName}</td>
                         <td className="px-4 py-3">
@@ -815,6 +832,18 @@ function formatDateTime(value: string | null): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatHealthReason(reason: string): string {
+  const labels: Record<string, string> = {
+    CENTRAL_INTEGRATION_ERROR: "Connection error",
+    CENTRAL_INTEGRATION_DISCONNECTED: "Disconnected",
+    INTEGRATION_CREDENTIAL_MISSING: "Credential missing or expired",
+    SELFX_STORE_ACTIVE: "Store active",
+    SELFX_STORE_SUSPENDED: "Store suspended",
+    SELFX_STORE_INACTIVE: "Store inactive",
+  };
+  return labels[reason] ?? reason.replaceAll("_", " ").toLowerCase();
 }
 
 function messageFor(caught: unknown): string {

@@ -213,12 +213,6 @@ class SelfxKioskTryOnGateway
   }
 
   Future<String?> _garmentUploadPath(KioskGarmentInput input) async {
-    final previewPath = input.extractedPreviewPath?.trim();
-    if (previewPath != null &&
-        previewPath.isNotEmpty &&
-        await File(previewPath).exists()) {
-      return previewPath;
-    }
     return await input.exists() ? input.localPath : null;
   }
 

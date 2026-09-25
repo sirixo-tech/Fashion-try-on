@@ -27,6 +27,7 @@ import {
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
+import { PublicLegalLinks } from "@/components/public-legal-links";
 import { safeLoginNextPath } from "@/lib/login-next";
 import {
   getPublicLoginPageSettings,
@@ -295,6 +296,7 @@ export function LoginForm() {
               </span>
             </div>
           </div>
+          <PublicLegalLinks className="mt-4 text-xs" />
         </div>
       </section>
 

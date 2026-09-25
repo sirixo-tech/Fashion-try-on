@@ -108,7 +108,7 @@ void main() {
   }
 
   test(
-    'uses production kiosk endpoint with device session token and preview garment',
+    'uses production kiosk endpoint with device session token and original garment',
     () async {
       final tempDir = await Directory.systemTemp.createTemp('selfx-tryon-');
       addTearDown(() async {
@@ -135,8 +135,8 @@ void main() {
             request.bodyBytes,
             allowMalformed: true,
           );
-          expect(multipartBody, contains('generated-preview.png'));
-          expect(multipartBody, isNot(contains('original-garment.jpg')));
+          expect(multipartBody, contains('original-garment.jpg'));
+          expect(multipartBody, isNot(contains('generated-preview.png')));
           return jsonResponse({'id': 'run-1', 'status': 'QUEUED'});
         }),
       );
