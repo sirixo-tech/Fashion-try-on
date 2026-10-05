@@ -3,8 +3,17 @@ import { describe, expect, it } from "vitest";
 import { FashnVirtualTryOnProvider } from "./fashn-virtual-try-on.provider.js";
 import { GoogleVirtualTryOnProvider } from "./google-virtual-try-on.provider.js";
 import {
+  DEFAULT_GARMENT_TRYON_PROVIDER_MAX_IMAGE_BYTES,
+  DEFAULT_GARMENT_TRYON_PROVIDER_TARGET_IMAGE_BYTES,
+  DEFAULT_GARMENT_TRYON_UPLOAD_MAX_IMAGE_BYTES,
+  DEFAULT_JEWELLERY_TRYON_PROVIDER_TARGET_IMAGE_BYTES,
+  DEFAULT_JEWELLERY_TRYON_UPLOAD_MAX_IMAGE_BYTES,
   readGarmentMaskGenerationEnabled,
   readGarmentPreprocessingEnabled,
+  readGarmentTryOnProviderTargetImageBytes,
+  readGarmentTryOnUploadMaxImageBytes,
+  readJewelleryTryOnProviderTargetImageBytes,
+  readJewelleryTryOnUploadMaxImageBytes,
   readVirtualTryOnProviderName,
 } from "./virtual-try-on.config.js";
 import { VirtualTryOnProviderRegistry } from "./virtual-try-on.registry.js";
@@ -67,6 +76,55 @@ describe("VirtualTryOnProviderRegistry", () => {
     const restore = setEnv({ GARMENT_MASK_GENERATION_ENABLED: "true" });
 
     expect(readGarmentMaskGenerationEnabled()).toBe(true);
+
+    restore();
+  });
+
+  it("uses separate garment image size defaults", () => {
+    const restore = setEnv({
+      GARMENT_TRYON_UPLOAD_MAX_IMAGE_BYTES: undefined,
+      GARMENT_TRYON_PROVIDER_MAX_IMAGE_BYTES: undefined,
+      GARMENT_TRYON_PROVIDER_TARGET_IMAGE_BYTES: undefined,
+    });
+
+    expect(readGarmentTryOnUploadMaxImageBytes()).toBe(
+      DEFAULT_GARMENT_TRYON_UPLOAD_MAX_IMAGE_BYTES,
+    );
+    expect(readGarmentTryOnProviderTargetImageBytes()).toBe(
+      DEFAULT_GARMENT_TRYON_PROVIDER_TARGET_IMAGE_BYTES,
+    );
+
+    restore();
+  });
+
+  it("keeps the garment provider target under the Google hard limit", () => {
+    const restore = setEnv({
+      GARMENT_TRYON_PROVIDER_MAX_IMAGE_BYTES: String(
+        DEFAULT_GARMENT_TRYON_PROVIDER_MAX_IMAGE_BYTES,
+      ),
+      GARMENT_TRYON_PROVIDER_TARGET_IMAGE_BYTES: String(8 * 1024 * 1024),
+    });
+
+    expect(readGarmentTryOnProviderTargetImageBytes()).toBe(
+      DEFAULT_GARMENT_TRYON_PROVIDER_MAX_IMAGE_BYTES,
+    );
+
+    restore();
+  });
+
+  it("uses separate jewellery image size defaults", () => {
+    const restore = setEnv({
+      JEWELLERY_TRYON_UPLOAD_MAX_IMAGE_BYTES: undefined,
+      JEWELLERY_TRYON_PROVIDER_MAX_IMAGE_BYTES: undefined,
+      JEWELLERY_TRYON_PROVIDER_TARGET_IMAGE_BYTES: undefined,
+    });
+
+    expect(readJewelleryTryOnUploadMaxImageBytes()).toBe(
+      DEFAULT_JEWELLERY_TRYON_UPLOAD_MAX_IMAGE_BYTES,
+    );
+    expect(readJewelleryTryOnProviderTargetImageBytes()).toBe(
+      DEFAULT_JEWELLERY_TRYON_PROVIDER_TARGET_IMAGE_BYTES,
+    );
 
     restore();
   });

@@ -5,6 +5,7 @@ import { TRY_ON_LAB_ERROR_CODES, type TryOnLabErrorCode } from "@selfx/shared";
 
 import type { JewelleryType } from "../../catalog/product-kind.js";
 import { ApiErrorException } from "../../common/api-error.exception.js";
+import { readJewelleryTryOnProviderTargetImageBytes } from "../providers/virtual-try-on.config.js";
 import type {
   JewelleryTryOnProvider,
   JewelleryTryOnProviderMetadata,
@@ -17,7 +18,6 @@ const DEFAULT_API_BASE_URL = "https://yce-api-01.makeupar.com";
 const DEFAULT_MODEL = "2d-vto-v1.0";
 const DEFAULT_HTTP_TIMEOUT_MS = 30_000;
 const MAX_HTTP_TIMEOUT_MS = 120_000;
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MIN_IMAGE_DIMENSION = 640;
 const MIN_PERSON_SOURCE_DIMENSION = 480;
 const MAX_IMAGE_DIMENSION = 4_096;
@@ -285,6 +285,7 @@ export async function normalizePerfectCorpInputImage(
   dataUri: string,
   name: "person" | "jewellery",
 ): Promise<PerfectCorpInputImage> {
+  const targetMaxImageBytes = readJewelleryTryOnProviderTargetImageBytes();
   const match =
     /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/u.exec(dataUri);
   if (!match) {
@@ -326,7 +327,7 @@ export async function normalizePerfectCorpInputImage(
   const decodedType = perfectCorpMimeType(metadata.format);
   if (
     decodedType &&
-    buffer.length <= MAX_IMAGE_BYTES &&
+    buffer.length <= targetMaxImageBytes &&
     outputDimensions.width === metadata.width &&
     outputDimensions.height === metadata.height
   ) {
@@ -336,7 +337,7 @@ export async function normalizePerfectCorpInputImage(
       fileName: `${name}.${decodedType === "image/png" ? "png" : "jpg"}`,
     };
   }
-  return normalizeToJpeg(buffer, name, outputDimensions);
+  return normalizeToJpeg(buffer, name, outputDimensions, targetMaxImageBytes);
 }
 
 export function perfectCorpRoute(jewelleryType: JewelleryType): {
@@ -416,6 +417,7 @@ async function normalizeToJpeg(
   buffer: Buffer,
   name: "person" | "jewellery",
   dimensions: { width: number; height: number },
+  targetMaxImageBytes: number,
 ): Promise<PerfectCorpInputImage> {
   for (const quality of [90, 82, 74, 66]) {
     let output: Buffer;
@@ -433,7 +435,7 @@ async function normalizeToJpeg(
     } catch {
       throwImageInvalid();
     }
-    if (output.length < MAX_IMAGE_BYTES) {
+    if (output.length <= targetMaxImageBytes) {
       return {
         buffer: output,
         contentType: "image/jpeg",

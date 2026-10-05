@@ -27,7 +27,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     } else if (intent === "complete") {
       await completeSelfxConnection(input);
     } else if (intent === "restart") {
-      await restartSelfxConnection(session.shop);
+      await restartSelfxConnection(input);
     } else if (intent === "sync") {
       await runSelfxCatalogSync(input);
     } else {

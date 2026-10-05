@@ -574,8 +574,10 @@ export default function Index() {
             adminLocale={adminLocale}
             availablePlans={availablePlans}
             availableCredits={availableCredits}
+            connectActionPath={connectActionPath}
             connected={connected}
             connection={connection}
+            connectionHealth={connectionHealth}
             creditHealth={creditHealth}
             creditSummary={creditSummary}
             includedCredits={includedCredits}
@@ -584,6 +586,7 @@ export default function Index() {
             productControls={productControls}
             onAdminLocaleChange={setAdminLocale}
             selfxBillingUrl={selfxBillingUrl}
+            restartActionPath={restartActionPath}
             storefrontReady={storefrontReady}
             syncActionPath={syncActionPath}
             synced={synced}
@@ -984,8 +987,10 @@ function ShopifyPanelContent({
   adminLocale,
   availablePlans,
   availableCredits,
+  connectActionPath,
   connected,
   connection,
+  connectionHealth,
   creditHealth,
   creditSummary,
   includedCredits,
@@ -993,6 +998,7 @@ function ShopifyPanelContent({
   pending,
   productCollections,
   productControls,
+  restartActionPath,
   selfxBillingUrl,
   storefrontReady,
   syncActionPath,
@@ -1006,8 +1012,10 @@ function ShopifyPanelContent({
   adminLocale: string;
   availablePlans: SelfxStorefrontPricingPlan[];
   availableCredits: number;
+  connectActionPath: string;
   connected: boolean;
   connection: SelfxConnectionView;
+  connectionHealth: SelfxStorefrontConnectionHealth;
   creditHealth: CreditHealth;
   creditSummary: SelfxStorefrontCreditSummary | null;
   includedCredits: number;
@@ -1015,6 +1023,7 @@ function ShopifyPanelContent({
   pending: boolean;
   productCollections: ProductCollectionsView;
   productControls: ProductControlsView | null;
+  restartActionPath: string;
   selfxBillingUrl: string | null;
   storefrontReady: boolean;
   syncActionPath: string;
@@ -1049,7 +1058,12 @@ function ShopifyPanelContent({
       <LanguageSettingsPanel
         adminLocale={adminLocale}
         connection={connection}
+        connectionHealth={connectionHealth}
+        connectActionPath={connectActionPath}
+        creditSummary={creditSummary}
         onAdminLocaleChange={onAdminLocaleChange}
+        restartActionPath={restartActionPath}
+        selfxBillingUrl={selfxBillingUrl}
       />
     );
   }
@@ -1287,14 +1301,153 @@ function CatalogSyncPanel({
   );
 }
 
+function StoreConnectionSettingsCard({
+  connection,
+  connectionHealth,
+  connectActionPath,
+  creditSummary,
+  restartActionPath,
+  selfxBillingUrl,
+}: {
+  connection: SelfxConnectionView;
+  connectionHealth: SelfxStorefrontConnectionHealth;
+  connectActionPath: string;
+  creditSummary: SelfxStorefrontCreditSummary | null;
+  restartActionPath: string;
+  selfxBillingUrl: string | null;
+}) {
+  const storeName =
+    connectionHealth.storeName?.trim() ||
+    connection.storeName?.trim() ||
+    null;
+  const fixedStoreId = connectionHealth.storeId ?? connection.storeId;
+  const connected = connectionHealth.state === "CONNECTED" && Boolean(storeName);
+  const needsReconnect =
+    connectionHealth.state === "NEEDS_RECONNECT" ||
+    connectionHealth.state === "ERROR" ||
+    connection.status === "ERROR";
+  const planName =
+    creditSummary?.subscription?.pricingPlan?.name ??
+    creditSummary?.subscription?.status ??
+    "Unavailable";
+  const credits =
+    creditSummary == null ? "Unavailable" : String(creditSummary.availableCredits);
+  const statusTone = connected ? "success" : needsReconnect ? "warning" : "info";
+  const statusLabel = connected
+    ? "Connected"
+    : needsReconnect
+      ? "Needs reconnect"
+      : "Not connected";
+  const actionHref =
+    needsReconnect && fixedStoreId ? restartActionPath : connectActionPath;
+  const actionLabel =
+    needsReconnect && fixedStoreId ? "Reconnect Store" : "Connect Store";
+
+  return (
+    <s-box
+      padding="base"
+      background="subdued"
+      borderWidth="small"
+      borderColor="base"
+      borderRadius="base"
+    >
+      <s-stack gap="base">
+        <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+          <s-grid-item>
+            <s-stack gap="small-200">
+              <s-heading>Store Connection</s-heading>
+              <s-text color="subdued">
+                Shopify is linked to one SelfX Store. Change or revoke the
+                mapping from the SelfX dashboard.
+              </s-text>
+            </s-stack>
+          </s-grid-item>
+          <s-grid-item>
+            <s-badge tone={statusTone}>{statusLabel}</s-badge>
+          </s-grid-item>
+        </s-grid>
+
+        <s-grid
+          gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
+          gap="base"
+        >
+          <ConnectionInfoBlock
+            label="SelfX Store"
+            value={storeName ?? "No Store connected"}
+          />
+          <ConnectionInfoBlock label="Shopify shop" value={connection.shop} />
+          <ConnectionInfoBlock label="Plan" value={planName} />
+          <ConnectionInfoBlock label="Credits" value={credits} />
+        </s-grid>
+
+        {connected ? (
+          <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+            <s-grid-item>
+              <s-text color="subdued">
+                This app will continue syncing products and serving Try-On for
+                {storeName ? ` ${storeName}` : " the connected Store"}.
+              </s-text>
+            </s-grid-item>
+            <s-grid-item>
+              <SelfxActionButton
+                href={selfxBillingUrl ?? undefined}
+                target="_blank"
+                disabled={!selfxBillingUrl}
+              >
+                Upgrade plan
+              </SelfxActionButton>
+            </s-grid-item>
+          </s-grid>
+        ) : (
+          <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+            <s-grid-item>
+              <s-text color="subdued">{connectionHealth.message}</s-text>
+            </s-grid-item>
+            <s-grid-item>
+              <SelfxActionButton href={actionHref} tone="primary">
+                {actionLabel}
+              </SelfxActionButton>
+            </s-grid-item>
+          </s-grid>
+        )}
+      </s-stack>
+    </s-box>
+  );
+}
+
+function ConnectionInfoBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <s-stack gap="small-200">
+      <s-text color="subdued">{label}</s-text>
+      <s-text type="strong">{value}</s-text>
+    </s-stack>
+  );
+}
+
 function LanguageSettingsPanel({
   adminLocale,
   connection,
+  connectionHealth,
+  connectActionPath,
+  creditSummary,
   onAdminLocaleChange,
+  restartActionPath,
+  selfxBillingUrl,
 }: {
   adminLocale: string;
   connection: SelfxConnectionView;
+  connectionHealth: SelfxStorefrontConnectionHealth;
+  connectActionPath: string;
+  creditSummary: SelfxStorefrontCreditSummary | null;
   onAdminLocaleChange: (locale: LanguageLocale) => void;
+  restartActionPath: string;
+  selfxBillingUrl: string | null;
 }) {
   const [classifyingProducts, setClassifyingProducts] = useState(false);
   const fetcher = useFetcher<ProductActionData>();
@@ -1324,6 +1477,14 @@ function LanguageSettingsPanel({
   return (
     <s-section heading={t("settings")}>
       <s-stack gap="base">
+        <StoreConnectionSettingsCard
+          connection={connection}
+          connectionHealth={connectionHealth}
+          connectActionPath={connectActionPath}
+          creditSummary={creditSummary}
+          restartActionPath={restartActionPath}
+          selfxBillingUrl={selfxBillingUrl}
+        />
         <s-stack direction="inline" justifyContent="end">
           <SelfxActionButton
             disabled={connection.status !== "CONNECTED"}

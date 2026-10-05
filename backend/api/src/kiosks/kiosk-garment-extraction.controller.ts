@@ -57,10 +57,10 @@ export class KioskGarmentExtractionController {
     @Req() request: FastifyRequest,
   ): Promise<KioskGarmentExtractionResponseDto> {
     const device = await this.kiosks.requireDevice(request.headers.authorization);
-    const maxImageBytes =
-      await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
+    const uploadLimits =
+      await this.mediaUploadSettings.resolveTryOnCaptureImageUploadLimits();
     const payload = await parseKioskGarmentExtractionMultipartRequest(request, {
-      maxImageBytes,
+      maxImageBytes: uploadLimits.garmentImageMaxBytes,
     });
     return this.extraction.extract(device, payload);
   }

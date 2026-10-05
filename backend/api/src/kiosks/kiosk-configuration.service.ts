@@ -394,12 +394,12 @@ export class KioskConfigurationService {
       garmentPreviewEnabled,
       enabledTryOnCapabilities,
       uploadLimits,
-      captureImageMaxBytes,
+      captureUploadLimits,
     ] = await Promise.all([
       this.garmentPreviewSettings.resolveGarmentPreviewEnabled(storeId),
       this.garmentPreviewSettings.resolveStoreTryOnCapabilities(storeId),
       this.mediaUploadSettings.resolvePresentationUploadLimits(),
-      this.mediaUploadSettings.resolveCaptureImageMaxBytes(),
+      this.mediaUploadSettings.resolveTryOnCaptureImageUploadLimits(),
     ]);
     return {
       version: source.version,
@@ -445,7 +445,7 @@ export class KioskConfigurationService {
         supportedContentTypes: [...supportedUploadContentTypes],
       },
       captureUpload: {
-        maxImageBytes: captureImageMaxBytes,
+        maxImageBytes: captureUploadLimits.maxImageBytes,
         supportedContentTypes: ["image/jpeg", "image/png", "image/webp"],
       },
       updatedAt: source.updatedAt.toISOString(),

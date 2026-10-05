@@ -54,6 +54,7 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
       GarmentExtractionFailureKind.temporary;
   String? _failureMessage;
   String? _activeExtractionPath;
+  bool _continuing = false;
 
   @override
   void initState() {
@@ -202,11 +203,14 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
             state: _previewState,
             failureKind: _failureKind,
             failureMessage: _failureMessage,
+            continuing: _continuing,
             sourceLabel: 'Retake',
-            onChooseAnother: () => _retakeGarmentPhoto(context),
-            onBrowseCatalog: () => _browseCatalog(context),
-            onRetry: () => _preparePreview(force: true),
-            onContinue: () => _continue(context),
+            onChooseAnother: _continuing
+                ? null
+                : () => _retakeGarmentPhoto(context),
+            onBrowseCatalog: _continuing ? null : () => _browseCatalog(context),
+            onRetry: _continuing ? null : () => _preparePreview(force: true),
+            onContinue: _continuing ? null : () => _continue(context),
           );
 
           return Column(
@@ -309,14 +313,18 @@ class _GarmentReviewScreenState extends State<GarmentReviewScreen> {
   }
 
   Future<void> _continue(BuildContext context) async {
-    if (_previewState != GarmentPreviewState.success) {
+    if (_continuing || _previewState != GarmentPreviewState.success) {
       return;
     }
+    setState(() => _continuing = true);
     widget.tryOnController.selectGarment(_displayInput);
     if (widget.pendingCameraCapture) {
       widget.captureController.preservePendingCaptureAsExternalInput();
     }
     if (!context.mounted) {
+      if (mounted) {
+        setState(() => _continuing = false);
+      }
       return;
     }
     final personPhoto = widget.captureController.activeAcceptedPersonPhoto;
@@ -801,6 +809,7 @@ class _GarmentReviewActions extends StatelessWidget {
     required this.state,
     required this.failureKind,
     this.failureMessage,
+    required this.continuing,
     required this.sourceLabel,
     required this.onChooseAnother,
     required this.onBrowseCatalog,
@@ -811,11 +820,12 @@ class _GarmentReviewActions extends StatelessWidget {
   final GarmentPreviewState state;
   final GarmentExtractionFailureKind failureKind;
   final String? failureMessage;
+  final bool continuing;
   final String sourceLabel;
-  final VoidCallback onChooseAnother;
-  final VoidCallback onBrowseCatalog;
-  final VoidCallback onRetry;
-  final VoidCallback onContinue;
+  final VoidCallback? onChooseAnother;
+  final VoidCallback? onBrowseCatalog;
+  final VoidCallback? onRetry;
+  final VoidCallback? onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -893,11 +903,14 @@ class _GarmentReviewActions extends StatelessWidget {
                     )
                   : SelfxKioskButton(
                       key: const Key('continue-from-garment-review'),
-                      label: 'Proceed',
-                      onPressed: state == GarmentPreviewState.success
+                      label: continuing ? 'Preparing...' : 'Proceed',
+                      onPressed:
+                          state == GarmentPreviewState.success && !continuing
                           ? onContinue
                           : null,
-                      icon: Icons.arrow_forward,
+                      icon: continuing
+                          ? Icons.hourglass_top
+                          : Icons.arrow_forward,
                       variant: SelfxKioskButtonVariant.primary,
                       minHeight: 64,
                       textAlign: TextAlign.center,

@@ -73,6 +73,29 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
         if (cancelled) return;
         setDetails(nextDetails);
         if (nextDetails.status !== "PENDING") return;
+        if (nextDetails.storeId) {
+          const lockedStoreName = nextDetails.storeName ?? "Connected Store";
+          setPlatformStoreSelection(false);
+          setStores([{ id: nextDetails.storeId, name: lockedStoreName }]);
+          setSelectedStoreId(nextDetails.storeId);
+          setMerchantStoreName(lockedStoreName);
+          setApproving(true);
+          try {
+            const result = await approveShopifyLink(
+              session.accessToken,
+              linkToken,
+              nextDetails.storeId,
+            );
+            if (cancelled) return;
+            setApproval(result);
+            setDetails((current) =>
+              current ? { ...current, status: result.status } : current,
+            );
+          } finally {
+            if (!cancelled) setApproving(false);
+          }
+          return;
+        }
         const storeContext = await loadApprovalStoreContext(
           session.accessToken,
           platformAccess,
@@ -187,6 +210,14 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
           </div>
         ) : (
           <div className="space-y-5">
+            {details?.storeId ? (
+              <Alert>
+                <AlertDescription>
+                  This reconnect is locked to the existing SelfX Store and will
+                  not change the Shopify Store mapping.
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <div className="grid gap-4 rounded-lg border bg-muted/25 p-4 sm:grid-cols-2">
               <ConnectionDetail
                 icon={<StoreIcon aria-hidden="true" />}
@@ -262,7 +293,7 @@ export function ShopifyLinkApprovalPage({ linkToken }: { linkToken: string }) {
                 Cancel
               </Button>
               <Button
-                disabled={!selectedStoreId || approving}
+                disabled={!selectedStoreId || approving || Boolean(details?.storeId)}
                 onClick={() => void approve()}
               >
                 <LinkIcon aria-hidden="true" />

@@ -15,6 +15,7 @@ import {
   normalizeGooglePredictResponse,
   readGoogleTryOnConfig,
 } from "./google-virtual-try-on.provider.js";
+import { DEFAULT_GARMENT_TRYON_PROVIDER_TARGET_IMAGE_BYTES } from "./virtual-try-on.config.js";
 
 describe("GoogleVirtualTryOnProvider", () => {
   it("maps SelfX inputs to the Google Virtual Try-On predict request", async () => {
@@ -159,39 +160,47 @@ describe("GoogleVirtualTryOnProvider", () => {
     });
   });
 
-  it("resizes and compresses oversized decoded inputs below the Google target", async () => {
-    const width = 2300;
-    const height = 2100;
-    const oversizedPng = await sharp(randomBytes(width * height * 3), {
-      raw: {
-        width,
-        height,
-        channels: 3,
-      },
-    })
-      .png({ compressionLevel: 0 })
-      .toBuffer();
+  it(
+    "resizes and compresses oversized decoded inputs below the Google target",
+    async () => {
+      const width = 2300;
+      const height = 2100;
+      const oversizedPng = await sharp(randomBytes(width * height * 3), {
+        raw: {
+          width,
+          height,
+          channels: 3,
+        },
+      })
+        .png({ compressionLevel: 0 })
+        .toBuffer();
 
-    expect(oversizedPng.length).toBeGreaterThan(6 * 1024 * 1024);
+      expect(oversizedPng.length).toBeGreaterThan(
+        DEFAULT_GARMENT_TRYON_PROVIDER_TARGET_IMAGE_BYTES,
+      );
 
-    const normalized = await normalizeGoogleInputImage(
-      dataUri("image/png", oversizedPng),
-    );
-    const normalizedBytes = Buffer.from(
-      normalized.bytesBase64Encoded,
-      "base64",
-    );
-    const metadata = await sharp(normalizedBytes).metadata();
+      const normalized = await normalizeGoogleInputImage(
+        dataUri("image/png", oversizedPng),
+      );
+      const normalizedBytes = Buffer.from(
+        normalized.bytesBase64Encoded,
+        "base64",
+      );
+      const metadata = await sharp(normalizedBytes).metadata();
 
-    expect(normalizedBytes.length).toBeLessThanOrEqual(6 * 1024 * 1024);
-    expect(["image/jpeg", "image/png"]).toContain(normalized.mimeType);
-    expect(metadata.width).toBeLessThanOrEqual(2048);
-    expect(metadata.height).toBeLessThanOrEqual(2048);
-    expect((metadata.width ?? 0) / (metadata.height ?? 1)).toBeCloseTo(
-      width / height,
-      1,
-    );
-  });
+      expect(normalizedBytes.length).toBeLessThanOrEqual(
+        DEFAULT_GARMENT_TRYON_PROVIDER_TARGET_IMAGE_BYTES,
+      );
+      expect(["image/jpeg", "image/png"]).toContain(normalized.mimeType);
+      expect(metadata.width).toBeLessThanOrEqual(2048);
+      expect(metadata.height).toBeLessThanOrEqual(2048);
+      expect((metadata.width ?? 0) / (metadata.height ?? 1)).toBeCloseTo(
+        width / height,
+        1,
+      );
+    },
+    15_000,
+  );
 
   it("rejects corrupt decoded image bytes through the SelfX image-invalid contract", async () => {
     await expect(

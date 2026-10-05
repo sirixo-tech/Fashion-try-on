@@ -25,6 +25,14 @@ export class CreateShopifyLinkSessionDto {
   @IsString()
   @MaxLength(240)
   externalAccountName?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Existing SelfX Store id for a locked reconnect. Omit for first-time install.",
+  })
+  @IsOptional()
+  @IsUUID()
+  storeId?: string;
 }
 
 export class ApproveShopifyLinkSessionDto {
@@ -62,6 +70,12 @@ export class ShopifyLinkSessionDetailsDto {
 
   @ApiPropertyOptional()
   externalAccountName!: string | null;
+
+  @ApiPropertyOptional()
+  storeId!: string | null;
+
+  @ApiPropertyOptional()
+  storeName!: string | null;
 
   @ApiProperty()
   expiresAt!: string;

@@ -883,9 +883,16 @@ export class KioskTryOnService {
     asset: Pick<TryOnAsset, "storageKey" | "contentType">,
     fieldName: TFieldName,
   ): Promise<KioskTryOnUploadedImage & { fieldName: TFieldName }> {
+    const uploadLimits =
+      await this.mediaUploadSettings?.resolveTryOnCaptureImageUploadLimits();
     const maxImageBytes =
-      (await this.mediaUploadSettings?.resolveCaptureImageMaxBytes()) ??
-      KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES;
+      uploadLimits === undefined
+        ? KIOSK_CAPTURE_DEFAULT_MAX_IMAGE_BYTES
+        : fieldName === "garmentImage"
+          ? uploadLimits.garmentImageMaxBytes
+          : fieldName === "jewelleryImage"
+            ? uploadLimits.jewelleryImageMaxBytes
+            : uploadLimits.personImageMaxBytes;
     const buffer = await this.requireStorage().readObject(
       asset.storageKey,
       maxImageBytes,

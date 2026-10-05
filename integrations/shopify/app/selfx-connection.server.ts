@@ -34,6 +34,7 @@ export type SelfxConnectionView = {
   status: "NOT_CONNECTED" | "PENDING_APPROVAL" | "CONNECTED" | "ERROR";
   approvalUrl: string | null;
   pendingLinkExpiresAt: string | null;
+  storeId: string | null;
   storeName: string | null;
   storefrontLocale: StorefrontLocale;
   adminLocale: LanguageLocale;
@@ -92,6 +93,7 @@ export async function getSelfxConnectionView(
     approvalUrl,
     pendingLinkExpiresAt:
       connection.pendingLinkExpiresAt?.toISOString() ?? null,
+    storeId: connection.selfxStoreId ?? null,
     storeName: connection.selfxStoreName,
     storefrontLocale: normalizeStorefrontLocale(connection.storefrontLocale),
     adminLocale: normalizeLanguageLocale(connection.adminLocale),
@@ -212,6 +214,7 @@ export async function getSelfxIntegrationToken(shop: string): Promise<string> {
 export async function startSelfxConnection(input: {
   shop: string;
   shopifyAccessToken: string;
+  storeId?: string | null;
 }): Promise<SelfxConnectionView> {
   const existing = await db.selfxConnection.findUnique({
     where: { shop: input.shop },
@@ -276,6 +279,7 @@ export async function startSelfxConnection(input: {
     shopDomain: canonicalShop,
     externalAccountId: identity.id,
     externalAccountName: identity.name,
+    storeId: input.storeId ?? null,
   });
   const cipherConfig = loadSelfxSecretCipherConfig();
   const cipher = new SelfxSecretCipher(cipherConfig);
@@ -292,6 +296,7 @@ export async function startSelfxConnection(input: {
       ),
       pendingLinkExpiresAt: new Date(link.expiresAt),
       encryptionKeyVersion: cipherConfig.keyVersion,
+      selfxStoreId: input.storeId ?? null,
     },
     update: {
       shopifyAccountId: identity.id,
@@ -304,8 +309,8 @@ export async function startSelfxConnection(input: {
       pendingLinkExpiresAt: new Date(link.expiresAt),
       integrationTokenCiphertext: null,
       encryptionKeyVersion: cipherConfig.keyVersion,
-      selfxStoreId: null,
-      selfxStoreName: null,
+      selfxStoreId: input.storeId ?? null,
+      selfxStoreName: input.storeId ? (current?.selfxStoreName ?? null) : null,
       selfxIntegrationId: null,
       selfxCredentialId: null,
       linkedAt: null,
@@ -406,12 +411,17 @@ export async function completeSelfxConnection(input: {
   return runSelfxCatalogSync(input);
 }
 
-export async function restartSelfxConnection(
-  shop: string,
-): Promise<SelfxConnectionView> {
+export async function restartSelfxConnection(input: {
+  shop: string;
+  shopifyAccessToken: string;
+}): Promise<SelfxConnectionView> {
+  const existing = await db.selfxConnection.findUnique({
+    where: { shop: input.shop },
+    select: { selfxStoreId: true },
+  });
   await db.selfxConnection.updateMany({
     where: {
-      shop,
+      shop: input.shop,
       status: { in: ["PENDING_APPROVAL", "ERROR"] },
     },
     data: {
@@ -422,7 +432,29 @@ export async function restartSelfxConnection(
       lastErrorMessage: null,
     },
   });
-  return getSelfxConnectionView(shop);
+  await db.selfxConnection.updateMany({
+    where: {
+      shop: input.shop,
+      status: "CONNECTED",
+    },
+    data: {
+      status: "NOT_CONNECTED",
+      pendingLinkTokenCiphertext: null,
+      pendingLinkExpiresAt: null,
+      integrationTokenCiphertext: null,
+      selfxIntegrationId: null,
+      selfxCredentialId: null,
+      linkedAt: null,
+      syncStatus: "NOT_STARTED",
+      lastErrorCode: null,
+      lastErrorMessage: null,
+    },
+  });
+  return startSelfxConnection({
+    shop: input.shop,
+    shopifyAccessToken: input.shopifyAccessToken,
+    storeId: existing?.selfxStoreId ?? null,
+  });
 }
 
 export async function runSelfxCatalogSync(input: {
@@ -510,6 +542,7 @@ function emptyView(shop: string): SelfxConnectionView {
     status: "NOT_CONNECTED",
     approvalUrl: null,
     pendingLinkExpiresAt: null,
+    storeId: null,
     storeName: null,
     storefrontLocale: "auto",
     adminLocale: "en",

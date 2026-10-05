@@ -42,6 +42,7 @@ export class SelfxLinkClient {
     shopDomain: string;
     externalAccountId: string;
     externalAccountName: string;
+    storeId?: string | null;
   }): Promise<SelfxLinkCreated> {
     const result = await this.request<SelfxLinkCreated>("", {
       method: "POST",

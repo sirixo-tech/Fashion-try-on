@@ -161,7 +161,7 @@ class CaptureReviewScreen extends StatelessWidget {
   }
 }
 
-class _ReviewActions extends StatelessWidget {
+class _ReviewActions extends StatefulWidget {
   const _ReviewActions({
     required this.controller,
     required this.tryOnController,
@@ -181,12 +181,22 @@ class _ReviewActions extends StatelessWidget {
   final bool usingAcceptedPersonPhoto;
 
   @override
+  State<_ReviewActions> createState() => _ReviewActionsState();
+}
+
+class _ReviewActionsState extends State<_ReviewActions> {
+  bool _busy = false;
+
+  @override
   Widget build(BuildContext context) {
-    final isChecking = controller.isAnalyzingQuality || usability == null;
-    final isUsable = usability?.isUsable == true;
-    final experience = tryOnExperienceFor(tryOnController.activeTryOnVertical);
+    final isChecking =
+        widget.controller.isAnalyzingQuality || widget.usability == null;
+    final isUsable = widget.usability?.isUsable == true;
+    final experience = tryOnExperienceFor(
+      widget.tryOnController.activeTryOnVertical,
+    );
     final hasSelectedCatalogProduct =
-        tryOnController.garmentInput?.isCatalogProduct == true;
+        widget.tryOnController.garmentInput?.isCatalogProduct == true;
     final needsPhysicalProductCapture =
         experience.supportsPhysicalProductCapture && !hasSelectedCatalogProduct;
     return Column(
@@ -194,8 +204,8 @@ class _ReviewActions extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ImageUsabilityStatement(
-          isLoading: controller.isAnalyzingQuality,
-          result: usability,
+          isLoading: widget.controller.isAnalyzingQuality,
+          result: widget.usability,
         ),
         const SizedBox(height: 18),
         if (isChecking) ...[
@@ -253,9 +263,13 @@ class _ReviewActions extends StatelessWidget {
                     SelfxActionPulse(
                       child: SelfxKioskButton(
                         key: const Key('take-garment-photo'),
-                        onPressed: () => unawaited(_openGarmentCamera(context)),
+                        onPressed: _busy
+                            ? null
+                            : () => unawaited(
+                                _runLocked(() => _openGarmentCamera(context)),
+                              ),
                         icon: Icons.camera_alt_outlined,
-                        label: 'Take Garment Photo',
+                        label: _busy ? 'Preparing...' : 'Take Garment Photo',
                         variant: SelfxKioskButtonVariant.primary,
                         textAlign: TextAlign.center,
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -266,10 +280,19 @@ class _ReviewActions extends StatelessWidget {
                     SelfxActionPulse(
                       child: SelfxKioskButton(
                         key: const Key('continue-selected-product-try-on'),
-                        onPressed: () =>
-                            unawaited(_continueSelectedProductTryOn(context)),
-                        icon: Icons.play_arrow_rounded,
-                        label: hasSelectedCatalogProduct
+                        onPressed: _busy
+                            ? null
+                            : () => unawaited(
+                                _runLocked(
+                                  () => _continueSelectedProductTryOn(context),
+                                ),
+                              ),
+                        icon: _busy
+                            ? Icons.hourglass_top
+                            : Icons.play_arrow_rounded,
+                        label: _busy
+                            ? 'Preparing...'
+                            : hasSelectedCatalogProduct
                             ? 'Continue'
                             : experience.reviewWaitingActionLabel,
                         variant: SelfxKioskButtonVariant.primary,
@@ -284,7 +307,11 @@ class _ReviewActions extends StatelessWidget {
                       Expanded(
                         child: SelfxKioskActionCard(
                           key: const Key('browse-catalog'),
-                          onPressed: () => unawaited(_openCatalog(context)),
+                          onPressed: _busy
+                              ? null
+                              : () => unawaited(
+                                  _runLocked(() => _openCatalog(context)),
+                                ),
                           icon: experience.icon,
                           iconColor: const Color(0xFFE86610),
                           label: experience.reviewCatalogActionLabel,
@@ -300,7 +327,7 @@ class _ReviewActions extends StatelessWidget {
                       Expanded(
                         child: SelfxKioskActionCard(
                           key: const Key('retake-photo'),
-                          onPressed: () => _retake(context),
+                          onPressed: _busy ? null : () => _retake(context),
                           icon: Icons.replay,
                           iconColor: const Color(0xFF2384D6),
                           label: 'Retake Photo',
@@ -321,7 +348,7 @@ class _ReviewActions extends StatelessWidget {
         ] else ...[
           SelfxKioskActionCard(
             key: const Key('retake-photo'),
-            onPressed: () => _retake(context),
+            onPressed: _busy ? null : () => _retake(context),
             icon: Icons.replay,
             iconColor: const Color(0xFF2384D6),
             label: 'Retake Photo',
@@ -333,9 +360,11 @@ class _ReviewActions extends StatelessWidget {
           const SizedBox(height: 16),
           SelfxKioskButton(
             key: const Key('upload-model-photo'),
-            onPressed: () => unawaited(_uploadModelPhoto(context)),
-            icon: Icons.file_upload_outlined,
-            label: 'Upload Photo',
+            onPressed: _busy
+                ? null
+                : () => unawaited(_runLocked(() => _uploadModelPhoto(context))),
+            icon: _busy ? Icons.hourglass_top : Icons.file_upload_outlined,
+            label: _busy ? 'Preparing...' : 'Upload Photo',
             variant: SelfxKioskButtonVariant.primary,
             textAlign: TextAlign.center,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -346,27 +375,26 @@ class _ReviewActions extends StatelessWidget {
     );
   }
 
+  Future<void> _runLocked(Future<void> Function() action) async {
+    if (_busy) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
   Future<bool> _acceptModelPhoto(BuildContext context) async {
-    if (usingAcceptedPersonPhoto) {
-      final attached = await tryOnController.attachAcceptedPerson(controller);
-      if (!context.mounted) {
-        return false;
-      }
-      if (!attached) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tryOnController.sessionMessage ??
-                  'SelfX could not save this photo for reuse.',
-            ),
-          ),
-        );
-        return false;
-      }
+    if (widget.usingAcceptedPersonPhoto) {
       return true;
     }
 
-    final result = await controller.usePhoto();
+    final result = await widget.controller.usePhoto();
     if (!context.mounted) {
       return false;
     }
@@ -375,21 +403,6 @@ class _ReviewActions extends StatelessWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
-      return false;
-    }
-    final attached = await tryOnController.attachAcceptedPerson(controller);
-    if (!context.mounted) {
-      return false;
-    }
-    if (!attached) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            tryOnController.sessionMessage ??
-                'SelfX could not save this photo for reuse.',
-          ),
-        ),
-      );
       return false;
     }
     return true;
@@ -402,11 +415,11 @@ class _ReviewActions extends StatelessWidget {
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
-          controller: controller,
-          tryOnController: tryOnController,
-          uploadController: uploadController,
-          catalogGateway: catalogGateway,
-          extractionService: extractionService,
+          controller: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
           purpose: PhotoAcquisitionPurpose.garment,
         ),
       ),
@@ -414,9 +427,10 @@ class _ReviewActions extends StatelessWidget {
   }
 
   Future<void> _openCatalog(BuildContext context) async {
-    if (tryOnController.activeTryOnVertical == KioskTryOnVertical.jewellery) {
-      await controller.retake();
-      tryOnController.tryAnotherGarment();
+    if (widget.tryOnController.activeTryOnVertical ==
+        KioskTryOnVertical.jewellery) {
+      await widget.controller.retake();
+      widget.tryOnController.tryAnotherGarment();
       if (!context.mounted) {
         return;
       }
@@ -433,13 +447,13 @@ class _ReviewActions extends StatelessWidget {
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => BrowseProductsScreen(
-          captureController: controller,
-          tryOnController: tryOnController,
-          uploadController: uploadController,
-          catalogGateway: catalogGateway,
-          extractionService: extractionService,
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
           productVertical: tryOnExperienceFor(
-            tryOnController.activeTryOnVertical,
+            widget.tryOnController.activeTryOnVertical,
           ).productVertical,
         ),
       ),
@@ -453,11 +467,11 @@ class _ReviewActions extends StatelessWidget {
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => TryOnGenerationScreen(
-          captureController: controller,
-          tryOnController: tryOnController,
-          uploadController: uploadController,
-          catalogGateway: catalogGateway,
-          extractionService: extractionService,
+          captureController: widget.controller,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
         ),
       ),
     );
@@ -469,23 +483,23 @@ class _ReviewActions extends StatelessWidget {
       navigator.pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => MobileUploadScreen(
-            captureController: controller,
-            tryOnController: tryOnController,
-            uploadController: uploadController,
-            catalogGateway: catalogGateway,
-            extractionService: extractionService,
+            captureController: widget.controller,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
+            extractionService: widget.extractionService,
             purpose: PhotoAcquisitionPurpose.model,
           ),
         ),
       ),
     );
     await Future<void>.delayed(Duration.zero);
-    await controller.discardPendingCapture();
+    await widget.controller.discardPendingCapture();
   }
 
   void _retake(BuildContext context) {
     final navigator = Navigator.of(context);
-    unawaited(controller.retake());
+    unawaited(widget.controller.retake());
     navigator.pop();
   }
 }

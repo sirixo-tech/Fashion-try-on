@@ -7,6 +7,10 @@ import {
   PLATFORM_VIDEO_UPLOAD_HARD_MAX_BYTES,
 } from "../kiosks/kiosk.constants.js";
 import {
+  readGarmentTryOnUploadMaxImageBytes,
+  readJewelleryTryOnUploadMaxImageBytes,
+} from "../try-on/providers/virtual-try-on.config.js";
+import {
   type ImageUploadLimitMb,
   type MediaUploadSettingsResponseDto,
   type UpdateMediaUploadSettingsDto,
@@ -56,6 +60,38 @@ export class MediaUploadSettingsService {
   async resolveCaptureImageMaxBytes(): Promise<number> {
     const settings = await this.getSettings();
     return settings.captureImageMaxBytes;
+  }
+
+  async resolveTryOnCaptureImageUploadLimits(): Promise<{
+    maxImageBytes: number;
+    personImageMaxBytes: number;
+    garmentImageMaxBytes: number;
+    jewelleryImageMaxBytes: number;
+  }> {
+    const settings = await this.getSettings();
+    const garmentImageMaxBytes = Math.min(
+      settings.captureImageMaxBytes,
+      readGarmentTryOnUploadMaxImageBytes(),
+    );
+    const jewelleryImageMaxBytes = Math.min(
+      settings.captureImageMaxBytes,
+      readJewelleryTryOnUploadMaxImageBytes(),
+    );
+    const personImageMaxBytes = Math.max(
+      garmentImageMaxBytes,
+      jewelleryImageMaxBytes,
+    );
+
+    return {
+      maxImageBytes: Math.max(
+        personImageMaxBytes,
+        garmentImageMaxBytes,
+        jewelleryImageMaxBytes,
+      ),
+      personImageMaxBytes,
+      garmentImageMaxBytes,
+      jewelleryImageMaxBytes,
+    };
   }
 
   async resolvePresentationUploadLimits(): Promise<{

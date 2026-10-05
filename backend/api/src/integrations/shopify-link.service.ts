@@ -52,6 +52,13 @@ export class ShopifyLinkService {
     const shopDomain = normalizeShopDomain(input.shopDomain);
     const externalAccountId = normalizeShopId(input.externalAccountId);
     const externalAccountName = nullableTrim(input.externalAccountName);
+    const lockedStore = input.storeId
+      ? await this.resolveLockedReconnectStore(
+          input.storeId,
+          externalAccountId,
+          shopDomain,
+        )
+      : null;
     const linkToken = randomBytes(32).toString("base64url");
     const expiresAt = new Date(Date.now() + linkLifetimeMs);
     const session = await this.prisma.$transaction(async (tx) => {
@@ -65,6 +72,7 @@ export class ShopifyLinkService {
           shopDomain,
           externalAccountId,
           externalAccountName,
+          organizationId: lockedStore?.id ?? null,
           expiresAt,
         },
       });
@@ -96,6 +104,9 @@ export class ShopifyLinkService {
     if (session.approvedAt) {
       if (session.organizationId !== storeId) throw shopAlreadyLinked();
       return this.approvalResponse(session, "APPROVED");
+    }
+    if (session.organizationId && session.organizationId !== storeId) {
+      throw lockedStoreMismatch();
     }
 
     const store = await this.prisma.organization.findFirst({
@@ -159,6 +170,8 @@ export class ShopifyLinkService {
           : "PENDING",
       shopDomain: session.shopDomain,
       externalAccountName: session.externalAccountName,
+      storeId: session.organizationId,
+      storeName: session.organization?.name ?? null,
       expiresAt: session.expiresAt.toISOString(),
     };
   }
@@ -375,6 +388,37 @@ export class ShopifyLinkService {
     }
   }
 
+  private async resolveLockedReconnectStore(
+    storeId: string,
+    externalAccountId: string,
+    shopDomain: string,
+  ): Promise<{ id: string; name: string }> {
+    const [store, integration] = await Promise.all([
+      this.prisma.organization.findFirst({
+        where: { id: storeId, status: OrganizationStatus.ACTIVE },
+        select: { id: true, name: true },
+      }),
+      this.prisma.integration.findUnique({
+        where: {
+          organizationId_type: {
+            organizationId: storeId,
+            type: "SHOPIFY",
+          },
+        },
+      }),
+    ]);
+    if (!store) throw storeNotFound();
+    const metadata = jsonObject(integration?.metadata ?? null);
+    const linkedShopDomain =
+      typeof metadata.shopDomain === "string" ? metadata.shopDomain : null;
+    const sameShop =
+      integration?.externalAccountId === externalAccountId ||
+      linkedShopDomain === shopDomain;
+    if (integration && !sameShop) throw storeAlreadyLinked();
+    await this.assertLinkAvailable(storeId, externalAccountId, shopDomain);
+    return store;
+  }
+
   private approvalResponse(
     session: {
       id: string;
@@ -486,6 +530,14 @@ function storeAlreadyLinked(): ApiErrorException {
     HttpStatus.CONFLICT,
     SHOPIFY_LINK_ERROR_CODES.storeAlreadyLinked,
     "This SelfX Store is already linked to another Shopify shop.",
+  );
+}
+
+function lockedStoreMismatch(): ApiErrorException {
+  return new ApiErrorException(
+    HttpStatus.CONFLICT,
+    SHOPIFY_LINK_ERROR_CODES.storeAlreadyLinked,
+    "This reconnect link is locked to its existing SelfX Store.",
   );
 }
 

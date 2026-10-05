@@ -117,6 +117,9 @@ export interface KioskSessionImagePayload {
 
 interface KioskCaptureMultipartOptions {
   maxImageBytes?: number;
+  maxImageBytesByFieldName?: Partial<
+    Record<KioskTryOnImageFieldName, number>
+  >;
 }
 
 export async function parseKioskTryOnRunMultipartRequest(
@@ -158,7 +161,11 @@ export async function parseKioskTryOnRunMultipartRequest(
             part.filename,
             part.mimetype,
             await part.toBuffer(),
-            maxImageBytes,
+            imageMaxBytesForField(
+              part.fieldname,
+              maxImageBytes,
+              options.maxImageBytesByFieldName,
+            ),
           ),
         );
         continue;
@@ -513,6 +520,22 @@ export async function parseKioskPersonMultipartRequest(
     );
   }
   return { personImage, customerUploadSessionId };
+}
+
+function imageMaxBytesForField(
+  fieldName: KioskTryOnImageFieldName,
+  fallback: number,
+  overrides?: Partial<Record<KioskTryOnImageFieldName, number>>,
+): number {
+  const maxImageBytes = overrides?.[fieldName];
+  if (
+    typeof maxImageBytes === "number" &&
+    Number.isInteger(maxImageBytes) &&
+    maxImageBytes > 0
+  ) {
+    return maxImageBytes;
+  }
+  return fallback;
 }
 
 function validateImage<TFieldName extends KioskTryOnImageFieldName>(

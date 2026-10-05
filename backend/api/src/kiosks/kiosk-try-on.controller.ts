@@ -118,10 +118,15 @@ export class KioskTryOnController {
     const device = await this.kiosks.requireDevice(
       request.headers.authorization,
     );
-    const maxImageBytes =
-      await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
+    const uploadLimits =
+      await this.mediaUploadSettings.resolveTryOnCaptureImageUploadLimits();
     const payload = await parseKioskTryOnRunMultipartRequest(request, {
-      maxImageBytes,
+      maxImageBytes: uploadLimits.maxImageBytes,
+      maxImageBytesByFieldName: {
+        personImage: uploadLimits.personImageMaxBytes,
+        garmentImage: uploadLimits.garmentImageMaxBytes,
+        jewelleryImage: uploadLimits.jewelleryImageMaxBytes,
+      },
     });
     return this.tryOn.createRun(device, payload);
   }
@@ -204,10 +209,10 @@ export class KioskTryOnSessionController {
     const device = await this.kiosks.requireDevice(
       request.headers.authorization,
     );
-    const maxImageBytes =
-      await this.mediaUploadSettings.resolveCaptureImageMaxBytes();
+    const uploadLimits =
+      await this.mediaUploadSettings.resolveTryOnCaptureImageUploadLimits();
     const payload = await parseKioskPersonMultipartRequest(request, {
-      maxImageBytes,
+      maxImageBytes: uploadLimits.personImageMaxBytes,
     });
     return this.tryOn.setCurrentPerson(device, sessionId, payload);
   }

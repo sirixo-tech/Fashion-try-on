@@ -72,6 +72,8 @@ export type ShopifyLinkDetails = {
   status: "PENDING" | "APPROVED" | "REDEEMED";
   shopDomain: string;
   externalAccountName: string | null;
+  storeId: string | null;
+  storeName: string | null;
   expiresAt: string;
 };
 

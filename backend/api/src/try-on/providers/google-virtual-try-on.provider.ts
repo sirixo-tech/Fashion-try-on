@@ -14,6 +14,7 @@ import {
   type VirtualTryOnProviderSubmitInput,
   type VirtualTryOnProviderSubmitResult,
 } from "./virtual-try-on.provider.js";
+import { readGarmentTryOnProviderTargetImageBytes } from "./virtual-try-on.config.js";
 
 const GOOGLE_VTO_DEFAULT_LOCATION = "us-central1";
 const GOOGLE_VTO_DEFAULT_MODEL = "virtual-try-on-001";
@@ -21,7 +22,6 @@ const GOOGLE_CLOUD_PLATFORM_SCOPE =
   "https://www.googleapis.com/auth/cloud-platform";
 const TOKEN_EXPIRY_SAFETY_MS = 60_000;
 const MAX_COMPLETED_RESULTS = 100;
-const GOOGLE_VTO_TARGET_MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const GOOGLE_VTO_NORMALIZE_MAX_DIMENSION = 2048;
 const GOOGLE_VTO_JPEG_QUALITY_STEPS = [85, 80, 75, 70, 65, 60] as const;
 const GOOGLE_VTO_RESIZE_DIMENSION_STEPS = [
@@ -477,6 +477,7 @@ export async function normalizeGoogleInputImage(
   dataUri: string,
 ): Promise<GoogleNormalizedImage> {
   const parsed = parseInputDataUri(dataUri);
+  const targetMaxImageBytes = readGarmentTryOnProviderTargetImageBytes();
   const metadata = await readDecodedImageMetadata(parsed.buffer);
   const decodedMimeType = mimeTypeFromSharpFormat(metadata.format);
   if (!decodedMimeType || !metadata.width || !metadata.height) {
@@ -485,7 +486,7 @@ export async function normalizeGoogleInputImage(
 
   if (
     (decodedMimeType === "image/jpeg" || decodedMimeType === "image/png") &&
-    parsed.buffer.length <= GOOGLE_VTO_TARGET_MAX_IMAGE_BYTES
+    parsed.buffer.length <= targetMaxImageBytes
   ) {
     return {
       mimeType: decodedMimeType,
@@ -496,8 +497,8 @@ export async function normalizeGoogleInputImage(
 
   const normalized =
     decodedMimeType === "image/png"
-      ? await normalizeOversizedPng(parsed.buffer)
-      : await normalizeToJpeg(parsed.buffer);
+      ? await normalizeOversizedPng(parsed.buffer, targetMaxImageBytes)
+      : await normalizeToJpeg(parsed.buffer, targetMaxImageBytes);
 
   return {
     mimeType: normalized.mimeType,
@@ -534,6 +535,7 @@ async function readDecodedImageMetadata(
 
 async function normalizeOversizedPng(
   buffer: Buffer,
+  targetMaxImageBytes: number,
 ): Promise<{ mimeType: GoogleImageMimeType; buffer: Buffer }> {
   const png = await sharp(buffer, { failOn: "error" })
     .rotate()
@@ -550,15 +552,16 @@ async function normalizeOversizedPng(
     })
     .toBuffer();
 
-  if (png.length <= GOOGLE_VTO_TARGET_MAX_IMAGE_BYTES) {
+  if (png.length <= targetMaxImageBytes) {
     return { mimeType: "image/png", buffer: png };
   }
 
-  return normalizeToJpeg(buffer);
+  return normalizeToJpeg(buffer, targetMaxImageBytes);
 }
 
 async function normalizeToJpeg(
   buffer: Buffer,
+  targetMaxImageBytes: number,
 ): Promise<{ mimeType: "image/jpeg"; buffer: Buffer }> {
   let smallest: Buffer | undefined;
 
@@ -584,13 +587,13 @@ async function normalizeToJpeg(
         smallest = output;
       }
 
-      if (output.length <= GOOGLE_VTO_TARGET_MAX_IMAGE_BYTES) {
+      if (output.length <= targetMaxImageBytes) {
         return { mimeType: "image/jpeg", buffer: output };
       }
     }
   }
 
-  if (smallest && smallest.length <= GOOGLE_VTO_TARGET_MAX_IMAGE_BYTES) {
+  if (smallest && smallest.length <= targetMaxImageBytes) {
     return { mimeType: "image/jpeg", buffer: smallest };
   }
 

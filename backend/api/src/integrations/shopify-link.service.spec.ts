@@ -115,6 +115,81 @@ describe("ShopifyLinkService", () => {
     expect(prisma.sessions[0]?.approvedAt).toBeNull();
   });
 
+  it("creates locked reconnect sessions for the existing Store", async () => {
+    configure();
+    const prisma = new FakePrisma();
+    prisma.integrations.push(integration("store-1"));
+    const service = new ShopifyLinkService(prisma as never);
+
+    const created = await service.create({
+      ...shop(),
+      storeId: "store-1",
+    });
+    const details = await service.describe(created.linkToken);
+
+    expect(details).toMatchObject({
+      status: "PENDING",
+      storeId: "store-1",
+      storeName: "Store One",
+    });
+    await expect(
+      service.approve("user-1", created.linkToken, "store-2"),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: SHOPIFY_LINK_ERROR_CODES.storeAlreadyLinked,
+        }),
+      }),
+    });
+
+    const approved = await service.approve(
+      "user-1",
+      created.linkToken,
+      "store-1",
+    );
+    expect(approved.storeId).toBe("store-1");
+  });
+
+  it("allows locked reconnect sessions to repair a missing central integration", async () => {
+    configure();
+    const prisma = new FakePrisma();
+    const service = new ShopifyLinkService(prisma as never);
+
+    const created = await service.create({
+      ...shop(),
+      storeId: "store-1",
+    });
+
+    expect(await service.describe(created.linkToken)).toMatchObject({
+      storeId: "store-1",
+      storeName: "Store One",
+    });
+  });
+
+  it("rejects locked reconnect sessions when the Store is linked to another shop", async () => {
+    configure();
+    const prisma = new FakePrisma();
+    prisma.integrations.push({
+      ...integration("store-1"),
+      externalAccountId: "gid://shopify/Shop/2002",
+      metadata: { shopDomain: "other.myshopify.com" },
+    });
+    const service = new ShopifyLinkService(prisma as never);
+
+    await expect(
+      service.create({
+        ...shop(),
+        storeId: "store-1",
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: SHOPIFY_LINK_ERROR_CODES.storeAlreadyLinked,
+        }),
+      }),
+    });
+  });
+
   it("rejects expired link sessions", async () => {
     configure();
     const prisma = new FakePrisma();

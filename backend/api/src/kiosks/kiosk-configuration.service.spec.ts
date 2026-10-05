@@ -544,7 +544,12 @@ class ConfigurationHarness {
       ],
     } as never,
     {
-      resolveCaptureImageMaxBytes: async () => 10 * 1024 * 1024,
+      resolveTryOnCaptureImageUploadLimits: async () => ({
+        maxImageBytes: 10 * 1024 * 1024,
+        personImageMaxBytes: 10 * 1024 * 1024,
+        garmentImageMaxBytes: 10 * 1024 * 1024,
+        jewelleryImageMaxBytes: 10 * 1024 * 1024,
+      }),
       resolvePresentationUploadLimits: async () => ({
         maxImageBytes: 12 * 1024 * 1024,
         maxVideoBytes: 80 * 1024 * 1024,
