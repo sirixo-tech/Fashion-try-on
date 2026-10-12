@@ -19,6 +19,7 @@ import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
 import 'camera_settings_screen.dart';
+import 'kiosk_home_actions.dart';
 import 'mobile_upload_screen.dart';
 import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
@@ -55,6 +56,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   bool _operatorHintVisible = false;
   bool _startingTryOn = false;
   bool _startingMobileUpload = false;
+  bool _customerRouteOpen = false;
+  bool _returningHome = false;
+  KioskTryOnVertical? _selectedVertical;
   int _slideIndex = 0;
   Timer? _operatorRevealTimer;
   Timer? _slideshowTimer;
@@ -67,6 +71,18 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     super.initState();
     widget.configurationController?.addListener(_configurationChanged);
     _scheduleSlideAdvanceIfNeeded();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Replaced routes can complete the original push while Home is still
+    // covered. Observe Home becoming current as well as the push future.
+    if (_customerRouteOpen && (ModalRoute.of(context)?.isCurrent ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_handleReturnedHome());
+      });
+    }
   }
 
   @override
@@ -108,15 +124,18 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       widget.configurationController?.configuration.jewelleryTryOnEnabled ??
       false;
 
-  bool get _multipleTryOnModesEnabled =>
-      _garmentTryOnEnabled && _jewelleryTryOnEnabled;
-
   void _configurationChanged() {
     if (!mounted) {
       return;
     }
     setState(() {
       _slideIndex = 0;
+      if ((_selectedVertical == KioskTryOnVertical.garment &&
+              !_garmentTryOnEnabled) ||
+          (_selectedVertical == KioskTryOnVertical.jewellery &&
+              !_jewelleryTryOnEnabled)) {
+        _selectedVertical = null;
+      }
     });
     _scheduleSlideAdvanceIfNeeded();
   }
@@ -179,7 +198,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<void> _startTryOn() async {
-    if (_startingTryOn || _startingMobileUpload) {
+    if (_startingTryOn || _startingMobileUpload || _returningHome) {
       return;
     }
     setState(() => _startingTryOn = true);
@@ -199,6 +218,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       setState(() => _startingTryOn = false);
       return;
     }
+    _customerRouteOpen = true;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CameraCaptureScreen(
@@ -218,7 +238,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<void> _startJewelleryTryOn() async {
-    if (_startingTryOn || _startingMobileUpload) {
+    if (_startingTryOn || _startingMobileUpload || _returningHome) {
       return;
     }
     setState(() => _startingTryOn = true);
@@ -240,6 +260,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       setState(() => _startingTryOn = false);
       return;
     }
+    _customerRouteOpen = true;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => BrowseProductsScreen(
@@ -259,7 +280,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<void> _openGarmentCatalog() async {
-    if (_startingTryOn || _startingMobileUpload) {
+    if (_startingTryOn || _startingMobileUpload || _returningHome) {
       return;
     }
     setState(() => _startingTryOn = true);
@@ -279,6 +300,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       setState(() => _startingTryOn = false);
       return;
     }
+    _customerRouteOpen = true;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => BrowseProductsScreen(
@@ -298,7 +320,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<void> _uploadFromMobile() async {
-    if (_startingTryOn || _startingMobileUpload) {
+    if (_startingTryOn || _startingMobileUpload || _returningHome) {
       return;
     }
     setState(() => _startingMobileUpload = true);
@@ -322,6 +344,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     if (!mounted) {
       return;
     }
+    _customerRouteOpen = true;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => MobileUploadScreen(
@@ -427,13 +450,29 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
   }
 
   Future<void> _handleReturnedHome() async {
-    if (!mounted) {
+    if (!mounted || !_customerRouteOpen || _returningHome) {
       return;
     }
     final homeIsCurrent = ModalRoute.of(context)?.isCurrent ?? false;
     if (homeIsCurrent) {
-      await widget.tryOnController.finish(widget.controller);
-      await _activatePendingConfigurationIfSafe();
+      _customerRouteOpen = false;
+      setState(() {
+        _returningHome = true;
+        _selectedVertical = null;
+      });
+      try {
+        await widget.tryOnController.finish(widget.controller);
+        await _activatePendingConfigurationIfSafe();
+      } finally {
+        _returningHome = false;
+        if (mounted) {
+          setState(() {
+            _selectedVertical = null;
+            _startingTryOn = false;
+            _startingMobileUpload = false;
+          });
+        }
+      }
     }
   }
 
@@ -481,328 +520,271 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final presentation = _presentation;
-            final asset = presentation.assetAt(_slideIndex);
-            final layout = KioskLayoutMetrics.fromConstraints(constraints);
-            final compact = layout.isSmall || constraints.maxWidth < 720;
-            final horizontalPadding = layout.scaled(
-              42,
-              small: 22,
-              large: 64,
-              extraLarge: 92,
-            );
-            final verticalPadding = layout.scaled(
-              34,
-              small: 20,
-              large: 48,
-              extraLarge: 64,
-            );
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 650),
-                  child: _IdleWallpaper(
-                    asset: asset,
-                    loopVideo: !presentation.isSlideshow,
-                    key: ValueKey(asset.id),
-                    onVideoCompleted: _advanceSlide,
+    return PopScope<void>(
+      canPop:
+          _selectedVertical == null &&
+          !_startingTryOn &&
+          !_startingMobileUpload,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_startingTryOn && !_startingMobileUpload) {
+          setState(() => _selectedVertical = null);
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final presentation = _presentation;
+              final asset = presentation.assetAt(_slideIndex);
+              final title = presentation.title == 'SelfX Virtual Try-On'
+                  ? defaultIdlePresentation.title
+                  : presentation.title;
+              final subtitle =
+                  presentation.subtitle == 'Find your perfect fit in seconds.'
+                  ? defaultIdlePresentation.subtitle
+                  : presentation.subtitle;
+              final layout = KioskLayoutMetrics.fromConstraints(constraints);
+              final horizontalPadding = layout.scaled(
+                42,
+                small: 22,
+                large: 64,
+                extraLarge: 92,
+              );
+              final verticalPadding = layout.tightHeight
+                  ? 16.0
+                  : layout.scaled(34, small: 20, large: 48, extraLarge: 64);
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 650),
+                    // Category changes only animate controls. Keeping the media
+                    // keyed to its asset preserves the current video controller.
+                    child: _IdleWallpaper(
+                      asset: asset,
+                      loopVideo: !presentation.isSlideshow,
+                      key: ValueKey(asset.id),
+                      onVideoCompleted: _advanceSlide,
+                    ),
                   ),
-                ),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.08),
-                        Colors.black.withValues(alpha: 0.5),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.08),
+                          Colors.black.withValues(alpha: 0.5),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: verticalPadding,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (layout.tightHeight)
+                          const SizedBox(
+                            height: 72,
+                            child: FittedBox(
+                              child: SizedBox(width: 440, child: _HomeBrand()),
+                            ),
+                          )
+                        else
+                          const _HomeBrand(),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, bodyConstraints) {
+                              final maxContentWidth = layout.portrait
+                                  ? 840.0
+                                  : 780.0;
+                              final titleSize = layout.tightHeight
+                                  ? 32.0
+                                  : layout.scaled(
+                                      50,
+                                      small: 36,
+                                      large: 60,
+                                      extraLarge: 70,
+                                    );
+                              final actionGroupWidth = bodyConstraints.maxWidth
+                                  .clamp(0.0, 840.0)
+                                  .toDouble();
+                              final bottomGap = layout.tightHeight
+                                  ? 8.0
+                                  : layout.scaled(
+                                      30,
+                                      small: 18,
+                                      large: 46,
+                                      extraLarge: 64,
+                                    );
+                              Widget buildActionButtons() => SizedBox(
+                                width: actionGroupWidth,
+                                child: KioskHomeActions(
+                                  selectedVertical: _selectedVertical,
+                                  garmentEnabled: _garmentTryOnEnabled,
+                                  jewelleryEnabled: _jewelleryTryOnEnabled,
+                                  busy:
+                                      _startingTryOn ||
+                                      _startingMobileUpload ||
+                                      _returningHome,
+                                  onSelectVertical: (vertical) => setState(
+                                    () => _selectedVertical = vertical,
+                                  ),
+                                  onBack: () =>
+                                      setState(() => _selectedVertical = null),
+                                  onBrowseGarments: _openGarmentCatalog,
+                                  onVirtualTryOn: _startTryOn,
+                                  onUploadGarmentPhoto: _uploadFromMobile,
+                                  onBrowseJewellery: _startJewelleryTryOn,
+                                  onUploadJewelleryPhoto: _startJewelleryTryOn,
+                                ),
+                              );
+                              return SingleChildScrollView(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: bodyConstraints.maxHeight,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: maxContentWidth,
+                                      ),
+                                      child: Padding(
+                                        padding: EdgeInsets.only(
+                                          bottom: bottomGap,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Text.rich(
+                                                TextSpan(
+                                                  children:
+                                                      title ==
+                                                          defaultIdlePresentation
+                                                              .title
+                                                      ? const [
+                                                          TextSpan(
+                                                            text:
+                                                                'See It. Try It. ',
+                                                          ),
+                                                          TextSpan(
+                                                            text: 'Love It.',
+                                                            style: TextStyle(
+                                                              color:
+                                                                  SelfxKioskTokens
+                                                                      .homeOrange,
+                                                            ),
+                                                          ),
+                                                        ]
+                                                      : [TextSpan(text: title)],
+                                                ),
+                                                textAlign: TextAlign.center,
+                                                maxLines: 1,
+                                                softWrap: false,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .displayMedium
+                                                    ?.copyWith(
+                                                      color: Colors.white,
+                                                      fontFamily:
+                                                          SelfxKioskTokens
+                                                              .headingFontFamily,
+                                                      fontSize: titleSize,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      height: 1.04,
+                                                    ),
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              height: layout.tightHeight
+                                                  ? 8.0
+                                                  : layout.scaled(
+                                                      16,
+                                                      small: 10,
+                                                      large: 20,
+                                                    ),
+                                            ),
+                                            Text(
+                                              subtitle,
+                                              textAlign: TextAlign.center,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleLarge
+                                                  ?.copyWith(
+                                                    color: Colors.white
+                                                        .withValues(alpha: 0.9),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                            SizedBox(
+                                              height: layout.tightHeight
+                                                  ? 16.0
+                                                  : layout.scaled(
+                                                      30,
+                                                      small: 20,
+                                                      large: 42,
+                                                    ),
+                                            ),
+                                            buildActionButtons(),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          height: layout.scaled(14, small: 8, large: 22),
+                        ),
                       ],
                     ),
                   ),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: horizontalPadding,
-                    vertical: verticalPadding,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _HomeBrand(),
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, bodyConstraints) {
-                            final maxContentWidth = layout.portrait
-                                ? 840.0
-                                : 780.0;
-                            final titleSize = layout.scaled(
-                              50,
-                              small: 36,
-                              large: 60,
-                              extraLarge: 70,
-                            );
-                            final buttonHeight = layout.scaled(
-                              74,
-                              small: 62,
-                              large: 84,
-                              extraLarge: 94,
-                            );
-                            final buttonGap = layout.scaled(
-                              16,
-                              small: 12,
-                              large: 20,
-                            );
-                            final actionGroupWidth = bodyConstraints.maxWidth
-                                .clamp(240.0, 680.0)
-                                .toDouble();
-                            final bottomGap = layout.scaled(
-                              30,
-                              small: 18,
-                              large: 46,
-                              extraLarge: 64,
-                            );
-                            final garmentTryOnEnabled = _garmentTryOnEnabled;
-                            final jewelleryTryOnEnabled =
-                                _jewelleryTryOnEnabled;
-                            final multipleTryOnModesEnabled =
-                                _multipleTryOnModesEnabled;
-
-                            Widget buildUploadButton() => SelfxKioskButton(
-                              key: const Key('upload-from-mobile-start'),
-                              label: 'Upload From Mobile',
-                              icon: Icons.file_upload_outlined,
-                              variant: SelfxKioskButtonVariant.primary,
-                              backgroundColor: const Color(0xFFFFA21C),
-                              borderColor: const Color(0xFFFFA21C),
-                              minHeight: buttonHeight,
-                              borderRadius: 999,
-                              textAlign: TextAlign.center,
-                              onPressed: _uploadFromMobile,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: compact ? 22 : 34,
-                                vertical: compact ? 18 : 26,
-                              ),
-                            );
-
-                            Widget buildGarmentCatalogButton() =>
-                                SelfxKioskButton(
-                                  key: const Key('garment-catalog-start'),
-                                  label: 'Browse Garments',
-                                  icon: Icons.inventory_2_outlined,
-                                  variant: SelfxKioskButtonVariant.primary,
-                                  minHeight: buttonHeight,
-                                  borderRadius: 999,
-                                  textAlign: TextAlign.center,
-                                  onPressed: _openGarmentCatalog,
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: compact ? 24 : 36,
-                                    vertical: compact ? 18 : 28,
-                                  ),
-                                );
-
-                            Widget buildStartButton() => SelfxKioskButton(
-                              key: const Key('start-try-on'),
-                              label: multipleTryOnModesEnabled
-                                  ? garmentTryOnExperience.multiModeHomeLabel
-                                  : presentation.ctaLabel,
-                              icon: garmentTryOnExperience.icon,
-                              variant: SelfxKioskButtonVariant.primary,
-                              minHeight: buttonHeight,
-                              borderRadius: 999,
-                              textAlign: TextAlign.center,
-                              onPressed: _startTryOn,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: compact ? 24 : 36,
-                                vertical: compact ? 18 : 28,
-                              ),
-                            );
-
-                            Widget buildJewelleryButton() => SelfxKioskButton(
-                              key: const Key('start-jewellery-try-on'),
-                              label: multipleTryOnModesEnabled
-                                  ? jewelleryTryOnExperience.multiModeHomeLabel
-                                  : 'Start Try-On',
-                              icon: jewelleryTryOnExperience.icon,
-                              variant: SelfxKioskButtonVariant.primary,
-                              minHeight: buttonHeight,
-                              borderRadius: 999,
-                              textAlign: TextAlign.center,
-                              onPressed: _startJewelleryTryOn,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: compact ? 24 : 36,
-                                vertical: compact ? 18 : 28,
-                              ),
-                            );
-
-                            Widget buildActionButtons() {
-                              final useCapabilityRow =
-                                  garmentTryOnEnabled &&
-                                  jewelleryTryOnEnabled &&
-                                  actionGroupWidth >= 440;
-                              final capabilityButtons =
-                                  garmentTryOnEnabled && jewelleryTryOnEnabled
-                                  ? useCapabilityRow
-                                        ? Row(
-                                            children: [
-                                              Expanded(
-                                                child: buildStartButton(),
-                                              ),
-                                              SizedBox(width: buttonGap),
-                                              Expanded(
-                                                child: buildJewelleryButton(),
-                                              ),
-                                            ],
-                                          )
-                                        : Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              buildStartButton(),
-                                              SizedBox(height: buttonGap),
-                                              buildJewelleryButton(),
-                                            ],
-                                          )
-                                  : garmentTryOnEnabled
-                                  ? buildStartButton()
-                                  : buildJewelleryButton();
-
-                              return SizedBox(
-                                width: actionGroupWidth,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (garmentTryOnEnabled) ...[
-                                      buildUploadButton(),
-                                      SizedBox(height: buttonGap),
-                                      buildGarmentCatalogButton(),
-                                      SizedBox(height: buttonGap),
-                                    ],
-                                    capabilityButtons,
-                                  ],
-                                ),
-                              );
-                            }
-
-                            return SingleChildScrollView(
-                              physics: bodyConstraints.maxHeight < 360
-                                  ? null
-                                  : const NeverScrollableScrollPhysics(),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minHeight: bodyConstraints.maxHeight,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.bottomCenter,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: maxContentWidth,
-                                    ),
-                                    child: Padding(
-                                      padding: EdgeInsets.only(
-                                        bottom: bottomGap,
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              presentation.title,
-                                              textAlign: TextAlign.center,
-                                              maxLines: 1,
-                                              softWrap: false,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .displayMedium
-                                                  ?.copyWith(
-                                                    color: Colors.white,
-                                                    fontSize: titleSize,
-                                                    fontWeight: FontWeight.w900,
-                                                    height: 1.04,
-                                                  ),
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            height: layout.scaled(
-                                              16,
-                                              small: 10,
-                                              large: 20,
-                                            ),
-                                          ),
-                                          Text(
-                                            presentation.subtitle,
-                                            textAlign: TextAlign.center,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge
-                                                ?.copyWith(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.9),
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                          ),
-                                          SizedBox(
-                                            height: layout.scaled(
-                                              30,
-                                              small: 20,
-                                              large: 42,
-                                            ),
-                                          ),
-                                          buildActionButtons(),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      SizedBox(height: layout.scaled(14, small: 8, large: 22)),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  width: 120,
-                  height: 120,
-                  child: GestureDetector(
-                    key: const Key('operator-hotspot'),
-                    behavior: HitTestBehavior.opaque,
-                    onDoubleTap: _revealOperatorAccess,
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-                if (_operatorHintVisible)
                   Positioned(
-                    left: 20,
-                    top: 20,
-                    child: SelfxKioskButton(
-                      key: const Key('operator-menu-button'),
-                      label: 'Operator',
-                      icon: Icons.menu,
-                      variant: SelfxKioskButtonVariant.secondary,
-                      minHeight: 52,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      onPressed: _openOperatorPinChallenge,
+                    left: 0,
+                    top: 0,
+                    width: 120,
+                    height: 120,
+                    child: GestureDetector(
+                      key: const Key('operator-hotspot'),
+                      behavior: HitTestBehavior.opaque,
+                      onDoubleTap: _revealOperatorAccess,
+                      child: const SizedBox.expand(),
                     ),
                   ),
-              ],
-            );
-          },
+                  if (_operatorHintVisible)
+                    Positioned(
+                      left: 20,
+                      top: 20,
+                      child: SelfxKioskButton(
+                        key: const Key('operator-menu-button'),
+                        label: 'Operator',
+                        icon: Icons.menu,
+                        variant: SelfxKioskButtonVariant.secondary,
+                        minHeight: 52,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        onPressed: _openOperatorPinChallenge,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1275,10 +1257,23 @@ class _IdleWallpaperState extends State<_IdleWallpaper> {
 
   void _handleVideoProgress() {
     final controller = _videoController;
-    if (controller == null || widget.loopVideo || _videoCompletionReported) {
+    if (controller == null) {
       return;
     }
     final value = controller.value;
+    if (value.hasError && _videoReady) {
+      _videoController = null;
+      setState(() => _videoReady = false);
+      unawaited(controller.dispose());
+      if (!_videoCompletionReported) {
+        _videoCompletionReported = true;
+        widget.onVideoCompleted();
+      }
+      return;
+    }
+    if (widget.loopVideo || _videoCompletionReported) {
+      return;
+    }
     final duration = value.duration;
     if (!value.isInitialized || duration == Duration.zero) {
       return;
@@ -1310,6 +1305,9 @@ class _IdleWallpaperState extends State<_IdleWallpaper> {
             video
           else if (image != null)
             image
+          else if (widget.asset.assetVideoPath != null)
+            _imageFor(fallbackIdleAsset) ??
+                CustomPaint(painter: _WallpaperPainter())
           else
             CustomPaint(painter: _WallpaperPainter()),
         ],

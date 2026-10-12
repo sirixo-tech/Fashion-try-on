@@ -709,11 +709,14 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskTryOnSessionCompletionReason reason =
         KioskTryOnSessionCompletionReason.finished,
   }) async {
+    // Clear selections immediately, including while backend completion is
+    // pending or unavailable, so the next customer cannot see stale picks.
+    garmentPicks = const [];
+    activeGarmentPickId = null;
+    notifyListeners();
     await completeBackendSession(reason: reason);
     activeTryOnVertical = KioskTryOnVertical.garment;
     _clearRunState(keepGarment: false);
-    garmentPicks = const [];
-    activeGarmentPickId = null;
     await capture.resetSession();
     customerSessionActive = false;
     notifyListeners();

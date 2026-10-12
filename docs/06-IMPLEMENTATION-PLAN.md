@@ -1698,9 +1698,14 @@ server-side because Perfect Corp accepts JPEG/PNG for these routes.
 - versioned provider-neutral jewellery person-capture requirements contract,
   shared resolver, selected-product kiosk endpoint and internal Lab endpoint
   (implemented)
+- two-stage Flutter customer landing menu with orange/gold category cards,
+  animated category-to-action transitions, reference-style action colors and
+  capability-aware choices (implemented)
 - jewellery-first Flutter kiosk routing from single product selection to the
-  authenticated capture-requirements endpoint, type-specific static capture
-  guides, assisted countdown, preview and generation continuation (implemented)
+  authenticated photo-requirements endpoint, type-specific phone-upload QR,
+  preview and generation continuation; result/error photo replacement stays on
+  phone upload and customer kiosk jewellery camera capture is not exposed
+  (implemented)
 - jewellery person-image technical and semantic validation against the resolved
   capture requirements, with privacy-bounded MediaPipe evidence and provider
   blocking only for invalid files or failed required-region checks in the

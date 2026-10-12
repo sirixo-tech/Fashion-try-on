@@ -13,6 +13,7 @@ import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
+import 'mobile_upload_screen.dart';
 import 'capture_review_screen.dart';
 import 'browse_products_screen.dart';
 import 'kiosk_chrome.dart';
@@ -334,8 +335,16 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                                   onPressed: () => _retakePhoto(context),
                                   icon: Icons.replay,
                                   iconColor: const Color(0xFF2384D6),
-                                  label: 'Retake Photo',
-                                  subtitle: 'Capture again',
+                                  label:
+                                      experience.vertical ==
+                                          KioskTryOnVertical.jewellery
+                                      ? 'Upload Another Photo'
+                                      : 'Retake Photo',
+                                  subtitle:
+                                      experience.vertical ==
+                                          KioskTryOnVertical.jewellery
+                                      ? 'Use your phone'
+                                      : 'Capture again',
                                   minHeight: 76,
                                 ),
                                 const SizedBox(height: 14),
@@ -396,14 +405,24 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => CameraCaptureScreen(
-          controller: widget.captureController,
-          tryOnController: widget.tryOnController,
-          uploadController: widget.uploadController,
-          catalogGateway: widget.catalogGateway,
-          extractionService: widget.extractionService,
-          purpose: PhotoAcquisitionPurpose.model,
-        ),
+        builder: (_) =>
+            widget.tryOnController.activeTryOnVertical ==
+                KioskTryOnVertical.jewellery
+            ? MobileUploadScreen(
+                captureController: widget.captureController,
+                tryOnController: widget.tryOnController,
+                uploadController: widget.uploadController,
+                catalogGateway: widget.catalogGateway,
+                extractionService: widget.extractionService,
+              )
+            : CameraCaptureScreen(
+                controller: widget.captureController,
+                tryOnController: widget.tryOnController,
+                uploadController: widget.uploadController,
+                catalogGateway: widget.catalogGateway,
+                extractionService: widget.extractionService,
+                purpose: PhotoAcquisitionPurpose.model,
+              ),
       ),
       (route) => route.isFirst,
     );

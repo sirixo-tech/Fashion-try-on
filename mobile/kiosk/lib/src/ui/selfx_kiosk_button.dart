@@ -11,6 +11,7 @@ class SelfxKioskButton extends StatefulWidget {
     required this.onPressed,
     this.variant = SelfxKioskButtonVariant.primary,
     this.icon,
+    this.iconSize = 24,
     this.subtitle,
     this.trailing,
     this.padding,
@@ -30,6 +31,7 @@ class SelfxKioskButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final SelfxKioskButtonVariant variant;
   final IconData? icon;
+  final double iconSize;
   final String? subtitle;
   final Widget? trailing;
   final EdgeInsetsGeometry? padding;
@@ -178,7 +180,7 @@ class _ButtonContent extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (widget.icon != null) ...[
-                Icon(widget.icon, color: foreground, size: 24),
+                Icon(widget.icon, color: foreground, size: widget.iconSize),
                 const SizedBox(width: 12),
               ],
               Flexible(

@@ -808,9 +808,13 @@ settings remain limited to device/runtime behavior such as camera, countdown,
 audio, idle presentation and local capture controls.
 
 Platform-owned kiosks use the SelfX platform catalog and enable both garment
-and jewellery Try-On by default. Their customer start screen keeps mobile person
-photo upload as a garment handoff, then presents garment and jewellery Try-On as
-separate choices; jewellery selection always occurs before person capture.
+and jewellery Try-On by default. Their customer start screen presents two
+category cards: **Browse Garments** and **Try On Jewellery**, subject to Store
+capabilities. Selecting a card transitions to its action menu. Garments offers
+**Browse Garments**, **Virtual Try-On** and **Upload From Mobile**. Jewellery
+offers **Browse Jewellery** and **Upload From Mobile**, with no kiosk camera
+capture option. Both jewellery actions select a catalog item before requesting
+the customer photo through phone upload, so type-specific guidance is available.
 
 ---
 

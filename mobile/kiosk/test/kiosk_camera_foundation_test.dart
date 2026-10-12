@@ -1258,7 +1258,7 @@ void main() {
 
   group('KIOSK-2C customer home and operator access', () {
     testWidgets(
-      'platform defaults place mobile upload above side-by-side Try-On modes',
+      'home categories transition to the correct menus and Back restores them',
       (tester) async {
         final gateway = FakeKioskDeviceGateway();
         final deviceController = KioskDeviceSessionController(
@@ -1275,44 +1275,74 @@ void main() {
           configurationController.dispose();
           deviceController.dispose();
         });
-
         await tester.pumpHome(
           controller: testController(),
           configurationController: configurationController,
         );
-
-        expect(find.text('Try On Garments'), findsOneWidget);
-        expect(find.text('Try On Jewellery'), findsOneWidget);
-        expect(find.text('Browse Garments'), findsOneWidget);
-        final uploadTop = tester.getTopLeft(
-          find.byKey(const Key('upload-from-mobile-start')),
+        expect(find.byKey(const Key('home-garments-category')), findsOneWidget);
+        expect(
+          find.byKey(const Key('home-jewellery-category')),
+          findsOneWidget,
         );
-        final catalogTop = tester.getTopLeft(
-          find.byKey(const Key('garment-catalog-start')),
-        );
+        expect(find.byKey(const Key('upload-from-mobile-start')), findsNothing);
+        expect(find.byKey(const Key('start-try-on')), findsNothing);
         final garmentTop = tester.getTopLeft(
-          find.byKey(const Key('start-try-on')),
+          find.byKey(const Key('home-garments-category')),
         );
         final jewelleryTop = tester.getTopLeft(
-          find.byKey(const Key('start-jewellery-try-on')),
+          find.byKey(const Key('home-jewellery-category')),
+        );
+        expect(garmentTop.dy, closeTo(jewelleryTop.dy, 1));
+
+        await tester.tap(find.byKey(const Key('home-garments-category')));
+        await tester.pumpAndSettle();
+        expect(find.text('Consent Required'), findsNothing);
+        expect(find.text('Browse Garments'), findsOneWidget);
+        expect(find.text('Virtual Try-On'), findsOneWidget);
+        expect(find.text('Upload From Mobile'), findsOneWidget);
+        expect(find.byKey(const Key('home-jewellery-category')), findsNothing);
+        expect(
+          tester.getTopLeft(find.byKey(const Key('garment-catalog-start'))).dy,
+          lessThan(tester.getTopLeft(find.byKey(const Key('start-try-on'))).dy),
+        );
+        expect(
+          tester.getTopLeft(find.byKey(const Key('start-try-on'))).dy,
+          lessThan(
+            tester
+                .getTopLeft(find.byKey(const Key('upload-from-mobile-start')))
+                .dy,
+          ),
         );
 
-        expect(uploadTop.dy, lessThan(catalogTop.dy));
-        expect(catalogTop.dy, lessThan(garmentTop.dy));
-        expect(garmentTop.dy, closeTo(jewelleryTop.dy, 1));
+        await tester.tap(find.byKey(const Key('home-menu-back')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('home-jewellery-category')));
+        await tester.pumpAndSettle();
+        expect(find.text('Browse Jewellery'), findsOneWidget);
+        expect(find.text('Upload From Mobile'), findsOneWidget);
+        expect(find.text('Virtual Try-On'), findsNothing);
+        expect(find.byKey(const Key('start-try-on')), findsNothing);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('home-garments-category')), findsOneWidget);
+        expect(
+          find.byKey(const Key('home-jewellery-category')),
+          findsOneWidget,
+        );
       },
     );
-
     testWidgets('home starts customer flow without visible settings controls', (
       tester,
     ) async {
       await tester.pumpHome(controller: testController());
 
-      expect(find.byKey(const Key('start-try-on')), findsOneWidget);
-      expect(find.text('Start Try-On'), findsOneWidget);
+      expect(find.byKey(const Key('home-garments-category')), findsOneWidget);
+      expect(find.text('Browse\nGarments'), findsOneWidget);
       expect(find.byKey(const Key('operator-menu-button')), findsNothing);
       expect(find.byKey(const Key('camera-settings')), findsNothing);
 
+      await tester.tap(find.byKey(const Key('home-garments-category')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
@@ -1323,7 +1353,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
-      expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
+      expect(
+        find.byKey(const Key('upload-jewellery-person-photo')),
+        findsNothing,
+      );
       expect(find.byKey(const Key('flip-person-camera')), findsOneWidget);
       expect(find.text('How would you like to add your photo?'), findsNothing);
       expect(find.text('What are you trying on?'), findsNothing);
@@ -1335,6 +1368,8 @@ void main() {
     ) async {
       await tester.pumpHome(controller: testController());
 
+      await tester.tap(find.byKey(const Key('home-garments-category')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
@@ -1352,6 +1387,8 @@ void main() {
     ) async {
       await tester.pumpHome(controller: testController());
 
+      await tester.tap(find.byKey(const Key('home-garments-category')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('upload-from-mobile-start')));
       await tester.pumpAndSettle();
 
@@ -1362,6 +1399,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Scan to add your photo'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const Key('cancel-mobile-upload')));
+      await tester.tap(find.byKey(const Key('cancel-mobile-upload')));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('hidden top-left double tap reveals operator access briefly', (
@@ -1454,13 +1494,18 @@ void main() {
 
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('home-garments-category')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
-      expect(find.byKey(const Key('upload-person-photo')), findsOneWidget);
+      expect(
+        find.byKey(const Key('upload-jewellery-person-photo')),
+        findsNothing,
+      );
     });
 
     testWidgets('customer inactivity ends session and returns home', (
@@ -1520,6 +1565,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
 
+      await tester.tap(find.byKey(const Key('home-garments-category')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
@@ -1546,7 +1593,7 @@ void main() {
       await tester.pump(const Duration(seconds: 5, milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.byKey(const Key('start-try-on')), findsOneWidget);
+      expect(find.byKey(const Key('home-garments-category')), findsOneWidget);
       expect(find.byKey(const Key('capture-photo')), findsNothing);
       expect(tryOnController.customerSessionActive, isFalse);
       expect(tryOnController.garmentPicks, isEmpty);
@@ -1990,10 +2037,14 @@ void main() {
           matching: find.byType(Material),
         ),
       );
-      expect(myPicksMaterial.color, SelfxKioskTokens.secondary);
+      expect(myPicksMaterial.color, SelfxKioskTokens.surface);
+      expect(
+        (myPicksMaterial.shape! as RoundedRectangleBorder).side.color,
+        SelfxKioskTokens.primary,
+      );
       expect(
         (myPicksMaterial.shape! as RoundedRectangleBorder).borderRadius,
-        BorderRadius.circular(999),
+        BorderRadius.circular(10),
       );
 
       await tester.tap(find.byKey(const Key('open-my-picks')));
@@ -2052,14 +2103,20 @@ extension _KioskHomeTester on WidgetTester {
     OperatorAccessController? operatorAccessController,
     KioskRuntimeConfigurationController? configurationController,
   }) async {
+    final tryOnController = KioskTryOnSessionController(
+      gateway: FakeKioskTryOnGateway(),
+    );
+    final uploadController = testUploadController(controller.captureStore);
+    addTearDown(() {
+      tryOnController.dispose();
+      uploadController.dispose();
+    });
     await pumpWidget(
       MaterialApp(
         home: KioskHomeScreen(
           controller: controller,
-          tryOnController: KioskTryOnSessionController(
-            gateway: FakeKioskTryOnGateway(),
-          ),
-          uploadController: testUploadController(controller.captureStore),
+          tryOnController: tryOnController,
+          uploadController: uploadController,
           operatorAccessController:
               operatorAccessController ?? testOperatorAccessController(),
           configurationController: configurationController,

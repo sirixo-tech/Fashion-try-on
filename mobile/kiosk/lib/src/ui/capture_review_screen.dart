@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -14,6 +13,7 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
+import 'capture_review_presentation.dart';
 import 'kiosk_attention_animations.dart';
 import 'mobile_upload_screen.dart';
 import 'selfx_kiosk_action_card.dart';
@@ -40,7 +40,7 @@ class CaptureReviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: SelfxKioskTokens.reviewBackground,
       body: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
@@ -50,7 +50,7 @@ class CaptureReviewScreen extends StatelessWidget {
             return const Center(
               child: Text(
                 'No capture available.',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: SelfxKioskTokens.textPrimary),
               ),
             );
           }
@@ -64,96 +64,23 @@ class CaptureReviewScreen extends StatelessWidget {
                       'Image is fine. Proceed tryon.',
                     )
                   : null);
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final narrow = constraints.maxWidth < 560;
-              final horizontalPadding = narrow ? 20.0 : 36.0;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ColoredBox(
-                          color: Colors.black,
-                          child: Image.file(
-                            File(capture.originalPath),
-                            fit: BoxFit.cover,
-                            alignment: Alignment.center,
-                            errorBuilder: (_, _, _) {
-                              return const Center(
-                                child: Text(
-                                  'Captured image unavailable',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        SafeArea(
-                          bottom: false,
-                          child: Align(
-                            alignment: Alignment.topLeft,
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                left: horizontalPadding,
-                                top: 12,
-                              ),
-                              child: IconButton.filled(
-                                onPressed: () async {
-                                  await controller.retake();
-                                  if (context.mounted) {
-                                    Navigator.of(context).pop();
-                                  }
-                                },
-                                icon: const Icon(Icons.arrow_back),
-                                color: SelfxKioskTokens.textPrimary,
-                                style: IconButton.styleFrom(
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.92,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ColoredBox(
-                    color: Colors.black,
-                    child: SafeArea(
-                      top: false,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          horizontalPadding,
-                          narrow ? 16 : 22,
-                          horizontalPadding,
-                          narrow ? 18 : 30,
-                        ),
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 680),
-                            child: _ReviewActions(
-                              controller: controller,
-                              tryOnController: tryOnController,
-                              uploadController: uploadController,
-                              catalogGateway: catalogGateway,
-                              extractionService: extractionService,
-                              usability: usability,
-                              usingAcceptedPersonPhoto:
-                                  usingAcceptedPersonPhoto,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
+          return CaptureReviewPresentation(
+            imagePath: capture.originalPath,
+            onBack: () async {
+              await controller.retake();
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
             },
+            actions: _ReviewActions(
+              controller: controller,
+              tryOnController: tryOnController,
+              uploadController: uploadController,
+              catalogGateway: catalogGateway,
+              extractionService: extractionService,
+              usability: usability,
+              usingAcceptedPersonPhoto: usingAcceptedPersonPhoto,
+            ),
           );
         },
       ),
@@ -199,179 +126,236 @@ class _ReviewActionsState extends State<_ReviewActions> {
         widget.tryOnController.garmentInput?.isCatalogProduct == true;
     final needsPhysicalProductCapture =
         experience.supportsPhysicalProductCapture && !hasSelectedCatalogProduct;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _ImageUsabilityStatement(
-          isLoading: widget.controller.isAnalyzingQuality,
-          result: widget.usability,
+    final largePortrait =
+        MediaQuery.orientationOf(context) == Orientation.portrait &&
+        MediaQuery.sizeOf(context).width >= 760;
+    final primaryHeight = largePortrait ? 94.0 : 64.0;
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        textTheme: theme.textTheme.copyWith(
+          titleMedium: theme.textTheme.titleMedium?.copyWith(
+            fontSize: largePortrait ? 26 : null,
+          ),
+          bodyMedium: theme.textTheme.bodyMedium?.copyWith(
+            fontSize: largePortrait ? 18 : null,
+          ),
         ),
-        const SizedBox(height: 18),
-        if (isChecking) ...[
-          SelfxKioskActionCard(
-            key: const Key('retake-photo'),
-            onPressed: null,
-            icon: Icons.replay,
-            iconColor: const Color(0xFF2384D6),
-            label: 'Retake',
-            subtitle: 'Checking photo',
-            minHeight: 64,
-          ),
-          const SizedBox(height: 16),
-          SelfxKioskButton(
-            key: const Key('take-garment-photo'),
-            onPressed: null,
-            icon: needsPhysicalProductCapture
-                ? Icons.camera_alt_outlined
-                : experience.icon,
-            label: needsPhysicalProductCapture
-                ? experience.reviewWaitingActionLabel
-                : 'Continue',
-            variant: SelfxKioskButtonVariant.primary,
-            textAlign: TextAlign.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-          ),
-        ] else if (isUsable) ...[
-          Text(
-            hasSelectedCatalogProduct
-                ? 'Your photo is ready for this garment.'
-                : experience.reviewInstruction,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              shadows: const [
-                Shadow(
-                  color: Color(0x99000000),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          Align(
-            alignment: Alignment.center,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (needsPhysicalProductCapture) ...[
-                    SelfxActionPulse(
-                      child: SelfxKioskButton(
-                        key: const Key('take-garment-photo'),
-                        onPressed: _busy
-                            ? null
-                            : () => unawaited(
-                                _runLocked(() => _openGarmentCamera(context)),
-                              ),
-                        icon: Icons.camera_alt_outlined,
-                        label: _busy ? 'Preparing...' : 'Take Garment Photo',
-                        variant: SelfxKioskButtonVariant.primary,
-                        textAlign: TextAlign.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                  ] else ...[
-                    SelfxActionPulse(
-                      child: SelfxKioskButton(
-                        key: const Key('continue-selected-product-try-on'),
-                        onPressed: _busy
-                            ? null
-                            : () => unawaited(
-                                _runLocked(
-                                  () => _continueSelectedProductTryOn(context),
-                                ),
-                              ),
-                        icon: _busy
-                            ? Icons.hourglass_top
-                            : Icons.play_arrow_rounded,
-                        label: _busy
-                            ? 'Preparing...'
-                            : hasSelectedCatalogProduct
-                            ? 'Continue'
-                            : experience.reviewWaitingActionLabel,
-                        variant: SelfxKioskButtonVariant.primary,
-                        textAlign: TextAlign.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SelfxKioskActionCard(
-                          key: const Key('browse-catalog'),
-                          onPressed: _busy
-                              ? null
-                              : () => unawaited(
-                                  _runLocked(() => _openCatalog(context)),
-                                ),
-                          icon: experience.icon,
-                          iconColor: const Color(0xFFE86610),
-                          label: experience.reviewCatalogActionLabel,
-                          subtitle: 'Choose item',
-                          minHeight: 70,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SelfxKioskActionCard(
-                          key: const Key('retake-photo'),
-                          onPressed: _busy ? null : () => _retake(context),
-                          icon: Icons.replay,
-                          iconColor: const Color(0xFF2384D6),
-                          label: 'Retake Photo',
-                          subtitle: 'Capture again',
-                          minHeight: 70,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              constraints: BoxConstraints(
+                maxWidth:
+                    MediaQuery.orientationOf(context) == Orientation.portrait
+                    ? MediaQuery.sizeOf(context).width * 0.76
+                    : double.infinity,
+              ),
+              child: _ImageUsabilityStatement(
+                isLoading: widget.controller.isAnalyzingQuality,
+                result: widget.usability,
               ),
             ),
           ),
-        ] else ...[
-          SelfxKioskActionCard(
-            key: const Key('retake-photo'),
-            onPressed: _busy ? null : () => _retake(context),
-            icon: Icons.replay,
-            iconColor: const Color(0xFF2384D6),
-            label: 'Retake Photo',
-            subtitle: 'Capture again',
-            minHeight: 64,
-            textAlign: TextAlign.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-          ),
-          const SizedBox(height: 16),
-          SelfxKioskButton(
-            key: const Key('upload-model-photo'),
-            onPressed: _busy
-                ? null
-                : () => unawaited(_runLocked(() => _uploadModelPhoto(context))),
-            icon: _busy ? Icons.hourglass_top : Icons.file_upload_outlined,
-            label: _busy ? 'Preparing...' : 'Upload Photo',
-            variant: SelfxKioskButtonVariant.primary,
-            textAlign: TextAlign.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            borderRadius: 26,
-          ),
+          const SizedBox(height: 18),
+          if (isChecking) ...[
+            SelfxKioskActionCard(
+              key: const Key('retake-photo'),
+              onPressed: null,
+              icon: Icons.replay,
+              iconColor: SelfxKioskTokens.homeGold,
+              label: 'Retake',
+              subtitle: 'Checking photo',
+              minHeight: 64,
+            ),
+            const SizedBox(height: 16),
+            SelfxKioskButton(
+              key: const Key('take-garment-photo'),
+              onPressed: null,
+              icon: needsPhysicalProductCapture
+                  ? Icons.camera_alt_outlined
+                  : experience.icon,
+              label: needsPhysicalProductCapture
+                  ? experience.reviewWaitingActionLabel
+                  : 'Continue',
+              variant: SelfxKioskButtonVariant.primary,
+              minHeight: primaryHeight,
+              borderRadius: 999,
+              textAlign: TextAlign.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+            ),
+          ] else if (isUsable) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  needsPhysicalProductCapture
+                      ? Icons.camera_alt_outlined
+                      : experience.icon,
+                  color: SelfxKioskTokens.textSecondary,
+                  size: largePortrait ? 32 : 24,
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    hasSelectedCatalogProduct
+                        ? 'Your photo is ready for this garment.'
+                        : experience.reviewInstruction,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: SelfxKioskTokens.textSecondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: largePortrait ? 24 : null,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Align(
+              alignment: Alignment.center,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 820),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (needsPhysicalProductCapture) ...[
+                      SelfxActionPulse(
+                        borderRadius: 999,
+                        child: SelfxKioskButton(
+                          key: const Key('take-garment-photo'),
+                          onPressed: _busy
+                              ? null
+                              : () => unawaited(
+                                  _runLocked(() => _openGarmentCamera(context)),
+                                ),
+                          icon: Icons.camera_alt_outlined,
+                          iconSize: largePortrait ? 40 : 28,
+                          label: _busy ? 'Preparing...' : 'Take Garment Photo',
+                          variant: SelfxKioskButtonVariant.primary,
+                          minHeight: primaryHeight,
+                          borderRadius: 999,
+                          trailing: const Icon(Icons.arrow_forward),
+                          textAlign: TextAlign.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ] else ...[
+                      SelfxActionPulse(
+                        borderRadius: 999,
+                        child: SelfxKioskButton(
+                          key: const Key('continue-selected-product-try-on'),
+                          onPressed: _busy
+                              ? null
+                              : () => unawaited(
+                                  _runLocked(
+                                    () =>
+                                        _continueSelectedProductTryOn(context),
+                                  ),
+                                ),
+                          icon: _busy
+                              ? Icons.hourglass_top
+                              : Icons.play_arrow_rounded,
+                          iconSize: largePortrait ? 40 : 28,
+                          label: _busy
+                              ? 'Preparing...'
+                              : hasSelectedCatalogProduct
+                              ? 'Continue'
+                              : experience.reviewWaitingActionLabel,
+                          variant: SelfxKioskButtonVariant.primary,
+                          minHeight: primaryHeight,
+                          borderRadius: 999,
+                          trailing: const Icon(Icons.arrow_forward),
+                          textAlign: TextAlign.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    _ReviewSecondaryActions(
+                      catalog: SelfxKioskActionCard(
+                        key: const Key('browse-catalog'),
+                        onPressed: _busy
+                            ? null
+                            : () => unawaited(
+                                _runLocked(() => _openCatalog(context)),
+                              ),
+                        icon: experience.icon,
+                        iconColor: SelfxKioskTokens.primary,
+                        borderColor: SelfxKioskTokens.primary,
+                        titleColor: SelfxKioskTokens.textPrimary,
+                        trailing: const Icon(
+                          Icons.arrow_forward,
+                          color: SelfxKioskTokens.primary,
+                        ),
+                        label: experience.reviewCatalogActionLabel,
+                        subtitle: 'Choose item',
+                        minHeight: largePortrait ? 100 : 76,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      retake: SelfxKioskActionCard(
+                        key: const Key('retake-photo'),
+                        onPressed: _busy ? null : () => _retake(context),
+                        icon: Icons.replay,
+                        iconColor: SelfxKioskTokens.homeGold,
+                        borderColor: SelfxKioskTokens.homeGold,
+                        titleColor: SelfxKioskTokens.textPrimary,
+                        trailing: const Icon(
+                          Icons.arrow_forward,
+                          color: SelfxKioskTokens.warning,
+                        ),
+                        label: 'Retake Photo',
+                        subtitle: 'Capture again',
+                        minHeight: largePortrait ? 100 : 76,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ] else ...[
+            SelfxKioskActionCard(
+              key: const Key('retake-photo'),
+              onPressed: _busy ? null : () => _retake(context),
+              icon: Icons.replay,
+              iconColor: SelfxKioskTokens.homeGold,
+              borderColor: SelfxKioskTokens.homeGold,
+              titleColor: SelfxKioskTokens.textPrimary,
+              label: 'Retake Photo',
+              subtitle: 'Capture again',
+              minHeight: 64,
+              textAlign: TextAlign.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+            ),
+            const SizedBox(height: 16),
+            SelfxKioskButton(
+              key: const Key('upload-model-photo'),
+              onPressed: _busy
+                  ? null
+                  : () =>
+                        unawaited(_runLocked(() => _uploadModelPhoto(context))),
+              icon: _busy ? Icons.hourglass_top : Icons.file_upload_outlined,
+              label: _busy ? 'Preparing...' : 'Upload Photo',
+              variant: SelfxKioskButtonVariant.primary,
+              textAlign: TextAlign.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              borderRadius: 26,
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -504,6 +488,33 @@ class _ReviewActionsState extends State<_ReviewActions> {
   }
 }
 
+class _ReviewSecondaryActions extends StatelessWidget {
+  const _ReviewSecondaryActions({required this.catalog, required this.retake});
+  final Widget catalog;
+  final Widget retake;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 500) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [catalog, const SizedBox(height: 12), retake],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: catalog),
+            const SizedBox(width: 16),
+            Expanded(child: retake),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ImageUsabilityStatement extends StatefulWidget {
   const _ImageUsabilityStatement({
     required this.isLoading,
@@ -552,56 +563,60 @@ class _ImageUsabilityStatementState extends State<_ImageUsabilityStatement> {
   Widget build(BuildContext context) {
     final result = widget.result;
     final isSuccess = !widget.isLoading && result?.isUsable == true;
-    const successColor = Color(0xFF01A101);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isSuccess
-            ? successColor.withValues(alpha: 0.96)
-            : Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
+    const successColor = SelfxKioskTokens.reviewSuccess;
+    return Semantics(
+      liveRegion: true,
+      child: DecoratedBox(
+        key: const Key('capture-review-status'),
+        decoration: BoxDecoration(
           color: isSuccess
-              ? Colors.white.withValues(alpha: 0.26)
-              : Colors.white.withValues(alpha: 0.44),
+              ? SelfxKioskTokens.reviewSuccessSurface
+              : Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: isSuccess
+                ? SelfxKioskTokens.reviewSuccessBorder
+                : SelfxKioskTokens.border,
+            width: 1.5,
+          ),
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.isLoading)
-              const Row(
-                children: [
-                  SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 3),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(child: Text('Checking image usability...')),
-                ],
-              )
-            else if (result == null)
-              const Text('Checking image usability...')
-            else
-              _UsabilityLine(
-                icon: result.isUsable
-                    ? Icons.check_rounded
-                    : Icons.error_outline,
-                animateIcon: result.isUsable,
-                backgroundColor: result.isUsable
-                    ? Colors.white
-                    : const Color(0xFFC53030),
-                iconColor: result.isUsable ? successColor : Colors.white,
-                textColor: result.isUsable
-                    ? Colors.white
-                    : SelfxKioskTokens.textPrimary,
-                text: result.isUsable
-                    ? _successMessage?.text ?? result.message
-                    : result.message,
-              ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.isLoading)
+                const Row(
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('Checking image usability...')),
+                  ],
+                )
+              else if (result == null)
+                const Text('Checking image usability...')
+              else
+                _UsabilityLine(
+                  title: result.isUsable ? 'You’re Ready!' : null,
+                  icon: result.isUsable
+                      ? Icons.check_rounded
+                      : Icons.error_outline,
+                  animateIcon: result.isUsable,
+                  backgroundColor: result.isUsable
+                      ? successColor
+                      : const Color(0xFFC53030),
+                  iconColor: Colors.white,
+                  textColor: SelfxKioskTokens.textPrimary,
+                  text: result.isUsable
+                      ? _successMessage?.text ?? result.message
+                      : result.message,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -635,6 +650,7 @@ class _UsabilityLine extends StatelessWidget {
     required this.iconColor,
     required this.textColor,
     required this.text,
+    this.title,
   });
 
   final IconData icon;
@@ -643,6 +659,7 @@ class _UsabilityLine extends StatelessWidget {
   final Color iconColor;
   final Color textColor;
   final String text;
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
@@ -657,6 +674,8 @@ class _UsabilityLine extends StatelessWidget {
               icon: icon,
               backgroundColor: backgroundColor,
               iconColor: iconColor,
+              iconSize: 32,
+              padding: const EdgeInsets.all(12),
             )
           else
             DecoratedBox(
@@ -671,13 +690,39 @@ class _UsabilityLine extends StatelessWidget {
             ),
           const SizedBox(width: 12),
           Flexible(
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: textColor,
-                fontWeight: FontWeight.w900,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (title != null) ...[
+                  Text(
+                    title!,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.w900,
+                      fontSize:
+                          MediaQuery.orientationOf(context) ==
+                                  Orientation.portrait &&
+                              MediaQuery.sizeOf(context).width >= 760
+                          ? 34
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Text(
+                  text,
+                  textAlign: TextAlign.start,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: title != null
+                        ? SelfxKioskTokens.textSecondary
+                        : textColor,
+                    fontWeight: title != null
+                        ? FontWeight.w600
+                        : FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

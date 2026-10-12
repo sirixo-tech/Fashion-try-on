@@ -1623,12 +1623,31 @@ Store-owned kiosks continue to use the Store-level capability list, which
 determines the visible primary choices and lets administrators disable a mode
 when the business does not need it:
 
-- **Try On Garments**
-- **Try On Jewellery**
+- **Browse Garments** category card: dark translucent surface with orange
+  border/glow, hanger icon and orange circular arrow.
+- **Try On Jewellery** category card: dark translucent surface with gold
+  border/glow, diamond icon and gold circular arrow.
 
-On the kiosk start screen, **Upload From Mobile** remains a garment person-photo
-handoff and appears on its own first row. When both capabilities are available,
-**Try On Garments** and **Try On Jewellery** appear side by side beneath it.
+These are the only primary customer actions on the starting screen. They appear
+side by side where space permits and stack on narrow viewports. Selecting a
+category fades/slides the cards into a stacked action menu over the same
+background and branding; selection alone does not start a session or request
+camera permission. Back (including system Back) returns to the category cards.
+
+The Garments menu offers **Browse Garments**, **Virtual Try-On** and **Upload From
+Mobile**. The Jewellery menu offers **Browse Jewellery** and **Upload From
+Mobile** only. Browse actions use an orange gradient with white text/icons;
+Virtual Try-On uses a dark translucent surface, orange outline and white
+text/icons; Upload From Mobile uses a white surface with dark navy text/icons.
+Controls use rounded corners and remain real Flutter touch controls. The bundled
+SelfX default video loops behind both the landing cards and category action
+menus. Category transitions animate the controls without restarting the video.
+Configured Store media replaces the bundled default through the existing kiosk
+presentation settings; custom videos, wallpapers and playlists remain supported.
+The packaged wallpaper is used while video initializes or if playback fails.
+SelfX branding and the headline **See It. Try It. Love It.**, with **Love It.** in
+orange, remain separate overlays. Operator access remains hidden and PIN
+protected. Consent is required before starting photo/AI session work.
 
 When garment Try-On is selected and physical capture is enabled:
 
@@ -1646,6 +1665,16 @@ supplies labels, icons, permitted product acquisition, capture-guide family and
 generation-visual family through one shared presentation configuration. This
 keeps the established garment UI intact while allowing jewellery-specific
 guidance and motion without creating a second visual system.
+
+Jewellery results may use a local target-aware portrait preview to remove
+irrelevant side areas without stretching the generated image. Rings/bracelets
+use hand bounds; necklaces/earrings use confident face/shoulder landmarks.
+Unavailable or ambiguous detection and targets that cannot fit completely in
+the portrait frame fall back to the full, contained result. Tapping the
+jewellery preview opens the unchanged full image with zoom and pan. Garment
+result presentation is unchanged. Preview bounds are ephemeral and local;
+temporary analysis files are deleted after detection, and the generated asset
+used for saved looks/downloads remains unchanged.
 
 ---
 
@@ -1670,18 +1699,31 @@ guidance and motion without creating a second visual system.
 
 No checkout button is required.
 
-For Jewellery, selecting a product requests its person-capture requirements
-from SelfX and then opens a type-specific capture screen. Ring, bracelet,
-necklace and earring products may use different target-region guides and
-instructions. The kiosk offers camera capture and **Upload From Mobile** after
-jewellery selection. Both use the same selected jewellery item and active
-Try-On session.
+The Flutter garment catalog uses a white background, centered SelfX logo and
+**Choose Garment** heading. Portrait layouts keep two product columns; wider
+landscape layouts may show more. All/Men/Women filters use orange for the active
+segment, while the active category has a pale orange fill. Selected products
+have an orange border and checkmark; unselected products have a white circular
+orange plus button. Prices are orange. **Load More** and **My Picks** use white
+surfaces with orange borders and labels; **Continue** uses an orange gradient
+with white content. Categories and products come from the Store catalog.
+
+My Picks belongs to the current customer session. Browsing, filtering, closing
+the picks sheet and moving between capture, catalog and results preserve picks.
+**Finish** or returning to the landing screen clears all picks and the active
+pick, including returns after intermediate screens have been replaced.
+
+For Jewellery, selecting a product requests its person-photo requirements from
+SelfX and then opens the phone-upload QR screen. Ring, bracelet, necklace and
+earring products may use different target-region instructions. Both jewellery
+menu actions use this item-first, phone-upload flow and keep the selected item
+and active Try-On session. Kiosk jewellery camera capture is not exposed.
 Earring guidance asks for the face and at least one visible ear so side-facing
 photos can proceed; it does not require both ears to be visible.
 
 The Flutter kiosk implements this as a single-selection flow: jewellery catalog
--> selected-product capture requirements -> static type-specific camera guide
--> assisted countdown -> photo preview -> Continue -> generation. Choosing a
+-> selected-product photo requirements -> phone-upload QR with type-specific
+guidance -> photo preview -> Continue -> generation. Choosing a
 different jewellery item from Preview discards the current close-up because the
 next product may require a different body region. These guides are framing aids,
 not claims of live region detection.
@@ -1692,8 +1734,10 @@ person-photo framing guidance. The ready preview offers **Continue** and
 **Upload Again**. Continue attaches the uploaded person photo to the active
 session and goes directly to jewellery generation, without opening garment
 capture or garment catalog. Retry, expiry and cancellation preserve the selected
-jewellery; cancellation returns to the jewellery capture screen. The start-screen
-mobile upload remains the garment entry point.
+jewellery; cancellation returns to jewellery selection. Jewellery result and
+generation-error photo replacement use **Upload Another Photo** and return to
+phone upload, without opening the kiosk camera. The Garments menu's mobile
+upload retains its existing person-photo handoff.
 
 Person-image preflight shows only two outcomes:
 
@@ -1897,6 +1941,17 @@ lighting or subjective image-quality warnings.
   centered and never briefly render white text on a white surface.
 
 ### KIOSK-4C Mobile Photo Upload UI
+
+The live person-capture review uses a warm white background with subtle gold
+decoration, centered SelfX branding and a rounded white photo frame. Success
+uses a pale green status panel; its success wording still varies per capture.
+Checking and unsuccessful photo states continue to display their actual dynamic
+messages. The success icon keeps its bulging animation, and the primary action
+keeps its pulse. Next-step guidance still depends on the selected garment and
+current flow. The primary action is an orange gradient pill, Browse Catalog has
+an orange outline and Retake Photo has a yellow outline. Short portrait windows
+scroll; landscape windows place the photo and actions side by side. This is a
+presentation change only: photo checks, acceptance and navigation are unchanged.
 
 - After garment review and internal CaptureScope resolution, the kiosk shows a
   model/person photo source choice with **Take Photo** and **Use Your Phone**.

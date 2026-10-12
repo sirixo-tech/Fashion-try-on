@@ -7,18 +7,18 @@ import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../catalog/kiosk_catalog_models.dart';
 import '../catalog/kiosk_catalog_repository.dart';
-import '../session/capture_scope.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
-import '../tryon/kiosk_jewellery_capture_requirements.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
+import 'mobile_upload_screen.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
+import 'selfx_logo.dart';
 import 'try_on_experience_config.dart';
 import 'try_on_generation_screen.dart';
 
@@ -284,7 +284,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     } catch (_) {
       if (mounted) {
         _showSelectionError(
-          'SelfX could not prepare the camera for this jewellery item.',
+          'SelfX could not prepare the photo upload. Please try again.',
         );
       }
     } finally {
@@ -304,14 +304,10 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       product.toGarmentInput(),
       requirements,
     );
-    widget.captureController.configureModelCapture(
-      validateModelCoverage: false,
-      scope: _captureScopeFor(requirements),
-    );
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CameraCaptureScreen(
-          controller: widget.captureController,
+        builder: (_) => MobileUploadScreen(
+          captureController: widget.captureController,
           tryOnController: widget.tryOnController,
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
@@ -341,21 +337,50 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final largePortrait =
+        MediaQuery.orientationOf(context) == Orientation.portrait &&
+        MediaQuery.sizeOf(context).width >= 760;
     return KioskScaffold(
       title: 'Catalog',
-      subtitle: 'Browse products',
+      subtitle: _experience.vertical == KioskTryOnVertical.jewellery
+          ? 'Choose jewellery, then upload your photo from your phone'
+          : 'Browse products',
       showBrandHeader: false,
-      leading: IconButton(
-        onPressed: () => Navigator.of(context).pop(),
-        icon: const Icon(Icons.arrow_back),
-      ),
+      background: const ColoredBox(color: SelfxKioskTokens.surface),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          SizedBox(
+            height: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const ClipRect(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    heightFactor: 0.78,
+                    child: SelfxLogo(height: 52, maxWidth: 190),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    key: const Key('catalog-back'),
+                    tooltip: 'Back',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
           Text(
             'Choose $_productTitle',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineMedium,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: largePortrait ? 44 : null,
+            ),
           ),
           const SizedBox(height: 18),
           _CatalogFilterBar(
@@ -388,7 +413,11 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 1040
+        final portrait =
+            MediaQuery.orientationOf(context) == Orientation.portrait;
+        final columns = portrait
+            ? 2
+            : constraints.maxWidth >= 1040
             ? 4
             : constraints.maxWidth >= 760
             ? 3
@@ -407,7 +436,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
                   crossAxisCount: columns,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: 0.68,
+                  childAspectRatio: 0.73,
                 ),
                 itemBuilder: (context, index) {
                   final product = _products[index];
@@ -427,20 +456,30 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
             ),
             if (_pagination?.hasMore == true) ...[
               const SizedBox(height: 14),
-              SizedBox(
-                height: 58,
-                child: ElevatedButton.icon(
+              Center(
+                child: SelfxKioskButton(
                   key: const Key('load-more-products'),
                   onPressed: _loadingMore
                       ? null
                       : () => unawaited(_load(reset: false)),
-                  icon: _loadingMore
+                  trailing: _loadingMore
                       ? const SizedBox.square(
                           dimension: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.expand_more),
-                  label: const Text('Load More'),
+                      : null,
+                  icon: _loadingMore ? null : Icons.expand_more,
+                  label: 'Load More',
+                  backgroundColor: SelfxKioskTokens.surface,
+                  foregroundColor: SelfxKioskTokens.primary,
+                  borderColor: SelfxKioskTokens.primary,
+                  borderRadius: 10,
+                  minHeight: 56,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ],
@@ -453,9 +492,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
               maxPickCount: maxPickCount,
               showPickCounter: widget.tryOnController.showMyPicksCounter,
               continuing: _continuing,
-              onOpenPicks: pickCount == 0 || _continuing
-                  ? null
-                  : () => _openMyPicks(context),
+              onOpenPicks: _continuing ? null : () => _openMyPicks(context),
               onContinue:
                   ((multiSelectEnabled
                           ? pickCount == 0
@@ -485,15 +522,6 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   }
 }
 
-CaptureScope _captureScopeFor(KioskJewelleryCaptureRequirements requirements) {
-  return switch (requirements.targetRegion) {
-    KioskJewelleryCaptureTargetRegion.hand ||
-    KioskJewelleryCaptureTargetRegion.wristAndLowerForearm ||
-    KioskJewelleryCaptureTargetRegion.neckShouldersAndUpperChest ||
-    KioskJewelleryCaptureTargetRegion.faceAndEars => CaptureScope.top,
-  };
-}
-
 class _CatalogFilterBar extends StatelessWidget {
   const _CatalogFilterBar({
     required this.audience,
@@ -511,58 +539,74 @@ class _CatalogFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: SelfxKioskTokens.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: SelfxKioskTokens.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.tune,
-                  size: 22,
-                  color: Theme.of(context).colorScheme.primary,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: SelfxKioskTokens.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: SelfxKioskTokens.border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: SegmentedButton<KioskCatalogAudience>(
+              style: ButtonStyle(
+                minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
+                backgroundColor: WidgetStateProperty.resolveWith(
+                  (states) => states.contains(WidgetState.selected)
+                      ? SelfxKioskTokens.primary
+                      : SelfxKioskTokens.surface,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SegmentedButton<KioskCatalogAudience>(
-                    segments: const [
-                      ButtonSegment(
-                        value: KioskCatalogAudience.all,
-                        label: Text('All'),
-                      ),
-                      ButtonSegment(
-                        value: KioskCatalogAudience.men,
-                        label: Text('Men'),
-                      ),
-                      ButtonSegment(
-                        value: KioskCatalogAudience.women,
-                        label: Text('Women'),
-                      ),
-                    ],
-                    selected: {audience},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (selection) =>
-                        onAudienceSelected(selection.first),
+                foregroundColor: WidgetStateProperty.resolveWith(
+                  (states) => states.contains(WidgetState.selected)
+                      ? SelfxKioskTokens.onPrimary
+                      : SelfxKioskTokens.textPrimary,
+                ),
+                side: const WidgetStatePropertyAll(
+                  BorderSide(color: SelfxKioskTokens.border),
+                ),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
+                textStyle: const WidgetStatePropertyAll(
+                  TextStyle(
+                    fontFamily: SelfxKioskTokens.bodyFontFamily,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              segments: const [
+                ButtonSegment(
+                  value: KioskCatalogAudience.all,
+                  label: Text('All'),
+                ),
+                ButtonSegment(
+                  value: KioskCatalogAudience.men,
+                  label: Text('Men'),
+                ),
+                ButtonSegment(
+                  value: KioskCatalogAudience.women,
+                  label: Text('Women'),
+                ),
               ],
+              selected: {audience},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) =>
+                  onAudienceSelected(selection.first),
             ),
-            const SizedBox(height: 12),
-            _CategoryStrip(
-              categories: categories,
-              selectedSlug: selectedSlug,
-              onSelected: onSelected,
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: 12),
+        _CategoryStrip(
+          categories: categories,
+          selectedSlug: selectedSlug,
+          onSelected: onSelected,
+        ),
+      ],
     );
   }
 }
@@ -580,31 +624,49 @@ class _CategoryStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: ChoiceChip(
-              key: const Key('catalog-category-all'),
-              label: const Text('All categories'),
-              selected: selectedSlug == null,
-              onSelected: (_) => onSelected(null),
-            ),
-          ),
-          for (final category in categories)
+    return ChipTheme(
+      data: ChipTheme.of(context).copyWith(
+        backgroundColor: SelfxKioskTokens.surface,
+        selectedColor: SelfxKioskTokens.catalogSelectedSurface,
+        checkmarkColor: SelfxKioskTokens.primary,
+        side: const BorderSide(color: SelfxKioskTokens.border),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        labelStyle: const TextStyle(
+          fontFamily: SelfxKioskTokens.bodyFontFamily,
+          color: SelfxKioskTokens.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      child: SizedBox(
+        height: 60,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
             Padding(
               padding: const EdgeInsets.only(right: 10),
               child: ChoiceChip(
-                key: Key('catalog-category-${category.slug}'),
-                label: Text(category.name),
-                selected: selectedSlug == category.slug,
-                onSelected: (_) => onSelected(category.slug),
+                key: const Key('catalog-category-all'),
+                label: const Text('All categories'),
+                selected: selectedSlug == null,
+                side: selectedSlug == null ? BorderSide.none : null,
+                onSelected: (_) => onSelected(null),
               ),
             ),
-        ],
+            for (final category in categories)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: ChoiceChip(
+                  key: Key('catalog-category-${category.slug}'),
+                  label: Text(category.name),
+                  selected: selectedSlug == category.slug,
+                  side: selectedSlug == category.slug ? BorderSide.none : null,
+                  onSelected: (_) => onSelected(category.slug),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -629,6 +691,9 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final largePortrait =
+        MediaQuery.orientationOf(context) == Orientation.portrait &&
+        MediaQuery.sizeOf(context).width >= 760;
     final borderColor = selected
         ? SelfxKioskTokens.primary
         : SelfxKioskTokens.border;
@@ -665,9 +730,15 @@ class _ProductCard extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      _CatalogProductImage(
-                        localPath: localImagePath,
-                        imageUrl: imageUrl,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(5, 5, 5, 0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: _CatalogProductImage(
+                            localPath: localImagePath,
+                            imageUrl: imageUrl,
+                          ),
+                        ),
                       ),
                       if (multiSelectEnabled)
                         Positioned(
@@ -685,14 +756,9 @@ class _ProductCard extends StatelessWidget {
                   ),
                 ),
                 DecoratedBox(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFFCF8),
-                    border: Border(
-                      top: BorderSide(color: SelfxKioskTokens.border),
-                    ),
-                  ),
+                  decoration: const BoxDecoration(color: Colors.transparent),
                   child: SizedBox(
-                    height: 64,
+                    height: largePortrait ? 76 : 64,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
@@ -708,6 +774,7 @@ class _ProductCard extends StatelessWidget {
                                   ?.copyWith(
                                     color: SelfxKioskTokens.textPrimary,
                                     fontWeight: FontWeight.w900,
+                                    fontSize: largePortrait ? 24 : null,
                                     height: 1.08,
                                   ),
                             ),
@@ -725,6 +792,7 @@ class _ProductCard extends StatelessWidget {
                                     ?.copyWith(
                                       color: SelfxKioskTokens.primary,
                                       fontWeight: FontWeight.w900,
+                                      fontSize: largePortrait ? 22 : null,
                                       height: 1,
                                     ),
                               ),
@@ -797,12 +865,12 @@ class _PickToggleButton extends StatelessWidget {
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: enabled ? onPressed : null,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
+        child: SizedBox.square(
+          dimension: 48,
           child: Icon(
             picked ? Icons.check : Icons.add,
             color: picked ? Colors.white : SelfxKioskTokens.primary,
-            size: 21,
+            size: 28,
           ),
         ),
       ),
@@ -858,24 +926,64 @@ class _SelectedProductAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final largePortrait =
+        MediaQuery.orientationOf(context) == Orientation.portrait &&
+        MediaQuery.sizeOf(context).width >= 760;
+    final actionHeight = largePortrait ? 80.0 : 58.0;
     if (multiSelectEnabled) {
-      return SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 58,
+      return Theme(
+        data: Theme.of(context).copyWith(
+          textTheme: Theme.of(context).textTheme.copyWith(
+            titleMedium: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: largePortrait ? 26 : null,
+            ),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: actionHeight,
+                  child: SelfxKioskButton(
+                    key: const Key('open-my-picks'),
+                    onPressed: onOpenPicks,
+                    icon: Icons.checkroom_outlined,
+                    label: showPickCounter
+                        ? 'My Picks ($pickCount/$maxPickCount)'
+                        : 'My Picks',
+                    variant: SelfxKioskButtonVariant.secondary,
+                    backgroundColor: SelfxKioskTokens.surface,
+                    foregroundColor: SelfxKioskTokens.primary,
+                    borderColor: SelfxKioskTokens.primary,
+                    minHeight: actionHeight,
+                    borderRadius: 10,
+                    textAlign: TextAlign.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
                 child: SelfxKioskButton(
-                  key: const Key('open-my-picks'),
-                  onPressed: onOpenPicks,
-                  icon: Icons.checkroom_outlined,
-                  label: showPickCounter
-                      ? 'My Picks ($pickCount/$maxPickCount)'
-                      : 'My Picks',
-                  variant: SelfxKioskButtonVariant.secondary,
-                  minHeight: 58,
-                  borderRadius: 999,
+                  key: const Key('continue-selected-product'),
+                  onPressed: onContinue,
+                  icon: continuing ? null : Icons.check_circle_outline,
+                  trailing: continuing
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : null,
+                  label: continuing ? 'Starting' : 'Continue',
+                  variant: SelfxKioskButtonVariant.primary,
+                  borderRadius: 10,
+                  minHeight: actionHeight,
                   textAlign: TextAlign.center,
                   mainAxisAlignment: MainAxisAlignment.center,
                   padding: const EdgeInsets.symmetric(
@@ -884,31 +992,8 @@ class _SelectedProductAction extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: SelfxKioskButton(
-                key: const Key('continue-selected-product'),
-                onPressed: onContinue,
-                icon: continuing ? null : Icons.check_circle_outline,
-                trailing: continuing
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : null,
-                label: continuing ? 'Starting' : 'Continue',
-                variant: SelfxKioskButtonVariant.primary,
-                minHeight: 58,
-                textAlign: TextAlign.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }

@@ -7,8 +7,8 @@ class KioskIdlePresentation {
     required this.mode,
     required this.assets,
     required this.slideDuration,
-    this.title = 'SelfX Virtual Try-On',
-    this.subtitle = 'Find your perfect fit in seconds.',
+    this.title = 'See It. Try It. Love It.',
+    this.subtitle = 'Discover your perfect look in seconds.',
     this.brandLabel = 'SelfX',
     this.ctaLabel = 'Start Try-On',
   });

@@ -20,6 +20,8 @@ class SelfxKioskActionCard extends StatelessWidget {
     this.textAlign = TextAlign.start,
     this.crossAxisAlignment = CrossAxisAlignment.start,
     this.mainAxisAlignment = MainAxisAlignment.start,
+    this.borderColor,
+    this.trailing,
   });
 
   final String label;
@@ -37,6 +39,8 @@ class SelfxKioskActionCard extends StatelessWidget {
   final TextAlign textAlign;
   final CrossAxisAlignment crossAxisAlignment;
   final MainAxisAlignment mainAxisAlignment;
+  final Color? borderColor;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +61,7 @@ class SelfxKioskActionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
           color: enabled
-              ? iconColor.withValues(alpha: 0.34)
+              ? borderColor ?? iconColor.withValues(alpha: 0.34)
               : SelfxKioskTokens.border,
         ),
         boxShadow: enabled ? _actionCardShadow : _disabledCardShadow,
@@ -113,6 +117,7 @@ class SelfxKioskActionCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (trailing != null) ...[const SizedBox(width: 10), trailing!],
             ],
           ),
         ),

@@ -15,6 +15,19 @@ class SelfxKioskTokens {
   static const secondary = Color(0xFFFFA21C);
   static const onSecondary = Color(0xFFFFFFFF);
 
+  // Reference artwork palette, scoped to the customer landing menus.
+  static const homeOrange = Color(0xFFFF8A00);
+  static const homeOrangeStart = Color(0xFFFF5900);
+  static const homeOrangeEnd = Color(0xFFFFA000);
+  static const homeGold = Color(0xFFFFD337);
+  static const homeDark = Color(0xFF242322);
+  static const homeNavy = Color(0xFF101C30);
+  static const catalogSelectedSurface = Color(0xFFFFE5D0);
+  static const reviewBackground = Color(0xFFFFFCF7);
+  static const reviewSuccess = Color(0xFF12B86A);
+  static const reviewSuccessSurface = Color(0xFFECFAF2);
+  static const reviewSuccessBorder = Color(0xFF91DBB5);
+
   static const background = Color(0xFFF7F8FB);
   static const surface = Color(0xFFFFFFFF);
   static const surfaceElevated = Color(0xFFFFFFFF);

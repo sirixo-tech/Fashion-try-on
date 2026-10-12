@@ -236,8 +236,20 @@ void main() {
         addTearDown(harness.dispose);
 
         await harness.session.submitFromCapture(harness.capture);
+        harness.session.toggleGarmentPick(
+          KioskTryOnPick(
+            id: 'catalog-pick',
+            displayName: 'Selected garment',
+            garmentInput: harness.session.garmentInput!,
+          ),
+        );
+        expect(harness.session.garmentPicks, hasLength(1));
         await harness.session.finish(harness.capture);
 
+        expect(harness.session.garmentPicks, isEmpty);
+        expect(harness.session.activeGarmentPickId, isNull);
+        expect(harness.session.pendingGarmentIntent, isNull);
+        expect(harness.session.customerSessionActive, isFalse);
         expect(harness.session.garmentInput, isNull);
         expect(harness.session.run, isNull);
         expect(harness.capture.acceptedCapture, isNull);

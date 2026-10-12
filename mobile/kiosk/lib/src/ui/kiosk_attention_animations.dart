@@ -86,10 +86,16 @@ class _SelfxSuccessIconPulseState extends State<SelfxSuccessIconPulse>
 }
 
 class SelfxActionPulse extends StatefulWidget {
-  const SelfxActionPulse({super.key, required this.child, this.enabled = true});
+  const SelfxActionPulse({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.borderRadius = 8,
+  });
 
   final Widget child;
   final bool enabled;
+  final double borderRadius;
 
   @override
   State<SelfxActionPulse> createState() => _SelfxActionPulseState();
@@ -166,7 +172,7 @@ class _SelfxActionPulseState extends State<SelfxActionPulse>
           scale: _scale.value,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(widget.borderRadius),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFFFF7119).withValues(alpha: _glow.value),

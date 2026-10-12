@@ -918,6 +918,13 @@ Protected route coverage:
     Jewellery Lab is the first integration of this gate. Kiosk integration must
     use the same contract with the existing on-device analysis boundary before
     jewellery provider execution is considered complete for production.
+
+    The customer kiosk jewellery UI now uses item-first phone upload only:
+    both Jewellery menu actions resolve the selected product's requirements
+    before opening the existing device-authorized MODEL upload QR. Result/error
+    photo replacement also returns to phone upload. Existing camera adapters and
+    capture-requirements contracts remain available to other approved channels;
+    this UI change does not change provider routing or Store capability checks.
     Blur, recommended resolution, brightness and contrast are not customer-facing
     jewellery gates: they must not block submission or produce warning prompts.
     Customers may judge the normal preview and retake or upload another photo.

@@ -11,8 +11,10 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
 import 'camera_capture_screen.dart';
+import 'mobile_upload_screen.dart';
 import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
+import 'jewellery_result_preview.dart';
 import 'my_looks_screen.dart';
 import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_action_card.dart';
@@ -52,6 +54,7 @@ class TryOnResultScreen extends StatelessWidget {
                 totalPickCount: tryOnController.garmentPicks.length,
                 saveMyLooksQrEnabled: tryOnController.saveMyLooksQrEnabled,
                 activeTryOnVertical: tryOnController.activeTryOnVertical,
+                jewelleryType: tryOnController.garmentInput?.jewelleryType,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
                 onGetMyLooks: () => _getMyLooks(context),
@@ -115,14 +118,23 @@ class TryOnResultScreen extends StatelessWidget {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => CameraCaptureScreen(
-          controller: captureController,
-          tryOnController: tryOnController,
-          uploadController: uploadController,
-          catalogGateway: catalogGateway,
-          extractionService: extractionService,
-          purpose: PhotoAcquisitionPurpose.model,
-        ),
+        builder: (_) =>
+            tryOnController.activeTryOnVertical == KioskTryOnVertical.jewellery
+            ? MobileUploadScreen(
+                captureController: captureController,
+                tryOnController: tryOnController,
+                uploadController: uploadController,
+                catalogGateway: catalogGateway,
+                extractionService: extractionService,
+              )
+            : CameraCaptureScreen(
+                controller: captureController,
+                tryOnController: tryOnController,
+                uploadController: uploadController,
+                catalogGateway: catalogGateway,
+                extractionService: extractionService,
+                purpose: PhotoAcquisitionPurpose.model,
+              ),
       ),
       (route) => route.isFirst,
     );
@@ -159,6 +171,7 @@ class _ResultPage extends StatelessWidget {
     required this.totalPickCount,
     required this.saveMyLooksQrEnabled,
     required this.activeTryOnVertical,
+    required this.jewelleryType,
     required this.onTryAnotherGarment,
     required this.onRetakePhoto,
     required this.onGetMyLooks,
@@ -172,6 +185,7 @@ class _ResultPage extends StatelessWidget {
   final int totalPickCount;
   final bool saveMyLooksQrEnabled;
   final KioskTryOnVertical activeTryOnVertical;
+  final KioskJewelleryType? jewelleryType;
   final VoidCallback onTryAnotherGarment;
   final VoidCallback onRetakePhoto;
   final VoidCallback onGetMyLooks;
@@ -227,6 +241,11 @@ class _ResultPage extends StatelessWidget {
             (actionRows * actionTileHeight) + ((actionRows - 1) * actionGap);
         final hasUpcomingPick = upcomingPick != null;
         final experience = tryOnExperienceFor(activeTryOnVertical);
+        final resultImage = _ResultImageCard(
+          imageSrc: imageSrc,
+          isJewellery: activeTryOnVertical == KioskTryOnVertical.jewellery,
+          jewelleryType: jewelleryType,
+        );
         final upcomingPreviewHeight = hasUpcomingPick
             ? layout.scaled(82, small: 74, large: 92, extraLarge: 104) +
                   actionGap
@@ -273,12 +292,10 @@ class _ResultPage extends StatelessWidget {
                           if (scroll)
                             SizedBox(
                               height: minimumImageHeight,
-                              child: _ResultImageCard(imageSrc: imageSrc),
+                              child: resultImage,
                             )
                           else
-                            Expanded(
-                              child: _ResultImageCard(imageSrc: imageSrc),
-                            ),
+                            Expanded(child: resultImage),
                           SizedBox(height: actionGap),
                           if (hasUpcomingPick) ...[
                             _UpcomingPickPreview(
@@ -323,10 +340,22 @@ class _ResultPage extends StatelessWidget {
                             ),
                             bottomLeft: SelfxKioskActionCard(
                               key: const Key('result-retake-photo'),
-                              icon: Icons.camera_alt_outlined,
+                              icon:
+                                  activeTryOnVertical ==
+                                      KioskTryOnVertical.jewellery
+                                  ? Icons.file_upload_outlined
+                                  : Icons.camera_alt_outlined,
                               iconColor: _ResultTokens.blue,
-                              label: 'Retake Photo',
-                              subtitle: 'Capture again',
+                              label:
+                                  activeTryOnVertical ==
+                                      KioskTryOnVertical.jewellery
+                                  ? 'Upload Another Photo'
+                                  : 'Retake Photo',
+                              subtitle:
+                                  activeTryOnVertical ==
+                                      KioskTryOnVertical.jewellery
+                                  ? 'Use your phone'
+                                  : 'Capture again',
                               disabledBackgroundColor:
                                   _ResultTokens.retakeSurface,
                               minHeight: actionTileHeight,
@@ -419,9 +448,15 @@ class _ResultHeader extends StatelessWidget {
 }
 
 class _ResultImageCard extends StatelessWidget {
-  const _ResultImageCard({required this.imageSrc});
+  const _ResultImageCard({
+    required this.imageSrc,
+    required this.isJewellery,
+    required this.jewelleryType,
+  });
 
   final String imageSrc;
+  final bool isJewellery;
+  final KioskJewelleryType? jewelleryType;
 
   @override
   Widget build(BuildContext context) {
@@ -441,7 +476,12 @@ class _ResultImageCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         child: ColoredBox(
           color: Colors.white,
-          child: GeneratedTryOnImage(src: imageSrc),
+          child: isJewellery
+              ? JewelleryResultPreview(
+                  src: imageSrc,
+                  jewelleryType: jewelleryType,
+                )
+              : GeneratedTryOnImage(src: imageSrc),
         ),
       ),
     );
