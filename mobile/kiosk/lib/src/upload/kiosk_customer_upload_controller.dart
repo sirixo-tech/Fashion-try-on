@@ -149,6 +149,7 @@ class KioskCustomerUploadController extends ChangeNotifier {
   Future<bool> useReadyPhoto(
     CaptureSessionController captureController, {
     KioskJewelleryCaptureRequirements? jewelleryRequirements,
+    bool Function()? canAcceptPhoto,
   }) async {
     final current = session;
     final photo = current?.photo;
@@ -170,29 +171,42 @@ class KioskCustomerUploadController extends ChangeNotifier {
         readUrl: photo.readUrl,
         targetPath: path,
       );
+      if (canAcceptPhoto?.call() == false) {
+        await captureStore.deleteCapture(path);
+        if (session?.sessionId == current.sessionId) {
+          isBusy = false;
+          notifyListeners();
+        }
+        return false;
+      }
       final accepted = await captureController.acceptMobileUpload(
         originalPath: path,
         width: photo.width,
         height: photo.height,
         jewelleryRequirements: jewelleryRequirements,
+        canAcceptPhoto: canAcceptPhoto,
       );
+      if (canAcceptPhoto?.call() == false) return false;
       if (!accepted.accepted) {
         isBusy = false;
         message = accepted.message ?? 'Photo could not be used.';
         notifyListeners();
         return false;
       }
-      session = await _withDeviceAuth(
+      final consumed = await _withDeviceAuth(
         (token) => gateway.consumeSession(
           accessToken: token,
           sessionId: current.sessionId,
           purpose: PhotoAcquisitionPurpose.model,
         ),
       );
+      if (canAcceptPhoto?.call() == false) return false;
+      session = consumed;
       isBusy = false;
       notifyListeners();
       return true;
     } catch (_) {
+      if (canAcceptPhoto?.call() == false) return false;
       _fail('Photo could not be prepared.');
       return false;
     }

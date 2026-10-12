@@ -31,6 +31,7 @@ class BrowseProductsScreen extends StatefulWidget {
     required this.catalogGateway,
     this.extractionService = const UnavailableGarmentExtractionService(),
     this.productVertical = KioskProductVertical.garment,
+    this.initialProduct,
   });
 
   final CaptureSessionController captureController;
@@ -39,6 +40,7 @@ class BrowseProductsScreen extends StatefulWidget {
   final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
   final KioskProductVertical productVertical;
+  final KioskCatalogProduct? initialProduct;
 
   @override
   State<BrowseProductsScreen> createState() => _BrowseProductsScreenState();
@@ -79,12 +81,14 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
         return product;
       }
     }
+    if (widget.initialProduct?.id == selectedId) return widget.initialProduct;
     return null;
   }
 
   @override
   void initState() {
     super.initState();
+    _selectedProductId = widget.initialProduct?.id;
     widget.tryOnController.addListener(_handleTryOnControllerChanged);
     _catalogRepository?.addListener(_handleCatalogRepositoryChanged);
     unawaited(_load(reset: true));
@@ -182,6 +186,10 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       _categories = const [];
       _selectedProductId = null;
     });
+    final recommendations = widget.tryOnController.recommendations;
+    if (recommendations?.sessionActive == true) {
+      recommendations!.setAudiencePreference(audience);
+    }
     unawaited(_load(reset: true));
   }
 
@@ -202,9 +210,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     }
     if (widget.tryOnController.multiGarmentSelectionEnabled &&
         _experience.supportsMultipleProductSelection) {
-      final changed = widget.tryOnController.toggleGarmentPick(
-        _pickFromProduct(product),
-      );
+      final changed = widget.tryOnController.toggleCatalogProductPick(product);
       if (!changed) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -322,17 +328,6 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  KioskTryOnPick _pickFromProduct(KioskCatalogProduct product) {
-    return KioskTryOnPick(
-      id: product.id,
-      displayName: product.name,
-      displayPrice: product.displayPrice,
-      imageUrl: product.image.url,
-      localImagePath: product.image.localPath,
-      garmentInput: product.toGarmentInput(),
-    );
   }
 
   @override
@@ -508,18 +503,30 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   }
 
   void _openMyPicks(BuildContext context) {
-    unawaited(
-      showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (_) => _MyPicksSheet(
-          tryOnController: widget.tryOnController,
-          productPluralLabel: _productPluralLabel,
-        ),
-      ),
+    showCatalogMyPicks(
+      context,
+      widget.tryOnController,
+      productPluralLabel: _productPluralLabel,
     );
   }
+}
+
+void showCatalogMyPicks(
+  BuildContext context,
+  KioskTryOnSessionController controller, {
+  String productPluralLabel = 'garments',
+}) {
+  unawaited(
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _MyPicksSheet(
+        tryOnController: controller,
+        productPluralLabel: productPluralLabel,
+      ),
+    ),
+  );
 }
 
 class _CatalogFilterBar extends StatelessWidget {

@@ -1950,8 +1950,23 @@ messages. The success icon keeps its bulging animation, and the primary action
 keeps its pulse. Next-step guidance still depends on the selected garment and
 current flow. The primary action is an orange gradient pill, Browse Catalog has
 an orange outline and Retake Photo has a yellow outline. Short portrait windows
-scroll; landscape windows place the photo and actions side by side. This is a
-presentation change only: photo checks, acceptance and navigation are unchanged.
+scroll; landscape windows place the photo and actions side by side. Photo checks
+and existing continuation routes remain.
+
+The Phase 4 recommendation carousel appears after person-photo acceptance on
+camera Review and the phone Ready preview. Valid camera photos are accepted
+locally in place; READY phone person photos use the existing download/validation
+and consumption path once in place. Both keep the same screen and existing
+Take Garment Photo/Continue actions. The compact horizontal cards use cached
+thumbnails, names, prices and existing My Picks limits. A final **Show All** tile
+and an always-visible shortcut open the existing full catalog at **All**, keeping
+the accepted person image, current session, picks and Men/Women tabs. The same
+entry points remain when recommendations are empty or jewellery is uncached.
+Inference does not drive audience selection; only explicit catalog preference
+and mixed/shared catalog metadata are used. No extra screen or confirmation is
+introduced. Session end invalidates stale carousel callbacks and late phone
+photo preparation. Existing jewellery requirements may still require a new
+person photo when the selected capture region changes.
 
 - After garment review and internal CaptureScope resolution, the kiosk shows a
   model/person photo source choice with **Take Photo** and **Use Your Phone**.

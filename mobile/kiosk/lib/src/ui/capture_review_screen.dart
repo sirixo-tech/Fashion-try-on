@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
+import '../catalog/kiosk_catalog_models.dart';
 import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
@@ -16,6 +17,7 @@ import 'camera_capture_screen.dart';
 import 'capture_review_presentation.dart';
 import 'kiosk_attention_animations.dart';
 import 'mobile_upload_screen.dart';
+import 'product_recommendation_carousel.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'try_on_experience_config.dart';
@@ -42,7 +44,7 @@ class CaptureReviewScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: SelfxKioskTokens.reviewBackground,
       body: AnimatedBuilder(
-        animation: controller,
+        animation: Listenable.merge([controller, tryOnController]),
         builder: (context, _) {
           final acceptedPersonPhoto = controller.activeAcceptedPersonPhoto;
           final capture = controller.capture ?? acceptedPersonPhoto?.capture;
@@ -113,6 +115,45 @@ class _ReviewActions extends StatefulWidget {
 
 class _ReviewActionsState extends State<_ReviewActions> {
   bool _busy = false;
+  String? _acceptanceScheduledFor;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleAcceptance();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReviewActions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _scheduleAcceptance();
+  }
+
+  void _scheduleAcceptance() {
+    final service = widget.tryOnController.recommendations;
+    final photo = widget.controller.capture;
+    if (service?.sessionActive != true ||
+        photo == null ||
+        widget.controller.isAnalyzingQuality ||
+        widget.usability?.isUsable != true ||
+        _acceptanceScheduledFor == photo.originalPath ||
+        widget.controller.activeAcceptedPersonPhoto?.image.originalPath ==
+            photo.originalPath) {
+      return;
+    }
+    _acceptanceScheduledFor = photo.originalPath;
+    final revision = service!.sessionRevision;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          service.sessionActive &&
+          service.sessionRevision == revision &&
+          widget.controller.capture == photo &&
+          !widget.controller.isAnalyzingQuality &&
+          widget.usability?.isUsable == true) {
+        unawaited(widget.controller.usePhoto());
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +229,40 @@ class _ReviewActionsState extends State<_ReviewActions> {
               mainAxisAlignment: MainAxisAlignment.center,
             ),
           ] else if (isUsable) ...[
+            if (widget.controller.activeAcceptedPersonPhoto != null &&
+                widget.tryOnController.recommendations != null) ...[
+              ProductRecommendationCarousel(
+                captureController: widget.controller,
+                tryOnController: widget.tryOnController,
+                catalogGateway: widget.catalogGateway,
+                busy: _busy,
+                onShowAll: () =>
+                    unawaited(_runLocked(() => _replaceWithCatalog(context))),
+                onOpenPicks: () =>
+                    showCatalogMyPicks(context, widget.tryOnController),
+                onContinue: () => unawaited(
+                  _runLocked(() => _continueSelectedProductTryOn(context)),
+                ),
+                onSingleProduct: (product) {
+                  if (product.productVertical ==
+                      KioskProductVertical.jewellery) {
+                    unawaited(
+                      _runLocked(
+                        () => _replaceWithCatalog(
+                          context,
+                          initialProduct: product,
+                        ),
+                      ),
+                    );
+                  } else {
+                    widget.tryOnController.selectGarment(
+                      product.toGarmentInput(),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -321,6 +396,22 @@ class _ReviewActionsState extends State<_ReviewActions> {
                         ),
                       ),
                     ),
+                    if (hasSelectedCatalogProduct &&
+                        experience.supportsPhysicalProductCapture &&
+                        widget.tryOnController.recommendations != null) ...[
+                      const SizedBox(height: 12),
+                      SelfxKioskButton(
+                        key: const Key('take-garment-photo'),
+                        onPressed: _busy
+                            ? null
+                            : () => unawaited(
+                                _runLocked(() => _openGarmentCamera(context)),
+                              ),
+                        icon: Icons.camera_alt_outlined,
+                        label: 'Take Garment Photo',
+                        variant: SelfxKioskButtonVariant.secondary,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -374,7 +465,10 @@ class _ReviewActionsState extends State<_ReviewActions> {
   }
 
   Future<bool> _acceptModelPhoto(BuildContext context) async {
-    if (widget.usingAcceptedPersonPhoto) {
+    if (widget.usingAcceptedPersonPhoto ||
+        (widget.controller.activeAcceptedPersonPhoto != null &&
+            widget.controller.activeAcceptedPersonPhoto?.image.originalPath ==
+                widget.controller.capture?.originalPath)) {
       return true;
     }
 
@@ -427,7 +521,10 @@ class _ReviewActionsState extends State<_ReviewActions> {
     await _replaceWithCatalog(context);
   }
 
-  Future<void> _replaceWithCatalog(BuildContext context) async {
+  Future<void> _replaceWithCatalog(
+    BuildContext context, {
+    KioskCatalogProduct? initialProduct,
+  }) async {
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => BrowseProductsScreen(
@@ -436,6 +533,7 @@ class _ReviewActionsState extends State<_ReviewActions> {
           uploadController: widget.uploadController,
           catalogGateway: widget.catalogGateway,
           extractionService: widget.extractionService,
+          initialProduct: initialProduct,
           productVertical: tryOnExperienceFor(
             widget.tryOnController.activeTryOnVertical,
           ).productVertical,

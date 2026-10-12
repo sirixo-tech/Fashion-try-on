@@ -8,6 +8,8 @@ import '../camera/camera_models.dart';
 import '../camera/camera_orientation.dart';
 import '../camera/camera_service.dart';
 import '../config/kiosk_runtime_configuration.dart';
+import '../inference/accepted_person_image_analysis.dart';
+import '../inference/person_image_analysis_controller.dart';
 import '../live/capture_readiness_engine.dart';
 import '../live/frame_analysis_scheduler.dart';
 import '../live/live_frame.dart';
@@ -32,11 +34,13 @@ class CaptureSessionController extends ChangeNotifier {
     CaptureAudioService? audioService,
     LiveFrameAnalyzer? liveFrameAnalyzer,
     ModelCoverageAnalyzer? modelCoverageAnalyzer,
+    AcceptedPersonImageAnalyzer? personImageAnalyzer,
     this.readinessConfig = const CaptureReadinessConfig(),
     this.schedulerConfig = const FrameAnalysisSchedulerConfig(),
     this.liveReadinessEnabled = false,
     Duration? countdownTickDuration,
   }) : audioService = audioService ?? AssetCaptureAudioService(),
+       personImageAnalysis = PersonImageAnalysisController(personImageAnalyzer),
        liveFrameAnalyzer =
            liveFrameAnalyzer ??
            LiveFrameAnalyzer(
@@ -55,6 +59,7 @@ class CaptureSessionController extends ChangeNotifier {
   final CaptureAudioService audioService;
   final LiveFrameAnalyzer liveFrameAnalyzer;
   final ModelCoverageAnalyzer modelCoverageAnalyzer;
+  final PersonImageAnalysisController personImageAnalysis;
   final CaptureReadinessConfig readinessConfig;
   final FrameAnalysisSchedulerConfig schedulerConfig;
   final bool liveReadinessEnabled;
@@ -464,6 +469,7 @@ class CaptureSessionController extends ChangeNotifier {
   }
 
   Future<void> retake() async {
+    personImageAnalysis.clear();
     await _stopLiveReadiness();
     _cancelCountdownTimer();
     _captureRunId++;
@@ -536,9 +542,14 @@ class CaptureSessionController extends ChangeNotifier {
     acceptedModelCoverage = personPhoto.coverage;
     acceptedModelCoverageAnalysis = personPhoto.coverageAnalysis;
     acceptedCaptureTargetMetadata = personPhoto.targetMetadata;
+    personImageAnalysis.acceptImage(
+      personPhoto.image.originalPath,
+      createdAt: personPhoto.image.createdAt,
+    );
   }
 
   void _clearAcceptedPersonPhoto() {
+    personImageAnalysis.clear();
     acceptedPersonPhoto = null;
     acceptedCapture = null;
     acceptedPersonImage = null;
@@ -592,6 +603,7 @@ class CaptureSessionController extends ChangeNotifier {
     required int width,
     required int height,
     KioskJewelleryCaptureRequirements? jewelleryRequirements,
+    bool Function()? canAcceptPhoto,
   }) async {
     final runId = ++_captureRunId;
     final activeJewelleryRequirements =
@@ -658,7 +670,7 @@ class CaptureSessionController extends ChangeNotifier {
     final coverageAnalysis = await modelCoverageAnalyzer.analyze(
       File(originalPath),
     );
-    if (!_isActiveRun(runId)) {
+    if (!_isActiveRun(runId) || canAcceptPhoto?.call() == false) {
       return const CaptureUsePhotoResult.rejected();
     }
     pendingModelCoverageAnalysis = coverageAnalysis;
@@ -715,6 +727,7 @@ class CaptureSessionController extends ChangeNotifier {
   }
 
   Future<void> resetSession() async {
+    personImageAnalysis.clear();
     await _stopLiveReadiness();
     _cancelCountdownTimer();
     _captureRunId++;
@@ -1084,6 +1097,7 @@ class CaptureSessionController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    personImageAnalysis.dispose();
     _cancelCountdownTimer();
     unawaited(_stopLiveReadiness());
     analyzer.dispose();

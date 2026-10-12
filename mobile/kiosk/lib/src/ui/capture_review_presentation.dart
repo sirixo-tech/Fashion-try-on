@@ -67,7 +67,7 @@ class CaptureReviewPresentation extends StatelessWidget {
                 child: actions,
               ),
             );
-            if (portrait && constraints.maxHeight < 720) {
+            if (portrait && constraints.maxHeight < 1050) {
               return SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(padding, 0, padding, 24),
                 child: Column(

@@ -58,6 +58,9 @@ kiosk-device credentials rather than staff or Store membership credentials.
 
 ## Local commands
 
+Optional offline object-classification infrastructure and hardware smoke-check
+instructions: [Offline image inference](docs/offline-image-inference.md).
+
 ```powershell
 flutter pub get
 dart format --output=none --set-exit-if-changed lib test
