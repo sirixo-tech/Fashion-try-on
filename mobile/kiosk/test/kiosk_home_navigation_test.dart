@@ -98,9 +98,14 @@ void main() {
     );
   }
 
-  for (final resultScreen in [false, true]) {
+  for (final (resultScreen, phoneSource) in [
+    (false, false),
+    (true, false),
+    (false, true),
+    (true, true),
+  ]) {
     testWidgets(
-      'jewellery photo replacement from ${resultScreen ? 'result' : 'generation error'} keeps the item and opens phone upload',
+      'jewellery photo replacement from ${resultScreen ? 'result' : 'generation error'} keeps the item and opens ${phoneSource ? 'phone upload' : 'live capture'}',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(630, 1365);
@@ -157,6 +162,13 @@ void main() {
         );
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+        if (phoneSource) {
+          await capture.acceptMobileUpload(
+            originalPath: 'uploaded-person.jpg',
+            width: 1024,
+            height: 1536,
+          );
+        }
         final replacement = find.byKey(
           Key(resultScreen ? 'result-retake-photo' : 'try-on-retake-photo'),
         );
@@ -164,8 +176,14 @@ void main() {
         await tester.tap(replacement);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
-        expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
-        expect(find.byKey(const Key('capture-photo')), findsNothing);
+        expect(
+          find.byKey(const Key('mobile-upload-qr')),
+          phoneSource ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byKey(const Key('capture-photo')),
+          phoneSource ? findsNothing : findsOneWidget,
+        );
         expect(tryOn.garmentInput?.productId, 'ring-1');
         expect(tryOn.jewelleryCaptureRequirements?.productId, 'ring-1');
         await tester.pumpWidget(const SizedBox.shrink());
@@ -177,92 +195,102 @@ void main() {
     'start-jewellery-try-on',
     'upload-jewellery-from-mobile-start',
   ]) {
-    testWidgets(
-      '$entry resolves the item before phone upload without opening the camera',
-      (tester) async {
-        tester.view.devicePixelRatio = 1;
-        tester.view.physicalSize = const Size(630, 1365);
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        final capture = fixtures.testController();
-        final tryOn = KioskTryOnSessionController(
-          gateway: fixtures.FakeKioskTryOnGateway(),
-        );
-        final uploads = fixtures.testUploadController(capture.captureStore);
-        final device = KioskDeviceSessionController(
-          gateway: fixtures.FakeKioskDeviceGateway(),
-          store: fixtures.InMemoryKioskDeviceCredentialStore(),
-        );
-        final config = KioskRuntimeConfigurationController(
-          gateway: fixtures.FakeKioskDeviceGateway(),
-          deviceController: device,
-          cache: fixtures.InMemoryKioskRuntimeConfigurationCache(),
-        );
-        addTearDown(() {
-          uploads.dispose();
-          tryOn.dispose();
-          capture.dispose();
-          config.dispose();
-          device.dispose();
-        });
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: buildSelfxKioskTheme(),
-            home: KioskHomeScreen(
-              controller: capture,
-              tryOnController: tryOn,
-              uploadController: uploads,
-              operatorAccessController: fixtures.testOperatorAccessController(),
-              configurationController: config,
-              catalogGateway: fixtures.FakeKioskCatalogGateway(
-                products: [
-                  fixtures.testCatalogProduct(
-                    id: 'ring-1',
-                    name: 'Golden ring',
-                    productVertical: KioskProductVertical.jewellery,
-                    jewelleryType: KioskJewelleryType.ring,
-                  ),
-                ],
-              ),
+    testWidgets('$entry follows its distinct jewellery acquisition route', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(630, 1365);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final capture = fixtures.testController();
+      final tryOn = KioskTryOnSessionController(
+        gateway: fixtures.FakeKioskTryOnGateway(),
+      );
+      final uploads = fixtures.testUploadController(capture.captureStore);
+      final device = KioskDeviceSessionController(
+        gateway: fixtures.FakeKioskDeviceGateway(),
+        store: fixtures.InMemoryKioskDeviceCredentialStore(),
+      );
+      final config = KioskRuntimeConfigurationController(
+        gateway: fixtures.FakeKioskDeviceGateway(),
+        deviceController: device,
+        cache: fixtures.InMemoryKioskRuntimeConfigurationCache(),
+      );
+      addTearDown(() {
+        uploads.dispose();
+        tryOn.dispose();
+        capture.dispose();
+        config.dispose();
+        device.dispose();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildSelfxKioskTheme(),
+          home: KioskHomeScreen(
+            controller: capture,
+            tryOnController: tryOn,
+            uploadController: uploads,
+            operatorAccessController: fixtures.testOperatorAccessController(),
+            configurationController: config,
+            catalogGateway: fixtures.FakeKioskCatalogGateway(
+              products: [
+                fixtures.testCatalogProduct(
+                  id: 'ring-1',
+                  name: 'Golden ring',
+                  productVertical: KioskProductVertical.jewellery,
+                  jewelleryType: KioskJewelleryType.ring,
+                ),
+              ],
             ),
           ),
-        );
-        await tester.tap(find.byKey(const Key('home-jewellery-category')));
-        await tester.pumpAndSettle();
-        expect(tryOn.customerSessionActive, isFalse);
-        await tester.tap(find.byKey(Key(entry)));
-        await tester.pumpAndSettle();
-        expect(find.byKey(const Key('mobile-upload-qr')), findsNothing);
-        await tester.tap(find.byKey(const Key('customer-consent-ok')));
-        await tester.pumpAndSettle();
-        expect(find.text('Choose Jewellery'), findsOneWidget);
-        expect(uploads.session, isNull);
-        await tester.tap(find.text('Golden ring'));
-        await tester.pump();
-        await tester.tap(find.byKey(const Key('continue-selected-product')));
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.tap(find.byKey(const Key('home-jewellery-category')));
+      await tester.pumpAndSettle();
+      expect(tryOn.customerSessionActive, isFalse);
+      await tester.tap(find.byKey(Key(entry)));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('mobile-upload-qr')), findsNothing);
+      await tester.tap(find.byKey(const Key('customer-consent-ok')));
+      await tester.pumpAndSettle();
+      if (entry == 'upload-jewellery-from-mobile-start') {
         expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
-        expect(find.byKey(const Key('capture-photo')), findsNothing);
-        expect(tryOn.garmentInput?.productId, 'ring-1');
-        expect(
-          tryOn.jewelleryCaptureRequirements?.jewelleryType,
-          KioskJewelleryType.ring,
-        );
-        expect(
-          find.text('Keep your hand open and visible inside the guide.'),
-          findsOneWidget,
-        );
-        await tester.ensureVisible(
-          find.byKey(const Key('cancel-mobile-upload')),
-        );
+        expect(find.text('Choose Jewellery'), findsNothing);
+        expect(tryOn.garmentInput, isNull);
         await tester.tap(find.byKey(const Key('cancel-mobile-upload')));
         await tester.pumpAndSettle();
-        expect(find.text('Choose Jewellery'), findsOneWidget);
+        expect(
+          find.byKey(const Key('home-jewellery-category')),
+          findsOneWidget,
+        );
         expect(uploads.hasActivePoller, isFalse);
-        expect(find.byKey(const Key('capture-photo')), findsNothing);
         await tester.pumpWidget(const SizedBox.shrink());
-      },
-    );
+        return;
+      }
+      expect(find.text('Choose Jewellery'), findsOneWidget);
+      expect(uploads.session, isNull);
+      await tester.tap(find.text('Golden ring'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('continue-selected-product')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('mobile-upload-qr')), findsNothing);
+      expect(find.byKey(const Key('capture-photo')), findsOneWidget);
+      expect(tryOn.garmentInput?.productId, 'ring-1');
+      expect(
+        tryOn.jewelleryCaptureRequirements?.jewelleryType,
+        KioskJewelleryType.ring,
+      );
+      expect(
+        find.text('Keep your hand open and visible inside the guide.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('camera-back')));
+      await tester.pumpAndSettle();
+      expect(find.text('Choose Jewellery'), findsOneWidget);
+      expect(uploads.hasActivePoller, isFalse);
+      expect(find.byKey(const Key('capture-photo')), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   }
 
   for (final size in [

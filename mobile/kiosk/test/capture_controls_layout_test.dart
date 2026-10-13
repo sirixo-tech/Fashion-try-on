@@ -69,6 +69,10 @@ void main() {
         );
         expect(button.style!.backgroundColor!.resolve({}), Colors.transparent);
         expect(button.style!.foregroundColor!.resolve({}), Colors.white);
+        final label = tester.widget<Text>(
+          find.descendant(of: key, matching: find.byType(Text)).first,
+        );
+        expect(label.style!.color, Colors.white);
         expect(
           button.style!.side!.resolve({})!.color,
           Colors.white.withValues(alpha: 0.95),

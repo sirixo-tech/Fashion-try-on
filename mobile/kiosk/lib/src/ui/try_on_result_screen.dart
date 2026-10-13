@@ -99,6 +99,9 @@ class TryOnResultScreen extends StatelessWidget {
                 saveMyLooksQrEnabled: tryOnController.saveMyLooksQrEnabled,
                 activeTryOnVertical: tryOnController.activeTryOnVertical,
                 jewelleryType: tryOnController.garmentInput?.jewelleryType,
+                retakeFromPhone:
+                    captureController.activeAcceptedPersonPhoto?.image.source ==
+                    CustomerPersonImageSource.mobileUpload,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
                 onGetMyLooks: () => _getMyLooks(context),
@@ -191,14 +194,17 @@ class TryOnResultScreen extends StatelessWidget {
   }
 
   Future<void> _retakePhoto(BuildContext context) async {
+    final jewelleryPhonePhoto =
+        tryOnController.activeTryOnVertical == KioskTryOnVertical.jewellery &&
+        captureController.activeAcceptedPersonPhoto?.image.source ==
+            CustomerPersonImageSource.mobileUpload;
     await tryOnController.retakePhoto(captureController);
     if (!context.mounted) {
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            tryOnController.activeTryOnVertical == KioskTryOnVertical.jewellery
+        builder: (_) => jewelleryPhonePhoto
             ? MobileUploadScreen(
                 captureController: captureController,
                 tryOnController: tryOnController,
@@ -251,6 +257,7 @@ class _ResultPage extends StatelessWidget {
     required this.saveMyLooksQrEnabled,
     required this.activeTryOnVertical,
     required this.jewelleryType,
+    this.retakeFromPhone = false,
     required this.onTryAnotherGarment,
     required this.onRetakePhoto,
     required this.onGetMyLooks,
@@ -266,6 +273,7 @@ class _ResultPage extends StatelessWidget {
   final bool saveMyLooksQrEnabled;
   final KioskTryOnVertical activeTryOnVertical;
   final KioskJewelleryType? jewelleryType;
+  final bool retakeFromPhone;
   final VoidCallback onTryAnotherGarment;
   final VoidCallback onRetakePhoto;
   final VoidCallback onGetMyLooks;
@@ -466,9 +474,7 @@ class _ResultPage extends StatelessWidget {
                               ),
                               bottomLeft: SelfxKioskActionCard(
                                 key: const Key('result-retake-photo'),
-                                icon:
-                                    activeTryOnVertical ==
-                                        KioskTryOnVertical.jewellery
+                                icon: retakeFromPhone
                                     ? Icons.file_upload_outlined
                                     : Icons.camera_alt_outlined,
                                 iconColor: _ResultTokens.blue,
@@ -478,14 +484,10 @@ class _ResultPage extends StatelessWidget {
                                 ),
                                 maxLabelLines: 2,
                                 maxSubtitleLines: 2,
-                                label:
-                                    activeTryOnVertical ==
-                                        KioskTryOnVertical.jewellery
+                                label: retakeFromPhone
                                     ? 'Upload Another Photo'
                                     : 'Retake Photo',
-                                subtitle:
-                                    activeTryOnVertical ==
-                                        KioskTryOnVertical.jewellery
+                                subtitle: retakeFromPhone
                                     ? 'Use your phone'
                                     : 'Capture a new photo',
                                 disabledBackgroundColor:

@@ -1717,7 +1717,7 @@ void main() {
       expect(captureController.flowState.stage, CaptureFlowStage.preview);
       expect(captureController.activeAcceptedPersonPhoto, isNotNull);
       expect(find.byKey(const Key('take-garment-photo')), findsOneWidget);
-      expect(find.byKey(const Key('browse-catalog')), findsOneWidget);
+      expect(find.byKey(const Key('retake-photo')), findsOneWidget);
       expect(find.byKey(const Key('capture-photo')), findsNothing);
     });
 

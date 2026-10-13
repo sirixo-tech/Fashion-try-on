@@ -1296,7 +1296,7 @@ Important fields:
 - `sound_profile` (`SELFX_SIGNATURE`, `SOFT`, `STUDIO`, `MINIMAL`, `MUTED`)
 - `guidance_audio_enabled`
 - `enabled_garment_intents` (`TOP`, `BOTTOM`, `FULL_OUTFIT`)
-- `session_idle_timeout_seconds`
+- `session_idle_timeout_seconds` (default 120 for new rows; saved values retained)
 - `updated_by_user_id`
 - `created_at`
 - `updated_at`

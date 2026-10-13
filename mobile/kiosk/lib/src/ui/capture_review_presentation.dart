@@ -31,10 +31,11 @@ class CaptureReviewPresentation extends StatelessWidget {
             if (prioritizePhoto) {
               final height = constraints.maxHeight;
               final headerHeight = math.max(48.0, height * 0.1);
-              // Short windows need a readable footer; tall kiosks use 10/70/20.
+              // The instruction is inside the status panel. Give its former
+              // separate row (28 logical pixels) to the image preview.
               final footerHeight = math.max(
-                constraints.maxWidth < 420 ? 260.0 : 208.0,
-                height * 0.2,
+                constraints.maxWidth < 420 ? 232.0 : 180.0,
+                height * 0.2 - 28,
               );
               final photoHeight = math.max(
                 210.0,

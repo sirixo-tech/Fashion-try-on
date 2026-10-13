@@ -1220,7 +1220,22 @@ Editable fields:
 - capture sounds enabled and sound profile;
 - guidance audio enabled;
 - enabled customer garment intent categories: Top, Bottom, Full Outfit;
-- session idle timeout.
+- session idle timeout (default 120 seconds).
+
+During an active customer session, every Flutter customer screen shares the
+inactivity guard, including catalog, camera, preview, QR upload, processing and
+results. With the default timeout, 90 seconds without touch/scroll activity
+opens a centered warning over the current page with a black 52% dimming layer.
+The warning matches the consent popup: white card, 24-pixel rounded corners,
+dark heading, orange timer icon and orange remaining-seconds text, with no
+action buttons. Copy is **No activity detected**, **Returning to the home screen
+in**, a countdown starting at **30 seconds**, and **Tap anywhere to continue.**
+The countdown updates each second. A tap anywhere dismisses the warning and
+restarts the entire idle timeout without activating a control underneath.
+At expiry the existing upload cancellation, customer-session cleanup and return
+to the start screen run once. No warning appears on an inactive start screen.
+Saved timeout settings remain valid (30-900 seconds); their warning uses the
+final 30 seconds. Changing the default does not overwrite saved configuration.
 
 States:
 
@@ -1758,31 +1773,31 @@ the picks sheet and moving between capture, catalog and results preserve picks.
 **Finish** or returning to the landing screen clears all picks and the active
 pick, including returns after intermediate screens have been replaced.
 
-For Jewellery, selecting a product requests its person-photo requirements from
-SelfX and then opens the phone-upload QR screen. Ring, bracelet, necklace and
-earring products may use different target-region instructions. Both jewellery
-menu actions use this item-first, phone-upload flow and keep the selected item
-and active Try-On session. Kiosk jewellery camera capture is not exposed.
+For Jewellery, **Browse Jewellery** opens the catalog. Selecting a product and
+pressing Continue requests its person-photo requirements from SelfX and opens
+live person capture. **Upload From Mobile** opens the QR immediately; the
+uploaded-photo preview offers **Choose Jewellery**, followed by catalog
+selection and validation against the selected item's requirements. An unsuitable
+uploaded photo returns to phone upload with item-specific guidance. Ring,
+bracelet, necklace and earring products use different target-region instructions.
 Earring guidance asks for the face and at least one visible ear so side-facing
 photos can proceed; it does not require both ears to be visible.
 
-The Flutter kiosk implements this as a single-selection flow: jewellery catalog
--> selected-product photo requirements -> phone-upload QR with type-specific
-guidance -> photo preview -> Continue -> generation. Choosing a
-different jewellery item from Preview discards the current close-up because the
-next product may require a different body region. These guides are framing aids,
-not claims of live region detection.
+The catalog-first path is single-selection: jewellery catalog -> selected-product
+requirements -> live camera (or Mobile Upload) -> photo preview -> Continue ->
+generation. These guides are framing aids, not claims of live region detection.
+Upload-first acquisition preserves the original accepted photo and rechecks it
+against the chosen item before generation. No jewellery product photo capture
+is requested.
 
-The jewellery phone-upload branch reuses the garment QR layout, preview sizing
-and shared buttons. Its QR and phone page show the selected jewellery type's
-person-photo framing guidance. The ready preview offers **Continue** and
-**Upload Again**. Continue attaches the uploaded person photo to the active
-session and goes directly to jewellery generation, without opening garment
-capture or garment catalog. Retry, expiry and cancellation preserve the selected
-jewellery; cancellation returns to jewellery selection. Jewellery result and
-generation-error photo replacement use **Upload Another Photo** and return to
-phone upload, without opening the kiosk camera. The Garments menu's mobile
-upload retains its existing person-photo handoff.
+Jewellery reuses the garment QR and photo-focused preview presentation, solid
+orange primary buttons and outlined camera Back/Flip controls. Jewellery
+categories use item-specific icons with the existing active highlighting.
+An uploaded preview shows **Upload Again** on the left and **Continue** (selected
+item) or **Choose Jewellery** (upload-first) on the right. A live preview shows
+**Retake Photo** and **Continue**. Retry, expiry and cancellation preserve the
+selected jewellery. Result/error photo replacement preserves camera versus
+phone input. Garment screens, styling and navigation remain unchanged.
 
 Person-image preflight shows only two outcomes:
 
@@ -2026,8 +2041,9 @@ lighting or subjective image-quality warnings.
 ### KIOSK-4C Mobile Photo Upload UI
 
 The accepted garment-person preview shares one layout for camera Review and
-phone Ready: target 10% of safe screen height for SelfX branding/back, 70% for
-the rounded photo preview and 20% for dynamic status and touch actions. Short
+phone Ready: start with 10% of safe screen height for SelfX branding/back, 70%
+for the rounded photo preview and 20% for status and touch actions, then give
+28 logical pixels from the removed instruction row to the photo preview. Short
 windows reserve readable minimum header/footer heights and can scroll instead
 of clipping controls. The photo remains visible without a carousel or dimming.
 The preview's top-left Back control uses a dark arrow and visible **Back** label
@@ -2035,17 +2051,18 @@ on a light grey rounded rectangle, matching the result screen. Branding stays
 centered with space reserved to prevent overlap on narrow screens. Its existing
 retake/cancel/navigation action is unchanged for camera and phone previews.
 
-The pale green success panel retains varying per-photo wording and the bulging
-success-icon animation. Its title and dynamic message are centered within the
-whole panel, with balanced space beside the icon. Checking and invalid-photo
-messages remain dynamic.
+The pale green success panel shows **You're Ready!** and the next-step
+instruction directly beneath it, centered within the whole panel with balanced
+space beside a static green tick. Random per-photo success subtext is removed.
+The instruction no longer occupies a separate row beneath the success panel.
+Checking and invalid-photo messages retain their existing behavior.
 
 Retake Photo sits on the left and the next-step action on the right. When a
 catalog garment is selected, **Continue** uses the existing accepted-person
 attachment and generation path with that selected product and preserves My
 Picks. Without a selected garment, Virtual Try-On keeps **Take Garment Photo**
-and the existing physical garment capture flow. The enabled next-step button
-subtly pulses, stopping while disabled or busy. The button stays solid orange
+and the existing physical garment capture flow. Only the enabled **Continue**
+button subtly pulses, stopping while disabled or busy. The button stays solid orange
 (#FF7119) with white text/icon; Retake stays white with a gold outline.
 Invalid captures still offer Retake and Upload Photo.
 
@@ -2062,6 +2079,14 @@ path. Busy locks prevent repeated submissions; the try-on controller's customer
 session revision and photo identity invalidate stale acceptance callbacks.
 Retake/upload-again clear the reusable backend person-asset reference, and
 failed phone attachment keeps the accepted preview available for retry.
+When Back reveals a retained camera route, it restores preview mode and the
+original capture purpose while preserving accepted person data and selected
+products. Hidden camera routes ignore shared capture-review notifications.
+Phone upload's visible Back and system Back use the same cancellation path for
+garments and jewellery: invalidate pending acceptance, finish in-flight photo
+preparation and stop upload polling before returning. Next-step actions remain
+disabled during cancellation; late upload work cannot disable the resumed
+camera controls.
 
 - After garment review and internal CaptureScope resolution, the kiosk shows a
   model/person photo source choice with **Take Photo** and **Use Your Phone**.

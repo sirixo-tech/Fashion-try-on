@@ -157,7 +157,9 @@ class _ReviewActionsState extends State<_ReviewActions> {
   Widget build(BuildContext context) {
     final overlayDesign =
         widget.tryOnController.activeTryOnVertical ==
-        KioskTryOnVertical.garment;
+            KioskTryOnVertical.garment ||
+        widget.tryOnController.activeTryOnVertical ==
+            KioskTryOnVertical.jewellery;
     final hasSelectedCatalogProduct =
         widget.tryOnController.garmentInput?.isCatalogProduct == true;
     final usable =
@@ -172,14 +174,17 @@ class _ReviewActionsState extends State<_ReviewActions> {
               status: PersonPhotoStatus(
                 isLoading: widget.controller.isAnalyzingQuality,
                 result: widget.usability,
+                instruction: usable
+                    ? hasSelectedCatalogProduct
+                          ? widget.tryOnController.activeTryOnVertical ==
+                                    KioskTryOnVertical.jewellery
+                                ? jewelleryTryOnExperience.reviewInstruction
+                                : 'Your photo is ready for this garment.'
+                          : tryOnExperienceFor(
+                              widget.tryOnController.activeTryOnVertical,
+                            ).reviewInstruction
+                    : null,
               ),
-              instruction: usable
-                  ? hasSelectedCatalogProduct
-                        ? 'Your photo is ready for this garment.'
-                        : tryOnExperienceFor(
-                            widget.tryOnController.activeTryOnVertical,
-                          ).reviewInstruction
-                  : null,
               busy: _busy,
               catalogProductSelected: hasSelectedCatalogProduct,
               onContinue: !usable || _busy || !hasSelectedCatalogProduct

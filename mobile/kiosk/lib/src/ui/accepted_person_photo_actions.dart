@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../session/capture_session_controller.dart';
 import 'kiosk_attention_animations.dart';
@@ -13,22 +12,26 @@ class AcceptedPersonPhotoActions extends StatelessWidget {
     required this.status,
     required this.onTakeGarmentPhoto,
     required this.onRetake,
-    this.instruction,
     this.busy = false,
     this.retakeLabel = 'Retake Photo',
     this.onUploadPhoto,
     this.catalogProductSelected = false,
     this.onContinue,
+    this.continueLabel = 'Continue',
+    this.continueKey = const Key('continue-selected-product-try-on'),
+    this.retakeKey = const Key('retake-photo'),
   });
   final Widget status;
   final VoidCallback? onTakeGarmentPhoto;
   final VoidCallback? onRetake;
-  final String? instruction;
   final bool busy;
   final String retakeLabel;
   final VoidCallback? onUploadPhoto;
   final bool catalogProductSelected;
   final VoidCallback? onContinue;
+  final String continueLabel;
+  final Key continueKey;
+  final Key retakeKey;
 
   @override
   Widget build(BuildContext context) {
@@ -48,23 +51,12 @@ class AcceptedPersonPhotoActions extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           status,
-          if (instruction != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Text(
-                instruction!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: SelfxKioskTokens.textSecondary,
-                ),
-              ),
-            ),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: SelfxKioskButton(
-                  key: const Key('retake-photo'),
+                  key: retakeKey,
                   onPressed: onRetake,
                   label: retakeLabel,
                   icon: Icons.replay,
@@ -87,15 +79,15 @@ class AcceptedPersonPhotoActions extends StatelessWidget {
                   enabled:
                       !busy &&
                       onUploadPhoto == null &&
-                      (catalogProductSelected
-                          ? onContinue != null
-                          : onTakeGarmentPhoto != null),
+                      catalogProductSelected &&
+                      continueLabel == 'Continue' &&
+                      onContinue != null,
                   borderRadius: 24,
                   child: SelfxKioskButton(
                     key: onUploadPhoto != null
                         ? const Key('upload-model-photo')
                         : catalogProductSelected
-                        ? const Key('continue-selected-product-try-on')
+                        ? continueKey
                         : const Key('take-garment-photo'),
                     onPressed:
                         onUploadPhoto ??
@@ -107,7 +99,7 @@ class AcceptedPersonPhotoActions extends StatelessWidget {
                         : onUploadPhoto != null
                         ? 'Upload Photo'
                         : catalogProductSelected
-                        ? 'Continue'
+                        ? continueLabel
                         : 'Take Garment Photo',
                     icon: onUploadPhoto != null
                         ? Icons.file_upload_outlined
@@ -134,54 +126,22 @@ class AcceptedPersonPhotoActions extends StatelessWidget {
   }
 }
 
-class PersonPhotoStatus extends StatefulWidget {
+class PersonPhotoStatus extends StatelessWidget {
   const PersonPhotoStatus({
     super.key,
     required this.isLoading,
     required this.result,
+    this.instruction,
   });
 
   final bool isLoading;
   final ImageUsabilityResult? result;
-
-  @override
-  State<PersonPhotoStatus> createState() => _PersonPhotoStatusState();
-}
-
-class _PersonPhotoStatusState extends State<PersonPhotoStatus> {
-  static final math.Random _random = math.Random();
-
-  _SuccessReviewMessage? _successMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _syncSuccessMessage();
-  }
-
-  @override
-  void didUpdateWidget(covariant PersonPhotoStatus oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.result?.isUsable != oldWidget.result?.isUsable ||
-        widget.result?.message != oldWidget.result?.message) {
-      _syncSuccessMessage();
-    }
-  }
-
-  void _syncSuccessMessage() {
-    final result = widget.result;
-    if (result?.isUsable != true) {
-      _successMessage = null;
-      return;
-    }
-    _successMessage =
-        _successReviewMessages[_random.nextInt(_successReviewMessages.length)];
-  }
+  final String? instruction;
 
   @override
   Widget build(BuildContext context) {
-    final result = widget.result;
-    final isSuccess = !widget.isLoading && result?.isUsable == true;
+    final result = this.result;
+    final isSuccess = !isLoading && result?.isUsable == true;
     const successColor = SelfxKioskTokens.reviewSuccess;
     return Semantics(
       liveRegion: true,
@@ -204,7 +164,7 @@ class _PersonPhotoStatusState extends State<PersonPhotoStatus> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.isLoading)
+              if (isLoading)
                 const Row(
                   children: [
                     SizedBox(
@@ -224,15 +184,12 @@ class _PersonPhotoStatusState extends State<PersonPhotoStatus> {
                   icon: result.isUsable
                       ? Icons.check_rounded
                       : Icons.error_outline,
-                  animateIcon: result.isUsable,
                   backgroundColor: result.isUsable
                       ? successColor
                       : const Color(0xFFC53030),
                   iconColor: Colors.white,
                   textColor: SelfxKioskTokens.textPrimary,
-                  text: result.isUsable
-                      ? _successMessage?.text ?? result.message
-                      : result.message,
+                  text: result.isUsable ? instruction : result.message,
                 ),
             ],
           ),
@@ -242,29 +199,9 @@ class _PersonPhotoStatusState extends State<PersonPhotoStatus> {
   }
 }
 
-class _SuccessReviewMessage {
-  const _SuccessReviewMessage({required this.text});
-
-  final String text;
-}
-
-const _successReviewMessages = [
-  _SuccessReviewMessage(text: 'Perfect capture - you\'re looking great!'),
-  _SuccessReviewMessage(text: 'Great photo - you\'re ready to shine!'),
-  _SuccessReviewMessage(text: 'Photo confirmed - looking sharp!'),
-  _SuccessReviewMessage(text: 'Excellent capture - you look amazing!'),
-  _SuccessReviewMessage(text: 'Picture looks perfect - so do you!'),
-  _SuccessReviewMessage(text: 'Great shot - you\'re all set!'),
-  _SuccessReviewMessage(text: 'Capture approved - looking fantastic!'),
-  _SuccessReviewMessage(text: 'Perfect shot - looking your best!'),
-  _SuccessReviewMessage(text: 'Photo is spot on - you\'re looking great!'),
-  _SuccessReviewMessage(text: 'Great capture - ready for your new look!'),
-];
-
 class _UsabilityLine extends StatelessWidget {
   const _UsabilityLine({
     required this.icon,
-    this.animateIcon = false,
     required this.backgroundColor,
     required this.iconColor,
     required this.textColor,
@@ -273,11 +210,10 @@ class _UsabilityLine extends StatelessWidget {
   });
 
   final IconData icon;
-  final bool animateIcon;
   final Color backgroundColor;
   final Color iconColor;
   final Color textColor;
-  final String text;
+  final String? text;
   final String? title;
 
   @override
@@ -288,25 +224,20 @@ class _UsabilityLine extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (animateIcon)
-            SelfxSuccessIconPulse(
-              icon: icon,
-              backgroundColor: backgroundColor,
-              iconColor: iconColor,
-              iconSize: 26,
-              padding: const EdgeInsets.all(9),
-            )
-          else
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                shape: BoxShape.circle,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(5),
-                child: Icon(icon, size: 18, color: iconColor),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              shape: BoxShape.circle,
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(title != null ? 9 : 5),
+              child: Icon(
+                icon,
+                size: title != null ? 26 : 18,
+                color: iconColor,
               ),
             ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -329,26 +260,27 @@ class _UsabilityLine extends StatelessWidget {
                           : 22,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  if (text != null) const SizedBox(height: 4),
                 ],
-                Text(
-                  text,
-                  key: const Key('person-photo-status-message'),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: title != null
-                        ? SelfxKioskTokens.textSecondary
-                        : textColor,
-                    fontWeight: title != null
-                        ? FontWeight.w600
-                        : FontWeight.w900,
+                if (text != null)
+                  Text(
+                    text!,
+                    key: const Key('person-photo-status-message'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: title != null
+                          ? SelfxKioskTokens.textSecondary
+                          : textColor,
+                      fontWeight: title != null
+                          ? FontWeight.w600
+                          : FontWeight.w900,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
           // Balance the icon and gap so text centers within the entire panel.
-          SizedBox(width: (animateIcon ? 44 : 28) + 12),
+          SizedBox(width: (title != null ? 44 : 28) + 12),
         ],
       ),
     );

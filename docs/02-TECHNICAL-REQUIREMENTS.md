@@ -919,12 +919,13 @@ Protected route coverage:
     use the same contract with the existing on-device analysis boundary before
     jewellery provider execution is considered complete for production.
 
-    The customer kiosk jewellery UI now uses item-first phone upload only:
-    both Jewellery menu actions resolve the selected product's requirements
-    before opening the existing device-authorized MODEL upload QR. Result/error
-    photo replacement also returns to phone upload. Existing camera adapters and
-    capture-requirements contracts remain available to other approved channels;
-    this UI change does not change provider routing or Store capability checks.
+    The customer kiosk jewellery UI has distinct acquisition paths: Browse
+    Jewellery resolves the selected product's requirements before live person
+    capture; Mobile Upload opens the device-authorized MODEL QR immediately and
+    continues through preview to jewellery selection. Upload-first photos are
+    rechecked against the selected product's requirements before reuse. Result
+    and error photo replacement preserve the photo source (camera or phone).
+    This UI change does not change provider routing or Store capability checks.
     Blur, recommended resolution, brightness and contrast are not customer-facing
     jewellery gates: they must not block submission or produce warning prompts.
     Customers may judge the normal preview and retake or upload another photo.
@@ -1834,6 +1835,11 @@ Protected route coverage:
      ordered presentation image/video references, capture countdown, capture
      sound settings, guidance-audio flag, enabled garment intents and session
      idle timeout;
+   - default customer-session idle timeout is 120 seconds in the Flutter fallback,
+     API fallback and database default. Saved configuration is preserved. The
+     Flutter app-level guard shows a modal warning during the final 30 seconds,
+     computes remaining time from the idle deadline, consumes the resuming touch
+     and cancels warning/expiry timers on reset, session end or disposal;
    - the bundled SelfX default video is the version `1` local/offline
      presentation for newly connected kiosks until a Store-assigned kiosk has a
      Store-managed presentation playlist;

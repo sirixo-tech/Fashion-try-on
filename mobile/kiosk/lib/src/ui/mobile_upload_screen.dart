@@ -98,18 +98,23 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   Future<void> _cancelUpload() => _cancellation ??= _finishCancellation();
 
   Future<void> _finishCancellation() async {
+    final revision = widget.tryOnController.customerSessionRevision;
     // A late session-creation response must not restart polling after exit.
     await _sessionCreation;
+    // Invalidate acceptance via _leaving first, then finish pending preparation
+    // before revealing the camera. It must not update capture state afterward.
+    await _preparingModelPhoto;
     await widget.uploadController.cancel();
     if (widget.purpose == PhotoAcquisitionPurpose.model &&
+        revision == widget.tryOnController.customerSessionRevision &&
         _preparedModelSessionId != null) {
       await widget.tryOnController.retakePhoto(widget.captureController);
     }
   }
 
   Future<void> _cancelAndReturn() async {
-    if (_continuing || _leaving) return;
-    _leaving = true;
+    if (!mounted || _continuing || _leaving) return;
+    setState(() => _leaving = true);
     await _cancelUpload();
     if (mounted && ModalRoute.of(context)?.isCurrent == true) {
       Navigator.of(context).pop();
@@ -119,9 +124,14 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope<void>(
-      canPop: !_continuing,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop && _isJewelleryPersonUpload) unawaited(_cancelUpload());
+        if (!didPop) {
+          unawaited(_cancelAndReturn());
+        } else if (!_leaving) {
+          _leaving = true;
+          unawaited(_cancelUpload());
+        }
       },
       child: AnimatedBuilder(
         animation: Listenable.merge([
@@ -139,13 +149,58 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
               ? session
               : null;
           final person = widget.captureController.activeAcceptedPersonPhoto;
+          final jewelleryPreviewPath =
+              person?.image.originalPath ??
+              widget.captureController.capture?.originalPath;
+          if (ready != null &&
+              _isJewelleryPersonUpload &&
+              jewelleryPreviewPath != null &&
+              _autoAttemptedSessionId == ready.sessionId) {
+            final busy =
+                _leaving || _continuing || _preparingModelPhoto != null;
+            final selected =
+                widget.tryOnController.garmentInput?.isCatalogProduct == true;
+            final usable =
+                _preparedModelSessionId == ready.sessionId && person != null;
+            return Scaffold(
+              backgroundColor: SelfxKioskTokens.reviewBackground,
+              body: CaptureReviewPresentation(
+                imagePath: jewelleryPreviewPath,
+                prioritizePhoto: true,
+                onBack: busy ? () {} : _cancelAndReturn,
+                actions: AcceptedPersonPhotoActions(
+                  status: PersonPhotoStatus(
+                    isLoading: _preparingModelPhoto != null,
+                    result: widget.captureController.imageUsabilityResult,
+                    instruction: usable
+                        ? selected
+                              ? jewelleryTryOnExperience.reviewInstruction
+                              : 'Choose jewellery to try on with your photo.'
+                        : null,
+                  ),
+                  busy: busy,
+                  retakeLabel: 'Upload Again',
+                  retakeKey: const Key('upload-another-photo'),
+                  catalogProductSelected: true,
+                  continueLabel: selected ? 'Continue' : 'Choose Jewellery',
+                  continueKey: const Key('use-mobile-photo'),
+                  onContinue: busy || !usable
+                      ? null
+                      : () => unawaited(_useReadyUpload()),
+                  onTakeGarmentPhoto: null,
+                  onRetake: busy ? null : () => unawaited(_uploadAgain()),
+                ),
+              ),
+            );
+          }
           if (ready != null &&
               person != null &&
               widget.purpose == PhotoAcquisitionPurpose.model &&
               _preparedModelSessionId == ready.sessionId &&
               widget.tryOnController.activeTryOnVertical ==
                   KioskTryOnVertical.garment) {
-            final busy = _continuing || _preparingModelPhoto != null;
+            final busy =
+                _leaving || _continuing || _preparingModelPhoto != null;
             return Scaffold(
               backgroundColor: SelfxKioskTokens.reviewBackground,
               body: CaptureReviewPresentation(
@@ -158,12 +213,12 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
                     result:
                         widget.captureController.imageUsabilityResult ??
                         const ImageUsabilityResult.usable('Photo looks good!'),
+                    instruction: _isSelectedCatalogGarmentPersonUpload
+                        ? 'Your photo is ready for this garment.'
+                        : tryOnExperienceFor(
+                            KioskTryOnVertical.garment,
+                          ).reviewInstruction,
                   ),
-                  instruction: _isSelectedCatalogGarmentPersonUpload
-                      ? 'Your photo is ready for this garment.'
-                      : tryOnExperienceFor(
-                          KioskTryOnVertical.garment,
-                        ).reviewInstruction,
                   busy: busy,
                   retakeLabel: 'Retake Photo',
                   catalogProductSelected: _isSelectedCatalogGarmentPersonUpload,
@@ -185,7 +240,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
               controller: widget.uploadController,
               session: ready,
               purpose: widget.purpose,
-              busy: _continuing || _preparingModelPhoto != null,
+              busy: _leaving || _continuing || _preparingModelPhoto != null,
               jewelleryPersonUpload: _isJewelleryPersonUpload,
               selectedCatalogGarmentPersonUpload:
                   _isSelectedCatalogGarmentPersonUpload,
@@ -230,6 +285,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   }
 
   Future<void> _uploadAgain() async {
+    if (_leaving || _continuing) return;
     _leaving = true;
     await _preparingModelPhoto;
     if (widget.purpose == PhotoAcquisitionPurpose.model &&
@@ -245,8 +301,13 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   }
 
   Future<void> _useReadyUpload() async {
+    if (_leaving) return;
     if (_isJewelleryPersonUpload) {
       if (!await _acceptReadyModelUpload() || !mounted) {
+        return;
+      }
+      if (widget.tryOnController.garmentInput?.isCatalogProduct != true) {
+        await _replaceWithCatalog();
         return;
       }
       await Navigator.of(context).pushReplacement(
@@ -368,6 +429,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
           catalogGateway: widget.catalogGateway,
           extractionService: widget.extractionService,
           initialProduct: initialProduct,
+          preferJewelleryPhoneUpload: _isJewelleryPersonUpload,
           productVertical:
               widget.tryOnController.activeTryOnVertical ==
                   KioskTryOnVertical.jewellery
@@ -379,7 +441,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   }
 
   Future<bool> _acceptReadyModelUpload() async {
-    if (_continuing) {
+    if (_continuing || _leaving) {
       return false;
     }
     setState(() {
@@ -426,7 +488,6 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   void _scheduleModelAcceptance(KioskCustomerUploadSession? session) {
     if (_leaving ||
         widget.purpose != PhotoAcquisitionPurpose.model ||
-        _isJewelleryPersonUpload ||
         !widget.tryOnController.customerSessionActive ||
         session?.status != KioskCustomerUploadStatus.ready ||
         session?.photo == null ||

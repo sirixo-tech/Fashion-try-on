@@ -590,14 +590,14 @@ Customer history remains usable without violating the 7-day image-retention poli
 ### Main Flow
 
 1. Customer chooses the **Try On Jewellery** category on the kiosk landing screen.
-2. Customer chooses **Browse Jewellery** or **Upload From Mobile**, then filters
-   and selects a jewellery product. Neither action requests a photo before
-   product selection.
+2. Customer chooses **Browse Jewellery**, then filters and selects an item, or
+   **Upload From Mobile**, which opens the QR immediately and then offers
+   jewellery selection after the uploaded-photo preview.
 3. SelfX resolves the product's configured jewellery type and returns the
    matching person-photo requirements.
-4. Kiosk customers scan the phone-upload QR and supply a photo on their phone;
-   kiosk jewellery does not expose camera capture. Supported web/mobile
-   customers may take or upload a photo through their respective channels.
+4. Browse customers take a live kiosk photo with the selected item's guide.
+   They may alternatively use Mobile Upload from capture. Upload-first
+   customers reuse their photo after validation against the selected item.
 5. The capture/upload UI uses the returned body-region guide and instructions.
 6. SelfX validates the person image against the selected jewellery requirements.
 7. A suitable image opens Preview and can proceed to generation.
@@ -608,7 +608,8 @@ Customer history remains usable without violating the 7-day image-retention poli
 
 ### Rules
 
-- Product selection occurs before person-image acquisition.
+- Product selection precedes live capture; upload-first photos must be checked
+  against the selected item before generation.
 - Customers do not select or override jewellery type.
 - Provider execution does not begin until person-image preflight succeeds.
 - Detailed quality metrics remain internal.

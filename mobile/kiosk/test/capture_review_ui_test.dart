@@ -5,7 +5,6 @@ import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/capture_review_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_attention_animations.dart';
-import 'package:selfx_kiosk/src/ui/selfx_kiosk_action_card.dart';
 import 'package:selfx_kiosk/src/ui/selfx_kiosk_button.dart';
 
 import 'kiosk_camera_foundation_test.dart' as fixtures;
@@ -19,7 +18,7 @@ void main() {
     const Size(800, 480),
   ]) {
     testWidgets(
-      'capture review keeps dynamic states and pulsing icon at $size',
+      'capture review keeps corrective messages and a static success tick at $size',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = size;
@@ -86,25 +85,28 @@ void main() {
           find.text('Now, show the garment to the camera.'),
           findsOneWidget,
         );
-        expect(find.byType(SelfxSuccessIconPulse), findsOneWidget);
+        expect(find.byType(SelfxSuccessIconPulse), findsNothing);
         expect(find.byType(SelfxActionPulse), findsOneWidget);
-        final pulseFinder = find.descendant(
-          of: find.byType(SelfxSuccessIconPulse),
-          matching: find.byType(ScaleTransition),
-        );
-        final scale = tester.widget<ScaleTransition>(pulseFinder).scale.value;
-        await tester.pump(const Duration(milliseconds: 200));
         expect(
-          tester.widget<ScaleTransition>(pulseFinder).scale.value,
-          isNot(scale),
+          find.descendant(
+            of: find.byKey(const Key('capture-review-status')),
+            matching: find.text('Now, show the garment to the camera.'),
+          ),
+          findsOneWidget,
         );
-        final catalog = tester.widget<SelfxKioskActionCard>(
-          find.byKey(const Key('browse-catalog')),
+        expect(find.text('Photo accepted'), findsNothing);
+        final pulse = tester.widget<SelfxActionPulse>(
+          find.byType(SelfxActionPulse),
         );
-        final retake = tester.widget<SelfxKioskActionCard>(
+        expect(pulse.enabled, isFalse);
+        final tick = find.byIcon(Icons.check_rounded);
+        final tickRect = tester.getRect(tick);
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(tester.getRect(tick), tickRect);
+        final retake = tester.widget<SelfxKioskButton>(
           find.byKey(const Key('retake-photo')),
         );
-        expect(catalog.borderColor, SelfxKioskTokens.primary);
+        expect(find.byKey(const Key('browse-catalog')), findsNothing);
         expect(retake.borderColor, SelfxKioskTokens.homeGold);
         await tester.ensureVisible(find.byKey(const Key('retake-photo')));
         await tester.pump(const Duration(milliseconds: 100));
@@ -157,6 +159,23 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('take-garment-photo')), findsNothing);
+      expect(find.byType(SelfxSuccessIconPulse), findsNothing);
+      final pulse = tester.widget<SelfxActionPulse>(
+        find.byType(SelfxActionPulse),
+      );
+      expect(pulse.enabled, isTrue);
+      final scaleFinder = find
+          .descendant(
+            of: find.byType(SelfxActionPulse),
+            matching: find.byType(Transform),
+          )
+          .first;
+      final scale = tester.widget<Transform>(scaleFinder).transform.storage[0];
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        tester.widget<Transform>(scaleFinder).transform.storage[0],
+        isNot(scale),
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

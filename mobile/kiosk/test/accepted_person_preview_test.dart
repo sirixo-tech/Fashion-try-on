@@ -203,7 +203,7 @@ void main() {
                 find.byKey(const Key('accepted-person-next-step-pulse')),
               )
               .enabled,
-          isTrue,
+          selectedCatalogProduct,
         );
         if (selectedCatalogProduct) {
           expect(find.byKey(const Key('take-garment-photo')), findsNothing);
@@ -320,7 +320,7 @@ void main() {
           expect(tester.widget<Text>(text).textAlign, TextAlign.center);
         }
         if (size.height >= 1000) {
-          expect(preview.height, closeTo(size.height * 0.7, 1));
+          expect(preview.height, closeTo(size.height * 0.7 + 28, 1));
           expect(
             tester
                 .getSize(find.byKey(const Key('accepted-photo-header')))
@@ -331,7 +331,7 @@ void main() {
             tester
                 .getSize(find.byKey(const Key('accepted-photo-footer')))
                 .height,
-            closeTo(size.height * 0.2, 1),
+            closeTo(size.height * 0.2 - 28, 1),
           );
         }
         final garmentButton = tester.widget<SelfxKioskButton>(

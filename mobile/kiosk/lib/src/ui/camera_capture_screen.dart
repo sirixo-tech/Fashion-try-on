@@ -55,6 +55,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   bool _switchingCamera = false;
   bool _handlingBack = false;
   String? _reviewCapturePath;
+  ModalRoute<void>? _route;
+  bool? _routeWasCurrent;
+
+  bool get _isCurrent => mounted && (_route?.isCurrent ?? true);
 
   @override
   void initState() {
@@ -68,6 +72,37 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
       _syncJewelleryCaptureRequirements();
       unawaited(_start());
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of<void>(context);
+    final current = ModalRoute.isCurrentOf(context) ?? true;
+    final returning = current && _routeWasCurrent == false;
+    _routeWasCurrent = current;
+    if (returning) {
+      final revision = widget.tryOnController.customerSessionRevision;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!_isCurrent ||
+            revision != widget.tryOnController.customerSessionRevision) {
+          return;
+        }
+        // Popping a review/result/upload can reveal this retained camera route.
+        // Restore only pending capture state; keep the accepted person and picks.
+        if (widget.controller.flowState.stage != CaptureFlowStage.preview ||
+            widget.controller.capturePurpose != widget.purpose) {
+          await widget.controller.discardPendingCapture();
+          if (!_isCurrent ||
+              revision != widget.tryOnController.customerSessionRevision) {
+            return;
+          }
+          widget.controller.selectCapturePurpose(widget.purpose);
+          _syncJewelleryCaptureRequirements();
+        }
+        _reviewCapturePath = null;
+      });
+    }
   }
 
   @override
@@ -185,7 +220,8 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                   child: CaptureGuidancePanel(
                     mobileUploadAvailable: mobileUploadAvailable,
                     garmentStyle:
-                        widget.purpose == PhotoAcquisitionPurpose.garment,
+                        widget.purpose == PhotoAcquisitionPurpose.garment ||
+                        jewelleryRequirements != null,
                     state: cameraState,
                     flowState: flowState,
                     readinessResult: widget.controller.readinessResult,
@@ -282,23 +318,28 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   }
 
   Future<void> _uploadPersonPhotoFromMobile() async {
-    if (_openingMobileUpload) return;
+    if (_openingMobileUpload || !_isCurrent) return;
     _openingMobileUpload = true;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MobileUploadScreen(
-          captureController: widget.controller,
-          tryOnController: widget.tryOnController,
-          uploadController: widget.uploadController,
-          catalogGateway: widget.catalogGateway,
-          extractionService: widget.extractionService,
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MobileUploadScreen(
+            captureController: widget.controller,
+            tryOnController: widget.tryOnController,
+            uploadController: widget.uploadController,
+            catalogGateway: widget.catalogGateway,
+            extractionService: widget.extractionService,
+          ),
         ),
-      ),
-    );
-    _openingMobileUpload = false;
+      );
+    } finally {
+      _openingMobileUpload = false;
+    }
   }
 
   void _handleControllerChanged() {
+    // Shared capture notifications also arrive while another route is on top.
+    if (!_isCurrent) return;
     final flowState = widget.controller.flowState;
     final capturePath = widget.controller.capture?.originalPath;
     if (flowState.stage == CaptureFlowStage.review &&
@@ -306,7 +347,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
         _reviewCapturePath != capturePath) {
       _reviewCapturePath = capturePath;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) {
+        if (!_isCurrent ||
+            widget.controller.flowState.stage != CaptureFlowStage.review ||
+            widget.controller.capture?.originalPath != capturePath) {
           return;
         }
         final route = _routeForCapturedPhoto(capturePath);
@@ -665,10 +708,10 @@ class _FramingGuidePainter extends CustomPainter {
         purpose == PhotoAcquisitionPurpose.garment && jewelleryGuide == null;
     final cornerPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = garmentFrame ? 6 : 5
+      ..strokeWidth = garmentFrame || jewelleryGuide != null ? 6 : 5
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..color = garmentFrame
+      ..color = garmentFrame || jewelleryGuide != null
           ? Colors.white
           : SelfxKioskTokens.primary.withValues(alpha: 0.92);
 
@@ -2061,6 +2104,9 @@ class _CameraRailButton extends StatelessWidget {
                   Text(
                     label,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: enabled
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.42),
                       fontWeight: FontWeight.w900,
                     ),
                   ),

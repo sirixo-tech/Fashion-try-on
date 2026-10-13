@@ -48,6 +48,7 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     ]);
     expect(configuration.experience.multiGarmentSelectionEnabled).toBe(true);
     expect(configuration.experience.maxTryOnPicks).toBe(5);
+    expect(configuration.experience.sessionIdleTimeoutSeconds).toBe(120);
   });
 
   it("lets a superadmin read and update kiosk configuration", async () => {

@@ -210,18 +210,6 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                       ),
                     ),
                   ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      key: const Key('result-retake-photo'),
-                      tooltip: 'Retake Photo',
-                      onPressed: disabled
-                          ? null
-                          : () => unawaited(_run(widget.onRetake)),
-                      color: const Color(0xFF2384D6),
-                      icon: const Icon(Icons.camera_alt_outlined),
-                    ),
-                  ),
                 ],
               ),
             ),

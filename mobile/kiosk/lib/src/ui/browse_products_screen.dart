@@ -8,10 +8,12 @@ import '../catalog/kiosk_catalog_gateway.dart';
 import '../catalog/kiosk_catalog_models.dart';
 import '../catalog/kiosk_catalog_repository.dart';
 import '../session/capture_session_controller.dart';
+import '../quality/image_quality.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
+import '../tryon/jewellery_person_preflight.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'catalog_filter_icon.dart';
@@ -33,6 +35,7 @@ class BrowseProductsScreen extends StatefulWidget {
     this.extractionService = const UnavailableGarmentExtractionService(),
     this.productVertical = KioskProductVertical.garment,
     this.initialProduct,
+    this.preferJewelleryPhoneUpload = false,
   });
 
   final CaptureSessionController captureController;
@@ -42,6 +45,7 @@ class BrowseProductsScreen extends StatefulWidget {
   final GarmentExtractionService extractionService;
   final KioskProductVertical productVertical;
   final KioskCatalogProduct? initialProduct;
+  final bool preferJewelleryPhoneUpload;
 
   @override
   State<BrowseProductsScreen> createState() => _BrowseProductsScreenState();
@@ -298,25 +302,78 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
   }
 
   Future<void> _continueWithJewellery(KioskCatalogProduct product) async {
+    final revision = widget.tryOnController.customerSessionRevision;
     final requirements = await widget.catalogGateway
         .getJewelleryCaptureRequirements(product.id);
-    if (!mounted) {
+    if (!mounted ||
+        revision != widget.tryOnController.customerSessionRevision ||
+        ModalRoute.of(context)?.isCurrent != true) {
       return;
     }
     widget.tryOnController.selectJewelleryProduct(
       product.toGarmentInput(),
       requirements,
     );
+    final capture = widget.captureController;
+    final person = capture.activeAcceptedPersonPhoto;
+    final uploaded =
+        person?.image.source == CustomerPersonImageSource.mobileUpload;
+    var reuseUploadedPhoto = false;
+    if (uploaded) {
+      // Upload-first customers choose an item after the QR handoff. Recheck
+      // the actual photo against that item's trusted requirements before reuse.
+      final quality = await capture.analyzer
+          .analyzeStillImage(
+            person!.image.originalPath,
+            ImageQualityTarget.person,
+          )
+          .catchError((_) => createUnavailableImageQualityResult());
+      final preflight = evaluateJewelleryPersonPreflight(
+        requirements: requirements,
+        quality: quality,
+        coverageAnalysis: person.coverageAnalysis,
+      );
+      reuseUploadedPhoto = !quality.isBlocked && preflight.canProceed;
+      if (!mounted ||
+          revision != widget.tryOnController.customerSessionRevision ||
+          ModalRoute.of(context)?.isCurrent != true ||
+          !identical(capture.activeAcceptedPersonPhoto, person)) {
+        return;
+      }
+      if (!reuseUploadedPhoto) {
+        _showSelectionError(
+          preflight.message ??
+              'Please upload another photo for this jewellery item.',
+        );
+      }
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MobileUploadScreen(
-          captureController: widget.captureController,
-          tryOnController: widget.tryOnController,
-          uploadController: widget.uploadController,
-          catalogGateway: widget.catalogGateway,
-          extractionService: widget.extractionService,
-          purpose: PhotoAcquisitionPurpose.model,
-        ),
+        builder: (_) => reuseUploadedPhoto
+            ? TryOnGenerationScreen(
+                captureController: capture,
+                tryOnController: widget.tryOnController,
+                uploadController: widget.uploadController,
+                catalogGateway: widget.catalogGateway,
+                extractionService: widget.extractionService,
+              )
+            : uploaded || widget.preferJewelleryPhoneUpload
+            ? MobileUploadScreen(
+                captureController: widget.captureController,
+                tryOnController: widget.tryOnController,
+                uploadController: widget.uploadController,
+                catalogGateway: widget.catalogGateway,
+                extractionService: widget.extractionService,
+                purpose: PhotoAcquisitionPurpose.model,
+              )
+            : CameraCaptureScreen(
+                controller: capture,
+                tryOnController: widget.tryOnController,
+                uploadController: widget.uploadController,
+                catalogGateway: widget.catalogGateway,
+                extractionService: widget.extractionService,
+                purpose: PhotoAcquisitionPurpose.model,
+              ),
       ),
     );
   }
@@ -335,7 +392,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
     return KioskScaffold(
       title: 'Catalog',
       subtitle: _experience.vertical == KioskTryOnVertical.jewellery
-          ? 'Choose jewellery, then upload your photo from your phone'
+          ? 'Choose jewellery, then take your photo'
           : 'Browse products',
       showBrandHeader: false,
       background: const ColoredBox(color: SelfxKioskTokens.surface),
@@ -479,6 +536,7 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
             _SelectedProductAction(
               product: _selectedProduct,
               productLabel: _productLabel,
+              jewellery: _experience.vertical == KioskTryOnVertical.jewellery,
               multiSelectEnabled: multiSelectEnabled,
               pickCount: pickCount,
               maxPickCount: maxPickCount,
@@ -931,6 +989,7 @@ class _SelectedProductAction extends StatelessWidget {
   const _SelectedProductAction({
     required this.product,
     required this.productLabel,
+    this.jewellery = false,
     required this.multiSelectEnabled,
     required this.pickCount,
     required this.maxPickCount,
@@ -942,6 +1001,7 @@ class _SelectedProductAction extends StatelessWidget {
 
   final KioskCatalogProduct? product;
   final String productLabel;
+  final bool jewellery;
   final bool multiSelectEnabled;
   final int pickCount;
   final int maxPickCount;
@@ -1073,6 +1133,8 @@ class _SelectedProductAction extends StatelessWidget {
                   : null,
               label: continuing ? 'Starting' : 'Continue',
               variant: SelfxKioskButtonVariant.primary,
+              backgroundColor: jewellery ? SelfxKioskTokens.primary : null,
+              foregroundColor: jewellery ? Colors.white : null,
               minHeight: 58,
               textAlign: TextAlign.center,
               mainAxisAlignment: MainAxisAlignment.center,

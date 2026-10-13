@@ -109,7 +109,17 @@ void main() {
 
     expect(harness.controller.configuration.version, 1);
     expect(harness.controller.statusLabel, 'Bundled defaults');
+    expect(harness.controller.configuration.sessionIdleTimeoutSeconds, 120);
     expect(harness.gateway.configurationCalls, 0);
+  });
+
+  test('missing remote idle timeout falls back to 120 seconds', () {
+    expect(
+      KioskRuntimeConfiguration.fromJson({
+        'version': 1,
+      }).sessionIdleTimeoutSeconds,
+      120,
+    );
   });
 
   test('loads a valid cached configuration while offline', () async {

@@ -201,8 +201,10 @@ class KioskHomeMenuButton extends StatelessWidget {
           radius: compact ? 24 : 32,
           color: mobile
               ? Colors.white
+              : jewellery && browse
+              ? SelfxKioskTokens.primary
               : SelfxKioskTokens.homeDark.withValues(alpha: 0.82),
-          gradient: browse
+          gradient: browse && !jewellery
               ? const LinearGradient(
                   begin: Alignment.bottomLeft,
                   end: Alignment.topRight,

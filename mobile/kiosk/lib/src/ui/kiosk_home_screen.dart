@@ -320,7 +320,9 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
     }
   }
 
-  Future<void> _uploadFromMobile() async {
+  Future<void> _uploadFromMobile({
+    KioskTryOnVertical vertical = KioskTryOnVertical.garment,
+  }) async {
     if (_startingTryOn || _startingMobileUpload || _returningHome) {
       return;
     }
@@ -333,7 +335,7 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
       setState(() => _startingMobileUpload = false);
       return;
     }
-    final started = await _prepareCustomerSession();
+    final started = await _prepareCustomerSession(vertical: vertical);
     if (!mounted) {
       return;
     }
@@ -641,7 +643,10 @@ class _KioskHomeScreenState extends State<KioskHomeScreen> {
                                   onVirtualTryOn: _startTryOn,
                                   onUploadGarmentPhoto: _uploadFromMobile,
                                   onBrowseJewellery: _startJewelleryTryOn,
-                                  onUploadJewelleryPhoto: _startJewelleryTryOn,
+                                  onUploadJewelleryPhoto: () =>
+                                      _uploadFromMobile(
+                                        vertical: KioskTryOnVertical.jewellery,
+                                      ),
                                 ),
                               );
                               return SingleChildScrollView(

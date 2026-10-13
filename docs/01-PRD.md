@@ -790,8 +790,10 @@ jewellery capture guidance, validation expectations and provider adapter route.
 SelfX must not rely on provider-side image guessing as the authoritative
 jewellery type.
 
-Jewellery customer flows must select the jewellery product before requesting a
-person image. SelfX resolves the selected product's trusted jewellery type and
+Jewellery catalog-first customer flows select the jewellery product before
+live person capture. The kiosk Mobile Upload action may acquire a photo first,
+then require jewellery selection and validate the photo before generation.
+SelfX resolves the selected product's trusted jewellery type and
 returns the corresponding person-image framing, guidance, permitted input
 methods and validation expectations. Customers must not choose or override the
 technical jewellery type during this flow.
@@ -812,9 +814,10 @@ and jewellery Try-On by default. Their customer start screen presents two
 category cards: **Browse Garments** and **Try On Jewellery**, subject to Store
 capabilities. Selecting a card transitions to its action menu. Garments offers
 **Browse Garments**, **Virtual Try-On** and **Upload From Mobile**. Jewellery
-offers **Browse Jewellery** and **Upload From Mobile**, with no kiosk camera
-capture option. Both jewellery actions select a catalog item before requesting
-the customer photo through phone upload, so type-specific guidance is available.
+offers **Browse Jewellery** and **Upload From Mobile**. Browse opens the catalog
+and then live person capture with item-specific guidance. Upload opens the QR
+immediately, then the photo preview and jewellery selection. Uploaded photos are
+checked against the selected item's requirements before generation.
 
 ---
 

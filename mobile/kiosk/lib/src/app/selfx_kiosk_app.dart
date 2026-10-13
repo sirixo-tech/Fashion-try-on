@@ -27,6 +27,7 @@ import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../tryon/model_coverage_analyzer.dart';
 import '../ui/kiosk_startup_screen.dart';
+import '../ui/kiosk_inactivity_warning.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_gateway.dart';
 
@@ -185,6 +186,7 @@ class KioskCustomerSessionIdleGuard extends StatefulWidget {
     required this.configurationController,
     required this.child,
     this.timeoutOverride,
+    this.now,
   });
 
   final GlobalKey<NavigatorState> navigatorKey;
@@ -194,6 +196,7 @@ class KioskCustomerSessionIdleGuard extends StatefulWidget {
   final KioskRuntimeConfigurationController configurationController;
   final Widget child;
   final Duration? timeoutOverride;
+  final DateTime Function()? now;
 
   @override
   State<KioskCustomerSessionIdleGuard> createState() =>
@@ -203,6 +206,11 @@ class KioskCustomerSessionIdleGuard extends StatefulWidget {
 class _KioskCustomerSessionIdleGuardState
     extends State<KioskCustomerSessionIdleGuard> {
   Timer? _idleTimer;
+  Timer? _warningTimer;
+  Timer? _warningTicker;
+  int? _remainingSeconds;
+  DateTime? _idleDeadline;
+  int? _trackedSessionRevision;
   bool _endingSession = false;
   bool _trackingSession = false;
 
@@ -226,19 +234,24 @@ class _KioskCustomerSessionIdleGuardState
   @override
   void dispose() {
     widget.tryOnController.removeListener(_syncTimer);
-    _idleTimer?.cancel();
+    _cancelTimers();
     super.dispose();
   }
 
   void _syncTimer() {
-    if (!widget.tryOnController.customerSessionActive || _endingSession) {
-      _idleTimer?.cancel();
-      _idleTimer = null;
+    if (_endingSession) return;
+    if (!widget.tryOnController.customerSessionActive) {
+      _cancelTimers();
+      _hideWarning();
       _trackingSession = false;
+      _trackedSessionRevision = null;
       return;
     }
-    if (!_trackingSession) {
+    if (!_trackingSession ||
+        _trackedSessionRevision !=
+            widget.tryOnController.customerSessionRevision) {
       _trackingSession = true;
+      _trackedSessionRevision = widget.tryOnController.customerSessionRevision;
       _restartTimer();
     }
   }
@@ -251,10 +264,54 @@ class _KioskCustomerSessionIdleGuardState
   }
 
   void _restartTimer() {
-    _idleTimer?.cancel();
-    _idleTimer = Timer(_timeout, () {
+    _cancelTimers();
+    _hideWarning();
+    final timeout = _timeout;
+    _idleDeadline = (widget.now?.call() ?? DateTime.now()).add(timeout);
+    final warningWindow = timeout < const Duration(seconds: 30)
+        ? timeout
+        : const Duration(seconds: 30);
+    _warningTimer = Timer(timeout - warningWindow, () {
+      if (!mounted ||
+          !widget.tryOnController.customerSessionActive ||
+          _endingSession) {
+        return;
+      }
+      _updateRemainingTime();
+      _warningTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted || _endingSession) return;
+        _updateRemainingTime();
+      });
+    });
+    _idleTimer = Timer(timeout, () {
       unawaited(_endIdleSession());
     });
+  }
+
+  void _updateRemainingTime() {
+    final remaining =
+        (_idleDeadline!
+                    .difference(widget.now?.call() ?? DateTime.now())
+                    .inMilliseconds /
+                1000)
+            .ceil()
+            .clamp(0, 30);
+    setState(() => _remainingSeconds = remaining);
+  }
+
+  void _cancelTimers() {
+    _idleTimer?.cancel();
+    _warningTimer?.cancel();
+    _warningTicker?.cancel();
+    _idleTimer = null;
+    _warningTimer = null;
+    _warningTicker = null;
+  }
+
+  void _hideWarning() {
+    if (_remainingSeconds != null && mounted) {
+      setState(() => _remainingSeconds = null);
+    }
   }
 
   Duration get _timeout =>
@@ -273,18 +330,25 @@ class _KioskCustomerSessionIdleGuardState
       return;
     }
     _endingSession = true;
-    _idleTimer?.cancel();
-    _idleTimer = null;
+    _cancelTimers();
+    if (mounted) setState(() => _remainingSeconds = 0);
+    final revision = widget.tryOnController.customerSessionRevision;
     try {
       await widget.uploadController.cancel();
+      if (!mounted ||
+          revision != widget.tryOnController.customerSessionRevision) {
+        return;
+      }
       await widget.tryOnController.finish(
         widget.captureController,
         reason: KioskTryOnSessionCompletionReason.idleTimeout,
       );
-      widget.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      if (mounted) {
+        widget.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      }
     } finally {
       _endingSession = false;
-      _syncTimer();
+      if (mounted) _syncTimer();
     }
   }
 
@@ -295,7 +359,34 @@ class _KioskCustomerSessionIdleGuardState
       onPointerDown: (_) => _recordActivity(),
       onPointerMove: (_) => _recordActivity(),
       onPointerSignal: (_) => _recordActivity(),
-      child: widget.child,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          widget.child,
+          if (_remainingSeconds != null)
+            Positioned.fill(
+              child: BlockSemantics(
+                child: Semantics(
+                  liveRegion: true,
+                  onTap: _endingSession ? null : _recordActivity,
+                  child: AbsorbPointer(
+                    // Consume the dismissing touch so it cannot activate a
+                    // capture/product button on the page underneath.
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ColoredBox(color: Colors.black.withValues(alpha: 0.52)),
+                        KioskInactivityWarning(
+                          remainingSeconds: _remainingSeconds!,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -1701,11 +1701,11 @@ server-side because Perfect Corp accepts JPEG/PNG for these routes.
 - two-stage Flutter customer landing menu with orange/gold category cards,
   animated category-to-action transitions, reference-style action colors and
   capability-aware choices (implemented)
-- jewellery-first Flutter kiosk routing from single product selection to the
-  authenticated photo-requirements endpoint, type-specific phone-upload QR,
-  preview and generation continuation; result/error photo replacement stays on
-  phone upload and customer kiosk jewellery camera capture is not exposed
-  (implemented)
+- jewellery Flutter kiosk routing: catalog selection resolves authenticated
+  photo requirements and opens live capture; Mobile Upload opens the QR first,
+  followed by preview, selection and item-specific photo revalidation. Preview
+  and capture reuse garment styling without changing the garment flow;
+  result/error replacement preserves camera versus phone input (implemented)
 - jewellery person-image technical and semantic validation against the resolved
   capture requirements, with privacy-bounded MediaPipe evidence and provider
   blocking only for invalid files or failed required-region checks in the

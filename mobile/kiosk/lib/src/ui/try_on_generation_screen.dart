@@ -108,6 +108,10 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
   }
 
   Widget _buildFailure(BuildContext context, TryOnExperienceConfig experience) {
+    final jewelleryPhonePhoto =
+        experience.vertical == KioskTryOnVertical.jewellery &&
+        widget.captureController.activeAcceptedPersonPhoto?.image.source ==
+            CustomerPersonImageSource.mobileUpload;
     final compatibilityFailure =
         widget.tryOnController.failureCode ==
         KioskTryOnFailureCode.modelImageIncompatibleWithGarment;
@@ -230,14 +234,10 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                               onPressed: () => _retakePhoto(context),
                               icon: Icons.replay,
                               iconColor: const Color(0xFF2384D6),
-                              label:
-                                  experience.vertical ==
-                                      KioskTryOnVertical.jewellery
+                              label: jewelleryPhonePhoto
                                   ? 'Upload Another Photo'
                                   : 'Retake Photo',
-                              subtitle:
-                                  experience.vertical ==
-                                      KioskTryOnVertical.jewellery
+                              subtitle: jewelleryPhonePhoto
                                   ? 'Use your phone'
                                   : 'Capture again',
                               minHeight: 76,
@@ -291,15 +291,18 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
   }
 
   Future<void> _retakePhoto(BuildContext context) async {
+    final jewelleryPhonePhoto =
+        widget.tryOnController.activeTryOnVertical ==
+            KioskTryOnVertical.jewellery &&
+        widget.captureController.activeAcceptedPersonPhoto?.image.source ==
+            CustomerPersonImageSource.mobileUpload;
     await widget.tryOnController.retakePhoto(widget.captureController);
     if (!context.mounted) {
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            widget.tryOnController.activeTryOnVertical ==
-                KioskTryOnVertical.jewellery
+        builder: (_) => jewelleryPhonePhoto
             ? MobileUploadScreen(
                 captureController: widget.captureController,
                 tryOnController: widget.tryOnController,
