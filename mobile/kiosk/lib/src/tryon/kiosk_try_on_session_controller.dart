@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 import '../catalog/kiosk_catalog_models.dart';
-import '../catalog/kiosk_product_recommendation_service.dart';
 import '../session/capture_session_controller.dart';
 import '../config/kiosk_runtime_configuration.dart';
 import 'kiosk_garment_input.dart';
@@ -19,14 +18,12 @@ class KioskTryOnSessionController extends ChangeNotifier {
   KioskTryOnSessionController({
     required this.gateway,
     TryOnTargetPreparer? targetPreparer,
-    this.recommendations,
     this.pollInterval = const Duration(seconds: 3),
     this.pollTimeout = const Duration(minutes: 3),
   }) : targetPreparer = targetPreparer ?? TryOnTargetPreparer();
 
   final KioskTryOnGateway gateway;
   final TryOnTargetPreparer targetPreparer;
-  final KioskProductRecommendationService? recommendations;
   final Duration pollInterval;
   final Duration pollTimeout;
 
@@ -60,6 +57,15 @@ class KioskTryOnSessionController extends ChangeNotifier {
   List<KioskTryOnLook> looks = const [];
   TryOnTargetPreparationMetadata? targetMetadata;
   bool customerSessionActive = false;
+  int _customerSessionRevision = 0;
+
+  /// Invalidates deferred photo work when a customer leaves or is replaced.
+  int get customerSessionRevision => _customerSessionRevision;
+
+  bool isCustomerSessionCurrent(int revision, {bool requireActive = true}) =>
+      !_disposed &&
+      (!requireActive || customerSessionActive) &&
+      revision == _customerSessionRevision;
 
   Timer? _pollTimer;
   DateTime? _pollStartedAt;
@@ -108,11 +114,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskTryOnVertical vertical = KioskTryOnVertical.garment,
   }) async {
     if (!customerSessionActive) {
-      recommendations?.beginSession(
-        productVertical: vertical == KioskTryOnVertical.jewellery
-            ? KioskProductVertical.jewellery
-            : KioskProductVertical.garment,
-      );
+      ++_customerSessionRevision;
       activeTryOnVertical = vertical;
       _clearRunState(keepGarment: false);
       garmentPicks = const [];
@@ -125,7 +127,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }
 
   void endCustomerSession() {
-    recommendations?.endSession();
+    ++_customerSessionRevision;
     if (!customerSessionActive) {
       return;
     }
@@ -731,7 +733,8 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskTryOnSessionCompletionReason reason =
         KioskTryOnSessionCompletionReason.finished,
   }) async {
-    recommendations?.endSession();
+    ++_customerSessionRevision;
+    customerSessionActive = false;
     // Clear selections immediately, including while backend completion is
     // pending or unavailable, so the next customer cannot see stale picks.
     garmentPicks = const [];
@@ -1016,7 +1019,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    recommendations?.endSession();
+    ++_customerSessionRevision;
     _pollTimer?.cancel();
     final preparedPath = _preparedPersonFile?.path;
     if (preparedPath != null) {

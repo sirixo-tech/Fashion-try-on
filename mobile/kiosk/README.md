@@ -58,8 +58,7 @@ kiosk-device credentials rather than staff or Store membership credentials.
 
 ## Local commands
 
-Optional offline object-classification infrastructure and hardware smoke-check
-instructions: [Offline image inference](docs/offline-image-inference.md).
+The person preview retains the accepted photo, status and next-step actions. Experimental object classification and product recommendations have been retired; capture quality, pose and jewellery analysis remain enabled.
 
 ```powershell
 flutter pub get

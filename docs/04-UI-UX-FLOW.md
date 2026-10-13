@@ -589,6 +589,20 @@ Camera preview:
   values or technical diagnostics;
 - keeps dynamic customer guidance out of the preview.
 
+Person capture uses one static white dashed silhouette over the live camera
+image. The previous orange duplicate is removed, and the retained white outline
+is slightly thicker. Faint alignment lines remain. **Stand in Position** and
+left-side **Stand straight**, **Look at camera**, and **Good lighting** tips
+appear before countdown, including readiness preparation. They are instructions,
+not detected conditions. During countdown the tips/header disappear, the
+silhouette stays in the same position at lower opacity, and the existing large
+countdown remains prominent. Cancelling countdown restores the positioning tips.
+TOP shows head, shoulders and torso; BOTTOM emphasizes waist, legs and feet while
+retaining faint head/shoulder context; FULL BODY shows the complete outline and
+foot placement. Guides adapt to available viewport size and reserve bottom
+capture/upload controls. Camera crop, orientation, readiness checks, timing,
+capture, garment guides and jewellery-specific guides remain unchanged.
+
 `CaptureGuidancePanel`:
 
 - remains below the preview in portrait layouts and beside the preview in wide
@@ -1603,6 +1617,23 @@ No previous customer state may be visible.
 
 # 25. Kiosk Consent Screen
 
+The Flutter kiosk shows a centered white privacy dialog over the current home
+menu. The existing video keeps playing behind a dark, non-dismissible modal
+barrier, with the current buttons still visible and blocked from interaction.
+The dialog uses an orange shield, **PRIVACY CHECK**, **Ready to try on?**, the
+message "Your photo and garment image are used only for this try-on session."
+and a **Session-only use** badge. **Agree & Continue** uses solid `#FF7119`
+with white text/checkmark and no gradient; **Cancel** closes without starting
+camera/upload/session work. Narrow windows stack the actions; short windows
+scroll the dialog contents. Existing consent gates and continuation routes stay
+unchanged.
+
+The current session completion path revokes shares and requests image deletion,
+but storage deletion is best-effort and completion can fail offline. This dialog
+therefore does not promise guaranteed immediate deletion or zero temporary
+storage. The policy of no retained images requires separate verified cleanup
+and retention guarantees before stronger deletion wording is displayed.
+
 ### Elements
 
 - concise privacy/AI processing notice
@@ -1623,14 +1654,20 @@ Store-owned kiosks continue to use the Store-level capability list, which
 determines the visible primary choices and lets administrators disable a mode
 when the business does not need it:
 
-- **Browse Garments** category card: dark translucent surface with orange
-  border/glow, hanger icon and orange circular arrow.
-- **Try On Jewellery** category card: dark translucent surface with gold
-  border/glow, diamond icon and gold circular arrow.
+- **Try On Garments** category card: white/light peach surface with orange
+  border/glow, outlined shirt icon, navy title, grey subtitle and orange
+  circular arrow with a white arrow icon. Its existing garment-menu action stays
+  unchanged; the menu's Browse Garments action retains its label.
+- **Try On Jewellery** category card: warm gold surface with gold border/glow,
+  dark brown text and diamond icon, and a darker gold circle with a white arrow.
 
 These are the only primary customer actions on the starting screen. They appear
-side by side where space permits and stack on narrow viewports. Selecting a
-category fades/slides the cards into a stacked action menu over the same
+as two equally sized, wide rectangular buttons stacked vertically with a
+consistent gap. Each button places its icon on the left, its single-line title
+and subtitle in the middle, and its circular arrow on the right. Buttons use
+reduced vertical padding and 80px compact / 100px regular heights, while keeping
+the existing title/subtitle/icon sizes, horizontal padding and 16px gap.
+Selecting a category fades/slides the cards into a stacked action menu over the same
 background and branding; selection alone does not start a session or request
 camera permission. Back (including system Back) returns to the category cards.
 
@@ -1645,8 +1682,16 @@ menus. Category transitions animate the controls without restarting the video.
 Configured Store media replaces the bundled default through the existing kiosk
 presentation settings; custom videos, wallpapers and playlists remain supported.
 The packaged wallpaper is used while video initializes or if playback fails.
-SelfX branding and the headline **See It. Try It. Love It.**, with **Love It.** in
-orange, remain separate overlays. Operator access remains hidden and PIN
+SelfX branding and the headline **See It. Try It. Love It.** remain separate
+overlays. On the starting menu, the orange highlight cycles through See It,
+Try It and Love It, with 1.5 seconds per phrase and smooth 350 ms colour fades.
+After each complete cycle, Love It stays orange during a three-second pause,
+then the sequence repeats. The active phrase grows subtly by 5% as it turns
+orange and returns to normal as the highlight moves on. Love It holds this
+emphasis during the pause. Scaling affects painting only, so surrounding text
+and the overall layout stay stationary. Category
+menus and reduced-motion settings retain a static Love It highlight; custom
+Store headlines remain unchanged. Operator access remains hidden and PIN
 protected. Consent is required before starting photo/AI session work.
 
 When garment Try-On is selected and physical capture is enabled:
@@ -1923,6 +1968,34 @@ lighting or subjective image-quality warnings.
 - Generation progress may show preparing, uploading, creating and generating
   states. It must not show provider names, provider prediction IDs, device
   tokens, organization/store IDs, raw HTTP status or backend stack traces.
+- The processing screen uses a full-page rounded white card with SelfX branding
+  and a top-left back button. The safe card height targets 10% branding, 70%
+  side-by-side image cards, 10% dynamic messages/progress and 10% animated steps.
+  The heading, dynamic copy, step icons and vertical gaps use compact sizing.
+  The percentage sits beside a thinner progress bar instead of a separate row.
+  Short windows scroll a readable minimum-height composition instead of clipping
+  image labels, progress text or steps.
+- Preview cards show **Your Photo** and **Garment Photo** with orange icon
+  badges and existing product name/price where present. Images fill their preview
+  areas edge to edge using proportional cover fitting, with rounded top corners
+  and no inset padding or letterboxing. Differing aspect ratios may crop image
+  edges for display only; original generation inputs remain unchanged. Labels
+  retain their separate padded footer below each image.
+  Jewellery uses **Jewellery Photo** and the existing jewellery icon.
+  Missing/failed preview images retain a placeholder without blocking generation.
+- The orange progress bar and numeric percentage animate together between
+  existing workflow estimates (6, 18, 34, 52 and 78 percent). They are labelled
+  **Estimated progress** and reach 100% only after success. No elapsed-time
+  simulation or provider completion percentage is invented.
+- Connected **Analyzing / your photo**, **Fitting / the garment** and
+  **Creating / your look** steps illustrate the workflow; jewellery changes the
+  middle step to **the jewellery**. Completed icons remain orange, the current
+  icon pulses orange, and future icons stay grey. Highlight/connector progress
+  shares the bar's animated value. These steps do not assert additional local
+  image analysis or expose internal provider stages.
+- Dynamic text uses customer-safe controller messages, including slow-connection
+  updates. Existing error actions, retry-polling semantics, single submission
+  and automatic result navigation are preserved.
 - The kiosk uses the existing device session controller for generation auth and
   refresh. It must not ask the customer/operator for a staff/admin token.
 - If the backend reports the device is inactive, revoked, deleted, unpaired or
@@ -1934,6 +2007,16 @@ lighting or subjective image-quality warnings.
   Garment**, **Retake Photo** and **Finish**.
 - **Finish** clears customer capture, garment, prepared input, active run and
   result state but preserves a valid paired device identity.
+- Catalog audience/category filters add grid/person icons for All, Men and
+  Women; icons inherit
+  the existing selected-white/inactive-dark foreground. Category chips add grid,
+  trousers, outfit/dress and shirt icons for All categories, Bottoms, Full outfit
+  and Tops, with orange selected icons and dark inactive icons. Unknown custom
+  category slugs use the grid icon. Category icons occupy the existing chip
+  avatar/checkmark slot, retaining chip height and removing the redundant tick.
+  Label text, surfaces, ordering, filtering and product-selection logic remain
+  unchanged; narrow audience labels scale down only as needed to fit the icon.
+
 - Category selector selected state must update atomically: selected background
   SelfX orange `#FF7119`, selected foreground white and selected border
   `#FF7119`; inactive controls use white/light background, dark foreground and
@@ -1942,31 +2025,43 @@ lighting or subjective image-quality warnings.
 
 ### KIOSK-4C Mobile Photo Upload UI
 
-The live person-capture review uses a warm white background with subtle gold
-decoration, centered SelfX branding and a rounded white photo frame. Success
-uses a pale green status panel; its success wording still varies per capture.
-Checking and unsuccessful photo states continue to display their actual dynamic
-messages. The success icon keeps its bulging animation, and the primary action
-keeps its pulse. Next-step guidance still depends on the selected garment and
-current flow. The primary action is an orange gradient pill, Browse Catalog has
-an orange outline and Retake Photo has a yellow outline. Short portrait windows
-scroll; landscape windows place the photo and actions side by side. Photo checks
-and existing continuation routes remain.
+The accepted garment-person preview shares one layout for camera Review and
+phone Ready: target 10% of safe screen height for SelfX branding/back, 70% for
+the rounded photo preview and 20% for dynamic status and touch actions. Short
+windows reserve readable minimum header/footer heights and can scroll instead
+of clipping controls. The photo remains visible without a carousel or dimming.
+The preview's top-left Back control uses a dark arrow and visible **Back** label
+on a light grey rounded rectangle, matching the result screen. Branding stays
+centered with space reserved to prevent overlap on narrow screens. Its existing
+retake/cancel/navigation action is unchanged for camera and phone previews.
 
-The Phase 4 recommendation carousel appears after person-photo acceptance on
-camera Review and the phone Ready preview. Valid camera photos are accepted
-locally in place; READY phone person photos use the existing download/validation
-and consumption path once in place. Both keep the same screen and existing
-Take Garment Photo/Continue actions. The compact horizontal cards use cached
-thumbnails, names, prices and existing My Picks limits. A final **Show All** tile
-and an always-visible shortcut open the existing full catalog at **All**, keeping
-the accepted person image, current session, picks and Men/Women tabs. The same
-entry points remain when recommendations are empty or jewellery is uncached.
-Inference does not drive audience selection; only explicit catalog preference
-and mixed/shared catalog metadata are used. No extra screen or confirmation is
-introduced. Session end invalidates stale carousel callbacks and late phone
-photo preparation. Existing jewellery requirements may still require a new
-person photo when the selected capture region changes.
+The pale green success panel retains varying per-photo wording and the bulging
+success-icon animation. Its title and dynamic message are centered within the
+whole panel, with balanced space beside the icon. Checking and invalid-photo
+messages remain dynamic.
+
+Retake Photo sits on the left and the next-step action on the right. When a
+catalog garment is selected, **Continue** uses the existing accepted-person
+attachment and generation path with that selected product and preserves My
+Picks. Without a selected garment, Virtual Try-On keeps **Take Garment Photo**
+and the existing physical garment capture flow. The enabled next-step button
+subtly pulses, stopping while disabled or busy. The button stays solid orange
+(#FF7119) with white text/icon; Retake stays white with a gold outline.
+Invalid captures still offer Retake and Upload Photo.
+
+There are no recommendation or Browse Catalog controls in the accepted garment
+preview. The full catalog retains Men/Women tabs, My Picks, pick limits and
+Continue. Existing jewellery-specific requirements and continuation remain.
+
+Usable camera photos are accepted locally in place after validation. READY
+phone person photos use the existing download/validation/consumption path once.
+Experimental MobileNet inference, its model and recommendation infrastructure
+have been removed. OpenCV quality, ML Kit coverage/pose and MediaPipe jewellery
+analysis remain. Backend person attachment and generation use the existing SelfX
+path. Busy locks prevent repeated submissions; the try-on controller's customer
+session revision and photo identity invalidate stale acceptance callbacks.
+Retake/upload-again clear the reusable backend person-asset reference, and
+failed phone attachment keeps the accepted preview available for retry.
 
 - After garment review and internal CaptureScope resolution, the kiosk shows a
   model/person photo source choice with **Take Photo** and **Use Your Phone**.
@@ -1989,9 +2084,30 @@ person photo when the selected capture region changes.
   one device-session refresh and retry once. Unpaired, revoked, deleted or
   inactive device states clear invalid auth and route to pairing.
 - The public phone page at `/upload/[capability]` is a mobile-first SelfX page
-  outside authenticated app chrome. For model/person uploads it says **Add your
-  photo** and "Take a clear photo of yourself or choose one from your phone."
-  For garment uploads it says **Add garment photo** and "Take or choose a clear
+  outside authenticated app chrome. It uses a centered SelfX logo, top-left
+  **Back**, a navy heading with an orange **Photo** accent, warm white/peach
+  background, and a large rounded photo frame with orange corners. Before
+  selection a valid upload link requests video-only camera permission and shows
+  a live, inline camera view in the frame. Person uploads prefer the front camera;
+  garment, ring and bracelet uploads prefer the rear camera. **Switch Camera**
+  releases the current stream before requesting the other facing mode. Browser
+  constraints are preferences; camera availability depends on the phone/browser.
+  **Take Photo** captures one unmirrored JPEG frame locally (maximum 2048px long
+  edge), then shows review with **Retake Photo**, **Choose Another** and explicit
+  **Upload Photo**. The front-camera preview is mirrored for positioning only.
+  Selected photos remain contained and local in the preview. Live frames/audio
+  are never uploaded or recorded. Streams stop on selection, expiry, page hiding
+  or leaving, and late permission/capture completions cannot restore old streams.
+  Unsupported/denied live capture retains the native phone-camera file input and
+  photo-picker fallback; no extra screen or consent dialog is introduced. The
+  existing kiosk consent gate remains before QR handoff. Three purpose-specific guidance icons
+  appear below. **Take Photo** is orange with white text; **Choose from Phone**
+  is white with a neutral outline and dark text. Controls adapt to narrow
+  phones, with normal scrolling for short screens. Back uses browser history,
+  or gives return-to-kiosk guidance when the QR opened a fresh tab.
+  For model/person uploads it says **Add Your Photo** and "Take a clear photo
+  of yourself or choose one from your phone to try different styles."
+  For garment uploads it says **Add Garment Photo** and "Take or choose a clear
   photo of the outfit you want to try. The outfit should be clearly visible on
   one person." It offers **Take Photo**, **Choose from Phone**, preview,
   **Choose Another** and explicit **Upload Photo**.
@@ -2056,6 +2172,19 @@ Do not display technical camera/provider errors to the customer.
 
 # 29. Kiosk Physical Garment Capture
 
+The existing garment capture view uses a taller, open white corner-bracket
+frame over the live preview, with no inner garment drawing. Only this framing
+artwork and button surfaces change: Capture is solid orange `#FF7119`, and
+Back/Flip are transparent with white outlines, icons and text on all person and
+garment capture views. Where person mobile upload is available, Capture takes
+the previous wide upload-button position and size above the control row, with
+Back, **Mobile Upload** and Flip below. Mobile Upload takes the previous compact
+Capture-button size and keeps its existing action. This arrangement remains
+stable during countdown; unavailable actions are disabled. Disabled buttons
+use reduced opacity. Existing headings, guidance, countdown and
+camera-switch availability remain unchanged; person/jewellery guides retain
+their existing styling.
+
 ### Elements
 
 - garment positioning guide
@@ -2108,17 +2237,50 @@ Provide Cancel/Start Over only when safe.
 
 # 31. Kiosk Result Screen
 
-### Main Elements
+### Garment Result
 
-- generated result
-- selected product
-- Try Another
-- Retake
-- QR / Continue on Phone
-- Finish
+- centered SelfX logo and top-left **Back**, with no Your Look heading;
+- generated result filling a large rounded card edge to edge; cover fitting
+  may crop display edges without changing the original generated asset;
+- compact category icons/text sit in equal-width tab areas filling the available
+  width with small eight-pixel gaps; tabs scroll when their minimum widths cannot
+  fit. The selected category/icon is highlighted orange;
+- shorter garment cards below categories use square image areas with cover
+  fitting and no inner image padding (display edges may crop without stretching),
+  a small inter-card gap and compact name/price footers.
+  Selection shows an orange border and a small orange circle with a white tick
+  at the image's top-right, removed on deselection or changing selection;
+- catalog loading uses the existing repository/gateway at audience ALL, preserves
+  cached images, supports paging without duplicate products, and always appends
+  **Show All** for the full catalog's existing Men/Women tabs and My Picks;
+- no garment selected: **Get My Looks** on the left and **Back to Home** on the
+  right; a selected garment hides both actions and shows only pulsing orange
+  **Continue** aligned right. Deselecting restores the two actions. The footer
+  has a small bottom margin and no unused action row; reclaimed height goes to
+  the result preview;
+- selecting a garment only updates temporary screen state. Tapping it again
+  deselects it; changing category clears selection. Continue commits through
+  existing catalog/session logic and uses the original accepted person photo,
+  never the generated result, for the next Try-On;
+- Get My Looks retains existing gallery/QR behavior and disabled-QR handling.
+  Retake Photo remains a compact blue camera control in the header;
+- an existing queued pick remains available as **Try Next Pick** in the garment
+  row; selection followed by Continue uses the existing next-pick/session path;
+- Back uses normal navigation. Back to Home finishes and clears photo, picks and
+  result; pending catalog work is guarded against replaced customer sessions;
+- loading, empty categories, missing images and failures do not block downloads,
+  finishing or full-catalog access. Short windows scroll rather than clipping.
 
-If multiple garments are supported in-session, allow customer to return to the catalog without requiring another person photo.
+### Jewellery Result
 
+Jewellery retains its current Your Look heading, target-aware result preview/
+full-image zoom and four actions: Browse Jewellery, Get My Looks, Upload Another
+Photo and Back to Home. Existing colours, phone-based photo replacement,
+queued-pick handling, session rules and generation policy remain unchanged.
+
+Gallery/download viewers and original generated assets remain unchanged.
+Customers can continue browsing garments in-session without another person photo
+when the accepted photo meets the existing capture/compatibility policy.
 ---
 
 # 32. Kiosk Failure Screen
@@ -2149,6 +2311,19 @@ If connectivity is unavailable:
 ---
 
 # 34. Kiosk QR Handoff Screen
+
+The **My Looks** gallery uses a centered SelfX logo, one top-left **Back**,
+**My Looks** heading with an orange accent, and a current/total look counter.
+A large rounded image gallery keeps the complete generated image visible,
+with previous/next arrows over the image and page indicators below it. Arrows
+disable at the gallery boundaries. Short windows scroll to preserve controls;
+narrow windows stack the two bottom actions to keep their labels readable.
+
+A five-minute **Download available MM:SS** strip sits above the orange
+**Download My Looks** button, which preserves the existing QR share dialog.
+**Back to Result / View look** uses a blue icon and preserves the session;
+**Finish / Go home** uses a green icon and completes the session, clearing the
+customer photo and picks. Expiration and share failures retain existing behavior.
 
 ### Elements
 

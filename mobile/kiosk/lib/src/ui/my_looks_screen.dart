@@ -5,13 +5,13 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
+import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
-import 'kiosk_chrome.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
@@ -91,46 +91,78 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return KioskScaffold(
-      title: 'My Looks',
-      subtitle: 'Session gallery',
-      showBrandHeader: false,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      leading: IconButton(
-        onPressed: () => Navigator.of(context).pop(),
-        icon: const Icon(Icons.arrow_back),
-      ),
-      child: AnimatedBuilder(
-        animation: widget.tryOnController,
-        builder: (context, _) {
-          final looks = widget.tryOnController.looks;
-          if (_refreshing && looks.isEmpty) {
-            return const Center(child: Text('Getting your looks...'));
-          }
-          if (looks.isEmpty) {
-            return _EmptyLooks(
-              failed: _refreshFailed,
-              onRetry: () => unawaited(_refreshLooks()),
-              onTryGarment: () => _tryAnotherGarment(context),
-            );
-          }
-          return _LooksCarousel(
-            looks: looks,
-            index: _index.clamp(0, looks.length - 1),
-            pageController: _pageController,
-            refreshFailed: _refreshFailed,
-            refreshing: _refreshing,
-            creatingShare: widget.tryOnController.creatingShare,
-            downloadRemaining: _downloadRemaining,
-            downloadAvailable: _downloadAvailable,
-            onPageChanged: (value) => setState(() => _index = value),
-            onPrevious: _index > 0 ? _previous : null,
-            onNext: _index < looks.length - 1 ? _next : null,
-            onRetry: () => unawaited(_refreshLooks()),
-            onDownload: () => unawaited(_downloadLooks(context)),
-            onFinish: () => _finish(context),
-          );
-        },
+    return Scaffold(
+      backgroundColor: SelfxKioskTokens.reviewBackground,
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: IgnorePointer(child: CustomPaint(painter: _LooksBackdrop())),
+          ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: AnimatedBuilder(
+                    animation: widget.tryOnController,
+                    builder: (context, _) {
+                      final looks = widget.tryOnController.looks;
+                      if (looks.isEmpty) {
+                        return Column(
+                          children: [
+                            _LooksHeader(
+                              current: 0,
+                              total: 0,
+                              refreshing: false,
+                              refreshFailed: false,
+                              onRetry: () => unawaited(_refreshLooks()),
+                            ),
+                            Expanded(
+                              child: _refreshing
+                                  ? const Center(
+                                      child: Text('Getting your looks...'),
+                                    )
+                                  : SingleChildScrollView(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 24,
+                                      ),
+                                      child: _EmptyLooks(
+                                        failed: _refreshFailed,
+                                        onRetry: () =>
+                                            unawaited(_refreshLooks()),
+                                        onTryGarment: () =>
+                                            _tryAnotherGarment(context),
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        );
+                      }
+                      return _LooksCarousel(
+                        looks: looks,
+                        index: _index.clamp(0, looks.length - 1),
+                        pageController: _pageController,
+                        refreshFailed: _refreshFailed,
+                        refreshing: _refreshing,
+                        creatingShare: widget.tryOnController.creatingShare,
+                        downloadRemaining: _downloadRemaining,
+                        downloadAvailable: _downloadAvailable,
+                        onPageChanged: (value) =>
+                            setState(() => _index = value),
+                        onPrevious: _index > 0 ? _previous : null,
+                        onNext: _index < looks.length - 1 ? _next : null,
+                        onRetry: () => unawaited(_refreshLooks()),
+                        onDownload: () => unawaited(_downloadLooks(context)),
+                        onFinish: () => _finish(context),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -250,85 +282,89 @@ class _LooksCarousel extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final portrait = constraints.maxHeight > constraints.maxWidth * 1.12;
-        final compact =
-            constraints.maxWidth < 900 ||
-            constraints.maxHeight < 680 ||
-            portrait;
-        final imageArea = PageView.builder(
-          controller: pageController,
-          itemCount: looks.length,
-          onPageChanged: onPageChanged,
-          itemBuilder: (context, itemIndex) {
-            final look = looks[itemIndex];
-            return Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: compact ? 4 : 14,
-                vertical: 4,
-              ),
-              child: Card(
-                clipBehavior: Clip.antiAlias,
-                child: GeneratedTryOnImage(src: look.resultReadUrl),
-              ),
-            );
-          },
-        );
-        final sliderControls = _CarouselControls(
-          count: looks.length,
-          index: index,
-          onPrevious: onPrevious,
-          onNext: onNext,
-        );
-        final actions = _MyLooksActions(
-          compact: compact,
-          creatingShare: creatingShare,
-          downloadRemaining: downloadRemaining,
-          downloadAvailable: downloadAvailable,
-          onDownload: creatingShare ? null : onDownload,
-          onBack: () => Navigator.of(context).pop(),
-          onFinish: onFinish,
-        );
-        final header = _LooksHeader(
-          current: index + 1,
-          total: looks.length,
-          refreshing: refreshing,
-          refreshFailed: refreshFailed,
-          onRetry: onRetry,
-        );
-
-        if (compact) {
-          return Column(
+        // Give short windows a scrollable canvas rather than shrinking the photo
+        // or clipping the download and session actions.
+        final minimumHeight = constraints.maxWidth < 400 ? 800.0 : 860.0;
+        final height = constraints.maxHeight < minimumHeight
+            ? minimumHeight
+            : constraints.maxHeight;
+        final content = SizedBox(
+          height: height,
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              header,
-              const SizedBox(height: 10),
-              Expanded(child: imageArea),
-              const SizedBox(height: 8),
-              sliderControls,
-              const SizedBox(height: 12),
-              actions,
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Column(
-                children: [
-                  header,
-                  const SizedBox(height: 12),
-                  Expanded(child: imageArea),
-                  const SizedBox(height: 10),
-                  sliderControls,
-                ],
+              _LooksHeader(
+                current: index + 1,
+                total: looks.length,
+                refreshing: refreshing,
+                refreshFailed: refreshFailed,
+                onRetry: onRetry,
               ),
-            ),
-            const SizedBox(width: 24),
-            SizedBox(width: 420, child: actions),
-          ],
+              const SizedBox(height: 12),
+              Expanded(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned.fill(
+                      child: Container(
+                        key: const Key('my-looks-image-card'),
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: SelfxKioskTokens.cardShadow,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: PageView.builder(
+                            controller: pageController,
+                            itemCount: looks.length,
+                            onPageChanged: onPageChanged,
+                            itemBuilder: (context, itemIndex) =>
+                                GeneratedTryOnImage(
+                                  src: looks[itemIndex].resultReadUrl,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _CarouselNavButton(
+                        icon: Icons.chevron_left,
+                        onPressed: onPrevious,
+                        tooltip: 'Previous look',
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _CarouselNavButton(
+                        icon: Icons.chevron_right,
+                        onPressed: onNext,
+                        tooltip: 'Next look',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _Dots(count: looks.length, index: index),
+              const SizedBox(height: 18),
+              _MyLooksActions(
+                creatingShare: creatingShare,
+                downloadRemaining: downloadRemaining,
+                downloadAvailable: downloadAvailable,
+                onDownload: creatingShare ? null : onDownload,
+                onBack: () => Navigator.of(context).pop(),
+                onFinish: onFinish,
+              ),
+            ],
+          ),
         );
+        return constraints.maxHeight < minimumHeight
+            ? SingleChildScrollView(child: content)
+            : content;
       },
     );
   }
@@ -351,41 +387,84 @@ class _LooksHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'My Looks',
-          textAlign: TextAlign.center,
-          style: Theme.of(
-            context,
-          ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 8),
-        const Center(child: SelfxLogo(height: 42, maxWidth: 156)),
-        const SizedBox(height: 6),
-        Text(
-          '$current of $total',
-          textAlign: TextAlign.center,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        if (refreshing) ...[
-          const SizedBox(height: 6),
-          const Text(
-            'Getting your looks...',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ] else if (refreshFailed) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
-          ),
-        ],
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 400;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: narrow ? 68 : 100,
+              child: Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(top: narrow ? 10 : 0),
+                    child: SelfxLogo(
+                      height: narrow ? 52 : 86,
+                      maxWidth: constraints.maxWidth * (narrow ? 0.40 : 0.48),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: TextButton.icon(
+                      key: const Key('my-looks-back'),
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Back'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: SelfxKioskTokens.homeNavy,
+                        backgroundColor: Colors.white.withValues(alpha: 0.85),
+                        minimumSize: const Size(48, 48),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              'My Looks',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                fontSize: narrow ? 32 : 48,
+                color: SelfxKioskTokens.homeNavy,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: 64,
+              height: 6,
+              decoration: BoxDecoration(
+                color: SelfxKioskTokens.primary,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            if (total > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                '$current of $total',
+                key: const Key('my-looks-counter'),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: SelfxKioskTokens.homeNavy,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+            if (refreshing) ...[
+              const SizedBox(height: 6),
+              const Text('Getting your looks...'),
+            ] else if (refreshFailed) ...[
+              TextButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -398,10 +477,13 @@ class _Dots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Keep large galleries within narrow windows while retaining the active dot.
+    final first = (index - 3).clamp(0, (count - 7).clamp(0, count));
+    final end = (first + 7).clamp(0, count);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        for (var i = 0; i < count; i++)
+        for (var i = first; i < end; i++)
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             width: i == index ? 24 : 10,
@@ -416,47 +498,6 @@ class _Dots extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-      ],
-    );
-  }
-}
-
-class _CarouselControls extends StatelessWidget {
-  const _CarouselControls({
-    required this.count,
-    required this.index,
-    required this.onPrevious,
-    required this.onNext,
-  });
-
-  final int count;
-  final int index;
-  final VoidCallback? onPrevious;
-  final VoidCallback? onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: _CarouselNavButton(
-            icon: Icons.chevron_left,
-            onPressed: onPrevious,
-            tooltip: 'Previous look',
-          ),
-        ),
-        Expanded(
-          child: _Dots(count: count, index: index),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: _CarouselNavButton(
-            icon: Icons.chevron_right,
-            onPressed: onNext,
-            tooltip: 'Next look',
-          ),
-        ),
       ],
     );
   }
@@ -482,11 +523,13 @@ class _CarouselNavButton extends StatelessWidget {
         child: IconButton(
           onPressed: onPressed,
           icon: Icon(icon, size: 32),
-          color: Theme.of(context).colorScheme.onSurface,
+          color: SelfxKioskTokens.primary,
           disabledColor: Theme.of(context).colorScheme.outline,
           style: IconButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            side: BorderSide(color: Theme.of(context).colorScheme.outline),
+            backgroundColor: Colors.white.withValues(alpha: 0.94),
+            side: BorderSide(
+              color: SelfxKioskTokens.primary.withValues(alpha: 0.12),
+            ),
             shape: const StadiumBorder(),
           ),
         ),
@@ -522,14 +565,27 @@ class _DownloadCountdown extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
-            Text(
-              expired
-                  ? 'Download expired'
-                  : 'Download available ${_mmss(remaining)}',
-              key: const Key('download-my-looks-countdown'),
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w900,
+            Flexible(
+              child: Text.rich(
+                TextSpan(
+                  text: expired ? 'Download expired' : 'Download available ',
+                  children: expired
+                      ? null
+                      : [
+                          TextSpan(
+                            text: _mmss(remaining),
+                            style: const TextStyle(
+                              color: SelfxKioskTokens.primary,
+                            ),
+                          ),
+                        ],
+                ),
+                key: const Key('download-my-looks-countdown'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: SelfxKioskTokens.textSecondary,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -541,7 +597,6 @@ class _DownloadCountdown extends StatelessWidget {
 
 class _MyLooksActions extends StatelessWidget {
   const _MyLooksActions({
-    required this.compact,
     required this.creatingShare,
     required this.downloadRemaining,
     required this.downloadAvailable,
@@ -550,7 +605,6 @@ class _MyLooksActions extends StatelessWidget {
     required this.onFinish,
   });
 
-  final bool compact;
   final bool creatingShare;
   final Duration downloadRemaining;
   final bool downloadAvailable;
@@ -560,64 +614,76 @@ class _MyLooksActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!compact) const Spacer(),
-        _DownloadCountdown(remaining: downloadRemaining),
-        const SizedBox(height: 10),
-        SelfxKioskButton(
-          key: const Key('download-my-looks'),
-          label: creatingShare
-              ? 'Preparing...'
-              : downloadAvailable
-              ? 'Download My Looks'
-              : 'Download Expired',
-          icon: Icons.file_download_outlined,
-          variant: SelfxKioskButtonVariant.primary,
-          minHeight: 64,
-          textAlign: TextAlign.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          onPressed: downloadAvailable ? onDownload : null,
-        ),
-        const SizedBox(height: 12),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final back = SelfxKioskActionCard(
+          key: const Key('back-to-result'),
+          label: 'Back to Result',
+          icon: Icons.arrow_back,
+          iconColor: const Color(0xFF2384D6),
+          subtitle: 'View look',
+          minHeight: 82,
+          backgroundColor: Colors.white,
+          titleColor: SelfxKioskTokens.homeNavy,
+          borderColor: SelfxKioskTokens.border,
+          maxLabelLines: 2,
+          maxSubtitleLines: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          onPressed: onBack,
+        );
+        final finish = SelfxKioskActionCard(
+          key: const Key('finish-from-my-looks'),
+          label: 'Finish',
+          icon: Icons.home_outlined,
+          iconColor: const Color(0xFF2FAE75),
+          subtitle: 'Go home',
+          minHeight: 82,
+          backgroundColor: Colors.white,
+          titleColor: SelfxKioskTokens.homeNavy,
+          borderColor: SelfxKioskTokens.border,
+          maxLabelLines: 2,
+          maxSubtitleLines: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          onPressed: onFinish,
+        );
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: SelfxKioskActionCard(
-                key: const Key('back-to-result'),
-                label: 'Back to Result',
-                icon: Icons.arrow_back,
-                iconColor: const Color(0xFF2384D6),
-                subtitle: 'View look',
-                minHeight: 64,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 12,
-                ),
-                onPressed: onBack,
-              ),
+            _DownloadCountdown(remaining: downloadRemaining),
+            const SizedBox(height: 10),
+            SelfxKioskButton(
+              key: const Key('download-my-looks'),
+              label: creatingShare
+                  ? 'Preparing...'
+                  : downloadAvailable
+                  ? 'Download My Looks'
+                  : 'Download Expired',
+              icon: Icons.file_download_outlined,
+              variant: SelfxKioskButtonVariant.primary,
+              minHeight: 72,
+              wrapLabel: true,
+              textAlign: TextAlign.center,
+              mainAxisAlignment: MainAxisAlignment.center,
+              onPressed: downloadAvailable ? onDownload : null,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: SelfxKioskActionCard(
-                key: const Key('finish-from-my-looks'),
-                label: 'Finish',
-                icon: Icons.home_outlined,
-                iconColor: const Color(0xFF2FAE75),
-                subtitle: 'Go home',
-                minHeight: 64,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 12,
-                ),
-                onPressed: onFinish,
+            const SizedBox(height: 12),
+
+            if (constraints.maxWidth < 440) ...[
+              back,
+              const SizedBox(height: 12),
+              finish,
+            ] else
+              Row(
+                children: [
+                  Expanded(child: back),
+                  const SizedBox(width: 12),
+                  Expanded(child: finish),
+                ],
               ),
-            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -841,4 +907,28 @@ String _mmss(Duration duration) {
   final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
   final rest = (seconds % 60).toString().padLeft(2, '0');
   return '$minutes:$rest';
+}
+
+class _LooksBackdrop extends CustomPainter {
+  const _LooksBackdrop();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFFF7119).withValues(alpha: 0.10);
+    canvas.drawCircle(Offset(size.width * 1.03, 0), size.width * 0.25, paint);
+    canvas.drawCircle(
+      Offset(-size.width * 0.15, size.height * 0.55),
+      size.width * 0.35,
+      paint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.95, size.height * 1.12),
+      size.width * 0.45,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_LooksBackdrop oldDelegate) => false;
 }

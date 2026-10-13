@@ -18,6 +18,7 @@ export default async function CustomerUploadPage({
   const { jewelleryType } = await searchParams;
   return (
     <CustomerUploadPageClient
+      key={capability}
       capability={capability}
       jewelleryType={
         typeof jewelleryType === "string" ? jewelleryType : undefined

@@ -6,6 +6,7 @@ import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../catalog/kiosk_catalog_models.dart';
 import '../session/capture_session_controller.dart';
+import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_jewellery_capture_requirements.dart';
@@ -13,11 +14,13 @@ import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import '../upload/kiosk_customer_upload_models.dart';
 import 'browse_products_screen.dart';
+import 'accepted_person_photo_actions.dart';
+import 'capture_review_presentation.dart';
+import 'try_on_experience_config.dart';
 import 'camera_capture_screen.dart';
 import 'garment_review_screen.dart';
 import 'kiosk_chrome.dart';
 import 'kiosk_attention_animations.dart';
-import 'product_recommendation_carousel.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
@@ -100,7 +103,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     await widget.uploadController.cancel();
     if (widget.purpose == PhotoAcquisitionPurpose.model &&
         _preparedModelSessionId != null) {
-      await widget.captureController.retake();
+      await widget.tryOnController.retakePhoto(widget.captureController);
     }
   }
 
@@ -118,82 +121,110 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
     return PopScope<void>(
       canPop: !_continuing,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop && _isJewelleryPersonUpload) {
-          unawaited(_cancelUpload());
-        }
+        if (didPop && _isJewelleryPersonUpload) unawaited(_cancelUpload());
       },
-      child: KioskScaffold(
-        title: 'SelfX Kiosk',
-        subtitle: 'Use your phone',
-        leading: IconButton(
-          onPressed: _continuing ? null : _cancelAndReturn,
-          icon: const Icon(Icons.arrow_back),
-        ),
-        child: AnimatedBuilder(
-          animation: Listenable.merge([
-            widget.uploadController,
-            widget.captureController,
-            widget.tryOnController,
-          ]),
-          builder: (context, _) {
-            final session = widget.uploadController.session;
-            _scheduleModelAcceptance(session);
-            final continuingSession = _continuingSession;
-            final message =
-                widget.uploadController.message ?? 'Preparing secure upload...';
-            if (continuingSession?.photo != null) {
-              return _ReadyPhotoPanel(
-                controller: widget.uploadController,
-                session: continuingSession!,
-                purpose: widget.purpose,
-                busy: _continuing || _preparingModelPhoto != null,
-                recommendations: _recommendations(),
-                jewelleryPersonUpload: _isJewelleryPersonUpload,
-                selectedCatalogGarmentPersonUpload:
-                    _isSelectedCatalogGarmentPersonUpload,
-                onUploadAgain: _uploadAgain,
-                onUseReadyUpload: _useReadyUpload,
-                onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
-                onBrowseCatalog: _browseCatalogAfterReadyUpload,
-              );
-            }
-            if (session?.status == KioskCustomerUploadStatus.ready &&
-                session?.photo != null) {
-              return _ReadyPhotoPanel(
-                controller: widget.uploadController,
-                session: session!,
-                purpose: widget.purpose,
-                busy: _continuing || _preparingModelPhoto != null,
-                recommendations: _recommendations(),
-                jewelleryPersonUpload: _isJewelleryPersonUpload,
-                selectedCatalogGarmentPersonUpload:
-                    _isSelectedCatalogGarmentPersonUpload,
-                onUploadAgain: _uploadAgain,
-                onUseReadyUpload: _useReadyUpload,
-                onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
-                onBrowseCatalog: _browseCatalogAfterReadyUpload,
-              );
-            }
-            if (widget.uploadController.flowState ==
-                KioskCustomerUploadFlowState.failed) {
-              return _UploadFailurePanel(
-                controller: widget.uploadController,
-                onRetry: _createUploadSession,
-                onCancel: _cancelAndReturn,
-              );
-            }
-            return _QrPanel(
+      child: AnimatedBuilder(
+        animation: Listenable.merge([
+          widget.uploadController,
+          widget.captureController,
+          widget.tryOnController,
+        ]),
+        builder: (context, _) {
+          final session = widget.uploadController.session;
+          _scheduleModelAcceptance(session);
+          final ready = _continuingSession?.photo != null
+              ? _continuingSession
+              : session?.status == KioskCustomerUploadStatus.ready &&
+                    session?.photo != null
+              ? session
+              : null;
+          final person = widget.captureController.activeAcceptedPersonPhoto;
+          if (ready != null &&
+              person != null &&
+              widget.purpose == PhotoAcquisitionPurpose.model &&
+              _preparedModelSessionId == ready.sessionId &&
+              widget.tryOnController.activeTryOnVertical ==
+                  KioskTryOnVertical.garment) {
+            final busy = _continuing || _preparingModelPhoto != null;
+            return Scaffold(
+              backgroundColor: SelfxKioskTokens.reviewBackground,
+              body: CaptureReviewPresentation(
+                imagePath: person.image.originalPath,
+                prioritizePhoto: true,
+                onBack: busy ? () {} : _cancelAndReturn,
+                actions: AcceptedPersonPhotoActions(
+                  status: PersonPhotoStatus(
+                    isLoading: false,
+                    result:
+                        widget.captureController.imageUsabilityResult ??
+                        const ImageUsabilityResult.usable('Photo looks good!'),
+                  ),
+                  instruction: _isSelectedCatalogGarmentPersonUpload
+                      ? 'Your photo is ready for this garment.'
+                      : tryOnExperienceFor(
+                          KioskTryOnVertical.garment,
+                        ).reviewInstruction,
+                  busy: busy,
+                  retakeLabel: 'Retake Photo',
+                  catalogProductSelected: _isSelectedCatalogGarmentPersonUpload,
+                  onContinue: busy || !_isSelectedCatalogGarmentPersonUpload
+                      ? null
+                      : () => unawaited(_useReadyUpload()),
+                  onTakeGarmentPhoto:
+                      busy || _isSelectedCatalogGarmentPersonUpload
+                      ? null
+                      : () => unawaited(_takeGarmentPhotoAfterReadyUpload()),
+                  onRetake: busy ? null : () => unawaited(_uploadAgain()),
+                ),
+              ),
+            );
+          }
+          final Widget content;
+          if (ready != null) {
+            content = _ReadyPhotoPanel(
+              controller: widget.uploadController,
+              session: ready,
+              purpose: widget.purpose,
+              busy: _continuing || _preparingModelPhoto != null,
+              jewelleryPersonUpload: _isJewelleryPersonUpload,
+              selectedCatalogGarmentPersonUpload:
+                  _isSelectedCatalogGarmentPersonUpload,
+              onUploadAgain: _uploadAgain,
+              onUseReadyUpload: _useReadyUpload,
+              onTakeGarmentPhoto: _takeGarmentPhotoAfterReadyUpload,
+              onBrowseCatalog: _browseCatalogAfterReadyUpload,
+            );
+          } else if (widget.uploadController.flowState ==
+              KioskCustomerUploadFlowState.failed) {
+            content = _UploadFailurePanel(
+              controller: widget.uploadController,
+              onRetry: _createUploadSession,
+              onCancel: _cancelAndReturn,
+            );
+          } else {
+            content = _QrPanel(
               controller: widget.uploadController,
               session: session,
-              message: message,
+              message:
+                  widget.uploadController.message ??
+                  'Preparing secure upload...',
               purpose: widget.purpose,
               jewelleryRequirements: _isJewelleryPersonUpload
                   ? widget.tryOnController.jewelleryCaptureRequirements
                   : null,
               onCancel: _cancelAndReturn,
             );
-          },
-        ),
+          }
+          return KioskScaffold(
+            title: 'SelfX Kiosk',
+            subtitle: 'Use your phone',
+            leading: IconButton(
+              onPressed: _continuing ? null : _cancelAndReturn,
+              icon: const Icon(Icons.arrow_back),
+            ),
+            child: content,
+          );
+        },
       ),
     );
   }
@@ -297,6 +328,10 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   }
 
   Future<void> _takeGarmentPhotoAfterReadyUpload() async {
+    if (_isSelectedCatalogGarmentPersonUpload) {
+      await _useReadyUpload();
+      return;
+    }
     if (!await _acceptReadyModelUpload() || !mounted) {
       return;
     }
@@ -319,17 +354,6 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       return;
     }
     await _replaceWithCatalog();
-  }
-
-  Future<void> _showAcceptedCatalog({
-    KioskCatalogProduct? initialProduct,
-  }) async {
-    if (_continuing ||
-        widget.captureController.activeAcceptedPersonPhoto == null) {
-      return;
-    }
-    setState(() => _continuing = true);
-    await _replaceWithCatalog(initialProduct: initialProduct);
   }
 
   Future<void> _replaceWithCatalog({
@@ -385,7 +409,7 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       return false;
     }
     if (!attached) {
-      _stopContinuing(keepPreview: _isJewelleryPersonUpload);
+      _stopContinuing(keepPreview: true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -402,18 +426,19 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
   void _scheduleModelAcceptance(KioskCustomerUploadSession? session) {
     if (_leaving ||
         widget.purpose != PhotoAcquisitionPurpose.model ||
-        widget.tryOnController.recommendations?.sessionActive != true ||
+        _isJewelleryPersonUpload ||
+        !widget.tryOnController.customerSessionActive ||
         session?.status != KioskCustomerUploadStatus.ready ||
         session?.photo == null ||
         _autoAttemptedSessionId == session!.sessionId) {
       return;
     }
     _autoAttemptedSessionId = session.sessionId;
-    final revision = widget.tryOnController.recommendations?.sessionRevision;
+    final revision = widget.tryOnController.customerSessionRevision;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted &&
           !_leaving &&
-          widget.tryOnController.recommendations?.sessionRevision == revision &&
+          widget.tryOnController.isCustomerSessionCurrent(revision) &&
           widget.uploadController.session?.sessionId == session.sessionId) {
         unawaited(_prepareReadyModelPhoto());
       }
@@ -427,22 +452,23 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
         widget.captureController.activeAcceptedPersonPhoto != null) {
       return Future.value(true);
     }
-    final revision = widget.tryOnController.recommendations?.sessionRevision;
+    final revision = widget.tryOnController.customerSessionRevision;
     return _preparingModelPhoto ??= _prepareReadyModelPhotoOnce(revision)
         .whenComplete(() {
           if (mounted) setState(() => _preparingModelPhoto = null);
         });
   }
 
-  Future<bool> _prepareReadyModelPhotoOnce(int? revision) async {
+  Future<bool> _prepareReadyModelPhotoOnce(int revision) async {
     final session = widget.uploadController.session;
-    final service = widget.tryOnController.recommendations;
     bool current() =>
         mounted &&
         !_leaving &&
         widget.uploadController.session?.sessionId == session?.sessionId &&
-        (service == null ||
-            (service.sessionActive && service.sessionRevision == revision));
+        widget.tryOnController.isCustomerSessionCurrent(
+          revision,
+          requireActive: false,
+        );
     if (!current()) return false;
     setState(() => _continuingSession ??= session);
     final accepted = await widget.uploadController.useReadyPhoto(
@@ -457,31 +483,6 @@ class _MobileUploadScreenState extends State<MobileUploadScreen> {
       setState(() => _preparedModelSessionId = session?.sessionId);
     }
     return accepted;
-  }
-
-  Widget? _recommendations() {
-    if (widget.purpose != PhotoAcquisitionPurpose.model ||
-        widget.tryOnController.recommendations == null ||
-        _preparedModelSessionId == null ||
-        widget.captureController.activeAcceptedPersonPhoto == null) {
-      return null;
-    }
-    return ProductRecommendationCarousel(
-      captureController: widget.captureController,
-      tryOnController: widget.tryOnController,
-      catalogGateway: widget.catalogGateway,
-      busy: _continuing || _preparingModelPhoto != null,
-      onShowAll: () => unawaited(_showAcceptedCatalog()),
-      onOpenPicks: () => showCatalogMyPicks(context, widget.tryOnController),
-      onContinue: () => unawaited(_useReadyUpload()),
-      onSingleProduct: (product) {
-        if (product.productVertical == KioskProductVertical.jewellery) {
-          unawaited(_showAcceptedCatalog(initialProduct: product));
-        } else {
-          widget.tryOnController.selectGarment(product.toGarmentInput());
-        }
-      },
-    );
   }
 
   void _stopContinuing({bool keepPreview = false}) {
@@ -740,7 +741,6 @@ class _ReadyPhotoPanel extends StatelessWidget {
     required this.jewelleryPersonUpload,
     required this.selectedCatalogGarmentPersonUpload,
     required this.onUploadAgain,
-    this.recommendations,
   });
 
   final KioskCustomerUploadController controller;
@@ -753,7 +753,6 @@ class _ReadyPhotoPanel extends StatelessWidget {
   final bool jewelleryPersonUpload;
   final bool selectedCatalogGarmentPersonUpload;
   final Future<void> Function() onUploadAgain;
-  final Widget? recommendations;
 
   @override
   Widget build(BuildContext context) {
@@ -778,10 +777,6 @@ class _ReadyPhotoPanel extends StatelessWidget {
           children: [
             const Center(child: SelfxLogo(height: 44, maxWidth: 160)),
             const SizedBox(height: 18),
-            if (recommendations != null) ...[
-              recommendations!,
-              const SizedBox(height: 14),
-            ],
             if (purpose == PhotoAcquisitionPurpose.model &&
                 !jewelleryPersonUpload &&
                 !selectedCatalogGarmentPersonUpload) ...[
@@ -911,19 +906,6 @@ class _ReadyPhotoPanel extends StatelessWidget {
                 variant: SelfxKioskButtonVariant.primary,
                 textAlign: TextAlign.center,
                 mainAxisAlignment: MainAxisAlignment.center,
-              ),
-            ],
-            if (recommendations != null &&
-                selectedCatalogGarmentPersonUpload) ...[
-              const SizedBox(height: 12),
-              SelfxKioskButton(
-                key: const Key('take-garment-photo'),
-                onPressed: busy || controller.isBusy
-                    ? null
-                    : () => unawaited(onTakeGarmentPhoto()),
-                icon: Icons.camera_alt_outlined,
-                label: 'Take Garment Photo',
-                variant: SelfxKioskButtonVariant.secondary,
               ),
             ],
           ],

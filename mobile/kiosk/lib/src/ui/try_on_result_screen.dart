@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
+import '../catalog/kiosk_catalog_models.dart';
 import '../session/capture_session_controller.dart';
+import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
@@ -14,10 +16,12 @@ import 'camera_capture_screen.dart';
 import 'mobile_upload_screen.dart';
 import 'capture_review_screen.dart';
 import 'generated_try_on_image.dart';
+import 'garment_result_catalog.dart';
 import 'jewellery_result_preview.dart';
 import 'my_looks_screen.dart';
 import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_action_card.dart';
+import 'selfx_logo.dart';
 import 'try_on_experience_config.dart';
 import 'try_on_generation_screen.dart';
 
@@ -40,11 +44,51 @@ class TryOnResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final result = tryOnController.result;
+    final revision = tryOnController.customerSessionRevision;
     return Scaffold(
       backgroundColor: _ResultTokens.background,
       body: SafeArea(
         child: result == null
             ? const Center(child: Text('Try-On result unavailable.'))
+            : tryOnController.activeTryOnVertical == KioskTryOnVertical.garment
+            ? CustomPaint(
+                painter: const _ResultBackdrop(),
+                child: GarmentResultCatalog(
+                  sessionIdentity: (revision, result),
+                  catalog: catalogGateway,
+                  image: _ResultImageCard(
+                    imageSrc: result.generatedImage,
+                    isJewellery: false,
+                    jewelleryType: null,
+                  ),
+                  isCurrent: () =>
+                      tryOnController.isCustomerSessionCurrent(
+                        revision,
+                        requireActive: false,
+                      ) &&
+                      identical(tryOnController.result, result),
+                  downloadEnabled: tryOnController.saveMyLooksQrEnabled,
+                  nextPick: tryOnController.upcomingGarmentPick,
+                  onContinueNextPick: () async => _tryAnotherGarment(context),
+                  onContinue: (product) =>
+                      _continueCatalogGarment(context, product),
+                  onShowAll: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => BrowseProductsScreen(
+                        captureController: captureController,
+                        tryOnController: tryOnController,
+                        uploadController: uploadController,
+                        catalogGateway: catalogGateway,
+                        extractionService: extractionService,
+                      ),
+                    ),
+                  ),
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onRetake: () => _retakePhoto(context),
+                  onGetMyLooks: () => _getMyLooks(context),
+                  onFinish: () => _finish(context),
+                ),
+              )
             : _ResultPage(
                 imageSrc: result.generatedImage,
                 hasNextPick: tryOnController.hasNextGarmentPick,
@@ -59,7 +103,42 @@ class TryOnResultScreen extends StatelessWidget {
                 onRetakePhoto: () => _retakePhoto(context),
                 onGetMyLooks: () => _getMyLooks(context),
                 onFinish: () => _finish(context),
+                onBack: () => Navigator.of(context).maybePop(),
               ),
+      ),
+    );
+  }
+
+  Future<void> _continueCatalogGarment(
+    BuildContext context,
+    KioskCatalogProduct product,
+  ) async {
+    // Selection commits only here; generation reuses the original accepted photo.
+    tryOnController.selectGarment(product.toGarmentInput());
+    if (captureController.activeAcceptedPersonPhoto == null) {
+      await Navigator.of(context).pushReplacement<void, void>(
+        MaterialPageRoute<void>(
+          builder: (_) => CameraCaptureScreen(
+            controller: captureController,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            catalogGateway: catalogGateway,
+            extractionService: extractionService,
+            purpose: PhotoAcquisitionPurpose.model,
+          ),
+        ),
+      );
+      return;
+    }
+    await Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(
+        builder: (_) => TryOnGenerationScreen(
+          captureController: captureController,
+          tryOnController: tryOnController,
+          uploadController: uploadController,
+          catalogGateway: catalogGateway,
+          extractionService: extractionService,
+        ),
       ),
     );
   }
@@ -176,6 +255,7 @@ class _ResultPage extends StatelessWidget {
     required this.onRetakePhoto,
     required this.onGetMyLooks,
     required this.onFinish,
+    required this.onBack,
   });
 
   final String imageSrc;
@@ -190,6 +270,7 @@ class _ResultPage extends StatelessWidget {
   final VoidCallback onRetakePhoto;
   final VoidCallback onGetMyLooks;
   final VoidCallback onFinish;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -223,12 +304,18 @@ class _ResultPage extends StatelessWidget {
             )
             .toDouble();
         final headerGap = layout.scaled(22, small: 16, large: 26);
+        final headerHeight = layout.scaled(
+          156,
+          small: 128,
+          large: 180,
+          extraLarge: 204,
+        );
         final actionGap = layout.scaled(20, small: 14, large: 24);
         final actionTileHeight = layout.scaled(
-          96,
-          small: 82,
-          large: 112,
-          extraLarge: 124,
+          120,
+          small: 100,
+          large: 132,
+          extraLarge: 144,
         );
         final minimumImageHeight = layout.scaled(
           360,
@@ -252,7 +339,7 @@ class _ResultPage extends StatelessWidget {
             : 0.0;
         final minimumContentHeight =
             verticalPadding * 2 +
-            layout.scaled(64, small: 50, large: 72) +
+            headerHeight +
             headerGap +
             minimumImageHeight +
             actionGap +
@@ -260,12 +347,8 @@ class _ResultPage extends StatelessWidget {
             actionHeight;
         final scroll = viewportHeight < minimumContentHeight;
 
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: _ResultTokens.background,
-            border: Border.all(color: _ResultTokens.outerBorder, width: 2),
-            borderRadius: BorderRadius.circular(34),
-          ),
+        return CustomPaint(
+          painter: const _ResultBackdrop(),
           child: SingleChildScrollView(
             physics: scroll ? null : const NeverScrollableScrollPhysics(),
             child: ConstrainedBox(
@@ -287,7 +370,14 @@ class _ResultPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _ResultHeader(layout: layout),
+                          SizedBox(
+                            height: headerHeight,
+                            key: const Key('result-header'),
+                            child: _ResultHeader(
+                              layout: layout,
+                              onBack: onBack,
+                            ),
+                          ),
                           SizedBox(height: headerGap),
                           if (scroll)
                             SizedBox(
@@ -306,71 +396,120 @@ class _ResultPage extends StatelessWidget {
                             ),
                             SizedBox(height: actionGap),
                           ],
-                          _ActionGrid(
-                            stackActions: stackActions,
-                            compact: compact,
-                            gap: actionGap,
-                            topLeft: SelfxKioskActionCard(
-                              key: const Key('try-another-garment'),
-                              icon: Icons.shuffle_rounded,
-                              iconColor: _ResultTokens.gold,
-                              label: 'Try Another',
-                              subtitle: hasNextPick
-                                  ? 'Next pick'
-                                  : experience.resultSelectionSubtitle,
-                              disabledBackgroundColor:
-                                  _ResultTokens.primarySurface,
-                              minHeight: actionTileHeight,
-                              onPressed: onTryAnotherGarment,
+                          Theme(
+                            data: Theme.of(context).copyWith(
+                              textTheme: Theme.of(context).textTheme.copyWith(
+                                titleMedium: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontSize: compact ? 16 : 20),
+                                bodyMedium: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(fontSize: compact ? 14 : 16),
+                              ),
                             ),
-                            topRight: SelfxKioskActionCard(
-                              key: const Key('get-my-looks'),
-                              icon: Icons.checkroom_outlined,
-                              iconColor: _ResultTokens.orangeDeep,
-                              label: 'Get My Looks',
-                              subtitle: saveMyLooksQrEnabled
-                                  ? 'Explore styles'
-                                  : 'QR disabled',
-                              disabledBackgroundColor:
-                                  _ResultTokens.looksSurface,
-                              minHeight: actionTileHeight,
-                              onPressed: saveMyLooksQrEnabled
-                                  ? onGetMyLooks
-                                  : null,
-                            ),
-                            bottomLeft: SelfxKioskActionCard(
-                              key: const Key('result-retake-photo'),
-                              icon:
-                                  activeTryOnVertical ==
-                                      KioskTryOnVertical.jewellery
-                                  ? Icons.file_upload_outlined
-                                  : Icons.camera_alt_outlined,
-                              iconColor: _ResultTokens.blue,
-                              label:
-                                  activeTryOnVertical ==
-                                      KioskTryOnVertical.jewellery
-                                  ? 'Upload Another Photo'
-                                  : 'Retake Photo',
-                              subtitle:
-                                  activeTryOnVertical ==
-                                      KioskTryOnVertical.jewellery
-                                  ? 'Use your phone'
-                                  : 'Capture again',
-                              disabledBackgroundColor:
-                                  _ResultTokens.retakeSurface,
-                              minHeight: actionTileHeight,
-                              onPressed: onRetakePhoto,
-                            ),
-                            bottomRight: SelfxKioskActionCard(
-                              key: const Key('finish-try-on'),
-                              icon: Icons.home_outlined,
-                              iconColor: _ResultTokens.green,
-                              label: 'Finish',
-                              subtitle: 'Go to home',
-                              disabledBackgroundColor:
-                                  _ResultTokens.finishSurface,
-                              minHeight: actionTileHeight,
-                              onPressed: onFinish,
+                            child: _ActionGrid(
+                              stackActions: stackActions,
+                              compact: compact,
+                              gap: actionGap,
+                              topLeft: SelfxKioskActionCard(
+                                key: const Key('try-another-garment'),
+                                icon: experience.icon,
+                                iconColor: SelfxKioskTokens.primary,
+                                iconBackgroundColor: Colors.white,
+                                iconForegroundColor: SelfxKioskTokens.primary,
+                                backgroundColor: SelfxKioskTokens.primary,
+                                borderColor: SelfxKioskTokens.primary,
+                                titleColor: Colors.white,
+                                subtitleColor: Colors.white,
+                                trailing: const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.white,
+                                ),
+                                maxLabelLines: 2,
+                                maxSubtitleLines: 2,
+                                label: hasNextPick
+                                    ? 'Try Next Pick'
+                                    : activeTryOnVertical ==
+                                          KioskTryOnVertical.jewellery
+                                    ? 'Browse Jewellery'
+                                    : 'Browse Garments',
+                                subtitle: hasNextPick
+                                    ? 'Next pick'
+                                    : 'Explore our collection',
+                                disabledBackgroundColor:
+                                    _ResultTokens.primarySurface,
+                                minHeight: actionTileHeight,
+                                onPressed: onTryAnotherGarment,
+                              ),
+                              topRight: SelfxKioskActionCard(
+                                key: const Key('get-my-looks'),
+                                icon: Icons.checkroom_outlined,
+                                iconColor: _ResultTokens.orangeDeep,
+                                trailing: const Icon(
+                                  Icons.chevron_right,
+                                  color: _ResultTokens.orangeDeep,
+                                ),
+                                maxLabelLines: 2,
+                                maxSubtitleLines: 2,
+                                label: 'Get My Looks',
+                                subtitle: saveMyLooksQrEnabled
+                                    ? 'Download your styles'
+                                    : 'QR disabled',
+                                disabledBackgroundColor:
+                                    _ResultTokens.looksSurface,
+                                minHeight: actionTileHeight,
+                                onPressed: saveMyLooksQrEnabled
+                                    ? onGetMyLooks
+                                    : null,
+                              ),
+                              bottomLeft: SelfxKioskActionCard(
+                                key: const Key('result-retake-photo'),
+                                icon:
+                                    activeTryOnVertical ==
+                                        KioskTryOnVertical.jewellery
+                                    ? Icons.file_upload_outlined
+                                    : Icons.camera_alt_outlined,
+                                iconColor: _ResultTokens.blue,
+                                trailing: const Icon(
+                                  Icons.chevron_right,
+                                  color: _ResultTokens.blue,
+                                ),
+                                maxLabelLines: 2,
+                                maxSubtitleLines: 2,
+                                label:
+                                    activeTryOnVertical ==
+                                        KioskTryOnVertical.jewellery
+                                    ? 'Upload Another Photo'
+                                    : 'Retake Photo',
+                                subtitle:
+                                    activeTryOnVertical ==
+                                        KioskTryOnVertical.jewellery
+                                    ? 'Use your phone'
+                                    : 'Capture a new photo',
+                                disabledBackgroundColor:
+                                    _ResultTokens.retakeSurface,
+                                minHeight: actionTileHeight,
+                                onPressed: onRetakePhoto,
+                              ),
+                              bottomRight: SelfxKioskActionCard(
+                                key: const Key('finish-try-on'),
+                                icon: Icons.home_outlined,
+                                iconColor: _ResultTokens.green,
+                                trailing: const Icon(
+                                  Icons.chevron_right,
+                                  color: _ResultTokens.green,
+                                ),
+                                maxLabelLines: 2,
+                                maxSubtitleLines: 2,
+                                label: 'Back to Home',
+                                subtitle: 'Start over',
+                                disabledBackgroundColor:
+                                    _ResultTokens.finishSurface,
+                                minHeight: actionTileHeight,
+                                onPressed: onFinish,
+                              ),
                             ),
                           ),
                         ],
@@ -388,58 +527,82 @@ class _ResultPage extends StatelessWidget {
 }
 
 class _ResultHeader extends StatelessWidget {
-  const _ResultHeader({required this.layout});
-
+  const _ResultHeader({required this.layout, required this.onBack});
   final KioskLayoutMetrics layout;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     final titleSize = layout.scaled(42, small: 32, large: 50, extraLarge: 58);
-    final iconScale = layout.scaled(1, small: 0.72, large: 1.14);
-    return Stack(
-      alignment: Alignment.topCenter,
-      clipBehavior: Clip.none,
+    return Column(
       children: [
-        Column(
-          children: [
-            const SizedBox(height: 10),
-            Text(
-              'Your Look',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                color: _ResultTokens.ink,
-                fontSize: titleSize,
-                fontWeight: FontWeight.w900,
-                height: 1,
+        Expanded(
+          flex: 3,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 80),
+                child: SelfxLogo(
+                  height: layout.scaled(70, small: 54, large: 84),
+                  maxWidth: 310,
+                ),
               ),
-            ),
-          ],
-        ),
-        Positioned(
-          top: -6,
-          right: 92,
-          child: Icon(
-            Icons.auto_awesome,
-            color: _ResultTokens.orangeDeep,
-            size: 22 * iconScale,
+              Align(
+                alignment: Alignment.topLeft,
+                child: TextButton.icon(
+                  key: const Key('result-back'),
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Back'),
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFFECECEC),
+                    foregroundColor: _ResultTokens.ink,
+                    minimumSize: const Size(76, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        Positioned(
-          top: 14,
-          right: 48,
-          child: Icon(
-            Icons.auto_awesome,
-            color: _ResultTokens.orangeDeep,
-            size: 32 * iconScale,
+        Expanded(
+          flex: 2,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(
+                'Your Look',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  color: _ResultTokens.ink,
+                  fontSize: titleSize,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+              Positioned(
+                top: 0,
+                right: layout.isSmall ? 4 : 20,
+                child: Icon(
+                  Icons.auto_awesome,
+                  color: _ResultTokens.orangeDeep,
+                  size: layout.isSmall ? 22 : 34,
+                ),
+              ),
+            ],
           ),
         ),
-        Positioned(
-          top: 24,
-          right: 16,
-          child: Icon(
-            Icons.star,
-            color: _ResultTokens.orangeDeep,
-            size: 12 * iconScale,
+        Container(
+          width: 62,
+          height: 5,
+          margin: const EdgeInsets.only(top: 8),
+          decoration: BoxDecoration(
+            color: SelfxKioskTokens.primary,
+            borderRadius: BorderRadius.circular(999),
           ),
         ),
       ],
@@ -461,6 +624,7 @@ class _ResultImageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
+      key: const Key('result-image-card'),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
@@ -474,14 +638,14 @@ class _ResultImageCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
-        child: ColoredBox(
-          color: Colors.white,
+        child: SizedBox.expand(
           child: isJewellery
               ? JewelleryResultPreview(
                   src: imageSrc,
                   jewelleryType: jewelleryType,
+                  fit: BoxFit.cover,
                 )
-              : GeneratedTryOnImage(src: imageSrc),
+              : GeneratedTryOnImage(src: imageSrc, fit: BoxFit.cover),
         ),
       ),
     );
@@ -720,11 +884,9 @@ class _ResultTokens {
   const _ResultTokens._();
 
   static const background = Color(0xFFFFFCF8);
-  static const outerBorder = Color(0xFFEEDFD4);
   static const ink = Color(0xFF141A21);
   static const muted = Color(0xFF5D6169);
   static const orangeDeep = Color(0xFFE86610);
-  static const gold = Color(0xFFC88913);
   static const blue = Color(0xFF2384D6);
   static const green = Color(0xFF2FAE75);
   static const primarySurface = Color(0xFFFFE7DA);
@@ -732,4 +894,45 @@ class _ResultTokens {
   static const looksSurface = Color(0xFFFFF1D9);
   static const finishSurface = Color(0xFFFFF7F0);
   static const tileBorder = Color(0xFFF4DED0);
+}
+
+class _ResultBackdrop extends CustomPainter {
+  const _ResultBackdrop();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawColor(_ResultTokens.background, BlendMode.src);
+    final peach = Paint()..color = const Color(0xFFFFEAD7);
+    canvas.drawOval(
+      Rect.fromLTWH(
+        -size.width * .35,
+        size.height * .05,
+        size.width * .55,
+        size.height * .55,
+      ),
+      peach,
+    );
+    canvas.drawOval(
+      Rect.fromLTWH(
+        size.width * .78,
+        -size.height * .20,
+        size.width * .5,
+        size.height * .3,
+      ),
+      Paint()..color = const Color(0xFFFFD2A0),
+    );
+    final wave = Path()
+      ..moveTo(size.width, size.height * .65)
+      ..quadraticBezierTo(
+        size.width * .75,
+        size.height * .50,
+        size.width,
+        size.height * .45,
+      )
+      ..close();
+    canvas.drawPath(wave, Paint()..color = const Color(0xFFFFB263));
+  }
+
+  @override
+  bool shouldRepaint(covariant _ResultBackdrop oldDelegate) => false;
 }

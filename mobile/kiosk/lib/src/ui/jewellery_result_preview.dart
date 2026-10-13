@@ -12,11 +12,13 @@ class JewelleryResultPreview extends StatefulWidget {
     required this.src,
     required this.jewelleryType,
     this.regionDetector = const LocalJewelleryResultRegionDetector(),
+    this.fit = BoxFit.contain,
   });
 
   final String src;
   final KioskJewelleryType? jewelleryType;
   final JewelleryResultRegionDetector regionDetector;
+  final BoxFit fit;
 
   @override
   State<JewelleryResultPreview> createState() => _JewelleryResultPreviewState();
@@ -165,6 +167,7 @@ class _JewelleryResultPreviewState extends State<JewelleryResultPreview> {
                   painter: JewelleryResultImagePainter(
                     image: image,
                     sourceRect: crop ?? Offset.zero & size,
+                    fit: widget.fit,
                   ),
                 ),
               ),
@@ -190,21 +193,24 @@ class JewelleryResultImagePainter extends CustomPainter {
   const JewelleryResultImagePainter({
     required this.image,
     required this.sourceRect,
+    this.fit = BoxFit.contain,
   });
 
   final ui.Image image;
   final Rect sourceRect;
+  final BoxFit fit;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final fitted = applyBoxFit(BoxFit.contain, sourceRect.size, size);
+    final fitted = applyBoxFit(fit, sourceRect.size, size);
+    final source = Alignment.center.inscribe(fitted.source, sourceRect);
     final destination = Alignment.center.inscribe(
       fitted.destination,
       Offset.zero & size,
     );
     canvas.drawImageRect(
       image,
-      sourceRect,
+      source,
       destination,
       Paint()..filterQuality = FilterQuality.high,
     );
@@ -212,7 +218,9 @@ class JewelleryResultImagePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(JewelleryResultImagePainter oldDelegate) =>
-      oldDelegate.image != image || oldDelegate.sourceRect != sourceRect;
+      oldDelegate.image != image ||
+      oldDelegate.sourceRect != sourceRect ||
+      oldDelegate.fit != fit;
 }
 
 class _FullJewelleryResult extends StatefulWidget {

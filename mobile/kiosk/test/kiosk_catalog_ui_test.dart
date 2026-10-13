@@ -7,6 +7,7 @@ import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/browse_products_screen.dart';
+import 'package:selfx_kiosk/src/ui/catalog_filter_icon.dart';
 
 import 'kiosk_camera_foundation_test.dart' as fixtures;
 
@@ -49,6 +50,40 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        Color? audienceIconColor(CatalogFilterIconType type) {
+          final icon = find.byWidgetPredicate(
+            (widget) =>
+                widget is CatalogFilterIcon &&
+                widget.type == type &&
+                widget.color == null,
+          );
+          return IconTheme.of(tester.element(icon)).color;
+        }
+
+        expect(audienceIconColor(CatalogFilterIconType.all), Colors.white);
+        expect(
+          audienceIconColor(CatalogFilterIconType.men),
+          SelfxKioskTokens.textPrimary,
+        );
+        expect(
+          audienceIconColor(CatalogFilterIconType.women),
+          SelfxKioskTokens.textPrimary,
+        );
+        CatalogFilterIcon chipIcon(String slug) =>
+            tester.widget<CatalogFilterIcon>(
+              find.descendant(
+                of: find.byKey(Key('catalog-category-$slug')),
+                matching: find.byType(CatalogFilterIcon),
+              ),
+            );
+        expect(chipIcon('all').type, CatalogFilterIconType.all);
+        expect(chipIcon('all').color, SelfxKioskTokens.primary);
+        expect(
+          tester
+              .widget<ChoiceChip>(find.byKey(const Key('catalog-category-all')))
+              .showCheckmark,
+          isFalse,
+        );
         final grid = tester.widget<GridView>(find.byType(GridView));
         if (size.height > size.width) {
           expect(
@@ -67,13 +102,32 @@ void main() {
         await tester.tap(find.text('Men'));
         await tester.pumpAndSettle();
         expect(catalog.lastAudience, KioskCatalogAudience.men);
+        expect(
+          audienceIconColor(CatalogFilterIconType.all),
+          SelfxKioskTokens.textPrimary,
+        );
+        expect(audienceIconColor(CatalogFilterIconType.men), Colors.white);
         if (size.width < 400) {
           await tester.drag(find.byType(ListView).first, const Offset(-180, 0));
           await tester.pumpAndSettle();
         }
+        expect(chipIcon('bottoms').type, CatalogFilterIconType.bottoms);
+        expect(chipIcon('bottoms').color, SelfxKioskTokens.textPrimary);
         await tester.tap(find.byKey(const Key('catalog-category-bottoms')));
         await tester.pumpAndSettle();
         expect(catalog.lastCategory, 'bottoms');
+        expect(chipIcon('bottoms').color, SelfxKioskTokens.primary);
+        expect(
+          ChipTheme.of(
+            tester.element(find.byKey(const Key('catalog-category-bottoms'))),
+          ).selectedColor,
+          SelfxKioskTokens.catalogSelectedSurface,
+        );
+        if (size.width < 400) {
+          await tester.drag(find.byType(ListView).first, const Offset(180, 0));
+          await tester.pumpAndSettle();
+        }
+        expect(chipIcon('all').color, SelfxKioskTokens.textPrimary);
         expect(tryOn.garmentPicks, hasLength(1));
         await tester.tap(find.byKey(const Key('load-more-products')));
         await tester.pumpAndSettle();
@@ -85,6 +139,26 @@ void main() {
       },
     );
   }
+
+  test(
+    'category icon mapping handles existing garment slugs and custom fallback',
+    () {
+      expect(categoryFilterIconType('tops'), CatalogFilterIconType.tops);
+      expect(categoryFilterIconType('bottoms'), CatalogFilterIconType.bottoms);
+      expect(
+        categoryFilterIconType('full-outfit'),
+        CatalogFilterIconType.fullOutfit,
+      );
+      expect(
+        categoryFilterIconType('FULL_OUTFIT'),
+        CatalogFilterIconType.fullOutfit,
+      );
+      expect(
+        categoryFilterIconType('custom-collection'),
+        CatalogFilterIconType.all,
+      );
+    },
+  );
 
   test(
     'finish clears My Picks before a pending backend completion, even on failure',

@@ -166,6 +166,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'cover result fills all corners and preserves the full-image viewer',
+    (tester) async {
+      await _mount(tester, source, _Detector(null), fit: BoxFit.cover);
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(const Key('preview-pixels')),
+      );
+      await tester.runAsync(() async {
+        final rendered = await boundary.toImage();
+        try {
+          final pixels = (await rendered.toByteData())!;
+          for (final point in [
+            Offset.zero,
+            Offset(rendered.width - 1, 0),
+            Offset(0, rendered.height - 1),
+            Offset(rendered.width - 1, rendered.height - 1),
+          ]) {
+            final offset =
+                (point.dy.toInt() * rendered.width + point.dx.toInt()) * 4;
+            expect(pixels.getUint8(offset), 20);
+            expect(pixels.getUint8(offset + 1), 30);
+            expect(pixels.getUint8(offset + 2), 40);
+          }
+        } finally {
+          rendered.dispose();
+        }
+      });
+      await tester.tap(find.byKey(const Key('expand-jewellery-result')));
+      await tester.pumpAndSettle();
+      final full = tester.widget<RawImage>(find.byType(RawImage));
+      expect(full.image!.width, 1000);
+      expect(full.image!.height, 700);
+      expect(full.fit, BoxFit.contain);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('late detection cannot update a replaced result', (tester) async {
     final pending = Completer<Rect?>();
     await _mount(tester, source, _PendingDetector(pending));
@@ -213,8 +251,9 @@ String _syntheticResult() {
 Future<void> _mount(
   WidgetTester tester,
   String src,
-  JewelleryResultRegionDetector detector,
-) async {
+  JewelleryResultRegionDetector detector, {
+  BoxFit fit = BoxFit.contain,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: ThemeData(splashFactory: NoSplash.splashFactory),
@@ -229,6 +268,7 @@ Future<void> _mount(
                 src: src,
                 jewelleryType: KioskJewelleryType.ring,
                 regionDetector: detector,
+                fit: fit,
               ),
             ),
           ),

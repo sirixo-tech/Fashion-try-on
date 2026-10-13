@@ -7,8 +7,10 @@ import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration.dart';
 import 'package:selfx_kiosk/src/config/kiosk_runtime_configuration_controller.dart';
 import 'package:selfx_kiosk/src/device/kiosk_device_session_controller.dart';
 import 'package:selfx_kiosk/src/idle/kiosk_idle_presentation.dart';
+import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_home_screen.dart';
+import 'package:selfx_kiosk/src/ui/selfx_kiosk_button.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
@@ -24,6 +26,154 @@ void main() {
     VideoPlayerPlatform.instance = platform;
   });
   tearDown(() => VideoPlayerPlatform.instance = previousPlatform);
+
+  for (final size in [
+    const Size(320, 568),
+    const Size(630, 1365),
+    const Size(900, 1600),
+    const Size(1280, 720),
+    const Size(800, 480),
+  ]) {
+    testWidgets(
+      'centered privacy dialog keeps video and blocks the menu at $size',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await _pumpHome(tester);
+        final garments = tester.getRect(
+          find.byKey(const Key('home-garments-category')),
+        );
+        final jewellery = tester.getRect(
+          find.byKey(const Key('home-jewellery-category')),
+        );
+        expect(garments.width, closeTo(jewellery.width, 0.01));
+        expect(garments.height, closeTo(jewellery.height, 0.01));
+        expect(garments.left, closeTo(jewellery.left, 0.01));
+        expect(jewellery.top - garments.bottom, closeTo(16, 1));
+        expect(garments.top, greaterThanOrEqualTo(0));
+        expect(jewellery.bottom, lessThanOrEqualTo(size.height));
+        final compact = garments.width < 440 || size.height < 720;
+        expect(garments.height, closeTo(compact ? 80 : 100, 0.01));
+        for (final label in ['Try On Garments', 'Try On Jewellery']) {
+          final title = tester.widget<Text>(find.text(label));
+          expect(title.maxLines, 1);
+          expect(title.softWrap, isFalse);
+          expect(title.style!.fontSize, compact ? 22 : 32);
+        }
+        for (final subtitle in ['Explore our collection', 'Explore styles']) {
+          expect(
+            tester.widget<Text>(find.text(subtitle)).style!.fontSize,
+            compact ? 15 : 19,
+          );
+        }
+        expect(
+          tester.widget<Icon>(find.byIcon(Icons.diamond_outlined)).size,
+          compact ? 44 : 60,
+        );
+        expect(
+          tester.widget<Text>(find.text('Try On Garments')).style!.color,
+          SelfxKioskTokens.homeNavy,
+        );
+        expect(
+          tester.widget<Text>(find.text('Try On Jewellery')).style!.color,
+          const Color(0xFF3D230A),
+        );
+        for (final key in [
+          'home-garments-category',
+          'home-jewellery-category',
+        ]) {
+          final material = tester.widget<Material>(
+            find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(Material),
+            ),
+          );
+          final jewellery = key == 'home-jewellery-category';
+          expect(
+            material.color,
+            jewellery ? const Color(0xFFFFDF8A) : Colors.white,
+          );
+          expect(
+            (material.shape! as RoundedRectangleBorder).side.color,
+            jewellery ? const Color(0xFFD59A22) : SelfxKioskTokens.homeOrange,
+          );
+          final arrow = tester.widget<Icon>(
+            find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byIcon(Icons.arrow_forward),
+            ),
+          );
+          expect(arrow.color, Colors.white);
+          expect(arrow.size, compact ? 24 : 30);
+        }
+        final home = tester.widget<KioskHomeScreen>(
+          find.byType(KioskHomeScreen),
+        );
+        final player = tester
+            .widget<VideoPlayer>(find.byType(VideoPlayer))
+            .controller;
+        final plays = platform.playCalls;
+        final pauses = platform.pauseCalls;
+        await tester.tap(find.byKey(const Key('home-garments-category')));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(const Key('start-try-on')));
+        await tester.tap(find.byKey(const Key('start-try-on')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Ready to try on?'), findsOneWidget);
+        expect(find.text('PRIVACY CHECK'), findsOneWidget);
+        expect(find.text('Session-only use'), findsOneWidget);
+        expect(find.textContaining('images are deleted'), findsNothing);
+        final rect = tester.getRect(
+          find.byKey(const Key('customer-consent-card')),
+        );
+        expect(rect.center.dx, closeTo(size.width / 2, 1));
+        expect(rect.center.dy, closeTo(size.height / 2, 1));
+        final agree = tester.widget<SelfxKioskButton>(
+          find.byKey(const Key('customer-consent-ok')),
+        );
+        expect(agree.label, 'Agree & Continue');
+        expect(agree.backgroundColor, SelfxKioskTokens.primary);
+        expect(agree.foregroundColor, Colors.white);
+        expect(home.tryOnController.customerSessionActive, isFalse);
+        expect(find.byKey(const Key('capture-photo')), findsNothing);
+        expect(find.byKey(const Key('start-try-on')), findsOneWidget);
+        expect(
+          find.byKey(const Key('start-try-on')).hitTestable(),
+          findsNothing,
+        );
+        expect(
+          tester.widget<VideoPlayer>(find.byType(VideoPlayer)).controller,
+          same(player),
+        );
+        expect(player.value.isPlaying, isTrue);
+
+        await tester.tapAt(const Offset(1, 1));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('customer-consent-dialog')),
+          findsOneWidget,
+        );
+        await tester.ensureVisible(
+          find.byKey(const Key('customer-consent-cancel')),
+        );
+        await tester.tap(find.byKey(const Key('customer-consent-cancel')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('customer-consent-dialog')), findsNothing);
+        expect(home.tryOnController.customerSessionActive, isFalse);
+        expect(platform.sources, hasLength(1));
+        expect(platform.playCalls, plays);
+        expect(platform.pauseCalls, pauses);
+        expect(platform.disposedIds, isEmpty);
+        expect(player.value.isPlaying, isTrue);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 100));
+      },
+    );
+  }
 
   testWidgets('bundled video keeps playing through both menus and Back', (
     tester,
@@ -79,6 +229,21 @@ void main() {
         same(original),
       );
       expect(platform.sources, hasLength(1));
+
+      // A privacy modal must also preserve Store-configured video playback.
+      final pausesBeforeConsent = platform.pauseCalls;
+      await tester.tap(find.byKey(const Key('start-jewellery-try-on')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('customer-consent-dialog')), findsOneWidget);
+      expect(
+        tester.widget<VideoPlayer>(find.byType(VideoPlayer)).controller,
+        same(original),
+      );
+      expect(original.value.isPlaying, isTrue);
+      expect(platform.sources, hasLength(1));
+      expect(platform.pauseCalls, pausesBeforeConsent);
+      await tester.tap(find.byKey(const Key('customer-consent-cancel')));
+      await tester.pumpAndSettle();
 
       config.configuration = _storeVideoConfiguration('store-hero-v2.mp4');
       config.notifyListeners();
@@ -206,6 +371,7 @@ Future<KioskRuntimeConfigurationController> _pumpHome(
   });
   await tester.pumpWidget(
     MaterialApp(
+      theme: buildSelfxKioskTheme(),
       home: KioskHomeScreen(
         controller: capture,
         tryOnController: tryOn,
@@ -224,6 +390,7 @@ class _FakeVideoPlatform extends VideoPlayerPlatform {
   final events = <int, StreamController<VideoEvent>>{};
   final disposedIds = <int>[];
   var playCalls = 0;
+  var pauseCalls = 0;
   var seekCalls = 0;
   var failInitialization = false;
 
@@ -272,7 +439,7 @@ class _FakeVideoPlatform extends VideoPlayerPlatform {
   @override
   Future<void> play(int playerId) async => playCalls++;
   @override
-  Future<void> pause(int playerId) async {}
+  Future<void> pause(int playerId) async => pauseCalls++;
   @override
   Future<void> setLooping(int playerId, bool looping) async {}
   @override

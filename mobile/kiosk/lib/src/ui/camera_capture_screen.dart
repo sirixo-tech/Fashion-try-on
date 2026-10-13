@@ -22,6 +22,7 @@ import 'garment_review_screen.dart';
 import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
 import 'mobile_upload_screen.dart';
+import 'person_capture_guide_overlay.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -58,10 +59,15 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   @override
   void initState() {
     super.initState();
-    widget.controller.selectCapturePurpose(widget.purpose);
-    _syncJewelleryCaptureRequirements();
     widget.controller.addListener(_handleControllerChanged);
-    _start();
+    // Shared capture state is also observed by the outgoing review/upload route.
+    // Reset it after mounting, so navigation never notifies that route mid-build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.controller.selectCapturePurpose(widget.purpose);
+      _syncJewelleryCaptureRequirements();
+      unawaited(_start());
+    });
   }
 
   @override
@@ -121,11 +127,13 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                 widget.purpose == PhotoAcquisitionPurpose.model
                 ? widget.tryOnController.jewelleryCaptureRequirements
                 : null;
-            final canUploadPersonFromMobile =
+            final mobileUploadAvailable =
                 widget.purpose == PhotoAcquisitionPurpose.model &&
                 (jewelleryRequirements != null ||
                     widget.tryOnController.garmentInput?.isCatalogProduct ==
-                        true) &&
+                        true);
+            final canUploadPersonFromMobile =
+                mobileUploadAvailable &&
                 (flowState.stage == CaptureFlowStage.preview ||
                     flowState.stage == CaptureFlowStage.error);
             return Stack(
@@ -146,6 +154,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                         purpose: widget.purpose,
                         captureScope: widget.controller.captureScope,
                         jewelleryRequirements: jewelleryRequirements,
+                        countdownActive:
+                            flowState.stage == CaptureFlowStage.countdown,
+                        reserveUploadAction:
+                            widget
+                                .tryOnController
+                                .garmentInput
+                                ?.isCatalogProduct ==
+                            true,
                       ),
                     ),
                   ),
@@ -167,6 +183,9 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                   right: 0,
                   bottom: 0,
                   child: CaptureGuidancePanel(
+                    mobileUploadAvailable: mobileUploadAvailable,
+                    garmentStyle:
+                        widget.purpose == PhotoAcquisitionPurpose.garment,
                     state: cameraState,
                     flowState: flowState,
                     readinessResult: widget.controller.readinessResult,
@@ -403,14 +422,26 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
     required this.purpose,
     required this.captureScope,
     this.jewelleryRequirements,
+    this.countdownActive = false,
+    this.reserveUploadAction = false,
   });
 
   final PhotoAcquisitionPurpose purpose;
   final CaptureScope captureScope;
   final KioskJewelleryCaptureRequirements? jewelleryRequirements;
+  final bool countdownActive;
+  final bool reserveUploadAction;
 
   @override
   Widget build(BuildContext context) {
+    if (purpose == PhotoAcquisitionPurpose.model &&
+        jewelleryRequirements == null) {
+      return PersonCaptureGuideOverlay(
+        captureScope: captureScope,
+        countdownActive: countdownActive,
+        reserveUploadAction: reserveUploadAction,
+      );
+    }
     final title =
         jewelleryRequirements?.title ??
         (purpose == PhotoAcquisitionPurpose.garment
@@ -630,14 +661,20 @@ class _FramingGuidePainter extends CustomPainter {
       captureScope: captureScope,
       jewelleryGuide: jewelleryGuide,
     );
-    final orangePaint = Paint()
+    final garmentFrame =
+        purpose == PhotoAcquisitionPurpose.garment && jewelleryGuide == null;
+    final cornerPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
+      ..strokeWidth = garmentFrame ? 6 : 5
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..color = SelfxKioskTokens.primary.withValues(alpha: 0.92);
+      ..color = garmentFrame
+          ? Colors.white
+          : SelfxKioskTokens.primary.withValues(alpha: 0.92);
 
-    _drawGuideCorners(canvas, rect, orangePaint);
+    _drawGuideCorners(canvas, rect, cornerPaint);
+    // Garment capture uses clean corner brackets without an inner silhouette.
+    if (garmentFrame) return;
 
     final innerPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -680,7 +717,7 @@ Rect _framingGuideRect(
           CaptureScope.fullBody => 0.86,
         };
   final heightFactor = purpose == PhotoAcquisitionPurpose.garment
-      ? 0.62
+      ? 0.82
       : switch (captureScope) {
           CaptureScope.top => 0.66,
           CaptureScope.bottom => 0.82,
@@ -1490,6 +1527,8 @@ class CaptureGuidancePanel extends StatelessWidget {
     required this.canFlipCamera,
     required this.onFlipCamera,
     this.onUploadFromMobile,
+    this.mobileUploadAvailable = false,
+    this.garmentStyle = false,
   });
 
   final CameraState state;
@@ -1502,10 +1541,13 @@ class CaptureGuidancePanel extends StatelessWidget {
   final bool canFlipCamera;
   final VoidCallback? onFlipCamera;
   final VoidCallback? onUploadFromMobile;
+  final bool mobileUploadAvailable;
+  final bool garmentStyle;
 
   @override
   Widget build(BuildContext context) {
     return _CaptureControls(
+      garmentStyle: garmentStyle,
       state: state,
       flowState: flowState,
       readinessResult: readinessResult,
@@ -1516,6 +1558,7 @@ class CaptureGuidancePanel extends StatelessWidget {
       canFlipCamera: canFlipCamera,
       onFlipCamera: onFlipCamera,
       onUploadFromMobile: onUploadFromMobile,
+      mobileUploadAvailable: mobileUploadAvailable,
     );
   }
 }
@@ -1532,6 +1575,8 @@ class _CaptureControls extends StatelessWidget {
     required this.canFlipCamera,
     required this.onFlipCamera,
     this.onUploadFromMobile,
+    this.mobileUploadAvailable = false,
+    this.garmentStyle = false,
   });
 
   final CameraState state;
@@ -1544,6 +1589,8 @@ class _CaptureControls extends StatelessWidget {
   final bool canFlipCamera;
   final VoidCallback? onFlipCamera;
   final VoidCallback? onUploadFromMobile;
+  final bool mobileUploadAvailable;
+  final bool garmentStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -1573,6 +1620,8 @@ class _CaptureControls extends StatelessWidget {
     final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
     final primarySize = layout.scaled(66, small: 58, large: 76, extraLarge: 88);
     final railSize = layout.scaled(54, small: 48, large: 62, extraLarge: 72);
+    final showMobileUpload =
+        mobileUploadAvailable || onUploadFromMobile != null;
 
     return SafeArea(
       top: false,
@@ -1586,12 +1635,14 @@ class _CaptureControls extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (onUploadFromMobile != null) ...[
+            if (showMobileUpload) ...[
               SelfxKioskButton(
-                key: const Key('upload-jewellery-person-photo'),
-                label: 'Upload From Mobile',
-                icon: Icons.file_upload_outlined,
-                onPressed: onUploadFromMobile,
+                key: const Key('capture-photo'),
+                label: primaryLabel,
+                icon: _captureIconFor(stage, canCaptureAnyway),
+                onPressed: primaryAction,
+                backgroundColor: SelfxKioskTokens.primary,
+                foregroundColor: Colors.white,
               ),
               const SizedBox(height: 12),
             ],
@@ -1627,6 +1678,7 @@ class _CaptureControls extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: _CameraRailButton(
                         key: const Key('camera-back'),
+                        outlined: true,
                         label: leftLabel,
                         icon: leftIcon,
                         iconColor: const Color(0xFF2384D6),
@@ -1638,12 +1690,21 @@ class _CaptureControls extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: _PrimaryCameraActionButton(
-                        key: const Key('capture-photo'),
-                        label: primaryLabel,
-                        icon: _captureIconFor(stage, canCaptureAnyway),
+                        key: showMobileUpload
+                            ? const Key('upload-jewellery-person-photo')
+                            : const Key('capture-photo'),
+                        solidOrange: garmentStyle,
+                        label: showMobileUpload
+                            ? 'Mobile Upload'
+                            : primaryLabel,
+                        icon: showMobileUpload
+                            ? Icons.file_upload_outlined
+                            : _captureIconFor(stage, canCaptureAnyway),
                         centerText: null,
                         dimension: primarySize,
-                        onPressed: primaryAction,
+                        onPressed: showMobileUpload
+                            ? onUploadFromMobile
+                            : primaryAction,
                       ),
                     ),
                   ),
@@ -1652,6 +1713,7 @@ class _CaptureControls extends StatelessWidget {
                       alignment: Alignment.centerRight,
                       child: _CameraRailButton(
                         key: const Key('flip-person-camera'),
+                        outlined: true,
                         label: 'Flip',
                         icon: Icons.cameraswitch_outlined,
                         iconColor: SelfxKioskTokens.secondary,
@@ -1849,6 +1911,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
     this.centerText,
     required this.dimension,
     required this.onPressed,
+    this.solidOrange = false,
   });
 
   final String label;
@@ -1856,6 +1919,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
   final String? centerText;
   final double dimension;
   final VoidCallback? onPressed;
+  final bool solidOrange;
 
   @override
   Widget build(BuildContext context) {
@@ -1873,7 +1937,7 @@ class _PrimaryCameraActionButton extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(_cameraControlButtonRadius),
-              gradient: onPressed == null
+              gradient: solidOrange || onPressed == null
                   ? null
                   : const LinearGradient(
                       begin: Alignment.centerLeft,
@@ -1887,14 +1951,19 @@ class _PrimaryCameraActionButton extends StatelessWidget {
             child: FilledButton(
               onPressed: onPressed,
               style: FilledButton.styleFrom(
-                backgroundColor: onPressed == null
+                backgroundColor: solidOrange
+                    ? SelfxKioskTokens.primary
+                    : onPressed == null
                     ? SelfxKioskTokens.primaryGradientStart.withValues(
                         alpha: 0.42,
                       )
                     : Colors.transparent,
                 foregroundColor: SelfxKioskTokens.onPrimary,
-                disabledBackgroundColor: SelfxKioskTokens.primaryGradientStart
-                    .withValues(alpha: 0.42),
+                disabledBackgroundColor:
+                    (solidOrange
+                            ? SelfxKioskTokens.primary
+                            : SelfxKioskTokens.primaryGradientStart)
+                        .withValues(alpha: 0.42),
                 disabledForegroundColor: SelfxKioskTokens.onPrimary.withValues(
                   alpha: 0.72,
                 ),
@@ -1948,6 +2017,7 @@ class _CameraRailButton extends StatelessWidget {
     required this.iconColor,
     required this.dimension,
     required this.onPressed,
+    this.outlined = false,
   });
 
   final String label;
@@ -1955,10 +2025,52 @@ class _CameraRailButton extends StatelessWidget {
   final Color iconColor;
   final double dimension;
   final VoidCallback? onPressed;
+  final bool outlined;
 
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
+    if (outlined) {
+      return Tooltip(
+        message: label,
+        child: SizedBox(
+          width: dimension * 2.35,
+          height: dimension,
+          child: OutlinedButton(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white.withValues(alpha: 0.42),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: enabled ? 0.95 : 0.35),
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(_cameraControlButtonRadius),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: dimension * 0.4),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final radius = BorderRadius.circular(_cameraControlButtonRadius);
     final foreground = enabled
         ? SelfxKioskTokens.primaryHover

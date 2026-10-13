@@ -16,7 +16,7 @@ import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_action_card.dart';
 
 const _garmentSelectionBackgroundVideo =
-    'assets/videos/garment-selection-background.mp4';
+    'assets/videos/selfx-default-kiosk-video.mp4';
 
 class GarmentSelectionScreen extends StatefulWidget {
   const GarmentSelectionScreen({

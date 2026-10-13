@@ -63,49 +63,37 @@ class KioskHomeActions extends StatelessWidget {
     );
   }
 
-  Widget _categories() => LayoutBuilder(
-    key: const ValueKey('home-categories'),
-    builder: (context, constraints) {
-      final cards = [
-        if (garmentEnabled)
-          _CategoryCard(
-            key: const Key('home-garments-category'),
-            jewellery: false,
-            onPressed: busy
-                ? null
-                : () => onSelectVertical(KioskTryOnVertical.garment),
-          ),
-        if (jewelleryEnabled)
-          _CategoryCard(
-            key: const Key('home-jewellery-category'),
-            jewellery: true,
-            onPressed: busy
-                ? null
-                : () => onSelectVertical(KioskTryOnVertical.jewellery),
-          ),
-      ];
-      if (constraints.maxWidth < 360 || cards.length < 2) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var index = 0; index < cards.length; index++) ...[
-              if (index > 0) const SizedBox(height: 16),
-              cards[index],
-            ],
-          ],
-        );
-      }
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: cards.first),
-          const SizedBox(width: 16),
-          Expanded(child: cards.last),
+  Widget _categories() {
+    final cards = [
+      if (garmentEnabled)
+        _CategoryCard(
+          key: const Key('home-garments-category'),
+          jewellery: false,
+          onPressed: busy
+              ? null
+              : () => onSelectVertical(KioskTryOnVertical.garment),
+        ),
+      if (jewelleryEnabled)
+        _CategoryCard(
+          key: const Key('home-jewellery-category'),
+          jewellery: true,
+          onPressed: busy
+              ? null
+              : () => onSelectVertical(KioskTryOnVertical.jewellery),
+        ),
+    ];
+    return Column(
+      key: const ValueKey('home-categories'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < cards.length; index++) ...[
+          if (index > 0) const SizedBox(height: 16),
+          cards[index],
         ],
-      );
-    },
-  );
+      ],
+    );
+  }
 
   Widget _menu(BuildContext context) {
     final jewellery = selectedVertical == KioskTryOnVertical.jewellery;
@@ -294,82 +282,109 @@ class _CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = jewellery
-        ? SelfxKioskTokens.homeGold
+        ? const Color(0xFFD59A22)
         : SelfxKioskTokens.homeOrange;
+    final iconColor = jewellery
+        ? const Color(0xFF8A4F00)
+        : SelfxKioskTokens.homeOrange;
+    final foreground = jewellery
+        ? const Color(0xFF3D230A)
+        : SelfxKioskTokens.homeNavy;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 250;
+        final compact =
+            constraints.maxWidth < 440 ||
+            MediaQuery.sizeOf(context).height < 720;
         return _HomeTapSurface(
           onPressed: onPressed,
           radius: 28,
-          color: SelfxKioskTokens.homeDark.withValues(alpha: 0.88),
+          color: jewellery ? const Color(0xFFFFDF8A) : Colors.white,
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              accent.withValues(alpha: jewellery ? 0.06 : 0.16),
-              SelfxKioskTokens.homeDark.withValues(alpha: 0.88),
-            ],
+            colors: jewellery
+                ? const [
+                    Color(0xFFFFE9A6),
+                    Color(0xFFFFDB7A),
+                    Color(0xFFFFEAA6),
+                  ]
+                : const [Colors.white, Color(0xFFFFE3CE)],
           ),
           borderColor: accent,
           glow: true,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: compact ? 205 : 250),
+          child: SizedBox(
+            height: compact ? 80 : 100,
             child: Padding(
-              padding: EdgeInsets.all(compact ? 18 : 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 18 : 28,
+                vertical: compact ? 10 : 12,
+              ),
+              child: Row(
                 children: [
                   if (jewellery)
                     Icon(
                       Icons.diamond_outlined,
-                      color: accent,
-                      size: compact ? 48 : 64,
+                      color: iconColor,
+                      size: compact ? 44 : 60,
                     )
                   else
-                    _HangerIcon(color: accent, size: compact ? 48 : 64),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          jewellery ? 'Try On\nJewellery' : 'Browse\nGarments',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontFamily: SelfxKioskTokens.headingFontFamily,
-                            fontSize: compact ? 24 : 32,
-                            fontWeight: FontWeight.w700,
-                            height: 1.12,
+                    _ShirtIcon(color: iconColor, size: compact ? 44 : 60),
+                  SizedBox(width: compact ? 14 : 24),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            jewellery ? 'Try On Jewellery' : 'Try On Garments',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              color: foreground,
+                              fontFamily: SelfxKioskTokens.headingFontFamily,
+                              fontSize: compact ? 22 : 32,
+                              fontWeight: FontWeight.w700,
+                              height: 1.12,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: accent,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(compact ? 10 : 14),
-                          child: Icon(
-                            Icons.arrow_forward,
-                            color: jewellery
-                                ? SelfxKioskTokens.homeNavy
-                                : Colors.white,
-                            size: compact ? 24 : 30,
+                        const SizedBox(height: 6),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            jewellery
+                                ? 'Explore styles'
+                                : 'Explore our collection',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              color: jewellery
+                                  ? foreground.withValues(alpha: 0.78)
+                                  : SelfxKioskTokens.textSecondary,
+                              fontSize: compact ? 15 : 19,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    jewellery ? 'Explore styles' : 'Explore our collection',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: compact ? 15 : 19,
+                  SizedBox(width: compact ? 12 : 20),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: jewellery ? const Color(0xFF975B09) : accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(compact ? 10 : 14),
+                      child: Icon(
+                        Icons.arrow_forward,
+                        color: Colors.white,
+                        size: compact ? 24 : 30,
+                      ),
                     ),
                   ),
                 ],
@@ -440,6 +455,53 @@ class _HomeTapSurface extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _ShirtIcon extends StatelessWidget {
+  const _ShirtIcon({required this.color, required this.size});
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: CustomPaint(painter: _ShirtPainter(color)),
+  );
+}
+
+class _ShirtPainter extends CustomPainter {
+  const _ShirtPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width, size.height);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.06
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final shirt = Path()
+      ..moveTo(0.32, 0.12)
+      ..lineTo(0.07, 0.28)
+      ..lineTo(0.20, 0.48)
+      ..lineTo(0.32, 0.40)
+      ..lineTo(0.32, 0.90)
+      ..lineTo(0.68, 0.90)
+      ..lineTo(0.68, 0.40)
+      ..lineTo(0.80, 0.48)
+      ..lineTo(0.93, 0.28)
+      ..lineTo(0.68, 0.12)
+      ..cubicTo(0.65, 0.34, 0.35, 0.34, 0.32, 0.12)
+      ..close();
+    canvas.drawPath(shirt, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_ShirtPainter oldDelegate) => oldDelegate.color != color;
 }
 
 class _HangerIcon extends StatelessWidget {

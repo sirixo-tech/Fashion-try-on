@@ -13,11 +13,13 @@ class CaptureReviewPresentation extends StatelessWidget {
     required this.imagePath,
     required this.onBack,
     required this.actions,
+    this.prioritizePhoto = false,
   });
 
   final String imagePath;
   final VoidCallback onBack;
   final Widget actions;
+  final bool prioritizePhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +28,80 @@ class CaptureReviewPresentation extends StatelessWidget {
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            if (prioritizePhoto) {
+              final height = constraints.maxHeight;
+              final headerHeight = math.max(48.0, height * 0.1);
+              // Short windows need a readable footer; tall kiosks use 10/70/20.
+              final footerHeight = math.max(
+                constraints.maxWidth < 420 ? 260.0 : 208.0,
+                height * 0.2,
+              );
+              final photoHeight = math.max(
+                210.0,
+                height - headerHeight - footerHeight,
+              );
+              final page = Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: constraints.maxWidth < 560 ? 12 : 24,
+                ),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      key: const Key('accepted-photo-header'),
+                      height: headerHeight,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 104,
+                            ),
+                            child: SelfxLogo(
+                              height: (headerHeight - 12).clamp(32.0, 84.0),
+                              maxWidth: 300,
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _ReviewBackButton(onPressed: onBack),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      key: const Key('accepted-photo-preview'),
+                      height: photoHeight,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1400),
+                          child: _ReviewPhoto(
+                            imagePath: imagePath,
+                            expanded: true,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      key: const Key('accepted-photo-footer'),
+                      height: footerHeight,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1000),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: actions,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              if (headerHeight + photoHeight + footerHeight > height) {
+                return SingleChildScrollView(child: page);
+              }
+              return page;
+            }
             final portrait = constraints.maxHeight > constraints.maxWidth;
             final large = portrait && constraints.maxWidth >= 760;
             final padding = constraints.maxWidth < 560 ? 20.0 : 36.0;
@@ -35,7 +111,7 @@ class CaptureReviewPresentation extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 58),
+                    padding: const EdgeInsets.symmetric(horizontal: 116),
                     child: SelfxLogo(
                       height: large ? 84 : 64,
                       maxWidth: large ? 300 : 230,
@@ -43,19 +119,7 @@ class CaptureReviewPresentation extends StatelessWidget {
                   ),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: IconButton.filled(
-                      key: const Key('capture-review-back'),
-                      tooltip: 'Back',
-                      onPressed: onBack,
-                      icon: const Icon(Icons.arrow_back),
-                      color: SelfxKioskTokens.textPrimary,
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        minimumSize: const Size.square(52),
-                        elevation: 2,
-                        shadowColor: const Color(0x16000000),
-                      ),
-                    ),
+                    child: _ReviewBackButton(onPressed: onBack),
                   ),
                 ],
               ),
@@ -129,42 +193,67 @@ class CaptureReviewPresentation extends StatelessWidget {
   }
 }
 
+class _ReviewBackButton extends StatelessWidget {
+  const _ReviewBackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+    key: const Key('capture-review-back'),
+    onPressed: onPressed,
+    icon: const Icon(Icons.arrow_back),
+    label: const Text('Back'),
+    style: TextButton.styleFrom(
+      backgroundColor: const Color(0xFFECECEC),
+      foregroundColor: SelfxKioskTokens.textPrimary,
+      minimumSize: const Size(76, 44),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+  );
+}
+
 class _ReviewPhoto extends StatelessWidget {
-  const _ReviewPhoto({required this.imagePath});
+  const _ReviewPhoto({required this.imagePath, this.expanded = false});
   final String imagePath;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 0.72,
-      child: Container(
-        key: const Key('capture-review-photo-frame'),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(32),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x180F172A),
-              blurRadius: 28,
-              offset: Offset(0, 12),
+    final photo = Container(
+      key: const Key('capture-review-photo-frame'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x180F172A),
+            blurRadius: 28,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.file(
+              File(imagePath),
+              fit: expanded ? BoxFit.contain : BoxFit.cover,
+              alignment: Alignment.center,
+              errorBuilder: (_, _, _) => const ColoredBox(
+                color: SelfxKioskTokens.background,
+                child: Center(child: Text('Captured image unavailable')),
+              ),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: Image.file(
-            File(imagePath),
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            errorBuilder: (_, _, _) => const ColoredBox(
-              color: SelfxKioskTokens.background,
-              child: Center(child: Text('Captured image unavailable')),
-            ),
-          ),
-        ),
       ),
     );
+    return expanded ? photo : AspectRatio(aspectRatio: 0.72, child: photo);
   }
 }
 

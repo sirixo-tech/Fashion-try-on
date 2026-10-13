@@ -563,10 +563,10 @@ void main() {
       );
 
       final expectedRadius = BorderRadius.circular(26);
-      final backMaterial = tester.widget<Material>(
+      final backButton = tester.widget<OutlinedButton>(
         find.descendant(
           of: find.byKey(const Key('camera-back')),
-          matching: find.byType(Material),
+          matching: find.byType(OutlinedButton),
         ),
       );
       final captureButton = tester.widget<FilledButton>(
@@ -575,13 +575,17 @@ void main() {
           matching: find.byType(FilledButton),
         ),
       );
-      final flipMaterial = tester.widget<Material>(
+      final flipButton = tester.widget<OutlinedButton>(
         find.descendant(
           of: find.byKey(const Key('flip-person-camera')),
-          matching: find.byType(Material),
+          matching: find.byType(OutlinedButton),
         ),
       );
-      expect(backMaterial.borderRadius, expectedRadius);
+      expect(
+        (backButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
+            .borderRadius,
+        expectedRadius,
+      );
       expect(
         (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
             .borderRadius,
@@ -591,70 +595,103 @@ void main() {
         captureButton.style!.backgroundColor!.resolve({}),
         Colors.transparent,
       );
-      expect(flipMaterial.borderRadius, expectedRadius);
+      expect(
+        (flipButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
+            .borderRadius,
+        expectedRadius,
+      );
     });
 
-    testWidgets('garment capture uses the same camera button treatment', (
-      tester,
-    ) async {
-      final captureController = testController();
-      final tryOnController = KioskTryOnSessionController(
-        gateway: FakeKioskTryOnGateway(),
-      );
-      final uploadController = testUploadController(
-        captureController.captureStore,
-      );
-      addTearDown(() {
-        uploadController.dispose();
-        tryOnController.dispose();
-        captureController.dispose();
-      });
+    testWidgets(
+      'garment capture uses orange and transparent outlined buttons',
+      (tester) async {
+        final captureController = testController();
+        final tryOnController = KioskTryOnSessionController(
+          gateway: FakeKioskTryOnGateway(),
+        );
+        final uploadController = testUploadController(
+          captureController.captureStore,
+        );
+        addTearDown(() {
+          uploadController.dispose();
+          tryOnController.dispose();
+          captureController.dispose();
+        });
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildSelfxKioskTheme(),
-          home: CameraCaptureScreen(
-            controller: captureController,
-            tryOnController: tryOnController,
-            uploadController: uploadController,
-            purpose: PhotoAcquisitionPurpose.garment,
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildSelfxKioskTheme(),
+            home: CameraCaptureScreen(
+              controller: captureController,
+              tryOnController: tryOnController,
+              uploadController: uploadController,
+              purpose: PhotoAcquisitionPurpose.garment,
+            ),
           ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 20));
 
-      final expectedRadius = BorderRadius.circular(26);
-      final backMaterial = tester.widget<Material>(
-        find.descendant(
-          of: find.byKey(const Key('camera-back')),
-          matching: find.byType(Material),
-        ),
-      );
-      final captureButton = tester.widget<FilledButton>(
-        find.descendant(
-          of: find.byKey(const Key('capture-photo')),
-          matching: find.byType(FilledButton),
-        ),
-      );
-      final flipMaterial = tester.widget<Material>(
-        find.descendant(
-          of: find.byKey(const Key('flip-person-camera')),
-          matching: find.byType(Material),
-        ),
-      );
-      expect(backMaterial.borderRadius, expectedRadius);
-      expect(
-        (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
-            .borderRadius,
-        expectedRadius,
-      );
-      expect(
-        captureButton.style!.backgroundColor!.resolve({}),
-        Colors.transparent,
-      );
-      expect(flipMaterial.borderRadius, expectedRadius);
-    });
+        final expectedRadius = BorderRadius.circular(26);
+        final captureButton = tester.widget<FilledButton>(
+          find.descendant(
+            of: find.byKey(const Key('capture-photo')),
+            matching: find.byType(FilledButton),
+          ),
+        );
+        expect(
+          (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
+              .borderRadius,
+          expectedRadius,
+        );
+        expect(
+          captureButton.style!.backgroundColor!.resolve({}),
+          SelfxKioskTokens.primary,
+        );
+        expect(captureButton.style!.foregroundColor!.resolve({}), Colors.white);
+        for (final key in ['camera-back', 'flip-person-camera']) {
+          final button = tester.widget<OutlinedButton>(
+            find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(OutlinedButton),
+            ),
+          );
+          expect(
+            button.style!.backgroundColor!.resolve({}),
+            Colors.transparent,
+          );
+          expect(button.style!.foregroundColor!.resolve({}), Colors.white);
+          expect(
+            (button.style!.shape!.resolve({})! as RoundedRectangleBorder)
+                .borderRadius,
+            expectedRadius,
+          );
+        }
+        final flipButton = tester.widget<OutlinedButton>(
+          find.descendant(
+            of: find.byKey(const Key('flip-person-camera')),
+            matching: find.byType(OutlinedButton),
+          ),
+        );
+        expect(flipButton.onPressed, isNull);
+        final decorations = tester.widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byKey(const Key('capture-photo')),
+            matching: find.byType(DecoratedBox),
+          ),
+        );
+        expect(
+          decorations.any(
+            (widget) =>
+                widget.decoration is BoxDecoration &&
+                (widget.decoration as BoxDecoration).gradient != null,
+          ),
+          isFalse,
+        );
+        expect(find.text('Garment guide'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     testWidgets('countdown overlay shows a large remaining number', (
       tester,
@@ -700,8 +737,8 @@ void main() {
       );
 
       expect(find.byKey(const Key('camera-framing-guide')), findsOneWidget);
-      expect(find.text('Full body guide'), findsOneWidget);
-      expect(find.text('Frame shoulders to feet'), findsOneWidget);
+      expect(find.text('Stand in Position'), findsOneWidget);
+      expect(find.text('Face the camera and stand straight.'), findsOneWidget);
     });
 
     testWidgets('garment capture shows garment framing guidance', (
@@ -1286,17 +1323,20 @@ void main() {
         );
         expect(find.byKey(const Key('upload-from-mobile-start')), findsNothing);
         expect(find.byKey(const Key('start-try-on')), findsNothing);
-        final garmentTop = tester.getTopLeft(
+        final garmentRect = tester.getRect(
           find.byKey(const Key('home-garments-category')),
         );
-        final jewelleryTop = tester.getTopLeft(
+        final jewelleryRect = tester.getRect(
           find.byKey(const Key('home-jewellery-category')),
         );
-        expect(garmentTop.dy, closeTo(jewelleryTop.dy, 1));
+        expect(garmentRect.width, closeTo(jewelleryRect.width, 0.01));
+        expect(garmentRect.height, closeTo(jewelleryRect.height, 0.01));
+        expect(garmentRect.left, closeTo(jewelleryRect.left, 0.01));
+        expect(jewelleryRect.top - garmentRect.bottom, closeTo(16, 1));
 
         await tester.tap(find.byKey(const Key('home-garments-category')));
         await tester.pumpAndSettle();
-        expect(find.text('Consent Required'), findsNothing);
+        expect(find.text('Ready to try on?'), findsNothing);
         expect(find.text('Browse Garments'), findsOneWidget);
         expect(find.text('Virtual Try-On'), findsOneWidget);
         expect(find.text('Upload From Mobile'), findsOneWidget);
@@ -1337,7 +1377,7 @@ void main() {
       await tester.pumpHome(controller: testController());
 
       expect(find.byKey(const Key('home-garments-category')), findsOneWidget);
-      expect(find.text('Browse\nGarments'), findsOneWidget);
+      expect(find.text('Try On Garments'), findsOneWidget);
       expect(find.byKey(const Key('operator-menu-button')), findsNothing);
       expect(find.byKey(const Key('camera-settings')), findsNothing);
 
@@ -1346,7 +1386,7 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Consent Required'), findsOneWidget);
+      expect(find.text('Ready to try on?'), findsOneWidget);
       expect(find.byKey(const Key('capture-photo')), findsNothing);
 
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
@@ -1373,7 +1413,7 @@ void main() {
       await tester.tap(find.byKey(const Key('start-try-on')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Consent Required'), findsOneWidget);
+      expect(find.text('Ready to try on?'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('customer-consent-cancel')));
       await tester.pumpAndSettle();
@@ -1392,7 +1432,7 @@ void main() {
       await tester.tap(find.byKey(const Key('upload-from-mobile-start')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Consent Required'), findsOneWidget);
+      expect(find.text('Ready to try on?'), findsOneWidget);
       expect(find.text('Scan to add your photo'), findsNothing);
 
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
@@ -1734,30 +1774,9 @@ void main() {
 
   group('KIOSK-4C.1 garment selection', () {
     test(
-      'generation screen uses balanced sections and non-cropping previews',
+      'generation previews fill the image area with proportional cropping',
       () {
-        expect(
-          generationScreenSectionFlexesForTesting(
-            tightHeight: false,
-            canShowInputPreview: true,
-          ),
-          [30, 42, 28],
-        );
-        expect(
-          generationScreenSectionFlexesForTesting(
-            tightHeight: true,
-            canShowInputPreview: true,
-          ),
-          [28, 44, 28],
-        );
-        expect(
-          generationScreenSectionFlexesForTesting(
-            tightHeight: false,
-            canShowInputPreview: false,
-          ),
-          [30, 0, 70],
-        );
-        expect(generationInputPreviewImageFitForTesting, BoxFit.contain);
+        expect(generationInputPreviewImageFitForTesting, BoxFit.cover);
       },
     );
 

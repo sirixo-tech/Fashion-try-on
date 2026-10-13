@@ -14,6 +14,7 @@ import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
+import 'catalog_filter_icon.dart';
 import 'mobile_upload_screen.dart';
 import 'kiosk_chrome.dart';
 import 'selfx_kiosk_action_card.dart';
@@ -186,10 +187,6 @@ class _BrowseProductsScreenState extends State<BrowseProductsScreen> {
       _categories = const [];
       _selectedProductId = null;
     });
-    final recommendations = widget.tryOnController.recommendations;
-    if (recommendations?.sessionActive == true) {
-      recommendations!.setAudiencePreference(audience);
-    }
     unawaited(_load(reset: true));
   }
 
@@ -570,6 +567,11 @@ class _CatalogFilterBar extends StatelessWidget {
                       ? SelfxKioskTokens.onPrimary
                       : SelfxKioskTokens.textPrimary,
                 ),
+                iconColor: WidgetStateProperty.resolveWith(
+                  (states) => states.contains(WidgetState.selected)
+                      ? SelfxKioskTokens.onPrimary
+                      : SelfxKioskTokens.textPrimary,
+                ),
                 side: const WidgetStatePropertyAll(
                   BorderSide(color: SelfxKioskTokens.border),
                 ),
@@ -589,15 +591,18 @@ class _CatalogFilterBar extends StatelessWidget {
               segments: const [
                 ButtonSegment(
                   value: KioskCatalogAudience.all,
-                  label: Text('All'),
+                  icon: CatalogFilterIcon(type: CatalogFilterIconType.all),
+                  label: FittedBox(fit: BoxFit.scaleDown, child: Text('All')),
                 ),
                 ButtonSegment(
                   value: KioskCatalogAudience.men,
-                  label: Text('Men'),
+                  icon: CatalogFilterIcon(type: CatalogFilterIconType.men),
+                  label: FittedBox(fit: BoxFit.scaleDown, child: Text('Men')),
                 ),
                 ButtonSegment(
                   value: KioskCatalogAudience.women,
-                  label: Text('Women'),
+                  icon: CatalogFilterIcon(type: CatalogFilterIconType.women),
+                  label: FittedBox(fit: BoxFit.scaleDown, child: Text('Women')),
                 ),
               ],
               selected: {audience},
@@ -656,6 +661,13 @@ class _CategoryStrip extends StatelessWidget {
               child: ChoiceChip(
                 key: const Key('catalog-category-all'),
                 label: const Text('All categories'),
+                avatar: CatalogFilterIcon(
+                  type: CatalogFilterIconType.all,
+                  color: selectedSlug == null
+                      ? SelfxKioskTokens.primary
+                      : SelfxKioskTokens.textPrimary,
+                ),
+                showCheckmark: false,
                 selected: selectedSlug == null,
                 side: selectedSlug == null ? BorderSide.none : null,
                 onSelected: (_) => onSelected(null),
@@ -667,6 +679,13 @@ class _CategoryStrip extends StatelessWidget {
                 child: ChoiceChip(
                   key: Key('catalog-category-${category.slug}'),
                   label: Text(category.name),
+                  avatar: CatalogFilterIcon(
+                    type: categoryFilterIconType(category.slug),
+                    color: selectedSlug == category.slug
+                        ? SelfxKioskTokens.primary
+                        : SelfxKioskTokens.textPrimary,
+                  ),
+                  showCheckmark: false,
                   selected: selectedSlug == category.slug,
                   side: selectedSlug == category.slug ? BorderSide.none : null,
                   onSelected: (_) => onSelected(category.slug),

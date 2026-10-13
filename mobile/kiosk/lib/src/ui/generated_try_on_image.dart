@@ -4,9 +4,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 class GeneratedTryOnImage extends StatelessWidget {
-  const GeneratedTryOnImage({super.key, required this.src});
+  const GeneratedTryOnImage({
+    super.key,
+    required this.src,
+    this.fit = BoxFit.contain,
+  });
 
   final String src;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +22,7 @@ class GeneratedTryOnImage extends StatelessWidget {
       }
       return Image.memory(
         bytes,
-        fit: BoxFit.contain,
+        fit: fit,
         errorBuilder: (_, _, _) =>
             const Center(child: Text('Generated image unavailable')),
       );
@@ -29,14 +34,14 @@ class GeneratedTryOnImage extends StatelessWidget {
       }
       return Image.memory(
         bytes,
-        fit: BoxFit.contain,
+        fit: fit,
         errorBuilder: (_, _, _) =>
             const Center(child: Text('Generated image unavailable')),
       );
     }
     return Image.network(
       src,
-      fit: BoxFit.contain,
+      fit: fit,
       errorBuilder: (_, _, _) =>
           const Center(child: Text('Generated image unavailable')),
     );

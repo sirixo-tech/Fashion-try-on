@@ -22,6 +22,10 @@ class SelfxKioskActionCard extends StatelessWidget {
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.borderColor,
     this.trailing,
+    this.iconBackgroundColor,
+    this.iconForegroundColor,
+    this.maxLabelLines = 1,
+    this.maxSubtitleLines = 1,
   });
 
   final String label;
@@ -41,6 +45,10 @@ class SelfxKioskActionCard extends StatelessWidget {
   final MainAxisAlignment mainAxisAlignment;
   final Color? borderColor;
   final Widget? trailing;
+  final Color? iconBackgroundColor;
+  final Color? iconForegroundColor;
+  final int maxLabelLines;
+  final int maxSubtitleLines;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +89,8 @@ class SelfxKioskActionCard extends StatelessWidget {
                 color: effectiveIconColor,
                 enabled: enabled,
                 size: minHeight < 76 ? 46 : 54,
+                backgroundColor: enabled ? iconBackgroundColor : null,
+                foregroundColor: enabled ? iconForegroundColor : null,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -91,7 +101,7 @@ class SelfxKioskActionCard extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      maxLines: 1,
+                      maxLines: maxLabelLines,
                       overflow: TextOverflow.ellipsis,
                       textAlign: textAlign,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -104,7 +114,7 @@ class SelfxKioskActionCard extends StatelessWidget {
                       const SizedBox(height: 7),
                       Text(
                         subtitle!,
-                        maxLines: 1,
+                        maxLines: maxSubtitleLines,
                         overflow: TextOverflow.ellipsis,
                         textAlign: textAlign,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -139,12 +149,16 @@ class _SelfxActionIconBubble extends StatelessWidget {
     required this.color,
     required this.enabled,
     required this.size,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   final IconData icon;
   final Color color;
   final bool enabled;
   final double size;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +167,9 @@ class _SelfxActionIconBubble extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: enabled ? color : color.withValues(alpha: 0.14),
+        color:
+            backgroundColor ??
+            (enabled ? color : color.withValues(alpha: 0.14)),
         boxShadow: enabled
             ? [
                 BoxShadow(
@@ -166,7 +182,7 @@ class _SelfxActionIconBubble extends StatelessWidget {
       ),
       child: Icon(
         icon,
-        color: enabled ? Colors.white : color,
+        color: foregroundColor ?? (enabled ? Colors.white : color),
         size: size * 0.52,
       ),
     );

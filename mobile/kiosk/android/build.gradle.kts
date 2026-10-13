@@ -15,14 +15,6 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 
-    if (name == "tflite_flutter") {
-        // The plugin explicitly targets Java 11 but leaves Kotlin's target unset.
-        // Keep its Kotlin bytecode aligned regardless of the host JDK version.
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
-            compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-        }
-    }
-
     if (name == "camera_android_camerax") {
         pluginManager.withPlugin("com.android.library") {
             project.dependencies.add(

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -13,11 +12,11 @@ import '../tryon/kiosk_garment_input.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
+import 'accepted_person_photo_actions.dart';
 import 'camera_capture_screen.dart';
 import 'capture_review_presentation.dart';
 import 'kiosk_attention_animations.dart';
 import 'mobile_upload_screen.dart';
-import 'product_recommendation_carousel.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'try_on_experience_config.dart';
@@ -66,23 +65,19 @@ class CaptureReviewScreen extends StatelessWidget {
                       'Image is fine. Proceed tryon.',
                     )
                   : null);
-          return CaptureReviewPresentation(
+          return _ReviewActions(
             imagePath: capture.originalPath,
             onBack: () async {
-              await controller.retake();
-              if (context.mounted) {
-                Navigator.of(context).pop();
-              }
+              await tryOnController.retakePhoto(controller);
+              if (context.mounted) Navigator.of(context).pop();
             },
-            actions: _ReviewActions(
-              controller: controller,
-              tryOnController: tryOnController,
-              uploadController: uploadController,
-              catalogGateway: catalogGateway,
-              extractionService: extractionService,
-              usability: usability,
-              usingAcceptedPersonPhoto: usingAcceptedPersonPhoto,
-            ),
+            controller: controller,
+            tryOnController: tryOnController,
+            uploadController: uploadController,
+            catalogGateway: catalogGateway,
+            extractionService: extractionService,
+            usability: usability,
+            usingAcceptedPersonPhoto: usingAcceptedPersonPhoto,
           );
         },
       ),
@@ -92,6 +87,8 @@ class CaptureReviewScreen extends StatelessWidget {
 
 class _ReviewActions extends StatefulWidget {
   const _ReviewActions({
+    required this.imagePath,
+    required this.onBack,
     required this.controller,
     required this.tryOnController,
     required this.uploadController,
@@ -101,6 +98,8 @@ class _ReviewActions extends StatefulWidget {
     required this.usingAcceptedPersonPhoto,
   });
 
+  final String imagePath;
+  final VoidCallback onBack;
   final CaptureSessionController controller;
   final KioskTryOnSessionController tryOnController;
   final KioskCustomerUploadController uploadController;
@@ -130,9 +129,9 @@ class _ReviewActionsState extends State<_ReviewActions> {
   }
 
   void _scheduleAcceptance() {
-    final service = widget.tryOnController.recommendations;
+    final session = widget.tryOnController;
     final photo = widget.controller.capture;
-    if (service?.sessionActive != true ||
+    if (!session.customerSessionActive ||
         photo == null ||
         widget.controller.isAnalyzingQuality ||
         widget.usability?.isUsable != true ||
@@ -142,11 +141,10 @@ class _ReviewActionsState extends State<_ReviewActions> {
       return;
     }
     _acceptanceScheduledFor = photo.originalPath;
-    final revision = service!.sessionRevision;
+    final revision = session.customerSessionRevision;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted &&
-          service.sessionActive &&
-          service.sessionRevision == revision &&
+          session.isCustomerSessionCurrent(revision) &&
           widget.controller.capture == photo &&
           !widget.controller.isAnalyzingQuality &&
           widget.usability?.isUsable == true) {
@@ -157,6 +155,58 @@ class _ReviewActionsState extends State<_ReviewActions> {
 
   @override
   Widget build(BuildContext context) {
+    final overlayDesign =
+        widget.tryOnController.activeTryOnVertical ==
+        KioskTryOnVertical.garment;
+    final hasSelectedCatalogProduct =
+        widget.tryOnController.garmentInput?.isCatalogProduct == true;
+    final usable =
+        widget.usability?.isUsable == true &&
+        !widget.controller.isAnalyzingQuality;
+    return CaptureReviewPresentation(
+      imagePath: widget.imagePath,
+      onBack: _busy ? () {} : widget.onBack,
+      prioritizePhoto: overlayDesign,
+      actions: overlayDesign
+          ? AcceptedPersonPhotoActions(
+              status: PersonPhotoStatus(
+                isLoading: widget.controller.isAnalyzingQuality,
+                result: widget.usability,
+              ),
+              instruction: usable
+                  ? hasSelectedCatalogProduct
+                        ? 'Your photo is ready for this garment.'
+                        : tryOnExperienceFor(
+                            widget.tryOnController.activeTryOnVertical,
+                          ).reviewInstruction
+                  : null,
+              busy: _busy,
+              catalogProductSelected: hasSelectedCatalogProduct,
+              onContinue: !usable || _busy || !hasSelectedCatalogProduct
+                  ? null
+                  : () => unawaited(
+                      _runLocked(() => _continueSelectedProductTryOn(context)),
+                    ),
+              onTakeGarmentPhoto: !usable || _busy || hasSelectedCatalogProduct
+                  ? null
+                  : () => unawaited(
+                      _runLocked(() => _openGarmentCamera(context)),
+                    ),
+              onRetake: _busy ? null : () => _retake(context),
+              onUploadPhoto:
+                  !usable &&
+                      widget.usability != null &&
+                      !_busy &&
+                      !widget.controller.isAnalyzingQuality
+                  ? () =>
+                        unawaited(_runLocked(() => _uploadModelPhoto(context)))
+                  : null,
+            )
+          : _buildLegacyActions(context),
+    );
+  }
+
+  Widget _buildLegacyActions(BuildContext context) {
     final isChecking =
         widget.controller.isAnalyzingQuality || widget.usability == null;
     final isUsable = widget.usability?.isUsable == true;
@@ -195,7 +245,7 @@ class _ReviewActionsState extends State<_ReviewActions> {
                     ? MediaQuery.sizeOf(context).width * 0.76
                     : double.infinity,
               ),
-              child: _ImageUsabilityStatement(
+              child: PersonPhotoStatus(
                 isLoading: widget.controller.isAnalyzingQuality,
                 result: widget.usability,
               ),
@@ -229,40 +279,6 @@ class _ReviewActionsState extends State<_ReviewActions> {
               mainAxisAlignment: MainAxisAlignment.center,
             ),
           ] else if (isUsable) ...[
-            if (widget.controller.activeAcceptedPersonPhoto != null &&
-                widget.tryOnController.recommendations != null) ...[
-              ProductRecommendationCarousel(
-                captureController: widget.controller,
-                tryOnController: widget.tryOnController,
-                catalogGateway: widget.catalogGateway,
-                busy: _busy,
-                onShowAll: () =>
-                    unawaited(_runLocked(() => _replaceWithCatalog(context))),
-                onOpenPicks: () =>
-                    showCatalogMyPicks(context, widget.tryOnController),
-                onContinue: () => unawaited(
-                  _runLocked(() => _continueSelectedProductTryOn(context)),
-                ),
-                onSingleProduct: (product) {
-                  if (product.productVertical ==
-                      KioskProductVertical.jewellery) {
-                    unawaited(
-                      _runLocked(
-                        () => _replaceWithCatalog(
-                          context,
-                          initialProduct: product,
-                        ),
-                      ),
-                    );
-                  } else {
-                    widget.tryOnController.selectGarment(
-                      product.toGarmentInput(),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -396,22 +412,6 @@ class _ReviewActionsState extends State<_ReviewActions> {
                         ),
                       ),
                     ),
-                    if (hasSelectedCatalogProduct &&
-                        experience.supportsPhysicalProductCapture &&
-                        widget.tryOnController.recommendations != null) ...[
-                      const SizedBox(height: 12),
-                      SelfxKioskButton(
-                        key: const Key('take-garment-photo'),
-                        onPressed: _busy
-                            ? null
-                            : () => unawaited(
-                                _runLocked(() => _openGarmentCamera(context)),
-                              ),
-                        icon: Icons.camera_alt_outlined,
-                        label: 'Take Garment Photo',
-                        variant: SelfxKioskButtonVariant.secondary,
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -487,6 +487,10 @@ class _ReviewActionsState extends State<_ReviewActions> {
   }
 
   Future<void> _openGarmentCamera(BuildContext context) async {
+    if (widget.tryOnController.garmentInput?.isCatalogProduct == true) {
+      await _continueSelectedProductTryOn(context);
+      return;
+    }
     if (!await _acceptModelPhoto(context) || !context.mounted) {
       return;
     }
@@ -581,7 +585,7 @@ class _ReviewActionsState extends State<_ReviewActions> {
 
   void _retake(BuildContext context) {
     final navigator = Navigator.of(context);
-    unawaited(widget.controller.retake());
+    unawaited(widget.tryOnController.retakePhoto(widget.controller));
     navigator.pop();
   }
 }
@@ -609,222 +613,6 @@ class _ReviewSecondaryActions extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _ImageUsabilityStatement extends StatefulWidget {
-  const _ImageUsabilityStatement({
-    required this.isLoading,
-    required this.result,
-  });
-
-  final bool isLoading;
-  final ImageUsabilityResult? result;
-
-  @override
-  State<_ImageUsabilityStatement> createState() =>
-      _ImageUsabilityStatementState();
-}
-
-class _ImageUsabilityStatementState extends State<_ImageUsabilityStatement> {
-  static final math.Random _random = math.Random();
-
-  _SuccessReviewMessage? _successMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _syncSuccessMessage();
-  }
-
-  @override
-  void didUpdateWidget(covariant _ImageUsabilityStatement oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.result?.isUsable != oldWidget.result?.isUsable ||
-        widget.result?.message != oldWidget.result?.message) {
-      _syncSuccessMessage();
-    }
-  }
-
-  void _syncSuccessMessage() {
-    final result = widget.result;
-    if (result?.isUsable != true) {
-      _successMessage = null;
-      return;
-    }
-    _successMessage =
-        _successReviewMessages[_random.nextInt(_successReviewMessages.length)];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final result = widget.result;
-    final isSuccess = !widget.isLoading && result?.isUsable == true;
-    const successColor = SelfxKioskTokens.reviewSuccess;
-    return Semantics(
-      liveRegion: true,
-      child: DecoratedBox(
-        key: const Key('capture-review-status'),
-        decoration: BoxDecoration(
-          color: isSuccess
-              ? SelfxKioskTokens.reviewSuccessSurface
-              : Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: isSuccess
-                ? SelfxKioskTokens.reviewSuccessBorder
-                : SelfxKioskTokens.border,
-            width: 1.5,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.isLoading)
-                const Row(
-                  children: [
-                    SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Checking image usability...')),
-                  ],
-                )
-              else if (result == null)
-                const Text('Checking image usability...')
-              else
-                _UsabilityLine(
-                  title: result.isUsable ? 'You’re Ready!' : null,
-                  icon: result.isUsable
-                      ? Icons.check_rounded
-                      : Icons.error_outline,
-                  animateIcon: result.isUsable,
-                  backgroundColor: result.isUsable
-                      ? successColor
-                      : const Color(0xFFC53030),
-                  iconColor: Colors.white,
-                  textColor: SelfxKioskTokens.textPrimary,
-                  text: result.isUsable
-                      ? _successMessage?.text ?? result.message
-                      : result.message,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SuccessReviewMessage {
-  const _SuccessReviewMessage({required this.text});
-
-  final String text;
-}
-
-const _successReviewMessages = [
-  _SuccessReviewMessage(text: 'Perfect capture - you\'re looking great!'),
-  _SuccessReviewMessage(text: 'Great photo - you\'re ready to shine!'),
-  _SuccessReviewMessage(text: 'Photo confirmed - looking sharp!'),
-  _SuccessReviewMessage(text: 'Excellent capture - you look amazing!'),
-  _SuccessReviewMessage(text: 'Picture looks perfect - so do you!'),
-  _SuccessReviewMessage(text: 'Great shot - you\'re all set!'),
-  _SuccessReviewMessage(text: 'Capture approved - looking fantastic!'),
-  _SuccessReviewMessage(text: 'Perfect shot - looking your best!'),
-  _SuccessReviewMessage(text: 'Photo is spot on - you\'re looking great!'),
-  _SuccessReviewMessage(text: 'Great capture - ready for your new look!'),
-];
-
-class _UsabilityLine extends StatelessWidget {
-  const _UsabilityLine({
-    required this.icon,
-    this.animateIcon = false,
-    required this.backgroundColor,
-    required this.iconColor,
-    required this.textColor,
-    required this.text,
-    this.title,
-  });
-
-  final IconData icon;
-  final bool animateIcon;
-  final Color backgroundColor;
-  final Color iconColor;
-  final Color textColor;
-  final String text;
-  final String? title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (animateIcon)
-            SelfxSuccessIconPulse(
-              icon: icon,
-              backgroundColor: backgroundColor,
-              iconColor: iconColor,
-              iconSize: 32,
-              padding: const EdgeInsets.all(12),
-            )
-          else
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                shape: BoxShape.circle,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(5),
-                child: Icon(icon, size: 18, color: iconColor),
-              ),
-            ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (title != null) ...[
-                  Text(
-                    title!,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: textColor,
-                      fontWeight: FontWeight.w900,
-                      fontSize:
-                          MediaQuery.orientationOf(context) ==
-                                  Orientation.portrait &&
-                              MediaQuery.sizeOf(context).width >= 760
-                          ? 34
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                Text(
-                  text,
-                  textAlign: TextAlign.start,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: title != null
-                        ? SelfxKioskTokens.textSecondary
-                        : textColor,
-                    fontWeight: title != null
-                        ? FontWeight.w600
-                        : FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

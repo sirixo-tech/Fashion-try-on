@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Image from "next/image";
 
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@selfx/ui";
+import { Button } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
 import {
@@ -20,6 +14,9 @@ import {
   type CustomerUploadPurpose,
   type CustomerUploadStatus,
 } from "@/lib/customer-upload-api";
+
+import styles from "./upload-page.module.css";
+import { useUploadCamera } from "./use-upload-camera";
 
 const supportedTypes = ["image/jpeg", "image/png", "image/webp"];
 
@@ -41,17 +38,60 @@ export function CustomerUploadPageClient({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [validatedCapability, setValidatedCapability] = useState<string | null>(
+    null,
+  );
+  const uploadLock = useRef(false);
+  const expired =
+    status === "EXPIRED" || status === "CANCELLED" || status === "CONSUMED";
+  const sent = status === "READY";
+  const defaultFacingMode =
+    purpose === "MODEL" &&
+    jewelleryType !== "RING" &&
+    jewelleryType !== "BRACELET"
+      ? "user"
+      : "environment";
+  const camera = useUploadCamera({
+    enabled:
+      validatedCapability === capability &&
+      !expired &&
+      !sent &&
+      status !== "LOADING" &&
+      !file &&
+      !busy,
+    defaultFacingMode,
+  });
 
   useEffect(() => {
     let cancelled = false;
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+    setStatus("LOADING");
+    setFile(null);
+    setMessage(null);
     getCustomerUploadStatus(capability)
       .then((next) => {
         if (cancelled) {
           return;
         }
-        setStatus(next.status);
+        const remaining =
+          Date.parse(next.expiresAt) - Date.parse(next.serverTime);
+        setStatus(
+          next.status !== "READY" && remaining <= 0 ? "EXPIRED" : next.status,
+        );
         setPurpose(next.purpose);
         setMaxImageBytes(next.maxImageBytes);
+        setValidatedCapability(capability);
+        if (Number.isFinite(remaining) && remaining > 0) {
+          expiryTimer = setTimeout(
+            () => {
+              if (!cancelled)
+                setStatus((current) =>
+                  current === "READY" ? current : "EXPIRED",
+                );
+            },
+            Math.max(0, remaining),
+          );
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -60,6 +100,7 @@ export function CustomerUploadPageClient({
       });
     return () => {
       cancelled = true;
+      clearTimeout(expiryTimer);
     };
   }, [capability]);
 
@@ -75,7 +116,13 @@ export function CustomerUploadPageClient({
 
   function selectFile(nextFile: File | undefined) {
     setMessage(null);
-    if (!nextFile) {
+    if (
+      !nextFile ||
+      expired ||
+      sent ||
+      busy ||
+      validatedCapability !== capability
+    ) {
       return;
     }
     if (nextFile.size <= 0) {
@@ -95,9 +142,10 @@ export function CustomerUploadPageClient({
   }
 
   async function upload() {
-    if (!file || busy) {
+    if (!file || busy || uploadLock.current || expired || sent) {
       return;
     }
+    uploadLock.current = true;
     setBusy(true);
     setMessage("Uploading your photo...");
     try {
@@ -113,122 +161,257 @@ export function CustomerUploadPageClient({
       );
     } catch (error) {
       setMessage(messageFor(error));
+      if (
+        error instanceof SafeApiError &&
+        error.code === "KIOSK_CUSTOMER_UPLOAD_EXPIRED"
+      ) {
+        setStatus("EXPIRED");
+      }
     } finally {
+      uploadLock.current = false;
       setBusy(false);
     }
   }
 
-  const expired =
-    status === "EXPIRED" || status === "CANCELLED" || status === "CONSUMED";
-  const sent = status === "READY";
   const jewelleryGuidance =
     purpose === "MODEL" ? jewelleryUploadGuidance(jewelleryType) : null;
   const copy = jewelleryGuidance ?? uploadCopyFor(purpose);
+  const guidance = guidanceFor(purpose, jewelleryType);
+  const unavailable =
+    validatedCapability !== capability ||
+    status === "LOADING" ||
+    busy ||
+    camera.state === "capturing";
+
+  async function takePhoto() {
+    if (camera.state === "ready") {
+      const captured = await camera.capture();
+      if (captured) selectFile(captured);
+    } else {
+      cameraInput.current?.click();
+    }
+  }
 
   return (
-    <main className="min-h-screen bg-background px-5 py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center">
-        <div className="mb-8 flex justify-center">
-          <img
+    <main className={styles.page}>
+      <div className={styles.content}>
+        <header className={styles.header}>
+          <Button
+            type="button"
+            variant="ghost"
+            className={styles.back}
+            disabled={busy}
+            onClick={() => {
+              if (window.history.length > 1) {
+                camera.stop();
+                window.history.back();
+              } else {
+                setMessage("You can close this page and return to the kiosk.");
+              }
+            }}
+          >
+            <UploadIcon name="back" />
+            Back
+          </Button>
+          <Image
             src="/brand/selfx-logo.png"
-            alt="SelfX"
-            className="h-14 w-auto max-w-48 object-contain"
+            alt="SelfX — Make your business standout"
+            width={1380}
+            height={513}
+            className={styles.logo}
           />
-        </div>
+        </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{copy.title}</CardTitle>
-            <CardDescription>{copy.description}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {expired ? (
-              <UploadState
-                title="Upload link expired"
-                body="Return to the kiosk and scan a new QR code."
-              />
-            ) : sent ? (
-              <UploadState
-                title="Photo sent to the kiosk"
-                body="You can return to the kiosk now."
-              />
-            ) : (
-              <>
-                <input
-                  ref={cameraInput}
-                  className="hidden"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture={
-                    purpose === "MODEL" &&
-                    jewelleryType !== "RING" &&
-                    jewelleryType !== "BRACELET"
-                      ? "user"
-                      : "environment"
-                  }
-                  onChange={(event) => selectFile(event.target.files?.[0])}
-                />
-                <input
-                  ref={galleryInput}
-                  className="hidden"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => selectFile(event.target.files?.[0])}
-                />
+        <section aria-labelledby="upload-title" className={styles.upload}>
+          <h1 id="upload-title" className={styles.title}>
+            {copy.title.slice(0, copy.title.lastIndexOf(" ") + 1)}
+            <span>{copy.title.slice(copy.title.lastIndexOf(" ") + 1)}</span>
+          </h1>
+          <p className={styles.description}>{copy.description}</p>
 
-                {previewUrl ? (
-                  <div className="overflow-hidden rounded-lg border bg-muted">
+          {expired ? (
+            <UploadState
+              title="Upload link expired"
+              body="Return to the kiosk and scan a new QR code."
+            />
+          ) : sent ? (
+            <UploadState
+              title="Photo sent to the kiosk"
+              body="You can return to the kiosk now."
+              success
+            />
+          ) : (
+            <>
+              <input
+                ref={cameraInput}
+                className={styles.hiddenInput}
+                aria-label="Take a photo with your camera"
+                type="file"
+                disabled={unavailable}
+                accept="image/jpeg,image/png,image/webp"
+                capture={defaultFacingMode}
+                onChange={(event) => {
+                  selectFile(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+              <input
+                ref={galleryInput}
+                className={styles.hiddenInput}
+                aria-label="Choose a photo from your phone"
+                type="file"
+                disabled={unavailable}
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => {
+                  selectFile(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+
+              <div className={styles.previewArea}>
+                <div className={styles.preview}>
+                  {previewUrl ? (
+                    // Keep the local blob preview in the browser, outside image optimization.
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={previewUrl}
                       alt="Selected photo preview"
-                      className="max-h-[52vh] w-full object-contain"
+                      className={styles.photo}
                     />
-                  </div>
-                ) : null}
-
-                {message ? (
-                  <div className="rounded-lg border bg-muted px-4 py-3 text-sm">
-                    {message}
-                  </div>
-                ) : null}
-
-                <div className="grid gap-3">
-                  {file ? (
-                    <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => galleryInput.current?.click()}
-                      >
-                        Choose Another
-                      </Button>
-                      <Button type="button" disabled={busy} onClick={upload}>
-                        {busy ? "Uploading" : "Upload Photo"}
-                      </Button>
-                    </>
                   ) : (
                     <>
-                      <Button
-                        type="button"
-                        onClick={() => cameraInput.current?.click()}
-                      >
-                        Take Photo
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => galleryInput.current?.click()}
-                      >
-                        Choose from Phone
-                      </Button>
+                      <video
+                        ref={camera.videoRef}
+                        aria-label="Live camera preview"
+                        className={`${styles.liveVideo} ${camera.facingMode === "user" ? styles.mirrored : ""}`}
+                        autoPlay
+                        muted
+                        playsInline
+                        onLoadedData={camera.previewReady}
+                        onCanPlay={camera.previewReady}
+                      />
+                      {camera.state !== "ready" &&
+                        camera.state !== "capturing" && (
+                          <div
+                            className={styles.placeholder}
+                            aria-live="polite"
+                          >
+                            <UploadIcon
+                              name={
+                                purpose === "GARMENT"
+                                  ? "shirt"
+                                  : jewelleryType === "RING" ||
+                                      jewelleryType === "BRACELET"
+                                    ? "hand"
+                                    : "person"
+                              }
+                            />
+                            <span>
+                              {status === "LOADING"
+                                ? "Preparing photo upload…"
+                                : camera.state === "starting"
+                                  ? "Allow camera access to see your live preview…"
+                                  : (camera.message ??
+                                    "Your photo will appear here")}
+                            </span>
+                          </div>
+                        )}
                     </>
                   )}
+                  <span className={styles.corners} aria-hidden="true" />
                 </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                {!file && camera.state === "ready" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={styles.cameraSwitch}
+                    onClick={camera.switchCamera}
+                    disabled={unavailable}
+                  >
+                    <UploadIcon name="switch" /> Switch Camera
+                  </Button>
+                )}
+              </div>
+
+              <ul className={styles.guidance} aria-label="Photo tips">
+                {guidance.map((tip) => (
+                  <li key={tip.label}>
+                    <span className={styles.tipIcon}>
+                      <UploadIcon name={tip.icon} />
+                    </span>
+                    <span>{tip.label}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {message ? (
+                <p className={styles.message} role="status">
+                  {message}
+                </p>
+              ) : null}
+              {!file && camera.state === "ready" && camera.message && (
+                <p className={styles.message} role="status">
+                  {camera.message}
+                </p>
+              )}
+
+              <div className={styles.actions} aria-busy={busy}>
+                <Button
+                  type="button"
+                  className={styles.primaryAction}
+                  disabled={
+                    unavailable || (!file && camera.state === "starting")
+                  }
+                  onClick={file ? upload : takePhoto}
+                >
+                  <UploadIcon name={file ? "upload" : "camera"} />
+                  <span>
+                    {file
+                      ? busy
+                        ? "Uploading"
+                        : "Upload Photo"
+                      : camera.state === "capturing"
+                        ? "Capturing…"
+                        : "Take Photo"}
+                  </span>
+                  <UploadIcon name="next" />
+                </Button>
+                {file && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={styles.secondaryAction}
+                    disabled={unavailable}
+                    onClick={() => {
+                      setFile(null);
+                      setMessage(null);
+                    }}
+                  >
+                    <UploadIcon name="camera" /> Retake Photo
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={styles.secondaryAction}
+                  disabled={unavailable}
+                  onClick={() => galleryInput.current?.click()}
+                >
+                  <UploadIcon name="gallery" />
+                  <span>{file ? "Choose Another" : "Choose from Phone"}</span>
+                  <UploadIcon name="next" />
+                </Button>
+              </div>
+            </>
+          )}
+          {(expired || sent) &&
+          message &&
+          message !== "Photo sent to the kiosk" ? (
+            <p className={styles.message} role="status">
+              {message}
+            </p>
+          ) : null}
+        </section>
       </div>
     </main>
   );
@@ -239,25 +422,25 @@ function jewelleryUploadGuidance(type?: string) {
   switch (type) {
     case "RING":
       return {
-        title: "Add your hand photo",
+        title: "Add Your Hand Photo",
         description:
           "Keep your hand open and steady, with your fingers clearly visible.",
       };
     case "BRACELET":
       return {
-        title: "Add your wrist photo",
+        title: "Add Your Wrist Photo",
         description:
           "Keep your wrist and lower forearm clearly visible, with your sleeve moved aside.",
       };
     case "NECKLACE":
       return {
-        title: "Add your photo",
+        title: "Add Your Photo",
         description:
           "Keep your neck, shoulders and upper chest visible. Move hair away from your neckline.",
       };
     case "EARRING":
       return {
-        title: "Add your photo",
+        title: "Add Your Photo",
         description:
           "Keep your face and at least one ear clearly visible. Move hair away from the visible ear.",
       };
@@ -272,24 +455,162 @@ function uploadCopyFor(purpose: CustomerUploadPurpose): {
 } {
   if (purpose === "GARMENT") {
     return {
-      title: "Add garment photo",
+      title: "Add Garment Photo",
       description:
         "Take or choose a clear photo of the outfit you want to try. The outfit should be clearly visible on one person.",
     };
   }
   return {
-    title: "Add your photo",
+    title: "Add Your Photo",
     description:
-      "Take a clear photo of yourself or choose one from your phone.",
+      "Take a clear photo of yourself or choose one from your phone to try different styles.",
   };
 }
 
-function UploadState({ title, body }: { title: string; body: string }) {
+function UploadState({
+  title,
+  body,
+  success = false,
+}: {
+  title: string;
+  body: string;
+  success?: boolean;
+}) {
   return (
-    <div className="rounded-lg border bg-muted px-4 py-5">
-      <div className="font-semibold">{title}</div>
-      <div className="mt-1 text-sm text-muted-foreground">{body}</div>
+    <div className={styles.state} role="status">
+      <span className={styles.tipIcon}>
+        <UploadIcon name={success ? "check" : "clock"} />
+      </span>
+      <h2>{title}</h2>
+      <p>{body}</p>
     </div>
+  );
+}
+
+type UploadIconName =
+  | "back"
+  | "next"
+  | "camera"
+  | "gallery"
+  | "person"
+  | "shirt"
+  | "face"
+  | "hand"
+  | "upload"
+  | "check"
+  | "clock"
+  | "switch";
+
+function guidanceFor(
+  purpose: CustomerUploadPurpose,
+  type?: string,
+): { icon: UploadIconName; label: string }[] {
+  if (purpose === "GARMENT") {
+    return [
+      { icon: "person", label: "Well-lit Photo" },
+      { icon: "shirt", label: "One Person" },
+      { icon: "gallery", label: "Outfit Clearly Visible" },
+    ];
+  }
+  if (type === "RING" || type === "BRACELET") {
+    return [
+      { icon: "person", label: "Well-lit Photo" },
+      { icon: "hand", label: "Keep Hand Steady" },
+      {
+        icon: "gallery",
+        label:
+          type === "RING" ? "Fingers Clearly Visible" : "Wrist Clearly Visible",
+      },
+    ];
+  }
+  return [
+    { icon: "person", label: "Well-lit Photo" },
+    {
+      icon: "shirt",
+      label:
+        type === "NECKLACE"
+          ? "Neckline Visible"
+          : type === "EARRING"
+            ? "Ear Clearly Visible"
+            : "Stand Straight",
+    },
+    {
+      icon: "face",
+      label:
+        type === "NECKLACE" || type === "EARRING"
+          ? "Move Hair Aside"
+          : "Face Clearly Visible",
+    },
+  ];
+}
+
+function UploadIcon({ name }: { name: UploadIconName }) {
+  const paths: Record<UploadIconName, ReactNode> = {
+    switch: (
+      <path d="M3 10a9 9 0 0 1 15-6l3 3M21 2v5h-5M21 14A9 9 0 0 1 6 20l-3-3M3 22v-5h5" />
+    ),
+    back: <path d="m12 5-7 7 7 7M5 12h15" />,
+    next: <path d="m9 5 7 7-7 7" />,
+    camera: (
+      <>
+        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+        <circle cx="12" cy="13" r="4" />
+      </>
+    ),
+    gallery: (
+      <>
+        <rect x="3" y="3" width="18" height="18" rx="3" />
+        <circle cx="8" cy="8" r="1" />
+        <path d="m3 17 5-5 4 4 4-6 5 5" />
+      </>
+    ),
+    person: (
+      <>
+        <circle cx="12" cy="7" r="4" />
+        <path d="M3 21v-2a9 9 0 0 1 18 0v2z" />
+      </>
+    ),
+    shirt: <path d="m8 3-6 4 3 5 3-2v11h8V10l3 2 3-5-6-4a4 4 0 0 1-8 0Z" />,
+    face: (
+      <>
+        <path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3M8 14s1 3 4 3 4-3 4-3" />
+        <circle cx="8" cy="9" r=".5" />
+        <circle cx="16" cy="9" r=".5" />
+      </>
+    ),
+    hand: (
+      <path d="M8 12V6a2 2 0 0 1 4 0v5-7a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v9a6 6 0 0 1-6 6h-2a5 5 0 0 1-4-2l-5-6a2 2 0 0 1 3-3l2 2" />
+    ),
+    upload: (
+      <>
+        <path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5" />
+      </>
+    ),
+    check: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="m7 12 3 3 7-7" />
+      </>
+    ),
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+  };
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
   );
 }
 

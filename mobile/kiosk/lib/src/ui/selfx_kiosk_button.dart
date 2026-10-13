@@ -25,6 +25,7 @@ class SelfxKioskButton extends StatefulWidget {
     this.backgroundColor,
     this.foregroundColor,
     this.borderColor,
+    this.wrapLabel = false,
   });
 
   final String label;
@@ -45,6 +46,7 @@ class SelfxKioskButton extends StatefulWidget {
   final Color? backgroundColor;
   final Color? foregroundColor;
   final Color? borderColor;
+  final bool wrapLabel;
 
   @override
   State<SelfxKioskButton> createState() => _SelfxKioskButtonState();
@@ -189,20 +191,32 @@ class _ButtonContent extends StatelessWidget {
                   crossAxisAlignment: widget.crossAxisAlignment,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
+                    if (widget.wrapLabel)
+                      Text(
                         widget.label,
                         textAlign: widget.textAlign,
-                        maxLines: 1,
-                        softWrap: false,
+                        maxLines: 3,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: foreground,
                               fontWeight: FontWeight.w800,
                             ),
+                      )
+                    else
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          widget.label,
+                          textAlign: widget.textAlign,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: foreground,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
                       ),
-                    ),
                     if (widget.subtitle != null) ...[
                       const SizedBox(height: 6),
                       Text(

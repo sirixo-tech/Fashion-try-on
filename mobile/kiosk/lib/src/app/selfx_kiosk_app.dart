@@ -8,14 +8,11 @@ import '../camera/camera_plugin_service.dart';
 import '../camera/camera_service.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../catalog/kiosk_catalog_repository.dart';
-import '../catalog/kiosk_product_recommendation_service.dart';
 import '../config/kiosk_bootstrap_config.dart';
 import '../config/kiosk_runtime_configuration_controller.dart';
 import '../device/kiosk_device_gateway.dart';
 import '../device/kiosk_device_session_controller.dart';
 import '../device/kiosk_device_storage.dart';
-import '../inference/accepted_person_image_analysis.dart';
-import '../inference/tflite_image_inference_service.dart';
 import '../live/person_analysis.dart';
 import '../operator/operator_access.dart';
 import '../quality/image_quality.dart';
@@ -79,9 +76,6 @@ class SelfxKioskApp extends StatefulWidget {
         config: KioskTryOnApiConfig(apiBaseUrl: apiBaseUrl),
         deviceController: deviceController,
       ),
-      recommendations: KioskProductRecommendationService(
-        cachedProducts: () => catalogGateway.snapshot?.products ?? const [],
-      ),
     );
     final captureStore = TemporaryCaptureStore();
     return SelfxKioskApp(
@@ -91,9 +85,6 @@ class SelfxKioskApp extends StatefulWidget {
         cameraService: CameraPluginService(),
         settingsStore: settingsStore,
         analyzer: OpenCvKioskImageQualityAnalyzer(),
-        personImageAnalyzer: Platform.isAndroid
-            ? ObjectModelValidationAnalyzer(TfliteImageInferenceService())
-            : null,
         liveFrameAnalyzer: LiveFrameAnalyzer(
           poseAnalyzer: Platform.isAndroid
               ? MlKitPersonPoseAnalyzer()
