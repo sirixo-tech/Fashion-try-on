@@ -13,9 +13,8 @@ import 'camera_capture_screen.dart';
 import 'mobile_upload_screen.dart';
 import 'capture_review_screen.dart';
 import 'browse_products_screen.dart';
-import 'kiosk_chrome.dart';
 import 'try_on_result_screen.dart';
-import 'selfx_kiosk_action_card.dart';
+import 'try_on_failure_presentation.dart';
 import 'try_on_experience_config.dart';
 import 'try_on_generation_presentation.dart';
 
@@ -118,151 +117,103 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
     final garmentResolutionFailure =
         widget.tryOnController.failureCode ==
         KioskTryOnFailureCode.garmentIntentUnresolved;
-    return KioskScaffold(
-      title: 'Creating Try-On',
-      subtitle: 'Generating securely through SelfX',
-      leading: IconButton(
-        key: const Key('generation-back'),
-        onPressed: () => Navigator.of(context).maybePop(),
-        icon: const Icon(Icons.arrow_back),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 980),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 78,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                          const SizedBox(height: 22),
-                          Text(
-                            widget.tryOnController.customerTitle ??
-                                'Try-On needs attention',
-                            style: Theme.of(context).textTheme.displaySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            widget.tryOnController.customerMessage ??
-                                'Please try again.',
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 28),
-                          if (garmentResolutionFailure) ...[
-                            SelfxKioskActionCard(
-                              key: const Key('try-on-retake-garment-photo'),
-                              onPressed: () => _chooseAnotherGarment(context),
-                              icon: Icons.camera_alt_outlined,
-                              iconColor: const Color(0xFF2384D6),
-                              label: 'Retake Garment Photo',
-                              subtitle: 'Capture item again',
-                              minHeight: 76,
-                            ),
-                            const SizedBox(height: 14),
-                            SelfxKioskActionCard(
-                              key: const Key('try-on-browse-catalog'),
-                              onPressed: () => _browseCatalog(context),
-                              icon: Icons.shopping_bag_outlined,
-                              iconColor: const Color(0xFFE86610),
-                              label: 'Browse Catalog',
-                              subtitle: 'Choose item',
-                              minHeight: 76,
-                            ),
-                          ] else if (compatibilityFailure) ...[
-                            SelfxKioskActionCard(
-                              key: const Key('try-on-update-photo'),
-                              onPressed: () => _retakePhoto(context),
-                              icon: Icons.photo_camera_outlined,
-                              iconColor: const Color(0xFF2384D6),
-                              label: 'Update My Photo',
-                              subtitle: 'Retake model photo',
-                              minHeight: 76,
-                            ),
-                            if (widget.tryOnController.hasNextGarmentPick) ...[
-                              const SizedBox(height: 14),
-                              SelfxKioskActionCard(
-                                key: const Key('try-on-skip-current-pick'),
-                                onPressed: () => _skipCurrentPick(context),
-                                icon: Icons.skip_next_outlined,
-                                iconColor: const Color(0xFFC88913),
-                                label: 'Skip This Item',
-                                subtitle: 'Try next pick',
-                                minHeight: 76,
-                              ),
-                            ],
-                            const SizedBox(height: 14),
-                            SelfxKioskActionCard(
-                              key: const Key('try-on-choose-garment'),
-                              onPressed: () => _chooseAnotherGarment(context),
-                              icon: experience.icon,
-                              iconColor: const Color(0xFFE86610),
-                              label: experience.tryAnotherLabel,
-                              subtitle: 'Choose item',
-                              minHeight: 76,
-                            ),
-                          ] else ...[
-                            SelfxKioskActionCard(
-                              key: const Key('try-on-retry-polling'),
-                              onPressed: widget.tryOnController.run != null
-                                  ? widget.tryOnController.retryPolling
-                                  : () => widget.tryOnController
-                                        .submitFromCapture(
-                                          widget.captureController,
-                                        ),
-                              icon: Icons.refresh,
-                              iconColor: const Color(0xFFE86610),
-                              label: 'Try Again',
-                              subtitle: 'Restart generation',
-                              minHeight: 76,
-                            ),
-                            const SizedBox(height: 14),
-                            SelfxKioskActionCard(
-                              key: const Key('try-on-retake-photo'),
-                              onPressed: () => _retakePhoto(context),
-                              icon: Icons.replay,
-                              iconColor: const Color(0xFF2384D6),
-                              label: jewelleryPhonePhoto
-                                  ? 'Upload Another Photo'
-                                  : 'Retake Photo',
-                              subtitle: jewelleryPhonePhoto
-                                  ? 'Use your phone'
-                                  : 'Capture again',
-                              minHeight: 76,
-                            ),
-                            const SizedBox(height: 14),
-                            SelfxKioskActionCard(
-                              key: const Key('try-on-choose-garment'),
-                              onPressed: () => _chooseAnotherGarment(context),
-                              icon: experience.icon,
-                              iconColor: const Color(0xFFE86610),
-                              label: experience.tryAnotherLabel,
-                              subtitle: 'Choose item',
-                              minHeight: 76,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+    return TryOnFailurePresentation(
+      title: widget.tryOnController.customerTitle ?? 'Try-On Unavailable',
+      message:
+          widget.tryOnController.customerMessage ??
+          "We couldn't generate your look. Please try again.",
+      onBack: () => Navigator.of(context).maybePop(),
+      actions: [
+        if (garmentResolutionFailure) ...[
+          TryOnFailureAction(
+            key: const Key('try-on-retake-garment-photo'),
+            onPressed: () => _chooseAnotherGarment(context),
+            icon: Icons.camera_alt_outlined,
+            accentColor: const Color(0xFF2384D6),
+            label: 'Retake Garment Photo',
+            subtitle: 'Capture item again',
+          ),
+          const SizedBox(height: 14),
+          TryOnFailureAction(
+            key: const Key('try-on-browse-catalog'),
+            onPressed: () => _browseCatalog(context),
+            icon: Icons.shopping_bag_outlined,
+            accentColor: const Color(0xFFE86610),
+            label: 'Browse Catalog',
+            subtitle: 'Choose item',
+          ),
+        ] else if (compatibilityFailure) ...[
+          TryOnFailureAction(
+            key: const Key('try-on-update-photo'),
+            primary: true,
+            pulse: true,
+            onPressed: () => _retakePhoto(context),
+            icon: Icons.photo_camera_outlined,
+            accentColor: const Color(0xFF2384D6),
+            label: 'Update My Photo',
+            subtitle: 'Retake model photo',
+          ),
+          if (widget.tryOnController.hasNextGarmentPick) ...[
+            const SizedBox(height: 14),
+            TryOnFailureAction(
+              key: const Key('try-on-skip-current-pick'),
+              onPressed: () => _skipCurrentPick(context),
+              icon: Icons.skip_next_outlined,
+              accentColor: const Color(0xFFC88913),
+              label: 'Skip This Item',
+              subtitle: 'Try next pick',
             ),
-          );
-        },
-      ),
+          ],
+          const SizedBox(height: 14),
+          TryOnFailureAction(
+            key: const Key('try-on-choose-garment'),
+            secondary: true,
+            onPressed: () => _chooseAnotherGarment(context),
+            icon: experience.icon,
+            accentColor: const Color(0xFFE86610),
+            label: experience.vertical == KioskTryOnVertical.jewellery
+                ? 'Choose Another Jewellery Item'
+                : 'Choose Another Garment',
+            subtitle: 'Choose item',
+          ),
+        ] else ...[
+          TryOnFailureAction(
+            key: const Key('try-on-retry-polling'),
+            primary: true,
+            onPressed: widget.tryOnController.run != null
+                ? widget.tryOnController.retryPolling
+                : () => widget.tryOnController.submitFromCapture(
+                    widget.captureController,
+                  ),
+            icon: Icons.refresh,
+            accentColor: const Color(0xFFE86610),
+            label: 'Try Again',
+            subtitle: 'Try your look again',
+          ),
+          const SizedBox(height: 14),
+          TryOnFailureAction(
+            key: const Key('try-on-retake-photo'),
+            onPressed: () => _retakePhoto(context),
+            icon: Icons.photo_camera_outlined,
+            accentColor: const Color(0xFF2384D6),
+            label: jewelleryPhonePhoto
+                ? 'Upload Another Photo'
+                : 'Retake Photo',
+            subtitle: jewelleryPhonePhoto ? 'Use your phone' : 'Capture again',
+          ),
+          const SizedBox(height: 14),
+          TryOnFailureAction(
+            key: const Key('try-on-choose-garment'),
+            onPressed: () => _chooseAnotherGarment(context),
+            icon: experience.icon,
+            accentColor: const Color(0xFFE86610),
+            label: experience.vertical == KioskTryOnVertical.jewellery
+                ? 'Choose Another Jewellery Item'
+                : 'Choose Another Garment',
+            subtitle: 'Choose item',
+          ),
+        ],
+      ],
     );
   }
 

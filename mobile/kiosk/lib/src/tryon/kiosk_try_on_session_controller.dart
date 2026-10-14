@@ -544,18 +544,23 @@ class KioskTryOnSessionController extends ChangeNotifier {
       return;
     }
     _completingSession = true;
+    final revision = customerSessionRevision;
     try {
       final session = await _sessionGateway.completeTryOnSession(
         sessionId,
         reason: reason,
       );
-      _applySession(session);
+      if (isCustomerSessionCurrent(revision, requireActive: false)) {
+        _applySession(session);
+      }
     } catch (_) {
       // Finish must still clear local kiosk state even if the network is down.
     } finally {
       _completingSession = false;
-      _clearBackendSessionState();
-      notifyListeners();
+      if (isCustomerSessionCurrent(revision, requireActive: false)) {
+        _clearBackendSessionState();
+        notifyListeners();
+      }
     }
   }
 
@@ -733,7 +738,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
     KioskTryOnSessionCompletionReason reason =
         KioskTryOnSessionCompletionReason.finished,
   }) async {
-    ++_customerSessionRevision;
+    final revision = ++_customerSessionRevision;
     customerSessionActive = false;
     // Clear selections immediately, including while backend completion is
     // pending or unavailable, so the next customer cannot see stale picks.
@@ -741,9 +746,11 @@ class KioskTryOnSessionController extends ChangeNotifier {
     activeGarmentPickId = null;
     notifyListeners();
     await completeBackendSession(reason: reason);
+    if (!isCustomerSessionCurrent(revision, requireActive: false)) return;
     activeTryOnVertical = KioskTryOnVertical.garment;
     _clearRunState(keepGarment: false);
     await capture.resetSession();
+    if (!isCustomerSessionCurrent(revision, requireActive: false)) return;
     customerSessionActive = false;
     notifyListeners();
   }

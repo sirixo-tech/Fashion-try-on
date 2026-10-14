@@ -53,14 +53,16 @@ class GarmentResultCatalog extends StatefulWidget {
 class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
   List<KioskCatalogCategory> _categories = const [];
   List<KioskCatalogProduct> _products = const [];
-  KioskCatalogPagination? _pagination;
   KioskCatalogProduct? _selected;
   String? _category;
   String? _error;
   bool _nextSelected = false;
   bool _loading = true;
   bool _busy = false;
+  bool _finishing = false;
   int _request = 0;
+  int _actionSerial = 0;
+  int _finishSerial = 0;
 
   bool get _current => mounted && widget.isCurrent();
   bool get _hasSelection => _selected != null || _nextSelected;
@@ -68,7 +70,7 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
   @override
   void initState() {
     super.initState();
-    unawaited(_load(reset: true));
+    unawaited(_load());
   }
 
   @override
@@ -77,25 +79,26 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
     if (oldWidget.sessionIdentity != widget.sessionIdentity ||
         oldWidget.catalog != widget.catalog) {
       ++_request;
+      ++_actionSerial;
+      ++_finishSerial;
+      _busy = false;
+      _finishing = false;
       _categories = const [];
       _selected = null;
       _nextSelected = false;
       _category = null;
-      unawaited(_load(reset: true));
+      unawaited(_load());
     }
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load() async {
     if (!_current) return;
     final request = ++_request;
     final category = _category;
     setState(() {
       _loading = true;
       _error = null;
-      if (reset) {
-        _products = const [];
-        _pagination = null;
-      }
+      _products = const [];
     });
     try {
       final categories = await widget.catalog.getCatalogCategories(
@@ -105,21 +108,18 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
       final page = await widget.catalog.getCatalogProducts(
         audience: KioskCatalogAudience.all,
         categorySlug: category,
-        page: reset ? 1 : (_pagination?.page ?? 1) + 1,
+        page: 1,
         pageSize: 12,
       );
       if (!_current || request != _request) return;
       setState(() {
         _categories = dedupeKioskCatalogCategories(categories);
         final unique = <String, KioskCatalogProduct>{
-          if (!reset)
-            for (final product in _products) product.id: product,
           for (final product in page.products)
             if (product.productVertical == KioskProductVertical.garment)
               product.id: product,
         };
         _products = unique.values.toList();
-        _pagination = page.pagination;
         _loading = false;
       });
     } catch (_) {
@@ -132,18 +132,38 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
   }
 
   Future<void> _run(Future<void> Function() action) async {
-    if (_busy || !_current) return;
+    if (_busy || _finishing || !_current) return;
+    final serial = ++_actionSerial;
     setState(() => _busy = true);
     try {
       await action();
     } catch (_) {
-      if (mounted && widget.isCurrent()) {
+      if (mounted && serial == _actionSerial && widget.isCurrent()) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Please try again.')));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && serial == _actionSerial) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _finish() async {
+    if (_finishing || !_current) return;
+    final serial = ++_finishSerial;
+    setState(() => _finishing = true);
+    try {
+      await widget.onFinish();
+    } catch (_) {
+      if (mounted && serial == _finishSerial && _current) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please try again.')));
+      }
+    } finally {
+      if (mounted && serial == _finishSerial) {
+        setState(() => _finishing = false);
+      }
     }
   }
 
@@ -178,7 +198,7 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
               footerHeight +
               gaps >
           height;
-      final disabled = _busy || !widget.isCurrent();
+      final disabled = _busy || _finishing || !widget.isCurrent();
       final page = Padding(
         padding: EdgeInsets.symmetric(horizontal: pagePadding),
         child: Column(
@@ -197,7 +217,7 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
                       key: const Key('result-back'),
-                      onPressed: disabled ? null : widget.onBack,
+                      onPressed: widget.onBack,
                       icon: const Icon(Icons.arrow_back),
                       label: const Text('Back'),
                       style: TextButton.styleFrom(
@@ -265,21 +285,23 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                       const Spacer()
                     else
                       Expanded(
-                        child: SelfxKioskButton(
-                          key: const Key('get-my-looks'),
-                          label: 'Get My Looks',
-                          icon: Icons.download_outlined,
-                          minHeight: 56,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
+                        child: SelfxActionPulse(
+                          enabled: !disabled && widget.downloadEnabled,
+                          child: SelfxKioskButton(
+                            key: const Key('get-my-looks'),
+                            label: 'Get My Looks',
+                            icon: Icons.download_outlined,
+                            minHeight: 56,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                            backgroundColor: SelfxKioskTokens.primary,
+                            foregroundColor: Colors.white,
+                            onPressed: disabled || !widget.downloadEnabled
+                                ? null
+                                : () => unawaited(_run(widget.onGetMyLooks)),
                           ),
-                          variant: SelfxKioskButtonVariant.secondary,
-                          backgroundColor: const Color(0xFFFFFCF8),
-                          foregroundColor: const Color(0xFFE86610),
-                          onPressed: disabled || !widget.downloadEnabled
-                              ? null
-                              : () => unawaited(_run(widget.onGetMyLooks)),
                         ),
                       ),
                     const SizedBox(width: 12),
@@ -291,6 +313,12 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                             _hasSelection ? 'result-continue' : 'finish-try-on',
                           ),
                           label: _hasSelection ? 'Continue' : 'Back to Home',
+                          variant: _hasSelection
+                              ? SelfxKioskButtonVariant.primary
+                              : SelfxKioskButtonVariant.ghost,
+                          borderColor: _hasSelection
+                              ? SelfxKioskTokens.primary
+                              : SelfxKioskTokens.borderStrong,
                           icon: _hasSelection
                               ? Icons.arrow_forward
                               : Icons.home_outlined,
@@ -305,17 +333,21 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                             horizontal: 10,
                             vertical: 10,
                           ),
-                          onPressed: disabled
+                          onPressed: _hasSelection
+                              ? disabled
+                                    ? null
+                                    : () => unawaited(
+                                        _run(
+                                          _nextSelected
+                                              ? widget.onContinueNextPick
+                                              : () => widget.onContinue(
+                                                  _selected!,
+                                                ),
+                                        ),
+                                      )
+                              : _finishing
                               ? null
-                              : () => unawaited(
-                                  _run(
-                                    _nextSelected
-                                        ? widget.onContinueNextPick
-                                        : _selected != null
-                                        ? () => widget.onContinue(_selected!)
-                                        : widget.onFinish,
-                                  ),
-                                ),
+                              : () => unawaited(_finish()),
                         ),
                       ),
                     ),
@@ -344,7 +376,7 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                 _selected = null;
                 _nextSelected = false;
               });
-              unawaited(_load(reset: true));
+              unawaited(_load());
             },
       style: TextButton.styleFrom(
         backgroundColor: selected
@@ -433,21 +465,11 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                 ),
                 if (_error != null)
                   TextButton(
-                    onPressed: disabled
-                        ? null
-                        : () => unawaited(_load(reset: _products.isEmpty)),
+                    onPressed: disabled ? null : () => unawaited(_load()),
                     child: const Text('Retry'),
                   ),
               ],
             ),
-          ),
-        ),
-      if (!_loading && _pagination?.hasMore == true)
-        SizedBox(
-          width: 110,
-          child: TextButton(
-            onPressed: disabled ? null : () => unawaited(_load(reset: false)),
-            child: const Text('Load More'),
           ),
         ),
       SizedBox(

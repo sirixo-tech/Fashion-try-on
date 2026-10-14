@@ -23,6 +23,7 @@ import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_button.dart';
 import 'mobile_upload_screen.dart';
 import 'person_capture_guide_overlay.dart';
+import 'capture_guide_panel.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -576,7 +577,7 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
                     .clamp(0, contentSize.height - 1)
                     .toDouble(),
                 child: Center(
-                  child: _FramingGuideLabel(
+                  child: CaptureGuidePanel(
                     icon: icon,
                     title: title,
                     message: message,
@@ -587,100 +588,6 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _FramingGuideLabel extends StatelessWidget {
-  const _FramingGuideLabel({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.48),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: layout.scaled(14, small: 11, large: 17, extraLarge: 20),
-          vertical: layout.scaled(9, small: 7, large: 11, extraLarge: 13),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: SelfxKioskTokens.secondary,
-              size: layout.scaled(20, small: 17, large: 23, extraLarge: 27),
-            ),
-            const SizedBox(width: 9),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    key: const Key('camera-framing-guide-label'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: SelfxKioskTokens.bodyFontFamily,
-                      fontSize: layout.scaled(
-                        16,
-                        small: 13,
-                        large: 18,
-                        extraLarge: 21,
-                      ),
-                      fontWeight: FontWeight.w900,
-                      height: 1.05,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    message,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.86),
-                      fontFamily: SelfxKioskTokens.bodyFontFamily,
-                      fontSize: layout.scaled(
-                        12,
-                        small: 10,
-                        large: 14,
-                        extraLarge: 16,
-                      ),
-                      fontWeight: FontWeight.w800,
-                      height: 1.05,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

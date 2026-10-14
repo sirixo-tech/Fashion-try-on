@@ -62,7 +62,7 @@ class TryOnGenerationPresentation extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // Keep the compact 10% status/step bands readable on short windows.
+              // Preserve readable messages and steps on short windows.
               final height = math.max(1000.0, constraints.maxHeight);
               final padding = constraints.maxWidth < 560 ? 12.0 : 28.0;
               final page = SizedBox(
@@ -81,7 +81,7 @@ class TryOnGenerationPresentation extends StatelessWidget {
                             children: [
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 48,
+                                  horizontal: 104,
                                 ),
                                 child: SelfxLogo(
                                   height: (height * 0.065).clamp(40.0, 90.0),
@@ -90,18 +90,23 @@ class TryOnGenerationPresentation extends StatelessWidget {
                               ),
                               Align(
                                 alignment: Alignment.centerLeft,
-                                child: IconButton.filled(
+                                child: TextButton.icon(
                                   key: const Key('generation-back'),
-                                  tooltip: 'Back',
                                   onPressed: onBack,
-                                  style: IconButton.styleFrom(
-                                    backgroundColor:
-                                        SelfxKioskTokens.background,
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: const Color(0xFFECECEC),
                                     foregroundColor:
                                         SelfxKioskTokens.textPrimary,
-                                    minimumSize: const Size.square(48),
+                                    minimumSize: const Size(76, 44),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                   icon: const Icon(Icons.arrow_back),
+                                  label: const Text('Back'),
                                 ),
                               ),
                             ],
@@ -109,7 +114,7 @@ class TryOnGenerationPresentation extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        flex: 7,
+                        flex: 6,
                         child: Padding(
                           key: const Key('generation-preview-section'),
                           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -152,7 +157,7 @@ class TryOnGenerationPresentation extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        flex: 2,
+                        flex: 3,
                         child: TweenAnimationBuilder<double>(
                           tween: Tween<double>(
                             begin: _progress,
@@ -164,6 +169,7 @@ class TryOnGenerationPresentation extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(
+                                flex: 2,
                                 child: SizedBox(
                                   key: const Key('generation-status-section'),
                                   child: _StatusContent(

@@ -4,6 +4,7 @@ import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/generated_try_on_image.dart';
+import 'package:selfx_kiosk/src/ui/kiosk_attention_animations.dart';
 import 'package:selfx_kiosk/src/ui/my_looks_screen.dart';
 import 'package:selfx_kiosk/src/ui/selfx_kiosk_button.dart';
 import 'package:selfx_kiosk/src/ui/selfx_logo.dart';
@@ -14,7 +15,7 @@ import 'kiosk_camera_foundation_test.dart' as fixtures;
 const _result = KioskTryOnResult(
   run: KioskTryOnRun(id: 'result-ui', status: KioskTryOnStatus.succeeded),
   generatedImage:
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
 );
 
 void main() {
@@ -76,13 +77,25 @@ void main() {
           find.byKey(const Key('get-my-looks')),
         );
         expect(looks.label, 'Get My Looks');
-        expect(looks.backgroundColor, const Color(0xFFFFFCF8));
-        expect(looks.foregroundColor, const Color(0xFFE86610));
+        expect(looks.backgroundColor, SelfxKioskTokens.primary);
+        expect(looks.foregroundColor, Colors.white);
+        final looksPulse = find.ancestor(
+          of: find.byKey(const Key('get-my-looks')),
+          matching: find.byType(SelfxActionPulse),
+        );
+        expect(tester.widget<SelfxActionPulse>(looksPulse).enabled, isTrue);
+        final home = tester.widget<SelfxKioskButton>(
+          find.byKey(const Key('finish-try-on')),
+        );
+        expect(home.variant, SelfxKioskButtonVariant.ghost);
+        expect(home.backgroundColor, Colors.white);
+        expect(home.foregroundColor, SelfxKioskTokens.textPrimary);
+        expect(home.borderColor, SelfxKioskTokens.borderStrong);
         expect(find.byKey(const Key('result-continue')), findsNothing);
+        expect(find.byKey(const Key('result-retake-photo')), findsNothing);
         expect(find.text('Back to Home'), findsOneWidget);
         for (final key in [
           'get-my-looks',
-          'result-retake-photo',
           'finish-try-on',
           'result-show-all',
         ]) {
@@ -107,7 +120,7 @@ void main() {
     );
   }
 
-  testWidgets('Get My Looks retains gallery navigation, photo and session', (
+  testWidgets('Get My Looks opens a sheet and retains photo and session', (
     tester,
   ) async {
     _viewport(tester, const Size(630, 1365));
@@ -139,8 +152,14 @@ void main() {
     await tester.tap(find.byKey(const Key('get-my-looks')));
     await _frames(tester);
     expect(find.byType(MyLooksScreen), findsOneWidget);
+    expect(find.byKey(const Key('my-looks-bottom-sheet')), findsOneWidget);
+    expect(find.byType(TryOnResultScreen), findsOneWidget);
     expect(session.activeSessionId, sessionId);
     expect(capture.activeAcceptedPersonPhoto, same(accepted));
+    expect(session.result, same(_result));
+    await tester.tap(find.byKey(const Key('close-my-looks')));
+    await _frames(tester);
+    expect(find.byType(MyLooksScreen), findsNothing);
     expect(session.result, same(_result));
     await tester.pumpWidget(const SizedBox.shrink());
     expect(tester.takeException(), isNull);
@@ -230,6 +249,11 @@ void main() {
       find.byKey(const Key('get-my-looks')),
     );
     expect(looks.onPressed, isNull);
+    final looksPulse = find.ancestor(
+      of: find.byKey(const Key('get-my-looks')),
+      matching: find.byType(SelfxActionPulse),
+    );
+    expect(tester.widget<SelfxActionPulse>(looksPulse).enabled, isFalse);
     expect(find.text('Try Next Pick'), findsOneWidget);
     expect(find.text('Up next'), findsOneWidget);
     expect(tester.takeException(), isNull);

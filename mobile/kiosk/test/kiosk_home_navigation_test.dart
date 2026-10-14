@@ -342,6 +342,49 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       for (final key in ['home-garments-category', 'home-jewellery-category']) {
+        final card = find.byKey(Key(key));
+        final rect = tester.getRect(card);
+        final compact = rect.width < 440 || size.height < 720;
+        expect(rect.height, closeTo(compact ? 80 : 100, 0.01));
+        final ink = tester.widget<Ink>(
+          find.descendant(of: card, matching: find.byType(Ink)),
+        );
+        final decoration = ink.decoration as BoxDecoration;
+        expect((decoration.gradient as LinearGradient).colors, [
+          SelfxKioskTokens.homeOrangeStart,
+          SelfxKioskTokens.homeOrangeEnd,
+        ]);
+        for (final text in tester.widgetList<Text>(
+          find.descendant(of: card, matching: find.byType(Text)),
+        )) {
+          expect(text.style!.color, Colors.white);
+        }
+        for (final circleKey in [
+          'home-category-icon-circle',
+          'home-category-arrow-circle',
+        ]) {
+          final circle = find.descendant(
+            of: card,
+            matching: find.byKey(Key(circleKey)),
+          );
+          final surface =
+              tester.widget<DecoratedBox>(circle).decoration as BoxDecoration;
+          expect(surface.color, Colors.white);
+          expect(surface.shape, BoxShape.circle);
+          final circleRect = tester.getRect(circle);
+          expect(circleRect.top, greaterThanOrEqualTo(rect.top));
+          expect(circleRect.bottom, lessThanOrEqualTo(rect.bottom));
+        }
+        final arrow = find.descendant(
+          of: find.descendant(
+            of: card,
+            matching: find.byKey(const Key('home-category-arrow-circle')),
+          ),
+          matching: find.byType(Icon),
+        );
+        expect(tester.widget<Icon>(arrow).color, SelfxKioskTokens.homeOrange);
+      }
+      for (final key in ['home-garments-category', 'home-jewellery-category']) {
         await tester.ensureVisible(find.byKey(Key(key)));
         await tester.tap(find.byKey(Key(key)));
         await tester.pumpAndSettle();

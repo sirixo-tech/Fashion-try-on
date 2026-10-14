@@ -8,6 +8,7 @@ import 'package:selfx_kiosk/src/ui/try_on_experience_config.dart';
 import 'package:selfx_kiosk/src/ui/try_on_generation_presentation.dart';
 import 'package:selfx_kiosk/src/ui/try_on_generation_screen.dart';
 import 'package:selfx_kiosk/src/ui/try_on_result_screen.dart';
+import 'package:selfx_kiosk/src/ui/selfx_logo.dart';
 
 import 'kiosk_camera_foundation_test.dart' as fixtures;
 
@@ -20,7 +21,7 @@ void main() {
     const Size(800, 480),
   ]) {
     testWidgets(
-      'processing layout has labelled previews and 10/70/10/10 bands at $size',
+      'processing layout has proportional previews and 10/60/20/10 bands at $size',
       (tester) async {
         _viewport(tester, size);
         var backs = 0;
@@ -42,6 +43,24 @@ void main() {
           ),
         );
         await tester.pump(const Duration(milliseconds: 700));
+        final back = find.byKey(const Key('generation-back'));
+        expect(
+          find.descendant(of: back, matching: find.text('Back')),
+          findsOneWidget,
+        );
+        final button = tester.widget<TextButton>(back);
+        expect(
+          button.style!.backgroundColor!.resolve({}),
+          const Color(0xFFECECEC),
+        );
+        expect(
+          button.style!.foregroundColor!.resolve({}),
+          SelfxKioskTokens.textPrimary,
+        );
+        expect(
+          tester.getRect(back).right,
+          lessThanOrEqualTo(tester.getRect(find.byType(SelfxLogo)).left),
+        );
         final header = tester
             .getSize(find.byKey(const Key('generation-logo-section')))
             .height;
@@ -49,13 +68,13 @@ void main() {
           tester
               .getSize(find.byKey(const Key('generation-preview-section')))
               .height,
-          closeTo(header * 7, 1),
+          closeTo(header * 6, 1),
         );
         expect(
           tester
               .getSize(find.byKey(const Key('generation-status-section')))
               .height,
-          closeTo(header, 1),
+          closeTo(header * 2, 1),
         );
         expect(
           tester
@@ -101,7 +120,7 @@ void main() {
             ),
           );
         }
-        // The larger previews leave processing and actions reachable.
+        // Shorter previews leave extra room for processing messages/progress.
         await tester.ensureVisible(
           find.byKey(const Key('generation-percentage')),
         );
@@ -264,6 +283,19 @@ void main() {
     expect(find.text('Jewellery Photo'), findsOneWidget);
     expect(find.text('Garment Photo'), findsNothing);
     expect(find.text('the jewellery'), findsOneWidget);
+    final headerHeight = tester
+        .getSize(find.byKey(const Key('generation-logo-section')))
+        .height;
+    expect(
+      tester
+          .getSize(find.byKey(const Key('generation-preview-section')))
+          .height,
+      closeTo(headerHeight * 6, 1),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('generation-status-section'))).height,
+      closeTo(headerHeight * 2, 1),
+    );
     expect(tester.takeException(), isNull);
   });
 }

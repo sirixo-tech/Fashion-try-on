@@ -26,7 +26,7 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  min-height: 92px;
+  min-height: 76px;
 }
 
 .logo {
@@ -60,22 +60,21 @@
   text-align: center;
 }
 
-.title {
-  margin: 12px 0;
-  font-family: var(--font-heading);
-  font-size: clamp(30px, 6.4vw, 48px);
-  font-weight: 800;
-  line-height: 1.14;
-  letter-spacing: -0.035em;
-}
-
-.title span {
-  color: var(--upload-orange);
+.accessibleTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .description {
   max-width: 510px;
-  margin: 0 auto;
+  margin: 0 auto 16px;
   color: #545c69;
   font-size: clamp(15px, 3.4vw, 19px);
   font-weight: 500;
@@ -89,8 +88,8 @@
 
 .previewArea {
   position: relative;
-  margin: 28px auto 24px;
-  width: min(88%, 410px);
+  margin: 12px auto 16px;
+  width: 100%;
 }
 
 .previewArea::before {
@@ -105,7 +104,9 @@
 .preview {
   position: relative;
   display: grid;
-  aspect-ratio: 4 / 4.6;
+  aspect-ratio: 3 / 4;
+  max-height: 62svh;
+  min-height: 280px;
   overflow: hidden;
   border: 7px solid white;
   border-radius: 28px;
@@ -125,7 +126,8 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  /* Display crop only; capture/upload still uses the complete video frame. */
+  object-fit: cover;
   background: #171c24;
 }
 
@@ -255,6 +257,12 @@
   font-size: clamp(16px, 4vw, 22px);
   font-weight: 750;
   white-space: normal;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 24px;
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+  line-height: 1.25;
 }
 
 .primaryAction {
@@ -282,12 +290,8 @@
   color: var(--upload-ink);
 }
 
-.actions svg:last-child {
-  margin-left: auto;
-}
-
-.actions svg:first-child {
-  margin-left: auto;
+.actions svg {
+  margin: 0;
 }
 
 .message {

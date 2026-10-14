@@ -223,11 +223,9 @@ export function CustomerUploadPageClient({
         </header>
 
         <section aria-labelledby="upload-title" className={styles.upload}>
-          <h1 id="upload-title" className={styles.title}>
-            {copy.title.slice(0, copy.title.lastIndexOf(" ") + 1)}
-            <span>{copy.title.slice(copy.title.lastIndexOf(" ") + 1)}</span>
+          <h1 id="upload-title" className={styles.accessibleTitle}>
+            {copy.title}
           </h1>
-          <p className={styles.description}>{copy.description}</p>
 
           {expired ? (
             <UploadState
@@ -333,6 +331,11 @@ export function CustomerUploadPageClient({
                 )}
               </div>
 
+              {jewelleryGuidance && (
+                <p className={styles.description}>
+                  {jewelleryGuidance.description}
+                </p>
+              )}
               <ul className={styles.guidance} aria-label="Photo tips">
                 {guidance.map((tip) => (
                   <li key={tip.label}>
@@ -387,7 +390,9 @@ export function CustomerUploadPageClient({
                       setMessage(null);
                     }}
                   >
-                    <UploadIcon name="camera" /> Retake Photo
+                    <UploadIcon name="camera" />
+                    <span>Retake Photo</span>
+                    <span aria-hidden="true" />
                   </Button>
                 )}
                 <Button

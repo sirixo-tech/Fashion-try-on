@@ -283,15 +283,9 @@ class _CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = jewellery
-        ? const Color(0xFFD59A22)
-        : SelfxKioskTokens.homeOrange;
-    final iconColor = jewellery
-        ? const Color(0xFF8A4F00)
-        : SelfxKioskTokens.homeOrange;
-    final foreground = jewellery
-        ? const Color(0xFF3D230A)
-        : SelfxKioskTokens.homeNavy;
+    const accent = SelfxKioskTokens.homeOrange;
+    const iconColor = SelfxKioskTokens.homeOrange;
+    const foreground = Colors.white;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact =
@@ -300,17 +294,14 @@ class _CategoryCard extends StatelessWidget {
         return _HomeTapSurface(
           onPressed: onPressed,
           radius: 28,
-          color: jewellery ? const Color(0xFFFFDF8A) : Colors.white,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: jewellery
-                ? const [
-                    Color(0xFFFFE9A6),
-                    Color(0xFFFFDB7A),
-                    Color(0xFFFFEAA6),
-                  ]
-                : const [Colors.white, Color(0xFFFFE3CE)],
+          color: SelfxKioskTokens.primary,
+          gradient: const LinearGradient(
+            begin: Alignment.bottomLeft,
+            end: Alignment.topRight,
+            colors: [
+              SelfxKioskTokens.homeOrangeStart,
+              SelfxKioskTokens.homeOrangeEnd,
+            ],
           ),
           borderColor: accent,
           glow: true,
@@ -323,14 +314,36 @@ class _CategoryCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  if (jewellery)
-                    Icon(
-                      Icons.diamond_outlined,
-                      color: iconColor,
-                      size: compact ? 44 : 60,
-                    )
-                  else
-                    _ShirtIcon(color: iconColor, size: compact ? 44 : 60),
+                  SizedBox.square(
+                    dimension: compact ? 44 : 60,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Paint the circle without changing icon/text layout.
+                        Positioned.fill(
+                          left: compact ? -6 : -8,
+                          right: compact ? -6 : -8,
+                          top: compact ? -6 : -8,
+                          bottom: compact ? -6 : -8,
+                          child: const DecoratedBox(
+                            key: Key('home-category-icon-circle'),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        if (jewellery)
+                          Icon(
+                            Icons.diamond_outlined,
+                            color: iconColor,
+                            size: compact ? 44 : 60,
+                          )
+                        else
+                          _ShirtIcon(color: iconColor, size: compact ? 44 : 60),
+                      ],
+                    ),
+                  ),
                   SizedBox(width: compact ? 14 : 24),
                   Expanded(
                     child: Column(
@@ -364,9 +377,7 @@ class _CategoryCard extends StatelessWidget {
                             maxLines: 1,
                             softWrap: false,
                             style: TextStyle(
-                              color: jewellery
-                                  ? foreground.withValues(alpha: 0.78)
-                                  : SelfxKioskTokens.textSecondary,
+                              color: foreground,
                               fontSize: compact ? 15 : 19,
                             ),
                           ),
@@ -376,15 +387,16 @@ class _CategoryCard extends StatelessWidget {
                   ),
                   SizedBox(width: compact ? 12 : 20),
                   DecoratedBox(
+                    key: const Key('home-category-arrow-circle'),
                     decoration: BoxDecoration(
-                      color: jewellery ? const Color(0xFF975B09) : accent,
+                      color: Colors.white,
                       shape: BoxShape.circle,
                     ),
                     child: Padding(
                       padding: EdgeInsets.all(compact ? 10 : 14),
                       child: Icon(
                         Icons.arrow_forward,
-                        color: Colors.white,
+                        color: accent,
                         size: compact ? 24 : 30,
                       ),
                     ),

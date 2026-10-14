@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../session/capture_scope.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import 'responsive_kiosk_layout.dart';
+import 'capture_guide_panel.dart';
 
 /// A static positioning aid, independent of camera/readiness measurements.
 class PersonCaptureGuideOverlay extends StatelessWidget {
@@ -51,49 +52,24 @@ class PersonCaptureGuideOverlay extends StatelessWidget {
                     maintainSize: true,
                     maintainState: true,
                     maintainAnimation: true,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
+                    child: CaptureGuidePanel(
+                      icon: switch (captureScope) {
+                        CaptureScope.top => Icons.accessibility_new_outlined,
+                        CaptureScope.bottom => Icons.directions_walk_outlined,
+                        CaptureScope.fullBody => Icons.person_outline,
+                      },
+                      title: 'Stand in Position',
+                      message: switch (captureScope) {
+                        CaptureScope.top =>
+                          'Face the camera. Keep your head, shoulders and torso visible.',
+                        CaptureScope.bottom =>
+                          'Keep your face visible and frame your waist, legs and feet.',
+                        CaptureScope.fullBody =>
+                          'Face the camera and stand straight.',
+                      },
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.38),
                         borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Stand in Position',
-                            key: const Key('camera-framing-guide-label'),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: compact
-                                  ? 22
-                                  : layout.scaled(28, small: 24, large: 34),
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            switch (captureScope) {
-                              CaptureScope.top =>
-                                'Face the camera. Keep your head, shoulders and torso visible.',
-                              CaptureScope.bottom =>
-                                'Keep your face visible and frame your waist, legs and feet.',
-                              CaptureScope.fullBody =>
-                                'Face the camera and stand straight.',
-                            },
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.92),
-                              fontSize: compact
-                                  ? 12
-                                  : layout.scaled(16, small: 14, large: 18),
-                              height: 1.25,
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ),

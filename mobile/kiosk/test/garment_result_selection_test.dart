@@ -20,7 +20,7 @@ import 'kiosk_mobile_upload_test.dart' as phone;
 const _result = KioskTryOnResult(
   run: KioskTryOnRun(id: 'completed', status: KioskTryOnStatus.succeeded),
   generatedImage:
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
 );
 
 void main() {
@@ -226,7 +226,7 @@ void main() {
   );
 
   testWidgets(
-    'category filtering and paging keep Show All and unique garments',
+    'category filtering keeps Show All without another Load More control',
     (tester) async {
       _viewport(tester);
       final catalog = _PagedCatalog();
@@ -239,23 +239,17 @@ void main() {
         catalog.audiences.every((a) => a == KioskCatalogAudience.all),
         isTrue,
       );
-      final more = find.text('Load More');
-      await tester.ensureVisible(more);
-      await tester.tap(more);
-      await _frames(tester);
+      expect(find.text('Load More'), findsNothing);
       expect(
         find.byKey(const ValueKey('result-product-first')),
         findsOneWidget,
       );
-      expect(
-        find.byKey(const ValueKey('result-product-second')),
-        findsOneWidget,
-      );
-      expect(catalog.pages, contains(2));
+      expect(find.byKey(const ValueKey('result-product-second')), findsNothing);
+      expect(catalog.pages, everyElement(1));
       expect(find.byKey(const Key('result-show-all')), findsOneWidget);
       final image = tester.widget<Image>(
         find.descendant(
-          of: find.byKey(const ValueKey('result-product-second')),
+          of: find.byKey(const ValueKey('result-product-first')),
           matching: find.byType(Image),
         ),
       );

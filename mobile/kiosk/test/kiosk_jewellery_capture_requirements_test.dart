@@ -10,6 +10,95 @@ import 'package:selfx_kiosk/src/ui/camera_capture_screen.dart';
 void main() {
   const productId = '11111111-1111-4111-8111-111111111111';
 
+  for (final size in [
+    const Size(320, 568),
+    const Size(630, 1365),
+    const Size(1280, 720),
+  ]) {
+    for (final jewellery in [false, true]) {
+      testWidgets(
+        '${jewellery ? 'jewellery' : 'garment'} guidance heading centers in its panel at $size',
+        (tester) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = size;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          const requirements = KioskJewelleryCaptureRequirements(
+            schemaVersion: 1,
+            jewelleryType: KioskJewelleryType.necklace,
+            productId: productId,
+            targetRegion:
+                KioskJewelleryCaptureTargetRegion.neckShouldersAndUpperChest,
+            guide: KioskJewelleryCaptureGuide.neckAndUpperChest,
+            title: 'Keep your neckline and shoulders visible',
+            instruction:
+                'Face the camera and keep your neck and shoulders visible.',
+            checklist: [],
+            requiredChecks: [],
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: CaptureFramingGuideOverlay(
+                  purpose: jewellery
+                      ? PhotoAcquisitionPurpose.model
+                      : PhotoAcquisitionPurpose.garment,
+                  captureScope: CaptureScope.top,
+                  jewelleryRequirements: jewellery ? requirements : null,
+                ),
+              ),
+            ),
+          );
+          final heading = find.byKey(const Key('camera-framing-guide-label'));
+          final panel = find.byKey(const Key('camera-framing-guidance-panel'));
+          expect(tester.widget<Text>(heading).textAlign, TextAlign.center);
+          final message = find.byKey(
+            const Key('camera-framing-guidance-message'),
+          );
+          final supportingText = tester.widget<Text>(message);
+          expect(supportingText.textAlign, TextAlign.center);
+          expect(supportingText.maxLines, isNull);
+          expect(
+            tester.getRect(message).center.dx,
+            closeTo(tester.getRect(panel).center.dx, 0.1),
+          );
+          final decoration =
+              tester.widget<DecoratedBox>(panel).decoration as BoxDecoration;
+          expect(decoration.color, Colors.black.withValues(alpha: 0.48));
+          expect(decoration.borderRadius, BorderRadius.circular(8));
+          expect(
+            decoration.border,
+            Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          );
+          expect(
+            tester
+                .widget<Icon>(
+                  find.byKey(const Key('camera-framing-guidance-icon')),
+                )
+                .icon,
+            jewellery ? Icons.diamond_outlined : Icons.checkroom_outlined,
+          );
+          if (size.width == 630) {
+            expect(tester.widget<Text>(heading).style!.fontSize, 22);
+            expect(supportingText.style!.fontSize, 16);
+          }
+          expect(
+            tester.getRect(heading).center.dx,
+            closeTo(tester.getRect(panel).center.dx, 0.1),
+          );
+          if (jewellery && size.width == 320) {
+            final text = tester.widget<Text>(heading);
+            expect(
+              tester.getSize(heading).height,
+              greaterThan(text.style!.fontSize! * 1.5),
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   test('parses the selected jewellery product capture contract', () {
     final requirements = KioskJewelleryCaptureRequirements.fromJson({
       'schemaVersion': 1,

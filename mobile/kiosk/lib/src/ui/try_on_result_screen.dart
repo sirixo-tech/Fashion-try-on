@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../acquisition/photo_acquisition.dart';
 import '../catalog/kiosk_catalog_gateway.dart';
@@ -9,6 +10,7 @@ import '../session/capture_session_controller.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import '../tryon/garment_extraction_service.dart';
 import '../tryon/kiosk_garment_input.dart';
+import '../tryon/kiosk_try_on_models.dart';
 import '../tryon/kiosk_try_on_session_controller.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'browse_products_screen.dart';
@@ -25,7 +27,7 @@ import 'selfx_logo.dart';
 import 'try_on_experience_config.dart';
 import 'try_on_generation_screen.dart';
 
-class TryOnResultScreen extends StatelessWidget {
+class TryOnResultScreen extends StatefulWidget {
   const TryOnResultScreen({
     super.key,
     required this.captureController,
@@ -42,15 +44,113 @@ class TryOnResultScreen extends StatelessWidget {
   final GarmentExtractionService extractionService;
 
   @override
-  Widget build(BuildContext context) {
+  State<TryOnResultScreen> createState() => _TryOnResultScreenState();
+}
+
+class _TryOnResultScreenState extends State<TryOnResultScreen> {
+  CaptureSessionController get captureController => widget.captureController;
+  KioskTryOnSessionController get tryOnController => widget.tryOnController;
+  KioskCustomerUploadController get uploadController => widget.uploadController;
+  KioskCatalogGateway get catalogGateway => widget.catalogGateway;
+  GarmentExtractionService get extractionService => widget.extractionService;
+
+  late int _revision;
+  KioskTryOnResult? _preview;
+  KioskTryOnVertical _previewVertical = KioskTryOnVertical.garment;
+  KioskJewelleryType? _previewJewelleryType;
+  bool _rebuildScheduled = false;
+
+  bool get _current =>
+      mounted &&
+      tryOnController.isCustomerSessionCurrent(_revision, requireActive: false);
+  bool get _canAct => _current && ModalRoute.of(context)?.isCurrent == true;
+
+  @override
+  void initState() {
+    super.initState();
+    _revision = tryOnController.customerSessionRevision;
+    _syncPreview();
+    tryOnController.addListener(_onSessionChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant TryOnResultScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tryOnController != tryOnController) {
+      oldWidget.tryOnController.removeListener(_onSessionChanged);
+      _revision = tryOnController.customerSessionRevision;
+      _preview = null;
+      _syncPreview();
+      tryOnController.addListener(_onSessionChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    tryOnController.removeListener(_onSessionChanged);
+    _preview = null;
+    super.dispose();
+  }
+
+  void _syncPreview() {
+    if (!_current) {
+      _preview = null;
+      return;
+    }
     final result = tryOnController.result;
-    final revision = tryOnController.customerSessionRevision;
+    if (result != null) {
+      _preview = result;
+      _previewVertical = tryOnController.activeTryOnVertical;
+      _previewJewelleryType = tryOnController.garmentInput?.jewelleryType;
+    }
+  }
+
+  void _onSessionChanged() {
+    if (!mounted) return;
+    _syncPreview();
+    // Opening My Looks can notify listeners while its route is being built.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_rebuildScheduled) return;
+      _rebuildScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _rebuildScheduled = false;
+        if (mounted) setState(_syncPreview);
+      });
+    } else {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final result = _preview;
+    final revision = _revision;
     return Scaffold(
       backgroundColor: _ResultTokens.background,
       body: SafeArea(
         child: result == null
-            ? const Center(child: Text('Try-On result unavailable.'))
-            : tryOnController.activeTryOnVertical == KioskTryOnVertical.garment
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Try-On result unavailable.'),
+                    TextButton.icon(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Back'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).popUntil((route) => route.isFirst),
+                      icon: const Icon(Icons.home_outlined),
+                      label: const Text('Back to Home'),
+                    ),
+                  ],
+                ),
+              )
+            : _previewVertical == KioskTryOnVertical.garment
             ? CustomPaint(
                 painter: const _ResultBackdrop(),
                 child: GarmentResultCatalog(
@@ -61,28 +161,26 @@ class TryOnResultScreen extends StatelessWidget {
                     isJewellery: false,
                     jewelleryType: null,
                   ),
-                  isCurrent: () =>
-                      tryOnController.isCustomerSessionCurrent(
-                        revision,
-                        requireActive: false,
-                      ) &&
-                      identical(tryOnController.result, result),
+                  isCurrent: () => _current,
                   downloadEnabled: tryOnController.saveMyLooksQrEnabled,
                   nextPick: tryOnController.upcomingGarmentPick,
                   onContinueNextPick: () async => _tryAnotherGarment(context),
                   onContinue: (product) =>
                       _continueCatalogGarment(context, product),
-                  onShowAll: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => BrowseProductsScreen(
-                        captureController: captureController,
-                        tryOnController: tryOnController,
-                        uploadController: uploadController,
-                        catalogGateway: catalogGateway,
-                        extractionService: extractionService,
+                  onShowAll: () async {
+                    if (!_canAct) return;
+                    await Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (_) => BrowseProductsScreen(
+                          captureController: captureController,
+                          tryOnController: tryOnController,
+                          uploadController: uploadController,
+                          catalogGateway: catalogGateway,
+                          extractionService: extractionService,
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                   onBack: () => Navigator.of(context).maybePop(),
                   onRetake: () => _retakePhoto(context),
                   onGetMyLooks: () => _getMyLooks(context),
@@ -97,8 +195,8 @@ class TryOnResultScreen extends StatelessWidget {
                     tryOnController.upcomingGarmentPickPosition,
                 totalPickCount: tryOnController.garmentPicks.length,
                 saveMyLooksQrEnabled: tryOnController.saveMyLooksQrEnabled,
-                activeTryOnVertical: tryOnController.activeTryOnVertical,
-                jewelleryType: tryOnController.garmentInput?.jewelleryType,
+                activeTryOnVertical: _previewVertical,
+                jewelleryType: _previewJewelleryType,
                 retakeFromPhone:
                     captureController.activeAcceptedPersonPhoto?.image.source ==
                     CustomerPersonImageSource.mobileUpload,
@@ -116,10 +214,11 @@ class TryOnResultScreen extends StatelessWidget {
     BuildContext context,
     KioskCatalogProduct product,
   ) async {
+    if (!_canAct) return;
     // Selection commits only here; generation reuses the original accepted photo.
     tryOnController.selectGarment(product.toGarmentInput());
     if (captureController.activeAcceptedPersonPhoto == null) {
-      await Navigator.of(context).pushReplacement<void, void>(
+      await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => CameraCaptureScreen(
             controller: captureController,
@@ -133,7 +232,7 @@ class TryOnResultScreen extends StatelessWidget {
       );
       return;
     }
-    await Navigator.of(context).pushReplacement<void, void>(
+    await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => TryOnGenerationScreen(
           captureController: captureController,
@@ -147,8 +246,9 @@ class TryOnResultScreen extends StatelessWidget {
   }
 
   void _tryAnotherGarment(BuildContext context) {
+    if (!_canAct) return;
     if (tryOnController.selectNextGarmentPick()) {
-      Navigator.of(context).pushReplacement(
+      Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => TryOnGenerationScreen(
             captureController: captureController,
@@ -164,7 +264,7 @@ class TryOnResultScreen extends StatelessWidget {
     tryOnController.tryAnotherGarment();
     final experience = tryOnExperienceFor(tryOnController.activeTryOnVertical);
     if (!experience.supportsPhysicalProductCapture) {
-      Navigator.of(context).pushAndRemoveUntil(
+      Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => BrowseProductsScreen(
             captureController: captureController,
@@ -175,11 +275,10 @@ class TryOnResultScreen extends StatelessWidget {
             productVertical: experience.productVertical,
           ),
         ),
-        (route) => route.isFirst,
       );
       return;
     }
-    Navigator.of(context).pushAndRemoveUntil(
+    Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CaptureReviewScreen(
           controller: captureController,
@@ -189,20 +288,20 @@ class TryOnResultScreen extends StatelessWidget {
           extractionService: extractionService,
         ),
       ),
-      (route) => route.isFirst,
     );
   }
 
   Future<void> _retakePhoto(BuildContext context) async {
+    if (!_canAct) return;
     final jewelleryPhonePhoto =
         tryOnController.activeTryOnVertical == KioskTryOnVertical.jewellery &&
         captureController.activeAcceptedPersonPhoto?.image.source ==
             CustomerPersonImageSource.mobileUpload;
     await tryOnController.retakePhoto(captureController);
-    if (!context.mounted) {
+    if (!context.mounted || !_canAct) {
       return;
     }
-    Navigator.of(context).pushAndRemoveUntil(
+    Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => jewelleryPhonePhoto
             ? MobileUploadScreen(
@@ -221,27 +320,29 @@ class TryOnResultScreen extends StatelessWidget {
                 purpose: PhotoAcquisitionPurpose.model,
               ),
       ),
-      (route) => route.isFirst,
     );
   }
 
   Future<void> _getMyLooks(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MyLooksScreen(
-          captureController: captureController,
-          tryOnController: tryOnController,
-          uploadController: uploadController,
-          catalogGateway: catalogGateway,
-          extractionService: extractionService,
-        ),
-      ),
+    if (!_canAct) return;
+    await showMyLooksBottomSheet(
+      context: context,
+      captureController: captureController,
+      tryOnController: tryOnController,
+      uploadController: uploadController,
+      catalogGateway: catalogGateway,
+      extractionService: extractionService,
+      previewImage: _preview?.generatedImage,
     );
   }
 
   Future<void> _finish(BuildContext context) async {
+    if (!_canAct) return;
+    final revision = _revision;
     await tryOnController.finish(captureController);
-    if (context.mounted) {
+    if (context.mounted &&
+        !tryOnController.customerSessionActive &&
+        tryOnController.customerSessionRevision == revision + 1) {
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }

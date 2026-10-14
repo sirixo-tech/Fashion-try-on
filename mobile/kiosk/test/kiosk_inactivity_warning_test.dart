@@ -7,6 +7,7 @@ import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_inactivity_warning.dart';
+import 'package:selfx_kiosk/src/ui/selfx_kiosk_button.dart';
 import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
 
 import 'kiosk_camera_foundation_test.dart' as fixtures;
@@ -31,13 +32,18 @@ void main() {
     expect(find.byType(KioskInactivityWarning), findsNothing);
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('No activity detected'), findsOneWidget);
-    expect(find.text('Returning to the home screen in'), findsOneWidget);
-    expect(find.text('30 seconds'), findsOneWidget);
+    expect(
+      find.text(
+        'You will be redirected to the home screen when the timer runs out.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('30'), findsOneWidget);
     expect(h.session.customerSessionActive, isTrue);
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('29 seconds'), findsOneWidget);
+    expect(find.text('29'), findsOneWidget);
     await tester.pump(const Duration(seconds: 28));
-    expect(find.text('1 second'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
     await _settle(tester);
     expect(find.text('Start screen'), findsOneWidget);
@@ -70,8 +76,8 @@ void main() {
       expect(find.byType(KioskInactivityWarning), findsNothing);
       expect(h.session.customerSessionActive, isTrue);
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('30 seconds'), findsOneWidget);
-      // A tap outside the card also resumes, without a dedicated action button.
+      expect(find.text('30'), findsOneWidget);
+      // A tap outside the card also resumes.
       await tester.tapAt(const Offset(8, 8));
       await tester.pump();
       expect(find.byType(KioskInactivityWarning), findsNothing);
@@ -114,36 +120,58 @@ void main() {
     const Size(1280, 720),
     const Size(800, 480),
   ]) {
-    testWidgets('warning is centered and has no action buttons at $size', (
-      tester,
-    ) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = size;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await _harness(tester);
-      await tester.pump(const Duration(seconds: 90));
-      final warning = find.byKey(const Key('kiosk-inactivity-warning'));
-      expect(tester.getRect(warning).center.dx, closeTo(size.width / 2, 1));
-      expect(tester.getRect(warning).center.dy, closeTo(size.height / 2, 1));
-      final dialog = tester.widget<Dialog>(warning);
-      expect(dialog.backgroundColor, Colors.white);
-      expect(
-        (dialog.shape as RoundedRectangleBorder).borderRadius,
-        BorderRadius.circular(24),
-      );
-      expect(
-        find.descendant(of: warning, matching: find.byType(TextButton)),
-        findsNothing,
-      );
-      expect(
-        find.descendant(of: warning, matching: find.byType(FilledButton)),
-        findsNothing,
-      );
-      expect(find.text('Tap anywhere to continue.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-    });
+    testWidgets(
+      'warning is centered with Keep Browsing above its hint at $size',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await _harness(tester);
+        await tester.pump(const Duration(seconds: 90));
+        final warning = find.byKey(const Key('kiosk-inactivity-warning'));
+        expect(tester.getRect(warning).center.dx, closeTo(size.width / 2, 1));
+        expect(tester.getRect(warning).center.dy, closeTo(size.height / 2, 1));
+        final dialog = tester.widget<Dialog>(warning);
+        expect(dialog.backgroundColor, Colors.white);
+        expect(
+          (dialog.shape as RoundedRectangleBorder).borderRadius,
+          BorderRadius.circular(24),
+        );
+        expect(
+          find.descendant(of: warning, matching: find.byType(TextButton)),
+          findsNothing,
+        );
+        final keepBrowsing = find.byKey(
+          const Key('kiosk-inactivity-keep-browsing'),
+        );
+        final button = tester.widget<SelfxKioskButton>(keepBrowsing);
+        expect(button.label, 'Keep Browsing');
+        expect(button.backgroundColor, SelfxKioskTokens.primary);
+        expect(button.foregroundColor, Colors.white);
+        expect(button.onPressed, isNotNull);
+        expect(keepBrowsing.hitTestable(), findsOneWidget);
+        final hint = find.text('Tap anywhere to continue.');
+        expect(
+          tester.getRect(keepBrowsing).bottom,
+          lessThan(tester.getRect(hint).top),
+        );
+        expect(
+          tester.getRect(hint).bottom,
+          lessThanOrEqualTo(size.height - 20),
+        );
+        expect(find.text('Tap anywhere to continue.'), findsOneWidget);
+        expect(find.text('ENDING SOON'), findsOneWidget);
+        expect(find.text('SEC'), findsOneWidget);
+        final ring = tester.widget<CircularProgressIndicator>(
+          find.byKey(const Key('kiosk-inactivity-progress-ring')),
+        );
+        expect(ring.value, 1);
+        expect(ring.color, SelfxKioskTokens.primary);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
   }
 
   testWidgets('saved longer timeout keeps its final 30-second warning', (
@@ -153,12 +181,31 @@ void main() {
     await tester.pump(const Duration(seconds: 149));
     expect(find.byType(KioskInactivityWarning), findsNothing);
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('30 seconds'), findsOneWidget);
+    expect(find.text('30'), findsOneWidget);
     await tester.pump(const Duration(seconds: 30));
     await _settle(tester);
     expect(h.session.customerSessionActive, isFalse);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'Keep Browsing resumes the same screen and resets the full timer',
+    (tester) async {
+      final h = await _harness(tester);
+      await tester.pump(const Duration(seconds: 95));
+      await tester.tap(find.byKey(const Key('kiosk-inactivity-keep-browsing')));
+      await tester.pump();
+      expect(find.byType(KioskInactivityWarning), findsNothing);
+      expect(find.text('Customer page'), findsOneWidget);
+      expect(h.actions, 0);
+      expect(h.gateway.completionReasons, isEmpty);
+      await tester.pump(const Duration(seconds: 89));
+      expect(find.byType(KioskInactivityWarning), findsNothing);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('30'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets(
     'ending the session dismisses the warning and cancels its timers',
@@ -182,6 +229,32 @@ void main() {
     expect(h.gateway.completionReasons, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'orange progress ring shrinks with the countdown and reaches zero',
+    (tester) async {
+      Widget popup(int seconds) => MaterialApp(
+        theme: buildSelfxKioskTheme(),
+        home: Scaffold(body: KioskInactivityWarning(remainingSeconds: seconds)),
+      );
+      final ring = find.byKey(const Key('kiosk-inactivity-progress-ring'));
+      await tester.pumpWidget(popup(30));
+      expect(tester.widget<CircularProgressIndicator>(ring).value, 1);
+      await tester.pumpWidget(popup(15));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(
+        tester.widget<CircularProgressIndicator>(ring).value,
+        inExclusiveRange(0.5, 1),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(tester.widget<CircularProgressIndicator>(ring).value, 0.5);
+      await tester.pumpWidget(popup(0));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(tester.widget<CircularProgressIndicator>(ring).value, 0);
+      expect(find.text('0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Future<void> _settle(WidgetTester tester) async {

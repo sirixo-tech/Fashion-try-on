@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CustomerUploadPageClient } from "@/app/upload/[capability]/upload-page-client";
+import styles from "@/app/upload/[capability]/upload-page.module.css";
 import {
   completeCustomerUpload,
   createCustomerUploadIntent,
@@ -71,6 +72,14 @@ describe("CustomerUploadPageClient", () => {
 
     expect(await screen.findByText("Take Photo")).toBeTruthy();
     expect(screen.getByText("Choose from Phone")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Add Your Photo" }).className,
+    ).toBe(styles.accessibleTitle);
+    expect(
+      screen.queryByText(
+        "Take a clear photo of yourself or choose one from your phone to try different styles.",
+      ),
+    ).toBeNull();
   });
 
   it("previews a selected file before upload", async () => {
@@ -108,6 +117,14 @@ describe("CustomerUploadPageClient", () => {
       view.container.querySelector("input[capture]")?.getAttribute("capture"),
     ).toBe("environment");
     expect(statusMock).toHaveBeenCalledWith("ring-upload");
+    const preview = view.container.querySelector("video")!;
+    const instruction = screen.getByText(
+      "Keep your hand open and steady, with your fingers clearly visible.",
+    );
+    expect(
+      preview.compareDocumentPosition(instruction) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("shows relaxed earring guidance for a person upload", async () => {
@@ -295,6 +312,17 @@ describe("CustomerUploadPageClient", () => {
     expect(camera.drawImage).toHaveBeenCalledWith(video, 0, 0, 1080, 1920);
     expect(camera.streams[0]!.stop).toHaveBeenCalled();
     expect(intentMock).not.toHaveBeenCalled();
+    for (const label of ["Upload Photo", "Retake Photo", "Choose Another"]) {
+      const button = screen.getByRole("button", { name: label });
+      expect(button.children).toHaveLength(3);
+      expect(button.children[0]!.tagName.toLowerCase()).toBe("svg");
+      expect(button.children[1]!.textContent).toBe(label);
+    }
+    expect(
+      screen
+        .getByRole("button", { name: "Retake Photo" })
+        .children[2]!.getAttribute("aria-hidden"),
+    ).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Retake Photo" }));
     await screen.findByRole("button", { name: "Switch Camera" });
     expect(camera.getUserMedia).toHaveBeenCalledTimes(2);

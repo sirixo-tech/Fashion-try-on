@@ -18,6 +18,36 @@ import 'selfx_logo.dart';
 
 const _downloadWindow = Duration(minutes: 5);
 
+Future<void> showMyLooksBottomSheet({
+  required BuildContext context,
+  required CaptureSessionController captureController,
+  required KioskTryOnSessionController tryOnController,
+  required KioskCustomerUploadController uploadController,
+  String? previewImage,
+  KioskCatalogGateway catalogGateway = const UnavailableKioskCatalogGateway(),
+  GarmentExtractionService extractionService =
+      const UnavailableGarmentExtractionService(),
+}) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  backgroundColor: Colors.white,
+  barrierColor: Colors.black.withValues(alpha: 0.52),
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+  ),
+  clipBehavior: Clip.antiAlias,
+  builder: (_) => MyLooksScreen(
+    captureController: captureController,
+    tryOnController: tryOnController,
+    uploadController: uploadController,
+    catalogGateway: catalogGateway,
+    extractionService: extractionService,
+    asBottomSheet: true,
+    previewImage: previewImage,
+  ),
+);
+
 class MyLooksScreen extends StatefulWidget {
   const MyLooksScreen({
     super.key,
@@ -26,6 +56,8 @@ class MyLooksScreen extends StatefulWidget {
     required this.uploadController,
     this.catalogGateway = const UnavailableKioskCatalogGateway(),
     this.extractionService = const UnavailableGarmentExtractionService(),
+    this.asBottomSheet = false,
+    this.previewImage,
   });
 
   final CaptureSessionController captureController;
@@ -33,12 +65,19 @@ class MyLooksScreen extends StatefulWidget {
   final KioskCustomerUploadController uploadController;
   final KioskCatalogGateway catalogGateway;
   final GarmentExtractionService extractionService;
+  final bool asBottomSheet;
+  final String? previewImage;
 
   @override
   State<MyLooksScreen> createState() => _MyLooksScreenState();
 }
 
 class _MyLooksScreenState extends State<MyLooksScreen> {
+  late final int _sessionRevision;
+  bool get _sessionCurrent => widget.tryOnController.isCustomerSessionCurrent(
+    _sessionRevision,
+    requireActive: false,
+  );
   late final PageController _pageController;
   late final DateTime _downloadExpiresAt;
   Timer? _downloadTimer;
@@ -50,6 +89,7 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
   @override
   void initState() {
     super.initState();
+    _sessionRevision = widget.tryOnController.customerSessionRevision;
     _pageController = PageController();
     _downloadExpiresAt = DateTime.now().add(_downloadWindow);
     _downloadTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -91,6 +131,39 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.asBottomSheet) {
+      return SizedBox(
+        key: const Key('my-looks-bottom-sheet'),
+        height: MediaQuery.sizeOf(context).height * 0.92,
+        child: SafeArea(
+          top: false,
+          child: AnimatedBuilder(
+            animation: widget.tryOnController,
+            builder: (context, _) => _LooksBottomSheetContent(
+              looks: _sessionCurrent ? widget.tryOnController.looks : const [],
+              index: _index,
+              refreshing: _refreshing,
+              refreshFailed: _refreshFailed,
+              fallbackImage: _sessionCurrent
+                  ? widget.tryOnController.result?.generatedImage ??
+                        widget.previewImage
+                  : null,
+              lookLabel: _lookLabel,
+              onSelected: (value) => setState(() => _index = value),
+              onClose: () => Navigator.of(context).pop(),
+              onRetry: () => unawaited(_refreshLooks()),
+              onDownload: () => unawaited(_downloadLooks(context)),
+              downloadRemaining: _downloadRemaining,
+              downloadAvailable:
+                  _downloadAvailable &&
+                  _sessionCurrent &&
+                  widget.tryOnController.saveMyLooksQrEnabled,
+              creatingShare: widget.tryOnController.creatingShare,
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: SelfxKioskTokens.reviewBackground,
       body: Stack(
@@ -167,6 +240,20 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
     );
   }
 
+  String _lookLabel(KioskTryOnLook look, int index) {
+    for (final pick in widget.tryOnController.garmentPicks) {
+      if (pick.garmentInput.productId == look.productId &&
+          look.productId != null) {
+        return pick.displayName;
+      }
+    }
+    if (look.runId == widget.tryOnController.result?.run.id) {
+      return widget.tryOnController.garmentInput?.displayName ??
+          'Look ${index + 1}';
+    }
+    return 'Look ${index + 1}';
+  }
+
   Duration get _downloadRemaining {
     if (_downloadClosed) {
       return Duration.zero;
@@ -219,19 +306,23 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
   }
 
   Future<void> _downloadLooks(BuildContext context) async {
-    if (!_downloadAvailable) {
+    if (!_downloadAvailable || !_sessionCurrent) {
       return;
     }
+    final revision = widget.tryOnController.customerSessionRevision;
     final share = await widget.tryOnController.createSessionShare();
-    if (!context.mounted || !_downloadAvailable) {
+    if (!context.mounted ||
+        !_downloadAvailable ||
+        revision != widget.tryOnController.customerSessionRevision ||
+        ModalRoute.of(context)?.isCurrent != true) {
       return;
     }
     if (share == null) {
       await showDialog<void>(
         context: context,
-        builder: (_) => _ShareFailureDialog(
+        builder: (dialogContext) => _ShareFailureDialog(
           onRetry: () {
-            Navigator.of(context).pop();
+            Navigator.of(dialogContext).pop();
             unawaited(_downloadLooks(context));
           },
         ),
@@ -241,6 +332,283 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
     await showDialog<void>(
       context: context,
       builder: (_) => _LooksShareQrDialog(share: share),
+    );
+  }
+}
+
+class _LooksBottomSheetContent extends StatelessWidget {
+  const _LooksBottomSheetContent({
+    required this.looks,
+    required this.index,
+    required this.refreshing,
+    required this.refreshFailed,
+    required this.fallbackImage,
+    required this.lookLabel,
+    required this.onSelected,
+    required this.onClose,
+    required this.onRetry,
+    required this.onDownload,
+    required this.downloadRemaining,
+    required this.downloadAvailable,
+    required this.creatingShare,
+  });
+  final List<KioskTryOnLook> looks;
+  final int index;
+  final bool refreshing;
+  final bool refreshFailed;
+  final String? fallbackImage;
+  final String Function(KioskTryOnLook, int) lookLabel;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onClose;
+  final VoidCallback onRetry;
+  final VoidCallback onDownload;
+  final Duration downloadRemaining;
+  final bool downloadAvailable;
+  final bool creatingShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = looks.isEmpty ? 0 : index.clamp(0, looks.length - 1);
+    final preview = looks.isEmpty
+        ? fallbackImage
+        : looks[selected].resultReadUrl;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'My Looks',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: SelfxKioskTokens.homeNavy,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 40,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: SelfxKioskTokens.primary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('close-my-looks'),
+                    tooltip: 'Close My Looks',
+                    onPressed: onClose,
+                    style: IconButton.styleFrom(
+                      backgroundColor: SelfxKioskTokens.background,
+                      foregroundColor: SelfxKioskTokens.textPrimary,
+                    ),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: SingleChildScrollView(
+                  key: const Key('my-looks-sheet-gallery'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (preview != null)
+                        AspectRatio(
+                          aspectRatio: 4 / 3,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: ColoredBox(
+                              color: SelfxKioskTokens.background,
+                              child: GeneratedTryOnImage(
+                                key: const Key('my-looks-selected-preview'),
+                                src: preview,
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (refreshing)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(child: Text('Getting your looks...')),
+                        ),
+                      if (refreshFailed || (!refreshing && looks.isEmpty))
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Column(
+                            children: [
+                              Text(
+                                refreshFailed
+                                    ? 'Could not refresh your looks.'
+                                    : 'No downloadable looks yet.',
+                              ),
+                              TextButton.icon(
+                                onPressed: refreshing ? null : onRetry,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (looks.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        GridView.builder(
+                          key: const Key('my-looks-thumbnails'),
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: looks.length,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: 0.92,
+                              ),
+                          itemBuilder: (context, i) => Semantics(
+                            selected: i == selected,
+                            child: Material(
+                              key: ValueKey(
+                                'my-looks-thumbnail-${looks[i].lookId}',
+                              ),
+                              color: i == selected
+                                  ? SelfxKioskTokens.primary.withValues(
+                                      alpha: 0.08,
+                                    )
+                                  : Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: i == selected
+                                      ? SelfxKioskTokens.primary
+                                      : SelfxKioskTokens.border,
+                                  width: i == selected ? 2 : 1,
+                                ),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                onTap: () => onSelected(i),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          GeneratedTryOnImage(
+                                            src: looks[i].resultReadUrl,
+                                            fit: BoxFit.cover,
+                                          ),
+                                          if (i == selected)
+                                            Positioned(
+                                              top: 6,
+                                              right: 6,
+                                              child: Container(
+                                                padding: const EdgeInsets.all(
+                                                  3,
+                                                ),
+                                                decoration: const BoxDecoration(
+                                                  color:
+                                                      SelfxKioskTokens.primary,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.check,
+                                                  color: Colors.white,
+                                                  size: 15,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(6),
+                                      child: Text(
+                                        lookLabel(looks[i], i),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _DownloadCountdown(remaining: downloadRemaining),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final buy = SelfxKioskButton(
+                    key: const Key('buy-this-look'),
+                    label: 'Buy This Look',
+                    icon: Icons.shopping_bag_outlined,
+                    onPressed: null,
+                    minHeight: 54,
+                    borderRadius: 12,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                  );
+                  final download = SelfxKioskButton(
+                    key: const Key('download-my-looks'),
+                    label: creatingShare
+                        ? 'Preparing...'
+                        : downloadAvailable
+                        ? 'Download My Looks'
+                        : 'Download Unavailable',
+                    icon: Icons.file_download_outlined,
+                    onPressed:
+                        downloadAvailable && looks.isNotEmpty && !creatingShare
+                        ? onDownload
+                        : null,
+                    backgroundColor: SelfxKioskTokens.primary,
+                    foregroundColor: Colors.white,
+                    minHeight: 54,
+                    borderRadius: 12,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                  );
+                  if (constraints.maxWidth < 380) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [download, const SizedBox(height: 8), buy],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: buy),
+                      const SizedBox(width: 10),
+                      Expanded(child: download),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

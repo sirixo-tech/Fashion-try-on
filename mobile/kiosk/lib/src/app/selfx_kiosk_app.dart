@@ -369,15 +369,20 @@ class _KioskCustomerSessionIdleGuardState
                 child: Semantics(
                   liveRegion: true,
                   onTap: _endingSession ? null : _recordActivity,
-                  child: AbsorbPointer(
-                    // Consume the dismissing touch so it cannot activate a
-                    // capture/product button on the page underneath.
+                  child: Listener(
+                    // This full-screen hit-test boundary prevents touches from
+                    // reaching the underlying page while keeping the popup's
+                    // button accessible. The outer listener resumes on touch.
+                    behavior: HitTestBehavior.opaque,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
                         ColoredBox(color: Colors.black.withValues(alpha: 0.52)),
                         KioskInactivityWarning(
                           remainingSeconds: _remainingSeconds!,
+                          onKeepBrowsing: _endingSession
+                              ? null
+                              : _recordActivity,
                         ),
                       ],
                     ),

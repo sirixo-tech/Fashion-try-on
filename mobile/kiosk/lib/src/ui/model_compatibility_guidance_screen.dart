@@ -10,8 +10,7 @@ import '../tryon/model_garment_compatibility.dart';
 import '../upload/kiosk_customer_upload_controller.dart';
 import 'camera_capture_screen.dart';
 import 'capture_review_screen.dart';
-import 'kiosk_chrome.dart';
-import 'selfx_kiosk_action_card.dart';
+import 'try_on_failure_presentation.dart';
 
 class ModelCompatibilityGuidanceScreen extends StatelessWidget {
   const ModelCompatibilityGuidanceScreen({
@@ -34,66 +33,32 @@ class ModelCompatibilityGuidanceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final guidance = guidanceFor(intent);
-    return KioskScaffold(
-      title: 'SelfX Kiosk',
-      subtitle: 'Update photo',
-      leading: IconButton(
-        onPressed: () => Navigator.of(context).pop(),
-        icon: const Icon(Icons.arrow_back),
-      ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.photo_camera_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 72,
-                  ),
-                  const SizedBox(height: 22),
-                  Text(
-                    guidance.title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.displaySmall,
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    guidance.message,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 28),
-                  SelfxKioskActionCard(
-                    key: const Key('compatibility-update-photo'),
-                    onPressed: () => _updatePhoto(context),
-                    icon: Icons.photo_camera_outlined,
-                    iconColor: const Color(0xFF2384D6),
-                    label: 'Update My Photo',
-                    subtitle: 'Capture again',
-                    minHeight: 76,
-                  ),
-                  const SizedBox(height: 14),
-                  SelfxKioskActionCard(
-                    key: const Key('compatibility-choose-garment'),
-                    onPressed: () => _chooseAnotherGarment(context),
-                    icon: Icons.checkroom_outlined,
-                    iconColor: const Color(0xFFE86610),
-                    label: 'Try Another Garment',
-                    subtitle: 'Choose item',
-                    minHeight: 76,
-                  ),
-                ],
-              ),
-            ),
-          ),
+    return TryOnFailurePresentation(
+      title: guidance.title,
+      message: guidance.message,
+      onBack: () => Navigator.of(context).pop(),
+      actions: [
+        TryOnFailureAction(
+          key: const Key('compatibility-update-photo'),
+          primary: true,
+          pulse: true,
+          onPressed: () => _updatePhoto(context),
+          icon: Icons.photo_camera_outlined,
+          accentColor: const Color(0xFFE86610),
+          label: 'Update My Photo',
+          subtitle: 'Capture again',
         ),
-      ),
+        const SizedBox(height: 14),
+        TryOnFailureAction(
+          key: const Key('compatibility-choose-garment'),
+          secondary: true,
+          onPressed: () => _chooseAnotherGarment(context),
+          icon: Icons.checkroom_outlined,
+          accentColor: const Color(0xFFE86610),
+          label: 'Try Another Garment',
+          subtitle: 'Choose item',
+        ),
+      ],
     );
   }
 

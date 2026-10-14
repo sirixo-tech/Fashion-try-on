@@ -35,6 +35,39 @@ void main() {
         );
         await showGuide(false);
         expect(find.text('Stand in Position'), findsOneWidget);
+        final heading = find.byKey(const Key('camera-framing-guide-label'));
+        final message = find.byKey(
+          const Key('camera-framing-guidance-message'),
+        );
+        final panel = find.byKey(const Key('camera-framing-guidance-panel'));
+        for (final text in [heading, message]) {
+          expect(tester.widget<Text>(text).textAlign, TextAlign.center);
+          expect(
+            tester.getRect(text).center.dx,
+            closeTo(tester.getRect(panel).center.dx, 0.1),
+          );
+        }
+        expect(tester.widget<Text>(message).maxLines, isNull);
+        final decoration =
+            tester.widget<DecoratedBox>(panel).decoration as BoxDecoration;
+        expect(decoration.color, Colors.black.withValues(alpha: 0.38));
+        expect(decoration.borderRadius, BorderRadius.circular(18));
+        expect(
+          tester
+              .widget<Icon>(
+                find.byKey(const Key('camera-framing-guidance-icon')),
+              )
+              .icon,
+          switch (scope) {
+            CaptureScope.top => Icons.accessibility_new_outlined,
+            CaptureScope.bottom => Icons.directions_walk_outlined,
+            CaptureScope.fullBody => Icons.person_outline,
+          },
+        );
+        if (size.width == 630) {
+          expect(tester.widget<Text>(heading).style!.fontSize, 22);
+          expect(tester.widget<Text>(message).style!.fontSize, 16);
+        }
         expect(find.text('Stand\nstraight'), findsOneWidget);
         expect(find.text('Look at\ncamera'), findsOneWidget);
         expect(find.text('Good\nlighting'), findsOneWidget);
