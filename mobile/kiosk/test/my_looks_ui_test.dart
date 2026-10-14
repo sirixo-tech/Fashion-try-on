@@ -100,7 +100,8 @@ void main() {
     expect(find.byKey(const Key('download-my-looks-qr')), findsOneWidget);
     expect(gateway.shares, 1);
     expect(session.activeSessionId, sessionId);
-    await tester.tap(find.byKey(const Key('done-download-my-looks')));
+    await tester.ensureVisible(find.byKey(const Key('select-more-looks')));
+    await tester.tap(find.byKey(const Key('select-more-looks')));
     await _frames(tester);
     expect(find.byKey(const Key('download-my-looks-qr')), findsNothing);
     expect(gateway.loads, 1);

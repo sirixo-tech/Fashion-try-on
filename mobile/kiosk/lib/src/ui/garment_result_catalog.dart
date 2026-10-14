@@ -28,6 +28,7 @@ class GarmentResultCatalog extends StatefulWidget {
     required this.onGetMyLooks,
     required this.onFinish,
     required this.downloadEnabled,
+    this.singleLook = false,
     this.nextPick,
     required this.onContinueNextPick,
   });
@@ -43,6 +44,7 @@ class GarmentResultCatalog extends StatefulWidget {
   final Future<void> Function() onGetMyLooks;
   final Future<void> Function() onFinish;
   final bool downloadEnabled;
+  final bool singleLook;
   final KioskTryOnPick? nextPick;
   final Future<void> Function() onContinueNextPick;
 
@@ -289,7 +291,9 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                           enabled: !disabled && widget.downloadEnabled,
                           child: SelfxKioskButton(
                             key: const Key('get-my-looks'),
-                            label: 'Get My Looks',
+                            label: widget.singleLook
+                                ? 'Download My Looks'
+                                : 'Get My Looks',
                             icon: Icons.download_outlined,
                             minHeight: 56,
                             padding: const EdgeInsets.symmetric(
@@ -306,50 +310,67 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                       ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: SelfxActionPulse(
-                        enabled: _hasSelection && !disabled,
-                        child: SelfxKioskButton(
-                          key: Key(
-                            _hasSelection ? 'result-continue' : 'finish-try-on',
-                          ),
-                          label: _hasSelection ? 'Continue' : 'Back to Home',
-                          variant: _hasSelection
-                              ? SelfxKioskButtonVariant.primary
-                              : SelfxKioskButtonVariant.ghost,
-                          borderColor: _hasSelection
-                              ? SelfxKioskTokens.primary
-                              : SelfxKioskTokens.borderStrong,
-                          icon: _hasSelection
-                              ? Icons.arrow_forward
-                              : Icons.home_outlined,
-                          backgroundColor: _hasSelection
-                              ? SelfxKioskTokens.primary
-                              : Colors.white,
-                          foregroundColor: _hasSelection
-                              ? Colors.white
-                              : SelfxKioskTokens.textPrimary,
-                          minHeight: 56,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
-                          ),
-                          onPressed: _hasSelection
-                              ? disabled
+                      child: !_hasSelection && widget.singleLook
+                          ? const SelfxKioskButton(
+                              key: Key('buy-this-look'),
+                              label: 'Buy This Look',
+                              icon: Icons.shopping_bag_outlined,
+                              variant: SelfxKioskButtonVariant.ghost,
+                              minHeight: 56,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              onPressed: null,
+                            )
+                          : SelfxActionPulse(
+                              enabled: _hasSelection && !disabled,
+                              child: SelfxKioskButton(
+                                key: Key(
+                                  _hasSelection
+                                      ? 'result-continue'
+                                      : 'finish-try-on',
+                                ),
+                                label: _hasSelection
+                                    ? 'Continue'
+                                    : 'Back to Home',
+                                variant: _hasSelection
+                                    ? SelfxKioskButtonVariant.primary
+                                    : SelfxKioskButtonVariant.ghost,
+                                borderColor: _hasSelection
+                                    ? SelfxKioskTokens.primary
+                                    : SelfxKioskTokens.borderStrong,
+                                icon: _hasSelection
+                                    ? Icons.arrow_forward
+                                    : Icons.home_outlined,
+                                backgroundColor: _hasSelection
+                                    ? SelfxKioskTokens.primary
+                                    : Colors.white,
+                                foregroundColor: _hasSelection
+                                    ? Colors.white
+                                    : SelfxKioskTokens.textPrimary,
+                                minHeight: 56,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 10,
+                                ),
+                                onPressed: _hasSelection
+                                    ? disabled
+                                          ? null
+                                          : () => unawaited(
+                                              _run(
+                                                _nextSelected
+                                                    ? widget.onContinueNextPick
+                                                    : () => widget.onContinue(
+                                                        _selected!,
+                                                      ),
+                                              ),
+                                            )
+                                    : _finishing
                                     ? null
-                                    : () => unawaited(
-                                        _run(
-                                          _nextSelected
-                                              ? widget.onContinueNextPick
-                                              : () => widget.onContinue(
-                                                  _selected!,
-                                                ),
-                                        ),
-                                      )
-                              : _finishing
-                              ? null
-                              : () => unawaited(_finish()),
-                        ),
-                      ),
+                                    : () => unawaited(_finish()),
+                              ),
+                            ),
                     ),
                   ],
                 ),

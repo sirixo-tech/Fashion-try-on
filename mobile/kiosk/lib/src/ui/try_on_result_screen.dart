@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -24,6 +25,7 @@ import 'my_looks_screen.dart';
 import 'responsive_kiosk_layout.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_logo.dart';
+import 'selfx_kiosk_button.dart';
 import 'try_on_experience_config.dart';
 import 'try_on_generation_screen.dart';
 
@@ -59,6 +61,7 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
   KioskTryOnVertical _previewVertical = KioskTryOnVertical.garment;
   KioskJewelleryType? _previewJewelleryType;
   bool _rebuildScheduled = false;
+  bool get _singleLook => tryOnController.looks.length == 1;
 
   bool get _current =>
       mounted &&
@@ -71,6 +74,7 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
     _revision = tryOnController.customerSessionRevision;
     _syncPreview();
     tryOnController.addListener(_onSessionChanged);
+    unawaited(tryOnController.refreshLooks());
   }
 
   @override
@@ -82,6 +86,7 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
       _preview = null;
       _syncPreview();
       tryOnController.addListener(_onSessionChanged);
+      unawaited(tryOnController.refreshLooks());
     }
   }
 
@@ -163,6 +168,7 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                   ),
                   isCurrent: () => _current,
                   downloadEnabled: tryOnController.saveMyLooksQrEnabled,
+                  singleLook: _singleLook,
                   nextPick: tryOnController.upcomingGarmentPick,
                   onContinueNextPick: () async => _tryAnotherGarment(context),
                   onContinue: (product) =>
@@ -183,7 +189,9 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                   },
                   onBack: () => Navigator.of(context).maybePop(),
                   onRetake: () => _retakePhoto(context),
-                  onGetMyLooks: () => _getMyLooks(context),
+                  onGetMyLooks: () => _singleLook
+                      ? _downloadMyLooks(context)
+                      : _getMyLooks(context),
                   onFinish: () => _finish(context),
                 ),
               )
@@ -195,6 +203,7 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                     tryOnController.upcomingGarmentPickPosition,
                 totalPickCount: tryOnController.garmentPicks.length,
                 saveMyLooksQrEnabled: tryOnController.saveMyLooksQrEnabled,
+                singleLook: _singleLook,
                 activeTryOnVertical: _previewVertical,
                 jewelleryType: _previewJewelleryType,
                 retakeFromPhone:
@@ -202,7 +211,9 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                     CustomerPersonImageSource.mobileUpload,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
-                onGetMyLooks: () => _getMyLooks(context),
+                onGetMyLooks: () => _singleLook
+                    ? unawaited(_downloadMyLooks(context))
+                    : unawaited(_getMyLooks(context)),
                 onFinish: () => _finish(context),
                 onBack: () => Navigator.of(context).maybePop(),
               ),
@@ -336,6 +347,15 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
     );
   }
 
+  Future<void> _downloadMyLooks(BuildContext context) async {
+    if (!_canAct) return;
+    await showMyLooksDownloadDialog(
+      context: context,
+      captureController: captureController,
+      tryOnController: tryOnController,
+    );
+  }
+
   Future<void> _finish(BuildContext context) async {
     if (!_canAct) return;
     final revision = _revision;
@@ -356,6 +376,7 @@ class _ResultPage extends StatelessWidget {
     required this.upcomingPickPosition,
     required this.totalPickCount,
     required this.saveMyLooksQrEnabled,
+    required this.singleLook,
     required this.activeTryOnVertical,
     required this.jewelleryType,
     this.retakeFromPhone = false,
@@ -372,6 +393,7 @@ class _ResultPage extends StatelessWidget {
   final int? upcomingPickPosition;
   final int totalPickCount;
   final bool saveMyLooksQrEnabled;
+  final bool singleLook;
   final KioskTryOnVertical activeTryOnVertical;
   final KioskJewelleryType? jewelleryType;
   final bool retakeFromPhone;
@@ -552,27 +574,41 @@ class _ResultPage extends StatelessWidget {
                                 minHeight: actionTileHeight,
                                 onPressed: onTryAnotherGarment,
                               ),
-                              topRight: SelfxKioskActionCard(
-                                key: const Key('get-my-looks'),
-                                icon: Icons.checkroom_outlined,
-                                iconColor: _ResultTokens.orangeDeep,
-                                trailing: const Icon(
-                                  Icons.chevron_right,
-                                  color: _ResultTokens.orangeDeep,
-                                ),
-                                maxLabelLines: 2,
-                                maxSubtitleLines: 2,
-                                label: 'Get My Looks',
-                                subtitle: saveMyLooksQrEnabled
-                                    ? 'Download your styles'
-                                    : 'QR disabled',
-                                disabledBackgroundColor:
-                                    _ResultTokens.looksSurface,
-                                minHeight: actionTileHeight,
-                                onPressed: saveMyLooksQrEnabled
-                                    ? onGetMyLooks
-                                    : null,
-                              ),
+                              topRight: singleLook
+                                  ? SelfxKioskButton(
+                                      key: const Key('get-my-looks'),
+                                      label: 'Download My Looks',
+                                      icon: Icons.download_outlined,
+                                      backgroundColor: SelfxKioskTokens.primary,
+                                      foregroundColor: Colors.white,
+                                      minHeight: actionTileHeight,
+                                      onPressed: saveMyLooksQrEnabled
+                                          ? onGetMyLooks
+                                          : null,
+                                    )
+                                  : SelfxKioskActionCard(
+                                      key: const Key('get-my-looks'),
+                                      icon: Icons.checkroom_outlined,
+                                      iconColor: _ResultTokens.orangeDeep,
+                                      trailing: const Icon(
+                                        Icons.chevron_right,
+                                        color: _ResultTokens.orangeDeep,
+                                      ),
+                                      maxLabelLines: 2,
+                                      maxSubtitleLines: 2,
+                                      label: singleLook
+                                          ? 'Download My Looks'
+                                          : 'Get My Looks',
+                                      subtitle: saveMyLooksQrEnabled
+                                          ? 'Download your styles'
+                                          : 'QR disabled',
+                                      disabledBackgroundColor:
+                                          _ResultTokens.looksSurface,
+                                      minHeight: actionTileHeight,
+                                      onPressed: saveMyLooksQrEnabled
+                                          ? onGetMyLooks
+                                          : null,
+                                    ),
                               bottomLeft: SelfxKioskActionCard(
                                 key: const Key('result-retake-photo'),
                                 icon: retakeFromPhone
@@ -596,23 +632,32 @@ class _ResultPage extends StatelessWidget {
                                 minHeight: actionTileHeight,
                                 onPressed: onRetakePhoto,
                               ),
-                              bottomRight: SelfxKioskActionCard(
-                                key: const Key('finish-try-on'),
-                                icon: Icons.home_outlined,
-                                iconColor: _ResultTokens.green,
-                                trailing: const Icon(
-                                  Icons.chevron_right,
-                                  color: _ResultTokens.green,
-                                ),
-                                maxLabelLines: 2,
-                                maxSubtitleLines: 2,
-                                label: 'Back to Home',
-                                subtitle: 'Start over',
-                                disabledBackgroundColor:
-                                    _ResultTokens.finishSurface,
-                                minHeight: actionTileHeight,
-                                onPressed: onFinish,
-                              ),
+                              bottomRight: singleLook
+                                  ? SelfxKioskButton(
+                                      key: const Key('buy-this-look'),
+                                      label: 'Buy This Look',
+                                      icon: Icons.shopping_bag_outlined,
+                                      variant: SelfxKioskButtonVariant.ghost,
+                                      minHeight: actionTileHeight,
+                                      onPressed: null,
+                                    )
+                                  : SelfxKioskActionCard(
+                                      key: const Key('finish-try-on'),
+                                      icon: Icons.home_outlined,
+                                      iconColor: _ResultTokens.green,
+                                      trailing: const Icon(
+                                        Icons.chevron_right,
+                                        color: _ResultTokens.green,
+                                      ),
+                                      maxLabelLines: 2,
+                                      maxSubtitleLines: 2,
+                                      label: 'Back to Home',
+                                      subtitle: 'Start over',
+                                      disabledBackgroundColor:
+                                          _ResultTokens.finishSurface,
+                                      minHeight: actionTileHeight,
+                                      onPressed: onFinish,
+                                    ),
                             ),
                           ),
                         ],

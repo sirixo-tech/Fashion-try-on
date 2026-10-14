@@ -343,6 +343,7 @@ void main() {
       expect(tester.takeException(), isNull);
       for (final key in ['home-garments-category', 'home-jewellery-category']) {
         final card = find.byKey(Key(key));
+        final jewellery = key == 'home-jewellery-category';
         final rect = tester.getRect(card);
         final compact = rect.width < 440 || size.height < 720;
         expect(rect.height, closeTo(compact ? 80 : 100, 0.01));
@@ -350,14 +351,26 @@ void main() {
           find.descendant(of: card, matching: find.byType(Ink)),
         );
         final decoration = ink.decoration as BoxDecoration;
-        expect((decoration.gradient as LinearGradient).colors, [
-          SelfxKioskTokens.homeOrangeStart,
-          SelfxKioskTokens.homeOrangeEnd,
-        ]);
+        expect(
+          (decoration.gradient as LinearGradient).colors,
+          jewellery
+              ? [const Color(0xFFFFFCF8), const Color(0xFFFFF0DF)]
+              : [
+                  SelfxKioskTokens.homeOrangeStart,
+                  SelfxKioskTokens.homeOrangeEnd,
+                ],
+        );
         for (final text in tester.widgetList<Text>(
           find.descendant(of: card, matching: find.byType(Text)),
         )) {
-          expect(text.style!.color, Colors.white);
+          expect(
+            text.style!.color,
+            jewellery
+                ? text.data == 'Try On Jewellery'
+                      ? SelfxKioskTokens.homeNavy
+                      : SelfxKioskTokens.textSecondary
+                : Colors.white,
+          );
         }
         for (final circleKey in [
           'home-category-icon-circle',
@@ -369,7 +382,14 @@ void main() {
           );
           final surface =
               tester.widget<DecoratedBox>(circle).decoration as BoxDecoration;
-          expect(surface.color, Colors.white);
+          expect(
+            surface.color,
+            jewellery
+                ? circleKey == 'home-category-icon-circle'
+                      ? const Color(0xFFFBE8D2)
+                      : SelfxKioskTokens.homeOrange
+                : Colors.white,
+          );
           expect(surface.shape, BoxShape.circle);
           final circleRect = tester.getRect(circle);
           expect(circleRect.top, greaterThanOrEqualTo(rect.top));
@@ -382,7 +402,10 @@ void main() {
           ),
           matching: find.byType(Icon),
         );
-        expect(tester.widget<Icon>(arrow).color, SelfxKioskTokens.homeOrange);
+        expect(
+          tester.widget<Icon>(arrow).color,
+          jewellery ? Colors.white : SelfxKioskTokens.homeOrange,
+        );
       }
       for (final key in ['home-garments-category', 'home-jewellery-category']) {
         await tester.ensureVisible(find.byKey(Key(key)));

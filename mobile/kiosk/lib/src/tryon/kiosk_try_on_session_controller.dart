@@ -467,6 +467,10 @@ class KioskTryOnSessionController extends ChangeNotifier {
       return;
     }
     final sessionId = activeSessionId;
+    final revision = customerSessionRevision;
+    bool current() =>
+        isCustomerSessionCurrent(revision, requireActive: false) &&
+        activeSessionId == sessionId;
     if (sessionId == null) {
       looks = const [];
       notifyListeners();
@@ -476,15 +480,16 @@ class KioskTryOnSessionController extends ChangeNotifier {
     sessionMessage = null;
     notifyListeners();
     try {
-      looks = await _sessionGateway.getSessionLooks(sessionId);
+      final refreshed = await _sessionGateway.getSessionLooks(sessionId);
+      if (current()) looks = refreshed;
     } on KioskTryOnException catch (error) {
-      sessionMessage = error.message;
+      if (current()) sessionMessage = error.message;
     } on TimeoutException {
-      sessionMessage = 'SelfX could not refresh your looks.';
+      if (current()) sessionMessage = 'SelfX could not refresh your looks.';
     } on SocketException {
-      sessionMessage = 'SelfX could not refresh your looks.';
+      if (current()) sessionMessage = 'SelfX could not refresh your looks.';
     } catch (_) {
-      sessionMessage = 'SelfX could not refresh your looks.';
+      if (current()) sessionMessage = 'SelfX could not refresh your looks.';
     } finally {
       _refreshingLooks = false;
       notifyListeners();
@@ -500,6 +505,10 @@ class KioskTryOnSessionController extends ChangeNotifier {
       return null;
     }
     final sessionId = activeSessionId;
+    final revision = customerSessionRevision;
+    bool current() =>
+        isCustomerSessionCurrent(revision, requireActive: false) &&
+        activeSessionId == sessionId;
     if (sessionId == null) {
       sessionMessage = "Couldn't prepare your looks. Please try again.";
       notifyListeners();
@@ -510,19 +519,28 @@ class KioskTryOnSessionController extends ChangeNotifier {
     notifyListeners();
     try {
       final share = await _sessionGateway.createSessionShare(sessionId);
+      if (!current()) return null;
       _currentShare = share;
       return share;
     } on KioskTryOnException {
-      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      if (current()) {
+        sessionMessage = "Couldn't prepare your looks. Please try again.";
+      }
       return null;
     } on TimeoutException {
-      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      if (current()) {
+        sessionMessage = "Couldn't prepare your looks. Please try again.";
+      }
       return null;
     } on SocketException {
-      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      if (current()) {
+        sessionMessage = "Couldn't prepare your looks. Please try again.";
+      }
       return null;
     } catch (_) {
-      sessionMessage = "Couldn't prepare your looks. Please try again.";
+      if (current()) {
+        sessionMessage = "Couldn't prepare your looks. Please try again.";
+      }
       return null;
     } finally {
       _creatingShare = false;

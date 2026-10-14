@@ -1672,11 +1672,12 @@ Store-owned kiosks continue to use the Store-level capability list, which
 determines the visible primary choices and lets administrators disable a mode
 when the business does not need it:
 
-- Both **Try On Garments** and **Try On Jewellery** category cards use the same
-  orange gradient with white titles/subtitles, orange border/glow, a white circle
-  behind the orange shirt/diamond icon and a white circular arrow with an orange
-  arrow icon. Their current sizes, spacing, text, icon sizes and menu actions are
-  unchanged; the menu's Browse Garments action retains its label.
+- **Try On Garments** uses an orange gradient with white title/subtitle, orange
+  border/glow, an orange shirt on a white circle and an orange arrow on a white circle.
+- **Try On Jewellery** uses a cream/light peach surface and neutral border/glow,
+  navy title, grey subtitle, a gold diamond on a pale peach circle and a white
+  arrow on an orange circle. Both cards retain their current sizes, spacing,
+  text, icon sizes and menu actions; Browse Garments retains its label.
 
 These are the only primary customer actions on the starting screen. They appear
 as two equally sized, wide rectangular buttons stacked vertically with a
@@ -2295,8 +2296,11 @@ Provide Cancel/Start Over only when safe.
   cached images and shows a compact first-page product row without **Load More**.
   **Show All** opens the full catalog with its existing paging, Men/Women tabs
   and My Picks;
-- no garment selected: **Get My Looks** on the left and **Back to Home** on the
-  right; a selected garment hides both actions and shows only pulsing orange
+- no garment selected: one generated session look shows **Download My Looks**
+  directly beside **Buy This Look** (disabled until buying is implemented).
+  Multiple looks show **Get My Looks** and **Back to Home**. If the look count
+  cannot yet be retrieved, retain My Looks with refresh/retry rather than assuming
+  a single look. A selected garment hides the download/buy/home actions and shows only pulsing orange
   **Continue** aligned right. Deselecting restores the two actions. The footer
   has a small bottom margin and no unused action row; reclaimed height goes to
   the result preview;
@@ -2325,8 +2329,9 @@ Provide Cancel/Start Over only when safe.
 ### Jewellery Result
 
 Jewellery retains its current Your Look heading, target-aware result preview/
-full-image zoom and four actions: Browse Jewellery, Get My Looks, Upload Another
-Photo and Back to Home. Existing colours, phone-based photo replacement,
+full-image zoom, Browse Jewellery and Upload Another Photo. One generated look
+shows Download My Looks and the disabled Buy This Look action directly; multiple
+looks retain Get My Looks and Back to Home. Existing phone-based photo replacement,
 queued-pick handling, session rules and generation policy remain unchanged.
 
 Gallery/download viewers and original generated assets remain unchanged.
@@ -2380,7 +2385,7 @@ If connectivity is unavailable:
 
 # 34. Kiosk QR Handoff Screen
 
-**Get My Looks** opens a modal bottom sheet sliding up over the result screen,
+For multiple generated looks, **Get My Looks** opens a modal gallery sliding up over the result screen,
 with white surfaces, rounded top corners and a black 52% dimming layer. Its
 **My Looks** heading has an orange accent and a top-right **X** to close.
 The sheet shows a large complete-image preview and a scrollable three-column
@@ -2389,8 +2394,19 @@ look with an orange border and checkmark. Available product names label looks;
 otherwise use numbered Look labels without inventing product metadata.
 
 A five-minute **Download available MM:SS** strip sits above **Download My Looks**,
-which preserves the existing session-wide QR share dialog and failure/retry
-behavior. Thumbnail selection changes the preview only; the share still includes
+which replaces the gallery content with a centered rounded download popup on the
+same modal route. Only one popup is visible. The centered SelfX logo and top-right
+**X** sit above a large orange-bordered QR. Centered Download My Looks text, scan
+instructions and link expiry appear below the QR, followed by Select More Looks
+and Back to Home buttons. Narrow screens stack the buttons, and short windows
+scroll the content and actions. A single generated look bypasses the gallery:
+the result screen's Download My Looks opens this QR popup directly. The existing secure
+session-wide share link, link expiry and failure/retry behavior are preserved.
+**Select More Looks** restores the gallery, selected thumbnail and its original
+download countdown for multiple looks; for a single look it closes to the result.
+**Back to Home** ends the customer session and clears its
+photo, result and picks. **X** closes the sheet back to the result.
+Thumbnail selection changes the preview only; the share still includes
 the session's looks. **Buy This Look** is visible but disabled pending the buying
 flow. Short windows scroll the gallery while keeping the close and footer controls
 available; narrow windows stack the actions. **X**, system Back or tapping the
@@ -2402,9 +2418,11 @@ dimmed background closes the sheet without clearing the result, photo or picks.
 - selected product
 - brief instruction
 - expiration guidance if appropriate
-- Finish
+- Select More Looks
+- Back to Home
 
-The QR itself contains only the opaque SelfX handoff token/link.
+One QR shares all generated looks from the current session, regardless of the
+selected thumbnail. The QR itself contains only the opaque SelfX handoff token/link.
 
 ---
 

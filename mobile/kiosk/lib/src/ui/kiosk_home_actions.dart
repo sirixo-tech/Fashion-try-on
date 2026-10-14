@@ -284,8 +284,8 @@ class _CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const accent = SelfxKioskTokens.homeOrange;
-    const iconColor = SelfxKioskTokens.homeOrange;
-    const foreground = Colors.white;
+    final iconColor = jewellery ? const Color(0xFF9A650A) : accent;
+    final foreground = jewellery ? SelfxKioskTokens.homeNavy : Colors.white;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact =
@@ -294,16 +294,18 @@ class _CategoryCard extends StatelessWidget {
         return _HomeTapSurface(
           onPressed: onPressed,
           radius: 28,
-          color: SelfxKioskTokens.primary,
-          gradient: const LinearGradient(
+          color: jewellery ? const Color(0xFFFFFCF8) : SelfxKioskTokens.primary,
+          gradient: LinearGradient(
             begin: Alignment.bottomLeft,
             end: Alignment.topRight,
-            colors: [
-              SelfxKioskTokens.homeOrangeStart,
-              SelfxKioskTokens.homeOrangeEnd,
-            ],
+            colors: jewellery
+                ? const [Color(0xFFFFFCF8), Color(0xFFFFF0DF)]
+                : const [
+                    SelfxKioskTokens.homeOrangeStart,
+                    SelfxKioskTokens.homeOrangeEnd,
+                  ],
           ),
-          borderColor: accent,
+          borderColor: jewellery ? const Color(0xFFF1E5D8) : accent,
           glow: true,
           child: SizedBox(
             height: compact ? 80 : 100,
@@ -325,10 +327,12 @@ class _CategoryCard extends StatelessWidget {
                           right: compact ? -6 : -8,
                           top: compact ? -6 : -8,
                           bottom: compact ? -6 : -8,
-                          child: const DecoratedBox(
-                            key: Key('home-category-icon-circle'),
+                          child: DecoratedBox(
+                            key: const Key('home-category-icon-circle'),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: jewellery
+                                  ? const Color(0xFFFBE8D2)
+                                  : Colors.white,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -377,7 +381,9 @@ class _CategoryCard extends StatelessWidget {
                             maxLines: 1,
                             softWrap: false,
                             style: TextStyle(
-                              color: foreground,
+                              color: jewellery
+                                  ? SelfxKioskTokens.textSecondary
+                                  : foreground,
                               fontSize: compact ? 15 : 19,
                             ),
                           ),
@@ -389,14 +395,14 @@ class _CategoryCard extends StatelessWidget {
                   DecoratedBox(
                     key: const Key('home-category-arrow-circle'),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: jewellery ? accent : Colors.white,
                       shape: BoxShape.circle,
                     ),
                     child: Padding(
                       padding: EdgeInsets.all(compact ? 10 : 14),
                       child: Icon(
                         Icons.arrow_forward,
-                        color: accent,
+                        color: jewellery ? Colors.white : accent,
                         size: compact ? 24 : 30,
                       ),
                     ),

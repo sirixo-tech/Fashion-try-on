@@ -5,10 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_models.dart';
+import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/generated_try_on_image.dart';
 import 'package:selfx_kiosk/src/ui/my_looks_screen.dart';
+import 'package:selfx_kiosk/src/ui/my_looks_download_sheet.dart';
+import 'package:selfx_kiosk/src/ui/selfx_logo.dart';
 import 'package:selfx_kiosk/src/ui/selfx_kiosk_button.dart';
+import 'package:selfx_kiosk/src/ui/try_on_result_screen.dart';
 
 import 'kiosk_camera_foundation_test.dart' as fixtures;
 
@@ -25,6 +29,45 @@ void main() {
     const Size(1280, 720),
     const Size(800, 480),
   ]) {
+    testWidgets('QR handoff uses one centered stacked popup at $size', (
+      tester,
+    ) async {
+      final h = await _open(tester, size: size);
+      await tester.tap(find.byKey(const Key('download-my-looks')));
+      await _frames(tester);
+      expect(find.byKey(const Key('my-looks-bottom-sheet')), findsNothing);
+      expect(find.byKey(const Key('my-looks-modal-surface')), findsOneWidget);
+      expect(find.text('Result fixture'), findsOneWidget);
+      expect(find.byType(SelfxLogo), findsOneWidget);
+      final sheet = tester.getRect(
+        find.byKey(const Key('my-looks-modal-surface')),
+      );
+      expect(sheet.center.dx, closeTo(size.width / 2, 1));
+      expect(sheet.center.dy, closeTo(size.height / 2, 1));
+      expect(sheet.top, greaterThan(0));
+      final qrSheet = tester.widget<MyLooksDownloadSheet>(
+        find.byType(MyLooksDownloadSheet),
+      );
+      expect(qrSheet.share.shareUrl, 'https://try.selfx.test/looks/capability');
+      final qrRect = tester.getRect(
+        find.byKey(const Key('download-my-looks-qr')),
+      );
+      expect(qrRect.width, closeTo(qrRect.height, 1));
+      expect(qrRect.width, greaterThan(200));
+      final instructions = tester.getRect(
+        find.byKey(const Key('download-my-looks-instructions')),
+      );
+      expect(qrRect.bottom, lessThan(instructions.top));
+      expect(qrRect.center.dx, closeTo(instructions.center.dx, 1));
+      for (final key in ['select-more-looks', 'download-back-to-home']) {
+        await tester.ensureVisible(find.byKey(Key(key)));
+        expect(find.byKey(Key(key)).hitTestable(), findsOneWidget);
+      }
+      expect(h.gateway.shares, 1);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('bottom sheet keeps gallery and footer accessible at $size', (
       tester,
     ) async {
@@ -32,7 +75,9 @@ void main() {
       expect(find.byKey(const Key('my-looks-bottom-sheet')), findsOneWidget);
       expect(find.text('Result fixture'), findsOneWidget);
       expect(find.text('My Looks'), findsOneWidget);
-      final sheet = tester.getRect(find.byType(BottomSheet));
+      final sheet = tester.getRect(
+        find.byKey(const Key('my-looks-modal-surface')),
+      );
       expect(sheet.bottom, closeTo(size.height, 1));
       expect(sheet.top, greaterThan(0));
       for (final key in [
@@ -93,16 +138,291 @@ void main() {
     'Download My Looks keeps session-wide QR and returns to the sheet',
     (tester) async {
       final h = await _open(tester);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('my-looks-thumbnail-look-5')),
+      );
+      await tester.tap(find.byKey(const ValueKey('my-looks-thumbnail-look-5')));
+      await tester.pump();
+      final photo = h.capture.activeAcceptedPersonPhoto;
       await tester.tap(find.byKey(const Key('download-my-looks')));
       await _frames(tester);
       expect(find.byKey(const Key('download-my-looks-qr')), findsOneWidget);
       expect(h.gateway.shares, 1);
       expect(h.gateway.sharedSessionId, h.session.activeSessionId);
-      await tester.tap(find.byKey(const Key('done-download-my-looks')));
+      await tester.pump(const Duration(seconds: 10));
+      await tester.ensureVisible(find.byKey(const Key('select-more-looks')));
+      await tester.tap(find.byKey(const Key('select-more-looks')));
       await _frames(tester);
       expect(find.byKey(const Key('my-looks-bottom-sheet')), findsOneWidget);
       expect(find.byKey(const Key('download-my-looks-qr')), findsNothing);
+      expect(
+        tester
+            .widget<GeneratedTryOnImage>(
+              find.byKey(const Key('my-looks-selected-preview')),
+            )
+            .src,
+        h.session.looks[5].resultReadUrl,
+      );
+      expect(h.capture.activeAcceptedPersonPhoto, same(photo));
+      expect(h.session.garmentPicks, hasLength(1));
+      await tester.tap(find.byKey(const Key('download-my-looks')));
+      await _frames(tester);
+      expect(h.gateway.shares, 1);
       await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  for (final home in [false, true]) {
+    testWidgets(
+      home ? 'QR Home ends the session' : 'QR X preserves the result',
+      (tester) async {
+        final h = await _open(tester);
+        final photo = h.capture.activeAcceptedPersonPhoto;
+        final sessionId = h.session.activeSessionId;
+        await tester.tap(find.byKey(const Key('download-my-looks')));
+        await _frames(tester);
+        await tester.ensureVisible(
+          find.byKey(
+            Key(home ? 'download-back-to-home' : 'close-download-my-looks'),
+          ),
+        );
+        await tester.tap(
+          find.byKey(
+            Key(home ? 'download-back-to-home' : 'close-download-my-looks'),
+          ),
+        );
+        await _frames(tester);
+        expect(find.byKey(const Key('my-looks-modal-surface')), findsNothing);
+        expect(find.text('Result fixture'), findsOneWidget);
+        if (home) {
+          expect(h.session.customerSessionActive, isFalse);
+          expect(h.capture.activeAcceptedPersonPhoto, isNull);
+          expect(h.session.result, isNull);
+          expect(h.session.garmentPicks, isEmpty);
+          expect(h.gateway.completedSessionIds, [sessionId]);
+        } else {
+          expect(h.session.customerSessionActive, isTrue);
+          expect(h.capture.activeAcceptedPersonPhoto, same(photo));
+          expect(h.session.result, same(_result));
+          expect(h.gateway.completedSessionIds, isEmpty);
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
+  testWidgets('QR expires at the existing share deadline', (tester) async {
+    var now = DateTime.utc(2026, 10, 14);
+    final share = KioskTryOnShare(
+      shareUrl: 'https://try.selfx.test/looks/capability',
+      expiresAt: now.add(const Duration(seconds: 30)),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildSelfxKioskTheme(),
+        home: Scaffold(
+          body: MyLooksDownloadSheet(
+            share: share,
+            sessionCurrent: true,
+            now: () => now,
+            onClose: () {},
+            onSelectMore: () {},
+            onHome: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Link expires in 00:30'), findsOneWidget);
+    now = now.add(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const Key('download-my-looks-qr')), findsNothing);
+    expect(find.text('Download link expired'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  for (final vertical in KioskTryOnVertical.values) {
+    for (final count in [1, 3]) {
+      testWidgets(
+        '$vertical: $count generated looks use the correct result download path',
+        (tester) async {
+          final h = await _open(
+            tester,
+            gateway: _Gateway(count: count),
+            gallery: false,
+            vertical: vertical,
+          );
+          expect(
+            find.descendant(
+              of: find.byKey(const Key('get-my-looks')),
+              matching: find.text(
+                count == 1 ? 'Download My Looks' : 'Get My Looks',
+              ),
+            ),
+            findsOneWidget,
+          );
+          if (count == 1) {
+            expect(
+              tester
+                  .widget<SelfxKioskButton>(
+                    find.byKey(const Key('buy-this-look')),
+                  )
+                  .onPressed,
+              isNull,
+            );
+            expect(find.byKey(const Key('finish-try-on')), findsNothing);
+          }
+          await tester.ensureVisible(find.byKey(const Key('get-my-looks')));
+          await tester.tap(find.byKey(const Key('get-my-looks')));
+          await _frames(tester);
+          if (count > 1) {
+            expect(
+              find.byKey(const Key('my-looks-thumbnails')),
+              findsOneWidget,
+            );
+            await tester.tap(find.byKey(const Key('download-my-looks')));
+            await _frames(tester);
+          }
+          expect(find.byKey(const Key('my-looks-bottom-sheet')), findsNothing);
+          expect(find.byType(MyLooksDownloadSheet), findsOneWidget);
+          expect(
+            find.byKey(const Key('my-looks-modal-surface')),
+            findsOneWidget,
+          );
+          expect(h.gateway.shares, 1);
+          expect(h.gateway.sharedSessionId, h.session.activeSessionId);
+          await tester.ensureVisible(
+            find.byKey(const Key('select-more-looks')),
+          );
+          await tester.tap(find.byKey(const Key('select-more-looks')));
+          await _frames(tester);
+          expect(find.byType(MyLooksDownloadSheet), findsNothing);
+          expect(
+            find.byKey(const Key('my-looks-bottom-sheet')),
+            count == 1 ? findsNothing : findsOneWidget,
+          );
+          expect(h.session.result, same(_result));
+          expect(h.session.customerSessionActive, isTrue);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+  }
+
+  for (final home in [false, true]) {
+    testWidgets(
+      home
+          ? 'single-look QR Home clears the session'
+          : 'single-look QR X keeps the preview',
+      (tester) async {
+        final h = await _open(
+          tester,
+          gateway: _Gateway(count: 1),
+          gallery: false,
+        );
+        final sessionId = h.session.activeSessionId;
+        await tester.tap(find.byKey(const Key('get-my-looks')));
+        await _frames(tester);
+        final button = find.byKey(
+          Key(home ? 'download-back-to-home' : 'close-download-my-looks'),
+        );
+        await tester.ensureVisible(button);
+        await tester.tap(button);
+        await _frames(tester);
+        expect(find.byKey(const Key('my-looks-modal-surface')), findsNothing);
+        if (home) {
+          expect(h.session.customerSessionActive, isFalse);
+          expect(h.session.result, isNull);
+          expect(h.capture.activeAcceptedPersonPhoto, isNull);
+          expect(h.gateway.completedSessionIds, [sessionId]);
+        } else {
+          expect(h.session.result, same(_result));
+          expect(h.session.customerSessionActive, isTrue);
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
+  testWidgets('single-look download retries without opening a gallery', (
+    tester,
+  ) async {
+    final h = await _open(
+      tester,
+      gateway: _Gateway(count: 1)..failShare = true,
+      gallery: false,
+    );
+    await tester.tap(find.byKey(const Key('get-my-looks')));
+    await _frames(tester);
+    await tester.tap(find.byKey(const Key('retry-download-my-looks')));
+    await _frames(tester);
+    expect(find.byType(MyLooksDownloadSheet), findsOneWidget);
+    expect(find.byKey(const Key('my-looks-bottom-sheet')), findsNothing);
+    expect(h.gateway.shares, 2);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test('late share cannot be cached for a replacement customer', () async {
+    final capture = fixtures.testController();
+    final gateway = _Gateway()..pendingShare = Completer<KioskTryOnShare>();
+    final session = KioskTryOnSessionController(gateway: gateway);
+    addTearDown(capture.dispose);
+    addTearDown(session.dispose);
+    await session.beginCustomerSession();
+    final pending = session.createSessionShare();
+    final completion = gateway.pendingShare!;
+    await session.finish(capture);
+    await session.beginCustomerSession();
+    gateway.pendingShare = null;
+    completion.complete(
+      KioskTryOnShare(
+        shareUrl: 'https://try.selfx.test/looks/previous-customer',
+        expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      ),
+    );
+    expect(await pending, isNull);
+    final share = await session.createSessionShare();
+    expect(share!.shareUrl, 'https://try.selfx.test/looks/capability');
+    expect(gateway.shares, 2);
+  });
+
+  test(
+    'late gallery refresh cannot restore a previous customer look count',
+    () async {
+      final capture = fixtures.testController();
+      final gateway = _Gateway()
+        ..pendingLooks = Completer<List<KioskTryOnLook>>();
+      final session = KioskTryOnSessionController(gateway: gateway);
+      addTearDown(capture.dispose);
+      addTearDown(session.dispose);
+      await session.beginCustomerSession();
+      final pending = session.refreshLooks();
+      final completion = gateway.pendingLooks!;
+      await session.finish(capture);
+      await session.beginCustomerSession();
+      gateway.pendingLooks = null;
+      completion.complete([
+        KioskTryOnLook(
+          lookId: 'previous-customer',
+          runId: 'old-run',
+          personAssetId: 'old-person',
+          resultAssetId: 'old-result',
+          resultReadUrl: 'https://example.test/old-result.png',
+          createdAt: DateTime.now(),
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        ),
+      ]);
+      await pending;
+      expect(session.looks, isEmpty);
+      await session.refreshLooks();
+      expect(session.looks, hasLength(6));
+      expect(
+        session.looks.any((look) => look.lookId == 'previous-customer'),
+        isFalse,
+      );
     },
   );
 
@@ -190,6 +510,8 @@ Future<_Harness> _open(
   WidgetTester tester, {
   Size size = const Size(630, 1365),
   _Gateway? gateway,
+  bool gallery = true,
+  KioskTryOnVertical vertical = KioskTryOnVertical.garment,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -209,30 +531,37 @@ Future<_Harness> _open(
     fixtures.testCatalogProduct(id: 'product-0', name: 'Selected garment'),
   );
   session.result = _result;
+  session.activeTryOnVertical = vertical;
   await tester.pumpWidget(
     MaterialApp(
       theme: buildSelfxKioskTheme(),
-      home: Scaffold(
-        body: Builder(
-          builder: (context) => Column(
-            children: [
-              const Text('Result fixture'),
-              TextButton(
-                onPressed: () => showMyLooksBottomSheet(
-                  context: context,
-                  captureController: capture,
-                  tryOnController: session,
-                  uploadController: uploads,
+      home: !gallery
+          ? TryOnResultScreen(
+              captureController: capture,
+              tryOnController: session,
+              uploadController: uploads,
+            )
+          : Scaffold(
+              body: Builder(
+                builder: (context) => Column(
+                  children: [
+                    const Text('Result fixture'),
+                    TextButton(
+                      onPressed: () => showMyLooksBottomSheet(
+                        context: context,
+                        captureController: capture,
+                        tryOnController: session,
+                        uploadController: uploads,
+                      ),
+                      child: const Text('Get My Looks'),
+                    ),
+                  ],
                 ),
-                child: const Text('Get My Looks'),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     ),
   );
-  await tester.tap(find.text('Get My Looks'));
+  if (gallery) await tester.tap(find.text('Get My Looks'));
   await _frames(tester);
   return _Harness(capture, session, api);
 }
@@ -257,20 +586,25 @@ class _Gateway extends fixtures.FakeKioskTryOnGateway {
   bool failShare = false;
   String? sharedSessionId;
   Completer<KioskTryOnShare>? pendingShare;
+  Completer<List<KioskTryOnLook>>? pendingLooks;
   @override
-  Future<List<KioskTryOnLook>> getSessionLooks(String sessionId) async => [
-    for (var i = 0; i < count; i++)
-      KioskTryOnLook(
-        lookId: 'look-$i',
-        runId: 'run-$i',
-        personAssetId: 'person',
-        productId: 'product-$i',
-        resultAssetId: 'result-$i',
-        resultReadUrl: 'https://example.test/result-$i.png',
-        createdAt: DateTime.now(),
-        expiresAt: DateTime.now().add(const Duration(days: 7)),
-      ),
-  ];
+  Future<List<KioskTryOnLook>> getSessionLooks(String sessionId) async {
+    if (pendingLooks != null) return pendingLooks!.future;
+    return [
+      for (var i = 0; i < count; i++)
+        KioskTryOnLook(
+          lookId: 'look-$i',
+          runId: 'run-$i',
+          personAssetId: 'person',
+          productId: 'product-$i',
+          resultAssetId: 'result-$i',
+          resultReadUrl: 'https://example.test/result-$i.png',
+          createdAt: DateTime.now(),
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        ),
+    ];
+  }
+
   @override
   Future<KioskTryOnShare> createSessionShare(String sessionId) async {
     shares++;

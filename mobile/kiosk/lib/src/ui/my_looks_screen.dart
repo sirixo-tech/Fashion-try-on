@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../catalog/kiosk_catalog_gateway.dart';
 import '../session/capture_session_controller.dart';
@@ -15,6 +14,7 @@ import 'generated_try_on_image.dart';
 import 'selfx_kiosk_action_card.dart';
 import 'selfx_kiosk_button.dart';
 import 'selfx_logo.dart';
+import 'my_looks_download_sheet.dart';
 
 const _downloadWindow = Duration(minutes: 5);
 
@@ -27,26 +27,144 @@ Future<void> showMyLooksBottomSheet({
   KioskCatalogGateway catalogGateway = const UnavailableKioskCatalogGateway(),
   GarmentExtractionService extractionService =
       const UnavailableGarmentExtractionService(),
-}) => showModalBottomSheet<void>(
+}) => showGeneralDialog<void>(
   context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  backgroundColor: Colors.white,
+  barrierDismissible: true,
+  barrierLabel: 'Close My Looks',
   barrierColor: Colors.black.withValues(alpha: 0.52),
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+  transitionBuilder: (_, animation, _, child) => SlideTransition(
+    position: Tween(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+    child: child,
   ),
-  clipBehavior: Clip.antiAlias,
-  builder: (_) => MyLooksScreen(
-    captureController: captureController,
-    tryOnController: tryOnController,
-    uploadController: uploadController,
-    catalogGateway: catalogGateway,
-    extractionService: extractionService,
-    asBottomSheet: true,
-    previewImage: previewImage,
+  pageBuilder: (_, _, _) => SafeArea(
+    child: MyLooksScreen(
+      captureController: captureController,
+      tryOnController: tryOnController,
+      uploadController: uploadController,
+      catalogGateway: catalogGateway,
+      extractionService: extractionService,
+      asBottomSheet: true,
+      previewImage: previewImage,
+    ),
   ),
 );
+
+/// Creates the same session-wide share used by the gallery, then opens its QR.
+Future<void> showMyLooksDownloadDialog({
+  required BuildContext context,
+  required CaptureSessionController captureController,
+  required KioskTryOnSessionController tryOnController,
+}) async {
+  final revision = tryOnController.customerSessionRevision;
+  bool current() =>
+      tryOnController.isCustomerSessionCurrent(revision, requireActive: false);
+  if (!current() ||
+      !tryOnController.saveMyLooksQrEnabled ||
+      tryOnController.creatingShare) {
+    return;
+  }
+  final share = await tryOnController.createSessionShare();
+  if (!context.mounted ||
+      !current() ||
+      ModalRoute.of(context)?.isCurrent != true) {
+    return;
+  }
+  if (share == null) {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _ShareFailureDialog(
+        onRetry: () {
+          Navigator.of(dialogContext).pop();
+          unawaited(
+            showMyLooksDownloadDialog(
+              context: context,
+              captureController: captureController,
+              tryOnController: tryOnController,
+            ),
+          );
+        },
+      ),
+    );
+    return;
+  }
+  var finishing = false;
+  await _showDownloadDialog(
+    context: context,
+    share: share,
+    controller: tryOnController,
+    current: () => current() && !finishing,
+    onHome: (dialogContext) async {
+      if (!current() || finishing) return;
+      finishing = true;
+      await tryOnController.finish(captureController);
+      if (dialogContext.mounted &&
+          !tryOnController.customerSessionActive &&
+          tryOnController.customerSessionRevision == revision + 1) {
+        Navigator.of(dialogContext).popUntil((route) => route.isFirst);
+      }
+    },
+  );
+}
+
+Future<void> _showDownloadDialog({
+  required BuildContext context,
+  required KioskTryOnShare share,
+  required KioskTryOnSessionController controller,
+  required bool Function() current,
+  required Future<void> Function(BuildContext) onHome,
+}) => showGeneralDialog<void>(
+  context: context,
+  barrierDismissible: true,
+  barrierLabel: 'Close download',
+  barrierColor: Colors.black.withValues(alpha: 0.52),
+  pageBuilder: (dialogContext, _, _) => SafeArea(
+    child: AnimatedBuilder(
+      animation: controller,
+      builder: (_, _) => _LooksModalSurface(
+        download: true,
+        child: MyLooksDownloadSheet(
+          share: share,
+          sessionCurrent: current(),
+          onClose: () => Navigator.of(dialogContext).pop(),
+          onSelectMore: () => Navigator.of(dialogContext).pop(),
+          onHome: current() ? () => unawaited(onHome(dialogContext)) : null,
+        ),
+      ),
+    ),
+  ),
+);
+
+class _LooksModalSurface extends StatelessWidget {
+  const _LooksModalSurface({required this.download, required this.child});
+  final bool download;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedAlign(
+    duration: const Duration(milliseconds: 250),
+    alignment: download ? Alignment.center : Alignment.bottomCenter,
+    child: AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      child: SizedBox(
+        key: const Key('my-looks-modal-surface'),
+        width: (MediaQuery.sizeOf(context).width - (download ? 32 : 0))
+            .clamp(0, 640)
+            .toDouble(),
+        child: Material(
+          color: Colors.white,
+          borderRadius: download
+              ? BorderRadius.circular(28)
+              : const BorderRadius.vertical(top: Radius.circular(28)),
+          clipBehavior: Clip.antiAlias,
+          child: child,
+        ),
+      ),
+    ),
+  );
+}
 
 class MyLooksScreen extends StatefulWidget {
   const MyLooksScreen({
@@ -85,6 +203,7 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
   bool _refreshing = false;
   bool _refreshFailed = false;
   bool _downloadClosed = false;
+  KioskTryOnShare? _activeShare;
 
   @override
   void initState() {
@@ -132,33 +251,56 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
   @override
   Widget build(BuildContext context) {
     if (widget.asBottomSheet) {
-      return SizedBox(
-        key: const Key('my-looks-bottom-sheet'),
-        height: MediaQuery.sizeOf(context).height * 0.92,
-        child: SafeArea(
-          top: false,
-          child: AnimatedBuilder(
-            animation: widget.tryOnController,
-            builder: (context, _) => _LooksBottomSheetContent(
-              looks: _sessionCurrent ? widget.tryOnController.looks : const [],
-              index: _index,
-              refreshing: _refreshing,
-              refreshFailed: _refreshFailed,
-              fallbackImage: _sessionCurrent
-                  ? widget.tryOnController.result?.generatedImage ??
-                        widget.previewImage
-                  : null,
-              lookLabel: _lookLabel,
-              onSelected: (value) => setState(() => _index = value),
+      final share = _activeShare;
+      if (share != null) {
+        return AnimatedBuilder(
+          animation: widget.tryOnController,
+          builder: (context, _) => _LooksModalSurface(
+            download: true,
+            child: MyLooksDownloadSheet(
+              share: share,
+              sessionCurrent: _sessionCurrent && !_downloadClosed,
               onClose: () => Navigator.of(context).pop(),
-              onRetry: () => unawaited(_refreshLooks()),
-              onDownload: () => unawaited(_downloadLooks(context)),
-              downloadRemaining: _downloadRemaining,
-              downloadAvailable:
-                  _downloadAvailable &&
-                  _sessionCurrent &&
-                  widget.tryOnController.saveMyLooksQrEnabled,
-              creatingShare: widget.tryOnController.creatingShare,
+              onSelectMore: () => setState(() => _activeShare = null),
+              onHome: _downloadClosed || !_sessionCurrent
+                  ? null
+                  : () => unawaited(_finish(context)),
+            ),
+          ),
+        );
+      }
+      return _LooksModalSurface(
+        download: false,
+        child: SizedBox(
+          key: const Key('my-looks-bottom-sheet'),
+          height: MediaQuery.sizeOf(context).height * 0.92,
+          child: SafeArea(
+            top: false,
+            child: AnimatedBuilder(
+              animation: widget.tryOnController,
+              builder: (context, _) => _LooksBottomSheetContent(
+                looks: _sessionCurrent
+                    ? widget.tryOnController.looks
+                    : const [],
+                index: _index,
+                refreshing: _refreshing,
+                refreshFailed: _refreshFailed,
+                fallbackImage: _sessionCurrent
+                    ? widget.tryOnController.result?.generatedImage ??
+                          widget.previewImage
+                    : null,
+                lookLabel: _lookLabel,
+                onSelected: (value) => setState(() => _index = value),
+                onClose: () => Navigator.of(context).pop(),
+                onRetry: () => unawaited(_refreshLooks()),
+                onDownload: () => unawaited(_downloadLooks(context)),
+                downloadRemaining: _downloadRemaining,
+                downloadAvailable:
+                    _downloadAvailable &&
+                    _sessionCurrent &&
+                    widget.tryOnController.saveMyLooksQrEnabled,
+                creatingShare: widget.tryOnController.creatingShare,
+              ),
             ),
           ),
         ),
@@ -298,9 +440,13 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
   }
 
   Future<void> _finish(BuildContext context) async {
+    if (_downloadClosed || !_sessionCurrent) return;
+    final revision = _sessionRevision;
     setState(() => _downloadClosed = true);
     await widget.tryOnController.finish(widget.captureController);
-    if (context.mounted) {
+    if (context.mounted &&
+        !widget.tryOnController.customerSessionActive &&
+        widget.tryOnController.customerSessionRevision == revision + 1) {
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
@@ -329,9 +475,16 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
       );
       return;
     }
-    await showDialog<void>(
+    if (widget.asBottomSheet) {
+      setState(() => _activeShare = share);
+      return;
+    }
+    await _showDownloadDialog(
       context: context,
-      builder: (_) => _LooksShareQrDialog(share: share),
+      share: share,
+      controller: widget.tryOnController,
+      current: () => _sessionCurrent && !_downloadClosed,
+      onHome: _finish,
     );
   }
 }
@@ -462,7 +615,7 @@ class _LooksBottomSheetContent extends StatelessWidget {
                             ],
                           ),
                         ),
-                      if (looks.isNotEmpty) ...[
+                      if (looks.length > 1) ...[
                         const SizedBox(height: 12),
                         GridView.builder(
                           key: const Key('my-looks-thumbnails'),
@@ -1052,90 +1205,6 @@ class _MyLooksActions extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _LooksShareQrDialog extends StatelessWidget {
-  const _LooksShareQrDialog({required this.share});
-
-  final KioskTryOnShare share;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: Builder(
-          builder: (context) {
-            final width = MediaQuery.of(context).size.width;
-            final qrDimension = (width - 96).clamp(220.0, 360.0).toDouble();
-            return Padding(
-              padding: const EdgeInsets.all(26),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.qr_code_2,
-                    size: 46,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Get Your Looks',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Scan with your phone',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Center(
-                    child: Container(
-                      key: const Key('download-my-looks-qr-frame'),
-                      width: qrDimension,
-                      height: qrDimension,
-                      padding: const EdgeInsets.all(16),
-                      color: Colors.white,
-                      child: QrImageView(
-                        key: const Key('download-my-looks-qr'),
-                        data: share.shareUrl,
-                        version: QrVersions.auto,
-                        gapless: false,
-                        backgroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Your looks will be available for a limited time.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 22),
-                  SelfxKioskButton(
-                    key: const Key('done-download-my-looks'),
-                    label: 'Done',
-                    icon: Icons.check,
-                    variant: SelfxKioskButtonVariant.primary,
-                    textAlign: TextAlign.center,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
     );
   }
 }
