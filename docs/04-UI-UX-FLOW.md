@@ -591,12 +591,12 @@ Camera preview:
 
 Person capture uses one static white dashed silhouette over the live camera
 image. The previous orange duplicate is removed, and the retained white outline
-is slightly thicker. Faint alignment lines remain. **Stand in Position** and
-left-side **Stand straight**, **Look at camera**, and **Good lighting** tips
-appear before countdown, including readiness preparation. They are instructions,
-not detected conditions. During countdown the tips/header disappear, the
+is slightly thicker. Faint alignment lines remain. **Stand in Position** and its
+centered supporting guidance appear before countdown, including readiness
+preparation; the left-side tip badges are removed. These are instructions,
+not detected conditions. During countdown the header disappears, the
 silhouette stays in the same position at lower opacity, and the existing large
-countdown remains prominent. Cancelling countdown restores the positioning tips.
+countdown remains prominent. Cancelling countdown restores the heading/guidance.
 TOP shows head, shoulders and torso; BOTTOM emphasizes waist, legs and feet while
 retaining faint head/shoulder context; FULL BODY shows the complete outline and
 foot placement. Guides adapt to available viewport size and reserve bottom
@@ -1794,7 +1794,7 @@ against the chosen item before generation. No jewellery product photo capture
 is requested.
 
 Jewellery reuses the garment QR and photo-focused preview presentation, solid
-orange primary buttons and outlined camera Back/Flip controls. Jewellery
+orange primary buttons and outlined camera Back controls. Jewellery
 categories use item-specific icons with the existing active highlighting.
 An uploaded preview shows **Upload Again** on the left and **Continue** (selected
 item) or **Choose Jewellery** (upload-first) on the right. A live preview shows
@@ -2119,8 +2119,10 @@ camera controls.
   **Back**, warm white/peach background, and a large rounded photo frame with
   orange corners directly below the logo. The introductory heading is kept
   accessible to screen readers but visually hidden; the generic paragraph is
-  removed. The frame uses the full content width, a 3:4 aspect ratio and a
-  viewport-based height cap. Live video fills the frame with cover fitting
+  removed. The active camera/review page uses reduced outer padding and a compact
+  logo/Back header. The full-width frame takes the available viewport height after
+  reserving space for the header and compact actions, with a minimum usable height
+  and normal scrolling on short screens. Live video fills the frame with cover fitting
   without stretching; this display crop does not change the full captured image.
   Before
   selection a valid upload link requests video-only camera permission and shows
@@ -2136,12 +2138,26 @@ camera controls.
   or leaving, and late permission/capture completions cannot restore old streams.
   Unsupported/denied live capture retains the native phone-camera file input and
   photo-picker fallback; no extra screen or consent dialog is introduced. The
-  existing kiosk consent gate remains before QR handoff. Jewellery-specific
-  guidance text remains below the preview. Three purpose-specific guidance icons
-  appear below. **Take Photo** is orange with white text; **Choose from Phone**
-  is white with a neutral outline and dark text. Controls adapt to narrow
-  phones, with normal scrolling for short screens. Back uses browser history,
+  existing kiosk consent gate remains before QR handoff. One short purpose-specific
+  instruction appears over the preview, retaining relevant jewellery guidance;
+  the large guidance-icon row is removed. **Switch Camera** retains its existing
+  labelled button styling and position within the preview. The same large frame
+  is used for local photo review. The compact bottom action area sticks within
+  reach while scrolling; review keeps Upload Photo full-width above Retake Photo
+  and Choose Another side by side. **Take Photo** is orange with white text; **Choose from Phone**
+  is white with a neutral outline and dark text. Enabled **Take Photo** and
+  **Upload Photo** buttons use the same gentle
+  bulging pulse as Continue, stopping during capture/upload or when disabled and
+  remaining static when reduced motion is requested. Other controls stay static.
+  Controls adapt to narrow phones, with normal scrolling for short screens.
+  Back uses browser history,
   or gives return-to-kiosk guidance when the QR opened a fresh tab.
+  Expired upload sessions show **Upload link expired** and ask the customer to
+  scan a new QR code at the kiosk, with photo/upload actions unavailable. Upload
+  checks the server-derived deadline even if the browser suspended its timer;
+  failed transfers recheck SelfX session status before showing a connection
+  error. Expiry must not retain stale upload/connection messages. Genuine
+  connection failures remain retryable while the session is active.
   Model/person uploads retain the accessible **Add Your Photo** heading; garment
   uploads retain **Add Garment Photo**. All action buttons use equal side-icon
   slots and centered labels, including Retake Photo, with no automatic icon
@@ -2149,6 +2165,12 @@ camera controls.
   **Choose Another** and explicit **Upload Photo**.
 - Upload progress uses customer-safe text: "Uploading your photo...",
   "Validating photo..." and "Photo sent to the kiosk".
+  Successful phone uploads replace camera/review controls with a rounded white
+  confirmation card, an orange check in a peach halo, **Photo sent to the kiosk**
+  and **You can return to the kiosk now.** The logo and Back remain above, with
+  soft peach page accents. A lock-icon privacy note reads **Secure photo transfer**
+  and explains that the photo is transferred securely and stored temporarily for
+  Try-On; never claim that server-side storage does not occur.
 - Expired/cancelled/consumed links show a safe terminal state telling the
   customer to return to the kiosk for a new QR.
 - Expired kiosk QR sessions stop being displayed as usable; the kiosk refreshes
@@ -2210,17 +2232,20 @@ Do not display technical camera/provider errors to the customer.
 
 The existing garment capture view uses a taller, open white corner-bracket
 frame over the live preview, with no inner garment drawing. Only this framing
-artwork and button surfaces change: Capture is solid orange `#FF7119`, and
-Back/Flip are transparent with white outlines, icons and text on all person and
-garment capture views. Where person mobile upload is available, Capture takes
-the previous wide upload-button position and size above the control row, with
-Back, **Mobile Upload** and Flip below. Mobile Upload takes the previous compact
-Capture-button size and keeps its existing action. This arrangement remains
-stable during countdown; unavailable actions are disabled. Disabled buttons
-use reduced opacity. Existing headings, guidance, countdown and
-camera-switch availability remain unchanged. All person, garment and jewellery
+artwork and button surfaces change: **Back** is transparent with a white outline,
+icon and text, **Upload From Mobile** sits in the middle where available, and
+**Capture** is on the right. Capture and phone upload share the Continue button's
+solid orange `#FF7119`, white text, typography, height and corner styling. Only
+Capture uses the gentle action pulse, stopping when disabled or during countdown/
+processing. On narrow windows phone upload sits above Back and Capture so text
+remains readable. Flip is removed from customer capture controls; operator
+camera selection remains available. The left-side Stand straight, Look at camera
+and Good lighting badges are removed; the centered heading, relevant icon,
+supporting text and framing outline remain. Countdown, readiness, shutter and
+phone-upload behavior stay unchanged. All person, garment and jewellery
 capture panels share centered heading/supporting text, typography and spacing,
-with balanced space around the relevant icon. Heading and supporting text use
+with the relevant icon immediately beside the heading, centered together as one
+group, and supporting text centered below. Heading and supporting text use
 moderately larger responsive sizes (22/16 logical pixels at the medium size).
 Supporting text wraps instead of being restricted to one truncated line. Each
 panel preserves its existing background and border. Person scope guidance and
@@ -2353,6 +2378,12 @@ photo recovery and light peach item-selection actions with icon bubbles and
 chevrons. Existing failure-specific actions, retry-polling and navigation are
 preserved. Short windows scroll the content without clipping recovery controls.
 
+For a garment-resolution failure, **Retake Garment Photo** opens the garment
+camera directly, clearing the rejected garment/run while preserving the accepted
+customer photo and session. **Back** from that camera restores the saved
+customer-photo preview. This action does not retake the customer photo; the
+separate **Update My Photo** compatibility recovery keeps its existing behavior.
+
 Photo-compatibility guidance uses the same branded illustration layout while
 preserving the item-specific heading, explanation and existing recovery wording.
 **Update My Photo** is orange with white text and the same gentle pulse as
@@ -2388,8 +2419,14 @@ If connectivity is unavailable:
 For multiple generated looks, **Get My Looks** opens a modal gallery sliding up over the result screen,
 with white surfaces, rounded top corners and a black 52% dimming layer. Its
 **My Looks** heading has an orange accent and a top-right **X** to close.
-The sheet shows a large complete-image preview and a scrollable three-column
-thumbnail grid. Selecting a thumbnail updates the preview and highlights that
+The sheet fits its content up to a maximum viewport height. Two looks use one
+centered row of two, three use one row of three, four use two centered rows of
+two, and five or more use three columns with only the required rows. Thumbnail
+sizes stay consistent across counts. The countdown and buttons sit directly
+below the grid; the gallery scrolls only when it exceeds the available height,
+keeping the header and footer accessible. The large complete-image preview keeps
+its proportions with rounded corners clipped to the actual fitted image.
+Selecting a thumbnail updates the preview and highlights that
 look with an orange border and checkmark. Available product names label looks;
 otherwise use numbered Look labels without inventing product metadata.
 

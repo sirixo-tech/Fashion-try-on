@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CustomerUploadPageClient } from "@/app/upload/[capability]/upload-page-client";
 import styles from "@/app/upload/[capability]/upload-page.module.css";
+import { SafeApiError } from "@/lib/api";
 import {
   completeCustomerUpload,
   createCustomerUploadIntent,
@@ -72,6 +73,12 @@ describe("CustomerUploadPageClient", () => {
 
     expect(await screen.findByText("Take Photo")).toBeTruthy();
     expect(screen.getByText("Choose from Phone")).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Photo tips" })).toBeNull();
+    const instruction = screen.getByText(
+      "Stand straight in good light, with your face clearly visible.",
+    );
+    expect(instruction.className).toBe(styles.previewGuidance);
+    expect(instruction.parentElement?.className).toBe(styles.preview);
     expect(
       screen.getByRole("heading", { name: "Add Your Photo" }).className,
     ).toBe(styles.accessibleTitle);
@@ -100,6 +107,14 @@ describe("CustomerUploadPageClient", () => {
       ),
     ).toBe("blob:selfx-preview");
     expect(intentMock).not.toHaveBeenCalled();
+    expect(
+      view.container.querySelector(`.${styles.reviewActions}`),
+    ).toBeTruthy();
+    expect(
+      view.container
+        .querySelector(`.${styles.actionDock}`)
+        ?.contains(screen.getByRole("button", { name: "Upload Photo" })),
+    ).toBe(true);
   });
 
   it("shows ring framing and uses the rear camera for a person upload", async () => {
@@ -125,6 +140,7 @@ describe("CustomerUploadPageClient", () => {
       preview.compareDocumentPosition(instruction) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(instruction.parentElement).toBe(preview.parentElement);
   });
 
   it("shows relaxed earring guidance for a person upload", async () => {
@@ -162,6 +178,9 @@ describe("CustomerUploadPageClient", () => {
     expect(
       screen.queryByRole("heading", { name: "Add Your Hand Photo" }),
     ).toBeNull();
+    expect(
+      screen.getByText("Keep the outfit clearly visible on one person."),
+    ).toBeTruthy();
   });
 
   it("shows expired state safely", async () => {
@@ -178,13 +197,129 @@ describe("CustomerUploadPageClient", () => {
 
     expect(await screen.findByText("Upload link expired")).toBeTruthy();
     expect(
-      screen.getByText("Return to the kiosk and scan a new QR code."),
+      screen.getByText(
+        "Your upload session has expired. Please scan a new QR code on the kiosk to continue.",
+      ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Take Photo" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Choose from Phone" }),
     ).toBeNull();
     expect(camera.getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("checks the deadline when Upload is tapped after browser timers were suspended", async () => {
+    render(<CustomerUploadPageClient capability="sleeping-phone" />);
+    await uploadActionsReady();
+    fireEvent.change(screen.getByLabelText("Choose a photo from your phone"), {
+      target: {
+        files: [new File(["png"], "photo.png", { type: "image/png" })],
+      },
+    });
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 301_000);
+    fireEvent.click(screen.getByRole("button", { name: "Upload Photo" }));
+    expect(screen.getByText("Upload link expired")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Upload Photo" })).toBeNull();
+    expect(intentMock).not.toHaveBeenCalled();
+  });
+
+  for (const stage of ["intent", "storage", "complete"]) {
+    it(`shows expiry instead of a connection error when ${stage} fails for an expired session`, async () => {
+      render(<CustomerUploadPageClient capability="expired-during-upload" />);
+      await uploadActionsReady();
+      fireEvent.change(
+        screen.getByLabelText("Choose a photo from your phone"),
+        {
+          target: {
+            files: [new File(["png"], "photo.png", { type: "image/png" })],
+          },
+        },
+      );
+      if (stage === "intent") {
+        intentMock.mockRejectedValueOnce(
+          new SafeApiError("KIOSK_CUSTOMER_UPLOAD_EXPIRED"),
+        );
+      } else {
+        (stage === "storage" ? uploadMock : completeMock).mockRejectedValueOnce(
+          new Error("UPLOAD_FAILED"),
+        );
+        statusMock.mockResolvedValueOnce({
+          status: "EXPIRED",
+          purpose: "MODEL",
+          maxImageBytes: 8 * 1024 * 1024,
+          expiresAt: new Date().toISOString(),
+          serverTime: new Date().toISOString(),
+        });
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Upload Photo" }));
+      expect(await screen.findByText("Upload link expired")).toBeTruthy();
+      expect(
+        screen.getByText(
+          "Your upload session has expired. Please scan a new QR code on the kiosk to continue.",
+        ),
+      ).toBeTruthy();
+      expect(
+        screen.queryByText(
+          "Upload failed. Check your connection and try again.",
+        ),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Upload Photo" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Retake Photo" })).toBeNull();
+      if (stage !== "complete") expect(completeMock).not.toHaveBeenCalled();
+    });
+  }
+
+  it("keeps a genuine connection failure retryable when the session is active", async () => {
+    render(<CustomerUploadPageClient capability="connection-failure" />);
+    await uploadActionsReady();
+    fireEvent.change(screen.getByLabelText("Choose a photo from your phone"), {
+      target: {
+        files: [new File(["png"], "photo.png", { type: "image/png" })],
+      },
+    });
+    uploadMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fireEvent.click(screen.getByRole("button", { name: "Upload Photo" }));
+    expect(
+      await screen.findByText(
+        "Upload failed. Check your connection and try again.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Upload link expired")).toBeNull();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Upload Photo",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+
+  it("does not restore a connection message when an in-flight upload fails after expiry", async () => {
+    let rejectUpload!: (error: Error) => void;
+    uploadMock.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectUpload = reject;
+        }),
+    );
+    render(<CustomerUploadPageClient capability="late-failure" />);
+    await uploadActionsReady();
+    fireEvent.change(screen.getByLabelText("Choose a photo from your phone"), {
+      target: {
+        files: [new File(["png"], "photo.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Upload Photo" }));
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledOnce());
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 301_000);
+    await act(async () => {
+      rejectUpload(new Error("UPLOAD_FAILED"));
+    });
+    expect(screen.getByText("Upload link expired")).toBeTruthy();
+    expect(
+      screen.queryByText("Upload failed. Check your connection and try again."),
+    ).toBeNull();
+    expect(completeMock).not.toHaveBeenCalled();
   });
 
   it("uploads only after explicit confirmation and shows success", async () => {
@@ -206,6 +341,16 @@ describe("CustomerUploadPageClient", () => {
       expect(completeMock).toHaveBeenCalledWith("capability-token");
     });
     expect(await screen.findByText("Photo sent to the kiosk")).toBeTruthy();
+    expect(screen.getByText("You can return to the kiosk now.")).toBeTruthy();
+    expect(
+      screen.getByRole("complementary", { name: "Photo privacy" }).textContent,
+    ).toContain(
+      "Your photo is transferred securely and stored temporarily for your Try-On.",
+    );
+    expect(screen.queryByText("We do not save your photo")).toBeNull();
+    expect(screen.queryByAltText("Selected photo preview")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Upload Photo" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
   });
 
   it("connects camera and gallery buttons to their respective inputs", async () => {
@@ -291,6 +436,9 @@ describe("CustomerUploadPageClient", () => {
     const camera = mockCamera();
     const view = render(<CustomerUploadPageClient capability="live-photo" />);
     await screen.findByRole("button", { name: "Switch Camera" });
+    expect(
+      screen.getByRole("button", { name: "Switch Camera" }).className,
+    ).toContain(styles.cameraSwitch);
     expect(camera.getUserMedia).toHaveBeenCalledWith({
       audio: false,
       video: {

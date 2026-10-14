@@ -22,6 +22,89 @@ const _result = KioskTryOnResult(
 );
 
 void main() {
+  for (final count in [2, 3, 4, 5, 6]) {
+    testWidgets('$count looks use only the required balanced thumbnail rows', (
+      tester,
+    ) async {
+      await _open(tester, gateway: _Gateway(count: count));
+      final surface = tester.getRect(
+        find.byKey(const Key('my-looks-modal-surface')),
+      );
+      final gridFinder = find.byKey(const Key('my-looks-thumbnails'));
+      final grid = tester.widget<GridView>(gridFinder);
+      final columns = count == 2 || count == 4 ? 2 : 3;
+      expect(
+        (grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount)
+            .crossAxisCount,
+        columns,
+      );
+      final cards = [
+        for (var i = 0; i < count; i++)
+          tester.getRect(find.byKey(ValueKey('my-looks-thumbnail-look-$i'))),
+      ];
+      final expectedWidth = (surface.width - 36 - 16) / 3;
+      for (final card in cards) {
+        expect(card.width, closeTo(expectedWidth, 1));
+      }
+      expect(cards[0].top, closeTo(cards[1].top, 1));
+      if (count == 4) {
+        expect(cards[2].top, closeTo(cards[3].top, 1));
+        expect(cards[2].top - cards[0].bottom, closeTo(8, 1));
+      }
+      final gridRect = tester.getRect(gridFinder);
+      expect(gridRect.center.dx, closeTo(surface.center.dx, 1));
+      final countdown = tester.getRect(
+        find
+            .ancestor(
+              of: find.byKey(const Key('download-my-looks-countdown')),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(countdown.top - gridRect.bottom, closeTo(12, 1));
+      expect(surface.height, lessThan(1365 * 0.92));
+      expect(
+        find.byKey(const Key('download-my-looks')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  testWidgets('portrait preview rounds the actual image without stretching', (
+    tester,
+  ) async {
+    const imageSrc =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAABQCAYAAABrjzfBAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABsSURBVGhD7c6hAQAgDMCw/f8Hdw6PrUFExFR19sz+bN7wG4OVwcpgZbAyWBmsDFYGK4OVwcpgZbAyWBmsDFYGK4OVwcpgZbAyWBmsDFYGK4OVwcpgZbAyWBmsDFYGK4OVwcpgZbAyWBmsDFYXrXz3YeSh7LYAAAAASUVORK5CYII=';
+    await _open(tester, gateway: _Gateway(count: 2, imageSrc: imageSrc));
+    final preview = find.byKey(const Key('my-looks-selected-preview'));
+    final imageFinder = find.descendant(
+      of: preview,
+      matching: find.byType(Image),
+    );
+    final image = tester.widget<Image>(imageFinder);
+    await tester.runAsync(() async {
+      final stream = image.image.resolve(ImageConfiguration.empty);
+      final loaded = Completer<void>();
+      final listener = ImageStreamListener((_, _) => loaded.complete());
+      stream.addListener(listener);
+      await loaded.future;
+      stream.removeListener(listener);
+    });
+    await tester.pump();
+    final clip = find.descendant(of: preview, matching: find.byType(ClipRRect));
+    expect(
+      tester.widget<ClipRRect>(clip).borderRadius,
+      BorderRadius.circular(18),
+    );
+    final imageRect = tester.getRect(imageFinder);
+    expect(tester.getRect(clip), imageRect);
+    expect(imageRect.width / imageRect.height, closeTo(0.5, 0.001));
+    expect(imageRect.width, lessThan(tester.getRect(preview).width));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   for (final size in [
     const Size(320, 568),
     const Size(630, 1365),
@@ -580,8 +663,9 @@ class _Harness {
 }
 
 class _Gateway extends fixtures.FakeKioskTryOnGateway {
-  _Gateway({this.count = 6});
+  _Gateway({this.count = 6, this.imageSrc});
   final int count;
+  final String? imageSrc;
   int shares = 0;
   bool failShare = false;
   String? sharedSessionId;
@@ -598,7 +682,7 @@ class _Gateway extends fixtures.FakeKioskTryOnGateway {
           personAssetId: 'person',
           productId: 'product-$i',
           resultAssetId: 'result-$i',
-          resultReadUrl: 'https://example.test/result-$i.png',
+          resultReadUrl: imageSrc ?? 'https://example.test/result-$i.png',
           createdAt: DateTime.now(),
           expiresAt: DateTime.now().add(const Duration(days: 7)),
         ),

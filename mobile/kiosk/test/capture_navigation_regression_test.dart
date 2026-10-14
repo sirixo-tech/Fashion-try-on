@@ -186,11 +186,8 @@ Future<void> _checkControls(WidgetTester tester, _Harness harness) async {
     find.byKey(const Key('capture-photo')),
   );
   expect(capture.onPressed, isNotNull);
-  final mobile = tester.widget<FilledButton>(
-    find.descendant(
-      of: find.byKey(const Key('upload-jewellery-person-photo')),
-      matching: find.byType(FilledButton),
-    ),
+  final mobile = tester.widget<SelfxKioskButton>(
+    find.byKey(const Key('upload-jewellery-person-photo')),
   );
   expect(mobile.onPressed, isNotNull);
   await tester.tap(find.byKey(const Key('capture-photo')));

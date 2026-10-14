@@ -68,9 +68,9 @@ void main() {
           expect(tester.widget<Text>(heading).style!.fontSize, 22);
           expect(tester.widget<Text>(message).style!.fontSize, 16);
         }
-        expect(find.text('Stand\nstraight'), findsOneWidget);
-        expect(find.text('Look at\ncamera'), findsOneWidget);
-        expect(find.text('Good\nlighting'), findsOneWidget);
+        expect(find.text('Stand\nstraight'), findsNothing);
+        expect(find.text('Look at\ncamera'), findsNothing);
+        expect(find.text('Good\nlighting'), findsNothing);
         final outline = tester.getRect(find.byKey(const Key('person-outline')));
         expect(outline.width, greaterThan(0));
         expect(outline.height, greaterThan(0));
@@ -123,8 +123,9 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('person-positioning-tips')), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byKey(const Key('person-positioning-tips')), findsNothing);
     await tester.tap(find.byKey(const Key('capture-photo')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
@@ -133,8 +134,9 @@ void main() {
     expect(find.byKey(const Key('person-outline')), findsOneWidget);
     expect(camera.captureCount, 0);
     await tester.tap(find.byKey(const Key('camera-back')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('person-positioning-tips')), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byKey(const Key('person-positioning-tips')), findsNothing);
     expect(find.byKey(const Key('camera-countdown-number')), findsNothing);
     await tester.pump(const Duration(seconds: 16));
     expect(camera.captureCount, 0);

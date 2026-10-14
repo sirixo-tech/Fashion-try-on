@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../session/capture_scope.dart';
-import '../theme/selfx_kiosk_theme.dart';
 import 'responsive_kiosk_layout.dart';
 import 'capture_guide_panel.dart';
 
@@ -92,35 +91,6 @@ class PersonCaptureGuideOverlay extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (!countdownActive)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: SizedBox(
-                              key: const Key('person-positioning-tips'),
-                              width: layout.scaled(90, small: 62, large: 108),
-                              child: Column(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  _PositionTip(
-                                    icon: Icons.accessibility_new_outlined,
-                                    label: 'Stand\nstraight',
-                                    compact: compact,
-                                  ),
-                                  _PositionTip(
-                                    icon: Icons.camera_alt_outlined,
-                                    label: 'Look at\ncamera',
-                                    compact: compact,
-                                  ),
-                                  _PositionTip(
-                                    icon: Icons.wb_sunny_outlined,
-                                    label: 'Good\nlighting',
-                                    compact: compact,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                   ),
@@ -129,55 +99,6 @@ class PersonCaptureGuideOverlay extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _PositionTip extends StatelessWidget {
-  const _PositionTip({
-    required this.icon,
-    required this.label,
-    required this.compact,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Flexible(
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.42),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: SelfxKioskTokens.primary,
-                size: compact ? 26 : 38,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: compact ? 12 : 16,
-                  fontWeight: FontWeight.w700,
-                  height: 1.15,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

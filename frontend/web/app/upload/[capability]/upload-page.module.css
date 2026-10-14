@@ -60,6 +60,109 @@
   text-align: center;
 }
 
+.capturePage {
+  overflow: clip;
+}
+
+.capturePage .content {
+  padding: max(10px, env(safe-area-inset-top)) 12px 0;
+}
+
+.capturePage .header {
+  min-height: 52px;
+  align-items: center;
+}
+
+.capturePage .logo {
+  width: 38%;
+  max-width: 150px;
+  margin-top: 0;
+}
+
+.capturePage .back {
+  top: 6px;
+  height: 36px;
+}
+
+.capturePage .previewArea {
+  margin: 8px auto 0;
+}
+
+.capturePage .preview {
+  aspect-ratio: auto;
+  height: max(
+    280px,
+    calc(
+      100svh - 212px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    )
+  );
+  height: max(
+    280px,
+    calc(
+      100dvh - 212px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    )
+  );
+  max-height: none;
+  border-width: 5px;
+}
+
+.previewGuidance {
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(16 28 48 / 65%);
+  color: white;
+  font-size: clamp(13px, 3.2vw, 16px);
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: pretty;
+  pointer-events: none;
+}
+
+.actionDock {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+  background: #fffdfb;
+}
+
+.capturePage .actions {
+  gap: 8px;
+}
+
+.capturePage .primaryAction,
+.capturePage .secondaryAction {
+  min-height: 52px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: clamp(16px, 3.7vw, 20px);
+}
+
+.reviewActions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.reviewActions .primaryAction {
+  grid-column: 1 / -1;
+}
+
+.capturePage .reviewActions .secondaryAction {
+  grid-template-columns: 20px minmax(0, 1fr) 20px;
+  padding-inline: 8px;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.reviewActions .secondaryAction svg {
+  width: 20px;
+  height: 20px;
+}
+
 .accessibleTitle {
   position: absolute;
   width: 1px;
@@ -70,16 +173,6 @@
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
-}
-
-.description {
-  max-width: 510px;
-  margin: 0 auto 16px;
-  color: #545c69;
-  font-size: clamp(15px, 3.4vw, 19px);
-  font-weight: 500;
-  line-height: 1.5;
-  text-wrap: pretty;
 }
 
 .hiddenInput {
@@ -194,36 +287,6 @@
   background-repeat: no-repeat;
 }
 
-.guidance {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 0;
-  margin: 0 0 28px;
-  list-style: none;
-}
-
-.guidance li {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  font-size: clamp(12px, 3vw, 16px);
-  font-weight: 650;
-  line-height: 1.25;
-  color: #394250;
-}
-
-.guidance li + li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 6px;
-  height: 45px;
-  border-left: 1px solid #dedede;
-}
-
 .tipIcon {
   display: inline-flex;
   align-items: center;
@@ -276,6 +339,24 @@
   background: var(--selfx-primary-hover, #e6600f);
 }
 
+@keyframes primaryActionPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 8px 22px rgb(255 113 25 / 16%);
+  }
+  50% {
+    transform: scale(1.026);
+    box-shadow: 0 8px 22px rgb(255 113 25 / 42%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .primaryAction:not(:disabled) {
+    animation: primaryActionPulse 1.8s ease-in-out infinite;
+  }
+}
+
 .primaryAction:disabled,
 .secondaryAction:disabled {
   background: #efeae4;
@@ -325,6 +406,99 @@
   color: #545c69;
 }
 
+.successPage {
+  background:
+    radial-gradient(
+      circle at 105% -2%,
+      #ffecd8 0,
+      #fff0df 15%,
+      transparent 15.2%
+    ),
+    radial-gradient(
+      circle at -4% 100%,
+      #fff0df 0,
+      #fff0df 22%,
+      transparent 22.2%
+    ),
+    #fffdfb;
+}
+
+.successCard {
+  margin-top: 32px;
+  padding: clamp(24px, 5vw, 40px) clamp(18px, 4vw, 32px);
+  border: 1px solid #faf4ed;
+  border-radius: 28px;
+  background: white;
+  box-shadow: 0 8px 32px rgb(110 65 23 / 5%);
+}
+
+.page .successMark {
+  display: block;
+  width: clamp(168px, 50vw, 240px);
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 22px;
+}
+
+.successCard h2 {
+  margin: 0;
+  color: var(--upload-ink);
+  font-size: clamp(26px, 6.2vw, 38px);
+  font-weight: 800;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.successDescription {
+  margin: 16px 0 0;
+  color: #545c69;
+  font-size: clamp(16px, 3.8vw, 20px);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.successDivider {
+  margin: 28px 0 20px;
+  border: 0;
+  border-top: 1px solid #ececec;
+}
+
+.privacyNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 16px;
+  border-radius: 22px;
+  background: #fff7ef;
+  text-align: left;
+}
+
+.privacyIcon {
+  display: grid;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffe8cd;
+  color: var(--upload-orange);
+}
+
+.privacyNote h3 {
+  margin: 0 0 6px;
+  color: var(--upload-ink);
+  font-size: clamp(16px, 3.6vw, 20px);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.privacyNote p {
+  margin: 0;
+  color: #545c69;
+  font-size: clamp(14px, 3.3vw, 17px);
+  line-height: 1.5;
+}
+
 @media (max-width: 360px) {
   .content {
     padding-inline: 14px;
@@ -332,9 +506,6 @@
   .back {
     padding-inline: 6px;
     font-size: 14px;
-  }
-  .guidance li {
-    padding-inline: 6px;
   }
   .primaryAction,
   .secondaryAction {

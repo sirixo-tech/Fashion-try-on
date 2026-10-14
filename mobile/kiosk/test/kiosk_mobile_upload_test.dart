@@ -38,6 +38,7 @@ import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_models.dart';
 import 'package:selfx_kiosk/src/ui/mobile_upload_screen.dart';
 import 'package:selfx_kiosk/src/ui/camera_capture_screen.dart';
 import 'package:selfx_kiosk/src/ui/try_on_generation_screen.dart';
+import 'kiosk_camera_foundation_test.dart' as fixtures;
 
 void main() {
   testWidgets(
@@ -107,15 +108,15 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
       await tester.tap(find.byKey(const Key('upload-jewellery-person-photo')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('cancel-mobile-upload')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('cancel-mobile-upload')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(
         find.byKey(const Key('upload-jewellery-person-photo')),
         findsOneWidget,

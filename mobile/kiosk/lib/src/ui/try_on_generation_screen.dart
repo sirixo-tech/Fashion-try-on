@@ -127,7 +127,7 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
         if (garmentResolutionFailure) ...[
           TryOnFailureAction(
             key: const Key('try-on-retake-garment-photo'),
-            onPressed: () => _chooseAnotherGarment(context),
+            onPressed: () => _retakeGarmentPhoto(context),
             icon: Icons.camera_alt_outlined,
             accentColor: const Color(0xFF2384D6),
             label: 'Retake Garment Photo',
@@ -269,6 +269,23 @@ class _TryOnGenerationScreenState extends State<TryOnGenerationScreen>
                 extractionService: widget.extractionService,
                 purpose: PhotoAcquisitionPurpose.model,
               ),
+      ),
+      (route) => route.isFirst,
+    );
+  }
+
+  void _retakeGarmentPhoto(BuildContext context) {
+    widget.tryOnController.tryAnotherGarment();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => CameraCaptureScreen(
+          controller: widget.captureController,
+          tryOnController: widget.tryOnController,
+          uploadController: widget.uploadController,
+          catalogGateway: widget.catalogGateway,
+          extractionService: widget.extractionService,
+          purpose: PhotoAcquisitionPurpose.garment,
+        ),
       ),
       (route) => route.isFirst,
     );

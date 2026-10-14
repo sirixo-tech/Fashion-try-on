@@ -271,9 +271,11 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
       }
       return _LooksModalSurface(
         download: false,
-        child: SizedBox(
+        child: ConstrainedBox(
           key: const Key('my-looks-bottom-sheet'),
-          height: MediaQuery.sizeOf(context).height * 0.92,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.92,
+          ),
           child: SafeArea(
             top: false,
             child: AnimatedBuilder(
@@ -525,241 +527,254 @@ class _LooksBottomSheetContent extends StatelessWidget {
     final preview = looks.isEmpty
         ? fallbackImage
         : looks[selected].resultReadUrl;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 900),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'My Looks',
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                color: SelfxKioskTokens.homeNavy,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          width: 40,
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: SelfxKioskTokens.primary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    key: const Key('close-my-looks'),
-                    tooltip: 'Close My Looks',
-                    onPressed: onClose,
-                    style: IconButton.styleFrom(
-                      backgroundColor: SelfxKioskTokens.background,
-                      foregroundColor: SelfxKioskTokens.textPrimary,
-                    ),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: SingleChildScrollView(
-                  key: const Key('my-looks-sheet-gallery'),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 900),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (preview != null)
-                        AspectRatio(
-                          aspectRatio: 4 / 3,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: ColoredBox(
-                              color: SelfxKioskTokens.background,
-                              child: GeneratedTryOnImage(
-                                key: const Key('my-looks-selected-preview'),
-                                src: preview,
-                              ),
+                      Text(
+                        'My Looks',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              color: SelfxKioskTokens.homeNavy,
+                              fontWeight: FontWeight.w900,
                             ),
-                          ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 40,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: SelfxKioskTokens.primary,
+                          borderRadius: BorderRadius.circular(999),
                         ),
-                      if (refreshing)
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(child: Text('Getting your looks...')),
-                        ),
-                      if (refreshFailed || (!refreshing && looks.isEmpty))
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Column(
-                            children: [
-                              Text(
-                                refreshFailed
-                                    ? 'Could not refresh your looks.'
-                                    : 'No downloadable looks yet.',
-                              ),
-                              TextButton.icon(
-                                onPressed: refreshing ? null : onRetry,
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Retry'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      if (looks.length > 1) ...[
-                        const SizedBox(height: 12),
-                        GridView.builder(
-                          key: const Key('my-looks-thumbnails'),
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: looks.length,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                crossAxisSpacing: 8,
-                                mainAxisSpacing: 8,
-                                childAspectRatio: 0.92,
-                              ),
-                          itemBuilder: (context, i) => Semantics(
-                            selected: i == selected,
-                            child: Material(
-                              key: ValueKey(
-                                'my-looks-thumbnail-${looks[i].lookId}',
-                              ),
-                              color: i == selected
-                                  ? SelfxKioskTokens.primary.withValues(
-                                      alpha: 0.08,
-                                    )
-                                  : Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: i == selected
-                                      ? SelfxKioskTokens.primary
-                                      : SelfxKioskTokens.border,
-                                  width: i == selected ? 2 : 1,
-                                ),
-                              ),
-                              clipBehavior: Clip.antiAlias,
-                              child: InkWell(
-                                onTap: () => onSelected(i),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Expanded(
-                                      child: Stack(
-                                        fit: StackFit.expand,
-                                        children: [
-                                          GeneratedTryOnImage(
-                                            src: looks[i].resultReadUrl,
-                                            fit: BoxFit.cover,
-                                          ),
-                                          if (i == selected)
-                                            Positioned(
-                                              top: 6,
-                                              right: 6,
-                                              child: Container(
-                                                padding: const EdgeInsets.all(
-                                                  3,
-                                                ),
-                                                decoration: const BoxDecoration(
-                                                  color:
-                                                      SelfxKioskTokens.primary,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: const Icon(
-                                                  Icons.check,
-                                                  color: Colors.white,
-                                                  size: 15,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.all(6),
-                                      child: Text(
-                                        lookLabel(looks[i], i),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              _DownloadCountdown(remaining: downloadRemaining),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final buy = SelfxKioskButton(
-                    key: const Key('buy-this-look'),
-                    label: 'Buy This Look',
-                    icon: Icons.shopping_bag_outlined,
-                    onPressed: null,
-                    minHeight: 54,
-                    borderRadius: 12,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                  );
-                  final download = SelfxKioskButton(
-                    key: const Key('download-my-looks'),
-                    label: creatingShare
-                        ? 'Preparing...'
-                        : downloadAvailable
-                        ? 'Download My Looks'
-                        : 'Download Unavailable',
-                    icon: Icons.file_download_outlined,
-                    onPressed:
-                        downloadAvailable && looks.isNotEmpty && !creatingShare
-                        ? onDownload
-                        : null,
-                    backgroundColor: SelfxKioskTokens.primary,
-                    foregroundColor: Colors.white,
-                    minHeight: 54,
-                    borderRadius: 12,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                  );
-                  if (constraints.maxWidth < 380) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [download, const SizedBox(height: 8), buy],
-                    );
-                  }
-                  return Row(
-                    children: [
-                      Expanded(child: buy),
-                      const SizedBox(width: 10),
-                      Expanded(child: download),
+                IconButton(
+                  key: const Key('close-my-looks'),
+                  tooltip: 'Close My Looks',
+                  onPressed: onClose,
+                  style: IconButton.styleFrom(
+                    backgroundColor: SelfxKioskTokens.background,
+                    foregroundColor: SelfxKioskTokens.textPrimary,
+                  ),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Flexible(
+              fit: FlexFit.loose,
+              child: SingleChildScrollView(
+                key: const Key('my-looks-sheet-gallery'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (preview != null)
+                      AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: GeneratedTryOnImage(
+                          key: const Key('my-looks-selected-preview'),
+                          src: preview,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                    if (refreshing)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: Text('Getting your looks...')),
+                      ),
+                    if (refreshFailed || (!refreshing && looks.isEmpty))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
+                          children: [
+                            Text(
+                              refreshFailed
+                                  ? 'Could not refresh your looks.'
+                                  : 'No downloadable looks yet.',
+                            ),
+                            TextButton.icon(
+                              onPressed: refreshing ? null : onRetry,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (looks.length > 1) ...[
+                      const SizedBox(height: 12),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns = looks.length == 2 || looks.length == 4
+                              ? 2
+                              : 3;
+                          final cardWidth = (constraints.maxWidth - 16) / 3;
+                          return Center(
+                            child: SizedBox(
+                              width: cardWidth * columns + 8 * (columns - 1),
+                              child: GridView.builder(
+                                key: const Key('my-looks-thumbnails'),
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: looks.length,
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: columns,
+                                      crossAxisSpacing: 8,
+                                      mainAxisSpacing: 8,
+                                      childAspectRatio: 0.92,
+                                    ),
+                                itemBuilder: (context, i) => Semantics(
+                                  selected: i == selected,
+                                  child: Material(
+                                    key: ValueKey(
+                                      'my-looks-thumbnail-${looks[i].lookId}',
+                                    ),
+                                    color: i == selected
+                                        ? SelfxKioskTokens.primary.withValues(
+                                            alpha: 0.08,
+                                          )
+                                        : Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: i == selected
+                                            ? SelfxKioskTokens.primary
+                                            : SelfxKioskTokens.border,
+                                        width: i == selected ? 2 : 1,
+                                      ),
+                                    ),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: InkWell(
+                                      onTap: () => onSelected(i),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          Expanded(
+                                            child: Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                GeneratedTryOnImage(
+                                                  src: looks[i].resultReadUrl,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                                if (i == selected)
+                                                  Positioned(
+                                                    top: 6,
+                                                    right: 6,
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            3,
+                                                          ),
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            color:
+                                                                SelfxKioskTokens
+                                                                    .primary,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                      child: const Icon(
+                                                        Icons.check,
+                                                        color: Colors.white,
+                                                        size: 15,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.all(6),
+                                            child: Text(
+                                              lookLabel(looks[i], i),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ],
-                  );
-                },
+                  ],
+                ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            _DownloadCountdown(remaining: downloadRemaining),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final buy = SelfxKioskButton(
+                  key: const Key('buy-this-look'),
+                  label: 'Buy This Look',
+                  icon: Icons.shopping_bag_outlined,
+                  onPressed: null,
+                  minHeight: 54,
+                  borderRadius: 12,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                );
+                final download = SelfxKioskButton(
+                  key: const Key('download-my-looks'),
+                  label: creatingShare
+                      ? 'Preparing...'
+                      : downloadAvailable
+                      ? 'Download My Looks'
+                      : 'Download Unavailable',
+                  icon: Icons.file_download_outlined,
+                  onPressed:
+                      downloadAvailable && looks.isNotEmpty && !creatingShare
+                      ? onDownload
+                      : null,
+                  backgroundColor: SelfxKioskTokens.primary,
+                  foregroundColor: Colors.white,
+                  minHeight: 54,
+                  borderRadius: 12,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                );
+                if (constraints.maxWidth < 380) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [download, const SizedBox(height: 8), buy],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: buy),
+                    const SizedBox(width: 10),
+                    Expanded(child: download),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

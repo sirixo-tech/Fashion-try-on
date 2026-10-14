@@ -42,6 +42,7 @@ export function CustomerUploadPageClient({
     null,
   );
   const uploadLock = useRef(false);
+  const uploadDeadline = useRef<number | null>(null);
   const expired =
     status === "EXPIRED" || status === "CANCELLED" || status === "CONSUMED";
   const sent = status === "READY";
@@ -66,6 +67,7 @@ export function CustomerUploadPageClient({
     let cancelled = false;
     let expiryTimer: ReturnType<typeof setTimeout> | undefined;
     setStatus("LOADING");
+    uploadDeadline.current = null;
     setFile(null);
     setMessage(null);
     getCustomerUploadStatus(capability)
@@ -75,6 +77,9 @@ export function CustomerUploadPageClient({
         }
         const remaining =
           Date.parse(next.expiresAt) - Date.parse(next.serverTime);
+        uploadDeadline.current = Number.isFinite(remaining)
+          ? Date.now() + remaining
+          : null;
         setStatus(
           next.status !== "READY" && remaining <= 0 ? "EXPIRED" : next.status,
         );
@@ -84,10 +89,12 @@ export function CustomerUploadPageClient({
         if (Number.isFinite(remaining) && remaining > 0) {
           expiryTimer = setTimeout(
             () => {
-              if (!cancelled)
+              if (!cancelled) {
                 setStatus((current) =>
                   current === "READY" ? current : "EXPIRED",
                 );
+                setMessage(null);
+              }
             },
             Math.max(0, remaining),
           );
@@ -103,6 +110,17 @@ export function CustomerUploadPageClient({
       clearTimeout(expiryTimer);
     };
   }, [capability]);
+
+  function deadlinePassed() {
+    return (
+      uploadDeadline.current !== null && Date.now() >= uploadDeadline.current
+    );
+  }
+
+  function expireUpload() {
+    setStatus("EXPIRED");
+    setMessage(null);
+  }
 
   useEffect(() => {
     if (!file) {
@@ -145,12 +163,25 @@ export function CustomerUploadPageClient({
     if (!file || busy || uploadLock.current || expired || sent) {
       return;
     }
+    // Mobile browsers can suspend timers while the page is in the background.
+    if (deadlinePassed()) {
+      expireUpload();
+      return;
+    }
     uploadLock.current = true;
     setBusy(true);
     setMessage("Uploading your photo...");
     try {
       const intent = await createCustomerUploadIntent(capability, file);
+      if (deadlinePassed()) {
+        expireUpload();
+        return;
+      }
       await uploadCustomerPhotoToStorage(intent, file);
+      if (deadlinePassed()) {
+        expireUpload();
+        return;
+      }
       setMessage("Validating photo...");
       const completed = await completeCustomerUpload(capability);
       setStatus(completed.status);
@@ -160,13 +191,39 @@ export function CustomerUploadPageClient({
           : "Photo could not be processed",
       );
     } catch (error) {
-      setMessage(messageFor(error));
       if (
-        error instanceof SafeApiError &&
-        error.code === "KIOSK_CUSTOMER_UPLOAD_EXPIRED"
+        deadlinePassed() ||
+        (error instanceof SafeApiError &&
+          error.code === "KIOSK_CUSTOMER_UPLOAD_EXPIRED")
       ) {
-        setStatus("EXPIRED");
+        expireUpload();
+        return;
       }
+      // Storage failures do not carry the SelfX expiry code. Ask SelfX before
+      // reporting a connection error or offering another upload attempt.
+      try {
+        const current = await getCustomerUploadStatus(capability);
+        if (
+          current.status === "EXPIRED" ||
+          current.status === "CANCELLED" ||
+          current.status === "CONSUMED" ||
+          (current.status !== "READY" &&
+            Date.parse(current.expiresAt) <= Date.parse(current.serverTime))
+        ) {
+          expireUpload();
+          return;
+        }
+      } catch (statusError) {
+        if (
+          statusError instanceof SafeApiError &&
+          statusError.code === "KIOSK_CUSTOMER_UPLOAD_EXPIRED"
+        ) {
+          expireUpload();
+          return;
+        }
+      }
+      if (deadlinePassed()) expireUpload();
+      else setMessage(messageFor(error));
     } finally {
       uploadLock.current = false;
       setBusy(false);
@@ -176,7 +233,11 @@ export function CustomerUploadPageClient({
   const jewelleryGuidance =
     purpose === "MODEL" ? jewelleryUploadGuidance(jewelleryType) : null;
   const copy = jewelleryGuidance ?? uploadCopyFor(purpose);
-  const guidance = guidanceFor(purpose, jewelleryType);
+  const previewGuidance =
+    jewelleryGuidance?.description ??
+    (purpose === "GARMENT"
+      ? "Keep the outfit clearly visible on one person."
+      : "Stand straight in good light, with your face clearly visible.");
   const unavailable =
     validatedCapability !== capability ||
     status === "LOADING" ||
@@ -193,7 +254,9 @@ export function CustomerUploadPageClient({
   }
 
   return (
-    <main className={styles.page}>
+    <main
+      className={`${styles.page}${sent ? ` ${styles.successPage}` : !expired ? ` ${styles.capturePage}` : ""}`}
+    >
       <div className={styles.content}>
         <header className={styles.header}>
           <Button
@@ -230,14 +293,10 @@ export function CustomerUploadPageClient({
           {expired ? (
             <UploadState
               title="Upload link expired"
-              body="Return to the kiosk and scan a new QR code."
+              body="Your upload session has expired. Please scan a new QR code on the kiosk to continue."
             />
           ) : sent ? (
-            <UploadState
-              title="Photo sent to the kiosk"
-              body="You can return to the kiosk now."
-              success
-            />
+            <UploadSuccess />
           ) : (
             <>
               <input
@@ -317,6 +376,7 @@ export function CustomerUploadPageClient({
                     </>
                   )}
                   <span className={styles.corners} aria-hidden="true" />
+                  <p className={styles.previewGuidance}>{previewGuidance}</p>
                 </div>
                 {!file && camera.state === "ready" && (
                   <Button
@@ -331,87 +391,74 @@ export function CustomerUploadPageClient({
                 )}
               </div>
 
-              {jewelleryGuidance && (
-                <p className={styles.description}>
-                  {jewelleryGuidance.description}
-                </p>
-              )}
-              <ul className={styles.guidance} aria-label="Photo tips">
-                {guidance.map((tip) => (
-                  <li key={tip.label}>
-                    <span className={styles.tipIcon}>
-                      <UploadIcon name={tip.icon} />
-                    </span>
-                    <span>{tip.label}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className={styles.actionDock}>
+                {message ? (
+                  <p className={styles.message} role="status">
+                    {message}
+                  </p>
+                ) : null}
+                {!file && camera.state === "ready" && camera.message && (
+                  <p className={styles.message} role="status">
+                    {camera.message}
+                  </p>
+                )}
 
-              {message ? (
-                <p className={styles.message} role="status">
-                  {message}
-                </p>
-              ) : null}
-              {!file && camera.state === "ready" && camera.message && (
-                <p className={styles.message} role="status">
-                  {camera.message}
-                </p>
-              )}
-
-              <div className={styles.actions} aria-busy={busy}>
-                <Button
-                  type="button"
-                  className={styles.primaryAction}
-                  disabled={
-                    unavailable || (!file && camera.state === "starting")
-                  }
-                  onClick={file ? upload : takePhoto}
+                <div
+                  className={`${styles.actions}${file ? ` ${styles.reviewActions}` : ""}`}
+                  aria-busy={busy}
                 >
-                  <UploadIcon name={file ? "upload" : "camera"} />
-                  <span>
-                    {file
-                      ? busy
-                        ? "Uploading"
-                        : "Upload Photo"
-                      : camera.state === "capturing"
-                        ? "Capturing…"
-                        : "Take Photo"}
-                  </span>
-                  <UploadIcon name="next" />
-                </Button>
-                {file && (
+                  <Button
+                    type="button"
+                    className={styles.primaryAction}
+                    disabled={
+                      unavailable || (!file && camera.state === "starting")
+                    }
+                    onClick={file ? upload : takePhoto}
+                  >
+                    <UploadIcon name={file ? "upload" : "camera"} />
+                    <span>
+                      {file
+                        ? busy
+                          ? "Uploading"
+                          : "Upload Photo"
+                        : camera.state === "capturing"
+                          ? "Capturing…"
+                          : "Take Photo"}
+                    </span>
+                    <UploadIcon name="next" />
+                  </Button>
+                  {file && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={styles.secondaryAction}
+                      disabled={unavailable}
+                      onClick={() => {
+                        setFile(null);
+                        setMessage(null);
+                      }}
+                    >
+                      <UploadIcon name="camera" />
+                      <span>Retake Photo</span>
+                      <span aria-hidden="true" />
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
                     className={styles.secondaryAction}
                     disabled={unavailable}
-                    onClick={() => {
-                      setFile(null);
-                      setMessage(null);
-                    }}
+                    onClick={() => galleryInput.current?.click()}
                   >
-                    <UploadIcon name="camera" />
-                    <span>Retake Photo</span>
-                    <span aria-hidden="true" />
+                    <UploadIcon name="gallery" />
+                    <span>{file ? "Choose Another" : "Choose from Phone"}</span>
+                    <UploadIcon name="next" />
                   </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={styles.secondaryAction}
-                  disabled={unavailable}
-                  onClick={() => galleryInput.current?.click()}
-                >
-                  <UploadIcon name="gallery" />
-                  <span>{file ? "Choose Another" : "Choose from Phone"}</span>
-                  <UploadIcon name="next" />
-                </Button>
+                </div>
               </div>
             </>
           )}
-          {(expired || sent) &&
-          message &&
-          message !== "Photo sent to the kiosk" ? (
+          {sent && message && message !== "Photo sent to the kiosk" ? (
             <p className={styles.message} role="status">
               {message}
             </p>
@@ -472,19 +519,59 @@ function uploadCopyFor(purpose: CustomerUploadPurpose): {
   };
 }
 
-function UploadState({
-  title,
-  body,
-  success = false,
-}: {
-  title: string;
-  body: string;
-  success?: boolean;
-}) {
+function UploadSuccess() {
+  return (
+    <div className={styles.successCard} role="status">
+      <svg
+        className={styles.successMark}
+        viewBox="0 0 240 160"
+        aria-hidden="true"
+      >
+        <circle cx="120" cy="80" r="70" fill="#ffecd8" />
+        <circle cx="120" cy="80" r="42" fill="var(--upload-orange)" />
+        <path
+          d="m100 80 14 14 29-31"
+          fill="none"
+          stroke="white"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <g
+          fill="none"
+          stroke="var(--upload-orange)"
+          strokeWidth="5"
+          strokeLinecap="round"
+        >
+          <path d="m26 52-9-7M20 80H8m18 28-9 7m197-63 9-7m-3 35h12m-18 28 9 7" />
+        </g>
+      </svg>
+      <h2>Photo sent to the kiosk</h2>
+      <p className={styles.successDescription}>
+        You can return to the kiosk now.
+      </p>
+      <hr className={styles.successDivider} />
+      <aside className={styles.privacyNote} aria-label="Photo privacy">
+        <span className={styles.privacyIcon}>
+          <UploadIcon name="lock" />
+        </span>
+        <div>
+          <h3>Secure photo transfer</h3>
+          <p>
+            Your photo is transferred securely and stored temporarily for your
+            Try-On.
+          </p>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function UploadState({ title, body }: { title: string; body: string }) {
   return (
     <div className={styles.state} role="status">
       <span className={styles.tipIcon}>
-        <UploadIcon name={success ? "check" : "clock"} />
+        <UploadIcon name="clock" />
       </span>
       <h2>{title}</h2>
       <p>{body}</p>
@@ -503,54 +590,18 @@ type UploadIconName =
   | "hand"
   | "upload"
   | "check"
+  | "lock"
   | "clock"
   | "switch";
 
-function guidanceFor(
-  purpose: CustomerUploadPurpose,
-  type?: string,
-): { icon: UploadIconName; label: string }[] {
-  if (purpose === "GARMENT") {
-    return [
-      { icon: "person", label: "Well-lit Photo" },
-      { icon: "shirt", label: "One Person" },
-      { icon: "gallery", label: "Outfit Clearly Visible" },
-    ];
-  }
-  if (type === "RING" || type === "BRACELET") {
-    return [
-      { icon: "person", label: "Well-lit Photo" },
-      { icon: "hand", label: "Keep Hand Steady" },
-      {
-        icon: "gallery",
-        label:
-          type === "RING" ? "Fingers Clearly Visible" : "Wrist Clearly Visible",
-      },
-    ];
-  }
-  return [
-    { icon: "person", label: "Well-lit Photo" },
-    {
-      icon: "shirt",
-      label:
-        type === "NECKLACE"
-          ? "Neckline Visible"
-          : type === "EARRING"
-            ? "Ear Clearly Visible"
-            : "Stand Straight",
-    },
-    {
-      icon: "face",
-      label:
-        type === "NECKLACE" || type === "EARRING"
-          ? "Move Hair Aside"
-          : "Face Clearly Visible",
-    },
-  ];
-}
-
 function UploadIcon({ name }: { name: UploadIconName }) {
   const paths: Record<UploadIconName, ReactNode> = {
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2" />
+      </>
+    ),
     switch: (
       <path d="M3 10a9 9 0 0 1 15-6l3 3M21 2v5h-5M21 14A9 9 0 0 1 6 20l-3-3M3 22v-5h5" />
     ),

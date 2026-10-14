@@ -528,8 +528,6 @@ void main() {
               onCapture: () {},
               onCancelCountdown: () {},
               onCaptureAnyway: () {},
-              canFlipCamera: false,
-              onFlipCamera: null,
             ),
           ),
         ),
@@ -555,8 +553,6 @@ void main() {
               onCapture: () {},
               onCancelCountdown: () {},
               onCaptureAnyway: () {},
-              canFlipCamera: true,
-              onFlipCamera: () {},
             ),
           ),
         ),
@@ -569,37 +565,20 @@ void main() {
           matching: find.byType(OutlinedButton),
         ),
       );
-      final captureButton = tester.widget<FilledButton>(
-        find.descendant(
-          of: find.byKey(const Key('capture-photo')),
-          matching: find.byType(FilledButton),
-        ),
+      final captureButton = tester.widget<SelfxKioskButton>(
+        find.byKey(const Key('capture-photo')),
       );
-      final flipButton = tester.widget<OutlinedButton>(
-        find.descendant(
-          of: find.byKey(const Key('flip-person-camera')),
-          matching: find.byType(OutlinedButton),
-        ),
-      );
+
       expect(
         (backButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
             .borderRadius,
         expectedRadius,
       );
       expect(
-        (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
-            .borderRadius,
-        expectedRadius,
+        captureButton.borderRadius ?? SelfxKioskTokens.buttonRadius,
+        SelfxKioskTokens.buttonRadius,
       );
-      expect(
-        captureButton.style!.backgroundColor!.resolve({}),
-        Colors.transparent,
-      );
-      expect(
-        (flipButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
-            .borderRadius,
-        expectedRadius,
-      );
+      expect(captureButton.backgroundColor, SelfxKioskTokens.primary);
     });
 
     testWidgets(
@@ -633,23 +612,16 @@ void main() {
         await tester.pump(const Duration(milliseconds: 20));
 
         final expectedRadius = BorderRadius.circular(26);
-        final captureButton = tester.widget<FilledButton>(
-          find.descendant(
-            of: find.byKey(const Key('capture-photo')),
-            matching: find.byType(FilledButton),
-          ),
+        final captureButton = tester.widget<SelfxKioskButton>(
+          find.byKey(const Key('capture-photo')),
         );
         expect(
-          (captureButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
-              .borderRadius,
-          expectedRadius,
+          captureButton.borderRadius ?? SelfxKioskTokens.buttonRadius,
+          SelfxKioskTokens.buttonRadius,
         );
-        expect(
-          captureButton.style!.backgroundColor!.resolve({}),
-          SelfxKioskTokens.primary,
-        );
-        expect(captureButton.style!.foregroundColor!.resolve({}), Colors.white);
-        for (final key in ['camera-back', 'flip-person-camera']) {
+        expect(captureButton.backgroundColor, SelfxKioskTokens.primary);
+        expect(captureButton.foregroundColor, Colors.white);
+        for (final key in ['camera-back']) {
           final button = tester.widget<OutlinedButton>(
             find.descendant(
               of: find.byKey(Key(key)),
@@ -667,29 +639,11 @@ void main() {
             expectedRadius,
           );
         }
-        final flipButton = tester.widget<OutlinedButton>(
-          find.descendant(
-            of: find.byKey(const Key('flip-person-camera')),
-            matching: find.byType(OutlinedButton),
-          ),
-        );
-        expect(flipButton.onPressed, isNull);
-        final decorations = tester.widgetList<DecoratedBox>(
-          find.descendant(
-            of: find.byKey(const Key('capture-photo')),
-            matching: find.byType(DecoratedBox),
-          ),
-        );
-        expect(
-          decorations.any(
-            (widget) =>
-                widget.decoration is BoxDecoration &&
-                (widget.decoration as BoxDecoration).gradient != null,
-          ),
-          isFalse,
-        );
+
+        expect(find.byKey(const Key('flip-person-camera')), findsNothing);
         expect(find.text('Garment guide'), findsOneWidget);
         expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
       },
     );
 
@@ -707,7 +661,6 @@ void main() {
           ),
         ),
       );
-
       expect(find.byKey(const Key('camera-countdown-overlay')), findsOneWidget);
       expect(find.byKey(const Key('camera-countdown-number')), findsOneWidget);
       expect(find.text('Hold still'), findsOneWidget);
@@ -1335,7 +1288,7 @@ void main() {
         expect(jewelleryRect.top - garmentRect.bottom, closeTo(16, 1));
 
         await tester.tap(find.byKey(const Key('home-garments-category')));
-        await tester.pumpAndSettle();
+        await pumpKioskUi(tester);
         expect(find.text('Ready to try on?'), findsNothing);
         expect(find.text('Browse Garments'), findsOneWidget);
         expect(find.text('Virtual Try-On'), findsOneWidget);
@@ -1355,15 +1308,15 @@ void main() {
         );
 
         await tester.tap(find.byKey(const Key('home-menu-back')));
-        await tester.pumpAndSettle();
+        await pumpKioskUi(tester);
         await tester.tap(find.byKey(const Key('home-jewellery-category')));
-        await tester.pumpAndSettle();
+        await pumpKioskUi(tester);
         expect(find.text('Browse Jewellery'), findsOneWidget);
         expect(find.text('Upload From Mobile'), findsOneWidget);
         expect(find.text('Virtual Try-On'), findsNothing);
         expect(find.byKey(const Key('start-try-on')), findsNothing);
         await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
+        await pumpKioskUi(tester);
         expect(find.byKey(const Key('home-garments-category')), findsOneWidget);
         expect(
           find.byKey(const Key('home-jewellery-category')),
@@ -1382,22 +1335,22 @@ void main() {
       expect(find.byKey(const Key('camera-settings')), findsNothing);
 
       await tester.tap(find.byKey(const Key('home-garments-category')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('start-try-on')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.text('Ready to try on?'), findsOneWidget);
       expect(find.byKey(const Key('capture-photo')), findsNothing);
 
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
       expect(
         find.byKey(const Key('upload-jewellery-person-photo')),
         findsNothing,
       );
-      expect(find.byKey(const Key('flip-person-camera')), findsOneWidget);
+      expect(find.byKey(const Key('flip-person-camera')), findsNothing);
       expect(find.text('How would you like to add your photo?'), findsNothing);
       expect(find.text('What are you trying on?'), findsNothing);
       expect(find.byKey(const Key('garment-image-path')), findsNothing);
@@ -1409,14 +1362,14 @@ void main() {
       await tester.pumpHome(controller: testController());
 
       await tester.tap(find.byKey(const Key('home-garments-category')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('start-try-on')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.text('Ready to try on?'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('customer-consent-cancel')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.byKey(const Key('start-try-on')), findsOneWidget);
       expect(find.byKey(const Key('capture-photo')), findsNothing);
@@ -1428,20 +1381,20 @@ void main() {
       await tester.pumpHome(controller: testController());
 
       await tester.tap(find.byKey(const Key('home-garments-category')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('upload-from-mobile-start')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.text('Ready to try on?'), findsOneWidget);
       expect(find.text('Scan to add your photo'), findsNothing);
 
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.text('Scan to add your photo'), findsOneWidget);
       await tester.ensureVisible(find.byKey(const Key('cancel-mobile-upload')));
       await tester.tap(find.byKey(const Key('cancel-mobile-upload')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
     });
 
     testWidgets('hidden top-left double tap reveals operator access briefly', (
@@ -1476,27 +1429,27 @@ void main() {
 
       await tester.revealOperatorAccess();
       await tester.tap(find.byKey(const Key('operator-menu-button')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       await tester.enterText(
         find.byKey(const Key('operator-pin-field')),
         '123456',
       );
       await tester.tap(find.byKey(const Key('operator-pin-submit')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.text('Try-On Settings'), findsAtLeastNWidgets(1));
       expect(find.text('KIOSK CONTROL CENTRE'), findsOneWidget);
       expect(access.state.unlocked, isTrue);
 
       await tester.tap(find.byIcon(Icons.arrow_back));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(access.state.unlocked, isFalse);
 
       await tester.revealOperatorAccess();
       await tester.tap(find.byKey(const Key('operator-menu-button')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.text('Enter operator PIN'), findsOneWidget);
     });
@@ -1516,7 +1469,7 @@ void main() {
 
       await tester.revealOperatorAccess();
       await tester.tap(find.byKey(const Key('operator-menu-button')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       for (var attempt = 0; attempt < 2; attempt++) {
         await tester.enterText(
@@ -1524,7 +1477,7 @@ void main() {
           '000000',
         );
         await tester.tap(find.byKey(const Key('operator-pin-submit')));
-        await tester.pumpAndSettle();
+        await pumpKioskUi(tester);
       }
 
       expect(
@@ -1533,13 +1486,13 @@ void main() {
       );
 
       await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('home-garments-category')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('start-try-on')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
       expect(
@@ -1606,9 +1559,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
 
       await tester.tap(find.byKey(const Key('home-garments-category')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('start-try-on')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
@@ -1800,10 +1753,10 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       await captureController.capturePhoto();
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(tryOnController.garmentInput?.localPath, 'capture-1.jpg');
       expect(tryOnController.garmentInput?.intent, KioskGarmentIntent.auto);
@@ -2067,7 +2020,7 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('open-my-picks')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(find.byKey(const Key('close-my-picks')), findsOneWidget);
       expect(find.byKey(const Key('clear-my-picks')), findsOneWidget);
@@ -2079,13 +2032,13 @@ void main() {
       );
 
       await tester.tap(find.byKey(const Key('close-my-picks')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       expect(tryOnController.garmentPicks.length, 2);
 
       await tester.tap(find.byKey(const Key('open-my-picks')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('clear-my-picks')));
-      await tester.pumpAndSettle();
+      await pumpKioskUi(tester);
 
       expect(tryOnController.garmentPicks, isEmpty);
       expect(find.text('No garments added to My Picks yet.'), findsOneWidget);
@@ -2951,4 +2904,11 @@ class FakeModelCoverageAnalyzer implements ModelCoverageAnalyzer {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => this.isEmpty ? null : first;
+}
+
+// Capture buttons pulse continuously; wait for route/state transitions only.
+Future<void> pumpKioskUi(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 150));
+  }
 }

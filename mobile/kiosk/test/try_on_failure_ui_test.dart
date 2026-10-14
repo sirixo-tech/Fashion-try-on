@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:selfx_kiosk/src/acquisition/photo_acquisition.dart';
 import 'package:selfx_kiosk/src/session/capture_session_controller.dart';
 import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_garment_input.dart';
@@ -10,6 +11,8 @@ import 'package:selfx_kiosk/src/ui/selfx_logo.dart';
 import 'package:selfx_kiosk/src/ui/try_on_failure_presentation.dart';
 import 'package:selfx_kiosk/src/ui/try_on_generation_screen.dart';
 import 'package:selfx_kiosk/src/ui/kiosk_attention_animations.dart';
+import 'package:selfx_kiosk/src/ui/camera_capture_screen.dart';
+import 'package:selfx_kiosk/src/ui/capture_review_screen.dart';
 
 import 'kiosk_camera_foundation_test.dart' as fixtures;
 
@@ -112,6 +115,83 @@ void main() {
     expect(find.byKey(const Key('try-on-retry-polling')), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'garment recovery opens garment camera; Back restores saved person preview',
+    (tester) async {
+      _viewport(tester, const Size(630, 1365));
+      final capture = fixtures.testController();
+      final session = _FailedSession();
+      final uploads = fixtures.testUploadController(capture.captureStore);
+      addTearDown(capture.dispose);
+      addTearDown(session.dispose);
+      addTearDown(uploads.dispose);
+      await capture.capturePhoto();
+      await capture.usePhoto();
+      await session.beginCustomerSession();
+      session.currentPersonAssetId = 'saved-person-asset';
+      session.garmentInput = const KioskGarmentInput(
+        source: KioskGarmentInputSource.capturedGarment,
+        localPath: '/rejected-garment.png',
+        intent: KioskGarmentIntent.auto,
+      );
+      session.status = KioskTryOnStatus.failed;
+      session.failureCode = KioskTryOnFailureCode.garmentIntentUnresolved;
+      final photo = capture.activeAcceptedPersonPhoto;
+      final sessionId = session.activeSessionId;
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          theme: buildSelfxKioskTheme(),
+          home: const Scaffold(body: Text('Home fixture')),
+        ),
+      );
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => TryOnGenerationScreen(
+            captureController: capture,
+            tryOnController: session,
+            uploadController: uploads,
+          ),
+        ),
+      );
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 150));
+      }
+      await tester.ensureVisible(
+        find.byKey(const Key('try-on-retake-garment-photo')),
+      );
+      await tester.tap(find.byKey(const Key('try-on-retake-garment-photo')));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 150));
+      }
+      expect(
+        tester
+            .widget<CameraCaptureScreen>(find.byType(CameraCaptureScreen))
+            .purpose,
+        PhotoAcquisitionPurpose.garment,
+      );
+      expect(find.byType(CaptureReviewScreen), findsNothing);
+      expect(capture.activeAcceptedPersonPhoto, same(photo));
+      expect(session.currentPersonAssetId, 'saved-person-asset');
+      expect(session.activeSessionId, sessionId);
+      expect(session.garmentInput, isNull);
+      await tester.tap(find.byKey(const Key('camera-back')));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 150));
+      }
+      expect(find.byType(CaptureReviewScreen), findsOneWidget);
+      expect(find.byType(CameraCaptureScreen), findsNothing);
+      expect(capture.activeAcceptedPersonPhoto, same(photo));
+      expect(capture.capturePurpose, PhotoAcquisitionPurpose.model);
+      expect(session.currentPersonAssetId, 'saved-person-asset');
+      expect(session.customerSessionActive, isTrue);
+      expect(session.submissions, 1);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets(
     'compatibility and jewellery recovery keep the correct controls',

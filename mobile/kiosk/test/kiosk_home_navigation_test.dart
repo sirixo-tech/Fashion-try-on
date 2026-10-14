@@ -59,13 +59,13 @@ void main() {
           ),
         );
         await tester.tap(find.byKey(const Key('home-garments-category')));
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         await tester.tap(find.byKey(const Key('garment-catalog-start')));
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         await tester.tap(find.byKey(const Key('customer-consent-ok')));
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         await tester.tap(find.byKey(const Key('catalog-product-pick-1')));
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         expect(tryOn.garmentPicks, hasLength(1));
         final sessionId = tryOn.activeSessionId;
 
@@ -79,14 +79,14 @@ void main() {
         } else {
           navigator.currentState!.push(next);
         }
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         expect(tryOn.garmentPicks, hasLength(1));
         navigator.currentState!.pop();
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         if (!replaceRoute) {
           expect(tryOn.garmentPicks, hasLength(1));
           await tester.tap(find.byKey(const Key('catalog-back')));
-          await tester.pumpAndSettle();
+          await fixtures.pumpKioskUi(tester);
         }
         expect(tryOn.garmentPicks, isEmpty);
         expect(tryOn.activeGarmentPickId, isNull);
@@ -246,19 +246,19 @@ void main() {
         ),
       );
       await tester.tap(find.byKey(const Key('home-jewellery-category')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(tryOn.customerSessionActive, isFalse);
       await tester.tap(find.byKey(Key(entry)));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(find.byKey(const Key('mobile-upload-qr')), findsNothing);
       await tester.tap(find.byKey(const Key('customer-consent-ok')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       if (entry == 'upload-jewellery-from-mobile-start') {
         expect(find.byKey(const Key('mobile-upload-qr')), findsOneWidget);
         expect(find.text('Choose Jewellery'), findsNothing);
         expect(tryOn.garmentInput, isNull);
         await tester.tap(find.byKey(const Key('cancel-mobile-upload')));
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         expect(
           find.byKey(const Key('home-jewellery-category')),
           findsOneWidget,
@@ -272,7 +272,7 @@ void main() {
       await tester.tap(find.text('Golden ring'));
       await tester.pump();
       await tester.tap(find.byKey(const Key('continue-selected-product')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(find.byKey(const Key('mobile-upload-qr')), findsNothing);
       expect(find.byKey(const Key('capture-photo')), findsOneWidget);
       expect(tryOn.garmentInput?.productId, 'ring-1');
@@ -285,7 +285,7 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(find.byKey(const Key('camera-back')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(find.text('Choose Jewellery'), findsOneWidget);
       expect(uploads.hasActivePoller, isFalse);
       expect(find.byKey(const Key('capture-photo')), findsNothing);
@@ -339,7 +339,7 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       expect(tester.takeException(), isNull);
       for (final key in ['home-garments-category', 'home-jewellery-category']) {
         final card = find.byKey(Key(key));
@@ -410,11 +410,11 @@ void main() {
       for (final key in ['home-garments-category', 'home-jewellery-category']) {
         await tester.ensureVisible(find.byKey(Key(key)));
         await tester.tap(find.byKey(Key(key)));
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         expect(tester.takeException(), isNull);
         await tester.ensureVisible(find.byKey(const Key('home-menu-back')));
         await tester.tap(find.byKey(const Key('home-menu-back')));
-        await tester.pumpAndSettle();
+        await fixtures.pumpKioskUi(tester);
         expect(tester.takeException(), isNull);
       }
       await tester.pumpWidget(const SizedBox.shrink());
@@ -465,7 +465,7 @@ void main() {
     expect(find.byKey(const Key('home-garments-category')), findsNothing);
     expect(find.byKey(const Key('home-jewellery-category')), findsOneWidget);
     await tester.tap(find.byKey(const Key('home-jewellery-category')));
-    await tester.pumpAndSettle();
+    await fixtures.pumpKioskUi(tester);
     expect(find.text('Virtual Try-On'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -541,7 +541,7 @@ void main() {
           boundaryKey.currentContext!,
         );
       });
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       Future<void> save(String name) async {
         final boundary =
             boundaryKey.currentContext!.findRenderObject()!
@@ -560,12 +560,12 @@ void main() {
 
       await save('landing');
       await tester.tap(find.byKey(const Key('home-garments-category')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       await save('garments-menu');
       await tester.tap(find.byKey(const Key('home-menu-back')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       await tester.tap(find.byKey(const Key('home-jewellery-category')));
-      await tester.pumpAndSettle();
+      await fixtures.pumpKioskUi(tester);
       await save('jewellery-menu');
       await tester.pumpWidget(const SizedBox.shrink());
     });

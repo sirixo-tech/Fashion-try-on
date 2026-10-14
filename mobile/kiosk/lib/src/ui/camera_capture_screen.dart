@@ -24,6 +24,7 @@ import 'selfx_kiosk_button.dart';
 import 'mobile_upload_screen.dart';
 import 'person_capture_guide_overlay.dart';
 import 'capture_guide_panel.dart';
+import 'kiosk_attention_animations.dart';
 import 'try_on_generation_screen.dart';
 
 class CameraCaptureScreen extends StatefulWidget {
@@ -53,7 +54,6 @@ class CameraCaptureScreen extends StatefulWidget {
 class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   bool _openingMobileUpload = false;
   bool _starting = true;
-  bool _switchingCamera = false;
   bool _handlingBack = false;
   String? _reviewCapturePath;
   ModalRoute<void>? _route;
@@ -233,16 +233,6 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                     onUploadFromMobile: canUploadPersonFromMobile
                         ? _uploadPersonPhotoFromMobile
                         : null,
-                    canFlipCamera:
-                        widget.purpose == PhotoAcquisitionPurpose.model &&
-                        widget.controller.canFlipCamera,
-                    onFlipCamera:
-                        widget.purpose == PhotoAcquisitionPurpose.model &&
-                            cameraState.status == CameraStatus.ready &&
-                            flowState.stage == CaptureFlowStage.preview &&
-                            !_switchingCamera
-                        ? _flipCamera
-                        : null,
                   ),
                 ),
               ],
@@ -300,22 +290,6 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
       useLiveReadiness:
           widget.tryOnController.jewelleryCaptureRequirements == null,
     );
-  }
-
-  Future<void> _flipCamera() async {
-    if (_switchingCamera || !widget.controller.canFlipCamera) {
-      return;
-    }
-    setState(() => _switchingCamera = true);
-    try {
-      await widget.controller.flipCamera();
-    } catch (_) {
-      // Camera selection failures are published by the camera service state.
-    } finally {
-      if (mounted) {
-        setState(() => _switchingCamera = false);
-      }
-    }
   }
 
   Future<void> _uploadPersonPhotoFromMobile() async {
@@ -1474,8 +1448,6 @@ class CaptureGuidancePanel extends StatelessWidget {
     required this.onCapture,
     required this.onCancelCountdown,
     required this.onCaptureAnyway,
-    required this.canFlipCamera,
-    required this.onFlipCamera,
     this.onUploadFromMobile,
     this.mobileUploadAvailable = false,
     this.garmentStyle = false,
@@ -1488,8 +1460,6 @@ class CaptureGuidancePanel extends StatelessWidget {
   final VoidCallback onCapture;
   final VoidCallback onCancelCountdown;
   final VoidCallback onCaptureAnyway;
-  final bool canFlipCamera;
-  final VoidCallback? onFlipCamera;
   final VoidCallback? onUploadFromMobile;
   final bool mobileUploadAvailable;
   final bool garmentStyle;
@@ -1497,7 +1467,6 @@ class CaptureGuidancePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _CaptureControls(
-      garmentStyle: garmentStyle,
       state: state,
       flowState: flowState,
       readinessResult: readinessResult,
@@ -1505,8 +1474,6 @@ class CaptureGuidancePanel extends StatelessWidget {
       onCapture: onCapture,
       onCancelCountdown: onCancelCountdown,
       onCaptureAnyway: onCaptureAnyway,
-      canFlipCamera: canFlipCamera,
-      onFlipCamera: onFlipCamera,
       onUploadFromMobile: onUploadFromMobile,
       mobileUploadAvailable: mobileUploadAvailable,
     );
@@ -1522,11 +1489,8 @@ class _CaptureControls extends StatelessWidget {
     required this.onCapture,
     required this.onCancelCountdown,
     required this.onCaptureAnyway,
-    required this.canFlipCamera,
-    required this.onFlipCamera,
     this.onUploadFromMobile,
     this.mobileUploadAvailable = false,
-    this.garmentStyle = false,
   });
 
   final CameraState state;
@@ -1536,11 +1500,8 @@ class _CaptureControls extends StatelessWidget {
   final VoidCallback onCapture;
   final VoidCallback onCancelCountdown;
   final VoidCallback onCaptureAnyway;
-  final bool canFlipCamera;
-  final VoidCallback? onFlipCamera;
   final VoidCallback? onUploadFromMobile;
   final bool mobileUploadAvailable;
-  final bool garmentStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -1569,6 +1530,7 @@ class _CaptureControls extends StatelessWidget {
     final leftLabel = isCountdown ? 'Cancel' : 'Back';
     final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
     final primarySize = layout.scaled(66, small: 58, large: 76, extraLarge: 88);
+    final actionHeight = primarySize < 88 ? 88.0 : primarySize;
     final railSize = layout.scaled(54, small: 48, large: 62, extraLarge: 72);
     final showMobileUpload =
         mobileUploadAvailable || onUploadFromMobile != null;
@@ -1585,17 +1547,6 @@ class _CaptureControls extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (showMobileUpload) ...[
-              SelfxKioskButton(
-                key: const Key('capture-photo'),
-                label: primaryLabel,
-                icon: _captureIconFor(stage, canCaptureAnyway),
-                onPressed: primaryAction,
-                backgroundColor: SelfxKioskTokens.primary,
-                foregroundColor: Colors.white,
-              ),
-              const SizedBox(height: 12),
-            ],
             if (flowState.errorMessage != null) ...[
               DecoratedBox(
                 decoration: BoxDecoration(
@@ -1619,61 +1570,89 @@ class _CaptureControls extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
-            SizedBox(
-              height: primarySize,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _CameraRailButton(
-                        key: const Key('camera-back'),
-                        outlined: true,
-                        label: leftLabel,
-                        icon: leftIcon,
-                        iconColor: const Color(0xFF2384D6),
-                        dimension: railSize,
-                        onPressed: leftAction,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final back = _CameraRailButton(
+                  key: const Key('camera-back'),
+                  outlined: true,
+                  label: leftLabel,
+                  icon: leftIcon,
+                  iconColor: const Color(0xFF2384D6),
+                  dimension: railSize,
+                  onPressed: leftAction,
+                );
+                final capture = SelfxActionPulse(
+                  enabled: primaryAction != null,
+                  child: SelfxKioskButton(
+                    key: const Key('capture-photo'),
+                    label: primaryLabel,
+                    icon: _captureIconFor(stage, canCaptureAnyway),
+                    minHeight: actionHeight,
+                    wrapLabel: true,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
+                    backgroundColor: SelfxKioskTokens.primary,
+                    foregroundColor: Colors.white,
+                    onPressed: primaryAction,
+                  ),
+                );
+                final upload = SelfxKioskButton(
+                  key: const Key('upload-jewellery-person-photo'),
+                  label: 'Upload From Mobile',
+                  icon: Icons.file_upload_outlined,
+                  minHeight: actionHeight,
+                  wrapLabel: true,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
+                  backgroundColor: SelfxKioskTokens.primary,
+                  foregroundColor: Colors.white,
+                  onPressed: stage == CaptureFlowStage.preview
+                      ? onUploadFromMobile
+                      : null,
+                );
+                if (showMobileUpload && constraints.maxWidth < 480) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      upload,
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: back,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: capture),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: back,
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: _PrimaryCameraActionButton(
-                        key: showMobileUpload
-                            ? const Key('upload-jewellery-person-photo')
-                            : const Key('capture-photo'),
-                        solidOrange: garmentStyle,
-                        label: showMobileUpload
-                            ? 'Mobile Upload'
-                            : primaryLabel,
-                        icon: showMobileUpload
-                            ? Icons.file_upload_outlined
-                            : _captureIconFor(stage, canCaptureAnyway),
-                        centerText: null,
-                        dimension: primarySize,
-                        onPressed: showMobileUpload
-                            ? onUploadFromMobile
-                            : primaryAction,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _CameraRailButton(
-                        key: const Key('flip-person-camera'),
-                        outlined: true,
-                        label: 'Flip',
-                        icon: Icons.cameraswitch_outlined,
-                        iconColor: SelfxKioskTokens.secondary,
-                        dimension: railSize,
-                        onPressed: canFlipCamera ? onFlipCamera : null,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 12),
+                    if (showMobileUpload)
+                      Expanded(flex: 2, child: upload)
+                    else
+                      const Spacer(flex: 2),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 2, child: capture),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -1845,112 +1824,6 @@ class CaptureCountdownOverlay extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PrimaryCameraActionButton extends StatelessWidget {
-  const _PrimaryCameraActionButton({
-    super.key,
-    required this.label,
-    required this.icon,
-    this.centerText,
-    required this.dimension,
-    required this.onPressed,
-    this.solidOrange = false,
-  });
-
-  final String label;
-  final IconData? icon;
-  final String? centerText;
-  final double dimension;
-  final VoidCallback? onPressed;
-  final bool solidOrange;
-
-  @override
-  Widget build(BuildContext context) {
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(_cameraControlButtonRadius),
-    );
-    return Tooltip(
-      message: label,
-      child: Semantics(
-        button: true,
-        label: label,
-        child: SizedBox(
-          height: dimension,
-          width: dimension * 2.35,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(_cameraControlButtonRadius),
-              gradient: solidOrange || onPressed == null
-                  ? null
-                  : const LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        SelfxKioskTokens.primaryGradientStart,
-                        SelfxKioskTokens.primaryGradientEnd,
-                      ],
-                    ),
-            ),
-            child: FilledButton(
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                backgroundColor: solidOrange
-                    ? SelfxKioskTokens.primary
-                    : onPressed == null
-                    ? SelfxKioskTokens.primaryGradientStart.withValues(
-                        alpha: 0.42,
-                      )
-                    : Colors.transparent,
-                foregroundColor: SelfxKioskTokens.onPrimary,
-                disabledBackgroundColor:
-                    (solidOrange
-                            ? SelfxKioskTokens.primary
-                            : SelfxKioskTokens.primaryGradientStart)
-                        .withValues(alpha: 0.42),
-                disabledForegroundColor: SelfxKioskTokens.onPrimary.withValues(
-                  alpha: 0.72,
-                ),
-                shadowColor: Colors.transparent,
-                padding: EdgeInsets.zero,
-                shape: shape,
-              ),
-              child: centerText != null
-                  ? Text(
-                      centerText!,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            color: SelfxKioskTokens.onPrimary,
-                            fontWeight: FontWeight.w900,
-                          ),
-                    )
-                  : FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(icon, size: dimension * 0.34),
-                            const SizedBox(width: 8),
-                            Text(
-                              label,
-                              style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(
-                                    color: SelfxKioskTokens.onPrimary,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
             ),
           ),
         ),

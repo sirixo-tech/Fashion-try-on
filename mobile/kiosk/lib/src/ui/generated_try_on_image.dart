@@ -8,10 +8,18 @@ class GeneratedTryOnImage extends StatelessWidget {
     super.key,
     required this.src,
     this.fit = BoxFit.contain,
+    this.borderRadius,
   });
 
   final String src;
   final BoxFit fit;
+  final BorderRadius? borderRadius;
+
+  Widget _rounded(Image image) => borderRadius == null
+      ? image
+      : Center(
+          child: ClipRRect(borderRadius: borderRadius!, child: image),
+        );
 
   @override
   Widget build(BuildContext context) {
@@ -20,11 +28,13 @@ class GeneratedTryOnImage extends StatelessWidget {
       if (bytes == null) {
         return const Center(child: Text('Generated image unavailable'));
       }
-      return Image.memory(
-        bytes,
-        fit: fit,
-        errorBuilder: (_, _, _) =>
-            const Center(child: Text('Generated image unavailable')),
+      return _rounded(
+        Image.memory(
+          bytes,
+          fit: fit,
+          errorBuilder: (_, _, _) =>
+              const Center(child: Text('Generated image unavailable')),
+        ),
       );
     }
     if (!src.startsWith('http://') && !src.startsWith('https://')) {
@@ -32,18 +42,22 @@ class GeneratedTryOnImage extends StatelessWidget {
       if (bytes == null) {
         return const Center(child: Text('Generated image unavailable'));
       }
-      return Image.memory(
-        bytes,
+      return _rounded(
+        Image.memory(
+          bytes,
+          fit: fit,
+          errorBuilder: (_, _, _) =>
+              const Center(child: Text('Generated image unavailable')),
+        ),
+      );
+    }
+    return _rounded(
+      Image.network(
+        src,
         fit: fit,
         errorBuilder: (_, _, _) =>
             const Center(child: Text('Generated image unavailable')),
-      );
-    }
-    return Image.network(
-      src,
-      fit: fit,
-      errorBuilder: (_, _, _) =>
-          const Center(child: Text('Generated image unavailable')),
+      ),
     );
   }
 
