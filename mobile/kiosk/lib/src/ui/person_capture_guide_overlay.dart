@@ -13,93 +13,91 @@ class PersonCaptureGuideOverlay extends StatelessWidget {
     required this.captureScope,
     this.countdownActive = false,
     this.reserveUploadAction = false,
+    this.headerLeading,
   });
 
   final CaptureScope captureScope;
   final bool countdownActive;
   final bool reserveUploadAction;
+  final Widget? headerLeading;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final layout = KioskLayoutMetrics.fromConstraints(constraints);
-          final compact = constraints.maxHeight < 720;
-          final bottom = layout.scaled(
-            126,
-            small: 104,
-            large: 148,
-            extraLarge: 174,
-          );
-          return SafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                layout.scaled(20, small: 12, large: 28),
-                compact ? 12 : 26,
-                layout.scaled(20, small: 12, large: 28),
-                bottom + (reserveUploadAction ? 80 : 0),
-              ),
-              child: Column(
-                key: const Key('camera-framing-guide'),
-                children: [
-                  // Retain the header's space so the outline stays still when
-                  // countdown starts, while the countdown owns the instructions.
-                  Visibility(
-                    key: const Key('person-positioning-heading'),
-                    visible: !countdownActive,
-                    maintainSize: true,
-                    maintainState: true,
-                    maintainAnimation: true,
-                    child: CaptureGuidePanel(
-                      icon: switch (captureScope) {
-                        CaptureScope.top => Icons.accessibility_new_outlined,
-                        CaptureScope.bottom => Icons.directions_walk_outlined,
-                        CaptureScope.fullBody => Icons.person_outline,
-                      },
-                      title: 'Stand in Position',
-                      message: switch (captureScope) {
-                        CaptureScope.top =>
-                          'Face the camera. Keep your head, shoulders and torso visible.',
-                        CaptureScope.bottom =>
-                          'Keep your face visible and frame your waist, legs and feet.',
-                        CaptureScope.fullBody =>
-                          'Face the camera and stand straight.',
-                      },
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.38),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final layout = KioskLayoutMetrics.fromConstraints(constraints);
+        final compact = constraints.maxHeight < 720;
+        final bottom = layout.scaled(
+          126,
+          small: 104,
+          large: 148,
+          extraLarge: 174,
+        );
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              layout.scaled(20, small: 12, large: 28),
+              compact ? 12 : 26,
+              layout.scaled(20, small: 12, large: 28),
+              bottom + (reserveUploadAction ? 80 : 0),
+            ),
+            child: Column(
+              key: const Key('camera-framing-guide'),
+              children: [
+                // Retain the header's space so the outline stays still when
+                // countdown starts, while the countdown owns the instructions.
+                CaptureGuideHeader(
+                  key: const Key('person-positioning-heading'),
+                  leading: headerLeading,
+                  showGuidance: !countdownActive,
+                  guidance: CaptureGuidePanel(
+                    icon: switch (captureScope) {
+                      CaptureScope.top => Icons.accessibility_new_outlined,
+                      CaptureScope.bottom => Icons.directions_walk_outlined,
+                      CaptureScope.fullBody => Icons.person_outline,
+                    },
+                    title: 'Stand in Position',
+                    message: switch (captureScope) {
+                      CaptureScope.top =>
+                        'Face the camera. Keep your head, shoulders and torso visible.',
+                      CaptureScope.bottom =>
+                        'Keep your face visible and frame your waist, legs and feet.',
+                      CaptureScope.fullBody =>
+                        'Face the camera and stand straight.',
+                    },
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.38),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        RepaintBoundary(
-                          key: const Key('person-outline'),
-                          child: CustomPaint(
-                            painter: PersonCaptureOutlinePainter(
-                              captureScope: captureScope,
-                              countdownActive: countdownActive,
-                              tipRailWidth: layout.scaled(
-                                90,
-                                small: 62,
-                                large: 108,
-                              ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      RepaintBoundary(
+                        key: const Key('person-outline'),
+                        child: CustomPaint(
+                          painter: PersonCaptureOutlinePainter(
+                            captureScope: captureScope,
+                            countdownActive: countdownActive,
+                            tipRailWidth: layout.scaled(
+                              90,
+                              small: 62,
+                              large: 108,
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

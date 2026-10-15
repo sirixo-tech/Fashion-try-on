@@ -5,6 +5,7 @@ import 'package:selfx_kiosk/src/session/capture_scope.dart';
 import 'package:selfx_kiosk/src/theme/selfx_kiosk_theme.dart';
 import 'package:selfx_kiosk/src/tryon/kiosk_try_on_session_controller.dart';
 import 'package:selfx_kiosk/src/ui/camera_capture_screen.dart';
+import 'package:selfx_kiosk/src/ui/capture_guide_panel.dart';
 
 import 'kiosk_camera_foundation_test.dart' as fixtures;
 
@@ -42,11 +43,22 @@ void main() {
         final panel = find.byKey(const Key('camera-framing-guidance-panel'));
         for (final text in [heading, message]) {
           expect(tester.widget<Text>(text).textAlign, TextAlign.center);
-          expect(
-            tester.getRect(text).center.dx,
-            closeTo(tester.getRect(panel).center.dx, 0.1),
-          );
         }
+        final headingGroup = tester
+            .getRect(heading)
+            .expandToInclude(
+              tester.getRect(
+                find.byKey(const Key('camera-framing-guidance-icon')),
+              ),
+            );
+        expect(
+          headingGroup.center.dx,
+          closeTo(tester.getRect(panel).center.dx, 0.1),
+        );
+        expect(
+          tester.getRect(message).center.dx,
+          closeTo(tester.getRect(panel).center.dx, 0.1),
+        );
         expect(tester.widget<Text>(message).maxLines, isNull);
         final decoration =
             tester.widget<DecoratedBox>(panel).decoration as BoxDecoration;
@@ -83,10 +95,10 @@ void main() {
         expect(find.byKey(const Key('person-positioning-tips')), findsNothing);
         expect(
           tester
-              .widget<Visibility>(
+              .widget<CaptureGuideHeader>(
                 find.byKey(const Key('person-positioning-heading')),
               )
-              .visible,
+              .showGuidance,
           isFalse,
         );
         // Countdown must not shift the positioning target.

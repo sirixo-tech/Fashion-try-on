@@ -51,6 +51,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
     "ORGANIZATION_SUSPEND",
   ],
   "/app/platform/pricing": ["PRICING_VIEW", "PRICING_MANAGE"],
+  "/app/platform/payment-gateways": ["INTEGRATIONS_VIEW"],
   "/app/platform/pricing/features": ["PRICING_VIEW", "PRICING_MANAGE"],
 };
 

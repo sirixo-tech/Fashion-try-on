@@ -65,6 +65,24 @@ const baseAccess: NavigationAccess = {
   hasActiveStore: false,
 };
 
+it("restricts platform gateway navigation to platform integration viewers", () => {
+  const route = "/app/platform/payment-gateways";
+  expect(
+    canSeeHref(route, {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["integrations.view", "integrations.manage"],
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref(route, {
+      ...baseAccess,
+      hasPlatformAccess: true,
+      platformPermissions: ["INTEGRATIONS_VIEW"],
+    }),
+  ).toBe(true);
+});
+
 describe("permission-aware navigation", () => {
   it("keeps only shell basics without platform or Store access", () => {
     expect(labelsFor(baseAccess)).toEqual(["Dashboard", "Activity"]);

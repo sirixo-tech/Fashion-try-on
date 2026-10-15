@@ -137,6 +137,11 @@ const navItems: SelfxNavItem[] = [
         icon: LayersIcon,
       },
       { href: "/app/platform", label: "Platform Admin", icon: ShieldIcon },
+      {
+        href: "/app/platform/payment-gateways",
+        label: "Payment Gateways",
+        icon: CreditCardIcon,
+      },
     ],
   },
 ];

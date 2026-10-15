@@ -2,6 +2,116 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1B — Attempts, events and paid allocation
+
+Store connections add dqr_access_confirmed, default false. Shopping orders add
+paid_at, stock_allocated_at and payment_review_reason. Status checks add
+PAYMENT_PENDING/PAID/PAID_REVIEW and require paid_at exactly for paid statuses.
+Stock allocation requires paid_at. The one-pending-order-per-cart index covers
+AWAITING_PAYMENT and PAYMENT_PENDING, independent of hold deadline.
+
+`shopping_payment_attempts` has UUIDv7 ID, composite tenant/order FK, provider,
+environment, unique provider transaction ID, per-order idempotency key digest,
+status, amount/currency, encrypted account snapshot (ciphertext/IV/tag/key version),
+connection provenance, optional QR/reference/failure, expiry/paid timestamps,
+durable next-check/lease/check-count fields and created/updated timestamps.
+This stage constrains provider to PhonePe and environment to UAT. Connection ID
+is provenance rather than a cascading FK; snapshots survive config replacement.
+A partial unique index allows one PREPARING/PENDING/UNKNOWN attempt per order;
+terminal attempts remain as history. SUCCEEDED requires paid_at. Credentials and
+QR are excluded from staff summaries. QR is retained for device replay until
+expiry and is never copied to audit/analytics.
+
+`shopping_payment_events` stores UUIDv7 ID, tenant/attempt composite FK, content
+digest, reported semantic status and receipt time. Unique (attempt_id,digest)
+deduplicates signed notifications. Raw callbacks, payer identity and bank details
+are not persisted. Restrictive attempt/order relationships prevent accidental
+loss of payment history. Product/variant and tax snapshots remain unchanged.
+
+### PAYMENTS-1A — Gateway configuration persistence
+
+`payment_gateway_policies` has provider PK, enabled flag, positive optimistic
+version and updated timestamp. Missing policy means unavailable. The code-owned
+registry distinguishes configurable PhonePe from planned connectors.
+
+`store_payment_connections` has UUIDv7 ID, organization tenant FK, provider,
+UNCONFIRMED/UAT/PRODUCTION environment, encrypted payload, GCM IV/tag, key version
+and timestamp. Unique (organization_id, provider) permits one account per provider
+per Store. All credentials and merchant identifiers are inside the encrypted
+payload; API reads select safe provider/environment/time fields only.
+
+`store_payment_settings` has organization tenant PK/FK, nullable selected provider,
+positive version and timestamp. Its composite FK (organization_id,
+selected_provider) references that Store's connection; another tenant's account
+can never satisfy selection. Updates lock the existing tenant row, including
+first creation. All three tables are additive. No payment attempts/events or
+paid order states are introduced by this stage.
+
+### SHOPPING-2 — Cart, order and tax persistence
+
+Adds `store_tax_settings` (Store tenant PK/FK, mode, basis-point default rate,
+version, updated timestamp). Product stock settings add nullable
+`tax_rate_basis_points`; null inherits, zero overrides with exemption.
+
+`shopping_carts` contains UUIDv7 ID, Store tenant, device ID, unique active-customer
+session association, version and timestamps. A composite FK to TryOnSession
+enforces matching tenant/device/session. `shopping_cart_items` has cart/variant
+compound PK, tenant and positive quantity; composite FKs enforce same-Store
+cart and variant references. Carts do not reserve stock and are cleaned after
+their session completes/expires. All collections are bounded at API boundaries.
+
+`shopping_orders` contains UUIDv7 ID, unique readable reference, tenant FK,
+source cart/device provenance, status AWAITING_PAYMENT/CANCELLED/EXPIRED,
+currency, Store tax mode, subtotal/tax/total cents, created/expiry/cancellation
+timestamps. Composite unique tenant/id supports item isolation; tenant/time/id
+and status/expiry/id indexes support history and expiry. A partial unique index
+permits only one AWAITING_PAYMENT order per cart; expired pending records are
+transitioned before a new checkout. Source cart/device IDs intentionally remain
+provenance rather than cascading FKs, preserving orders after session/fleet cleanup.
+
+`shopping_order_items` has tenant/order/product/variant IDs and immutable-at-API
+product name, size/colour, quantity, unit price, applied rate and line totals.
+Composite FKs ensure same-tenant order and matching product/variant. No item
+update endpoint exists. Variant references restrict physical product/variant
+deletion; deactivation/archive preserves existing orders. Order lines also serve
+as reservations while their parent order is pending and unexpired; no duplicated
+mutable reserved counter is needed. Stock reads derive held/available quantities.
+
+`shopping_checkout_requests` uses device/key-digest PK, request fingerprint,
+order FK and 24-hour expiry. It bounds replay bookkeeping without expiring order
+history. SQL checks enforce modes, positive versions/quantities, tax bounds,
+non-negative money, subtotal + tax = total and expiry after creation. All business
+IDs use UUIDv7. No images, customer identity, credentials or raw payment data are
+stored in commerce records. Payment/collection/refund persistence is deferred.
+
+### SHOPPING-1 — implemented stock structures (2026-10-15)
+
+This section refines the earlier planned `product_variants` outline for native
+Store stock. `product_stock_settings` has `product_id` (PK), `organization_id`,
+`option_mode` (SINGLE/SIZE/COLOR/SIZE_COLOR), `pricing_mode` (CONSTANT/VARIANT),
+positive `version` and `updated_at`. Absence means unconfigured stock.
+
+`product_variants` has UUIDv7 `id`, `organization_id`, `product_id`, normalized
+`option_key`, nullable `size`/`color`, `stock_quantity`, optional integer-cent
+`price_override_amount_cents`, `active` and creation/update timestamps. The default
+option has null size and colour. Currency and base price remain on `products`.
+
+- Composite FK settings `(organization_id, product_id)` → products
+  `(organization_id, id)` prevents cross-Store association and excludes null tenants.
+- Composite FK variants `(organization_id, product_id)` → settings enforces the same scope.
+- Unique `(product_id, option_key)` covers normalized case/spacing-equivalent options.
+- Index `(organization_id, product_id, active)` supports Store-scoped bounded reads.
+- DB checks bound stock to 0–1,000,000 and override price to 0–100,000,000 cents;
+  mode/version checks and nonblank optional labels are enforced in SQL.
+- Removed variants are archived; their IDs are reused if the same option returns.
+  Existing product deletion cascades stock rows; before/after audit records remain.
+  A later order milestone must protect historical purchased identities/snapshots
+  before attaching order references. No order/reservation tables exist in SHOPPING-1.
+- No existing catalog is backfilled with invented stock; imports remain external.
+
+This approved stock extension supersedes only the older exclusion of this narrow
+native Store stock use case, not the broader full-POS/warehouse exclusions.
+
 **Version:** 1.1  
 **Status:** ACTIVE BASELINE  
 **Document Type:** Living Document  

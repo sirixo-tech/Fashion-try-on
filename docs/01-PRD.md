@@ -1,5 +1,84 @@
 ## Document Evolution
 
+### PAYMENTS-1B — Order-linked PhonePe payment execution (2026-10-15)
+
+Adds durable order payment attempts, authenticated notifications, server-side
+status checks and paid stock allocation. This stage supports UAT/test payments
+only. It requires explicit UAT Dynamic QR access confirmation and an API-side
+execution switch; unknown/live credentials remain blocked. APK Buy stays disabled.
+
+The stock hold lasts five minutes. An initiated payment awaiting confirmation
+remains unresolved after that deadline while its stock becomes available again.
+Do not silently mark it failed or allow overlapping attempts on the same order.
+Retries require verified failure. Successful payments survive session/device loss,
+expired holds and catalog edits. Allocate all order items atomically once, or
+retain a paid order needing staff action. Staff may retry allocation after stock
+is replenished. Extra successful payments require staff resolution and never
+deduct stock twice. Refund execution, collection and printing remain later stages.
+Test payments must be clearly labeled and excluded from future real-sales metrics.
+
+### PAYMENTS-1A — Merchant gateway configuration foundation (2026-10-15)
+
+SelfX supports a registry of payment gateways. The platform controls which
+implemented gateways Stores can configure/select. Each Store connects its own
+merchant account and selects one gateway shared by its kiosks. SelfX does not
+collect garment payments into a platform merchant account. PhonePe is first;
+Razorpay, Stripe, Paytm and PayPal are planned connectors, not working payments.
+
+Current merchant credentials have Salt Key, Salt Index, Merchant ID and Provider
+ID, but their environment and Dynamic QR entitlement are not confirmed. Save
+configuration as unverified; distinguish UNCONFIRMED, UAT and PRODUCTION without
+assuming which credentials were supplied. Setup/selection never implies payment
+readiness. PAYMENTS-1A covers platform/Store configuration and offline-tested
+PhonePe protocol handling only. Checkout remains unpaid and APK Buy disabled.
+
+Approved later payment rule: verified successful payments must remain paid
+orders, including late success. Allocate stock safely if available; if an expired
+hold's stock was reallocated, retain the payment/order for staff fulfillment or
+refund resolution. Never invent stock or silently discard a paid order. Printing
+failure must not affect payment/order validity. This rule is approved design;
+payment persistence, allocation and reconciliation are subsequent implementation.
+
+### SHOPPING-2 — Cart, orders, reservations and Store taxes (2026-10-15)
+
+Approved scope extends SHOPPING-1 with backend customer-session carts containing
+multiple native SelfX products/options and customer-selected quantities. A cart
+does not hold stock. Checkout revalidates available stock, current prices and
+taxes, then creates an unpaid Store order and reserves its items for five minutes.
+Customers and authorized staff may cancel unpaid orders. Unpaid orders expire
+automatically and their stock becomes available again. Stock remains shared by
+all kiosks of the Store; zero stock continues to permit Try-On.
+
+Store administrators choose no tax, tax included in prices or tax added to prices.
+Each Store has one default percentage with optional product-specific percentage
+overrides; null inherits and zero is tax-free. No tax disables all overrides.
+Orders retain original product/variant labels, quantities, price and tax snapshots.
+Staff may update stock/products, but may not remove options with active holds or
+reduce their quantity below reserved stock. Order history survives catalog edits.
+
+Per the explicit stage decision, SHOPPING-2 implements backend and Store dashboard
+only. The APK Buy button remains disabled. Payment execution, merchant-provider
+connection, receipt printing, collection, refunds and shopping analytics remain
+later milestones. No real payment or paid status can be created in this milestone.
+
+### SHOPPING-1 — Store catalog stock and pricing (approved 2026-10-15)
+
+The approved shopping expansion begins with SelfX-managed stock for products
+created directly in SelfX. All kiosks assigned to a Store share one stock pool.
+Products may have no options, size only, colour only, or size/colour combinations;
+each option has a non-negative quantity. Stores choose a constant product price
+or optional per-variant prices that otherwise inherit the product price and currency.
+Zero stock does not disable Try-On. Existing products start unconfigured, without
+invented stock. Imported commerce products and platform default products are excluded.
+
+This is a narrow approved extension of the older VTO-only inventory boundary,
+not approval for a general POS/warehouse system. The future agreed kiosk journey
+is product/variant selection, availability check, order, merchant-account payment
+QR, verified payment status, receipt and staff collection. Only stock/pricing is
+implemented in SHOPPING-1; orders, reservations, payments, receipt printing,
+collection, refunds and shopping analytics require later milestones. The existing
+disabled Buy action stays disabled until those prerequisites exist.
+
 This is a living document.
 
 The contents represent the currently approved product/design/technical baseline

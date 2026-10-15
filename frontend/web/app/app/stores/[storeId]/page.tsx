@@ -223,6 +223,20 @@ export default function StoreDashboardPage() {
               Products
             </Button>
             <Button
+              render={<Link href={`/app/stores/${storeId}/shopping`} />}
+              variant="outline"
+            >
+              Orders &amp; Tax
+            </Button>
+            {(platformBypass || can("integrations.view")) && (
+              <Button
+                render={<Link href={`/app/stores/${storeId}/payments`} />}
+                variant="outline"
+              >
+                Payments
+              </Button>
+            )}
+            <Button
               onClick={() => setPairOpen(true)}
               disabled={!store || !canPairKiosks}
             >

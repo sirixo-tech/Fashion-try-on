@@ -60,6 +60,7 @@ import {
 } from "@/components/product-form-controls";
 import { SafeApiError } from "@/lib/api";
 import { readImageDimensions } from "@/lib/image-dimensions";
+import { ProductStockDialog } from "@/components/product-stock-dialog";
 import { getPlatformVirtualTryOnSettings } from "@/lib/platform-settings";
 import { useSession } from "@/lib/session";
 import {
@@ -116,6 +117,7 @@ export default function StoreProductsPage() {
   const [bulkVtoAction, setBulkVtoAction] = useState<boolean | null>(null);
   const [bulkVtoBusy, setBulkVtoBusy] = useState(false);
   const [editing, setEditing] = useState<StoreProduct | null>(null);
+  const [stockProduct, setStockProduct] = useState<StoreProduct | null>(null);
   const [deleting, setDeleting] = useState<StoreProduct | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -535,6 +537,14 @@ export default function StoreProductsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => setStockProduct(product)}
+                        >
+                          <PackageIcon aria-hidden="true" />
+                          Stock &amp; Pricing
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           disabled={!canUpdateProducts}
                           onClick={() => setEditing(product)}
                         >
@@ -561,6 +571,16 @@ export default function StoreProductsPage() {
         </TableContainer>
       </PageSection>
 
+      {stockProduct && accessToken && (
+        <ProductStockDialog
+          key={stockProduct.id}
+          accessToken={accessToken}
+          storeId={storeId}
+          product={stockProduct}
+          canEdit={canUpdateProducts}
+          onClose={() => setStockProduct(null)}
+        />
+      )}
       <ProductDialog
         open={creating}
         accessToken={accessToken}

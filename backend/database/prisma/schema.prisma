@@ -288,6 +288,10 @@ model UserSession {
 }
 
 model Organization {
+  commerceTaxSettings            StoreTaxSettings?
+  shoppingOrders                 ShoppingOrder[]
+  paymentSettings                StorePaymentSettings?
+  paymentConnections             StorePaymentConnection[]
   id                             String                              @id @db.Uuid
   name                           String                              @db.VarChar(200)
   slug                           String                              @unique @db.VarChar(120)
@@ -603,7 +607,9 @@ model Product {
   tryOnLooks                     TryOnLook[]
   externalMappings               ExternalProductMapping[]
   shopifyStorefrontTryOnSessions ShopifyStorefrontTryOnSession[]
+  stockSettings                  ProductStockSettings?
 
+  @@unique([organizationId, id])
   @@index([scope, active, vtoEnabled, audience, sortOrder])
   @@index([organizationId, active, vtoEnabled, audience, sortOrder])
   @@index([categoryId, active, vtoEnabled, sortOrder])
@@ -611,6 +617,236 @@ model Product {
   @@index([productVertical, active, vtoEnabled, sortOrder])
   @@index([jewelleryType])
   @@map("products")
+}
+
+model ProductStockSettings {
+  productId          String           @id @map("product_id") @db.Uuid
+  organizationId     String           @map("organization_id") @db.Uuid
+  optionMode         String           @map("option_mode") @db.VarChar(20)
+  pricingMode        String           @map("pricing_mode") @db.VarChar(20)
+  taxRateBasisPoints Int?             @map("tax_rate_basis_points")
+  version            Int              @default(1)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  product            Product          @relation(fields: [organizationId, productId], references: [organizationId, id], onDelete: Cascade)
+  variants           ProductVariant[]
+
+  @@unique([organizationId, productId])
+  @@map("product_stock_settings")
+}
+
+model ProductVariant {
+  id                       String               @id @db.Uuid
+  organizationId           String               @map("organization_id") @db.Uuid
+  productId                String               @map("product_id") @db.Uuid
+  optionKey                String               @map("option_key") @db.Text
+  size                     String?              @db.VarChar(80)
+  color                    String?              @db.VarChar(80)
+  stockQuantity            Int                  @map("stock_quantity")
+  priceOverrideAmountCents Int?                 @map("price_override_amount_cents")
+  active                   Boolean              @default(true)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  stockSettings            ProductStockSettings @relation(fields: [organizationId, productId], references: [organizationId, productId], onDelete: Cascade)
+  cartItems                ShoppingCartItem[]
+  orderItems               ShoppingOrderItem[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, productId, id])
+  @@unique([productId, optionKey])
+  @@index([organizationId, productId, active])
+  @@map("product_variants")
+}
+
+model StoreTaxSettings {
+  organizationId  String       @id @map("organization_id") @db.Uuid
+  mode            String       @db.VarChar(20)
+  rateBasisPoints Int          @map("rate_basis_points")
+  version         Int          @default(1)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@map("store_tax_settings")
+}
+
+model PaymentGatewayPolicy {
+  provider  String   @id @db.VarChar(30)
+  enabled   Boolean  @default(false)
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("payment_gateway_policies")
+}
+
+model StorePaymentSettings {
+  organizationId     String                  @id @map("organization_id") @db.Uuid
+  selectedProvider   String?                 @map("selected_provider") @db.VarChar(30)
+  version            Int                     @default(1)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  selectedConnection StorePaymentConnection? @relation(fields: [organizationId, selectedProvider], references: [organizationId, provider], onDelete: Restrict)
+
+  @@map("store_payment_settings")
+}
+
+model StorePaymentConnection {
+  id                   String                 @id @db.Uuid
+  organizationId       String                 @map("organization_id") @db.Uuid
+  provider             String                 @db.VarChar(30)
+  environment          String                 @db.VarChar(20)
+  encryptedPayload     String                 @map("encrypted_payload") @db.Text
+  initializationVector String                 @map("initialization_vector") @db.VarChar(32)
+  authenticationTag    String                 @map("authentication_tag") @db.VarChar(32)
+  keyVersion           String                 @map("key_version") @db.VarChar(40)
+  dqrAccessConfirmed   Boolean                @default(false) @map("dqr_access_confirmed")
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  selectedBy           StorePaymentSettings[]
+
+  @@unique([organizationId, provider])
+  @@map("store_payment_connections")
+}
+
+model ShoppingCart {
+  id             String             @id @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  kioskDeviceId  String             @map("kiosk_device_id") @db.Uuid
+  sessionId      String             @unique @map("session_id") @db.Uuid
+  version        Int                @default(1)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session        TryOnSession       @relation(fields: [organizationId, kioskDeviceId, sessionId], references: [organizationId, kioskDeviceId, id], onDelete: Cascade)
+  items          ShoppingCartItem[]
+
+  @@unique([organizationId, kioskDeviceId, sessionId])
+  @@unique([organizationId, id])
+  @@index([organizationId, kioskDeviceId])
+  @@map("shopping_carts")
+}
+
+model ShoppingCartItem {
+  cartId         String         @map("cart_id") @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  variantId      String         @map("variant_id") @db.Uuid
+  quantity       Int
+  cart           ShoppingCart   @relation(fields: [organizationId, cartId], references: [organizationId, id], onDelete: Cascade)
+  variant        ProductVariant @relation(fields: [organizationId, variantId], references: [organizationId, id], onDelete: Restrict)
+
+  @@id([cartId, variantId])
+  @@map("shopping_cart_items")
+}
+
+model ShoppingOrder {
+  id                  String                    @id @db.Uuid
+  reference           String                    @unique @db.VarChar(24)
+  organizationId      String                    @map("organization_id") @db.Uuid
+  kioskDeviceId       String                    @map("kiosk_device_id") @db.Uuid
+  sourceCartId        String                    @map("source_cart_id") @db.Uuid
+  status              String                    @default("AWAITING_PAYMENT") @db.VarChar(24)
+  currency            String                    @db.VarChar(3)
+  taxMode             String                    @map("tax_mode") @db.VarChar(20)
+  subtotalCents       Int                       @map("subtotal_cents")
+  taxCents            Int                       @map("tax_cents")
+  totalCents          Int                       @map("total_cents")
+  createdAt           DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt           DateTime                  @map("expires_at") @db.Timestamptz(3)
+  cancelledAt         DateTime?                 @map("cancelled_at") @db.Timestamptz(3)
+  paidAt              DateTime?                 @map("paid_at") @db.Timestamptz(3)
+  stockAllocatedAt    DateTime?                 @map("stock_allocated_at") @db.Timestamptz(3)
+  paymentReviewReason String?                   @map("payment_review_reason") @db.VarChar(50)
+  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  items               ShoppingOrderItem[]
+  requests            ShoppingCheckoutRequest[]
+  paymentAttempts     ShoppingPaymentAttempt[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, createdAt, id])
+  @@index([sourceCartId, status, expiresAt])
+  @@index([status, expiresAt, id])
+  @@map("shopping_orders")
+}
+
+model ShoppingPaymentAttempt {
+  id                   String                 @id @db.Uuid
+  organizationId       String                 @map("organization_id") @db.Uuid
+  orderId              String                 @map("order_id") @db.Uuid
+  provider             String                 @db.VarChar(30)
+  environment          String                 @db.VarChar(20)
+  transactionId        String                 @unique @map("transaction_id") @db.VarChar(34)
+  keyDigest            String                 @map("key_digest") @db.Char(64)
+  status               String                 @db.VarChar(20)
+  amountMinor          Int                    @map("amount_minor")
+  currency             String                 @db.VarChar(3)
+  encryptedPayload     String                 @map("encrypted_payload") @db.Text
+  initializationVector String                 @map("initialization_vector") @db.VarChar(32)
+  authenticationTag    String                 @map("authentication_tag") @db.VarChar(32)
+  keyVersion           String                 @map("key_version") @db.VarChar(40)
+  connectionId         String                 @map("connection_id") @db.Uuid
+  qrString             String?                @map("qr_string") @db.Text
+  providerReference    String?                @map("provider_reference") @db.VarChar(128)
+  failureCode          String?                @map("failure_code") @db.VarChar(60)
+  expiresAt            DateTime               @map("expires_at") @db.Timestamptz(3)
+  paidAt               DateTime?              @map("paid_at") @db.Timestamptz(3)
+  nextCheckAt          DateTime?              @map("next_check_at") @db.Timestamptz(3)
+  leaseUntil           DateTime?              @map("lease_until") @db.Timestamptz(3)
+  checkCount           Int                    @default(0) @map("check_count")
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  order                ShoppingOrder          @relation(fields: [organizationId, orderId], references: [organizationId, id], onDelete: Restrict)
+  events               ShoppingPaymentEvent[]
+
+  @@unique([organizationId, id])
+  @@unique([orderId, keyDigest])
+  @@index([status, nextCheckAt])
+  @@map("shopping_payment_attempts")
+}
+
+model ShoppingPaymentEvent {
+  id             String                 @id @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  attemptId      String                 @map("attempt_id") @db.Uuid
+  digest         String                 @db.Char(64)
+  reportedStatus String                 @map("reported_status") @db.VarChar(20)
+  receivedAt     DateTime               @default(now()) @map("received_at") @db.Timestamptz(3)
+  attempt        ShoppingPaymentAttempt @relation(fields: [organizationId, attemptId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([attemptId, digest])
+  @@map("shopping_payment_events")
+}
+
+model ShoppingOrderItem {
+  id                 String         @id @db.Uuid
+  orderId            String         @map("order_id") @db.Uuid
+  organizationId     String         @map("organization_id") @db.Uuid
+  productId          String         @map("product_id") @db.Uuid
+  variantId          String         @map("variant_id") @db.Uuid
+  productName        String         @map("product_name") @db.VarChar(180)
+  size               String?        @db.VarChar(80)
+  color              String?        @db.VarChar(80)
+  quantity           Int
+  unitPriceCents     Int            @map("unit_price_cents")
+  taxRateBasisPoints Int            @map("tax_rate_basis_points")
+  subtotalCents      Int            @map("subtotal_cents")
+  taxCents           Int            @map("tax_cents")
+  totalCents         Int            @map("total_cents")
+  order              ShoppingOrder  @relation(fields: [organizationId, orderId], references: [organizationId, id], onDelete: Cascade)
+  variant            ProductVariant @relation(fields: [organizationId, productId, variantId], references: [organizationId, productId, id], onDelete: Restrict)
+
+  @@unique([orderId, variantId])
+  @@index([organizationId, variantId])
+  @@map("shopping_order_items")
+}
+
+model ShoppingCheckoutRequest {
+  kioskDeviceId String        @map("kiosk_device_id") @db.Uuid
+  keyDigest     String        @map("key_digest") @db.Char(64)
+  fingerprint   String        @db.Char(64)
+  orderId       String        @map("order_id") @db.Uuid
+  expiresAt     DateTime      @map("expires_at") @db.Timestamptz(3)
+  order         ShoppingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@id([kioskDeviceId, keyDigest])
+  @@index([expiresAt])
+  @@map("shopping_checkout_requests")
 }
 
 model StoreRole {
@@ -863,59 +1099,59 @@ model KioskCustomerUploadSession {
 }
 
 model KioskTryOnRun {
-  id                   String               @id @db.Uuid
-  kioskDeviceId        String?              @map("kiosk_device_id") @db.Uuid
-  apiKeyId             String?              @map("api_key_id") @db.Uuid
-  tryOnSessionId       String?              @map("try_on_session_id") @db.Uuid
-  clientRequestId      String               @map("client_request_id") @db.VarChar(160)
-  status               String               @default("QUEUED") @db.VarChar(24)
-  assignmentScope      KioskAssignmentScope @map("assignment_scope")
-  organizationId       String?              @map("organization_id") @db.Uuid
-  storeId              String?              @map("store_id") @db.Uuid
-  personAssetId        String?              @map("person_asset_id") @db.Uuid
-  garmentAssetId       String?              @map("garment_asset_id") @db.Uuid
-  productId            String?              @map("product_id") @db.Uuid
-  catalogSource        String?              @map("catalog_source") @db.VarChar(40)
-  externalProductId    String?              @map("external_product_id") @db.VarChar(180)
-  externalVariantId    String?              @map("external_variant_id") @db.VarChar(180)
-  externalSku          String?              @map("external_sku") @db.VarChar(160)
-  externalProductName  String?              @map("external_product_name") @db.VarChar(240)
-  externalProductPrice Decimal?             @map("external_product_price") @db.Decimal(12, 2)
-  externalCurrency     String?              @map("external_currency") @db.VarChar(3)
-  resultAssetId        String?              @map("result_asset_id") @db.Uuid
-  provider             String               @db.VarChar(80)
-  providerDisplayName  String               @map("provider_display_name") @db.VarChar(120)
-  providerModel        String               @map("provider_model") @db.VarChar(120)
-  providerPredictionId String?              @map("provider_prediction_id") @db.VarChar(160)
-  tryOnVertical        ProductVertical      @default(GARMENT) @map("try_on_vertical")
-  jewelleryType        JewelleryType?       @map("jewellery_type")
-  garmentSource                         String               @map("garment_source") @db.VarChar(40)
-  garmentIntent                         String               @map("garment_intent") @db.VarChar(40)
-  garmentCategory                       String               @map("garment_category") @db.VarChar(40)
-  garmentPhotoType                      String               @map("garment_photo_type") @db.VarChar(40)
-  generationProfile                     String               @map("generation_profile") @db.VarChar(40)
-  garmentPreprocessingEnabled           Boolean?             @map("garment_preprocessing_enabled")
-  garmentPreprocessingStatus            String?              @map("garment_preprocessing_status") @db.VarChar(40)
-  garmentPreprocessingProviderInputImage String?             @map("garment_preprocessing_provider_input_image") @db.VarChar(40)
-  garmentPreprocessingMaskGenerated     Boolean?             @map("garment_preprocessing_mask_generated")
-  garmentPreprocessingFallbackReason    String?              @map("garment_preprocessing_fallback_reason") @db.VarChar(240)
-  resultImage                           String?              @map("result_image")
-  errorCode                             String?              @map("error_code") @db.VarChar(120)
-  errorMessage                          String?              @map("error_message")
-  startedAt                             DateTime?            @map("started_at") @db.Timestamptz(3)
-  submittedAt                           DateTime?            @map("submitted_at") @db.Timestamptz(3)
-  completedAt                           DateTime?            @map("completed_at") @db.Timestamptz(3)
-  expiresAt                             DateTime             @map("expires_at") @db.Timestamptz(3)
-  createdAt                             DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  kioskDevice          KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
-  apiKey               ApiKey?              @relation("ApiKeyTryOnRuns", fields: [apiKeyId], references: [id], onDelete: SetNull)
-  tryOnSession         TryOnSession?        @relation(fields: [tryOnSessionId], references: [id], onDelete: SetNull)
-  personAsset          TryOnAsset?          @relation("KioskTryOnRunPersonAsset", fields: [personAssetId], references: [id], onDelete: SetNull)
-  garmentAsset         TryOnAsset?          @relation("KioskTryOnRunGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: SetNull)
-  product              Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
-  resultAsset          TryOnAsset?          @relation("KioskTryOnRunResultAsset", fields: [resultAssetId], references: [id], onDelete: SetNull)
-  look                 TryOnLook?
+  id                                     String               @id @db.Uuid
+  kioskDeviceId                          String?              @map("kiosk_device_id") @db.Uuid
+  apiKeyId                               String?              @map("api_key_id") @db.Uuid
+  tryOnSessionId                         String?              @map("try_on_session_id") @db.Uuid
+  clientRequestId                        String               @map("client_request_id") @db.VarChar(160)
+  status                                 String               @default("QUEUED") @db.VarChar(24)
+  assignmentScope                        KioskAssignmentScope @map("assignment_scope")
+  organizationId                         String?              @map("organization_id") @db.Uuid
+  storeId                                String?              @map("store_id") @db.Uuid
+  personAssetId                          String?              @map("person_asset_id") @db.Uuid
+  garmentAssetId                         String?              @map("garment_asset_id") @db.Uuid
+  productId                              String?              @map("product_id") @db.Uuid
+  catalogSource                          String?              @map("catalog_source") @db.VarChar(40)
+  externalProductId                      String?              @map("external_product_id") @db.VarChar(180)
+  externalVariantId                      String?              @map("external_variant_id") @db.VarChar(180)
+  externalSku                            String?              @map("external_sku") @db.VarChar(160)
+  externalProductName                    String?              @map("external_product_name") @db.VarChar(240)
+  externalProductPrice                   Decimal?             @map("external_product_price") @db.Decimal(12, 2)
+  externalCurrency                       String?              @map("external_currency") @db.VarChar(3)
+  resultAssetId                          String?              @map("result_asset_id") @db.Uuid
+  provider                               String               @db.VarChar(80)
+  providerDisplayName                    String               @map("provider_display_name") @db.VarChar(120)
+  providerModel                          String               @map("provider_model") @db.VarChar(120)
+  providerPredictionId                   String?              @map("provider_prediction_id") @db.VarChar(160)
+  tryOnVertical                          ProductVertical      @default(GARMENT) @map("try_on_vertical")
+  jewelleryType                          JewelleryType?       @map("jewellery_type")
+  garmentSource                          String               @map("garment_source") @db.VarChar(40)
+  garmentIntent                          String               @map("garment_intent") @db.VarChar(40)
+  garmentCategory                        String               @map("garment_category") @db.VarChar(40)
+  garmentPhotoType                       String               @map("garment_photo_type") @db.VarChar(40)
+  generationProfile                      String               @map("generation_profile") @db.VarChar(40)
+  garmentPreprocessingEnabled            Boolean?             @map("garment_preprocessing_enabled")
+  garmentPreprocessingStatus             String?              @map("garment_preprocessing_status") @db.VarChar(40)
+  garmentPreprocessingProviderInputImage String?              @map("garment_preprocessing_provider_input_image") @db.VarChar(40)
+  garmentPreprocessingMaskGenerated      Boolean?             @map("garment_preprocessing_mask_generated")
+  garmentPreprocessingFallbackReason     String?              @map("garment_preprocessing_fallback_reason") @db.VarChar(240)
+  resultImage                            String?              @map("result_image")
+  errorCode                              String?              @map("error_code") @db.VarChar(120)
+  errorMessage                           String?              @map("error_message")
+  startedAt                              DateTime?            @map("started_at") @db.Timestamptz(3)
+  submittedAt                            DateTime?            @map("submitted_at") @db.Timestamptz(3)
+  completedAt                            DateTime?            @map("completed_at") @db.Timestamptz(3)
+  expiresAt                              DateTime             @map("expires_at") @db.Timestamptz(3)
+  createdAt                              DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                              DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  kioskDevice                            KioskDevice?         @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+  apiKey                                 ApiKey?              @relation("ApiKeyTryOnRuns", fields: [apiKeyId], references: [id], onDelete: SetNull)
+  tryOnSession                           TryOnSession?        @relation(fields: [tryOnSessionId], references: [id], onDelete: SetNull)
+  personAsset                            TryOnAsset?          @relation("KioskTryOnRunPersonAsset", fields: [personAssetId], references: [id], onDelete: SetNull)
+  garmentAsset                           TryOnAsset?          @relation("KioskTryOnRunGarmentAsset", fields: [garmentAssetId], references: [id], onDelete: SetNull)
+  product                                Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  resultAsset                            TryOnAsset?          @relation("KioskTryOnRunResultAsset", fields: [resultAssetId], references: [id], onDelete: SetNull)
+  look                                   TryOnLook?
 
   @@unique([kioskDeviceId, clientRequestId])
   @@unique([apiKeyId, clientRequestId])
@@ -940,6 +1176,7 @@ model KioskTryOnRun {
 
 model TryOnSession {
   id                            String                         @id @db.Uuid
+  shoppingCart                  ShoppingCart?
   status                        TryOnSessionStatus             @default(ACTIVE)
   assignmentScope               KioskAssignmentScope           @map("assignment_scope")
   organizationId                String?                        @map("organization_id") @db.Uuid
@@ -960,6 +1197,7 @@ model TryOnSession {
   shareCapabilities             TryOnShareCapability[]
   shopifyStorefrontTryOnSession ShopifyStorefrontTryOnSession?
 
+  @@unique([organizationId, kioskDeviceId, id])
   @@index([kioskDeviceId, status, createdAt])
   @@index([organizationId, createdAt])
   @@index([storeId, createdAt])

@@ -1,5 +1,64 @@
 ## Document Evolution
 
+### PAYMENTS-1B — Confirm an order payment and resolve stock
+
+Backend test journey: checkout creates a five-minute order hold; the authenticated
+kiosk session starts one PhonePe UAT attempt and receives its QR data. A replay
+returns the same attempt. Verified provider status leads to Paid with stock
+allocated, verified failure permits retry before expiry, and unknown status keeps
+confirmation pending. The APK screens are not connected in this stage.
+
+Staff open Orders & Tax → View order to see payment attempts, test environment,
+safe provider reference, confirmation status and paid time. Authorized staff can
+check status; this asks the provider and never manually declares success. After
+an expired hold, a paid order lacking stock shows staff action needed. Staff
+replenish/update actual stock and Retry stock allocation. Duplicate payments
+remain flagged for staff refund resolution even after stock is recovered. A
+revoked kiosk or ended customer session cannot lose a successful payment.
+
+### PAYMENTS-1A — Configure a merchant gateway
+
+An authorized platform admin opens Platform → Payment Gateways and makes
+PhonePe configuration available. Other named gateways remain Planned until
+their connectors are implemented. Each Store opens Payments, enters its own
+PhonePe details and chooses the known environment or Not confirmed yet. Saving
+shows Verification pending. A Store may select its configured gateway for
+future checkout; selection applies across its kiosks. It may clear selection.
+Platform disabling availability retains configuration but blocks new selection.
+No payment is created, tested with a real account, or marked paid in this stage.
+Support impersonation may inspect safe metadata but cannot replace credentials.
+
+### SHOPPING-2 — Store order and tax management
+
+Authorized staff open Store → Orders & Tax to configure tax mode/default rate,
+inspect paginated order history, search an order reference, inspect original line
+items/totals and cancel an unpaid order with a reason. View-only staff cannot
+save settings or cancel. Tax edit conflicts require a reload. Product-specific
+rates are managed in Stock & Pricing; blank inherits the default and zero is exempt.
+
+Backend customer-session flow (APK connection deferred): choose variants and
+quantities → cart/quote → review current total → checkout → five-minute unpaid
+reservation → cancellation or automatic expiry. Stock is not held while browsing
+or editing the cart. Different kiosks compete against the same available stock.
+Catalog/tax changes require review before checkout; existing orders keep snapshots.
+No payment, receipt or collection journey is enabled in this milestone.
+
+### SHOPPING-1 — Configure native Store stock
+
+1. Authorized staff open Store → Products → Stock & Pricing on an existing product.
+2. Choose no options, sizes only, colours only or sizes and colours.
+3. Enter one row for each stocked option, including zero for unavailable options.
+4. Choose constant product pricing or optional variant price overrides. Base price
+   and currency remain in Edit Product; blank overrides inherit that price.
+5. Enter a change reason and save. The same quantities serve every Store kiosk.
+6. If another staff member saved first, explicitly reload and reconcile edits.
+
+View permission allows inspection; update permission allows mutation. Imported
+products explain that stock/pricing remains with the external shop. Zero stock
+does not remove a product from Try-On. Products without setup remain unconfigured.
+Orders, payment QR, printing and staff collection are later journeys; the kiosk
+Buy action remains disabled in this milestone.
+
 This is a living document.
 
 The contents represent the currently approved product/design/technical baseline

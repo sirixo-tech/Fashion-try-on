@@ -3,6 +3,37 @@ import 'package:flutter/material.dart';
 import '../theme/selfx_kiosk_theme.dart';
 import 'responsive_kiosk_layout.dart';
 
+/// Keeps navigation usable beside guidance, including during countdown.
+class CaptureGuideHeader extends StatelessWidget {
+  const CaptureGuideHeader({
+    super.key,
+    required this.guidance,
+    this.leading,
+    this.showGuidance = true,
+  });
+
+  final Widget guidance;
+  final Widget? leading;
+  final bool showGuidance;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (leading != null) ...[leading!, const SizedBox(width: 12)],
+      Expanded(
+        child: Visibility(
+          visible: showGuidance,
+          maintainSize: true,
+          maintainState: true,
+          maintainAnimation: true,
+          child: guidance,
+        ),
+      ),
+    ],
+  );
+}
+
 /// Shared readable guidance for person, garment and jewellery camera overlays.
 class CaptureGuidePanel extends StatelessWidget {
   const CaptureGuidePanel({

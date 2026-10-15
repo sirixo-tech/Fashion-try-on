@@ -12,6 +12,30 @@ import { AdminStoresController } from "./admin-stores.controller.js";
 import { AdminStoresService } from "./admin-stores.service.js";
 import { StoreImpersonationController } from "./store-impersonation.controller.js";
 import { StoreImpersonationService } from "./store-impersonation.service.js";
+import { ProductStockService } from "./product-stock.service.js";
+import { CommerceService } from "../commerce/commerce.service.js";
+import { CommerceExpiryService } from "../commerce/commerce-expiry.service.js";
+import { PaymentSettingsService } from "../payments/payment-settings.service.js";
+import { OrderPaymentsService } from "../payments/order-payments.service.js";
+import { PaymentReconciliationService } from "../payments/payment-reconciliation.service.js";
+import { PhonePeTransport } from "../payments/phonepe.transport.js";
+import {
+  KioskOrderPaymentsController,
+  StoreOrderPaymentsController,
+  PhonePeCallbacksController,
+} from "../payments/order-payments.controller.js";
+import {
+  PlatformPaymentGatewaysController,
+  StorePaymentSettingsController,
+} from "../payments/payment-settings.controller.js";
+import {
+  StoreCommerceController,
+  KioskCommerceController,
+} from "../commerce/commerce.controller.js";
+import {
+  ProductStockController,
+  KioskProductStockController,
+} from "./product-stock.controller.js";
 
 @Module({
   imports: [
@@ -22,9 +46,28 @@ import { StoreImpersonationService } from "./store-impersonation.service.js";
     RbacModule,
     TryOnModule,
   ],
-  controllers: [AdminStoresController, StoreImpersonationController],
+  controllers: [
+    AdminStoresController,
+    StoreImpersonationController,
+    ProductStockController,
+    KioskProductStockController,
+    StoreCommerceController,
+    KioskCommerceController,
+    PlatformPaymentGatewaysController,
+    StorePaymentSettingsController,
+    KioskOrderPaymentsController,
+    StoreOrderPaymentsController,
+    PhonePeCallbacksController,
+  ],
   providers: [
     AdminStoresService,
+    ProductStockService,
+    CommerceService,
+    CommerceExpiryService,
+    PaymentSettingsService,
+    OrderPaymentsService,
+    PaymentReconciliationService,
+    PhonePeTransport,
     StoreImpersonationService,
     PlatformAuthorizationService,
     ObjectStorageService,

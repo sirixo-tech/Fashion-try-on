@@ -172,6 +172,27 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                 mobileUploadAvailable &&
                 (flowState.stage == CaptureFlowStage.preview ||
                     flowState.stage == CaptureFlowStage.error);
+            final layout = KioskLayoutMetrics.fromSize(
+              MediaQuery.sizeOf(context),
+            );
+            final countdownActive =
+                flowState.stage == CaptureFlowStage.countdown;
+            final back = _CameraRailButton(
+              key: const Key('camera-back'),
+              outlined: true,
+              label: countdownActive ? 'Cancel' : 'Back',
+              icon: countdownActive ? Icons.close : Icons.arrow_back,
+              iconColor: Colors.white,
+              dimension: layout.scaled(
+                54,
+                small: 48,
+                large: 62,
+                extraLarge: 72,
+              ),
+              onPressed: countdownActive
+                  ? widget.controller.cancelCountdown
+                  : () => unawaited(_handleBack()),
+            );
             return Stack(
               fit: StackFit.expand,
               children: [
@@ -185,19 +206,29 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
                 ),
                 if (_showFramingGuide(cameraState, flowState))
                   Positioned.fill(
-                    child: IgnorePointer(
-                      child: CaptureFramingGuideOverlay(
-                        purpose: widget.purpose,
-                        captureScope: widget.controller.captureScope,
-                        jewelleryRequirements: jewelleryRequirements,
-                        countdownActive:
-                            flowState.stage == CaptureFlowStage.countdown,
-                        reserveUploadAction:
-                            widget
-                                .tryOnController
-                                .garmentInput
-                                ?.isCatalogProduct ==
-                            true,
+                    child: CaptureFramingGuideOverlay(
+                      headerLeading: back,
+                      purpose: widget.purpose,
+                      captureScope: widget.controller.captureScope,
+                      jewelleryRequirements: jewelleryRequirements,
+                      countdownActive:
+                          flowState.stage == CaptureFlowStage.countdown,
+                      reserveUploadAction:
+                          widget
+                              .tryOnController
+                              .garmentInput
+                              ?.isCatalogProduct ==
+                          true,
+                    ),
+                  ),
+                if (!_showFramingGuide(cameraState, flowState))
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: SafeArea(
+                      child: Padding(
+                        padding: EdgeInsets.all(layout.pagePadding),
+                        child: back,
                       ),
                     ),
                   ),
@@ -442,6 +473,7 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
     this.jewelleryRequirements,
     this.countdownActive = false,
     this.reserveUploadAction = false,
+    this.headerLeading,
   });
 
   final PhotoAcquisitionPurpose purpose;
@@ -449,6 +481,7 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
   final KioskJewelleryCaptureRequirements? jewelleryRequirements;
   final bool countdownActive;
   final bool reserveUploadAction;
+  final Widget? headerLeading;
 
   @override
   Widget build(BuildContext context) {
@@ -458,6 +491,7 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
         captureScope: captureScope,
         countdownActive: countdownActive,
         reserveUploadAction: reserveUploadAction,
+        headerLeading: headerLeading,
       );
     }
     final title =
@@ -543,15 +577,23 @@ class CaptureFramingGuideOverlay extends StatelessWidget {
                 ),
               ),
               Positioned(
-                left: guideRect.left.clamp(0, contentSize.width - 1).toDouble(),
-                right: (contentSize.width - guideRect.right)
-                    .clamp(0, contentSize.width - 1)
-                    .toDouble(),
-                top: (guideRect.top - layout.scaled(70, small: 58))
-                    .clamp(0, contentSize.height - 1)
-                    .toDouble(),
-                child: Center(
-                  child: CaptureGuidePanel(
+                left: headerLeading != null
+                    ? 0
+                    : guideRect.left.clamp(0, contentSize.width - 1).toDouble(),
+                right: headerLeading != null
+                    ? 0
+                    : (contentSize.width - guideRect.right)
+                          .clamp(0, contentSize.width - 1)
+                          .toDouble(),
+                top: headerLeading != null
+                    ? 0
+                    : (guideRect.top - layout.scaled(70, small: 58))
+                          .clamp(0, contentSize.height - 1)
+                          .toDouble(),
+                child: CaptureGuideHeader(
+                  leading: headerLeading,
+                  showGuidance: !countdownActive,
+                  guidance: CaptureGuidePanel(
                     icon: icon,
                     title: title,
                     message: message,
@@ -1506,7 +1548,6 @@ class _CaptureControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stage = flowState.stage;
-    final isCountdown = stage == CaptureFlowStage.countdown;
     final canCaptureAnyway =
         readinessResult?.canCaptureAnyway == true &&
         stage == CaptureFlowStage.preparing;
@@ -1525,13 +1566,8 @@ class _CaptureControls extends StatelessWidget {
         onCapture,
       _ => null,
     };
-    final leftAction = isCountdown ? onCancelCountdown : onBack;
-    final leftIcon = isCountdown ? Icons.close : Icons.arrow_back;
-    final leftLabel = isCountdown ? 'Cancel' : 'Back';
     final layout = KioskLayoutMetrics.fromSize(MediaQuery.sizeOf(context));
-    final primarySize = layout.scaled(66, small: 58, large: 76, extraLarge: 88);
-    final actionHeight = primarySize < 88 ? 88.0 : primarySize;
-    final railSize = layout.scaled(54, small: 48, large: 62, extraLarge: 72);
+    final railSize = layout.scaled(80, small: 64, large: 88, extraLarge: 96);
     final showMobileUpload =
         mobileUploadAvailable || onUploadFromMobile != null;
 
@@ -1572,85 +1608,58 @@ class _CaptureControls extends StatelessWidget {
             ],
             LayoutBuilder(
               builder: (context, constraints) {
-                final back = _CameraRailButton(
-                  key: const Key('camera-back'),
-                  outlined: true,
-                  label: leftLabel,
-                  icon: leftIcon,
-                  iconColor: const Color(0xFF2384D6),
-                  dimension: railSize,
-                  onPressed: leftAction,
-                );
                 final capture = SelfxActionPulse(
                   enabled: primaryAction != null,
+                  borderRadius: 999,
+                  child: SizedBox(
+                    height: railSize,
+                    child: SelfxKioskButton(
+                      key: const Key('capture-photo'),
+                      label: primaryLabel,
+                      icon: _captureIconFor(stage, canCaptureAnyway),
+                      minHeight: railSize,
+                      borderRadius: 999,
+                      iconSize: railSize * 0.4,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      backgroundColor: SelfxKioskTokens.primary,
+                      foregroundColor: Colors.white,
+                      onPressed: primaryAction,
+                    ),
+                  ),
+                );
+                final upload = SizedBox(
+                  height: railSize,
                   child: SelfxKioskButton(
-                    key: const Key('capture-photo'),
-                    label: primaryLabel,
-                    icon: _captureIconFor(stage, canCaptureAnyway),
-                    minHeight: actionHeight,
-                    wrapLabel: true,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 12,
-                    ),
-                    backgroundColor: SelfxKioskTokens.primary,
+                    key: const Key('upload-jewellery-person-photo'),
+                    label: 'Upload From Mobile',
+                    icon: Icons.file_upload_outlined,
+                    minHeight: railSize,
+                    borderRadius: 999,
+                    iconSize: railSize * 0.4,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    backgroundColor: Colors.black.withValues(alpha: 0.35),
+                    borderColor: Colors.white.withValues(alpha: 0.95),
                     foregroundColor: Colors.white,
-                    onPressed: primaryAction,
+                    onPressed: stage == CaptureFlowStage.preview
+                        ? onUploadFromMobile
+                        : null,
                   ),
                 );
-                final upload = SelfxKioskButton(
-                  key: const Key('upload-jewellery-person-photo'),
-                  label: 'Upload From Mobile',
-                  icon: Icons.file_upload_outlined,
-                  minHeight: actionHeight,
-                  wrapLabel: true,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 12,
-                  ),
-                  backgroundColor: SelfxKioskTokens.primary,
-                  foregroundColor: Colors.white,
-                  onPressed: stage == CaptureFlowStage.preview
-                      ? onUploadFromMobile
-                      : null,
-                );
-                if (showMobileUpload && constraints.maxWidth < 480) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      upload,
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: back,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(child: capture),
-                        ],
-                      ),
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: back,
-                      ),
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    textTheme: Theme.of(context).textTheme.copyWith(
+                      titleMedium: Theme.of(context).textTheme.labelLarge,
                     ),
-                    const SizedBox(width: 12),
-                    if (showMobileUpload)
-                      Expanded(flex: 2, child: upload)
-                    else
-                      const Spacer(flex: 2),
-                    const SizedBox(width: 12),
-                    Expanded(flex: 2, child: capture),
-                  ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(flex: showMobileUpload ? 3 : 1, child: capture),
+                      if (showMobileUpload) ...[
+                        const SizedBox(width: 12),
+                        Expanded(flex: 2, child: upload),
+                      ],
+                    ],
+                  ),
                 );
               },
             ),
@@ -1862,7 +1871,7 @@ class _CameraRailButton extends StatelessWidget {
           child: OutlinedButton(
             onPressed: onPressed,
             style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.transparent,
+              backgroundColor: Colors.black.withValues(alpha: 0.35),
               foregroundColor: Colors.white,
               disabledForegroundColor: Colors.white.withValues(alpha: 0.42),
               side: BorderSide(

@@ -2,6 +2,81 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1B — PhonePe order execution, implemented with test gating
+
+Implement durable attempts/events, test-only PhonePe transport, notification
+authentication, server-side reconciliation, idempotency, pending-aware expiry,
+atomic stock allocation, late success/staff recovery, safe credential snapshots
+and Store order visibility. Validate concurrent starts, duplicate/out-of-order
+events, mismatched evidence, timeouts, lease/restart recovery, competing holds,
+all-or-none multi-item allocation, stale stock edits, account/key rotation and
+tenant/device/session authorization with simulated provider responses and isolated
+PostgreSQL. Keep live execution and APK Buy unavailable.
+
+After this stage, establish actual UAT credentials and Dynamic QR entitlement,
+configure reachable HTTPS callbacks and execute provider simulator success,
+failure, pending/delay, restart and callback delivery acceptance tests in a
+dedicated test environment. Then plan production merchant activation and APK
+product/cart/QR/status UI. Printing, collection, refunds and sales analytics are
+separate following stages; analytics must exclude UAT payments.
+
+### PAYMENTS-1A — Configuration and PhonePe protocol preparation
+
+Approved direction: multiple selectable gateways, each Store's own account, one
+selected gateway across its kiosks, PhonePe first. Credential environment and
+Dynamic QR entitlement remain unknown. First deliver platform gateway
+availability, encrypted Store configuration, selection, permission/tenant checks,
+audit, optimistic concurrency and PhonePe protocol fixture tests. Show unverified
+status and keep payment collection/APK Buy unavailable.
+
+PAYMENTS-1B must complete durable order-linked attempts/events, payment transport,
+authenticated callbacks plus server-side status reconciliation, atomic paid stock
+allocation, duplicate/out-of-order event handling and late-success recovery/staff
+resolution. Confirm UAT/live access before any provider requests. Test with the
+appropriate PhonePe simulator/account. A failed network check is unresolved,
+not evidence of failed payment. Do not enable production or APK checkout from
+configuration alone. Printing, collection and analytics remain following stages.
+
+### SHOPPING-2 — Backend cart, orders, tax and reservations
+
+Explicitly approved scope: multi-product basket and selectable quantities bounded
+by stock; five-minute checkout reservation; cancellation/expiry; Store default
+tax mode/rate with product-specific rate overrides; order history/detail and Store
+tax UI. Backend and Store dashboard first; no APK buying UI or payments.
+
+Implement shared services, additive tenant-constrained migrations, validated
+staff/device contracts, idempotent checkout, immutable item/tax snapshots, atomic
+last-unit checks, rate limits, expiry sweep and reserved-stock protections for
+staff edits. Validate all tax modes/rounding, cross-Store/device/session isolation,
+simultaneous checkouts, duplicate retries, stale quotes, cancellation/expiry,
+snapshot preservation, migration compatibility, web interactions and builds.
+
+Stop after this stage. Before payment integration ask which merchant provider
+to support first, how each Store connects its own account, and how late/pending
+payments are reconciled against reservation expiry. Verify provider webhooks and
+duplicate/late events before enabling APK product/cart/payment UI. Printer and
+collection hardware/workflows remain later decisions, as do shopping analytics.
+
+### SHOPPING-1 — Store catalog stock and pricing
+
+Approved first shopping milestone: native SelfX Store products only; shared stock
+across Store kiosks; no-option, size, colour and combined variants; constant or
+optional variant pricing; database constraints; permission-guarded APIs; Store
+dashboard controls; concurrency protection and actor-attributed audits. Existing
+Try-On/catalog availability must remain independent of stock.
+
+Verification requires DTO/domain validation, Store/permission/device isolation,
+stale and simultaneous edits, stable option identities, price inheritance and
+constant-price enforcement, zero-stock Try-On regression, migration checks,
+dashboard interaction tests, formatting/lint and relevant typechecks.
+
+Stop after stock/pricing. Next milestone is orders and atomic expiring reservations,
+including immutable order price/item snapshots and Store order history. Ask for
+decisions on order quantity/basket, reservation lifetime, cancellation and tax/total
+rules before implementing dependent behaviour. Payment adapters, provider onboarding,
+verified QR payments, printing, collection, manual refund recording and shopping
+analytics follow separately. They are not authorized by SHOPPING-1 alone.
+
 **Version:** 1.0  
 **Status:** ACTIVE BASELINE  
 **Document Type:** Living Document  

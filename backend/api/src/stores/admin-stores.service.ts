@@ -995,12 +995,27 @@ export class AdminStoresService {
   ): Promise<StoreProductDto> {
     const existing = await this.requireStoreProductRow(storeId, productId);
     const deleted = this.mapStoreProduct(existing);
-    await this.prisma.$executeRaw`
+    try {
+      await this.prisma.$executeRaw`
       DELETE FROM products
       WHERE id = ${productId}::uuid
         AND scope::text = 'STORE'
         AND organization_id = ${storeId}::uuid
     `;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === "P2003" ||
+          (error.code === "P2010" && error.meta?.code === "23503"))
+      ) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          "PRODUCT_SHOPPING_HISTORY_EXISTS",
+          "This product is referenced by a cart or order. Deactivate it instead to preserve shopping history.",
+        );
+      }
+      throw error;
+    }
     await this.deleteProductImageIfStored(existing.image_storage_key);
     return deleted;
   }

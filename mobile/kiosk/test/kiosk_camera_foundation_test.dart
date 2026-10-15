@@ -558,26 +558,12 @@ void main() {
         ),
       );
 
-      final expectedRadius = BorderRadius.circular(26);
-      final backButton = tester.widget<OutlinedButton>(
-        find.descendant(
-          of: find.byKey(const Key('camera-back')),
-          matching: find.byType(OutlinedButton),
-        ),
-      );
       final captureButton = tester.widget<SelfxKioskButton>(
         find.byKey(const Key('capture-photo')),
       );
 
-      expect(
-        (backButton.style!.shape!.resolve({})! as RoundedRectangleBorder)
-            .borderRadius,
-        expectedRadius,
-      );
-      expect(
-        captureButton.borderRadius ?? SelfxKioskTokens.buttonRadius,
-        SelfxKioskTokens.buttonRadius,
-      );
+      expect(find.byKey(const Key('camera-back')), findsNothing);
+      expect(captureButton.borderRadius, 999);
       expect(captureButton.backgroundColor, SelfxKioskTokens.primary);
     });
 
@@ -615,10 +601,7 @@ void main() {
         final captureButton = tester.widget<SelfxKioskButton>(
           find.byKey(const Key('capture-photo')),
         );
-        expect(
-          captureButton.borderRadius ?? SelfxKioskTokens.buttonRadius,
-          SelfxKioskTokens.buttonRadius,
-        );
+        expect(captureButton.borderRadius, 999);
         expect(captureButton.backgroundColor, SelfxKioskTokens.primary);
         expect(captureButton.foregroundColor, Colors.white);
         for (final key in ['camera-back']) {
@@ -630,7 +613,7 @@ void main() {
           );
           expect(
             button.style!.backgroundColor!.resolve({}),
-            Colors.transparent,
+            Colors.black.withValues(alpha: 0.35),
           );
           expect(button.style!.foregroundColor!.resolve({}), Colors.white);
           expect(
@@ -641,6 +624,16 @@ void main() {
         }
 
         expect(find.byKey(const Key('flip-person-camera')), findsNothing);
+        final backRect = tester.getRect(find.byKey(const Key('camera-back')));
+        final headerRect = tester.getRect(
+          find.byKey(const Key('camera-framing-guidance-panel')),
+        );
+        final captureRect = tester.getRect(
+          find.byKey(const Key('capture-photo')),
+        );
+        expect(backRect.right, lessThan(headerRect.left));
+        expect(backRect.top, closeTo(headerRect.top, 1));
+        expect(backRect.bottom, lessThan(captureRect.top));
         expect(find.text('Garment guide'), findsOneWidget);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());

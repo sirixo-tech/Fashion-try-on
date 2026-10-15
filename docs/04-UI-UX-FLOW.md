@@ -1,5 +1,76 @@
 ## Document Evolution
 
+### PAYMENTS-1B — Payment visibility in Store orders
+
+Orders & Tax filters include Payment confirmation pending, Paid and Paid — staff
+action needed. Detail shows bounded payment attempt summaries, test labels,
+amount/currency, provider reference and safe failure/recovery guidance. Hide unpaid
+cancellation for pending/paid orders. After hold expiry, explain that confirmation
+is still pending while the stock hold expired; do not display failure or expired
+order solely from the countdown. Check payment status is permission-dependent.
+Paid stock issues show Retry stock allocation for authorized editors; read-only
+staff can inspect. Duplicate-payment guidance remains separate from stock recovery.
+No QR is shown in staff order history and no arbitrary Mark paid control exists.
+
+PhonePe setup adds a shared SelectMenu for explicit UAT Dynamic QR access
+confirmation, defaulting to unconfirmed on every full credential replacement.
+This declaration does not mark provider verification complete or enable production.
+The server-side test execution switch remains independent. APK Buy and payment
+screens remain unchanged pending merchant/simulator acceptance testing.
+
+### PAYMENTS-1A — Gateway availability and Store Payments
+
+Platform page `/app/platform/payment-gateways` shows gateway cards, setup
+availability and enable/disable actions for authorized platform administrators.
+PhonePe setup is available; planned gateways have disabled setup controls.
+Store page `/app/stores/:storeId/payments` is linked from its dashboard for
+authorized integration viewers. It shows saved environment, unverified status
+and the gateway selected for future checkout. Shared @selfx/ui controls are used.
+
+Configure/Replace PhonePe opens Merchant ID, optional Provider ID, optional
+merchant-side Store reference, Salt Index, masked Salt Key and environment.
+Environment defaults to Not confirmed yet. Blank Store reference generates a
+stable SelfX Store reference. Saving replaces all credentials; no previous
+values are loaded. Clear the Salt Key after submission and unmount on close.
+Loading, empty setup, error, refresh, save success, read-only and stale-version
+states are explicit. Setup/selection must never show payment-ready success.
+APK screens and Buy remain unchanged in this stage.
+
+### SHOPPING-2 — Orders & Tax
+
+The Store dashboard links to `/app/stores/:storeId/shopping`. It uses shared SelfX
+page/card/table/dialog primitives. Tax settings offer No tax, Tax included in product
+price and Add tax to product price, with a default percentage. Stock & Pricing
+adds an optional product tax percentage override and on-hand/reserved/available totals.
+
+Order history has reference search, status filtering, pagination, refresh,
+loading/error/empty states and View order. The detail dialog shows original item
+labels, options, quantities, unit prices, tax rates/amounts and totals; a countdown
+uses server time. Cancel unpaid order requires a reason and update permission.
+The expired display is applied at the deadline without waiting for the background
+sweep. Read-only staff can inspect but cannot change tax or cancel orders.
+
+Payments and collection are explicitly unavailable; there is no Mark paid control.
+APK Buy buttons remain disabled and the Flutter customer/cart UI is deferred by
+the owner's explicit backend/dashboard-first decision.
+
+### SHOPPING-1 — Stock & Pricing panel
+
+The Store Products list exposes Stock & Pricing per product. A shared SelfX dialog
+loads current backend values with loading, error/retry and read-only permission states.
+It offers option mode, pricing mode, size/colour labels, non-negative whole quantities,
+optional variant prices, availability labels and a required change reason. No-option
+products use one Standard row. Rows are bounded at 100; individual unavailable
+rows show Out of stock. Base price/currency are edited through Edit Product.
+
+The panel explains Store-shared stock, continued Try-On at zero stock, unconfigured
+stock and inherited pricing. Saves stay open with confirmation and updated totals.
+Concurrent-edit conflicts block further saves until staff explicitly discard edits
+and reload. Removed options are archived; constant pricing clears saved overrides.
+Narrow screens scroll the options table and short windows scroll the dialog.
+Imported products display an external-shop management explanation. Existing kiosk
+Buy buttons remain disabled; no buying/payment screen is part of this milestone.
+
 This is a living document.
 
 The contents represent the currently approved product/design/technical baseline
@@ -2232,13 +2303,18 @@ Do not display technical camera/provider errors to the customer.
 
 The existing garment capture view uses a taller, open white corner-bracket
 frame over the live preview, with no inner garment drawing. Only this framing
-artwork and button surfaces change: **Back** is transparent with a white outline,
-icon and text, **Upload From Mobile** sits in the middle where available, and
-**Capture** is on the right. Capture and phone upload share the Continue button's
-solid orange `#FF7119`, white text, typography, height and corner styling. Only
+artwork and button surfaces change: **Back**, with arrow and text, sits at the
+top-left beside the guidance header. Back and **Upload From Mobile** share a
+translucent dark background, white outline, icon and text. The bottom row contains
+orange `#FF7119` **Capture** on the left and static **Upload From Mobile** on the
+right where available. Capture gets more width; without phone upload it uses the
+available bottom width. Buttons retain rounded pill shapes and single-line labels
+that scale down to fit narrower widths. Capture's pulse glow follows its outline. Only
 Capture uses the gentle action pulse, stopping when disabled or during countdown/
-processing. On narrow windows phone upload sits above Back and Capture so text
-remains readable. Flip is removed from customer capture controls; operator
+processing. During countdown the top-left control becomes **Cancel**, preserving
+countdown cancellation while the guidance hides without moving the framing guide.
+Back remains accessible when the camera is starting or unavailable.
+Flip is removed from customer capture controls; operator
 camera selection remains available. The left-side Stand straight, Look at camera
 and Good lighting badges are removed; the centered heading, relevant icon,
 supporting text and framing outline remain. Countdown, readiness, shutter and

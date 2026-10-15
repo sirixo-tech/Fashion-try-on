@@ -1,5 +1,183 @@
 ## Document Evolution
 
+### PAYMENTS-1B — Durable execution and recovery
+
+Kiosk routes under `.../shopping/orders/:orderId/payments` create/replay an attempt
+(POST with idempotencyKey), read it (GET /:attemptId), and request a status check
+(POST /:attemptId/check). They validate the current authenticated device, tenant,
+active session and source cart server-side. Staff routes POST
+`.../shopping/orders/:orderId/payments/:attemptId/check` and `.../recover-stock`
+require scoped stores.update/platform equivalent and actual-actor auditing.
+No staff Mark paid endpoint exists. Session/device loss never stops reconciliation.
+
+Only selected/enabled PHONEPE connections with environment UAT and explicit
+dqrAccessConfirmed can start, and only with SELFX_PHONEPE_UAT_ENABLED=true plus
+HTTPS SELFX_PAYMENT_CALLBACK_BASE_URL. Configuration confirmation resets on every
+credential replacement. PRODUCTION and UNCONFIRMED remain blocked; run UAT only
+in staging or a dedicated test Store because stock allocation exercises its stock.
+The transport uses fixed UAT endpoints, eight-second timeout, no redirects and
+64-KiB response limit. Provider credentials/signatures/payloads are never logged.
+
+Commit attempt/credential snapshot before network execution. A repeated order/key
+returns the same attempt; at most one unresolved attempt exists per order and
+ten total attempts are accepted. A request timeout/unknown status stays unresolved;
+do not resend QR initialization on replay. Attempts snapshot encrypted credentials,
+merchant/environment/Store reference and connection ID so later config changes
+cannot redirect a payment. Key versions and a server-only previous-key map support
+pending attempts during planned key rotation. This is not an automatic re-encryption
+workflow; retain historical keys while snapshots need verification.
+
+PhonePe POST `/api/v1/payments/phonepe/:attemptId/callback` verifies the signature
+and merchant/transaction/amount using the attempt snapshot, stores a deduplicated
+safe event, schedules verification and returns HTTP 200 promptly. No raw payload,
+payer identity or UTR is retained. Notifications alone cannot mark paid. A bounded
+15-second reconciliation timer uses persisted nextCheckAt/30-second leases,
+20-item batches, four concurrent checks and backoff capped at one hour. Checks
+continue after restart. PAYMENT_RECONCILIATION_ENABLED=false disables the timer,
+not staff checks/callback ingestion. Unknown status, NOT_FOUND or unavailable
+evidence does not prove a failed payment. Unresolved cases require provider
+investigation; they are not automatically discarded after a fixed retry count.
+
+Only a matched server-side PAYMENT_SUCCESS/COMPLETED response sets success.
+Success wins over older failures. Conflicting signed success/failed status stays
+unresolved and blocks retries. Product row locks serialize allocation against
+checkout/staff edits. Deduct all items once or none, respecting other live holds;
+increment stock-setting versions to invalidate stale staff counts. Reservation
+queries include PAYMENT_PENDING until the original deadline. Orders with a live
+attempt do not take the unpaid-only expiry/cancel path, and their cart cannot be
+checked out again while confirmation remains pending. Safe paid-cart cleanup
+increments its revision; old late payments must not clear a newer active order.
+
+Order statuses add PAYMENT_PENDING, PAID, PAID_REVIEW. paidAt and
+stockAllocatedAt are independent; paid review reasons distinguish unavailable
+stock, duplicate payment, or both. Recovery can allocate replenished stock without
+removing a duplicate-payment flag. Read APIs expose only allowlisted attempt
+summaries; QR payloads are device/session-only and hidden after their deadline or
+terminal order status. Per-process bounded request limits cover start/read/check
+and callbacks; distributed edge controls remain deployment hardening.
+
+### PAYMENTS-1A — Shared gateway configuration and PhonePe protocol
+
+The existing NestJS backend owns gateway policy and tenant configuration.
+`GET/PUT /api/v1/admin/payment-gateways[/:provider]` uses centralized platform
+INTEGRATIONS_VIEW/INTEGRATIONS_MANAGE permissions. Store routes are
+`GET /api/v1/admin/stores/:storeId/payments`, `PUT .../connections/phonepe`
+and `PUT .../selection`, using integrations.view/integrations.manage or explicit
+platform equivalents. Impersonation cannot mutate credentials, selection or
+platform policy. Read responses contain configuration metadata only.
+
+Require optimistic expectedVersion on every mutation. Store row locks serialize
+configuration/selection changes; policy locking serializes first creation and
+updates. Selection has a same-tenant connection FK. Credentials are AES-256-GCM
+encrypted with dedicated API-only SELFX_PAYMENT_ENCRYPTION_KEY and key version;
+encrypted contents bind organizationId/provider for future decrypt validation.
+Never return the Salt Key, ciphertext or provider credentials; audit actor,
+provider, action and environment only. No plaintext fallback or browser storage.
+Replacing configuration requires the full credentials again.
+
+PhonePe's current documented in-store DQR API accepts checksum credentials,
+unlike its client-ID-based online checkout. Isolate request signing, QR parsing,
+status normalization and callback signature verification behind the server-side
+payment adapter boundary. Check merchant, transaction and exact amount. Unknown
+or contradictory provider statuses remain UNKNOWN. UAT requests are prepared
+only for confirmed UAT configuration, with fixed provider endpoints and HTTPS
+callbacks; unconfirmed and production request construction is blocked. This
+stage does not wire the adapter to HTTP execution, webhook routes or checkout.
+All public commerce paymentAvailable flags remain false. No account or API
+entitlement is considered verified from possession of credential field names.
+
+Before real payments, add durable attempts/events and retry/reconciliation jobs,
+verify the merchant/environment, snapshot the connection per attempt, confirm
+provider status before stock allocation and replace the unpaid-only expiry model.
+Late success may recover available stock or require staff resolution, and must
+never be classified as unpaid expiry. Preserve success against older failures.
+
+### SHOPPING-2 — Checkout contracts and reservation consistency
+
+The existing NestJS backend owns commerce logic. Native products and
+`ORGANIZATION_AS_STORE` tenants only; Store-assigned devices use scope
+`ORGANIZATION`, their current database assignment and an active matching Try-On
+session. Device JWTs/client Store IDs never supply trusted merchant context.
+
+- `/api/v1/kiosk/try-on/sessions/:sessionId/shopping/cart`: GET quote, PUT full
+  replacement using `expectedVersion` and unique variant IDs with whole quantities.
+  Up to 100 distinct variants; quantities 1–1,000,000 subject to available stock.
+- `POST .../shopping/checkout`: `expectedVersion`, `quoteFingerprint` from the
+  current GET/PUT response and an 8–100-character `idempotencyKey`. Reprice/review
+  when `SHOPPING_QUOTE_CHANGED`; never silently charge an unreviewed total.
+- `GET .../shopping/orders/:orderId` and POST `.../:orderId/cancel` are scoped to
+  the same active device, current Store and session/cart. All payment flags are false.
+- `/api/v1/admin/stores/:storeId/shopping/tax` GET/PUT uses mode
+  OFF/INCLUSIVE/EXCLUSIVE, integer `rateBasisPoints` (100 = 1%) and optimistic version.
+- `/api/v1/admin/stores/:storeId/shopping/orders` supports bounded page/pageSize,
+  reference search and allowlisted status filters; detail and reasoned cancellation
+  use `/orders/:orderId` and `/orders/:orderId/cancel`. Existing centralized
+  `stores.view`/`stores.update` and platform equivalents apply with impersonation scope.
+
+Checkout serializes session mutations, takes a shared Store lock against tax
+configuration edits and locks product rows in deterministic ID order. Staff stock
+edits use the same product lock. Live reservations are immutable order lines on
+AWAITING_PAYMENT orders with `expiresAt > now`; they never decrement physical
+on-hand counts. Available = on-hand minus these live holds. Quote/cart reads may
+change before checkout; checkout is the final atomic stock check.
+
+Reservations last five minutes from order creation. A 15-second bounded sweep
+marks unpaid orders EXPIRED, with an actorless system audit. Availability and API
+status recognize the exact deadline even when the sweep is delayed. Completed or
+expired customer carts are cleaned up; orders and their non-image snapshots remain.
+Kiosk reset does not extend a hold and does not expose it to the next session.
+
+Repeated identical checkout keys return the original order. Keys are scoped to
+device and checkout, hash a request fingerprint and expire after 24 hours. Pending
+orders block another checkout or cart edit until cancellation/expiry. SQL also
+enforces at most one pending order per cart. Cancel/expire transitions are
+conditional and audited atomically. Product deletion with cart/order references
+fails with a stable conflict; staff deactivate instead.
+
+Tax rates are 0–100%, up to two decimal percentage places, stored as basis points.
+Product overrides are on `product_stock_settings.tax_rate_basis_points`. Compute
+per-line rounded integer cents using BigInt half-up rounding. Included tax extracts
+the rounded net amount from the entered extended price; added tax rounds tax on
+the extended net price. Sum line totals; reject mixed currencies and totals above
+2,000,000,000 cents. All lines use the Store tax mode. Compound taxes, jurisdiction
+rules, shipping, discounts and invoice compliance are not implemented here.
+
+Cart writes and checkout have bounded per-process device rate limits (120 and
+30/minute); shared edge enforcement can follow operational scaling. No payment
+webhook/provider changes are part of SHOPPING-2. Payment integration must first
+replace the simple unpaid expiry model with explicit pending-payment/reconciliation
+handling; it must not blindly cancel a payment awaiting provider confirmation.
+
+### SHOPPING-1 — Store stock API and consistency
+
+Native Store products use `product_stock_settings` and `product_variants` behind
+the existing NestJS backend. Store means `organizations.id` internally; no kiosk
+or legacy location owns separate stock. Composite foreign keys enforce matching
+Store/product context. Imported products (including archived mappings) are rejected.
+
+- `GET /api/v1/admin/stores/:storeId/products/:productId/stock` reads setup,
+  bounded options, absolute quantities and resolved prices; version 0 means unconfigured.
+- `PUT` on that route replaces active options/quantities using `expectedVersion`,
+  `optionMode`, `pricingMode`, 1–100 variants and a staff adjustment reason.
+- Existing centralized `stores.view` / `stores.update` permissions and their
+  platform equivalents apply, including the Store permission ceiling and impersonation scope.
+- Serialize writes with a tenant-scoped product row lock. A stale version returns
+  `PRODUCT_STOCK_VERSION_CONFLICT` (409); it must never silently overwrite stock.
+  Absolute writes plus version checking make retries unable to double-add stock.
+- Persist changes and actor-attributed before/after audit metadata atomically.
+  Archive removed options and reuse their identity when the same option returns.
+- CONSTANT ignores no hidden override: saving it requires null overrides and clears
+  prior overrides. VARIANT inherits the base product price for blank overrides.
+  Set a product currency before supplying monetary overrides. Cents are integers.
+- `GET /api/v1/kiosk/catalog/products/:productId/stock` reads live stock for the
+  authenticated active device's current active Store and native eligible product.
+  Platform defaults cannot acquire Store stock through catalog fallback.
+- Stock is not a Try-On filter and is not added to cached catalog snapshots.
+
+The approved future kiosk checkout expands the historical no-checkout boundary,
+but SHOPPING-1 does not enable checkout, payments or reservations. External commerce
+ownership and one-way sync remain unchanged. See PRD SHOPPING-1 for scope.
+
 This is a living document.
 
 The contents represent the currently approved product/design/technical baseline
