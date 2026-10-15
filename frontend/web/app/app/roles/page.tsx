@@ -137,7 +137,7 @@ export default function PlatformRolesPage() {
                     type="button"
                     aria-pressed={selectedRoleKey === role.id}
                     className={cn(
-                      "relative flex w-full flex-col gap-2 overflow-hidden rounded-lg border p-3 text-left transition-colors hover:border-primary/70 hover:bg-primary/5",
+                      "selfx-card-motion relative flex w-full flex-col gap-2 overflow-hidden rounded-lg border p-3 text-left hover:border-primary/70 hover:bg-primary/5",
                       selectedRoleKey === role.id
                         ? "border-primary bg-[color-mix(in_srgb,var(--selfx-primary),white_90%)] shadow-sm ring-2 ring-primary/25"
                         : "border-border bg-background",

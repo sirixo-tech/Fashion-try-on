@@ -247,6 +247,7 @@ model User {
   createdAt                     DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                     DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(3)
   auditLogs                     AuditLog[]                          @relation("AuditActor")
+  platformPaymentTests          PlatformPaymentTest[]
   applicationsReviewed          OrganizationApplication[]           @relation("OrganizationApplicationReviewedBy")
   applicationsSubmitted         OrganizationApplication[]           @relation("OrganizationApplicationSubmittedBy")
   memberships                   OrganizationMembership[]
@@ -675,6 +676,67 @@ model PaymentGatewayPolicy {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("payment_gateway_policies")
+}
+
+model PlatformPaymentTestConnection {
+  provider             String   @id @db.VarChar(30)
+  environment          String   @db.VarChar(20)
+  version              Int      @default(1)
+  encryptedPayload     String   @map("encrypted_payload") @db.Text
+  initializationVector String   @map("initialization_vector") @db.VarChar(32)
+  authenticationTag    String   @map("authentication_tag") @db.VarChar(32)
+  keyVersion           String   @map("key_version") @db.VarChar(40)
+  dqrAccessConfirmed   Boolean  @default(false) @map("dqr_access_confirmed")
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("platform_payment_test_connections")
+}
+
+model PlatformPaymentTest {
+  id                   String                     @id @db.Uuid
+  provider             String                     @db.VarChar(30)
+  environment          String                     @db.VarChar(20)
+  connectionVersion    Int                        @map("connection_version")
+  createdById          String                     @map("created_by_id") @db.Uuid
+  transactionId        String                     @unique @map("transaction_id") @db.VarChar(34)
+  keyDigest            String                     @map("key_digest") @db.Char(64)
+  status               String                     @db.VarChar(20)
+  amountMinor          Int                        @map("amount_minor")
+  currency             String                     @db.VarChar(3)
+  encryptedPayload     String                     @map("encrypted_payload") @db.Text
+  initializationVector String                     @map("initialization_vector") @db.VarChar(32)
+  authenticationTag    String                     @map("authentication_tag") @db.VarChar(32)
+  keyVersion           String                     @map("key_version") @db.VarChar(40)
+  qrString             String?                    @map("qr_string") @db.Text
+  providerReference    String?                    @map("provider_reference") @db.VarChar(128)
+  failureCode          String?                    @map("failure_code") @db.VarChar(60)
+  expiresAt            DateTime                   @map("expires_at") @db.Timestamptz(3)
+  confirmedAt          DateTime?                  @map("confirmed_at") @db.Timestamptz(3)
+  checkedAt            DateTime?                  @map("checked_at") @db.Timestamptz(3)
+  nextCheckAt          DateTime?                  @map("next_check_at") @db.Timestamptz(3)
+  leaseUntil           DateTime?                  @map("lease_until") @db.Timestamptz(3)
+  checkCount           Int                        @default(0) @map("check_count")
+  createdAt            DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdBy            User                       @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  events               PlatformPaymentTestEvent[]
+
+  @@unique([provider, createdById, keyDigest])
+  @@index([provider, createdAt, id])
+  @@index([status, nextCheckAt])
+  @@map("platform_payment_tests")
+}
+
+model PlatformPaymentTestEvent {
+  id             String              @id @db.Uuid
+  testId         String              @map("test_id") @db.Uuid
+  digest         String              @db.Char(64)
+  reportedStatus String              @map("reported_status") @db.VarChar(20)
+  receivedAt     DateTime            @default(now()) @map("received_at") @db.Timestamptz(3)
+  test           PlatformPaymentTest @relation(fields: [testId], references: [id], onDelete: Restrict)
+
+  @@unique([testId, digest])
+  @@map("platform_payment_test_events")
 }
 
 model StorePaymentSettings {

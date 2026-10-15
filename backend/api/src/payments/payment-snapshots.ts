@@ -6,6 +6,27 @@ import {
   type PhonePeDqrCredentials,
 } from "./phonepe-dqr.adapter.js";
 export function attemptAdapter(attempt: ShoppingPaymentAttempt) {
+  const snapshot = decryptPaymentSnapshot<
+    PhonePeDqrCredentials & { organizationId: string; provider: string }
+  >(attempt);
+  if (
+    snapshot.organizationId !== attempt.organizationId ||
+    snapshot.provider !== attempt.provider ||
+    snapshot.environment !== attempt.environment
+  )
+    throw new Error("Payment connection snapshot does not match the order.");
+  return new PhonePeDqrAdapter(snapshot);
+}
+
+export function decryptPaymentSnapshot<T>(
+  attempt: Pick<
+    ShoppingPaymentAttempt,
+    | "encryptedPayload"
+    | "initializationVector"
+    | "authenticationTag"
+    | "keyVersion"
+  >,
+): T {
   const current = paymentEncryptionKey();
   let key = current.key;
   if (attempt.keyVersion !== current.version) {
@@ -19,14 +40,5 @@ export function attemptAdapter(attempt: ShoppingPaymentAttempt) {
     if (key.length !== 32 || key.toString("base64") !== encoded)
       throw new Error("Invalid payment encryption key.");
   }
-  const snapshot = decryptProviderSecret<
-    PhonePeDqrCredentials & { organizationId: string; provider: string }
-  >(attempt, key);
-  if (
-    snapshot.organizationId !== attempt.organizationId ||
-    snapshot.provider !== attempt.provider ||
-    snapshot.environment !== attempt.environment
-  )
-    throw new Error("Payment connection snapshot does not match the order.");
-  return new PhonePeDqrAdapter(snapshot);
+  return decryptProviderSecret<T>(attempt, key);
 }

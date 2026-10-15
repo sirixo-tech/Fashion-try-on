@@ -15,6 +15,7 @@ import {
 import { OrderPaymentsService } from "./order-payments.service.js";
 import { PhonePeTransport } from "./phonepe.transport.js";
 import { PaymentReconciliationService } from "./payment-reconciliation.service.js";
+import type { PlatformPaymentTestsService } from "./platform-payment-tests.service.js";
 import {
   PhonePeCallbackDto,
   StartOrderPaymentDto,
@@ -209,6 +210,9 @@ it("reconciliation timer does not overlap and resumes after a failed batch", asy
   };
   const worker = new PaymentReconciliationService(
     payments as unknown as OrderPaymentsService,
+    {
+      reconcileDue: vi.fn().mockResolvedValue(0),
+    } as unknown as PlatformPaymentTestsService,
   );
   const first = worker.tick();
   await worker.tick();

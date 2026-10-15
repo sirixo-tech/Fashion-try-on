@@ -2653,7 +2653,7 @@ function CatalogScreen({
               key={product.id}
               type="button"
               onClick={() => onSelect(product)}
-              className="overflow-hidden rounded-lg border border-white/20 bg-white text-left text-stone-950 shadow-soft transition hover:-translate-y-0.5 hover:border-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/35"
+              className="selfx-card-motion overflow-hidden rounded-lg border border-white/20 bg-white text-left text-stone-950 shadow-soft hover:border-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/35"
             >
               <div className="grid aspect-[4/5] place-items-center bg-stone-100">
                 {product.image.url ? (

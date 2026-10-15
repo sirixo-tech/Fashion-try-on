@@ -55,6 +55,10 @@
   --radius: 0.5rem;
   --shadow-soft:
     0 1px 2px rgb(15 23 42 / 0.07), 0 8px 24px rgb(15 23 42 / 0.08);
+  --selfx-card-hover-duration: 300ms;
+  --selfx-card-hover-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --selfx-card-hover-scale: 1.01;
+  --selfx-card-hover-lift: -1px;
   --sidebar: #ffffff;
   --sidebar-foreground: var(--foreground);
   --sidebar-muted: var(--muted-foreground);
@@ -148,6 +152,22 @@
   --shadow-soft: var(--shadow-soft);
   --font-heading: var(--font-heading);
   --font-sans: var(--font-sans);
+}
+
+@utility selfx-card-motion {
+  /* Individual scale/translate properties must transition too (Tailwind v4). */
+  transition-property:
+    transform, scale, translate, box-shadow, border-color, background-color,
+    --tw-ring-color;
+  transition-duration: var(--selfx-card-hover-duration);
+  transition-timing-function: var(--selfx-card-hover-easing);
+
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    &:hover {
+      scale: var(--selfx-card-hover-scale);
+      translate: 0 var(--selfx-card-hover-lift);
+    }
+  }
 }
 
 * {

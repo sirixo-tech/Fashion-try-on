@@ -5,6 +5,7 @@ import {
   type OnModuleDestroy,
 } from "@nestjs/common";
 import { OrderPaymentsService } from "./order-payments.service.js";
+import { PlatformPaymentTestsService } from "./platform-payment-tests.service.js";
 @Injectable()
 export class PaymentReconciliationService
   implements OnModuleInit, OnModuleDestroy
@@ -12,7 +13,10 @@ export class PaymentReconciliationService
   private timer?: ReturnType<typeof setInterval>;
   private running = false;
   private readonly logger = new Logger(PaymentReconciliationService.name);
-  constructor(private readonly payments: OrderPaymentsService) {}
+  constructor(
+    private readonly payments: OrderPaymentsService,
+    private readonly platformTests: PlatformPaymentTestsService,
+  ) {}
   onModuleInit() {
     if (process.env.PAYMENT_RECONCILIATION_ENABLED === "false") return;
     this.timer = setInterval(() => void this.tick(), 15000);
@@ -26,7 +30,12 @@ export class PaymentReconciliationService
     if (this.running) return;
     this.running = true;
     try {
-      await this.payments.reconcileDue();
+      const results = await Promise.allSettled([
+        this.payments.reconcileDue(),
+        this.platformTests.reconcileDue(),
+      ]);
+      if (results.some((result) => result.status === "rejected"))
+        throw new Error("Reconciliation batch unavailable.");
     } catch {
       this.logger.warn(
         "Payment reconciliation will retry after an unavailable check.",

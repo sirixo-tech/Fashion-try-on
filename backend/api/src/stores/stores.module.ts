@@ -19,6 +19,11 @@ import { PaymentSettingsService } from "../payments/payment-settings.service.js"
 import { OrderPaymentsService } from "../payments/order-payments.service.js";
 import { PaymentReconciliationService } from "../payments/payment-reconciliation.service.js";
 import { PhonePeTransport } from "../payments/phonepe.transport.js";
+import { PlatformPaymentTestsService } from "../payments/platform-payment-tests.service.js";
+import {
+  PlatformPaymentTestsController,
+  PlatformPaymentTestCallbacksController,
+} from "../payments/platform-payment-tests.controller.js";
 import {
   KioskOrderPaymentsController,
   StoreOrderPaymentsController,
@@ -58,6 +63,8 @@ import {
     KioskOrderPaymentsController,
     StoreOrderPaymentsController,
     PhonePeCallbacksController,
+    PlatformPaymentTestsController,
+    PlatformPaymentTestCallbacksController,
   ],
   providers: [
     AdminStoresService,
@@ -68,6 +75,7 @@ import {
     OrderPaymentsService,
     PaymentReconciliationService,
     PhonePeTransport,
+    PlatformPaymentTestsService,
     StoreImpersonationService,
     PlatformAuthorizationService,
     ObjectStorageService,

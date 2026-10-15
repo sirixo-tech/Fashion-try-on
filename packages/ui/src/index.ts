@@ -23,6 +23,7 @@ export {
   CardHeader,
   CardTitle,
 } from "./components/card";
+export { Switch } from "./components/switch";
 export {
   Dialog,
   DialogClose,

@@ -1,5 +1,20 @@
 ## Document Evolution
 
+### PAYMENTS-1C — Platform gateway cards and test workspace
+
+Use compact shared cards with provider marks, availability/test badges, an
+accessible Available to Stores switch and Set up & test. Planned connectors show
+Coming soon with disabled controls. Refresh is a compact toolbar action.
+The PhonePe dialog shows separate UAT setup, execution/callback readiness and
+recent test history. Shared credential fields require full replacement, clear the
+Salt Key after save attempts and never offer live mode for platform testing.
+A fixed INR 1.00 test opens its QR/result dialog, which refreshes safe status and
+provides an explicit provider status check. Show callback receipt independently
+from Test passed. Do not show passed merely after credentials save or QR creation.
+Pending/conflicting tests block another start; expired QR does not imply failure.
+Read-only viewers receive history without QR/setup/check actions. Omit platform
+default checkout and shared-account toggles: Stores always use their own account.
+
 ### PAYMENTS-1B — Payment visibility in Store orders
 
 Orders & Tax filters include Payment confirmation pending, Paid and Paid — staff
@@ -804,9 +819,13 @@ Forms use one column by default. Two-column layout is reserved for closely
 related compact fields and must collapse to one column on mobile. Labels appear
 above fields and validation/help text must remain visually predictable.
 
-Cards should normally size to content, use centralized radius/border/shadow
-tokens and avoid hover treatment unless interactive. Do not nest cards simply to
-create page spacing.
+Cards should normally size to content and use centralized radius/border/shadow
+tokens. The approved global web card hover uses the shared `selfx-card-motion`
+treatment: 1% growth, 1px lift and a 300ms smooth easing curve on both entry and
+exit, with matching shadow transitions. This applies to shared cards and custom
+card layouts across pages. Disabled choices stay static; touch-only pointers and
+reduced-motion preferences do not trigger growth/lift. Do not nest cards simply
+to create page spacing.
 
 ---
 

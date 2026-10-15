@@ -4,36 +4,42 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  Input,
-  Label,
   PageSection,
   SectionCard,
-  SelectMenu,
 } from "@selfx/ui";
+import { PlatformPaymentGateways } from "./platform-payment-gateways";
+import { PhonePeConfiguration } from "./phonepe-configuration";
 import {
   getStorePayments,
-  listPaymentGateways,
   savePhonePeSetup,
   selectStoreGateway,
-  updatePaymentGateway,
   type Gateway,
   type PaymentEnvironment,
   type PaymentProvider,
   type StorePaymentSettings,
 } from "@/lib/payments";
 
-export function PaymentSettings({
+export function PaymentSettings(props: {
+  accessToken: string;
+  storeId?: string;
+  canEdit: boolean;
+}) {
+  return props.storeId ? (
+    <StorePaymentSettingsPanel {...props} storeId={props.storeId} />
+  ) : (
+    <PlatformPaymentGateways
+      accessToken={props.accessToken}
+      canEdit={props.canEdit}
+    />
+  );
+}
+function StorePaymentSettingsPanel({
   accessToken,
   storeId,
   canEdit,
 }: {
   accessToken: string;
-  storeId?: string;
+  storeId: string;
   canEdit: boolean;
 }) {
   const [gateways, setGateways] = useState<Gateway[] | null>(null);
@@ -49,17 +55,11 @@ export function PaymentSettings({
     setStore(null);
     setError(null);
     setNotice(null);
-    void (
-      storeId
-        ? getStorePayments(accessToken, storeId)
-        : listPaymentGateways(accessToken)
-    )
+    void getStorePayments(accessToken, storeId)
       .then((result) => {
         if (!current) return;
-        if ("gateways" in result) {
-          setStore(result);
-          setGateways(result.gateways);
-        } else setGateways(result.data);
+        setStore(result);
+        setGateways(result.gateways);
       })
       .catch((caught) => {
         if (current) setError(message(caught));
@@ -68,13 +68,13 @@ export function PaymentSettings({
       current = false;
     };
   }, [accessToken, storeId, reload]);
-  async function change(gateway: Gateway, provider?: PaymentProvider | null) {
+  async function change(provider: PaymentProvider | null) {
     if (!canEdit || busy) return;
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      if (storeId && store) {
+      if (store) {
         setStore(
           await selectStoreGateway(
             accessToken,
@@ -88,12 +88,6 @@ export function PaymentSettings({
             ? "Gateway selected. Account verification is still required before payments are available."
             : "Gateway selection cleared.",
         );
-      } else {
-        setGateways(
-          (await updatePaymentGateway(accessToken, gateway, !gateway.enabled))
-            .data,
-        );
-        setNotice("Gateway configuration availability updated.");
       }
     } catch (caught) {
       setError(message(caught));
@@ -105,9 +99,8 @@ export function PaymentSettings({
     <PageSection>
       <Alert>
         <AlertDescription>
-          {storeId
-            ? "Choose the Store's payment gateway and configure its merchant account. Payment collection is not available until setup has been verified."
-            : "Control which gateways Stores can configure. Making a gateway available does not enable payment collection."}
+          Choose the Store's payment gateway and configure its merchant account.
+          Payment collection is not available until setup has been verified.
         </AlertDescription>
       </Alert>
       {error && (
@@ -144,64 +137,47 @@ export function PaymentSettings({
                     ? "Available for Store selection"
                     : "Unavailable for selection"}
                 </p>
-                {storeId ? (
-                  <>
+                <>
+                  <p>
+                    {connection
+                      ? `Configuration saved · ${environmentLabel(connection.environment)} · Verification pending`
+                      : "Not configured"}
+                  </p>
+                  {connection?.dqrAccessConfirmed && (
                     <p>
-                      {connection
-                        ? `Configuration saved · ${environmentLabel(connection.environment)} · Verification pending`
-                        : "Not configured"}
+                      UAT Dynamic QR access declared by the Store. Live payments
+                      remain unavailable.
                     </p>
-                    {connection?.dqrAccessConfirmed && (
-                      <p>
-                        UAT Dynamic QR access declared by the Store. Live
-                        payments remain unavailable.
-                      </p>
-                    )}
-                    {selected && (
-                      <p>
-                        Selected for future checkout
-                        {!gateway.enabled ? " · Disabled by SelfX" : ""}
-                      </p>
-                    )}
-                    {canEdit && gateway.setupAvailable && (
-                      <Button
-                        variant="outline"
-                        disabled={busy || !gateway.enabled}
-                        onClick={() => setSetup(true)}
-                      >
-                        {connection
-                          ? "Replace configuration"
-                          : "Configure PhonePe"}
-                      </Button>
-                    )}
-                    {canEdit && connection && (
-                      <Button
-                        disabled={busy || (!selected && !gateway.enabled)}
-                        variant={selected ? "outline" : "default"}
-                        onClick={() =>
-                          void change(
-                            gateway,
-                            selected ? null : gateway.provider,
-                          )
-                        }
-                      >
-                        {selected ? "Clear selection" : "Select gateway"}
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  canEdit && (
+                  )}
+                  {selected && (
+                    <p>
+                      Selected for future checkout
+                      {!gateway.enabled ? " · Disabled by SelfX" : ""}
+                    </p>
+                  )}
+                  {canEdit && gateway.setupAvailable && (
                     <Button
-                      disabled={busy || !gateway.setupAvailable}
                       variant="outline"
-                      onClick={() => void change(gateway)}
+                      disabled={busy || !gateway.enabled}
+                      onClick={() => setSetup(true)}
                     >
-                      {gateway.enabled
-                        ? "Make unavailable"
-                        : "Make available to Stores"}
+                      {connection
+                        ? "Replace configuration"
+                        : "Configure PhonePe"}
                     </Button>
-                  )
-                )}
+                  )}
+                  {canEdit && connection && (
+                    <Button
+                      disabled={busy || (!selected && !gateway.enabled)}
+                      variant={selected ? "outline" : "default"}
+                      onClick={() =>
+                        void change(selected ? null : gateway.provider)
+                      }
+                    >
+                      {selected ? "Clear selection" : "Select gateway"}
+                    </Button>
+                  )}
+                </>
               </div>
             </SectionCard>
           );
@@ -209,11 +185,14 @@ export function PaymentSettings({
       </div>
       {setup && storeId && store && (
         <PhonePeConfiguration
-          accessToken={accessToken}
-          storeId={storeId}
-          version={store.version}
           onClose={() => setSetup(false)}
-          onSaved={(result) => {
+          saveConfiguration={async (input) => {
+            const result = await savePhonePeSetup(
+              accessToken,
+              storeId,
+              store.version,
+              input,
+            );
             setStore(result);
             setSetup(false);
             setNotice(
@@ -223,192 +202,6 @@ export function PaymentSettings({
         />
       )}
     </PageSection>
-  );
-}
-function PhonePeConfiguration({
-  accessToken,
-  storeId,
-  version,
-  onClose,
-  onSaved,
-}: {
-  accessToken: string;
-  storeId: string;
-  version: number;
-  onClose: () => void;
-  onSaved: (result: StorePaymentSettings) => void;
-}) {
-  const [dqrAccessConfirmed, setDqrAccessConfirmed] = useState(false);
-  const [environment, setEnvironment] =
-    useState<PaymentEnvironment>("UNCONFIRMED");
-  const [merchantId, setMerchantId] = useState(""),
-    [providerId, setProviderId] = useState("");
-  const [providerStoreId, setProviderStoreId] = useState(""),
-    [saltIndex, setSaltIndex] = useState(""),
-    [saltKey, setSaltKey] = useState("");
-  const [error, setError] = useState<string | null>(null),
-    [busy, setBusy] = useState(false);
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      onSaved(
-        await savePhonePeSetup(accessToken, storeId, version, {
-          environment,
-          merchantId: merchantId.trim(),
-          saltIndex: saltIndex.trim(),
-          saltKey,
-          ...(dqrAccessConfirmed && environment === "UAT"
-            ? { dqrAccessConfirmed: true }
-            : {}),
-          ...(providerId.trim() ? { providerId: providerId.trim() } : {}),
-          ...(providerStoreId.trim()
-            ? { providerStoreId: providerStoreId.trim() }
-            : {}),
-        }),
-      );
-    } catch (caught) {
-      setError(message(caught));
-    } finally {
-      setSaltKey("");
-      setBusy(false);
-    }
-  }
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) onClose();
-      }}
-    >
-      <DialogContent
-        className="max-h-[90dvh] overflow-y-auto"
-        showCloseButton={!busy}
-      >
-        <DialogHeader>
-          <DialogTitle>Configure PhonePe</DialogTitle>
-          <DialogDescription>
-            Enter this Store's merchant details. Saving replaces the full
-            configuration. The Salt Key is never displayed again.
-          </DialogDescription>
-        </DialogHeader>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <form
-          className="space-y-3"
-          onSubmit={(event) => void save(event)}
-          autoComplete="off"
-        >
-          <Label htmlFor="phonepe-environment">Account environment</Label>
-          <SelectMenu
-            id="phonepe-environment"
-            ariaLabel="Account environment"
-            value={environment}
-            disabled={busy}
-            options={[
-              { value: "UNCONFIRMED", label: "Not confirmed yet" },
-              { value: "UAT", label: "UAT / test" },
-              { value: "PRODUCTION", label: "Production / live" },
-            ]}
-            onChange={(value) => setEnvironment(value as PaymentEnvironment)}
-          />
-          <Label htmlFor="phonepe-merchant">Merchant ID</Label>
-          {environment === "UAT" && (
-            <div className="space-y-2">
-              <Label htmlFor="phonepe-access">Dynamic QR test access</Label>
-              <SelectMenu
-                id="phonepe-access"
-                ariaLabel="Dynamic QR test access"
-                value={dqrAccessConfirmed ? "CONFIRMED" : "UNCONFIRMED"}
-                disabled={busy}
-                options={[
-                  { value: "UNCONFIRMED", label: "Not confirmed yet" },
-                  {
-                    value: "CONFIRMED",
-                    label: "I confirm UAT Dynamic QR access is enabled",
-                  },
-                ]}
-                onChange={(value) =>
-                  setDqrAccessConfirmed(value === "CONFIRMED")
-                }
-              />
-            </div>
-          )}
-          <Input
-            id="phonepe-merchant"
-            required
-            maxLength={100}
-            pattern={"[A-Za-z0-9_\\-]+"}
-            value={merchantId}
-            disabled={busy}
-            onChange={(event) => setMerchantId(event.target.value)}
-          />
-          <Label htmlFor="phonepe-provider">Provider ID (optional)</Label>
-          <Input
-            id="phonepe-provider"
-            maxLength={100}
-            pattern={"[A-Za-z0-9_\\-]+"}
-            value={providerId}
-            disabled={busy}
-            onChange={(event) => setProviderId(event.target.value)}
-          />
-          <Label htmlFor="phonepe-store">
-            PhonePe Store reference (optional)
-          </Label>
-          <Input
-            id="phonepe-store"
-            maxLength={37}
-            pattern={"[A-Za-z0-9_\\-]+"}
-            value={providerStoreId}
-            disabled={busy}
-            onChange={(event) => setProviderStoreId(event.target.value)}
-          />
-          <p className="text-sm text-muted-foreground">
-            Leave blank to generate a stable reference for this Store. Use the
-            assigned reference if PhonePe supplied one.
-          </p>
-          <Label htmlFor="phonepe-index">Salt Index</Label>
-          <Input
-            id="phonepe-index"
-            required
-            maxLength={10}
-            pattern="[0-9]+"
-            inputMode="numeric"
-            value={saltIndex}
-            disabled={busy}
-            onChange={(event) => setSaltIndex(event.target.value)}
-          />
-          <Label htmlFor="phonepe-key">Salt Key</Label>
-          <Input
-            id="phonepe-key"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={16}
-            maxLength={256}
-            value={saltKey}
-            disabled={busy}
-            onChange={(event) => setSaltKey(event.target.value)}
-          />
-          <Button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save configuration"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={onClose}
-          >
-            Cancel
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 function environmentLabel(environment: PaymentEnvironment) {

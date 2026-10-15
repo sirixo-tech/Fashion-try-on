@@ -2,6 +2,18 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1C — Platform test workspace
+
+Implement compact availability cards, separate encrypted platform UAT setup,
+durable INR 1.00 test probes/events, signed callbacks, provider status verification,
+restart-safe reconciliation and safe test history. Verify RBAC/impersonation,
+idempotent concurrent starts, credential revision/replacement, timeouts,
+late/conflicting events and isolation from Store orders/stock with simulated
+transport and disposable PostgreSQL. Keep actual provider requests gated until
+the supplied account is confirmed for UAT Dynamic QR. Complete provider acceptance
+testing before production onboarding or APK checkout. Do not implement other
+gateways, shared platform checkout credentials, printing or analytics here.
+
 ### PAYMENTS-1B — PhonePe order execution, implemented with test gating
 
 Implement durable attempts/events, test-only PhonePe transport, notification

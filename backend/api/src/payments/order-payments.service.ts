@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
+import { paymentCallbackOrigin } from "./payment-execution-utils.js";
 import { Prisma, type ShoppingPaymentAttempt } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
@@ -91,7 +92,7 @@ export class OrderPaymentsService {
             "PAYMENT_NOT_ENABLED",
             "PhonePe test payments have not been enabled by SelfX.",
           );
-        callbackOrigin();
+        paymentCallbackOrigin();
         if (
           (await tx.shoppingPaymentAttempt.count({ where: { orderId } })) >= 10
         )
@@ -176,7 +177,7 @@ export class OrderPaymentsService {
         const response = await this.transport.send(
           adapter.createRequest(
             expected(result.attempt),
-            `${callbackOrigin()}/api/v1/payments/phonepe/${result.attempt.id}/callback`,
+            `${paymentCallbackOrigin()}/api/v1/payments/phonepe/${result.attempt.id}/callback`,
             seconds,
           ),
         );
@@ -701,27 +702,6 @@ function notFound(): never {
     "SHOPPING_ORDER_NOT_FOUND",
     "Order or payment was not found.",
   );
-}
-function callbackOrigin() {
-  try {
-    const url = new URL(process.env.SELFX_PAYMENT_CALLBACK_BASE_URL ?? "");
-    if (
-      url.protocol !== "https:" ||
-      url.username ||
-      url.password ||
-      url.port ||
-      url.search ||
-      url.hash ||
-      url.pathname !== "/"
-    )
-      throw new Error();
-    return url.origin;
-  } catch {
-    return fail(
-      "PAYMENT_CALLBACK_UNCONFIGURED",
-      "SelfX must configure a secure payment callback address before testing.",
-    );
-  }
 }
 async function audit(
   tx: Prisma.TransactionClient,

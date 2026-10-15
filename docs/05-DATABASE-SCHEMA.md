@@ -2,6 +2,22 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1C — Isolated platform test records
+
+`platform_payment_test_connections` is keyed by provider and contains a positive
+optimistic version, UAT-only environment, encrypted credential payload/IV/tag/key
+version, explicit DQR confirmation and update time. It has no Store relationship.
+`platform_payment_tests` uses UUIDv7 IDs, creator User FK, credential version
+provenance, actor/key idempotency digest, unique PT transaction ID, status, fixed
+INR 100 minor-unit amount, encrypted account snapshot, optional QR/provider
+reference/failure code, expiry/confirmation/check timestamps and durable leases/
+schedule/count. Restrict deletion of creator/test dependencies. One partial unique
+index permits one PREPARING/PENDING/UNKNOWN test per provider/config version.
+`platform_payment_test_events` stores UUIDv7 ID, test FK, unique test/content digest,
+reported semantic status and receipt time; no raw payload or payer identity.
+Only PhonePe/UAT is allowed by SQL constraints. SUCCEEDED requires confirmed_at.
+These tables are independent of Store credentials, orders, holds and stock.
+
 ### PAYMENTS-1B — Attempts, events and paid allocation
 
 Store connections add dqr_access_confirmed, default false. Shopping orders add

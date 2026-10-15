@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYMENTS-1C — Platform gateway controls and isolated testing (2026-10-16)
+
+Platform administrators control which implemented gateways Stores can configure.
+The platform also has separate UAT-only credentials and a PhonePe testing
+workspace. Platform test accounts never act as a fallback for Store purchases.
+Tests use a fixed INR 1.00 amount, create no merchant tenant/order/reservation,
+and do not change stock or sales analytics. Test success requires independently
+verified provider status; callback delivery is shown separately. Configuration
+replacement resets the current test result without deleting prior history.
+Live execution, APK Buy and other gateway connectors remain deferred.
+
 ### PAYMENTS-1B — Order-linked PhonePe payment execution (2026-10-15)
 
 Adds durable order payment attempts, authenticated notifications, server-side

@@ -1,5 +1,28 @@
 ## Document Evolution
 
+### PAYMENTS-1C — Platform testing boundary
+
+`/api/v1/admin/payment-gateways/PHONEPE/testing` exposes safe workspace metadata;
+`PUT /connection` replaces encrypted UAT setup; `POST /tests` creates/replays a
+fixed INR 1.00 probe; `GET /tests/:testId` reads its QR and `POST .../check` checks
+provider status. Platform INTEGRATIONS_VIEW permits metadata/history, while
+INTEGRATIONS_MANAGE is required for credentials, QR access and status checks.
+Store integration permissions do not grant access; Store impersonation blocks it.
+Test configuration can be prepared while Store gateway availability is disabled.
+
+Credentials bind scope PLATFORM_TEST and retain encrypted per-test snapshots.
+Reuse the existing PhonePe adapter, transport, encryption/key rotation, callback
+origin validation and reconciliation timer. Platform probes have distinct durable
+records, PT-prefixed transaction IDs and a dedicated signed callback route at
+`/api/v1/payments/phonepe/platform-tests/:testId/callback`. Acknowledge HTTP 200
+after deduplicated event persistence; verify status separately. No raw callbacks,
+credential values or request signatures enter read APIs or logs. Unknown results
+and contradictory evidence retain checks after restart. Restrict one unresolved
+probe per credential version, use idempotent actor/key replay and cap new tests at
+100 per rolling day. Global UAT execution and HTTPS callback gates still apply;
+production is rejected. Platform tests cannot invoke commerce allocation or act
+as Store credential fallback. Endpoints remain outside the Public API.
+
 ### PAYMENTS-1B — Durable execution and recovery
 
 Kiosk routes under `.../shopping/orders/:orderId/payments` create/replay an attempt
@@ -521,7 +544,7 @@ Protected route coverage:
    tablet page padding 20–24px and major section gap 20px;
    mobile page padding, major section gap and card padding around 16px.
    Card standards include `StatCard`, `SectionCard`, `SummaryCard`, `ActionCard` and `TableContainer`.
-   Default cards use centralized surface, radius, border, typography and low/no shadow; hover treatment is reserved for interactive cards.
+   Default cards use centralized surface, radius, border, typography and low/no shadow. All web card layouts share the `@selfx/ui` card motion tokens: 1% hover growth, 1px lift and a 300ms smooth entry/exit transition covering transform, scale, translate and shadow. Apply growth/lift only for fine hover pointers without reduced-motion preferences; disabled choices remain static.
    Future list pages should use `FilterBar` and `TableContainer` with bounded pagination/footer regions.
    Future pages must avoid arbitrary per-page spacing systems, nested cards for page structure and generic fixed-height cards.
 

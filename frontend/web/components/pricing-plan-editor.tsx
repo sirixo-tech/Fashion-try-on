@@ -875,13 +875,13 @@ function ChannelPicker({
           <label
             key={channel}
             className={[
-              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm font-medium transition-[background-color,border-color,box-shadow,transform]",
+              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm font-medium",
               value.includes(channel)
                 ? "border-primary/80 bg-primary/5 ring-1 ring-primary/20 hover:border-primary hover:ring-primary/30"
                 : "border-border bg-muted/20 hover:border-foreground/25 hover:shadow-soft",
               disabled
-                ? "cursor-not-allowed opacity-60 hover:shadow-none motion-safe:hover:translate-y-0 motion-safe:hover:scale-100"
-                : "motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]",
+                ? "cursor-not-allowed opacity-60 hover:shadow-none"
+                : "selfx-card-motion",
             ].join(" ")}
           >
             <input
@@ -962,13 +962,13 @@ function FeaturePicker({
                   <label
                     key={feature.key}
                     className={[
-                      "grid cursor-pointer gap-2 rounded-lg border p-4 text-sm transition-[background-color,border-color,box-shadow,transform]",
+                      "grid cursor-pointer gap-2 rounded-lg border p-4 text-sm",
                       checked
                         ? "border-primary/80 bg-primary/5 ring-1 ring-primary/20 hover:border-primary hover:ring-primary/30"
                         : "border-border bg-background hover:border-foreground/25 hover:shadow-soft",
                       disabled
-                        ? "cursor-not-allowed opacity-60 hover:shadow-none motion-safe:hover:translate-y-0 motion-safe:hover:scale-100"
-                        : "motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.01]",
+                        ? "cursor-not-allowed opacity-60 hover:shadow-none"
+                        : "selfx-card-motion",
                     ].join(" ")}
                   >
                     <span className="flex items-start gap-3">

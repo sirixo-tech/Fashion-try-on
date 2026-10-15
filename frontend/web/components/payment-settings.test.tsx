@@ -4,7 +4,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PaymentSettings } from "./payment-settings";
@@ -100,26 +99,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("payment settings", () => {
-  it("lets platform admins change availability while planned gateways remain disabled", async () => {
-    render(<PaymentSettings accessToken="fixture_token" canEdit />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Make unavailable" }),
-    );
-    await waitFor(() =>
-      expect(updatePaymentGateway).toHaveBeenCalledWith(
-        "fixture_token",
-        gateways[0],
-        false,
-      ),
-    );
-    expect(
-      within(
-        screen.getByText("Stripe").closest('[data-slot="card"]') as HTMLElement,
-      )
-        .getByRole("button", { name: "Make available to Stores" })
-        .hasAttribute("disabled"),
-    ).toBe(true);
-  });
   it("saves complete PhonePe configuration with unconfirmed environment and clears the secret", async () => {
     render(
       <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,

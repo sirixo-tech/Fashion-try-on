@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYMENTS-1C — Platform gateway testing
+
+An authorized platform admin opens Payment Gateways, toggles Store availability
+and selects PhonePe Set up & test. They save a separate confirmed UAT account,
+generate a fixed INR 1.00 test QR, exercise it with PhonePe test tooling and inspect
+verified status and callback delivery separately. Existing tests can be reopened
+after leaving the page or restarting the backend. Replacing credentials preserves
+old test history and resets the current account to Not tested. Read-only platform
+viewers can inspect safe history but cannot access QR data or change setup.
+Store onboarding and merchant checkout continue using each Store's own account.
+
 ### PAYMENTS-1B — Confirm an order payment and resolve stock
 
 Backend test journey: checkout creates a five-minute order hold; the authenticated
