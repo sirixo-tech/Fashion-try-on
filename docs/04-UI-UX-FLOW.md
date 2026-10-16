@@ -5,12 +5,17 @@
 Use compact shared cards with provider marks, availability/test badges, an
 accessible Available to Stores switch and Set up & test. Planned connectors show
 Coming soon with disabled controls. Refresh is a compact toolbar action.
-The PhonePe dialog shows separate UAT setup, execution/callback readiness and
-recent test history. Shared credential fields require full replacement, clear the
-Salt Key after save attempts and never offer live mode for platform testing.
-A fixed INR 1.00 test opens its QR/result dialog, which refreshes safe status and
-provides an explicit provider status check. Show callback receipt independently
-from Test passed. Do not show passed merely after credentials save or QR creation.
+The PhonePe workspace uses one wide dialog for credentials, execution/callback
+readiness, QR/results and collapsible recent test history. With no saved account,
+show credential inputs immediately: two columns on desktop, one on mobile.
+After save, collapse inputs to a saved-status summary; Replace credentials reopens
+blank fields inline. Shared fields require full replacement, clear the Salt Key
+after save attempts, and discard unsaved values on cancel/close. Never offer live
+mode for platform testing. Prevent dismissal and competing actions while a save
+or explicit status check runs. A fixed INR 1.00 test shows its QR/result inline in
+the same dialog, refreshes safe status and provides an explicit provider status
+check. Show callback receipt independently from Test passed. Do not show passed
+merely after credentials save or QR creation.
 Pending/conflicting tests block another start; expired QR does not imply failure.
 Read-only viewers receive history without QR/setup/check actions. Omit platform
 default checkout and shared-account toggles: Stores always use their own account.

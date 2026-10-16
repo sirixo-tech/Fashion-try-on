@@ -168,13 +168,9 @@ describe("platform gateway controls and isolated testing", () => {
   });
   it("supports platform test setup even while Store availability is off", async () => {
     render(<PlatformPaymentGateways accessToken="fixture" canEdit />);
-    await openWorkspace();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Configure test account" }),
-    );
-    expect(
-      await screen.findByRole("heading", { name: "PhonePe test setup" }),
-    ).toBeTruthy();
+    const dialog = await openWorkspace();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(within(dialog).getByLabelText("Merchant ID")).toBeTruthy();
     expect(
       screen.getByRole("combobox", { name: "Account environment" }).textContent,
     ).toContain("UAT / test only");
@@ -197,6 +193,10 @@ describe("platform gateway controls and isolated testing", () => {
       }),
     );
     expect(screen.queryByLabelText("Salt Key")).toBeNull();
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(
+      screen.getByRole("button", { name: "Replace credentials" }),
+    ).toBeTruthy();
     expect(document.body.textContent).not.toContain("fixture-salt-not-real");
     expect(startPlatformPaymentTest).not.toHaveBeenCalled();
   });
@@ -223,13 +223,15 @@ describe("platform gateway controls and isolated testing", () => {
       testStatus: "NOT_TESTED",
     });
     render(<PlatformPaymentGateways accessToken="fixture" canEdit />);
-    await openWorkspace();
+    const dialog = await openWorkspace();
     fireEvent.click(
       screen.getByRole("button", { name: "Generate ₹1 test QR" }),
     );
     expect(
       await screen.findByRole("heading", { name: "PhonePe test result" }),
     ).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog")).toBe(dialog);
     expect(startPlatformPaymentTest).toHaveBeenCalledWith(
       "fixture",
       2,
@@ -288,8 +290,11 @@ describe("platform gateway controls and isolated testing", () => {
         .getByRole("button", { name: "Generate ₹1 test QR" })
         .hasAttribute("disabled"),
     ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Open test" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Recent tests/ }));
     fireEvent.click(screen.getByRole("button", { name: "Open test" }));
     await screen.findByRole("heading", { name: "PhonePe test result" });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(getPlatformPaymentTest).toHaveBeenCalledWith("fixture", test.id);
   });
   it("keeps read-only viewers limited to metadata and safe history", async () => {
@@ -307,7 +312,7 @@ describe("platform gateway controls and isolated testing", () => {
     const dialog = await screen.findByRole("dialog");
     expect(
       within(dialog).queryByRole("button", {
-        name: "Replace test credentials",
+        name: "Replace credentials",
       }),
     ).toBeNull();
     expect(
@@ -317,5 +322,96 @@ describe("platform gateway controls and isolated testing", () => {
       within(dialog).queryByRole("button", { name: "Open test" }),
     ).toBeNull();
     expect(getPlatformPaymentTest).not.toHaveBeenCalled();
+    expect(within(dialog).queryByLabelText("Merchant ID")).toBeNull();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /Recent tests/ }),
+    );
+    expect(within(dialog).getByRole("table")).toBeTruthy();
+  });
+  it("shows save errors inside the same popup and clears the secret for retry", async () => {
+    vi.mocked(savePlatformPhonePeTest).mockRejectedValue(
+      new Error("Configuration changed. Reload before saving."),
+    );
+    render(<PlatformPaymentGateways accessToken="fixture" canEdit />);
+    const dialog = await openWorkspace();
+    fireEvent.change(screen.getByLabelText("Merchant ID"), {
+      target: { value: "fixture_mid" },
+    });
+    fireEvent.change(screen.getByLabelText("Salt Index"), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText("Salt Key"), {
+      target: { value: "fixture-salt-not-real" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save configuration" }));
+    await screen.findByText("Configuration changed. Reload before saving.");
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect((screen.getByLabelText("Salt Key") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect(
+      (screen.getByLabelText("Merchant ID") as HTMLInputElement).value,
+    ).toBe("fixture_mid");
+  });
+  it("replaces credentials inline and discards unsaved values when cancelled", async () => {
+    vi.mocked(getPlatformPaymentWorkspace).mockResolvedValue({
+      ...workspace,
+      connection,
+    });
+    render(<PlatformPaymentGateways accessToken="fixture" canEdit />);
+    const dialog = await openWorkspace();
+    expect(screen.queryByLabelText("Salt Key")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Replace credentials" }),
+    );
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(
+      (screen.getByLabelText("Merchant ID") as HTMLInputElement).value,
+    ).toBe("");
+    fireEvent.change(screen.getByLabelText("Salt Key"), {
+      target: { value: "unsaved-salt-not-real" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("Salt Key")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Replace credentials" }),
+    );
+    expect((screen.getByLabelText("Salt Key") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect(savePlatformPhonePeTest).not.toHaveBeenCalled();
+  });
+  it("prevents popup dismissal and test creation while credentials are being saved", async () => {
+    let complete!: (result: PlatformPaymentWorkspace) => void;
+    vi.mocked(savePlatformPhonePeTest).mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    render(<PlatformPaymentGateways accessToken="fixture" canEdit />);
+    const dialog = await openWorkspace();
+    fireEvent.change(screen.getByLabelText("Merchant ID"), {
+      target: { value: "fixture_mid" },
+    });
+    fireEvent.change(screen.getByLabelText("Salt Index"), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText("Salt Key"), {
+      target: { value: "fixture-salt-not-real" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save configuration" }));
+    expect(
+      screen.getByRole("button", { name: "Cancel" }).hasAttribute("disabled"),
+    ).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: "Generate ₹1 test QR" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    complete({ ...workspace, connection, testStatus: "NOT_TESTED" });
+    await screen.findByRole("button", { name: "Replace credentials" });
+    expect(screen.getByRole("dialog")).toBe(dialog);
   });
 });

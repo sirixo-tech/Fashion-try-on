@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { toDataURL } from "qrcode";
 import { FlaskConicalIcon, RefreshCwIcon, Settings2Icon } from "lucide-react";
@@ -14,6 +14,9 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -43,7 +46,7 @@ import {
   type PlatformPaymentTestDetail,
   type PlatformPaymentWorkspace,
 } from "@/lib/platform-payment-tests";
-import { PhonePeConfiguration } from "./phonepe-configuration";
+import { PhonePeConfigurationForm } from "./phonepe-configuration";
 
 const descriptions: Record<string, string> = {
   PHONEPE: "Dynamic UPI QR payments.",
@@ -76,12 +79,21 @@ export function PlatformPaymentGateways({
     [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false),
     [reload, setReload] = useState(0);
-  const [modal, setModal] = useState<"WORKSPACE" | "SETUP" | "TEST" | null>(
-    null,
-  );
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [editingCredentials, setEditingCredentials] = useState(false);
+  const [savingCredentials, setSavingCredentials] = useState(false);
+  const [checkingTest, setCheckingTest] = useState(false);
+  const locked = busy || savingCredentials || checkingTest;
   const [selectedTest, setSelectedTest] =
     useState<PlatformPaymentTestDetail | null>(null);
   const startKey = useRef<string | null>(null);
+  const refreshTestHistory = useCallback(
+    (result: PlatformPaymentTestDetail) => {
+      setSelectedTest(result);
+      setReload((value) => value + 1);
+    },
+    [],
+  );
   useEffect(() => {
     let current = true;
     setError(null);
@@ -104,7 +116,7 @@ export function PlatformPaymentGateways({
   }, [accessToken, reload]);
 
   async function availability(gateway: Gateway, enabled: boolean) {
-    if (busy || !canEdit || !gateway.setupAvailable) return;
+    if (locked || !canEdit || !gateway.setupAvailable) return;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -122,7 +134,7 @@ export function PlatformPaymentGateways({
     }
   }
   async function start() {
-    if (busy || !canEdit || !workspace?.connection) return;
+    if (locked || !canEdit || !workspace?.connection) return;
     setBusy(true);
     setError(null);
     // Keep the same key after a browser/network error; do not create another test.
@@ -135,7 +147,6 @@ export function PlatformPaymentGateways({
       );
       startKey.current = null;
       setSelectedTest(test);
-      setModal("TEST");
       setReload((value) => value + 1);
     } catch (caught) {
       setError(message(caught));
@@ -144,30 +155,35 @@ export function PlatformPaymentGateways({
     }
   }
   async function openTest(id: string) {
-    if (busy || !canEdit) return;
+    if (locked || !canEdit) return;
     setBusy(true);
     setError(null);
     try {
       setSelectedTest(await getPlatformPaymentTest(accessToken, id));
-      setModal("TEST");
     } catch (caught) {
       setError(message(caught));
     } finally {
       setBusy(false);
     }
   }
-  const currentPending = workspace?.tests.some(
-    (test) =>
-      test.connectionVersion === workspace.connection?.version &&
-      (["PREPARING", "PENDING", "UNKNOWN"].includes(test.status) ||
-        test.verificationPending ||
-        test.failureCode === "PAYMENT_EVIDENCE_CONFLICT"),
-  );
+  const currentPending =
+    (selectedTest?.connectionVersion === workspace?.connection?.version &&
+      !!selectedTest &&
+      (["PREPARING", "PENDING", "UNKNOWN"].includes(selectedTest.status) ||
+        selectedTest.verificationPending)) ||
+    workspace?.tests.some(
+      (test) =>
+        test.connectionVersion === workspace.connection?.version &&
+        (["PREPARING", "PENDING", "UNKNOWN"].includes(test.status) ||
+          test.verificationPending ||
+          test.failureCode === "PAYMENT_EVIDENCE_CONFLICT"),
+    );
   const canStart =
     !!workspace?.connection?.dqrAccessConfirmed &&
     workspace.executionEnabled &&
     workspace.callbackConfigured &&
-    !currentPending;
+    !currentPending &&
+    !editingCredentials;
   return (
     <PageSection>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -177,13 +193,13 @@ export function PlatformPaymentGateways({
         </p>
         <Button
           variant="outline"
-          disabled={busy}
+          disabled={locked}
           onClick={() => setReload((value) => value + 1)}
         >
           <RefreshCwIcon aria-hidden="true" /> Refresh
         </Button>
       </div>
-      {error && (
+      {error && !workspaceOpen && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -251,7 +267,9 @@ export function PlatformPaymentGateways({
                 disabled={!gateway.setupAvailable}
                 onClick={() => {
                   setError(null);
-                  setModal("WORKSPACE");
+                  setSelectedTest(null);
+                  setEditingCredentials(false);
+                  setWorkspaceOpen(true);
                 }}
               >
                 <Settings2Icon aria-hidden="true" />
@@ -265,16 +283,21 @@ export function PlatformPaymentGateways({
           </Card>
         ))}
       </div>
-      {modal === "WORKSPACE" && workspace && (
+      {workspaceOpen && workspace && (
         <Dialog
           open
           onOpenChange={(open) => {
-            if (!open && !busy) setModal(null);
+            if (!open && !locked) {
+              setWorkspaceOpen(false);
+              setSelectedTest(null);
+              setEditingCredentials(false);
+              setReload((value) => value + 1);
+            }
           }}
         >
           <DialogContent
-            className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
-            showCloseButton={!busy}
+            className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl"
+            showCloseButton={!locked}
           >
             <DialogHeader>
               <DialogTitle>PhonePe platform testing</DialogTitle>
@@ -294,28 +317,62 @@ export function PlatformPaymentGateways({
                 {testLabels[workspace.testStatus]}
               </Badge>
             </div>
-            <div className="space-y-3 rounded-lg border p-4">
-              <p className="font-medium">Test account</p>
-              <p className="text-sm text-muted-foreground">
-                {workspace.connection
-                  ? `Configuration saved · version ${workspace.connection.version}. Credential values are never displayed.`
-                  : "No platform test account configured."}
-              </p>
-              {canEdit && (
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => {
-                    setError(null);
-                    setModal("SETUP");
-                  }}
-                >
-                  {workspace.connection
-                    ? "Replace test credentials"
-                    : "Configure test account"}
-                </Button>
+            <section
+              aria-label="Test account"
+              className="space-y-4 rounded-lg border p-4"
+            >
+              <h3 className="font-medium">Test account</h3>
+              {canEdit && (!workspace.connection || editingCredentials) ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Enter confirmed UAT credentials. Saving replaces the full
+                    configuration; the Salt Key is never displayed again.
+                  </p>
+                  <PhonePeConfigurationForm
+                    platformTest
+                    disabled={busy || checkingTest}
+                    onBusyChange={setSavingCredentials}
+                    onCancel={() => {
+                      if (workspace.connection) setEditingCredentials(false);
+                      else setWorkspaceOpen(false);
+                    }}
+                    saveConfiguration={async (input) => {
+                      const result = await savePlatformPhonePeTest(
+                        accessToken,
+                        workspace.connection?.version ?? 0,
+                        input,
+                      );
+                      setWorkspace(result);
+                      startKey.current = null;
+                      setEditingCredentials(false);
+                      setSelectedTest(null);
+                      setNotice("Platform test configuration saved securely.");
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {workspace.connection
+                      ? `Configuration saved · version ${workspace.connection.version}. Credential values are never displayed.`
+                      : "No platform test account configured."}
+                  </p>
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      disabled={locked}
+                      onClick={() => {
+                        setError(null);
+                        setSelectedTest(null);
+                        setEditingCredentials(true);
+                      }}
+                    >
+                      Replace credentials
+                    </Button>
+                  )}
+                </>
               )}
-            </div>
+            </section>
             <ul className="space-y-1 text-sm text-muted-foreground">
               <li>
                 UAT Dynamic QR access:{" "}
@@ -337,7 +394,10 @@ export function PlatformPaymentGateways({
               </li>
             </ul>
             {canEdit && (
-              <Button disabled={busy || !canStart} onClick={() => void start()}>
+              <Button
+                disabled={locked || !canStart}
+                onClick={() => void start()}
+              >
                 <FlaskConicalIcon aria-hidden="true" />
                 {busy ? "Working…" : "Generate ₹1 test QR"}
               </Button>
@@ -352,80 +412,73 @@ export function PlatformPaymentGateways({
               A successful test does not verify any Store's account or switch on
               live payments. Callback delivery is tracked separately.
             </p>
-            <h3 className="font-medium">Recent tests</h3>
-            {!workspace.tests.length ? (
-              <p className="text-sm text-muted-foreground">
-                No tests yet. Saving credentials alone does not count as a
-                passed test.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Callback</TableHead>
-                    <TableHead>Account version</TableHead>
-                    {canEdit && <TableHead>Details</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workspace.tests.map((test) => (
-                    <TableRow key={test.id}>
-                      <TableCell>{date(test.createdAt)}</TableCell>
-                      <TableCell>{resultLabel(test)}</TableCell>
-                      <TableCell>
-                        {test.callbackReceived
-                          ? "Received and verified"
-                          : "Not received"}
-                      </TableCell>
-                      <TableCell>{test.connectionVersion}</TableCell>
-                      {canEdit && (
-                        <TableCell>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => void openTest(test.id)}
-                          >
-                            Open test
-                          </Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            {selectedTest && canEdit && (
+              <PlatformTestResult
+                key={selectedTest.id}
+                accessToken={accessToken}
+                initial={selectedTest}
+                disabled={busy || savingCredentials}
+                onBusyChange={setCheckingTest}
+                onResultChange={refreshTestHistory}
+                onClose={() => {
+                  setSelectedTest(null);
+                  setReload((value) => value + 1);
+                }}
+              />
             )}
+            <Collapsible className="rounded-lg border p-2">
+              <CollapsibleTrigger disabled={locked}>
+                Recent tests ({workspace.tests.length})
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-2 pb-2 pt-3">
+                {!workspace.tests.length ? (
+                  <p className="text-sm text-muted-foreground">
+                    No tests yet. Saving credentials alone does not count as a
+                    passed test.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Result</TableHead>
+                        <TableHead>Callback</TableHead>
+                        <TableHead>Account version</TableHead>
+                        {canEdit && <TableHead>Details</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {workspace.tests.map((test) => (
+                        <TableRow key={test.id}>
+                          <TableCell>{date(test.createdAt)}</TableCell>
+                          <TableCell>{resultLabel(test)}</TableCell>
+                          <TableCell>
+                            {test.callbackReceived
+                              ? "Received and verified"
+                              : "Not received"}
+                          </TableCell>
+                          <TableCell>{test.connectionVersion}</TableCell>
+                          {canEdit && (
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={locked}
+                                onClick={() => void openTest(test.id)}
+                              >
+                                Open test
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           </DialogContent>
         </Dialog>
-      )}
-      {modal === "SETUP" && workspace && canEdit && (
-        <PhonePeConfiguration
-          platformTest
-          onClose={() => setModal("WORKSPACE")}
-          saveConfiguration={async (input) => {
-            const result = await savePlatformPhonePeTest(
-              accessToken,
-              workspace.connection?.version ?? 0,
-              input,
-            );
-            setWorkspace(result);
-            startKey.current = null;
-            setModal("WORKSPACE");
-            setNotice("Platform test configuration saved securely.");
-          }}
-        />
-      )}
-      {modal === "TEST" && selectedTest && canEdit && (
-        <PlatformTestResult
-          accessToken={accessToken}
-          initial={selectedTest}
-          onClose={() => {
-            setModal("WORKSPACE");
-            setReload((value) => value + 1);
-          }}
-        />
       )}
     </PageSection>
   );
@@ -435,24 +488,51 @@ function PlatformTestResult({
   accessToken,
   initial,
   onClose,
+  onBusyChange,
+  onResultChange,
+  disabled,
 }: {
   accessToken: string;
   initial: PlatformPaymentTestDetail;
   onClose: () => void;
+  onBusyChange: (busy: boolean) => void;
+  onResultChange: (result: PlatformPaymentTestDetail) => void;
+  disabled: boolean;
 }) {
   const [test, setTest] = useState(initial),
     [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false),
     [qrImage, setQrImage] = useState<string | null>(null);
+  const currentTest = useRef(initial);
+  const checking = useRef(false);
+  const requestVersion = useRef(0);
+  const applyResult = useCallback(
+    (result: PlatformPaymentTestDetail) => {
+      const previous = currentTest.current;
+      if (previous.status === "SUCCEEDED" && result.status !== "SUCCEEDED")
+        return;
+      currentTest.current = result;
+      setTest(result);
+      if (
+        previous.status !== result.status ||
+        previous.callbackReceived !== result.callbackReceived ||
+        previous.verificationPending !== result.verificationPending
+      )
+        onResultChange(result);
+    },
+    [onResultChange],
+  );
   useEffect(() => {
     let current = true,
       fetching = false;
     const timer = setInterval(() => {
-      if (fetching) return;
+      if (fetching || checking.current) return;
       fetching = true;
+      const version = ++requestVersion.current;
       void getPlatformPaymentTest(accessToken, initial.id)
         .then((result) => {
-          if (current) setTest(result);
+          if (current && version === requestVersion.current)
+            applyResult(result);
         })
         .catch((caught) => {
           if (current) {
@@ -468,7 +548,7 @@ function PlatformTestResult({
       current = false;
       clearInterval(timer);
     };
-  }, [accessToken, initial.id]);
+  }, [accessToken, initial.id, applyResult]);
   useEffect(() => {
     let current = true;
     setQrImage(null);
@@ -492,91 +572,86 @@ function PlatformTestResult({
     };
   }, [test.qrString]);
   async function check() {
-    if (busy) return;
+    if (busy || disabled) return;
+    checking.current = true;
+    ++requestVersion.current;
     setBusy(true);
+    onBusyChange(true);
     setError(null);
     try {
-      setTest(await checkPlatformPaymentTest(accessToken, test.id));
+      applyResult(await checkPlatformPaymentTest(accessToken, test.id));
     } catch (caught) {
       setError(message(caught));
     } finally {
+      checking.current = false;
       setBusy(false);
+      onBusyChange(false);
     }
   }
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) onClose();
-      }}
+    <section
+      aria-label="PhonePe test result"
+      className="space-y-4 rounded-lg border p-4"
     >
-      <DialogContent
-        className="max-h-[90dvh] overflow-y-auto"
-        showCloseButton={!busy}
-      >
-        <DialogHeader>
-          <DialogTitle>PhonePe test result</DialogTitle>
-          <DialogDescription>
-            ₹1.00 · UAT only. Use PhonePe's supported test tooling. This is not
-            a customer purchase.
-          </DialogDescription>
-        </DialogHeader>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+      <h3 className="font-medium">PhonePe test result</h3>
+      <p className="text-sm text-muted-foreground">
+        ₹1.00 · UAT only. Use PhonePe's supported test tooling.
+      </p>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <Badge variant={test.status === "SUCCEEDED" ? "default" : "outline"}>
+        {resultLabel(test)}
+      </Badge>
+      {qrImage && test.qrString && (
+        <Image
+          unoptimized
+          src={qrImage}
+          width={280}
+          height={280}
+          alt="PhonePe UAT test payment QR"
+          className="mx-auto rounded-lg bg-white"
+        />
+      )}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+        <dt className="text-muted-foreground">Test ID</dt>
+        <dd className="break-all">{test.id}</dd>
+        <dt className="text-muted-foreground">QR deadline</dt>
+        <dd>{date(test.expiresAt)}</dd>
+        <dt className="text-muted-foreground">Callback</dt>
+        <dd>
+          {test.callbackReceived ? "Received and verified" : "Not received"}
+        </dd>
+        <dt className="text-muted-foreground">Last status check</dt>
+        <dd>{test.checkedAt ? date(test.checkedAt) : "Not checked yet"}</dd>
+        {test.nextCheckAt && (
+          <>
+            <dt className="text-muted-foreground">Next scheduled check</dt>
+            <dd>{date(test.nextCheckAt)}</dd>
+          </>
         )}
-        <Badge variant={test.status === "SUCCEEDED" ? "default" : "outline"}>
-          {resultLabel(test)}
-        </Badge>
-        {qrImage && test.qrString && (
-          <Image
-            unoptimized
-            src={qrImage}
-            width={280}
-            height={280}
-            alt="PhonePe UAT test payment QR"
-            className="mx-auto rounded-lg bg-white"
-          />
+        {test.providerReference && (
+          <>
+            <dt className="text-muted-foreground">Provider reference</dt>
+            <dd className="break-all">{test.providerReference}</dd>
+          </>
         )}
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Test ID</dt>
-          <dd className="break-all">{test.id}</dd>
-          <dt className="text-muted-foreground">QR deadline</dt>
-          <dd>{date(test.expiresAt)}</dd>
-          <dt className="text-muted-foreground">Callback</dt>
-          <dd>
-            {test.callbackReceived ? "Received and verified" : "Not received"}
-          </dd>
-          <dt className="text-muted-foreground">Last status check</dt>
-          <dd>{test.checkedAt ? date(test.checkedAt) : "Not checked yet"}</dd>
-          {test.nextCheckAt && (
-            <>
-              <dt className="text-muted-foreground">Next scheduled check</dt>
-              <dd>{date(test.nextCheckAt)}</dd>
-            </>
-          )}
-          {test.providerReference && (
-            <>
-              <dt className="text-muted-foreground">Provider reference</dt>
-              <dd className="break-all">{test.providerReference}</dd>
-            </>
-          )}
-        </dl>
-        <p className="text-sm text-muted-foreground">{guidance(test)}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={busy || test.status === "SUCCEEDED"}
-            onClick={() => void check()}
-          >
-            {busy ? "Checking…" : "Check payment status"}
-          </Button>
-          <Button variant="outline" disabled={busy} onClick={onClose}>
-            Back to tests
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </dl>
+      <p className="text-sm text-muted-foreground">{guidance(test)}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          disabled={busy || disabled || test.status === "SUCCEEDED"}
+          onClick={() => void check()}
+        >
+          {busy ? "Checking…" : "Check payment status"}
+        </Button>
+        <Button variant="outline" disabled={busy || disabled} onClick={onClose}>
+          Hide result
+        </Button>
+      </div>
+    </section>
   );
 }
 function GatewayMark({ provider }: { provider: string }) {

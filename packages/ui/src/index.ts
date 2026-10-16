@@ -25,6 +25,11 @@ export {
 } from "./components/card";
 export { Switch } from "./components/switch";
 export {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "./components/collapsible";
+export {
   Dialog,
   DialogClose,
   DialogContent,

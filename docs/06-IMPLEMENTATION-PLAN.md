@@ -4,6 +4,12 @@
 
 ### PAYMENTS-1C — Platform test workspace
 
+The approved UI refinement consolidates credential input, saved-account summary,
+QR/result and collapsible history in one responsive dialog. Reuse the shared
+credential form while preserving the Store configuration dialog. Verify single
+dialog continuity, save failure/secret clearing, cancelled replacement and busy
+dismissal protection; payment APIs and persistence stay unchanged.
+
 Implement compact availability cards, separate encrypted platform UAT setup,
 durable INR 1.00 test probes/events, signed callbacks, provider status verification,
 restart-safe reconciliation and safe test history. Verify RBAC/impersonation,

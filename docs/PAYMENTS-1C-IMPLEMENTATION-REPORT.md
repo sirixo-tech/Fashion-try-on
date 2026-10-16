@@ -2,6 +2,20 @@
 
 Date: 2026-10-16
 
+## Single-popup UI refinement
+
+The platform PhonePe workspace now keeps setup, readiness, QR/results and recent
+tests in one wider popup. Credential fields appear immediately for a new account,
+use two columns on desktop and one on mobile, then collapse to a saved summary.
+Replace credentials opens blank fields inline; Cancel discards unsaved values.
+QR generation and opening a historical test show the result in the same popup.
+Recent tests is collapsible. Saves/status checks prevent dismissal and competing
+actions. The shared credential form still supports the existing Store dialog.
+Payment APIs, UAT gates and database structures are unchanged by this refinement.
+Its 18 focused frontend tests, shared-UI/web type checks and targeted lint passed.
+The tests cover continuity of the same dialog, inline QR/history, secret clearing,
+cancelled replacement, read-only access and save dismissal protection.
+
 ## What changed
 
 Platform → Payment Gateways now has compact cards with provider marks, clear
@@ -32,11 +46,13 @@ is no platform checkout default or shared merchant-account fallback option.
 
 ## How a test works
 
-1. Open PhonePe → Set up & test → Configure test account.
+1. Open PhonePe → Set up & test. Credential fields appear immediately for a new
+   account; use Replace credentials to edit an existing configuration inline.
 2. Enter confirmed UAT credentials and declare whether Dynamic QR test access
    has been confirmed. The form defaults that declaration to unconfirmed.
 3. Once the API execution switch and HTTPS callback address are configured,
-   generate a ₹1 test QR and exercise it with PhonePe's supported UAT tooling.
+   generate a ₹1 test QR in the same popup and exercise it with PhonePe's
+   supported UAT tooling.
 4. Inspect the result. A signed callback is recorded and schedules verification;
    SelfX independently checks the provider before showing Test passed.
 5. Inspect callback receipt separately. A payment can be verified successful
