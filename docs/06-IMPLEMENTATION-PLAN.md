@@ -2,6 +2,17 @@
 
 ## Implementation Plan
 
+### Store-only account maintenance preparation (2026-10-17)
+
+Prepare and validate a manually invoked preview/apply command for the approved
+Avinash account conversion. Keep `super-admin@selfx.local` as independent protected
+Superadmin, preserve the existing Store Owner membership and Store RBAC, and revoke
+only the target's platform assignments, refresh sessions and active impersonations.
+Verify lockout prevention, stale-plan rejection, rollback, audit attribution and
+repeat execution using disposable PostgreSQL. Provide Railway commands without
+executing against production. No normal role-management bypass or schema change.
+See `docs/STORE-ONLY-ACCOUNT-RUNBOOK.md` for the operational procedure.
+
 ### Platform catalog transfer preparation (2026-10-17)
 
 Prepare and test an opt-in dry-run/apply CLI to transfer existing platform products

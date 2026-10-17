@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### Store-only account maintenance (2026-10-17)
+
+The explicit `account:store-only` maintenance CLI removes a selected existing
+Store Owner's platform assignments while retaining merchant membership/RBAC.
+It requires a separate ACTIVE protected Superadmin, a read-only reviewed plan,
+exact target/Store UUIDs, hash confirmation and private before-manifest. Apply
+rechecks state under short authorization-table locks, revokes refresh sessions,
+ends the target's impersonations and audits the transaction. Issued access JWTs
+retain their existing lifetime; current server-side authorization denies revoked
+platform permissions. Normal protected Superadmin role-management APIs remain
+unchanged. This is an operator-run exception, never a startup migration or Store
+role capability. See `docs/STORE-ONLY-ACCOUNT-RUNBOOK.md`.
+
 ### Platform catalog transfer tool (2026-10-17)
 
 An explicit maintenance CLI can move the platform catalog to one reviewed ACTIVE

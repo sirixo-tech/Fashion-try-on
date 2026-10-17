@@ -13,7 +13,8 @@
     "bootstrap:production-admin": "node dist/scripts/bootstrap-production-admin.js",
     "bootstrap:demo-logins": "tsx src/scripts/bootstrap-demo-logins.ts",
     "catalog:sync-default-assets": "tsx src/scripts/sync-default-catalog-assets.ts",
-    "catalog:transfer": "node dist/scripts/transfer-platform-catalog.js"
+    "catalog:transfer": "node dist/scripts/transfer-platform-catalog.js",
+    "account:store-only": "node dist/scripts/convert-store-only-account.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
