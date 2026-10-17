@@ -2,6 +2,15 @@
 
 ## Implementation Plan
 
+### Platform catalog transfer preparation (2026-10-17)
+
+Prepare and test an opt-in dry-run/apply CLI to transfer existing platform products
+to the real `avinash-stores` tenant. Verify collisions, image copying, unchanged
+history/other tenants, rollback and repeat execution using isolated PostgreSQL and
+mock storage. Provide Railway operational instructions. This milestone does not
+execute against production or retire the platform Products UI/fallback; review
+the production dry run and verify the Store transfer before that separate change.
+
 ### PAYG-1 — Approved postpaid foundation
 
 Implement pay-as-you-go plan configuration alongside existing plans, UTC

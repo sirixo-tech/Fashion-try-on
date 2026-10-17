@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### Platform catalog transfer tool (2026-10-17)
+
+An explicit maintenance CLI can move the platform catalog to one reviewed ACTIVE
+Store. It defaults to a database-read-only preview and requires the exact Store
+ID, plan hash, private backup artifact and validated platform operator for apply.
+It preserves product/category IDs, copies stored images into Store paths, refuses
+stale or mixed-ownership plans, and atomically commits ownership/cache versions
+with an audit inverse manifest. Customer history and sensitive assets retain
+their ownership. No schema migration or automatic startup transfer is introduced.
+See `docs/PLATFORM-CATALOG-TRANSFER-RUNBOOK.md` for production steps and limits.
+
 ### PAYG-1 — Durable postpaid metering
 
 Plan billing mode distinguishes existing CREDIT_LIMITED plans from POSTPAID_PAYG.
