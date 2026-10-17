@@ -36,6 +36,7 @@ import { RefreshTokenService } from "./refresh-token.service.js";
 interface AccessTokenPayload {
   sub: string;
   typ: "access";
+  ver?: number;
 }
 
 interface SignupChallengePayload {
@@ -183,7 +184,13 @@ export class AuthService {
     }
 
     const session = await this.repository.findSessionWithUser(parts.sessionId);
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt <= new Date() ||
+      (session.credentialsVersion ?? 0) !==
+        (session.user.credentialsVersion ?? 0)
+    ) {
       await this.auditRefreshRejected("inactive_session", parts.sessionId);
       throwInvalidRefreshToken();
     }
@@ -321,6 +328,9 @@ export class AuthService {
     if (!user) {
       throwInvalidAccessToken();
     }
+    if ((payload.ver ?? 0) !== (user.credentialsVersion ?? 0)) {
+      throwInvalidAccessToken();
+    }
 
     if (!isActiveUser(user.status)) {
       throw new ApiErrorException(
@@ -347,6 +357,7 @@ export class AuthService {
     await this.repository.createUserSession({
       id: sessionId,
       userId: user.id,
+      credentialsVersion: user.credentialsVersion ?? 0,
       refreshTokenHash: this.refreshTokens.digest(refreshToken),
       expiresAt: refreshTokenExpiresAt,
       lastUsedAt: now,
@@ -362,7 +373,11 @@ export class AuthService {
     refreshTokenExpiresAt: Date,
   ): Promise<AuthResult> {
     const accessToken = await this.jwt.signAsync(
-      { sub: user.id, typ: "access" } satisfies AccessTokenPayload,
+      {
+        sub: user.id,
+        typ: "access",
+        ver: user.credentialsVersion ?? 0,
+      } satisfies AccessTokenPayload,
       {
         secret: this.config.jwtAccessSecret,
         expiresIn: this.config.accessTokenTtlSeconds,

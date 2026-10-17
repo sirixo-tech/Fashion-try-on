@@ -65,6 +65,25 @@ const baseAccess: NavigationAccess = {
   hasActiveStore: false,
 };
 
+it("exposes Mail Settings only to protected Superadmins", () => {
+  const path = "/app/platform/mail-settings";
+  expect(
+    canSeeHref(path, {
+      ...baseAccess,
+      hasPlatformAccess: true,
+      platformPermissions: ["PERMISSIONS_MANAGE"],
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref(path, {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["stores.update"],
+    }),
+  ).toBe(false);
+  expect(canSeeHref(path, { ...baseAccess, isSuperadmin: true })).toBe(true);
+});
+
 it("restricts platform gateway navigation to platform integration viewers", () => {
   const route = "/app/platform/payment-gateways";
   expect(

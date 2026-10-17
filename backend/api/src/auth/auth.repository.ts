@@ -113,6 +113,7 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
   async createUserSession(input: {
     id: string;
     userId: string;
+    credentialsVersion?: number;
     refreshTokenHash: string;
     expiresAt: Date;
     lastUsedAt: Date;
@@ -123,6 +124,7 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
       data: {
         id: input.id,
         userId: input.userId,
+        credentialsVersion: input.credentialsVersion ?? 0,
         refreshTokenHash: input.refreshTokenHash,
         expiresAt: input.expiresAt,
         lastUsedAt: input.lastUsedAt,
@@ -225,7 +227,8 @@ async function uniqueStoreSlug(
   storeName: string,
   email: string,
 ): Promise<string> {
-  const base = slugFromText(storeName) || slugFromText(email.split("@")[0] ?? "");
+  const base =
+    slugFromText(storeName) || slugFromText(email.split("@")[0] ?? "");
   const safeBase = (base || `store-${createSelfxId()}`).slice(0, 96);
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const slug =

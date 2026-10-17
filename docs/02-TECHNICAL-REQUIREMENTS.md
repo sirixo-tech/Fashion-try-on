@@ -1,5 +1,27 @@
 ## Document Evolution
 
+### MAIL-1 — SMTP and password recovery
+
+A shared NestJS MailModule stores versioned SMTP settings under platform.mail in
+platform_settings. AES-256-GCM encrypts credentials and pending mail payloads with
+an independent API-only key/version and optional previous keys. SMTP transport
+pins public DNS addresses, requires verified TLS/STARTTLS, disables file/URL access
+and protocol logging, and bounds connection time. Read/update/test routes require
+protected Superadmin authority independently of Store RBAC.
+
+PostgreSQL outbox leases/SKIP LOCKED claims support bounded background retries
+across API instances. Unknown and real addresses enqueue identical encrypted
+recovery work; the worker resolves ACTIVE users. Reset tokens are hashed, single-use
+and expire 15 minutes from request. Links use HTTPS fragments under the configured
+trusted web origin. Keyed database rate buckets bound requests. Reset serializes
+on the user row and atomically changes the Argon2id password hash, consumes links,
+increments credentials_version, revokes refresh sessions/impersonations, audits,
+and queues confirmation. JWT/session versions prevent old credentials from being
+reused, including racing login/refresh operations. Legacy missing JWT version is
+treated as zero only while the user's version is zero.
+
+See docs/MAIL-1-IMPLEMENTATION-REPORT.md for deployment and limits.
+
 ### Store-only account maintenance (2026-10-17)
 
 The explicit `account:store-only` maintenance CLI removes a selected existing

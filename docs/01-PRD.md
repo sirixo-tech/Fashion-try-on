@@ -1,5 +1,21 @@
 ## Document Evolution
 
+### MAIL-1 — Platform email and account recovery
+
+Mail Settings is a direct navigation item under Platform Settings, alongside
+General Settings. Only protected Superadmins manage/inspect SMTP configuration
+and explicitly send test emails. Stores share SelfX's mail service. Credentials
+are encrypted and passwords are write-only; blank keeps the saved password.
+Outgoing email can be disabled independently of an explicit test send. SMTP
+acceptance does not prove inbox delivery.
+
+Forgot password uses registered login email, never Store contact email. Eligible
+SelfX merchant/staff/platform users share the flow. A successful single-use link
+resets only the password, preserves roles/memberships, and invalidates old login
+sessions. Links expire 15 minutes from request. Unknown/ineligible addresses get
+the same generic response. Delivery/retries run in the background. Invitations
+and billing delivery remain later milestones.
+
 ### PAYG-1 — Postpaid successful generations (2026-10-16)
 
 Stores may be explicitly assigned a postpaid pay-as-you-go plan with a platform-set

@@ -7,6 +7,7 @@ export interface AuthUserRecord {
   id: string;
   email: string;
   passwordHash: string;
+  credentialsVersion?: number;
   displayName: string | null;
   status: UserStatus;
   emailVerifiedAt: Date | null;
@@ -24,6 +25,7 @@ export interface AuthUserRecord {
 export interface AuthSessionRecord {
   id: string;
   userId: string;
+  credentialsVersion?: number;
   refreshTokenHash: string;
   expiresAt: Date;
   revokedAt: Date | null;
@@ -84,6 +86,7 @@ export interface AuthRepositoryPort {
   createUserSession(input: {
     id: string;
     userId: string;
+    credentialsVersion?: number;
     refreshTokenHash: string;
     expiresAt: Date;
     lastUsedAt: Date;

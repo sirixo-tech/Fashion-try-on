@@ -263,14 +263,15 @@ export function LoginForm() {
                   </AlertDescription>
                 </Alert>
               ) : null}
+              <div className="text-right text-sm">
+                <Link href="/forgot-password">Forgot password?</Link>
+              </div>
               <Button
                 type="submit"
                 disabled={submitting}
                 className="h-11 w-full justify-between bg-slate-950 px-5 text-sm font-semibold hover:bg-slate-800"
               >
-                <span>
-                  {submitting ? "Signing in" : "Sign in"}
-                </span>
+                <span>{submitting ? "Signing in" : "Sign in"}</span>
                 <ArrowRightIcon size={18} aria-hidden="true" />
               </Button>
             </form>
@@ -446,10 +447,13 @@ function LoginMedia({ settings }: { settings: LoginPageSettings }) {
   }
 
   return (
-    <img
+    <Image
       className="absolute inset-0 size-full object-cover"
       src={settings.mediaUrl}
       alt=""
+      fill
+      unoptimized
+      sizes="50vw"
     />
   );
 }

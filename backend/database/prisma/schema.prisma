@@ -240,6 +240,8 @@ model User {
   id                            String                              @id @db.Uuid
   email                         String                              @unique @db.VarChar(320)
   passwordHash                  String                              @map("password_hash")
+  credentialsVersion            Int                                 @default(0) @map("credentials_version")
+  passwordChangedAt             DateTime?                           @map("password_changed_at") @db.Timestamptz(3)
   displayName                   String?                             @map("display_name") @db.VarChar(160)
   status                        UserStatus                          @default(ACTIVE)
   emailVerifiedAt               DateTime?                           @map("email_verified_at") @db.Timestamptz(3)
@@ -260,6 +262,7 @@ model User {
   storeMembershipRolesAssigned  StoreMembershipRole[]               @relation("StoreMembershipRoleAssignedBy")
   storePermissionGrantsAssigned StorePermissionGrant[]              @relation("StorePermissionGrantGrantedByUser")
   sessions                      UserSession[]
+  passwordResetTokens           PasswordResetToken[]
   kioskPairingClaims            KioskPairingSession[]               @relation("KioskPairingClaimedBy")
   kioskConfigurationsUpdated    KioskDeviceConfiguration[]          @relation("KioskConfigurationUpdatedBy")
   apiKeysCreated                ApiKey[]                            @relation("ApiKeyCreatedByUser")
@@ -274,6 +277,7 @@ model User {
 model UserSession {
   id               String    @id @db.Uuid
   userId           String    @map("user_id") @db.Uuid
+  credentialsVersion Int     @default(0) @map("credentials_version")
   refreshTokenHash String    @map("refresh_token_hash")
   expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
   revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
@@ -286,6 +290,49 @@ model UserSession {
   @@index([userId])
   @@index([expiresAt])
   @@map("user_sessions")
+}
+
+model PasswordResetToken {
+  id                 String   @id @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  tokenHash          String   @unique @map("token_hash") @db.Char(64)
+  credentialsVersion Int      @map("credentials_version")
+  expiresAt          DateTime @map("expires_at") @db.Timestamptz(3)
+  usedAt             DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+// Bounded, encrypted transactional email outbox. No plaintext email bodies/tokens.
+model MailJob {
+  id          String   @id @db.Uuid
+  kind        String   @db.VarChar(32)
+  status      String   @default("PENDING") @db.VarChar(20)
+  payload     Json?
+  attempts    Int      @default(0)
+  availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(3)
+  leaseUntil  DateTime? @map("lease_until") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+  failureCode String?  @map("failure_code") @db.VarChar(80)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, availableAt])
+  @@index([expiresAt])
+  @@map("mail_jobs")
+}
+
+model PasswordRecoveryRateBucket {
+  key       String   @id @db.Char(64)
+  count     Int      @default(1)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("password_recovery_rate_buckets")
 }
 
 model Organization {

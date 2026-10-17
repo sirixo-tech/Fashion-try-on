@@ -2,6 +2,16 @@
 
 ## Implementation Plan
 
+### MAIL-1 — Approved SMTP and password recovery
+
+Implement shared email delivery, encrypted Superadmin Mail Settings directly under
+Platform Settings, saved-account test sends, Forgot password and single-use
+15-minute links. Validate authorization, confidentiality, expiry/reuse, concurrency,
+retries, stale session rejection, UI states and preserved Store ownership with
+disposable PostgreSQL and simulated SMTP. Add a tracked migration and setup report.
+Actual delivery is verified by the operator after configuring SMTP in production.
+Invitations and invoice delivery remain separate milestones.
+
 ### Store-only account maintenance preparation (2026-10-17)
 
 Prepare and validate a manually invoked preview/apply command for the approved

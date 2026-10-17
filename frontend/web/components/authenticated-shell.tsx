@@ -15,6 +15,7 @@ import {
   LockKeyholeIcon,
   MapPinIcon,
   MonitorIcon,
+  MailIcon,
   PackageIcon,
   SettingsIcon,
   ShieldIcon,
@@ -127,10 +128,15 @@ const navItems: SelfxNavItem[] = [
   { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
   { href: "/app/billing", label: "Usage & Billing", icon: CreditCardIcon },
   {
-    label: "Platform",
+    label: "Platform Settings",
     icon: SettingsIcon,
     children: [
-      { href: "/app/settings", label: "Settings", icon: SettingsIcon },
+      { href: "/app/settings", label: "General Settings", icon: SettingsIcon },
+      {
+        href: "/app/platform/mail-settings",
+        label: "Mail Settings",
+        icon: MailIcon,
+      },
       {
         href: "/app/platform/pricing/features",
         label: "Plan features",

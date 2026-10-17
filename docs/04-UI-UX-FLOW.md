@@ -1,5 +1,20 @@
 ## Document Evolution
 
+### MAIL-1 — Mail Settings and recovery pages
+
+Platform Settings contains General Settings and Mail Settings as direct siblings.
+/app/platform/mail-settings uses @selfx/ui controls for host, port, TLS/STARTTLS,
+username, write-only password, sender name/email, optional reply-to and outgoing
+email switch. Save clears the entered secret on success/failure. Test email uses
+saved settings; unsaved edits disable testing. Loading, forbidden, missing-key,
+stale-save and SMTP failure states are explicit. Navigation is Superadmin-only.
+
+/forgot-password collects login email and displays generic acknowledgement.
+/reset-password reads the fragment once, removes it from the address bar, retains
+it only in component memory and requires matching 12–256 character passwords.
+Success clears inputs/local session and offers ordinary sign-in. Recovery pages
+are not indexed and include no external analytics/media or automatic login.
+
 ### PAYG-1 — Pay-as-you-go plan and usage screens
 
 The shared plan editor offers Monthly plan with credits or Pay as you go

@@ -1,4 +1,7 @@
 import { Module } from "@nestjs/common";
+import { MailModule } from "../mail/mail.module.js";
+import { PasswordRecoveryService } from "./password-recovery.service.js";
+import { PasswordRecoveryController } from "./password-recovery.controller.js";
 import { JwtService } from "@nestjs/jwt";
 
 import { DatabaseModule } from "../database/database.module.js";
@@ -14,9 +17,10 @@ import { AuthRateLimiterService } from "./rate-limiter.service.js";
 import { RefreshTokenService } from "./refresh-token.service.js";
 
 @Module({
-  imports: [DatabaseModule],
-  controllers: [AuthController],
+  imports: [DatabaseModule, MailModule],
+  controllers: [AuthController, PasswordRecoveryController],
   providers: [
+    PasswordRecoveryService,
     JwtService,
     PasswordService,
     RefreshTokenService,

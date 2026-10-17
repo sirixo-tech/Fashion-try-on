@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### MAIL-1 — Email and password recovery
+
+Superadmin opens Platform Settings -> Mail Settings, saves SMTP/sender details and
+sends an explicit test to a chosen recipient. The saved password stays hidden;
+blank keeps it. The page distinguishes configured, enabled, SMTP-accepted and
+failed states. Saving changes clears the previous test result.
+
+Users open Forgot password, enter login email and receive the same generic
+acknowledgement. Eligible users receive a 15-minute link, open Reset password,
+enter matching passwords and return to normal sign-in. Expired/used/missing links
+offer a fresh request. Success invalidates old sessions and queues confirmation,
+while Store ownership, products and role assignments remain unchanged.
+
 ### PAYG-1 — Store postpaid journey
 
 A platform pricing manager creates a Pay as you go plan, sets currency and price

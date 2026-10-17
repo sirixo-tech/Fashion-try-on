@@ -122,6 +122,7 @@ export function isMerchantOnlyRoute(href: string): boolean {
 
 export function canSeeHref(href: string, access: NavigationAccess): boolean {
   const route = normalizeAccessRoute(href);
+  if (route === "/app/platform/mail-settings") return access.isSuperadmin;
   if (
     isMerchantOnlyRoute(route) &&
     (access.hasPlatformAccess || access.isSuperadmin)

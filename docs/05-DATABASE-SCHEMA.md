@@ -2,6 +2,20 @@
 
 ## Database & Schema Design
 
+### MAIL-1 — Recovery persistence
+
+Migration 20261017000000_mail_and_password_recovery adds users.credentials_version
+and password_changed_at plus user_sessions.credentials_version. Existing records
+start at version zero. SMTP configuration reuses platform_settings.
+
+password_reset_tokens has UUIDv7 ID, User FK, unique SHA-256 token hash, credential
+version, expiry, consumed timestamp and creation time. No plaintext link is stored.
+mail_jobs contains kind/status, encrypted payload, attempts, scheduling, lease,
+expiry and safe failure code. Payloads are scrubbed on completion/final failure
+or expiry. Terminal metadata and expired reset records are pruned after seven days.
+password_recovery_rate_buckets stores keyed identifiers/counts/expiries, not raw
+emails or IPs. User-row locking serializes resets; Store tenancy is unchanged.
+
 ### PAYG-1 — Billing cycles and durable generation charges
 
 `pricing_plans` adds a CREDIT_LIMITED/POSTPAID_PAYG mode and optional integer
