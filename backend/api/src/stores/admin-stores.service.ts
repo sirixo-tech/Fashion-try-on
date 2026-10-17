@@ -342,6 +342,7 @@ export class AdminStoresService {
   async assignPricingPlan(
     storeId: string,
     input: AssignStorePricingPlanDto,
+    actorUserId?: string,
   ): Promise<StoreSubscriptionSummaryDto> {
     const store = await this.findStoreOrThrow(storeId);
     if (!this.entitlements) {
@@ -354,6 +355,7 @@ export class AdminStoresService {
     return this.entitlements.activatePlanForStore({
       organizationId: store.id,
       pricingPlanId: input.pricingPlanId,
+      actorUserId,
     });
   }
 

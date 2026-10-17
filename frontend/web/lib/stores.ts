@@ -37,6 +37,17 @@ export type AdminStore = {
 };
 
 export type StoreSubscriptionSummary = {
+  postpaid?: {
+    billingMode: "POSTPAID_PAYG";
+    timezone: "UTC";
+    periodStart: string;
+    periodEnd: string;
+    currency: string;
+    creditUnitPriceCents: number;
+    billableCredits: number;
+    historicalCredits: number;
+    estimatedAmountCents: string;
+  } | null;
   availableCredits: number;
   subscription: {
     id: string;
@@ -50,6 +61,8 @@ export type StoreSubscriptionSummary = {
     trialEndsAt: string | null;
     featureKeys: string[];
     pricingPlan: {
+      billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+      creditUnitPriceCents?: number | null;
       id: string;
       code: string;
       name: string;

@@ -2,6 +2,21 @@
 
 ## Database & Schema Design
 
+### PAYG-1 — Billing cycles and durable generation charges
+
+`pricing_plans` adds a CREDIT_LIMITED/POSTPAID_PAYG mode and optional integer
+minor-unit price per credit. `pricing_plan_rates` retains effective-dated currency
+and unit-price versions. `store_subscriptions.billing_anchor_at` preserves UTC
+anniversaries. `store_billing_cycles` snapshots tenant, subscription, plan ID,
+half-open monthly boundaries, currency and unit price, unique per subscription
+and start. `kiosk_try_on_runs` optionally records an admitted cycle and trusted
+channel. `billable_generations` retains a unique source-run ID, tenant, nullable
+historical channel, success timestamp, historical flag and UNBILLED/PREPAID/
+POSTPAID coverage. Composite tenant foreign keys protect cycle relationships;
+SQL checks enforce positive rates and coverage consistency. The run ID in the
+financial ledger intentionally has no run/image FK, so seven-day media cleanup
+cannot delete billing evidence. This milestone creates no invoice tables.
+
 ### PAYMENTS-1C — Isolated platform test records
 
 `platform_payment_test_connections` is keyed by provider and contains a positive

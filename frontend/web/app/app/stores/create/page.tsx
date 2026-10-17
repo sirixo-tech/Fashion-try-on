@@ -253,11 +253,15 @@ export default function CreateStorePage() {
                           <p className="break-words text-lg font-semibold">
                             {priceFor(plan)}{" "}
                             <span className="text-sm font-normal text-muted-foreground">
-                              / month
+                              {plan.billingMode === "POSTPAID_PAYG"
+                                ? "/ credit · postpaid"
+                                : "/ month"}
                             </span>
                           </p>
                           <p className="mt-2 text-sm text-muted-foreground">
-                            {plan.includedCredits.toLocaleString()} credits
+                            {plan.billingMode === "POSTPAID_PAYG"
+                              ? "No credit limit; successful generations only"
+                              : `${plan.includedCredits.toLocaleString()} credits`}
                             {plan.trialCredits > 0
                               ? ` + ${plan.trialCredits.toLocaleString()} trial`
                               : ""}
@@ -418,7 +422,10 @@ export default function CreateStorePage() {
                     </dd>
                     {selected ? (
                       <dd className="mt-1 text-muted-foreground">
-                        {priceFor(selected)} / month
+                        {priceFor(selected)}{" "}
+                        {selected.billingMode === "POSTPAID_PAYG"
+                          ? "/ credit · postpaid"
+                          : "/ month"}
                       </dd>
                     ) : null}
                   </div>
@@ -448,7 +455,11 @@ function priceFor(plan: PricingPlan) {
   return new Intl.NumberFormat("en", {
     style: "currency",
     currency: plan.currency,
-  }).format(plan.monthlyPriceCents / 100);
+  }).format(
+    (plan.billingMode === "POSTPAID_PAYG"
+      ? (plan.creditUnitPriceCents ?? 0)
+      : plan.monthlyPriceCents) / 100,
+  );
 }
 
 function messageFor(error: unknown) {

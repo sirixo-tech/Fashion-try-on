@@ -69,28 +69,62 @@ export class PricingControlService {
 
   async createPlan(
     input: CreatePricingPlanDto,
+    actorUserId?: string,
   ): Promise<PricingPlanResponseDto> {
+    validateBillingTerms(input);
     try {
-      const plan = await this.prisma.pricingPlan.create({
-        data: {
-          id: createSelfxId(),
-          code: input.code.trim(),
-          name: input.name.trim(),
-          status: input.status ?? PricingPlanStatus.ACTIVE,
-          channels: input.channels,
-          currency: input.currency.trim().toUpperCase(),
-          monthlyPriceCents: input.monthlyPriceCents,
-          includedCredits: input.includedCredits,
-          trialCredits: input.trialCredits,
-          storeLocationLimit: input.storeLocationLimit ?? null,
-          extraCreditPriceCents: input.extraCreditPriceCents ?? null,
-          kioskMonthlyRentCents: input.kioskMonthlyRentCents ?? null,
-          kioskDeviceLimit: input.kioskDeviceLimit ?? null,
-          metadata: jsonMetadataWithFeatureKeys(
-            input.metadata,
-            input.featureKeys,
-          ),
-        },
+      const plan = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.pricingPlan.create({
+          data: {
+            id: createSelfxId(),
+            code: input.code.trim(),
+            name: input.name.trim(),
+            status: input.status ?? PricingPlanStatus.ACTIVE,
+            channels: input.channels,
+            currency: input.currency.trim().toUpperCase(),
+            billingMode: input.billingMode ?? "CREDIT_LIMITED",
+            creditUnitPriceCents: input.creditUnitPriceCents ?? null,
+            ...(input.billingMode === "POSTPAID_PAYG"
+              ? {
+                  rates: {
+                    create: {
+                      id: createSelfxId(),
+                      currency: input.currency,
+                      creditUnitPriceCents: input.creditUnitPriceCents!,
+                      effectiveAt: new Date(),
+                    },
+                  },
+                }
+              : {}),
+            monthlyPriceCents: input.monthlyPriceCents,
+            includedCredits: input.includedCredits,
+            trialCredits: input.trialCredits,
+            storeLocationLimit: input.storeLocationLimit ?? null,
+            extraCreditPriceCents: input.extraCreditPriceCents ?? null,
+            kioskMonthlyRentCents: input.kioskMonthlyRentCents ?? null,
+            kioskDeviceLimit: input.kioskDeviceLimit ?? null,
+            metadata: jsonMetadataWithFeatureKeys(
+              input.metadata,
+              input.featureKeys,
+            ),
+          },
+        });
+        if (actorUserId)
+          await tx.auditLog.create({
+            data: {
+              id: createSelfxId(),
+              actorUserId,
+              action: "PRICING_PLAN_CREATED",
+              resourceType: "PRICING_PLAN",
+              resourceId: created.id,
+              metadata: {
+                billingMode: created.billingMode,
+                currency: created.currency,
+                creditUnitPriceCents: created.creditUnitPriceCents,
+              },
+            },
+          });
+        return created;
       });
       return toDto(plan);
     } catch (error) {
@@ -108,20 +142,51 @@ export class PricingControlService {
   async updatePlan(
     planId: string,
     input: UpdatePricingPlanDto,
+    actorUserId?: string,
   ): Promise<PricingPlanResponseDto> {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const current = await tx.pricingPlan.findUnique({
           where: { id: planId },
-          select: { code: true, metadata: true },
         });
         if (!current) {
           throw missingRecordError();
         }
         const starterPlan = current.code === DEFAULT_STARTER_PLAN_CODE;
+        if (
+          input.billingMode &&
+          input.billingMode !== (current.billingMode ?? "CREDIT_LIMITED")
+        ) {
+          throw new ApiErrorException(
+            HttpStatus.CONFLICT,
+            "PRICING_BILLING_MODE_IMMUTABLE",
+            "Create a separate plan to change billing mode, then explicitly assign it to Stores.",
+          );
+        }
+        const merged = { ...current, ...input };
+        validateBillingTerms(merged);
+        const rateChanged =
+          current.billingMode === "POSTPAID_PAYG" &&
+          (merged.creditUnitPriceCents !== current.creditUnitPriceCents ||
+            merged.currency !== current.currency);
         const plan = await tx.pricingPlan.update({
           where: { id: planId },
           data: {
+            ...(input.creditUnitPriceCents !== undefined
+              ? { creditUnitPriceCents: input.creditUnitPriceCents }
+              : {}),
+            ...(rateChanged
+              ? {
+                  rates: {
+                    create: {
+                      id: createSelfxId(),
+                      currency: merged.currency,
+                      creditUnitPriceCents: merged.creditUnitPriceCents!,
+                      effectiveAt: new Date(),
+                    },
+                  },
+                }
+              : {}),
             ...(input.name !== undefined ? { name: input.name.trim() } : {}),
             ...(input.status !== undefined ? { status: input.status } : {}),
             ...(input.channels !== undefined
@@ -191,6 +256,24 @@ export class PricingControlService {
               },
             })
           : 0;
+        if (actorUserId)
+          await tx.auditLog.create({
+            data: {
+              id: createSelfxId(),
+              actorUserId,
+              action: "PRICING_PLAN_UPDATED",
+              resourceType: "PRICING_PLAN",
+              resourceId: plan.id,
+              metadata: {
+                billingMode: plan.billingMode,
+                currency: plan.currency,
+                creditUnitPriceCents: plan.creditUnitPriceCents,
+                previousCurrency: current.currency,
+                previousCreditUnitPriceCents:
+                  current.creditUnitPriceCents ?? null,
+              },
+            },
+          });
         return toDto(plan, updatedSubscriptions.count + legacyStarterCount);
       });
     } catch (error) {
@@ -265,6 +348,8 @@ function toDto(
       ? plan.channels.filter(isKnownChannel)
       : [],
     currency: plan.currency,
+    billingMode: plan.billingMode ?? "CREDIT_LIMITED",
+    creditUnitPriceCents: plan.creditUnitPriceCents ?? null,
     monthlyPriceCents: plan.monthlyPriceCents,
     includedCredits: plan.includedCredits,
     trialCredits: plan.trialCredits,
@@ -281,6 +366,36 @@ function toDto(
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
   };
+}
+
+function validateBillingTerms(input: {
+  billingMode?: string;
+  creditUnitPriceCents?: number | null;
+  monthlyPriceCents: number;
+  includedCredits: number;
+  trialCredits: number;
+  extraCreditPriceCents?: number | null;
+}) {
+  const payg = input.billingMode === "POSTPAID_PAYG";
+  const price = input.creditUnitPriceCents;
+  if (
+    (payg &&
+      (!Number.isInteger(price) ||
+        !price ||
+        price < 1 ||
+        price > 1_000_000_000 ||
+        input.monthlyPriceCents !== 0 ||
+        input.includedCredits !== 0 ||
+        input.trialCredits !== 0 ||
+        input.extraCreditPriceCents != null)) ||
+    (!payg && price != null)
+  ) {
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "PRICING_BILLING_TERMS_INVALID",
+      "Pay-as-you-go requires a positive price per credit, zero monthly/included/trial credits and no credit-pack price. Credit-limited plans must not set a postpaid rate.",
+    );
+  }
 }
 
 export function featureKeysFromPricingPlanMetadata(

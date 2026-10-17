@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { PricingPlanStatus } from "@prisma/client";
+import { PlanBillingMode, PricingPlanStatus } from "@prisma/client";
 import {
   ArrayNotEmpty,
   ArrayUnique,
@@ -24,6 +24,12 @@ const pricingChannels = [
 type PricingChannel = (typeof pricingChannels)[number];
 
 export class PricingPlanResponseDto {
+  @ApiProperty({ enum: PlanBillingMode })
+  billingMode!: PlanBillingMode;
+
+  @ApiPropertyOptional({ nullable: true })
+  creditUnitPriceCents!: number | null;
+
   @ApiProperty()
   id!: string;
 
@@ -85,6 +91,21 @@ export class PricingPlanListResponseDto {
 }
 
 export class CreatePricingPlanDto {
+  @ApiPropertyOptional({
+    enum: PlanBillingMode,
+    default: PlanBillingMode.CREDIT_LIMITED,
+  })
+  @IsOptional()
+  @IsIn(Object.values(PlanBillingMode))
+  billingMode?: PlanBillingMode;
+
+  @ApiPropertyOptional({ nullable: true, minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000_000)
+  creditUnitPriceCents?: number | null;
+
   @ApiProperty({ example: "shopify-starter" })
   @IsString()
   @Length(3, 80)
@@ -174,6 +195,18 @@ export class CreatePricingPlanDto {
 }
 
 export class UpdatePricingPlanDto {
+  @ApiPropertyOptional({ enum: PlanBillingMode })
+  @IsOptional()
+  @IsIn(Object.values(PlanBillingMode))
+  billingMode?: PlanBillingMode;
+
+  @ApiPropertyOptional({ nullable: true, minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000_000)
+  creditUnitPriceCents?: number | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYG-1 — Store postpaid journey
+
+A platform pricing manager creates a Pay as you go plan, sets currency and price
+per successful credit, and assigns it during Store creation or through the Store's
+Change plan action. Existing Stores include only verifiable uncharged successes
+in the current cycle. The Store can generate without a prepaid balance. The
+billing dashboard shows successful credits, imported historical credits, the
+cycle's rate, UTC boundaries and an estimated generation charge. Failed attempts
+and retries do not add credits. Updating a rate preserves the current cycle's
+terms. Cycle-end invoicing and delivery follow in a separate milestone.
+
 ### PAYMENTS-1C — Platform gateway testing
 
 An authorized platform admin opens Payment Gateways, toggles Store availability

@@ -328,6 +328,8 @@ model Organization {
   providerCredentials            IntegrationProviderCredential[]
   storeSubscription              StoreSubscription?
   creditLedgerEntries            CreditLedgerEntry[]
+  billingCycles                  StoreBillingCycle[]
+  billableGenerations            BillableGeneration[]
   impersonationSessions          ImpersonationSession[]              @relation("ImpersonationSessionTargetStore")
 
   @@index([status])
@@ -1164,6 +1166,8 @@ model KioskTryOnRun {
   id                                     String               @id @db.Uuid
   kioskDeviceId                          String?              @map("kiosk_device_id") @db.Uuid
   apiKeyId                               String?              @map("api_key_id") @db.Uuid
+  billingCycleId                         String?              @map("billing_cycle_id") @db.Uuid
+  billingChannel                         CreditLedgerChannel? @map("billing_channel")
   tryOnSessionId                         String?              @map("try_on_session_id") @db.Uuid
   clientRequestId                        String               @map("client_request_id") @db.VarChar(160)
   status                                 String               @default("QUEUED") @db.VarChar(24)
@@ -1214,6 +1218,7 @@ model KioskTryOnRun {
   product                                Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
   resultAsset                            TryOnAsset?          @relation("KioskTryOnRunResultAsset", fields: [resultAssetId], references: [id], onDelete: SetNull)
   look                                   TryOnLook?
+  billingCycle                           StoreBillingCycle?   @relation(fields: [organizationId, billingCycleId], references: [organizationId, id], onDelete: Restrict)
 
   @@unique([kioskDeviceId, clientRequestId])
   @@unique([apiKeyId, clientRequestId])
@@ -1229,6 +1234,7 @@ model KioskTryOnRun {
   @@index([organizationId, tryOnVertical, createdAt])
   @@index([organizationId, jewelleryType, createdAt])
   @@index([resultAssetId])
+  @@index([billingCycleId])
   @@index([organizationId, createdAt])
   @@index([storeId, createdAt])
   @@index([status, expiresAt])
@@ -1616,6 +1622,8 @@ model PricingPlan {
   status                PricingPlanStatus   @default(ACTIVE)
   channels              Json                @map("channels_json")
   currency              String              @default("USD") @db.Char(3)
+  billingMode           PlanBillingMode     @default(CREDIT_LIMITED) @map("billing_mode")
+  creditUnitPriceCents  Int?                @map("credit_unit_price_cents")
   monthlyPriceCents     Int                 @default(0) @map("monthly_price_cents")
   includedCredits       Int                 @default(0) @map("included_credits")
   trialCredits          Int                 @default(10) @map("trial_credits")
@@ -1628,6 +1636,7 @@ model PricingPlan {
   updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
   subscriptions         StoreSubscription[]
   creditLedgerEntries   CreditLedgerEntry[]
+  rates                 PricingPlanRate[]
 
   @@index([status])
   @@map("pricing_plans")
@@ -1646,17 +1655,83 @@ model StoreSubscription {
   trialStartedAt      DateTime?               @map("trial_started_at") @db.Timestamptz(3)
   trialEndsAt         DateTime?               @map("trial_ends_at") @db.Timestamptz(3)
   cancelledAt         DateTime?               @map("cancelled_at") @db.Timestamptz(3)
+  billingAnchorAt     DateTime?               @map("billing_anchor_at") @db.Timestamptz(3)
   metadata            Json?                   @map("metadata_json")
   createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   pricingPlan         PricingPlan?            @relation(fields: [pricingPlanId], references: [id], onDelete: SetNull)
   creditLedgerEntries CreditLedgerEntry[]
+  billingCycles       StoreBillingCycle[]
 
+  @@unique([organizationId, id])
   @@index([status])
   @@index([pricingPlanId])
   @@index([currentPeriodEnd])
   @@map("store_subscriptions")
+}
+
+enum PlanBillingMode {
+  CREDIT_LIMITED
+  POSTPAID_PAYG
+}
+
+enum GenerationBillingCoverage {
+  UNBILLED
+  PREPAID
+  POSTPAID
+}
+
+model PricingPlanRate {
+  id                   String      @id @db.Uuid
+  pricingPlanId        String      @map("pricing_plan_id") @db.Uuid
+  currency             String      @db.Char(3)
+  creditUnitPriceCents Int         @map("credit_unit_price_cents")
+  effectiveAt          DateTime    @map("effective_at") @db.Timestamptz(3)
+  pricingPlan          PricingPlan @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)
+
+  @@index([pricingPlanId, effectiveAt])
+  @@map("pricing_plan_rates")
+}
+
+model StoreBillingCycle {
+  id                   String               @id @db.Uuid
+  organizationId       String               @map("organization_id") @db.Uuid
+  subscriptionId       String               @map("subscription_id") @db.Uuid
+  pricingPlanId        String               @map("pricing_plan_id") @db.Uuid
+  periodStart          DateTime             @map("period_start") @db.Timestamptz(3)
+  periodEnd            DateTime             @map("period_end") @db.Timestamptz(3)
+  currency             String               @db.Char(3)
+  creditUnitPriceCents Int                  @map("credit_unit_price_cents")
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  subscription         StoreSubscription    @relation(fields: [organizationId, subscriptionId], references: [organizationId, id], onDelete: Restrict)
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  runs                 KioskTryOnRun[]
+  generations          BillableGeneration[]
+
+  @@unique([organizationId, id])
+  @@unique([subscriptionId, periodStart])
+  @@index([organizationId, periodEnd])
+  @@map("store_billing_cycles")
+}
+
+// Financial provenance deliberately has no FK to temporary runs, looks or images.
+model BillableGeneration {
+  id             String                    @id @db.Uuid
+  organizationId String                    @map("organization_id") @db.Uuid
+  runId          String                    @unique @map("run_id") @db.Uuid
+  channel        CreditLedgerChannel?
+  coverage       GenerationBillingCoverage @default(UNBILLED)
+  billingCycleId String?                   @map("billing_cycle_id") @db.Uuid
+  completedAt    DateTime                  @map("completed_at") @db.Timestamptz(3)
+  historical     Boolean                   @default(false)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  billingCycle   StoreBillingCycle?        @relation(fields: [organizationId, billingCycleId], references: [organizationId, id], onDelete: Restrict)
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, completedAt])
+  @@index([billingCycleId, coverage])
+  @@map("billable_generations")
 }
 
 model CreditLedgerEntry {

@@ -16,11 +16,17 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
 import {
-  DEFAULT_TRIAL_CREDITS,
   DEFAULT_TRIAL_FEATURE_KEYS,
   ensureDefaultStarterPricingPlan,
 } from "./default-trial.js";
 import { featureKeysFromPricingPlanMetadata } from "./pricing-control.service.js";
+import {
+  ensurePostpaidCycle,
+  getPostpaidSummary,
+  importCurrentCycleHistory,
+  lockBillingSubscription,
+  type PostpaidSummary,
+} from "./postpaid-billing.js";
 
 export const ENTITLEMENT_ERROR_CODES = {
   creditsExhausted: "SELFX_CREDITS_EXHAUSTED",
@@ -34,6 +40,7 @@ export interface CreditBalance {
 
 export interface StoreCreditSummary {
   availableCredits: number;
+  postpaid?: PostpaidSummary | null;
   subscription: {
     id: string;
     status: StoreSubscriptionStatus;
@@ -50,6 +57,8 @@ export interface StoreCreditSummary {
       code: string;
       name: string;
       currency: string;
+      billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+      creditUnitPriceCents?: number | null;
       monthlyPriceCents: number;
       includedCredits: number;
       storeLocationLimit: number | null;
@@ -76,7 +85,8 @@ export interface ConsumeTryOnCreditInput {
 }
 
 export interface ConsumeTryOnCreditResult {
-  entry: CreditLedgerEntry;
+  billingCycleId?: string;
+  entry: CreditLedgerEntry | null;
   balanceBefore: number;
   balanceAfter: number;
 }
@@ -141,7 +151,10 @@ export class EntitlementsService {
     organizationId: string,
   ): Promise<StoreCreditSummary> {
     await this.ensureTrialCredits(organizationId);
-    return this.getStoreCreditSummaryWithClient(organizationId, this.prisma);
+    return this.prisma.$transaction(async (tx) => {
+      await lockBillingSubscription(tx, organizationId);
+      return this.getStoreCreditSummaryWithClient(organizationId, tx);
+    });
   }
 
   async getStoreFeatureKeys(organizationId: string): Promise<string[]> {
@@ -167,6 +180,7 @@ export class EntitlementsService {
     input: {
       organizationId: string;
       pricingPlanId: string;
+      actorUserId?: string;
     },
     transaction?: Prisma.TransactionClient,
   ): Promise<StoreCreditSummary> {
@@ -181,11 +195,37 @@ export class EntitlementsService {
       if (!plan) {
         throw pricingPlanUnavailable();
       }
-      await this.ensureTrialCredits(input.organizationId, tx);
+      if (plan.billingMode === "POSTPAID_PAYG") {
+        await tx.storeSubscription.upsert({
+          where: { organizationId: input.organizationId },
+          create: {
+            id: createSelfxId(),
+            organizationId: input.organizationId,
+            pricingPlanId: plan.id,
+            status: "ACTIVE",
+            channels: jsonStringArray(plan.channels),
+            trialCredits: 0,
+            includedCredits: 0,
+            billingAnchorAt: now,
+            metadata: subscriptionMetadataForPlan(plan),
+          },
+          update: {},
+        });
+      } else {
+        await this.ensureTrialCredits(input.organizationId, tx);
+      }
+      await lockBillingSubscription(tx, input.organizationId);
 
       const current = await tx.storeSubscription.findUnique({
         where: { organizationId: input.organizationId },
+        include: { pricingPlan: true },
       });
+      const billingAnchorAt =
+        current?.billingAnchorAt ??
+        current?.currentPeriodStart ??
+        current?.trialStartedAt ??
+        current?.createdAt ??
+        now;
       const sameActivePeriod =
         current?.pricingPlanId === plan.id &&
         current.status === StoreSubscriptionStatus.ACTIVE &&
@@ -213,6 +253,7 @@ export class EntitlementsService {
           metadata: subscriptionMetadataForPlan(plan),
         },
         update: {
+          ...(plan.billingMode === "POSTPAID_PAYG" ? { billingAnchorAt } : {}),
           pricingPlanId: plan.id,
           status: StoreSubscriptionStatus.ACTIVE,
           channels: jsonStringArray(plan.channels),
@@ -224,6 +265,22 @@ export class EntitlementsService {
         },
         select: { id: true },
       });
+
+      if (plan.billingMode === "POSTPAID_PAYG") {
+        const active = await tx.storeSubscription.findUniqueOrThrow({
+          where: { organizationId: input.organizationId },
+          include: { pricingPlan: true },
+        });
+        const cycle = await ensurePostpaidCycle(
+          tx,
+          active,
+          now,
+          current?.pricingPlan?.billingMode === "POSTPAID_PAYG"
+            ? undefined
+            : plan,
+        );
+        if (!sameActivePeriod) await importCurrentCycleHistory(tx, cycle, now);
+      }
 
       if (!sameActivePeriod && plan.includedCredits > 0) {
         const balance = await this.getCreditBalanceWithClient(
@@ -255,11 +312,32 @@ export class EntitlementsService {
         });
       }
 
-      return this.getStoreCreditSummaryWithClient(input.organizationId, tx);
+      const summary = await this.getStoreCreditSummaryWithClient(
+        input.organizationId,
+        tx,
+      );
+      if (input.actorUserId)
+        await tx.auditLog.create({
+          data: {
+            id: createSelfxId(),
+            organizationId: input.organizationId,
+            actorUserId: input.actorUserId,
+            action: "STORE_PLAN_ASSIGNED",
+            resourceType: "STORE_SUBSCRIPTION",
+            resourceId: subscription.id,
+            metadata: {
+              previousPlanId: current?.pricingPlanId ?? null,
+              pricingPlanId: plan.id,
+              billingMode: plan.billingMode,
+              postpaid: summary.postpaid ? { ...summary.postpaid } : null,
+            },
+          },
+        });
+      return summary;
     };
     return transaction
       ? activate(transaction)
-      : this.prisma.$transaction(activate);
+      : this.prisma.$transaction(activate, { timeout: 60_000 });
   }
 
   async topUpStoreCredits(
@@ -270,8 +348,15 @@ export class EntitlementsService {
       await this.ensureTrialCredits(input.organizationId, tx);
       const subscription = await tx.storeSubscription.findUnique({
         where: { organizationId: input.organizationId },
-        select: { id: true, pricingPlanId: true },
+        include: { pricingPlan: true },
       });
+      if (subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          "SELFX_POSTPAID_TOPUP_UNAVAILABLE",
+          "Pay-as-you-go does not require prepaid credit top-ups.",
+        );
+      }
       const balance = await this.getCreditBalanceWithClient(
         input.organizationId,
         tx,
@@ -396,6 +481,11 @@ export class EntitlementsService {
     organizationId: string,
     tx: EntitlementTx = this.prisma,
   ): Promise<void> {
+    const current = await tx.storeSubscription.findUnique({
+      where: { organizationId },
+      include: { pricingPlan: true },
+    });
+    if (current?.pricingPlan?.billingMode === "POSTPAID_PAYG") return;
     const now = new Date();
     const defaultPlan = await ensureDefaultStarterPricingPlan(
       tx,
@@ -458,6 +548,14 @@ export class EntitlementsService {
   }): Promise<CreditBalance> {
     await this.ensureTrialCredits(input.organizationId);
     const balance = await this.getCreditBalance(input.organizationId);
+    const subscription = await this.prisma.storeSubscription.findUnique({
+      where: { organizationId: input.organizationId },
+      include: { pricingPlan: true },
+    });
+    if (subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+      assertPostpaidActive(subscription.status);
+      return balance;
+    }
     const quantity = cleanQuantity(input.quantity);
     if (balance.availableCredits < quantity) {
       throw creditsExhausted();
@@ -471,6 +569,35 @@ export class EntitlementsService {
     const quantity = cleanQuantity(input.quantity);
     return this.prisma.$transaction(async (tx) => {
       await this.ensureTrialCredits(input.organizationId, tx);
+
+      await lockBillingSubscription(tx, input.organizationId);
+      const subscription = await tx.storeSubscription.findUnique({
+        where: { organizationId: input.organizationId },
+        include: { pricingPlan: true },
+      });
+      if (subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+        assertPostpaidActive(subscription.status);
+        if (
+          !jsonArrayToStrings(subscription.channels).includes(input.channel)
+        ) {
+          throw new ApiErrorException(
+            HttpStatus.PAYMENT_REQUIRED,
+            "SELFX_SUBSCRIPTION_UNAVAILABLE",
+            "This channel is not included in the Store's plan.",
+          );
+        }
+        const cycle = await ensurePostpaidCycle(tx, subscription);
+        const balance = await this.getCreditBalanceWithClient(
+          input.organizationId,
+          tx,
+        );
+        return {
+          entry: null,
+          billingCycleId: cycle.id,
+          balanceBefore: balance.availableCredits,
+          balanceAfter: balance.availableCredits,
+        };
+      }
 
       const existing = await tx.creditLedgerEntry.findUnique({
         where: { idempotencyKey: input.idempotencyKey },
@@ -536,7 +663,7 @@ export class EntitlementsService {
 
   private async getStoreCreditSummaryWithClient(
     organizationId: string,
-    tx: Pick<PrismaService, "creditLedgerEntry" | "storeSubscription">,
+    tx: Prisma.TransactionClient | PrismaService,
   ): Promise<StoreCreditSummary> {
     const [balance, subscription] = await Promise.all([
       this.getCreditBalanceWithClient(organizationId, tx),
@@ -546,8 +673,13 @@ export class EntitlementsService {
       }),
     ]);
 
+    const postpaid = subscription
+      ? await getPostpaidSummary(tx, subscription)
+      : null;
+
     return {
       availableCredits: balance.availableCredits,
+      postpaid,
       subscription: subscription
         ? {
             id: subscription.id,
@@ -556,9 +688,13 @@ export class EntitlementsService {
             includedCredits: subscription.includedCredits,
             trialCredits: subscription.trialCredits,
             currentPeriodStart:
-              subscription.currentPeriodStart?.toISOString() ?? null,
+              postpaid?.periodStart ??
+              subscription.currentPeriodStart?.toISOString() ??
+              null,
             currentPeriodEnd:
-              subscription.currentPeriodEnd?.toISOString() ?? null,
+              postpaid?.periodEnd ??
+              subscription.currentPeriodEnd?.toISOString() ??
+              null,
             trialStartedAt: subscription.trialStartedAt?.toISOString() ?? null,
             trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
             featureKeys: subscriptionFeatureKeys(subscription),
@@ -568,6 +704,9 @@ export class EntitlementsService {
                   code: subscription.pricingPlan.code,
                   name: subscription.pricingPlan.name,
                   currency: subscription.pricingPlan.currency,
+                  billingMode: subscription.pricingPlan.billingMode,
+                  creditUnitPriceCents:
+                    subscription.pricingPlan.creditUnitPriceCents,
                   monthlyPriceCents: subscription.pricingPlan.monthlyPriceCents,
                   includedCredits: subscription.pricingPlan.includedCredits,
                   storeLocationLimit:
@@ -613,6 +752,15 @@ export class EntitlementsService {
       return "USD";
     }
   }
+}
+
+function assertPostpaidActive(status: StoreSubscriptionStatus) {
+  if (status !== "ACTIVE")
+    throw new ApiErrorException(
+      HttpStatus.PAYMENT_REQUIRED,
+      "SELFX_SUBSCRIPTION_UNAVAILABLE",
+      "This Store's pay-as-you-go subscription is not active.",
+    );
 }
 
 function subscriptionMetadataForPlan(plan: {

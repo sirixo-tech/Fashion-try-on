@@ -1,5 +1,19 @@
 ## Document Evolution
 
+### PAYG-1 — Durable postpaid metering
+
+Plan billing mode distinguishes existing CREDIT_LIMITED plans from POSTPAID_PAYG.
+Admission records the trusted channel and billing-cycle snapshot before provider
+execution. Common result finalization commits one unique-run financial usage row
+in the same transaction as the usable result. Financial rows have no dependency
+on temporary images, looks or runs and survive their deletion. Tenant-scoped
+subscription locking serializes assignment, cycle creation and metering; composite
+foreign keys prevent cross-Store cycle attribution. UTC calendar anniversaries
+clamp short months without moving later anniversaries. Versioned rates preserve
+cycle terms even after inactive months. Historical import uses server evidence,
+excludes matching credit deductions and deduplicates runs/events. No merchant
+checkout gateway is reused for SelfX subscription collection.
+
 ### PAYMENTS-1C — Platform testing boundary
 
 `/api/v1/admin/payment-gateways/PHONEPE/testing` exposes safe workspace metadata;

@@ -19,6 +19,7 @@ import {
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { validateTechnicalImageBuffer } from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { prepareRunBilling } from "../entitlements/postpaid-billing.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import {
   JEWELLERY_TYPES,
@@ -222,10 +223,16 @@ export class PublicApiTryOnService {
     now: Date,
   ): Promise<{ run: PublicRunRecord; isNew: boolean }> {
     const garmentFields = publicRunGarmentFields(runAssets);
+    const billing = await prepareRunBilling(this.prisma, {
+      organizationId: credential.storeId,
+      assignmentScope: "ORGANIZATION",
+      channel: "PUBLIC_API",
+    });
     try {
       const run = await this.prisma.kioskTryOnRun.create({
         data: {
           id: createSelfxId(),
+          ...billing,
           kioskDeviceId: null,
           apiKeyId: credential.apiKeyId,
           tryOnSessionId: runAssets.sessionId,
@@ -311,15 +318,14 @@ export class PublicApiTryOnService {
         jewelleryAsset,
         "jewelleryImage",
       );
-      const foundation = await this.requireJewelleryTryOn().prepareRunFoundation(
-        {
+      const foundation =
+        await this.requireJewelleryTryOn().prepareRunFoundation({
           storeId: credential.storeId,
           personImageDataUri: personImage.dataUri,
           jewelleryImageDataUri: jewelleryImage.dataUri,
           jewelleryType,
           productReference: inputProductReference(input),
-        },
-      );
+        });
 
       return {
         sessionId: input.sessionId,
@@ -867,7 +873,11 @@ function inputProductReference(
   input: CreatePublicApiTryOnDto,
 ): JewelleryTryOnProviderSubmitInput["productReference"] {
   const reference = normalizeProductReference(input);
-  if (!reference.externalProductId && !reference.productName && !reference.sku) {
+  if (
+    !reference.externalProductId &&
+    !reference.productName &&
+    !reference.sku
+  ) {
     return undefined;
   }
   return {

@@ -94,6 +94,37 @@ describe("Create Store page", () => {
   });
   afterEach(cleanup);
 
+  it("shows postpaid terms and submits the chosen plan without an advance credit purchase", async () => {
+    vi.mocked(listPricingPlans).mockResolvedValue([
+      plan({
+        billingMode: "POSTPAID_PAYG",
+        creditUnitPriceCents: 125,
+        name: "Pay as you go",
+        trialCredits: 0,
+        includedCredits: 0,
+      }),
+    ]);
+    mount();
+    await fill();
+    expect(screen.getByRole("tabpanel").textContent).toContain(
+      "/ credit · postpaid",
+    );
+    expect(screen.getByRole("tabpanel").textContent).toContain(
+      "No credit limit",
+    );
+    const summary = screen.getByRole("complementary", {
+      name: "Onboarding summary",
+    });
+    expect(summary.textContent).toContain("/ credit · postpaid");
+    submit();
+    await waitFor(() =>
+      expect(onboardStore).toHaveBeenCalledWith(
+        "token",
+        expect.objectContaining({ pricingPlanId: "plan-1" }),
+      ),
+    );
+  });
+
   it("previews entered details and the selected active plan without credentials", async () => {
     mount();
     const summary = await screen.findByRole("complementary", {

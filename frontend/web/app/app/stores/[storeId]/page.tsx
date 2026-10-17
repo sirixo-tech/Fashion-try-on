@@ -53,6 +53,7 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import { StoreTryOnUsage } from "@/components/store-try-on-usage";
+import { PostpaidBillingSummary } from "@/components/postpaid-billing-summary";
 import {
   getCurrentPlatformAccess,
   type CurrentPlatformAccess,
@@ -169,6 +170,7 @@ export default function StoreDashboardPage() {
   const canConfigureKiosks = can("kiosks.configure");
   const canUpdateStore = can("stores.update");
   const currentPricingPlan = store?.subscription?.subscription?.pricingPlan;
+  const postpaid = store?.subscription?.postpaid;
   const availableCredits =
     creditDiagnostics?.availableCredits ??
     store?.subscription?.availableCredits ??
@@ -283,12 +285,13 @@ export default function StoreDashboardPage() {
           />
           <MetricCard
             label="Try-On Credits"
-            value={availableCredits ?? 0}
+            value={postpaid?.billableCredits ?? availableCredits ?? 0}
             icon={<CoinsIcon size={18} aria-hidden="true" />}
-            caption={creditStatusCaption(
-              creditHealth,
-              currentPricingPlan?.name,
-            )}
+            caption={
+              postpaid
+                ? "Successful credits this cycle · no limit"
+                : creditStatusCaption(creditHealth, currentPricingPlan?.name)
+            }
           />
           <MetricCard
             label="Configuration"
@@ -300,64 +303,70 @@ export default function StoreDashboardPage() {
       </PageSection>
 
       <PageSection>
-        <div className="rounded-xl border bg-card p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="rounded-lg border bg-muted/35 p-2 text-primary">
-              <CreditCardIcon size={18} aria-hidden="true" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Plan usage</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Store-wide credits are shared by Shopify, kiosks and public
-                Try-On channels.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <PlanInfoTile
-              label="Current plan"
-              value={currentPricingPlan?.name ?? "Trial"}
-              caption={`Period ends ${formatDate(
-                store?.subscription?.subscription?.currentPeriodEnd ?? null,
-              )}`}
-            />
-            <PlanInfoTile
-              label="Total allocation"
-              value={totalCredits == null ? "-" : String(totalCredits)}
-              caption="Credits granted to this Store"
-            />
-            <PlanInfoTile
-              label="Consumed"
-              value={consumedCredits == null ? "-" : String(consumedCredits)}
-              caption="Try-On credits used"
-            />
-            <PlanInfoTile
-              label="Remaining"
-              value={availableCredits == null ? "-" : String(availableCredits)}
-              caption="Available across all channels"
-            />
-          </div>
-
-          {totalCredits != null ? (
-            <div className="mt-5 rounded-lg border bg-muted/20 p-4">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="font-medium">Credit consumption</span>
-                <span className="text-muted-foreground">
-                  {consumedCredits} of {totalCredits} used, {availableCredits}{" "}
-                  remaining
-                </span>
+        {postpaid ? (
+          <PostpaidBillingSummary summary={postpaid} />
+        ) : (
+          <div className="rounded-xl border bg-card p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg border bg-muted/35 p-2 text-primary">
+                <CreditCardIcon size={18} aria-hidden="true" />
               </div>
-              <Progress
-                value={creditUsagePercent}
-                tone={creditHealth === "EMPTY" ? "danger" : "default"}
-                aria-label="Credit consumption"
+              <div>
+                <h2 className="text-lg font-semibold">Plan usage</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Store-wide credits are shared by Shopify, kiosks and public
+                  Try-On channels.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <PlanInfoTile
+                label="Current plan"
+                value={currentPricingPlan?.name ?? "Trial"}
+                caption={`Period ends ${formatDate(
+                  store?.subscription?.subscription?.currentPeriodEnd ?? null,
+                )}`}
+              />
+              <PlanInfoTile
+                label="Total allocation"
+                value={totalCredits == null ? "-" : String(totalCredits)}
+                caption="Credits granted to this Store"
+              />
+              <PlanInfoTile
+                label="Consumed"
+                value={consumedCredits == null ? "-" : String(consumedCredits)}
+                caption="Try-On credits used"
+              />
+              <PlanInfoTile
+                label="Remaining"
+                value={
+                  availableCredits == null ? "-" : String(availableCredits)
+                }
+                caption="Available across all channels"
               />
             </div>
-          ) : null}
 
-          <CreditStatusNotice health={creditHealth} />
-        </div>
+            {totalCredits != null ? (
+              <div className="mt-5 rounded-lg border bg-muted/20 p-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="font-medium">Credit consumption</span>
+                  <span className="text-muted-foreground">
+                    {consumedCredits} of {totalCredits} used, {availableCredits}{" "}
+                    remaining
+                  </span>
+                </div>
+                <Progress
+                  value={creditUsagePercent}
+                  tone={creditHealth === "EMPTY" ? "danger" : "default"}
+                  aria-label="Credit consumption"
+                />
+              </div>
+            ) : null}
+
+            <CreditStatusNotice health={creditHealth} />
+          </div>
+        )}
       </PageSection>
 
       {store?.id === storeId && accessToken && canViewUsage ? (

@@ -459,7 +459,9 @@ function StoreDirectoryCard({
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {subscription
-              ? `${formatNumber(subscription.availableCredits)} credits available`
+              ? subscription.postpaid
+                ? `Pay as you go · ${formatNumber(subscription.postpaid.billableCredits)} credits used`
+                : `${formatNumber(subscription.availableCredits)} credits available`
               : "Assign a plan to activate credits"}
           </div>
         </div>
@@ -699,9 +701,13 @@ function StorePlanDialog({
             <PlanSummaryTile
               label="Current plan"
               value={currentPlan?.name ?? "No plan assigned"}
-              detail={`${formatNumber(
-                store.subscription?.availableCredits ?? 0,
-              )} credits available`}
+              detail={
+                store.subscription?.postpaid
+                  ? "Pay as you go · no credit limit"
+                  : `${formatNumber(
+                      store.subscription?.availableCredits ?? 0,
+                    )} credits available`
+              }
             />
             <PlanSummaryTile
               label="Selected plan"
@@ -727,9 +733,12 @@ function StorePlanDialog({
                 },
                 ...activePlans.map((plan) => ({
                   value: plan.id,
-                  label: `${plan.name} - ${formatNumber(
-                    plan.includedCredits,
-                  )} credits`,
+                  label:
+                    plan.billingMode === "POSTPAID_PAYG"
+                      ? `${plan.name} - pay as you go`
+                      : `${plan.name} - ${formatNumber(
+                          plan.includedCredits,
+                        )} credits`,
                 })),
               ]}
               onChange={setSelectedPlanId}
@@ -742,6 +751,13 @@ function StorePlanDialog({
               <div className="mt-1 text-muted-foreground">
                 Channels: {selectedPlan.channels.join(", ") || "None"}
               </div>
+              {selectedPlan.billingMode === "POSTPAID_PAYG" ? (
+                <p className="mt-2 text-muted-foreground">
+                  Switching includes verifiable, previously uncharged successes
+                  from the current cycle at the selected price. Existing
+                  postpaid cycle rates stay fixed until the next cycle.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -815,6 +831,8 @@ function formatNumber(value: number): string {
 }
 
 function planDetail(plan: PricingPlan): string {
+  if (plan.billingMode === "POSTPAID_PAYG")
+    return `${formatMoney(plan.creditUnitPriceCents ?? 0, plan.currency)} / successful credit, no limit, billed after use`;
   const price = formatMoney(plan.monthlyPriceCents, plan.currency);
   return `${price} / month, ${formatNumber(plan.includedCredits)} included credits`;
 }

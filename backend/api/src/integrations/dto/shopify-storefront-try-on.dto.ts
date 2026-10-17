@@ -135,6 +135,9 @@ export class ShopifyStorefrontTryOnSessionDto {
 }
 
 export class ShopifyStorefrontCreditSummaryDto {
+  @ApiPropertyOptional({ nullable: true })
+  postpaid?:
+    import("../../entitlements/postpaid-billing.js").PostpaidSummary | null;
   @ApiProperty()
   availableCredits!: number;
 
@@ -150,6 +153,8 @@ export class ShopifyStorefrontCreditSummaryDto {
     trialStartedAt: string | null;
     trialEndsAt: string | null;
     pricingPlan: {
+      billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+      creditUnitPriceCents?: number | null;
       id: string;
       code: string;
       name: string;
@@ -217,6 +222,11 @@ export class ShopifyStorefrontUsageSummaryDto {
 }
 
 export class ShopifyStorefrontPricingPlanDto {
+  @ApiPropertyOptional()
+  billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+
+  @ApiPropertyOptional({ nullable: true })
+  creditUnitPriceCents?: number | null;
   @ApiProperty()
   id!: string;
 

@@ -569,7 +569,7 @@ export class ShopifyStorefrontTryOnService {
     if (!isJewellery) this.execution.assertConfigured();
     const provider = jewelleryFoundation?.provider ?? this.execution.metadata();
     const clientRequestId = input.clientRequestId?.trim() || randomUUID();
-    await this.entitlements.consumeTryOnCredit({
+    const admission = await this.entitlements.consumeTryOnCredit({
       organizationId: capability.organizationId,
       channel: CreditLedgerChannel.SHOPIFY,
       idempotencyKey: [
@@ -591,6 +591,8 @@ export class ShopifyStorefrontTryOnService {
     const run = await this.prisma.kioskTryOnRun.create({
       data: {
         id: createSelfxId(),
+        billingChannel: CreditLedgerChannel.SHOPIFY,
+        billingCycleId: admission?.billingCycleId,
         kioskDeviceId: null,
         apiKeyId: null,
         tryOnSessionId: capability.tryOnSessionId,
@@ -1458,6 +1460,8 @@ function toPricingPlanDto(
     name: plan.name,
     channels: plan.channels,
     currency: plan.currency,
+    billingMode: plan.billingMode,
+    creditUnitPriceCents: plan.creditUnitPriceCents,
     monthlyPriceCents: plan.monthlyPriceCents,
     includedCredits: plan.includedCredits,
     trialCredits: plan.trialCredits,

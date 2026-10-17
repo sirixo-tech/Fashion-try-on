@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### PAYG-1 — Postpaid successful generations (2026-10-16)
+
+Stores may be explicitly assigned a postpaid pay-as-you-go plan with a platform-set
+price per credit, no advance credit purchase and no generation credit limit.
+One successfully saved generation counts as one credit, independent of provider
+attempts or retries. Failed generations do not count. Monthly cycles follow the
+activation anniversary in UTC. Existing Stores retain their current cycle anchor.
+Switching includes verifiable, previously uncharged successes from the current
+cycle at the switch-date rate; previously consumed prepaid/trial credits and
+already recorded postpaid charges must not be billed again. Current cycle terms
+are fixed; price changes apply to later cycles. PAYG-1 implements configuration,
+durable metering and estimates; invoices, delivery and collection are deferred.
+
 ### PAYMENTS-1C — Platform gateway controls and isolated testing (2026-10-16)
 
 Platform administrators control which implemented gateways Stores can configure.

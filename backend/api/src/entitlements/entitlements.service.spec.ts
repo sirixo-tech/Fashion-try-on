@@ -3,7 +3,6 @@ import { CreditLedgerChannel } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  DEFAULT_STARTER_PLAN_CODE,
   DEFAULT_TRIAL_CREDITS,
   DEFAULT_TRIAL_FEATURE_KEYS,
 } from "./default-trial.js";
@@ -16,8 +15,14 @@ describe("EntitlementsService", () => {
   it("uses a supplied onboarding transaction and rejects inactive plans without opening a nested transaction", async () => {
     const prisma = new FakeEntitlementsPrisma();
     const service = new EntitlementsService(prisma as never);
-    await expect(service.activatePlanForStore({ organizationId: "new-store", pricingPlanId: "inactive" },
-      prisma as never)).rejects.toMatchObject({ response: { error: { code: "PRICING_PLAN_UNAVAILABLE" } } });
+    await expect(
+      service.activatePlanForStore(
+        { organizationId: "new-store", pricingPlanId: "inactive" },
+        prisma as never,
+      ),
+    ).rejects.toMatchObject({
+      response: { error: { code: "PRICING_PLAN_UNAVAILABLE" } },
+    });
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(prisma.ledger).toHaveLength(0);
   });
@@ -160,10 +165,29 @@ describe("EntitlementsService", () => {
   });
 });
 
+type FakePlan = Record<string, unknown> & {
+  id: string;
+  code: string;
+  status?: string;
+};
+type FakeSubscription = Record<string, unknown> & {
+  id: string;
+  organizationId: string;
+  pricingPlanId?: string | null;
+  status: string;
+};
+type FakeLedgerEntry = Record<string, unknown> & {
+  idempotencyKey: string;
+  organizationId: string;
+  entryType: string;
+  quantity: number;
+};
+
 class FakeEntitlementsPrisma {
-  subscriptions = new Map<string, Record<string, any>>();
-  plans = new Map<string, Record<string, any>>();
-  ledger: Record<string, any>[] = [];
+  $queryRaw = vi.fn().mockResolvedValue([]);
+  subscriptions = new Map<string, FakeSubscription>();
+  plans = new Map<string, FakePlan>();
+  ledger: FakeLedgerEntry[] = [];
 
   pricingPlan = {
     upsert: vi.fn(
@@ -173,8 +197,8 @@ class FakeEntitlementsPrisma {
         update,
       }: {
         where: { code: string };
-        create: Record<string, any>;
-        update: Record<string, any>;
+        create: FakePlan;
+        update: Record<string, unknown>;
       }) => {
         const existing = Array.from(this.plans.values()).find(
           (plan) => plan.code === where.code,
@@ -184,7 +208,7 @@ class FakeEntitlementsPrisma {
           return existing;
         }
         const now = new Date("2026-09-12T00:00:00.000Z");
-        const plan: Record<string, any> = {
+        const plan: FakePlan = {
           ...create,
           createdAt: now,
           updatedAt: now,
@@ -208,8 +232,8 @@ class FakeEntitlementsPrisma {
         select,
       }: {
         where: { organizationId: string };
-        create: Record<string, any>;
-        update?: Record<string, any>;
+        create: FakeSubscription;
+        update?: Record<string, unknown>;
         select?: Record<string, boolean>;
       }) => {
         const existing = this.subscriptions.get(where.organizationId);
@@ -223,18 +247,18 @@ class FakeEntitlementsPrisma {
             status: existing.status,
           };
           if (select) {
-            const selected = result as Record<string, any>;
+            const selected: Record<string, unknown> = result;
             return Object.fromEntries(
               Object.keys(select).map((key) => [key, selected[key]]),
             );
           }
-        return {
-          id: existing.id,
-          pricingPlanId: existing.pricingPlanId ?? null,
-          status: existing.status,
-        };
-      }
-      this.subscriptions.set(create.organizationId, create);
+          return {
+            id: existing.id,
+            pricingPlanId: existing.pricingPlanId ?? null,
+            status: existing.status,
+          };
+        }
+        this.subscriptions.set(create.organizationId, create);
         if (select) {
           return Object.fromEntries(
             Object.keys(select).map((key) => [key, create[key]]),
@@ -254,7 +278,7 @@ class FakeEntitlementsPrisma {
         select,
       }: {
         where: { organizationId: string };
-        data: Record<string, any>;
+        data: Record<string, unknown>;
         select?: Record<string, boolean>;
       }) => {
         const existing = this.subscriptions.get(where.organizationId);
@@ -301,7 +325,7 @@ class FakeEntitlementsPrisma {
           .reduce((sum, entry) => sum + entry.quantity, 0),
       },
     })),
-    create: vi.fn(({ data }: { data: Record<string, any> }) => {
+    create: vi.fn(({ data }: { data: FakeLedgerEntry }) => {
       if (
         this.ledger.some(
           (entry) => entry.idempotencyKey === data.idempotencyKey,

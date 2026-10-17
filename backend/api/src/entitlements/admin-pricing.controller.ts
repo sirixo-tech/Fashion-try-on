@@ -40,7 +40,9 @@ export class AdminPricingController {
   @ApiOkResponse({ type: PricingPlanListResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
-  async list(@Req() request: FastifyRequest): Promise<PricingPlanListResponseDto> {
+  async list(
+    @Req() request: FastifyRequest,
+  ): Promise<PricingPlanListResponseDto> {
     await this.requirePermission(request, PLATFORM_PERMISSIONS.pricingView);
     return { data: await this.pricing.listPlans() };
   }
@@ -56,8 +58,11 @@ export class AdminPricingController {
     @Req() request: FastifyRequest,
     @Body() dto: CreatePricingPlanDto,
   ): Promise<PricingPlanResponseDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.pricingManage);
-    return this.pricing.createPlan(dto);
+    const user = await this.requirePermission(
+      request,
+      PLATFORM_PERMISSIONS.pricingManage,
+    );
+    return this.pricing.createPlan(dto, user.id);
   }
 
   @Patch(":planId")
@@ -72,17 +77,21 @@ export class AdminPricingController {
     @Param("planId", SelfxUuidParamPipe) planId: string,
     @Body() dto: UpdatePricingPlanDto,
   ): Promise<PricingPlanResponseDto> {
-    await this.requirePermission(request, PLATFORM_PERMISSIONS.pricingManage);
-    return this.pricing.updatePlan(planId, dto);
+    const user = await this.requirePermission(
+      request,
+      PLATFORM_PERMISSIONS.pricingManage,
+    );
+    return this.pricing.updatePlan(planId, dto, user.id);
   }
 
   private async requirePermission(
     request: FastifyRequest,
     permission: PlatformPermission,
-  ): Promise<void> {
+  ) {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
     await this.platformAuthorization.requirePermission(user.id, permission);
+    return user;
   }
 }

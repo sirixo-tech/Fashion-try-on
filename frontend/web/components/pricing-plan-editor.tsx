@@ -80,6 +80,8 @@ const defaultStarterPlanCode = "selfx-default-starter";
 type EditorSectionId = (typeof editorSections)[number]["id"];
 
 type PlanFormState = {
+  billingMode: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+  creditUnitPrice: string;
   code: string;
   name: string;
   status: PricingPlanStatus;
@@ -96,6 +98,8 @@ type PlanFormState = {
 };
 
 const emptyForm: PlanFormState = {
+  billingMode: "CREDIT_LIMITED",
+  creditUnitPrice: "",
   code: "",
   name: "",
   status: "ACTIVE",
@@ -533,29 +537,91 @@ export function PricingPlanEditor({
                     <div>
                       <CardTitle>Pricing</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Set monthly plan price and extra credit pricing.
+                        Choose a monthly allowance or pay for successful
+                        generations after use.
                       </p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <NumberField
-                    label="Monthly price"
-                    value={form.monthlyPrice}
-                    disabled={!canManagePricing || editingDefaultStarterPlan}
-                    onChange={(monthlyPrice) =>
-                      setForm((current) => ({ ...current, monthlyPrice }))
-                    }
-                  />
-                  <NumberField
-                    label="Extra credit price"
-                    value={form.extraCreditPrice}
-                    disabled={!canManagePricing || editingDefaultStarterPlan}
-                    placeholder="Optional"
-                    onChange={(extraCreditPrice) =>
-                      setForm((current) => ({ ...current, extraCreditPrice }))
-                    }
-                  />
+                  <div className="space-y-2 sm:col-span-2">
+                    <label
+                      className="text-sm font-medium"
+                      htmlFor="billing-mode"
+                    >
+                      Billing model
+                    </label>
+                    <SelectMenu
+                      id="billing-mode"
+                      ariaLabel="Billing model"
+                      value={form.billingMode}
+                      disabled={!canManagePricing || mode === "edit"}
+                      options={[
+                        {
+                          value: "CREDIT_LIMITED",
+                          label: "Monthly plan with credits",
+                        },
+                        {
+                          value: "POSTPAID_PAYG",
+                          label: "Pay as you go (postpaid)",
+                        },
+                      ]}
+                      onChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          billingMode: value as PlanFormState["billingMode"],
+                        }))
+                      }
+                    />
+                  </div>
+                  {form.billingMode === "POSTPAID_PAYG" ? (
+                    <>
+                      <NumberField
+                        label="Price per credit"
+                        value={form.creditUnitPrice}
+                        disabled={!canManagePricing}
+                        onChange={(creditUnitPrice) =>
+                          setForm((current) => ({
+                            ...current,
+                            creditUnitPrice,
+                          }))
+                        }
+                      />
+                      <p className="text-sm text-muted-foreground sm:col-span-2">
+                        One successful generation uses one credit. No advance
+                        purchase or credit limit. Monthly cycles follow
+                        activation in UTC. Rate changes apply from the next
+                        cycle.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <NumberField
+                        label="Monthly price"
+                        value={form.monthlyPrice}
+                        disabled={
+                          !canManagePricing || editingDefaultStarterPlan
+                        }
+                        onChange={(monthlyPrice) =>
+                          setForm((current) => ({ ...current, monthlyPrice }))
+                        }
+                      />
+                      <NumberField
+                        label="Extra credit price"
+                        value={form.extraCreditPrice}
+                        disabled={
+                          !canManagePricing || editingDefaultStarterPlan
+                        }
+                        placeholder="Optional"
+                        onChange={(extraCreditPrice) =>
+                          setForm((current) => ({
+                            ...current,
+                            extraCreditPrice,
+                          }))
+                        }
+                      />
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -573,24 +639,36 @@ export function PricingPlanEditor({
                   </div>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <NumberField
-                    label="Included credits"
-                    value={form.includedCredits}
-                    step="1"
-                    disabled={!canManagePricing}
-                    onChange={(includedCredits) =>
-                      setForm((current) => ({ ...current, includedCredits }))
-                    }
-                  />
-                  <NumberField
-                    label="Trial credits"
-                    value={form.trialCredits}
-                    step="1"
-                    disabled={!canManagePricing}
-                    onChange={(trialCredits) =>
-                      setForm((current) => ({ ...current, trialCredits }))
-                    }
-                  />
+                  {form.billingMode === "POSTPAID_PAYG" ? (
+                    <p className="text-sm text-muted-foreground sm:col-span-2">
+                      Unlimited usage, billed after successful generation.
+                      Included and trial credit allowances do not apply.
+                    </p>
+                  ) : (
+                    <>
+                      <NumberField
+                        label="Included credits"
+                        value={form.includedCredits}
+                        step="1"
+                        disabled={!canManagePricing}
+                        onChange={(includedCredits) =>
+                          setForm((current) => ({
+                            ...current,
+                            includedCredits,
+                          }))
+                        }
+                      />
+                      <NumberField
+                        label="Trial credits"
+                        value={form.trialCredits}
+                        step="1"
+                        disabled={!canManagePricing}
+                        onChange={(trialCredits) =>
+                          setForm((current) => ({ ...current, trialCredits }))
+                        }
+                      />
+                    </>
+                  )}
                   <NumberField
                     label="Store locations"
                     value={form.storeLocationLimit}
@@ -706,16 +784,33 @@ export function PricingPlanEditor({
               </div>
               <div className="grid gap-4 p-4">
                 <PreviewMetric
-                  label="Monthly"
-                  value={moneyInputLabel(form.monthlyPrice, form.currency)}
+                  label={
+                    form.billingMode === "POSTPAID_PAYG"
+                      ? "Per credit · postpaid"
+                      : "Monthly"
+                  }
+                  value={moneyInputLabel(
+                    form.billingMode === "POSTPAID_PAYG"
+                      ? form.creditUnitPrice
+                      : form.monthlyPrice,
+                    form.currency,
+                  )}
                 />
                 <PreviewMetric
                   label="Credits"
-                  value={`${numberInputLabel(form.includedCredits)} / month`}
+                  value={
+                    form.billingMode === "POSTPAID_PAYG"
+                      ? "No limit"
+                      : `${numberInputLabel(form.includedCredits)} / month`
+                  }
                 />
                 <PreviewMetric
                   label="Trial"
-                  value={`${numberInputLabel(form.trialCredits)} credits`}
+                  value={
+                    form.billingMode === "POSTPAID_PAYG"
+                      ? "Not applicable"
+                      : `${numberInputLabel(form.trialCredits)} credits`
+                  }
                 />
                 <PreviewMetric
                   label="Store locations"
@@ -1023,6 +1118,11 @@ function formFromPlan(
   platformCurrency = plan.currency,
 ): PlanFormState {
   return {
+    billingMode: plan.billingMode ?? "CREDIT_LIMITED",
+    creditUnitPrice:
+      plan.creditUnitPriceCents == null
+        ? ""
+        : centsToMoneyInput(plan.creditUnitPriceCents),
     code: plan.code,
     name: plan.name,
     status: plan.status,
@@ -1049,15 +1149,32 @@ function formFromPlan(
 
 function formToInput(form: PlanFormState): PricingPlanInput {
   return {
+    billingMode: form.billingMode,
+    creditUnitPriceCents:
+      form.billingMode === "POSTPAID_PAYG"
+        ? moneyInputToCents(form.creditUnitPrice)
+        : null,
     name: form.name.trim(),
     status: form.status,
     channels: form.channels,
     currency: form.currency.trim().toUpperCase(),
-    monthlyPriceCents: moneyInputToCents(form.monthlyPrice),
-    includedCredits: integerInput(form.includedCredits),
-    trialCredits: integerInput(form.trialCredits),
+    monthlyPriceCents:
+      form.billingMode === "POSTPAID_PAYG"
+        ? 0
+        : moneyInputToCents(form.monthlyPrice),
+    includedCredits:
+      form.billingMode === "POSTPAID_PAYG"
+        ? 0
+        : integerInput(form.includedCredits),
+    trialCredits:
+      form.billingMode === "POSTPAID_PAYG"
+        ? 0
+        : integerInput(form.trialCredits),
     storeLocationLimit: optionalIntegerInput(form.storeLocationLimit),
-    extraCreditPriceCents: optionalMoneyInputToCents(form.extraCreditPrice),
+    extraCreditPriceCents:
+      form.billingMode === "POSTPAID_PAYG"
+        ? null
+        : optionalMoneyInputToCents(form.extraCreditPrice),
     kioskMonthlyRentCents: optionalMoneyInputToCents(form.kioskMonthlyRent),
     kioskDeviceLimit: optionalIntegerInput(form.kioskDeviceLimit),
     featureKeys: form.featureKeys,
@@ -1078,7 +1195,10 @@ function planCodeFromName(name: string): string {
   return validLengthCode.slice(0, 80).replace(/-+$/g, "") || "plan";
 }
 
-function uniquePlanCode(baseCode: string, existingPlans: PricingPlan[]): string {
+function uniquePlanCode(
+  baseCode: string,
+  existingPlans: PricingPlan[],
+): string {
   const existingCodes = new Set(existingPlans.map((plan) => plan.code));
   if (!existingCodes.has(baseCode)) {
     return baseCode;
@@ -1094,17 +1214,25 @@ function uniquePlanCode(baseCode: string, existingPlans: PricingPlan[]): string 
   }
   const fallbackSuffix = Date.now().toString(36);
   const fallbackPrefix =
-    baseCode.slice(0, 79 - fallbackSuffix.length).replace(/-+$/g, "") ||
-    "plan";
+    baseCode.slice(0, 79 - fallbackSuffix.length).replace(/-+$/g, "") || "plan";
   return `${fallbackPrefix}-${fallbackSuffix}`;
 }
 
 function normalizeCurrency(value: unknown): string {
-  const currency = String(value ?? "").trim().toUpperCase();
+  const currency = String(value ?? "")
+    .trim()
+    .toUpperCase();
   return /^[A-Z]{3}$/.test(currency) ? currency : emptyForm.currency;
 }
 
 function validateForm(form: PlanFormState): string | null {
+  if (
+    form.billingMode === "POSTPAID_PAYG" &&
+    (!Number.isFinite(Number(form.creditUnitPrice)) ||
+      moneyInputToCents(form.creditUnitPrice) < 1)
+  ) {
+    return "Enter a positive price per credit.";
+  }
   if (form.name.trim().length < 2) {
     return "Plan name must be at least 2 characters.";
   }

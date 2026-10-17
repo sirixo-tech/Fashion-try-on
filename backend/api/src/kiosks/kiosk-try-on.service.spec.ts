@@ -606,6 +606,7 @@ class FakeJewelleryExecution implements Pick<
 }
 
 class FakePrisma {
+  storeSubscription = { findUnique: vi.fn().mockResolvedValue(null) };
   private readonly runs = new Map<string, FakeRun>();
   readonly createdRuns: FakeRun[] = [];
 

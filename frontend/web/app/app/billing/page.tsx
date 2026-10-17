@@ -43,6 +43,10 @@ import {
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
 import {
+  PostpaidBillingSummary,
+  postpaidMoney,
+} from "@/components/postpaid-billing-summary";
+import {
   getCurrentMerchantStore,
   type CurrentStore,
 } from "@/lib/current-store";
@@ -417,6 +421,7 @@ function MerchantBilling({
   loading: boolean;
 }) {
   const subscription = store?.subscription ?? null;
+  const postpaid = subscription?.postpaid;
   const plan = subscription?.subscription?.pricingPlan ?? null;
   const status = subscription?.subscription?.status ?? "TRIALING";
   const currentPlanName =
@@ -449,14 +454,24 @@ function MerchantBilling({
                 value={loading ? "Loading..." : currentPlanName}
                 detail={
                   plan
-                    ? money(plan.monthlyPriceCents, plan.currency)
+                    ? postpaid
+                      ? `${money(postpaid.creditUnitPriceCents, postpaid.currency)} / credit · postpaid`
+                      : money(plan.monthlyPriceCents, plan.currency)
                     : "Trial credits only"
                 }
               />
               <BillingMetric
-                label="Credits available"
-                value={displayNumber(subscription?.availableCredits)}
-                detail={`${displayNumber(diagnostics?.totals.consumedCredits)} consumed`}
+                label={
+                  postpaid ? "Credits used this cycle" : "Credits available"
+                }
+                value={displayNumber(
+                  postpaid?.billableCredits ?? subscription?.availableCredits,
+                )}
+                detail={
+                  postpaid
+                    ? "No credit limit"
+                    : `${displayNumber(diagnostics?.totals.consumedCredits)} consumed`
+                }
               />
               <BillingMetric
                 label="Period"
@@ -466,39 +481,60 @@ function MerchantBilling({
             </div>
           </div>
 
-          <div className="rounded-lg border bg-card p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-lg bg-amber-100 text-amber-700">
-                <CreditCardIcon size={20} aria-hidden="true" />
+          {postpaid ? (
+            <PostpaidBillingSummary summary={postpaid} />
+          ) : (
+            <div className="rounded-lg border bg-card p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-lg bg-amber-100 text-amber-700">
+                  <CreditCardIcon size={20} aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Credit balance</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Credits are shared by Shopify, WooCommerce and kiosks.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold">Credit balance</h2>
-                <p className="text-sm text-muted-foreground">
-                  Credits are shared by Shopify, WooCommerce and kiosks.
-                </p>
+              <div className="space-y-3">
+                <PlanLine
+                  label="Granted"
+                  value={displayNumber(diagnostics?.totals.grantedCredits)}
+                />
+                <PlanLine
+                  label="Manual adjustments"
+                  value={displayNumber(diagnostics?.totals.manualAdjustments)}
+                />
+                <PlanLine
+                  label="Net balance"
+                  value={displayNumber(diagnostics?.totals.netCredits)}
+                />
               </div>
             </div>
-            <div className="space-y-3">
-              <PlanLine
-                label="Granted"
-                value={displayNumber(diagnostics?.totals.grantedCredits)}
-              />
-              <PlanLine
-                label="Manual adjustments"
-                value={displayNumber(diagnostics?.totals.manualAdjustments)}
-              />
-              <PlanLine
-                label="Net balance"
-                value={displayNumber(diagnostics?.totals.netCredits)}
-              />
-            </div>
-          </div>
+          )}
         </div>
       </PageSection>
 
       <PageSection>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
-          <BillingHistoryTable diagnostics={diagnostics} loading={loading} />
+          {postpaid ? (
+            <div className="rounded-lg border bg-card p-5">
+              <h2 className="font-semibold">Cycle estimate</h2>
+              <p className="mt-2 text-sm">
+                {postpaid.billableCredits.toLocaleString()} successful credits ×{" "}
+                {money(postpaid.creditUnitPriceCents, postpaid.currency)} ={" "}
+                {postpaidMoney(
+                  postpaid.estimatedAmountCents,
+                  postpaid.currency,
+                )}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Invoices are not available yet. This is a usage estimate.
+              </p>
+            </div>
+          ) : (
+            <BillingHistoryTable diagnostics={diagnostics} loading={loading} />
+          )}
           <AvailablePlansPanel
             plans={plans}
             features={features}
@@ -569,7 +605,9 @@ function ClientBillingTable({
                     )}
                   </TableCell>
                   <TableCell>
-                    {displayNumber(subscription?.availableCredits)}
+                    {subscription?.postpaid
+                      ? `${displayNumber(subscription.postpaid.billableCredits)} used · postpaid`
+                      : displayNumber(subscription?.availableCredits)}
                   </TableCell>
                 </TableRow>
               );
@@ -673,7 +711,15 @@ function AvailablePlansPanel({
                   <div>
                     <div className="font-semibold">{plan.name}</div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      {money(plan.monthlyPriceCents, plan.currency)} / month
+                      {money(
+                        plan.billingMode === "POSTPAID_PAYG"
+                          ? (plan.creditUnitPriceCents ?? 0)
+                          : plan.monthlyPriceCents,
+                        plan.currency,
+                      )}{" "}
+                      {plan.billingMode === "POSTPAID_PAYG"
+                        ? "/ credit · postpaid"
+                        : "/ month"}
                     </div>
                   </div>
                   {plan.id === currentPlanId ? (
@@ -687,11 +733,19 @@ function AvailablePlansPanel({
                 <div className="mt-4 grid gap-2 text-sm">
                   <PlanLine
                     label="Included credits"
-                    value={displayNumber(plan.includedCredits)}
+                    value={
+                      plan.billingMode === "POSTPAID_PAYG"
+                        ? "No limit"
+                        : displayNumber(plan.includedCredits)
+                    }
                   />
                   <PlanLine
                     label="Trial credits"
-                    value={displayNumber(plan.trialCredits)}
+                    value={
+                      plan.billingMode === "POSTPAID_PAYG"
+                        ? "Not applicable"
+                        : displayNumber(plan.trialCredits)
+                    }
                   />
                   <PlanLine
                     label="Store locations"

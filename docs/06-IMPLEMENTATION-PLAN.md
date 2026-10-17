@@ -2,6 +2,19 @@
 
 ## Implementation Plan
 
+### PAYG-1 — Approved postpaid foundation
+
+Implement pay-as-you-go plan configuration alongside existing plans, UTC
+activation-anchored monthly cycles, versioned rate snapshots, unlimited credit
+access for active postpaid subscriptions, durable one-credit-per-success metering,
+current-cycle verified uncharged history import and Store usage estimates.
+Validate with disposable PostgreSQL migrations and tests covering real result
+finalization, retries/concurrency, failure rollback, historical deduplication,
+tenant constraints, cleanup survival and calendar boundaries. Preserve existing
+credit-limited behavior. Stop before invoice generation/sending, tax policy,
+automated collection and overdue enforcement. See
+`docs/PAYG-1-IMPLEMENTATION-REPORT.md` for behavior and follow-up decisions.
+
 ### PAYMENTS-1C — Platform test workspace
 
 The approved UI refinement consolidates credential input, saved-account summary,

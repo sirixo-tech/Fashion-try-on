@@ -44,6 +44,8 @@ export async function ensureDefaultStarterPricingPlan(
       channels: [...DEFAULT_TRIAL_CHANNELS],
       currency: normalizeCurrency(currency),
       monthlyPriceCents: 0,
+      billingMode: "CREDIT_LIMITED",
+      creditUnitPriceCents: null,
       includedCredits: 0,
       trialCredits: DEFAULT_TRIAL_CREDITS,
       storeLocationLimit: 0,
@@ -53,6 +55,8 @@ export async function ensureDefaultStarterPricingPlan(
       metadata: defaultStarterPlanMetadata(),
     },
     update: {
+      billingMode: "CREDIT_LIMITED",
+      creditUnitPriceCents: null,
       monthlyPriceCents: 0,
       includedCredits: 0,
       storeLocationLimit: 0,

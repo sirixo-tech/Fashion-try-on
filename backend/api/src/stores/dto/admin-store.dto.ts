@@ -484,6 +484,11 @@ export class CreateStoreProductImageUploadDto {
 }
 
 export class StorePricingPlanSummaryDto {
+  @ApiPropertyOptional()
+  billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+
+  @ApiPropertyOptional({ nullable: true })
+  creditUnitPriceCents?: number | null;
   @ApiProperty()
   id!: string;
 
@@ -522,6 +527,18 @@ export class StorePricingPlanSummaryDto {
 }
 
 export class StoreSubscriptionSummaryDto {
+  @ApiPropertyOptional({ nullable: true })
+  postpaid?: {
+    billingMode: "POSTPAID_PAYG";
+    timezone: "UTC";
+    periodStart: string;
+    periodEnd: string;
+    currency: string;
+    creditUnitPriceCents: number;
+    billableCredits: number;
+    historicalCredits: number;
+    estimatedAmountCents: string;
+  } | null;
   @ApiProperty()
   availableCredits!: number;
 

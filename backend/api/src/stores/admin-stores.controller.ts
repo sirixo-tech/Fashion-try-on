@@ -188,12 +188,12 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Body() dto: AssignStorePricingPlanDto,
   ): Promise<StoreSubscriptionSummaryDto> {
-    await this.requirePlatformPermissionForStore(
+    const user = await this.requirePlatformPermissionForStore(
       request,
       PLATFORM_PERMISSIONS.pricingManage,
       storeId,
     );
-    return this.stores.assignPricingPlan(storeId, dto);
+    return this.stores.assignPricingPlan(storeId, dto, user.id);
   }
 
   @Get(":storeId/credits/diagnostics")

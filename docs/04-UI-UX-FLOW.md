@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### PAYG-1 — Pay-as-you-go plan and usage screens
+
+The shared plan editor offers Monthly plan with credits or Pay as you go
+(postpaid). Billing mode is fixed after creation; a different mode requires an
+explicitly assigned new plan. Postpaid forms collect a positive price per credit
+and omit allowance/trial/credit-pack controls. Plan cards, onboarding and Change
+plan show per-credit postpaid terms. Store detail and billing replace remaining
+balance warnings with current-cycle usage, historical credits included, rate,
+estimated generation charges and explicit UTC dates. Estimates are labeled as
+estimates, with invoices unavailable in PAYG-1. Platform pricing permission and
+server-validated Store scope continue to control access.
+
 ### PAYMENTS-1C — Platform gateway cards and test workspace
 
 Use compact shared cards with provider marks, availability/test badges, an

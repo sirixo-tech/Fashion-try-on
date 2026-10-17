@@ -5,6 +5,8 @@ export type PricingPlanChannel =
   "SHOPIFY" | "WOOCOMMERCE" | "KIOSK" | "PUBLIC_API";
 
 export interface PricingPlan {
+  billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+  creditUnitPriceCents?: number | null;
   id: string;
   code: string;
   name: string;
@@ -35,6 +37,8 @@ export interface PlanFeature {
 }
 
 export interface PricingPlanInput {
+  billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";
+  creditUnitPriceCents?: number | null;
   code?: string;
   name: string;
   status?: PricingPlanStatus;

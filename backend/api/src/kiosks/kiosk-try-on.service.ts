@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, Logger, Optional } from "@nestjs/common";
 import {
   KioskAssignmentScope,
   KioskCustomerUploadPurpose,
+  Prisma,
   TryOnAssetPurpose,
   TryOnSessionStatus,
   type KioskDevice,
@@ -32,6 +33,10 @@ import {
   validateTechnicalImageBuffer,
 } from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
+import {
+  prepareRunBilling,
+  recordSuccessfulGeneration,
+} from "../entitlements/postpaid-billing.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
 import { throwJewelleryTryOnNotEnabled } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
@@ -286,10 +291,16 @@ export class KioskTryOnService {
     now: Date,
     sessionRun?: SessionRunAssets,
   ): Promise<{ run: Parameters<typeof toResponse>[0]; isNew: boolean }> {
+    const billing = await prepareRunBilling(this.prisma, {
+      organizationId: device.organizationId,
+      assignmentScope: device.assignmentScope,
+      channel: "KIOSK",
+    });
     try {
       const run = await this.prisma.kioskTryOnRun.create({
         data: {
           id: createSelfxId(),
+          ...billing,
           kioskDeviceId: device.id,
           tryOnSessionId: sessionRun?.sessionId,
           clientRequestId,
@@ -425,16 +436,24 @@ export class KioskTryOnService {
             return;
           }
         }
-        await this.prisma.kioskTryOnRun.update({
-          where: { id: runId },
-          data: {
-            status: status.status,
-            resultImage: status.resultImage,
-            errorCode: status.errorCode,
-            errorMessage: status.errorMessage,
-            completedAt: status.completedAt,
-          },
-        });
+        const patch = {
+          status: status.status,
+          resultImage: status.resultImage,
+          errorCode: status.errorCode,
+          errorMessage: status.errorMessage,
+          completedAt: status.completedAt,
+        };
+        if (
+          status.status === "COMPLETED" &&
+          status.resultImage &&
+          !sessionRun
+        ) {
+          await this.commitLegacyResult(runId, patch, status.resultImage);
+        } else
+          await this.prisma.kioskTryOnRun.update({
+            where: { id: runId },
+            data: patch,
+          });
         if (status.status === "COMPLETED" && status.resultImage && sessionRun) {
           await this.recordSessionLook(runId, sessionRun, status.resultImage);
         }
@@ -524,10 +543,16 @@ export class KioskTryOnService {
     providerMetadata: ReturnType<JewelleryTryOnExecutionService["metadata"]>,
     now: Date,
   ): Promise<{ run: Parameters<typeof toResponse>[0]; isNew: boolean }> {
+    const billing = await prepareRunBilling(this.prisma, {
+      organizationId: device.organizationId,
+      assignmentScope: device.assignmentScope,
+      channel: "KIOSK",
+    });
     try {
       const run = await this.prisma.kioskTryOnRun.create({
         data: {
           id: createSelfxId(),
+          ...billing,
           kioskDeviceId: device.id,
           tryOnSessionId: jewelleryRun.sessionId,
           clientRequestId,
@@ -984,6 +1009,31 @@ export class KioskTryOnService {
     );
   }
 
+  private async commitLegacyResult(
+    runId: string,
+    patch: Prisma.KioskTryOnRunUpdateInput,
+    resultImage: string,
+    vertical: "GARMENT" | "JEWELLERY" = "GARMENT",
+  ) {
+    const result = await parseResultImage(resultImage, {
+      runId,
+      tryOnVertical: vertical,
+      logger: this.logger,
+    });
+    validateTechnicalImageBuffer({
+      buffer: result.buffer,
+      declaredContentType: result.contentType,
+      maxBytes: TRY_ON_RESULT_MAX_IMAGE_BYTES,
+    });
+    await this.prisma.$transaction(async (tx) => {
+      const run = await tx.kioskTryOnRun.update({
+        where: { id: runId },
+        data: patch,
+      });
+      await recordSuccessfulGeneration(tx, run);
+    });
+  }
+
   private async recordJewellerySessionLook(
     runId: string,
     jewelleryRun: JewelleryRunAssets,
@@ -1099,16 +1149,29 @@ export class KioskTryOnService {
               outcome: "PROVIDER_REPORTED_FAILURE",
             });
           }
-          await this.prisma.kioskTryOnRun.update({
-            where: { id: runId },
-            data: {
-              status: status.status,
-              resultImage: status.resultImage,
-              errorCode: status.errorCode,
-              errorMessage: status.errorMessage,
-              completedAt: status.completedAt,
-            },
-          });
+          const patch = {
+            status: status.status,
+            resultImage: status.resultImage,
+            errorCode: status.errorCode,
+            errorMessage: status.errorMessage,
+            completedAt: status.completedAt,
+          };
+          if (
+            status.status === "COMPLETED" &&
+            status.resultImage &&
+            !jewelleryRun.sessionId
+          ) {
+            await this.commitLegacyResult(
+              runId,
+              patch,
+              status.resultImage,
+              "JEWELLERY",
+            );
+          } else
+            await this.prisma.kioskTryOnRun.update({
+              where: { id: runId },
+              data: patch,
+            });
           if (status.status === "COMPLETED" && status.resultImage) {
             phase = "RESULT_FINALIZATION";
             await this.recordJewellerySessionLook(
@@ -1331,10 +1394,7 @@ function resolveJewelleryTryOnStoreId(
   if (device.organizationId) {
     return device.organizationId;
   }
-  if (
-    device.assignmentScope === KioskAssignmentScope.STORE &&
-    device.storeId
-  ) {
+  if (device.assignmentScope === KioskAssignmentScope.STORE && device.storeId) {
     return device.storeId;
   }
   throwJewelleryTryOnNotEnabled();
@@ -1414,8 +1474,7 @@ function toResponse(run: {
         ? undefined
         : (run.errorCode as KioskTryOnRunResponseDto["errorCode"]),
     errorMessage: run.errorMessage ?? undefined,
-    garmentPreprocessingEnabled:
-      run.garmentPreprocessingEnabled ?? undefined,
+    garmentPreprocessingEnabled: run.garmentPreprocessingEnabled ?? undefined,
     garmentPreprocessingStatus:
       run.garmentPreprocessingStatus === null ||
       run.garmentPreprocessingStatus === undefined
@@ -1425,8 +1484,7 @@ function toResponse(run: {
       run.garmentPreprocessingProviderInputImage === null ||
       run.garmentPreprocessingProviderInputImage === undefined
         ? undefined
-        : (run.garmentPreprocessingProviderInputImage as
-            SelfxGarmentPreprocessingProviderInputImage),
+        : (run.garmentPreprocessingProviderInputImage as SelfxGarmentPreprocessingProviderInputImage),
     garmentPreprocessingMaskGenerated:
       run.garmentPreprocessingMaskGenerated ?? undefined,
     garmentPreprocessingFallbackReason:

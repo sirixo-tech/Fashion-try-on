@@ -299,13 +299,30 @@ function PricingPlanCard({
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <PlanMetric
-              label="Monthly"
-              value={money(plan.monthlyPriceCents, plan.currency)}
+              label={
+                plan.billingMode === "POSTPAID_PAYG"
+                  ? "Per credit · postpaid"
+                  : "Monthly"
+              }
+              value={money(
+                plan.billingMode === "POSTPAID_PAYG"
+                  ? (plan.creditUnitPriceCents ?? 0)
+                  : plan.monthlyPriceCents,
+                plan.currency,
+              )}
             />
             <PlanMetric
               label="Credits"
-              value={number(plan.includedCredits)}
-              meta={`${number(plan.trialCredits)} trial`}
+              value={
+                plan.billingMode === "POSTPAID_PAYG"
+                  ? "No limit"
+                  : number(plan.includedCredits)
+              }
+              meta={
+                plan.billingMode === "POSTPAID_PAYG"
+                  ? "Successful generations only"
+                  : `${number(plan.trialCredits)} trial`
+              }
             />
             {supportsLocations ? (
               <PlanMetric

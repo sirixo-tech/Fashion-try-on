@@ -10,6 +10,7 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { recordSuccessfulGeneration } from "../entitlements/postpaid-billing.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { TRY_ON_RESULT_RETENTION_MS } from "./try-on.constants.js";
 
@@ -255,6 +256,7 @@ export class TryOnSessionService {
         where: { id: run.id },
         data: { resultAssetId: resultAsset.id },
       });
+      await recordSuccessfulGeneration(tx, run);
       return look;
     });
   }
