@@ -7,6 +7,9 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PaymentSettings } from "./payment-settings";
+vi.mock("./store-payment-verification", () => ({
+  StorePaymentVerification: () => <p>Store verification workspace</p>,
+}));
 import {
   getStorePayments,
   listPaymentGateways,

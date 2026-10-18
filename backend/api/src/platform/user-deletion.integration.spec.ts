@@ -637,6 +637,70 @@ describe.skipIf(!url)(
         "stores/test/shirt.png",
       );
     }, 30000);
+    it("purges only the selected Store's payment probes and snapshots their audit counts", async () => {
+      const tests = [storeId, secondId, null].map((tenant, index) => {
+        const id = createSelfxId();
+        return {
+          id,
+          provider: "PHONEPE",
+          environment: "UAT",
+          scopeKey: tenant ? `STORE:${tenant}` : "PLATFORM_TEST",
+          organizationId: tenant,
+          connectionVersion: 1,
+          createdById: superId,
+          transactionId: `ST${id.replaceAll("-", "")}`,
+          keyDigest: String(index).repeat(64),
+          status: "PENDING",
+          amountMinor: 100,
+          currency: "INR",
+          encryptedPayload: "fixture-not-a-real-ciphertext",
+          initializationVector: "fixture-iv",
+          authenticationTag: "fixture-tag",
+          keyVersion: "fixture-v1",
+          expiresAt: new Date(Date.now() + 300000),
+        };
+      });
+      await db.platformPaymentTest.createMany({ data: tests });
+      await db.platformPaymentTestEvent.createMany({
+        data: tests.map((test) => ({
+          id: createSelfxId(),
+          testId: test.id,
+          digest: "e".repeat(64),
+          reportedStatus: "PENDING",
+        })),
+      });
+      await purge.purge(superId, storeId, await purgeInput());
+      expect(
+        await db.platformPaymentTest.count({ where: { id: tests[0]!.id } }),
+      ).toBe(0);
+      expect(
+        await db.platformPaymentTestEvent.count({
+          where: { testId: tests[0]!.id },
+        }),
+      ).toBe(0);
+      expect(
+        await db.platformPaymentTest.count({
+          where: { id: { in: tests.slice(1).map((test) => test.id) } },
+        }),
+      ).toBe(2);
+      expect(
+        await db.platformPaymentTestEvent.count({
+          where: { testId: { in: tests.slice(1).map((test) => test.id) } },
+        }),
+      ).toBe(2);
+      const audit = await db.auditLog.findFirstOrThrow({
+        where: { action: "STORE_PERMANENTLY_DELETED", resourceId: storeId },
+      });
+      expect(audit.metadata).toMatchObject({
+        deleted_resources: {
+          platform_payment_tests: 1,
+          platform_payment_test_events: 1,
+        },
+      });
+      expect(JSON.stringify(audit.metadata)).not.toContain(
+        "fixture-not-a-real-ciphertext",
+      );
+    }, 30000);
     it("requires Superadmin permission and correct Store confirmation before purge", async () => {
       const input = await purgeInput();
       await expect(purge.purge(adminId, storeId, input)).rejects.toMatchObject(

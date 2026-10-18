@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### PAYMENTS-1D — Store Admin connects and tests PhonePe
+
+Store Admin signs in and opens Payment Settings directly from the sidebar. They
+configure an enabled gateway using their own merchant account details, then select
+it for future checkout. Secrets are entered afresh for full replacement and are
+never read back. Confirmed UAT Dynamic QR access allows generating a fixed INR
+1.00 test QR with the provider's supported test tooling. Open test resumes the
+same saved test; uncertain starts retain their retry key. Check payment status
+asks the provider rather than manually marking success. View payment result and
+callback delivery separately. Credential replacement shows Not tested for the
+new configuration while older tests remain inspectable. Platform tests never
+verify a Store account. Live payments remain unavailable after UAT success.
+
 ### KIOSK-STORE-1 — Stores connect their own devices
 
 Store Admin signs in, opens Kiosks and enters the six-digit code displayed on

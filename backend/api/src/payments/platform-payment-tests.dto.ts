@@ -40,7 +40,8 @@ export class PlatformPaymentTestDetailDto extends PlatformPaymentTestSummaryDto 
 }
 export class PlatformPaymentTestConnectionDto {
   @ApiProperty() provider!: string;
-  @ApiProperty({ enum: ["UAT"] }) environment!: string;
+  @ApiProperty({ enum: ["UNCONFIRMED", "UAT", "PRODUCTION"] })
+  environment!: string;
   @ApiProperty() version!: number;
   @ApiProperty() dqrAccessConfirmed!: boolean;
   @ApiProperty() updatedAt!: string;

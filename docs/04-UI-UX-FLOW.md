@@ -1,5 +1,22 @@
 ## Document Evolution
 
+### PAYMENTS-1D — Store Payment Settings navigation and verification
+
+Show Payment Settings directly in Store sidebar when server-resolved
+paymentAccess.view is true. Empty setup still has a menu. Platform mode does not
+show this merchant destination. Resolve the current Store automatically; explicit
+Store detail links use the same page and permission policy. Credential/selection
+controls appear only with paymentAccess.manage and outside impersonation.
+
+Show Not configured, Configured/Not tested, Test pending, Confirmation pending,
+Test failed or Test passed alongside Live payments: Not enabled. Show missing UAT
+access, API execution/callback prerequisites and disabled platform availability
+with clear guidance. A separate Store verification panel provides Generate INR
+1.00 test QR, Refresh verification, recent tests and Open test. Shared result UI
+shows QR, status, callback receipt, deadlines and provider status-check action.
+Only Admin management access exposes QR/start/check controls. Read-only viewers
+see safe history. Pending/uncertain tests block another start for that version.
+
 ### KIOSK-STORE-1 — Merchant-only resource UI
 
 Hide Products/Kiosks and their operational metrics from platform navigation and

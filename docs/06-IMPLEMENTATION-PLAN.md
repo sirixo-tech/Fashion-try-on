@@ -2,6 +2,20 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1D — Store account configuration and UAT verification
+
+Expose existing encrypted gateway setup in direct Store Payment Settings, restrict
+account changes to actual Store Admins and add Store-specific UAT probes through
+the shared durable engine. Validate Store/platform isolation, credential-version
+reset, callback/status verification, retry idempotency, late reconciliation,
+environment/availability gates, permissions and navigation. Run payment/order and
+purge regressions, initialize API/OpenAPI, apply all migrations on fresh localhost
+PostgreSQL, and run API/web builds, typechecks and changed-file lint. Deploy the
+additive verification migration before the updated API and web. Keep live checkout,
+APK Buy, real-money activation and further gateway adapters deferred until account
+capabilities and a separate live integration milestone are confirmed. See
+PAYMENTS-1D-IMPLEMENTATION-REPORT.md for operator steps and verification limits.
+
 ### KIOSK-STORE-1 — Finish the Store resource boundary
 
 Retire platform kiosk routes/permissions/fleet UI and platform bypass for product

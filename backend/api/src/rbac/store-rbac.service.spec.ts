@@ -276,4 +276,56 @@ describe.skipIf(!url)("Store RBAC — fixed Store Admin and Staff roles", () => 
     expect(ownAccess.resourcePermissions).toContain("products.manage");
     expect(ownAccess.resourcePermissions).not.toContain("kiosks.pair");
   });
+  it("allows only actual Store Admins to manage payment accounts, even if Staff receive integration permissions", async () => {
+    const tenant = await store(),
+      admin = await user(),
+      staff = await user(),
+      platform = await user();
+    await member(admin, tenant, "store-admin");
+    const staffLink = await member(staff, tenant, "staff");
+    for (const code of ["integrations.view", "integrations.manage"]) {
+      const permission = await db.permission.findUniqueOrThrow({
+        where: { code },
+      });
+      await db.storeRolePermission.create({
+        data: {
+          id: createSelfxId(),
+          roleId: staffLink.roleId,
+          permissionId: permission.id,
+        },
+      });
+    }
+    await db.platformRoleAssignment.create({
+      data: {
+        id: createSelfxId(),
+        userId: platform,
+        role: "SELFX_SUPER_ADMIN",
+      },
+    });
+    await expect(
+      rbac.requireStorePaymentPermission(admin, tenant, true),
+    ).resolves.toBeUndefined();
+    await expect(
+      rbac.requireStorePaymentPermission(staff, tenant, false),
+    ).resolves.toBeUndefined();
+    await expect(
+      rbac.requireStorePaymentPermission(staff, tenant, true),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    await expect(
+      rbac.requireStorePaymentPermission(platform, tenant, true),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    await expect(
+      rbac.requireStorePaymentPermission(platform, tenant, false),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    expect(
+      (await rbac.effectivePermissions(platform, tenant)).paymentAccess,
+    ).toEqual({ view: false, manage: false });
+    await db.organizationMembership.updateMany({
+      where: { orgId: tenant, userId: admin },
+      data: { status: "SUSPENDED" },
+    });
+    await expect(
+      rbac.requireStorePaymentPermission(admin, tenant, true),
+    ).rejects.toThrow();
+  });
 });

@@ -64,6 +64,36 @@ const baseAccess: NavigationAccess = {
   storeFeatureKeys: [],
   hasActiveStore: false,
 };
+it("shows Store Payment Settings only for actual Store payment viewing access", () => {
+  const merchant = {
+    ...baseAccess,
+    hasActiveStore: true,
+    storePaymentAccess: { view: true, manage: true },
+  };
+  expect(isMerchantOnlyRoute("/app/payments")).toBe(true);
+  expect(canSeeHref("/app/payments", merchant)).toBe(true);
+  expect(
+    canSeeHref("/app/payments", { ...merchant, hasActiveStore: false }),
+  ).toBe(false);
+  expect(
+    canSeeHref("/app/payments", { ...merchant, hasPlatformAccess: true }),
+  ).toBe(false);
+  expect(
+    canSeeHref("/app/payments", {
+      ...baseAccess,
+      isSuperadmin: true,
+      hasActiveStore: true,
+      storePlatformBypass: true,
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref("/app/payments", {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["integrations.view", "integrations.manage"],
+    }),
+  ).toBe(false);
+});
 
 it("exposes Mail Settings only to protected Superadmins", () => {
   const path = "/app/platform/mail-settings";

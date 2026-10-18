@@ -6,6 +6,7 @@ export type NavigationAccess = {
   platformPermissions: string[];
   storePermissions: string[];
   storeResourcePermissions?: string[];
+  storePaymentAccess?: { view: boolean; manage: boolean };
   storePlatformBypass: boolean;
   storeFeatureKeys: string[];
   storeLocationLimit?: number | null;
@@ -120,6 +121,7 @@ export function isMerchantOnlyRoute(href: string): boolean {
     "/app/analytics",
     "/app/products",
     "/app/kiosks",
+    "/app/payments",
   ].some(
     (merchantRoute) =>
       route === merchantRoute || route.startsWith(`${merchantRoute}/`),
@@ -128,6 +130,13 @@ export function isMerchantOnlyRoute(href: string): boolean {
 
 export function canSeeHref(href: string, access: NavigationAccess): boolean {
   const route = normalizeAccessRoute(href);
+  if (route === "/app/payments")
+    return (
+      !access.hasPlatformAccess &&
+      !access.isSuperadmin &&
+      access.hasActiveStore &&
+      access.storePaymentAccess?.view === true
+    );
   if (route === "/app/platform/mail-settings") return access.isSuperadmin;
   if (
     route === "/app/kiosks" ||

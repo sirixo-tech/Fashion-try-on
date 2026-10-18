@@ -105,6 +105,7 @@ export default function StoreDashboardPage() {
   );
   const [platformBypass, setPlatformBypass] = useState(false);
   const [resourcePermissions, setResourcePermissions] = useState<string[]>([]);
+  const [canViewPayments, setCanViewPayments] = useState(false);
   const [canViewUsage, setCanViewUsage] = useState(false);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [creditDiagnostics, setCreditDiagnostics] =
@@ -147,6 +148,7 @@ export default function StoreDashboardPage() {
         storeResourcePermissions(nextEffectivePermissions),
       );
       setPlatformBypass(nextEffectivePermissions.platformBypass);
+      setCanViewPayments(nextEffectivePermissions.paymentAccess?.view === true);
       setIsSuperadmin(nextPlatformAccess.isSuperadmin);
       setCanViewUsage(
         nextPlatformAccess.isSuperadmin ||
@@ -243,7 +245,7 @@ export default function StoreDashboardPage() {
             >
               Orders &amp; Tax
             </Button>
-            {(platformBypass || can("integrations.view")) && (
+            {canViewPayments && (
               <Button
                 render={<Link href={`/app/stores/${storeId}/payments`} />}
                 variant="outline"

@@ -1,5 +1,26 @@
 ## Document Evolution
 
+### PAYMENTS-1D — Shared gateway probes with Store isolation
+
+Add /app/payments with automatic current-Store resolution and direct sidebar
+navigation. Central Store RBAC exposes paymentAccess.view/manage from actual
+membership, canonical Admin policy and the tenant permission ceiling. Store payment
+configuration and probe controllers consume this policy without platform bypass.
+Keep platform policy/testing authorization independent.
+
+Reuse one PaymentGatewayTestsService for platform and Store probes. Store routes
+use /api/v1/admin/stores/:storeId/payments/phonepe/testing plus /tests,
+/tests/:testId and /tests/:testId/check. Every user-facing lookup/check includes
+the explicit Store scope; authenticated callbacks use
+/api/v1/payments/phonepe/stores/:storeId/tests/:testId/callback. Platform routes
+cannot read Store probes. Validate decrypted snapshot tenant, provider and UAT
+environment before execution; preserve original snapshots for delayed checks.
+Use existing idempotency, leases, backoff, signature validation and reconciliation.
+Test amount/expiry remain INR 1.00/five minutes. Gate new Store tests on active
+Store, platform setup availability, confirmed UAT access, API execution switch and
+valid HTTPS callback origin. Saving credentials never verifies the account.
+All public paymentAvailable flags remain false.
+
 ### KIOSK-STORE-1 — Membership authorization for operational resources
 
 Resolve product and kiosk permissions from active user, active Store membership,

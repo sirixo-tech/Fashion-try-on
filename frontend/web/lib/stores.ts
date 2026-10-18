@@ -167,6 +167,7 @@ export type StoreRbacListResponse<T> = {
 };
 
 export type EffectiveStorePermissions = {
+  paymentAccess?: { view: boolean; manage: boolean };
   resourcePermissions?: string[];
   storeId: string;
   permissions: string[];

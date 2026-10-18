@@ -23,7 +23,6 @@ import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
-import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 import {
   PaymentGatewayListDto,
@@ -104,7 +103,6 @@ export class PlatformPaymentGatewaysController {
 export class StorePaymentSettingsController {
   constructor(
     private readonly auth: AuthService,
-    private readonly platform: PlatformAuthorizationService,
     private readonly rbac: StoreRbacService,
     private readonly impersonation: StoreImpersonationService,
     private readonly payments: PaymentSettingsService,
@@ -170,21 +168,7 @@ export class StorePaymentSettingsController {
         "PAYMENT_IMPERSONATION_RESTRICTED",
         "Payment credentials and selection cannot be changed during Store impersonation.",
       );
-    if (
-      !(await this.platform.hasPermission(
-        user.id,
-        writing
-          ? PLATFORM_PERMISSIONS.integrationsManage
-          : PLATFORM_PERMISSIONS.integrationsView,
-      ))
-    )
-      await this.rbac.requireStorePermission(
-        user.id,
-        storeId,
-        writing
-          ? STORE_PERMISSION_CODES.integrationsManage
-          : STORE_PERMISSION_CODES.integrationsView,
-      );
+    await this.rbac.requireStorePaymentPermission(user.id, storeId, writing);
     return user;
   }
 }

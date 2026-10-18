@@ -1,4 +1,8 @@
 import { selfxApi } from "@/lib/api";
+import type {
+  PlatformPaymentTestDetail,
+  PlatformPaymentWorkspace,
+} from "./platform-payment-tests";
 export type PaymentProvider =
   "PHONEPE" | "RAZORPAY" | "STRIPE" | "PAYTM" | "PAYPAL";
 export type PaymentEnvironment = "UNCONFIRMED" | "UAT" | "PRODUCTION";
@@ -17,6 +21,7 @@ export type StorePaymentSettings = {
   gateways: Gateway[];
   connections: {
     provider: PaymentProvider;
+    version?: number;
     environment: PaymentEnvironment;
     status: "UNVERIFIED";
     dqrAccessConfirmed?: boolean;
@@ -33,6 +38,55 @@ export type PhonePeSetup = {
   saltKey: string;
 };
 const base = (storeId: string) => `/api/v1/admin/stores/${storeId}/payments`;
+export type StorePaymentWorkspace = Omit<
+  PlatformPaymentWorkspace,
+  "connection"
+> & {
+  connection:
+    | (Omit<
+        NonNullable<PlatformPaymentWorkspace["connection"]>,
+        "environment"
+      > & { environment: PaymentEnvironment })
+    | null;
+};
+const testing = (storeId: string) => `${base(storeId)}/phonepe/testing`;
+export const getStorePaymentWorkspace = (
+  accessToken: string,
+  storeId: string,
+) =>
+  selfxApi<StorePaymentWorkspace>(testing(storeId), {
+    accessToken,
+    cache: "no-store",
+  });
+export const startStorePaymentTest = (
+  accessToken: string,
+  storeId: string,
+  expectedVersion: number,
+  idempotencyKey: string,
+) =>
+  selfxApi<PlatformPaymentTestDetail>(`${testing(storeId)}/tests`, {
+    accessToken,
+    method: "POST",
+    body: JSON.stringify({ expectedVersion, idempotencyKey }),
+  });
+export const getStorePaymentTest = (
+  accessToken: string,
+  storeId: string,
+  id: string,
+) =>
+  selfxApi<PlatformPaymentTestDetail>(`${testing(storeId)}/tests/${id}`, {
+    accessToken,
+    cache: "no-store",
+  });
+export const checkStorePaymentTest = (
+  accessToken: string,
+  storeId: string,
+  id: string,
+) =>
+  selfxApi<PlatformPaymentTestDetail>(`${testing(storeId)}/tests/${id}/check`, {
+    accessToken,
+    method: "POST",
+  });
 export const listPaymentGateways = (accessToken: string) =>
   selfxApi<{ data: Gateway[] }>("/api/v1/admin/payment-gateways", {
     accessToken,

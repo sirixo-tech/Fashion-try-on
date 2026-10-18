@@ -1,5 +1,9 @@
 import { Module } from "@nestjs/common";
 import { StoreKiosksController } from "./store-kiosks.controller.js";
+import {
+  StorePaymentTestsController,
+  StorePaymentTestCallbacksController,
+} from "../payments/store-payment-tests.controller.js";
 import { StorePurgeController } from "./store-purge.controller.js";
 import { StorePurgeService } from "./store-purge.service.js";
 
@@ -55,6 +59,8 @@ import {
     TryOnModule,
   ],
   controllers: [
+    StorePaymentTestsController,
+    StorePaymentTestCallbacksController,
     StoreKiosksController,
     StorePurgeController,
     AdminStoresController,

@@ -350,6 +350,7 @@ model Organization {
   shoppingOrders                 ShoppingOrder[]
   paymentSettings                StorePaymentSettings?
   paymentConnections             StorePaymentConnection[]
+  paymentGatewayTests            PlatformPaymentTest[]
   id                             String                              @id @db.Uuid
   name                           String                              @db.VarChar(200)
   slug                           String                              @unique @db.VarChar(120)
@@ -756,6 +757,10 @@ model PlatformPaymentTestConnection {
 
 model PlatformPaymentTest {
   id                   String                     @id @db.Uuid
+  // Historic table name retained; scope separates platform probes from Store probes.
+  scopeKey             String                     @default("PLATFORM_TEST") @map("scope_key") @db.VarChar(80)
+  organizationId       String?                    @map("organization_id") @db.Uuid
+  organization         Organization?              @relation(fields: [organizationId], references: [id], onDelete: Cascade, map: "payment_tests_store_fk")
   provider             String                     @db.VarChar(30)
   environment          String                     @db.VarChar(20)
   connectionVersion    Int                        @map("connection_version")
@@ -784,7 +789,8 @@ model PlatformPaymentTest {
   createdBy            User?                      @relation(fields: [createdById], references: [id], onDelete: SetNull)
   events               PlatformPaymentTestEvent[]
 
-  @@unique([provider, createdById, keyDigest])
+  @@unique([scopeKey, provider, createdById, keyDigest], map: "payment_tests_scope_actor_key")
+  @@index([scopeKey, provider, createdAt, id], map: "payment_tests_scope_history")
   @@index([provider, createdAt, id])
   @@index([status, nextCheckAt])
   @@map("platform_payment_tests")
@@ -796,7 +802,7 @@ model PlatformPaymentTestEvent {
   digest         String              @db.Char(64)
   reportedStatus String              @map("reported_status") @db.VarChar(20)
   receivedAt     DateTime            @default(now()) @map("received_at") @db.Timestamptz(3)
-  test           PlatformPaymentTest @relation(fields: [testId], references: [id], onDelete: Restrict)
+  test           PlatformPaymentTest @relation(fields: [testId], references: [id], onDelete: Cascade)
 
   @@unique([testId, digest])
   @@map("platform_payment_test_events")
@@ -818,6 +824,7 @@ model StorePaymentConnection {
   organizationId       String                 @map("organization_id") @db.Uuid
   provider             String                 @db.VarChar(30)
   environment          String                 @db.VarChar(20)
+  version              Int                    @default(1)
   encryptedPayload     String                 @map("encrypted_payload") @db.Text
   initializationVector String                 @map("initialization_vector") @db.VarChar(32)
   authenticationTag    String                 @map("authentication_tag") @db.VarChar(32)

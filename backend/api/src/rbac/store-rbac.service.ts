@@ -657,6 +657,10 @@ export class StoreRbacService {
       return {
         storeId,
         resourcePermissions: resources.permissions,
+        paymentAccess: resources.paymentAccess ?? {
+          view: false,
+          manage: false,
+        },
         permissions: STORE_PERMISSION_REGISTRY.filter(
           (permission) =>
             permission.code !== "products.manage" &&
@@ -689,6 +693,7 @@ export class StoreRbacService {
       where: { orgId: storeId, userId, status: MembershipStatus.ACTIVE },
       select: {
         id: true,
+        role: true,
         roleAssignments: {
           where: {
             role: { isActive: true, systemCode: { in: STORE_ROLE_CODES } },
@@ -696,6 +701,8 @@ export class StoreRbacService {
           select: {
             role: {
               select: {
+                systemCode: true,
+                isActive: true,
                 permissions: {
                   select: { permission: { select: { code: true } } },
                 },
@@ -727,6 +734,12 @@ export class StoreRbacService {
     return {
       storeId,
       permissions,
+      paymentAccess: {
+        view: permissions.includes("integrations.view"),
+        manage:
+          isStoreAdmin(membership) &&
+          permissions.includes("integrations.manage"),
+      },
       platformBypass: false,
       featureKeys: [],
       membershipId: membership.id,
@@ -763,6 +776,22 @@ export class StoreRbacService {
         HttpStatus.FORBIDDEN,
         STORE_RBAC_ERROR_CODES.permissionDenied,
         "Store membership and permission are required for products and kiosks.",
+      );
+  }
+
+  async requireStorePaymentPermission(
+    userId: string,
+    storeId: string,
+    managing: boolean,
+  ) {
+    const access = await this.effectivePermissions(userId, storeId, false);
+    if (!(managing ? access.paymentAccess?.manage : access.paymentAccess?.view))
+      throw new ApiErrorException(
+        HttpStatus.FORBIDDEN,
+        STORE_RBAC_ERROR_CODES.permissionDenied,
+        managing
+          ? "Store Admin membership and payment management permission are required."
+          : "Store payment viewing permission is required.",
       );
   }
 

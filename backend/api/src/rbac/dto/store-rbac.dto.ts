@@ -231,6 +231,8 @@ export class StoreUserListResponseDto {
 }
 
 export class EffectiveStorePermissionsResponseDto {
+  @ApiPropertyOptional()
+  paymentAccess?: { view: boolean; manage: boolean };
   @ApiPropertyOptional({ type: [String] })
   resourcePermissions?: string[];
   @ApiProperty()

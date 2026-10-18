@@ -44,6 +44,8 @@ const tables = [
   "store_tax_settings",
   "store_payment_settings",
   "store_payment_connections",
+  "platform_payment_tests",
+  "platform_payment_test_events",
   "shopping_carts",
   "shopping_cart_items",
   "shopping_orders",

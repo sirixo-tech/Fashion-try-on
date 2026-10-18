@@ -2,6 +2,21 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1D — Versioned Store credentials and scoped test history
+
+Migration 20261018183000_store_payment_verification adds positive version to
+store_payment_connections, incremented only on credential replacement. Selection
+changes do not change the credential version. Reuse historical platform_payment_tests
+and platform_payment_test_events tables for the shared probe engine, adding
+scope_key and nullable organization_id. A CHECK enforces PLATFORM_TEST with no
+tenant or STORE:<organization UUID> with that tenant. Existing probes default to
+PLATFORM_TEST. Scope/actor/provider/idempotency uniqueness and the partial active
+test index now include scope_key. Keep encrypted credential snapshots on each
+probe, separate from current credentials. Store deletion removes only its scoped
+probes/events; platform history remains. User deletion retains existing actor
+snapshots. Include probes/events in permanent Store purge audit counts. No real
+shopping/billing records are created by verification tests.
+
 ### KIOSK-STORE-1 — Existing Store-owned device records
 
 No schema migration is required. Continue mapping merchant Store to organization_id

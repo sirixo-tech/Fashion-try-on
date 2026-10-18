@@ -1,5 +1,24 @@
 ## Document Evolution
 
+### PAYMENTS-1D — Store payment setup and account verification
+
+Store accounts have Payment Settings directly in their workspace. Each Store
+configures and selects its own merchant gateway account. Actual active Store
+membership and integration viewing permission permit safe setup/history viewing;
+credential replacement, selection and test execution require Store Admin authority
+and integrations.manage within the Store permission ceiling. Platform authority
+alone does not grant Store payment access; impersonation never permits mutation
+or QR access. Platform availability controls and isolated platform testing remain.
+
+PhonePe is the first connector. Confirmed UAT Dynamic QR accounts can run a fixed
+INR 1.00 test against their saved credentials. Tests create no shopping orders,
+stock holds or stock deductions. Only independently verified provider success
+passes a test, and callback delivery is tracked separately. A passed result is
+bound to that Store and credential version, never another Store or live account.
+Replacing credentials resets current verification. Live checkout and the APK Buy
+button remain disabled; other gateway connectors remain Planned. This supersedes
+earlier platform bypass rules for Store payment configuration.
+
 ### KIOSK-STORE-1 — Store-only products and kiosks
 
 Product and kiosk operations belong to active Store memberships and Store roles.

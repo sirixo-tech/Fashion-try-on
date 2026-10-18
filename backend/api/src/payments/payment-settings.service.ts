@@ -75,6 +75,7 @@ export class PaymentSettingsService {
         where: { organizationId: storeId },
         select: {
           provider: true,
+          version: true,
           environment: true,
           updatedAt: true,
           dqrAccessConfirmed: true,
@@ -143,6 +144,7 @@ export class PaymentSettingsService {
         },
         update: {
           environment: input.environment,
+          version: { increment: 1 },
           dqrAccessConfirmed: input.dqrAccessConfirmed ?? false,
           ...encrypted,
           keyVersion,

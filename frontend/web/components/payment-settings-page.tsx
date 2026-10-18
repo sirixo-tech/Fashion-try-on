@@ -16,7 +16,13 @@ import {
 import { useSession } from "@/lib/session";
 import { PaymentSettings } from "./payment-settings";
 
-export function PaymentSettingsPage({ storeId }: { storeId?: string }) {
+export function PaymentSettingsPage({
+  storeId,
+  merchantWorkspace = false,
+}: {
+  storeId?: string;
+  merchantWorkspace?: boolean;
+}) {
   const session = useSession();
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
@@ -26,33 +32,44 @@ export function PaymentSettingsPage({ storeId }: { storeId?: string }) {
   const [error, setError] = useState<string | null>(null),
     [reload, setReload] = useState(0);
   useEffect(() => {
+    const refresh = () => {
+      setAccess(null);
+      setReload((value) => value + 1);
+    };
+    window.addEventListener("selfx:impersonation-changed", refresh);
+    return () =>
+      window.removeEventListener("selfx:impersonation-changed", refresh);
+  }, []);
+  useEffect(() => {
     let current = true;
     setAccess(null);
     setError(null);
     if (accessToken)
       void Promise.all([
-        getCurrentPlatformAccess(accessToken),
+        storeId ? Promise.resolve(null) : getCurrentPlatformAccess(accessToken),
         storeId
           ? getEffectiveStorePermissions(accessToken, storeId)
           : Promise.resolve(null),
-        getCurrentStoreImpersonation(accessToken).catch(() => ({
-          session: null,
-        })),
+        getCurrentStoreImpersonation(accessToken),
       ])
         .then(([platform, store, impersonation]) => {
           if (!current) return;
-          const bypass = platform.isSuperadmin || !!store?.platformBypass;
           setAccess({
-            view:
-              (bypass ||
-                platform.permissions.includes("INTEGRATIONS_VIEW") ||
-                !!store?.permissions.includes("integrations.view")) &&
-              (!!storeId || !impersonation.session),
+            view: storeId
+              ? store?.paymentAccess?.view === true
+              : !impersonation.session &&
+                !!(
+                  platform?.isSuperadmin ||
+                  platform?.permissions.includes("INTEGRATIONS_VIEW")
+                ),
             edit:
               !impersonation.session &&
-              (bypass ||
-                platform.permissions.includes("INTEGRATIONS_MANAGE") ||
-                !!store?.permissions.includes("integrations.manage")),
+              (storeId
+                ? store?.paymentAccess?.manage === true
+                : !!(
+                    platform?.isSuperadmin ||
+                    platform?.permissions.includes("INTEGRATIONS_MANAGE")
+                  )),
           });
         })
         .catch((caught) => {
@@ -70,7 +87,7 @@ export function PaymentSettingsPage({ storeId }: { storeId?: string }) {
   return (
     <PageContainer width="wide">
       <PageHeader
-        title={storeId ? "Store Payments" : "Payment Gateways"}
+        title={storeId ? "Payment Settings" : "Payment Gateways"}
         description={
           storeId
             ? "Configure the Store's merchant payment account."
@@ -80,9 +97,18 @@ export function PaymentSettingsPage({ storeId }: { storeId?: string }) {
           storeId ? (
             <Button
               variant="outline"
-              render={<Link href={`/app/stores/${storeId}`} />}
+              nativeButton={false}
+              render={
+                <Link
+                  href={
+                    merchantWorkspace
+                      ? "/app/dashboard"
+                      : `/app/stores/${storeId}`
+                  }
+                />
+              }
             >
-              Back to Store
+              {merchantWorkspace ? "Back to Dashboard" : "Back to Store"}
             </Button>
           ) : undefined
         }

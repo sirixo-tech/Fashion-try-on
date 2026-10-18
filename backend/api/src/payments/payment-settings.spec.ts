@@ -94,7 +94,7 @@ describe("payment configuration authorization", () => {
       hasPermission: vi.fn().mockResolvedValue(platformAccess),
     };
     const rbac = {
-      requireStorePermission: vi.fn().mockResolvedValue(undefined),
+      requireStorePaymentPermission: vi.fn().mockResolvedValue(undefined),
     };
     const impersonation = {
       resolveStoreContext: vi
@@ -119,7 +119,6 @@ describe("payment configuration authorization", () => {
       payments,
       store: new StorePaymentSettingsController(
         auth as unknown as AuthService,
-        platform as unknown as PlatformAuthorizationService,
         rbac as unknown as StoreRbacService,
         impersonation as unknown as StoreImpersonationService,
         payments as unknown as PaymentSettingsService,
@@ -135,10 +134,10 @@ describe("payment configuration authorization", () => {
   it("requires explicit tenant permissions and attributes changes to the real user", async () => {
     const c = setup();
     await c.store.save(request, "store-a", input);
-    expect(c.rbac.requireStorePermission).toHaveBeenCalledWith(
+    expect(c.rbac.requireStorePaymentPermission).toHaveBeenCalledWith(
       "actor",
       "store-a",
-      "integrations.manage",
+      true,
     );
     expect(c.payments.savePhonePe).toHaveBeenCalledWith(
       "store-a",
@@ -148,7 +147,7 @@ describe("payment configuration authorization", () => {
   });
   it("denies unauthorized requests before calling payment services", async () => {
     const c = setup();
-    c.rbac.requireStorePermission.mockRejectedValue(new Error("denied"));
+    c.rbac.requireStorePaymentPermission.mockRejectedValue(new Error("denied"));
     await expect(c.store.get(request, "store-b")).rejects.toThrow("denied");
     expect(c.payments.getStore).not.toHaveBeenCalled();
     await expect(
@@ -170,5 +169,22 @@ describe("payment configuration authorization", () => {
     expect(c.payments.select).not.toHaveBeenCalled();
     await c.store.get(request, "store-a");
     expect(c.payments.getStore).toHaveBeenCalledWith("store-a");
+  });
+  it("does not turn platform integration authority into Store credential access", async () => {
+    const c = setup(false, true);
+    c.rbac.requireStorePaymentPermission.mockRejectedValue(
+      new Error("No Store Admin membership"),
+    );
+    await expect(c.store.save(request, "store-a", input)).rejects.toThrow(
+      "No Store Admin membership",
+    );
+    await expect(
+      c.store.select(request, "store-a", {
+        expectedVersion: 0,
+        provider: "PHONEPE",
+      }),
+    ).rejects.toThrow();
+    expect(c.payments.savePhonePe).not.toHaveBeenCalled();
+    expect(c.payments.select).not.toHaveBeenCalled();
   });
 });

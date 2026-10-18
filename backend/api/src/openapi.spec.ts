@@ -18,7 +18,7 @@ describe("OpenAPI documentation", () => {
     app = await NestFactory.create<NestFastifyApplication>(
       AppModule,
       new FastifyAdapter(),
-      { logger: false },
+      { logger: false, abortOnError: false },
     );
     setupOpenApiDocs(app);
     await app.init();
@@ -47,10 +47,9 @@ describe("OpenAPI documentation", () => {
     expect(paths).toContain("/api/v1/public/try-ons/{runId}");
     expect(paths).toContain("/api/v1/public/try-ons/{runId}/download");
     expect(paths).toContain("/api/v1/public/usage");
-    expect(paths.every((path) => path.startsWith("/api/v1/public"))).toBe(
-      true,
-    );
+    expect(paths.every((path) => path.startsWith("/api/v1/public"))).toBe(true);
     expect(paths).not.toContain("/api/v1/developer/api-keys");
+    expect(paths.some((path) => path.includes("payments"))).toBe(false);
 
     const schemaNames = Object.keys(response.body.components.schemas ?? {});
     expect(schemaNames).toContain("CreatePublicApiTryOnDto");
@@ -58,5 +57,25 @@ describe("OpenAPI documentation", () => {
     expect(schemaNames.some((name) => name.startsWith("DeveloperApi"))).toBe(
       false,
     );
+  });
+  it("registers Store payment verification only in the internal API", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/api/docs-json")
+      .expect(200);
+    const paths = Object.keys(response.body.paths);
+    expect(paths).toContain(
+      "/api/v1/admin/stores/{storeId}/payments/phonepe/testing",
+    );
+    expect(paths).toContain(
+      "/api/v1/admin/stores/{storeId}/payments/phonepe/testing/tests/{testId}/check",
+    );
+    expect(paths).toContain(
+      "/api/v1/payments/phonepe/stores/{storeId}/tests/{testId}/callback",
+    );
+    const anonymous = await request(app.getHttpServer()).get(
+      "/api/v1/admin/stores/0199aee0-0000-7000-8000-000000000001/payments/phonepe/testing",
+    );
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.headers["cache-control"]).toBe("private, no-store");
   });
 });

@@ -9,6 +9,7 @@ import {
 } from "@selfx/ui";
 import { PlatformPaymentGateways } from "./platform-payment-gateways";
 import { PhonePeConfiguration } from "./phonepe-configuration";
+import { StorePaymentVerification } from "./store-payment-verification";
 import {
   getStorePayments,
   savePhonePeSetup,
@@ -140,7 +141,7 @@ function StorePaymentSettingsPanel({
                 <>
                   <p>
                     {connection
-                      ? `Configuration saved · ${environmentLabel(connection.environment)} · Verification pending`
+                      ? `Configuration saved · ${environmentLabel(connection.environment)}`
                       : "Not configured"}
                   </p>
                   {connection?.dqrAccessConfirmed && (
@@ -183,6 +184,18 @@ function StorePaymentSettingsPanel({
           );
         })}
       </div>
+      {store && (
+        <StorePaymentVerification
+          key={`${storeId}:${store.connections.find((item) => item.provider === "PHONEPE")?.version ?? 0}`}
+          accessToken={accessToken}
+          storeId={storeId}
+          canEdit={canEdit}
+          enabled={
+            !!gateways?.find((item) => item.provider === "PHONEPE")?.enabled
+          }
+          disabled={busy || setup}
+        />
+      )}
       {setup && storeId && store && (
         <PhonePeConfiguration
           onClose={() => setSetup(false)}

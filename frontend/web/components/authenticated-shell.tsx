@@ -57,6 +57,7 @@ import {
 const navItems: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
+  { href: "/app/payments", label: "Payment Settings", icon: CreditCardIcon },
   { href: "/app/stores", label: "Stores", icon: StoreIcon },
   {
     label: "Team & locations",
@@ -401,6 +402,7 @@ function navigationAccess({
     platformPermissions: platformAccess?.permissions ?? [],
     storePermissions: storeAccess?.permissions ?? [],
     storeResourcePermissions: storeResourcePermissions(storeAccess),
+    storePaymentAccess: storeAccess?.paymentAccess,
     storePlatformBypass: storeAccess?.platformBypass ?? false,
     storeFeatureKeys: storeAccess?.featureKeys ?? [],
     storeLocationLimit: storeAccess?.storeLocationLimit,

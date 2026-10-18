@@ -73,6 +73,7 @@ export class PaymentGatewayListDto {
   @ApiProperty({ type: [PaymentGatewayDto] }) data!: PaymentGatewayDto[];
 }
 export class PaymentConnectionSummaryDto {
+  @ApiProperty() version!: number;
   @ApiProperty() dqrAccessConfirmed!: boolean;
   @ApiProperty() provider!: string;
   @ApiProperty({ enum: PAYMENT_ENVIRONMENTS }) environment!: string;
