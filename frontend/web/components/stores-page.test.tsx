@@ -28,6 +28,7 @@ import { listUsers } from "@/lib/users";
 vi.mock("@/lib/users", () => ({
   listUsers: vi.fn(),
   assignStoreAdmin: vi.fn(),
+  createStoreAdmin: vi.fn(),
   updateStoreAdminEmail: vi.fn(),
 }));
 vi.mock("@/lib/access-control", () => ({ getCurrentPlatformAccess: vi.fn() }));
@@ -558,6 +559,11 @@ describe("STORE-1 web Store management", () => {
     expect(
       screen.getByRole("button", { name: "Assign existing account" }),
     ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create new account" }));
+    expect(screen.getByLabelText("Full name")).toBeTruthy();
+    expect(screen.getByLabelText("New login email")).toBeTruthy();
+    expect(screen.getByLabelText("Password")).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
   it("keeps Store Admin account controls hidden for an ordinary Store administrator", async () => {
     vi.mocked(getCurrentPlatformAccess).mockResolvedValue({

@@ -2,6 +2,16 @@
 
 ## Database & Schema Design
 
+### USERS-4 — Reuse existing account and Admin records
+
+No persistence structure or migration is added. Create the user, first-admin
+membership, canonical role assignment and audit events in one serializable
+transaction. The user email uniqueness constraint protects concurrent conflicts.
+Use existing OWNER compatibility membership and explicit ALL_STORES scope for
+the selected merchant tenant. Preserve other Store rows and permission grants.
+Passwords are stored only as the existing password-service hash.
+
+
 ### USERS-3 — Store Admin convenience actions
 
 No new table, column or migration is required. Reuse Users-2 account versions,

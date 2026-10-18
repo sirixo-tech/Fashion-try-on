@@ -125,6 +125,23 @@ export function assignStoreAdmin(
   });
 }
 
+export function createStoreAdmin(
+  token: string,
+  input: {
+    storeId: string;
+    confirmStoreName: string;
+    displayName: string;
+    email: string;
+    password: string;
+  },
+) {
+  return selfxApi<ManagedUser>("/api/v1/admin/users/store-admin", {
+    method: "POST",
+    accessToken: token,
+    body: JSON.stringify(input),
+  });
+}
+
 export function updateStoreAdminEmail(
   token: string,
   user: ManagedUser,

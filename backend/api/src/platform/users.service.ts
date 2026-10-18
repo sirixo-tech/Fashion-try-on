@@ -16,6 +16,7 @@ import {
 import {
   type AssignFirstOwnerDto,
   type StoreAdminEmailDto,
+  type CreateStoreAdminDto,
   type UpdateUserDto,
   type UsersQueryDto,
 } from "./dto/users.dto.js";
@@ -89,21 +90,17 @@ export class UsersService {
     return this.assignAdmin(actorUserId, userId, input, false);
   }
 
-  private async assignAdmin(
-    actorUserId: string,
-    userId: string,
-    input: AssignFirstOwnerDto,
-    firstOnly: boolean,
-  ) {
+  async createStoreAdmin(actorUserId: string, input: CreateStoreAdminDto) {
+    const email = input.email.trim().toLowerCase();
+    const passwordHash = await this.passwords.hashPassword(input.password);
     try {
-      await this.db.$transaction(
+      return await this.db.$transaction(
         async (tx) => {
-          await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.storeId})::bigint)`;
           const actor = await tx.user.findFirst({
             where: {
               id: actorUserId,
               status: "ACTIVE",
+              deletedAt: null,
               platformRoleAssignments: {
                 some: { role: "SELFX_SUPER_ADMIN", status: "ACTIVE" },
               },
@@ -113,164 +110,281 @@ export class UsersService {
           if (!actor)
             fail(
               "PLATFORM_PERMISSION_DENIED",
-              "Only SelfX Superadmins can assign the first Store Admin.",
+              "Only SelfX Superadmins can create Store Admin accounts.",
               HttpStatus.FORBIDDEN,
             );
-          const user = await tx.user.findUnique({
-            where: { id: userId },
-            select: userSelect,
-          });
-          if (!user)
-            fail("USER_NOT_FOUND", "User was not found.", HttpStatus.NOT_FOUND);
-          if (user!.deletedAt)
-            fail(
-              "USER_DELETED",
-              "Deleted users cannot be edited or reactivated.",
-            );
-          if (
-            user!.memberships.some(
-              (member) => member.orgId === input.storeId && member.deletedAt,
-            )
-          )
-            fail("USER_DELETED", "A deleted Store link cannot be restored.");
-          if (mapUser(user!).version !== input.version)
-            fail(
-              "USER_EDIT_CONFLICT",
-              "This account changed. Close and reopen Edit.",
-            );
-          if (user!.status !== "ACTIVE" || mapUser(user!).isProtectedSuperadmin)
-            fail(
-              "STORE_OWNER_ACCOUNT_INVALID",
-              "Select an active, non-protected account for Store ownership.",
-            );
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.storeId})::bigint)`;
           const store = await tx.organization.findUnique({
             where: { id: input.storeId },
-            select: { name: true, status: true },
+            select: { status: true, name: true },
           });
           if (!store || store.status !== "ACTIVE")
             fail("STORE_INACTIVE", "Select an active Store.");
-          if (store!.name !== input.confirmStoreName)
+          if (store.name !== input.confirmStoreName)
             fail(
-              "STORE_OWNER_CONFIRMATION_REQUIRED",
-              "Type the Store name exactly to confirm.",
-              HttpStatus.BAD_REQUEST,
+              "STORE_EDIT_CONFLICT",
+              "Store details changed. Reopen Edit Store before creating an account.",
             );
-          const owners = await tx.organizationMembership.count({
+          const linkedAdmins = await tx.organizationMembership.count({
             where: {
               orgId: input.storeId,
               ...adminMembershipWhere,
               status: "ACTIVE",
-              user: { status: "ACTIVE" },
+              deletedAt: null,
+              user: { deletedAt: null },
             },
           });
-          if (owners && firstOnly)
+          if (linkedAdmins)
             fail(
-              "STORE_ALREADY_HAS_OWNER",
-              "This Store already has an active owner. Ownership transfer requires a separate controlled operation.",
+              "STORE_ADMIN_ALREADY_LINKED",
+              "This Store already has a linked admin account. Refresh to manage it or assign another existing account.",
             );
-          const existing = user!.memberships.find(
-            (member) => member.orgId === input.storeId,
-          );
           if (
-            !firstOnly &&
-            existing?.status === "ACTIVE" &&
-            isStoreAdmin(existing)
+            await tx.user.findUnique({ where: { email }, select: { id: true } })
           )
             fail(
-              "STORE_ADMIN_ALREADY_ASSIGNED",
-              "This account is already a Store Admin.",
+              "USER_EMAIL_CONFLICT",
+              "An account with this login email already exists. Assign an existing active account, or use another email.",
             );
-          // Reuse default Store RBAC; never seed or broaden the Store's permission ceiling.
-          await this.rbac.ensureStoreRbacInTransaction(tx, input.storeId);
-          const grant = await tx.storePermissionGrant.findFirst({
-            where: {
-              storeTenantId: input.storeId,
-              permission: { code: "stores.view" },
-            },
-            select: { id: true },
-          });
-          if (!grant)
-            fail(
-              "STORE_PERMISSION_NOT_GRANTED",
-              "Grant Store viewing permission before assigning its first owner.",
-            );
-          const role = await tx.storeRole.findUniqueOrThrow({
-            where: {
-              orgId_systemCode: {
-                orgId: input.storeId,
-                systemCode: "store-admin",
-              },
-            },
-          });
-          if (!role.isActive)
-            fail("STORE_ROLE_INVALID", "The Store Admin role must be active.");
-          const membership = await tx.organizationMembership.upsert({
-            where: { orgId_userId: { orgId: input.storeId, userId } },
-            create: {
+          const user = await tx.user.create({
+            data: {
               id: createSelfxId(),
-              orgId: input.storeId,
-              userId,
-              role: owners ? "ORGANIZATION_ADMIN" : "ORGANIZATION_OWNER",
+              email,
+              displayName: input.displayName.trim(),
+              passwordHash,
               status: "ACTIVE",
-              storeScopeMode: "ALL_STORES",
-              joinedAt: new Date(),
             },
-            update: {
-              role:
-                !owners || existing?.role === "ORGANIZATION_OWNER"
-                  ? "ORGANIZATION_OWNER"
-                  : "ORGANIZATION_ADMIN",
-              status: "ACTIVE",
-              storeScopeMode: "ALL_STORES",
-              suspendedAt: null,
-              joinedAt: new Date(),
+            select: userSelect,
+          });
+          const result = await this.assignAdmin(
+            actorUserId,
+            user.id,
+            {
+              version: mapUser(user).version,
+              storeId: input.storeId,
+              confirmStoreName: input.confirmStoreName,
             },
-          });
-          await tx.membershipStoreScope.deleteMany({
-            where: { membershipId: membership.id },
-          });
-          await tx.storeMembershipRole.deleteMany({
-            where: { membershipId: membership.id },
-          });
-          await tx.storeMembershipRole.upsert({
-            where: {
-              membershipId_roleId: {
-                membershipId: membership.id,
-                roleId: role.id,
-              },
-            },
-            create: {
-              id: createSelfxId(),
-              orgId: input.storeId,
-              membershipId: membership.id,
-              roleId: role.id,
-              assignedByUserId: actorUserId,
-            },
-            update: {},
-          });
+            true,
+            tx,
+          );
           await tx.auditLog.create({
             data: {
               id: createSelfxId(),
               actorUserId,
               organizationId: input.storeId,
-              action: firstOnly
-                ? "STORE_FIRST_OWNER_ASSIGNED"
-                : "STORE_ADMIN_ASSIGNED",
-              resourceType: "organization_membership",
-              resourceId: membership.id,
-              metadata: {
-                user_id: userId,
-                role_id: role.id,
-                first_admin: !owners,
-              },
+              action: "STORE_ADMIN_ACCOUNT_CREATED",
+              resourceType: "user",
+              resourceId: user.id,
+              metadata: { user_id: user.id },
             },
           });
+          return result;
         },
         {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
           timeout: 20000,
         },
       );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === "P2002")
+          fail(
+            "USER_EMAIL_CONFLICT",
+            "An account with this login email already exists. Assign an existing active account, or use another email.",
+          );
+        if (error.code === "P2034")
+          fail(
+            "STORE_EDIT_CONFLICT",
+            "Another change happened. Reopen Edit Store and try again.",
+          );
+      }
+      throw error;
+    }
+  }
+
+  private async assignAdmin(
+    actorUserId: string,
+    userId: string,
+    input: AssignFirstOwnerDto,
+    firstOnly: boolean,
+    transaction?: Prisma.TransactionClient,
+  ) {
+    try {
+      const assign = async (tx: Prisma.TransactionClient) => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.storeId})::bigint)`;
+        const actor = await tx.user.findFirst({
+          where: {
+            id: actorUserId,
+            status: "ACTIVE",
+            platformRoleAssignments: {
+              some: { role: "SELFX_SUPER_ADMIN", status: "ACTIVE" },
+            },
+          },
+          select: { id: true },
+        });
+        if (!actor)
+          fail(
+            "PLATFORM_PERMISSION_DENIED",
+            "Only SelfX Superadmins can assign the first Store Admin.",
+            HttpStatus.FORBIDDEN,
+          );
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: userSelect,
+        });
+        if (!user)
+          fail("USER_NOT_FOUND", "User was not found.", HttpStatus.NOT_FOUND);
+        if (user!.deletedAt)
+          fail(
+            "USER_DELETED",
+            "Deleted users cannot be edited or reactivated.",
+          );
+        if (
+          user!.memberships.some(
+            (member) => member.orgId === input.storeId && member.deletedAt,
+          )
+        )
+          fail("USER_DELETED", "A deleted Store link cannot be restored.");
+        if (mapUser(user!).version !== input.version)
+          fail(
+            "USER_EDIT_CONFLICT",
+            "This account changed. Close and reopen Edit.",
+          );
+        if (user!.status !== "ACTIVE" || mapUser(user!).isProtectedSuperadmin)
+          fail(
+            "STORE_OWNER_ACCOUNT_INVALID",
+            "Select an active, non-protected account for Store ownership.",
+          );
+        const store = await tx.organization.findUnique({
+          where: { id: input.storeId },
+          select: { name: true, status: true },
+        });
+        if (!store || store.status !== "ACTIVE")
+          fail("STORE_INACTIVE", "Select an active Store.");
+        if (store!.name !== input.confirmStoreName)
+          fail(
+            "STORE_OWNER_CONFIRMATION_REQUIRED",
+            "Type the Store name exactly to confirm.",
+            HttpStatus.BAD_REQUEST,
+          );
+        const owners = await tx.organizationMembership.count({
+          where: {
+            orgId: input.storeId,
+            ...adminMembershipWhere,
+            status: "ACTIVE",
+            user: { status: "ACTIVE" },
+          },
+        });
+        if (owners && firstOnly)
+          fail(
+            "STORE_ALREADY_HAS_OWNER",
+            "This Store already has an active owner. Ownership transfer requires a separate controlled operation.",
+          );
+        const existing = user!.memberships.find(
+          (member) => member.orgId === input.storeId,
+        );
+        if (
+          !firstOnly &&
+          existing?.status === "ACTIVE" &&
+          isStoreAdmin(existing)
+        )
+          fail(
+            "STORE_ADMIN_ALREADY_ASSIGNED",
+            "This account is already a Store Admin.",
+          );
+        // Reuse default Store RBAC; never seed or broaden the Store's permission ceiling.
+        await this.rbac.ensureStoreRbacInTransaction(tx, input.storeId);
+        const grant = await tx.storePermissionGrant.findFirst({
+          where: {
+            storeTenantId: input.storeId,
+            permission: { code: "stores.view" },
+          },
+          select: { id: true },
+        });
+        if (!grant)
+          fail(
+            "STORE_PERMISSION_NOT_GRANTED",
+            "Grant Store viewing permission before assigning its first owner.",
+          );
+        const role = await tx.storeRole.findUniqueOrThrow({
+          where: {
+            orgId_systemCode: {
+              orgId: input.storeId,
+              systemCode: "store-admin",
+            },
+          },
+        });
+        if (!role.isActive)
+          fail("STORE_ROLE_INVALID", "The Store Admin role must be active.");
+        const membership = await tx.organizationMembership.upsert({
+          where: { orgId_userId: { orgId: input.storeId, userId } },
+          create: {
+            id: createSelfxId(),
+            orgId: input.storeId,
+            userId,
+            role: owners ? "ORGANIZATION_ADMIN" : "ORGANIZATION_OWNER",
+            status: "ACTIVE",
+            storeScopeMode: "ALL_STORES",
+            joinedAt: new Date(),
+          },
+          update: {
+            role:
+              !owners || existing?.role === "ORGANIZATION_OWNER"
+                ? "ORGANIZATION_OWNER"
+                : "ORGANIZATION_ADMIN",
+            status: "ACTIVE",
+            storeScopeMode: "ALL_STORES",
+            suspendedAt: null,
+            joinedAt: new Date(),
+          },
+        });
+        await tx.membershipStoreScope.deleteMany({
+          where: { membershipId: membership.id },
+        });
+        await tx.storeMembershipRole.deleteMany({
+          where: { membershipId: membership.id },
+        });
+        await tx.storeMembershipRole.upsert({
+          where: {
+            membershipId_roleId: {
+              membershipId: membership.id,
+              roleId: role.id,
+            },
+          },
+          create: {
+            id: createSelfxId(),
+            orgId: input.storeId,
+            membershipId: membership.id,
+            roleId: role.id,
+            assignedByUserId: actorUserId,
+          },
+          update: {},
+        });
+        await tx.auditLog.create({
+          data: {
+            id: createSelfxId(),
+            actorUserId,
+            organizationId: input.storeId,
+            action: firstOnly
+              ? "STORE_FIRST_OWNER_ASSIGNED"
+              : "STORE_ADMIN_ASSIGNED",
+            resourceType: "organization_membership",
+            resourceId: membership.id,
+            metadata: {
+              user_id: userId,
+              role_id: role.id,
+              first_admin: !owners,
+            },
+          },
+        });
+      };
+      if (transaction) await assign(transaction);
+      else
+        await this.db.$transaction(assign, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: 20000,
+        });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -282,7 +396,14 @@ export class UsersService {
         );
       throw error;
     }
-    return this.get(userId);
+    return transaction
+      ? mapUser(
+          await transaction.user.findUniqueOrThrow({
+            where: { id: userId },
+            select: userSelect,
+          }),
+        )
+      : this.get(userId);
   }
 
   async list(query: UsersQueryDto) {

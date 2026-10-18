@@ -1512,6 +1512,7 @@ function EditStoreDialog({
               token={accessToken}
               storeId={store.id}
               storeName={store.name}
+              contactEmail={store.contactEmail ?? ""}
               disabled={submitting}
               onBusyChange={setAccountBusy}
             />

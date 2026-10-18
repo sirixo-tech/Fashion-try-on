@@ -6,6 +6,7 @@ import { UsersController } from "./users.controller.js";
 import {
   DeleteUserDto,
   StoreAdminEmailDto,
+  CreateStoreAdminDto,
   AssignFirstOwnerDto,
   UpdateUserDto,
   UsersQueryDto,
@@ -13,6 +14,42 @@ import {
 
 describe("Users authorization and validation", () => {
   const request = { headers: { authorization: "Bearer test" } } as never;
+  it("restricts new admin creation to Superadmin and validates new account fields", async () => {
+    const users = { createStoreAdmin: vi.fn() };
+    const controller = new UsersController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "actor" }),
+      } as never,
+      { isSuperadmin: vi.fn().mockResolvedValue(false) } as never,
+      users as never,
+      {} as never,
+    );
+    await expect(
+      controller.createStoreAdmin(request, {} as never),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(users.createStoreAdmin).not.toHaveBeenCalled();
+    expect(
+      (
+        await validate(
+          plainToInstance(CreateStoreAdminDto, {
+            storeId: "bad",
+            confirmStoreName: "",
+            displayName: " ",
+            email: "bad",
+            password: "short",
+          }),
+        )
+      )
+        .map((error) => error.property)
+        .sort(),
+    ).toEqual([
+      "confirmStoreName",
+      "displayName",
+      "email",
+      "password",
+      "storeId",
+    ]);
+  });
   it("blocks Store account selection and email changes for non-Superadmins", async () => {
     const users = { assignStoreAdmin: vi.fn(), updateStoreAdminEmail: vi.fn() };
     const controller = new UsersController(

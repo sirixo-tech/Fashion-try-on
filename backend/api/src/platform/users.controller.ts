@@ -20,6 +20,7 @@ import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
 import {
   AssignFirstOwnerDto,
   StoreAdminEmailDto,
+  CreateStoreAdminDto,
   DeleteUserDto,
   UpdateUserDto,
   UsersQueryDto,
@@ -86,6 +87,13 @@ export class UsersController {
   ) {
     await this.reader(request);
     return this.users.deletionHistory(query);
+  }
+  @Post("store-admin") async createStoreAdmin(
+    @Req() request: FastifyRequest,
+    @Body() input: CreateStoreAdminDto,
+  ) {
+    const actor = await this.editor(request);
+    return this.users.createStoreAdmin(actor.id, input);
   }
   @Get(":userId") async get(
     @Req() request: FastifyRequest,

@@ -1,5 +1,15 @@
 ## Document Evolution
 
+### USERS-4 — Create a Store login from Edit Store
+
+Superadmin opens Edit Store for an active Store without a linked Admin, chooses
+Create new account, enters full name, login email and password, then chooses
+Create Store Admin account. Contact email prefills the independently editable
+login field. Success reloads the linked admin and explains how to sign in.
+An existing email offers Find existing account, opening inline assignment with
+that email as the search. No credentials are replaced or email sent automatically.
+
+
 ### USERS-3 — Edit a Store's admin login
 
 Superadmin opens Edit Store and selects a linked Store Admin account. They edit

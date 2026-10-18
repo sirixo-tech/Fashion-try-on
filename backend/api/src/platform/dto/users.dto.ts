@@ -114,6 +114,14 @@ export class StoreAdminEmailDto {
   @IsEmail() @MaxLength(320) email!: string;
 }
 
+export class CreateStoreAdminDto {
+  @IsUUID() storeId!: string;
+  @IsString() @Length(1, 200) confirmStoreName!: string;
+  @IsString() @Length(1, 160) @Matches(/\S/) displayName!: string;
+  @IsEmail() @MaxLength(320) email!: string;
+  @IsString() @Length(12, 256) @Matches(/\S/) password!: string;
+}
+
 export class DeleteUserDto {
   @IsString() @Matches(/^[a-f0-9]{64}$/) version!: string;
   @IsEmail() @MaxLength(320) confirmEmail!: string;

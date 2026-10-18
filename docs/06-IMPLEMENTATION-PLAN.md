@@ -2,6 +2,18 @@
 
 ## Implementation Plan
 
+### USERS-4 — New login for a Store without an Admin
+
+Add Superadmin-only inline creation to Edit Store and one shared backend route.
+Reuse first-admin assignment inside the account-creation transaction. Verify
+authorization, duplicate/deleted email rejection, inactive/renamed Store guards,
+current Admin protection, concurrent creation, rollback, safe password handling
+and preserved products, stock, subscription and history. Run Users and deletion
+regressions, popup/UI tests, typechecks and changed-file lint. Deploy API and web
+together; no new migration or environment variable is required. No production
+account is created automatically by deployment.
+
+
 ### USERS-3 — Store Admin selection and email editing
 
 Add Superadmin-only inline account controls to Edit Store. Reuse shared account

@@ -1,5 +1,15 @@
 ## Document Evolution
 
+### USERS-4 — Create the first Store Admin login
+
+When an active Store has no current linked Admin, Superadmin may create a new
+login from Edit Store using full name, login email and an initial password.
+Account creation and Admin linking succeed together or roll back together.
+Existing emails are never overwritten; assign an existing active account instead.
+Store contact email remains independent, and products, stock, plan and history
+are preserved. Existing account assignment remains available in the same popup.
+
+
 ### USERS-3 — Store Admin accounts in Edit Store
 
 Superadmin can manage linked Store Admin login emails from the Edit Store popup.

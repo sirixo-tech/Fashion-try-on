@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### USERS-4 — Atomic Store Admin account creation
+
+`POST /api/v1/admin/users/store-admin` accepts Store id, current Store name,
+display name, email and a 12–256 character password. Superadmin authority is
+checked at the route and inside a serializable transaction. Tenant locking and
+the central Admin policy reject creation when a current Admin is already linked,
+including disabled accounts with a current link. Normalize and uniquely validate
+email, hash passwords using the shared password service and reuse first-admin
+assignment within the same transaction. Preserve Store permission ceilings and
+all business data. Roll back the new user if assignment fails. Record the actual
+actor in audit events without passwords or hashes; return only safe user data.
+
+
 ### USERS-3 — Contextual admin login management
 
 `PATCH /api/v1/admin/users/:userId/store-admin-email` accepts Store id, account

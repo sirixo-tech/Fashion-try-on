@@ -1,26 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { Button, Checkbox, Input, Label, SelectMenu } from "@selfx/ui";
 import {
   assignStoreAdmin,
+  createStoreAdmin,
   listUsers,
   updateStoreAdminEmail,
   type ManagedUser,
   type Paged,
 } from "@/lib/users";
 import { UserError, messageFor, title } from "./user-store-picker";
+import { SafeApiError } from "@/lib/api";
 
 export function StoreAdminAccounts({
   token,
   storeId,
   storeName,
+  contactEmail = "",
   disabled,
   onBusyChange,
 }: {
   token: string;
   storeId: string;
   storeName: string;
+  contactEmail?: string;
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
 }) {
@@ -41,6 +46,12 @@ export function StoreAdminAccounts({
     [candidateLoading, setCandidateLoading] = useState(false);
   const [candidate, setCandidate] = useState<ManagedUser | null>(null),
     [confirmation, setConfirmation] = useState("");
+  const [creating, setCreating] = useState(false),
+    [newName, setNewName] = useState(""),
+    [newEmail, setNewEmail] = useState(contactEmail);
+  const [newPassword, setNewPassword] = useState(""),
+    [showPassword, setShowPassword] = useState(false),
+    [existingEmail, setExistingEmail] = useState("");
   const locked = disabled || busy;
 
   function choose(user: ManagedUser | null) {
@@ -163,6 +174,50 @@ export function StoreAdminAccounts({
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
+      setBusy(false);
+      onBusyChange(false);
+    }
+  }
+  async function create() {
+    if (locked || !newName.trim() || !newEmail.trim()) return;
+    if (
+      newPassword.length < 12 ||
+      newPassword.length > 256 ||
+      !newPassword.trim()
+    ) {
+      setError("Password must contain 12–256 characters and cannot be blank.");
+      return;
+    }
+    setBusy(true);
+    onBusyChange(true);
+    setError("");
+    setNotice("");
+    setExistingEmail("");
+    try {
+      const created = await createStoreAdmin(token, {
+        storeId,
+        confirmStoreName: storeName,
+        displayName: newName.trim(),
+        email: newEmail.trim(),
+        password: newPassword,
+      });
+      setCreating(false);
+      setAdding(false);
+      setAdminPage(1);
+      setRevision((value) => value + 1);
+      setNotice(
+        `Account created for ${created.email}. Sign in using this email and the password you entered.`,
+      );
+    } catch (caught) {
+      setError(messageFor(caught));
+      if (
+        caught instanceof SafeApiError &&
+        caught.code === "USER_EMAIL_CONFLICT"
+      )
+        setExistingEmail(newEmail.trim());
+    } finally {
+      setNewPassword("");
+      setShowPassword(false);
       setBusy(false);
       onBusyChange(false);
     }
@@ -293,7 +348,8 @@ export function StoreAdminAccounts({
         </>
       ) : admins ? (
         <p className="text-sm">
-          No Store Admin account is linked. Assign an existing account below.
+          No Store Admin account is linked. Create a new account or assign an
+          existing one below.
         </p>
       ) : null}
       <Button
@@ -303,6 +359,10 @@ export function StoreAdminAccounts({
         disabled={locked || loading || !admins}
         onClick={() => {
           setAdding((value) => !value);
+          setCreating(false);
+          setNewPassword("");
+          setShowPassword(false);
+          setExistingEmail("");
           setCandidate(null);
           setConfirmation("");
           setError("");
@@ -311,6 +371,127 @@ export function StoreAdminAccounts({
         {" "}
         {adding ? "Cancel assignment" : "Assign existing account"}
       </Button>
+      {!loading && admins?.pagination.total === 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="ml-2"
+          disabled={locked}
+          onClick={() => {
+            setCreating((value) => !value);
+            setAdding(false);
+            setNewPassword("");
+            setShowPassword(false);
+            setExistingEmail("");
+            setError("");
+          }}
+        >
+          {creating ? "Cancel creation" : "Create new account"}
+        </Button>
+      ) : null}
+      {creating ? (
+        <div className="space-y-3 rounded-lg border p-3">
+          <p className="text-sm text-muted-foreground">
+            Create a new login account and link it as Store Admin for{" "}
+            {storeName}.
+          </p>
+          <div className="space-y-1">
+            <Label htmlFor="new-admin-name">Full name</Label>
+            <Input
+              id="new-admin-name"
+              maxLength={160}
+              autoComplete="name"
+              value={newName}
+              disabled={locked}
+              onChange={(event) => setNewName(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="new-admin-email">New login email</Label>
+            <Input
+              id="new-admin-email"
+              type="email"
+              maxLength={320}
+              autoComplete="off"
+              value={newEmail}
+              disabled={locked}
+              onChange={(event) => {
+                setNewEmail(event.target.value);
+                setExistingEmail("");
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="new-admin-password">Password</Label>
+            <div className="flex gap-2">
+              <Input
+                id="new-admin-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={256}
+                value={newPassword}
+                disabled={locked}
+                onChange={(event) => setNewPassword(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                disabled={locked}
+                onClick={() => setShowPassword((value) => !value)}
+              >
+                {showPassword ? (
+                  <EyeOffIcon aria-hidden="true" />
+                ) : (
+                  <EyeIcon aria-hidden="true" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Use 12–256 characters. The new admin will sign in with this email
+              and password.
+            </p>
+          </div>
+          {existingEmail ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={locked}
+              onClick={() => {
+                setSearch(existingEmail);
+                setPage(1);
+                setCandidate(null);
+                setConfirmation("");
+                setCreating(false);
+                setAdding(true);
+                setNewPassword("");
+                setShowPassword(false);
+                setExistingEmail("");
+                setError("");
+              }}
+            >
+              Find existing account
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            disabled={
+              locked ||
+              !newName.trim() ||
+              !newEmail.trim() ||
+              newPassword.length < 12 ||
+              !newPassword.trim()
+            }
+            onClick={() => void create()}
+          >
+            {busy ? "Creating…" : "Create Store Admin account"}
+          </Button>
+        </div>
+      ) : null}
       {adding ? (
         <div className="space-y-3 rounded-lg border p-3">
           <p className="text-sm text-muted-foreground">

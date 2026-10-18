@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### USERS-4 — Inline first-admin creation
+
+Show Create new account only after linked Admin discovery succeeds with zero
+results. Expand full name, new login email and masked password in the existing
+Edit Store popup; support password show/hide. Creation and assignment panels
+are mutually exclusive. Clear password on cancel, panel switch and API outcome.
+Keep errors and non-secret drafts visible, and offer existing-account lookup on
+email conflict. Lock account controls and parent popup actions during mutation.
+After success refresh current Admin discovery. Ordinary Store admins cannot see
+these account creation controls.
+
+
 ### USERS-3 — Single Edit Store popup
 
 Edit Store includes a Superadmin-only Store Admin account section with a

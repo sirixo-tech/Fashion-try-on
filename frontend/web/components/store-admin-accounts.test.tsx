@@ -10,6 +10,7 @@ import { type ReactNode } from "react";
 import { StoreAdminAccounts } from "./store-admin-accounts";
 import {
   assignStoreAdmin,
+  createStoreAdmin,
   listUsers,
   updateStoreAdminEmail,
   type ManagedUser,
@@ -18,6 +19,7 @@ import { SafeApiError } from "@/lib/api";
 
 vi.mock("@/lib/users", () => ({
   assignStoreAdmin: vi.fn(),
+  createStoreAdmin: vi.fn(),
   listUsers: vi.fn(),
   updateStoreAdminEmail: vi.fn(),
 }));
@@ -105,21 +107,196 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-const mount = (disabled = false) =>
+const mount = (disabled = false, contactEmail = "") =>
   render(
     <StoreAdminAccounts
       token="token"
       storeId="store"
       storeName="Avinash stores"
+      contactEmail={contactEmail}
       disabled={disabled}
       onBusyChange={vi.fn()}
     />,
   );
 
+const unlinked = () =>
+  vi.mocked(listUsers).mockImplementation(async (_token, query) => ({
+    data: query.role ? [] : [candidate],
+    pagination: { ...pagination, total: query.role ? 0 : 1 },
+  }));
+async function openCreation() {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Create new account" }),
+  );
+  fireEvent.change(screen.getByLabelText("Full name"), {
+    target: { value: "New Admin" },
+  });
+  fireEvent.change(screen.getByLabelText("New login email"), {
+    target: { value: "new@example.com" },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: "New password 123!" },
+  });
+}
+
+it("creates a login in the unlinked Store, prefilling contact email and reloading linked admins", async () => {
+  let created = false;
+  const newAdmin = {
+    ...admin,
+    id: "new",
+    displayName: "New Admin",
+    email: "new@example.com",
+  };
+  vi.mocked(listUsers).mockImplementation(async () => ({
+    data: created ? [newAdmin] : [],
+    pagination: { ...pagination, total: created ? 1 : 0 },
+  }));
+  vi.mocked(createStoreAdmin).mockImplementation(async () => {
+    created = true;
+    return newAdmin;
+  });
+  mount(false, "contact@example.com");
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Create new account" }),
+  );
+  expect(
+    (screen.getByLabelText("New login email") as HTMLInputElement).value,
+  ).toBe("contact@example.com");
+  fireEvent.change(screen.getByLabelText("Full name"), {
+    target: { value: "New Admin" },
+  });
+  fireEvent.change(screen.getByLabelText("New login email"), {
+    target: { value: "new@example.com" },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: "New password 123!" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Create Store Admin account" }),
+  );
+  await waitFor(() =>
+    expect(createStoreAdmin).toHaveBeenCalledWith("token", {
+      storeId: "store",
+      confirmStoreName: "Avinash stores",
+      displayName: "New Admin",
+      email: "new@example.com",
+      password: "New password 123!",
+    }),
+  );
+  expect(
+    ((await screen.findByLabelText("Admin login email")) as HTMLInputElement)
+      .value,
+  ).toBe("new@example.com");
+  expect(screen.getByRole("status").textContent).toContain(
+    "Account created for new@example.com",
+  );
+  expect(screen.queryByLabelText("Password")).toBeNull();
+  expect(assignStoreAdmin).not.toHaveBeenCalled();
+  expect(updateStoreAdminEmail).not.toHaveBeenCalled();
+});
+
+it("offers existing-account lookup for duplicate emails without overwriting credentials", async () => {
+  unlinked();
+  vi.mocked(createStoreAdmin).mockRejectedValue(
+    new SafeApiError("USER_EMAIL_CONFLICT", "This email already exists.", 409),
+  );
+  mount();
+  await openCreation();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Create Store Admin account" }),
+  );
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect((screen.getByLabelText("Password") as HTMLInputElement).value).toBe(
+    "",
+  );
+  expect((screen.getByLabelText("Full name") as HTMLInputElement).value).toBe(
+    "New Admin",
+  );
+  expect(
+    (screen.getByLabelText("New login email") as HTMLInputElement).value,
+  ).toBe("new@example.com");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Find existing account" }),
+  );
+  expect(
+    (
+      screen.getByLabelText(
+        "Search account name or login email",
+      ) as HTMLInputElement
+    ).value,
+  ).toBe("new@example.com");
+  expect(screen.queryByLabelText("Password")).toBeNull();
+  await waitFor(() =>
+    expect(listUsers).toHaveBeenLastCalledWith(
+      "token",
+      expect.objectContaining({ search: "new@example.com", status: "ACTIVE" }),
+    ),
+  );
+  expect(assignStoreAdmin).not.toHaveBeenCalled();
+  expect(updateStoreAdminEmail).not.toHaveBeenCalled();
+});
+
+it("scrubs passwords when cancelling or switching panels, and supports show/hide", async () => {
+  unlinked();
+  mount();
+  await openCreation();
+  expect((screen.getByLabelText("Password") as HTMLInputElement).type).toBe(
+    "password",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+  expect((screen.getByLabelText("Password") as HTMLInputElement).type).toBe(
+    "text",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Cancel creation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Create new account" }));
+  expect((screen.getByLabelText("Password") as HTMLInputElement).value).toBe(
+    "",
+  );
+  expect((screen.getByLabelText("Password") as HTMLInputElement).type).toBe(
+    "password",
+  );
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: "Temporary password!" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Assign existing account" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Create new account" }));
+  expect((screen.getByLabelText("Password") as HTMLInputElement).value).toBe(
+    "",
+  );
+  expect(createStoreAdmin).not.toHaveBeenCalled();
+});
+
+it("keeps creation errors and drafts visible while clearing the password after failure", async () => {
+  unlinked();
+  vi.mocked(createStoreAdmin).mockRejectedValue(
+    new SafeApiError("STORE_EDIT_CONFLICT", "Refresh the Store.", 409),
+  );
+  mount();
+  await openCreation();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Create Store Admin account" }),
+  );
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect((screen.getByLabelText("Password") as HTMLInputElement).value).toBe(
+    "",
+  );
+  expect(
+    (screen.getByLabelText("New login email") as HTMLInputElement).value,
+  ).toBe("new@example.com");
+  expect(
+    screen.queryByRole("button", { name: "Find existing account" }),
+  ).toBeNull();
+});
+
 it("loads linked admins and saves the selected login email without profile or contact inputs", async () => {
   mount();
   const input = await screen.findByLabelText("Admin login email");
   expect((input as HTMLInputElement).value).toBe(admin.email);
+  expect(
+    screen.queryByRole("button", { name: "Create new account" }),
+  ).toBeNull();
   expect(listUsers).toHaveBeenCalledWith(
     "token",
     expect.objectContaining({

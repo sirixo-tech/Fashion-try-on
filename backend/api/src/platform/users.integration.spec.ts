@@ -24,7 +24,8 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
   const service = new UsersService(db as PrismaService, passwords, rbac);
   const ids: string[] = [],
     storeIds: string[] = [],
-    roleIds: string[] = [];
+    roleIds: string[] = [],
+    planIds: string[] = [];
   let admin: string,
     user: string,
     other: string,
@@ -36,6 +37,19 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
     platformRole: string;
   let hash: string;
   async function cleanup() {
+    await db.productStockSettings.deleteMany({
+      where: { organizationId: { in: storeIds } },
+    });
+    await db.product.deleteMany({
+      where: { organizationId: { in: storeIds } },
+    });
+    await db.productCategory.deleteMany({
+      where: { organizationId: { in: storeIds } },
+    });
+    await db.storeSubscription.deleteMany({
+      where: { organizationId: { in: storeIds } },
+    });
+    await db.pricingPlan.deleteMany({ where: { id: { in: planIds } } });
     await db.auditLog.deleteMany({ where: { actorUserId: { in: ids } } });
     await db.passwordResetToken.deleteMany({ where: { userId: { in: ids } } });
     await db.userSession.deleteMany({ where: { userId: { in: ids } } });
@@ -64,7 +78,7 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
     });
     await db.organization.deleteMany({ where: { id: { in: storeIds } } });
     await db.user.deleteMany({ where: { id: { in: ids } } });
-    ids.length = storeIds.length = roleIds.length = 0;
+    ids.length = storeIds.length = roleIds.length = planIds.length = 0;
   }
   async function input(
     overrides: Partial<UpdateUserDto> = {},
@@ -805,6 +819,280 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
         email: "cross-store@example.invalid",
       }),
     ).rejects.toMatchObject(code("STORE_ADMIN_NOT_LINKED"));
+  });
+  it("creates and links a new admin atomically while preserving Store products, stock, plan and history", async () => {
+    const planId = createSelfxId(),
+      categoryId = createSelfxId(),
+      productId = createSelfxId(),
+      variantId = createSelfxId();
+    planIds.push(planId);
+    await db.organization.update({
+      where: { id: store },
+      data: {
+        settings: {
+          storeProfile: { contactEmail: "contact@example.invalid" },
+          retained: "original",
+        },
+      },
+    });
+    const previousStore = await db.organization.findUniqueOrThrow({
+      where: { id: store },
+    });
+    await db.pricingPlan.create({
+      data: {
+        id: planId,
+        code: planId,
+        name: "Existing plan",
+        channels: ["KIOSK"],
+      },
+    });
+    const subscription = await db.storeSubscription.create({
+      data: {
+        id: createSelfxId(),
+        organizationId: store,
+        pricingPlanId: planId,
+        channels: ["KIOSK"],
+        includedCredits: 100,
+      },
+    });
+    await db.productCategory.create({
+      data: {
+        id: categoryId,
+        catalogKey: categoryId,
+        organizationId: store,
+        scope: "STORE",
+        slug: "tops",
+        name: "Tops",
+      },
+    });
+    const product = await db.product.create({
+      data: {
+        id: productId,
+        catalogKey: productId,
+        organizationId: store,
+        scope: "STORE",
+        categoryId,
+        name: "Existing shirt",
+        imageStorageKey: "stores/test/existing-shirt.png",
+        slug: productId,
+        audience: "UNISEX",
+        garmentIntent: "TOP",
+        garmentCategory: "TOP",
+      },
+    });
+    await db.productStockSettings.create({
+      data: {
+        productId,
+        organizationId: store,
+        optionMode: "SIZE",
+        pricingMode: "CONSTANT",
+      },
+    });
+    const stock = await db.productVariant.create({
+      data: {
+        id: variantId,
+        productId,
+        organizationId: store,
+        optionKey: "M",
+        size: "M",
+        stockQuantity: 8,
+      },
+    });
+    const historicalEvent = await db.auditLog.create({
+      data: {
+        id: createSelfxId(),
+        actorUserId: admin,
+        organizationId: store,
+        action: "OLD_STORE_EVENT",
+        resourceType: "store",
+      },
+    });
+    const result = await service.createStoreAdmin(admin, {
+      storeId: store,
+      confirmStoreName: "Avinash stores",
+      displayName: "New Store Admin",
+      email: "NEW-ADMIN@example.invalid",
+      password: "New admin password 123!",
+    });
+    ids.push(result.id);
+    expect(result).toMatchObject({
+      email: "new-admin@example.invalid",
+      displayName: "New Store Admin",
+      status: "ACTIVE",
+      staticPlatformRoles: [],
+      platformRoles: [],
+      memberships: [
+        {
+          storeId: store,
+          isStoreAdmin: true,
+          membershipRole: "ORGANIZATION_OWNER",
+          storeScopeMode: "ALL_STORES",
+          status: "ACTIVE",
+        },
+      ],
+    });
+    const saved = await db.user.findUniqueOrThrow({ where: { id: result.id } });
+    expect(
+      await passwords.verifyPassword(
+        saved.passwordHash,
+        "New admin password 123!",
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(result)).not.toContain(saved.passwordHash);
+    expect(JSON.stringify(result)).not.toContain("New admin password 123!");
+    expect(await db.organization.findUnique({ where: { id: store } })).toEqual(
+      previousStore,
+    );
+    expect(
+      await db.storeSubscription.findUnique({ where: { id: subscription.id } }),
+    ).toEqual(subscription);
+    expect(await db.product.findUnique({ where: { id: productId } })).toEqual(
+      product,
+    );
+    expect(
+      await db.productVariant.findUnique({ where: { id: variantId } }),
+    ).toEqual(stock);
+    expect(
+      await db.auditLog.findUnique({ where: { id: historicalEvent.id } }),
+    ).toEqual(historicalEvent);
+    expect(
+      (await rbac.effectivePermissions(result.id, store)).permissions,
+    ).toEqual(["stores.view"]);
+    const event = await db.auditLog.findFirstOrThrow({
+      where: { action: "STORE_ADMIN_ACCOUNT_CREATED", resourceId: result.id },
+    });
+    expect(event.actorUserId).toBe(admin);
+    expect(JSON.stringify(event)).not.toContain("New admin password 123!");
+    expect(JSON.stringify(event)).not.toContain(saved.passwordHash);
+  });
+  it("rejects existing and deleted login emails without changing their credentials or links", async () => {
+    const existing = await service.get(user);
+    const request = {
+      storeId: store,
+      confirmStoreName: "Avinash stores",
+      displayName: "Replacement",
+      email: existing.email.toUpperCase(),
+      password: "Must never replace 123!",
+    };
+    await expect(
+      service.createStoreAdmin(admin, request),
+    ).rejects.toMatchObject(code("USER_EMAIL_CONFLICT"));
+    expect(await service.get(user)).toEqual(existing);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: user } })).passwordHash,
+    ).toBe(hash);
+    await db.user.update({
+      where: { id: user },
+      data: { status: "DISABLED", deletedAt: new Date() },
+    });
+    await expect(
+      service.createStoreAdmin(admin, request),
+    ).rejects.toMatchObject(code("USER_EMAIL_CONFLICT"));
+    expect(
+      await db.organizationMembership.count({ where: { orgId: store } }),
+    ).toBe(0);
+  });
+  it("rolls back new users when Store Admin assignment cannot be completed", async () => {
+    await db.storePermissionGrant.deleteMany({
+      where: { storeTenantId: store },
+    });
+    await expect(
+      service.createStoreAdmin(admin, {
+        storeId: store,
+        confirmStoreName: "Avinash stores",
+        displayName: "No orphan",
+        email: "no-orphan@example.invalid",
+        password: "New admin password 123!",
+      }),
+    ).rejects.toMatchObject(code("STORE_PERMISSION_NOT_GRANTED"));
+    expect(
+      await db.user.findUnique({
+        where: { email: "no-orphan@example.invalid" },
+      }),
+    ).toBeNull();
+    expect(
+      await db.organizationMembership.count({ where: { orgId: store } }),
+    ).toBe(0);
+    expect(
+      await db.auditLog.count({
+        where: {
+          action: {
+            in: ["STORE_ADMIN_ACCOUNT_CREATED", "STORE_FIRST_OWNER_ASSIGNED"],
+          },
+          organizationId: store,
+        },
+      }),
+    ).toBe(0);
+  });
+  it("rejects unauthorized creation, inactive or renamed Stores and existing admin links", async () => {
+    const request = {
+      storeId: store,
+      confirmStoreName: "Avinash stores",
+      displayName: "Not created",
+      email: "not-created@example.invalid",
+      password: "New admin password 123!",
+    };
+    await expect(
+      service.createStoreAdmin(other, request),
+    ).rejects.toMatchObject(code("PLATFORM_PERMISSION_DENIED"));
+    await expect(
+      service.createStoreAdmin(admin, {
+        ...request,
+        confirmStoreName: "Old name",
+      }),
+    ).rejects.toMatchObject(code("STORE_EDIT_CONFLICT"));
+    await expect(
+      service.createStoreAdmin(admin, {
+        ...request,
+        storeId: archived,
+        confirmStoreName: "Archived Store",
+      }),
+    ).rejects.toMatchObject(code("STORE_INACTIVE"));
+    await owner(user);
+    await db.user.update({
+      where: { id: user },
+      data: { status: "SUSPENDED" },
+    });
+    await expect(
+      service.createStoreAdmin(admin, request),
+    ).rejects.toMatchObject(code("STORE_ADMIN_ALREADY_LINKED"));
+    expect(
+      await db.user.findUnique({ where: { email: request.email } }),
+    ).toBeNull();
+  });
+  it("allows one concurrent creation for an unlinked Store without leaving an orphan account", async () => {
+    const attempts = await Promise.allSettled(
+      ["one", "two"].map((label) =>
+        service.createStoreAdmin(admin, {
+          storeId: store,
+          confirmStoreName: "Avinash stores",
+          displayName: label,
+          email: `${label}@create-admin.invalid`,
+          password: "New admin password 123!",
+        }),
+      ),
+    );
+    const successes = attempts.filter(
+      (
+        attempt,
+      ): attempt is PromiseFulfilledResult<
+        Awaited<ReturnType<typeof service.createStoreAdmin>>
+      > => attempt.status === "fulfilled",
+    );
+    successes.forEach((success) => ids.push(success.value.id));
+    expect(successes).toHaveLength(1);
+    expect(
+      await db.organizationMembership.count({ where: { orgId: store } }),
+    ).toBe(1);
+    expect(
+      await db.user.count({
+        where: {
+          email: {
+            in: ["one@create-admin.invalid", "two@create-admin.invalid"],
+          },
+        },
+      }),
+    ).toBe(1);
   });
   it("rejects unsupported role filters and keeps inactive Store memberships read-only", async () => {
     await expect(
