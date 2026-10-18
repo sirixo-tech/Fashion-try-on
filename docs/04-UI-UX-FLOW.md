@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### USERS-1 — `/app/users`
+
+Navigation and heading say Users. The shared table shows name/login email,
+account status, platform access, Store access and account creation date. Search,
+status/access/role/Store filters and 25/50/100-row pagination run server-side.
+Superadmin Edit opens a single scrollable modal with a persistent action footer:
+name, login email, blank optional new password, account status, dynamic platform
+roles and separate Store membership rows. Password visibility is optional;
+failed submissions clear the password. Owner and inactive Store links are
+read-only; a separate first-owner section requires exact Store-name confirmation
+and no unsaved ordinary edits. Errors keep the modal open. Protected Superadmin
+Edit is disabled. Other authorized platform readers see a read-only table.
+
 ### MAIL-1 — Mail Settings and recovery pages
 
 Platform Settings contains General Settings and Mail Settings as direct siblings.

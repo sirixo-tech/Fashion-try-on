@@ -522,8 +522,14 @@ export class StoreRbacService {
   ): Promise<StoreUserResponseDto> {
     await this.ensureStoreRbac(storeId);
     const membership = await this.findMembershipOrThrow(storeId, membershipId);
-    await this.assertNotProtectedOwner(storeId, membershipId, input.status);
     const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${storeId})::bigint)`;
+      await this.assertNotProtectedOwner(
+        tx,
+        storeId,
+        membershipId,
+        input.status,
+      );
       await tx.organizationMembership.update({
         where: { id: membershipId },
         data: {
@@ -1008,6 +1014,7 @@ export class StoreRbacService {
   }
 
   private async assertNotProtectedOwner(
+    prisma: Prisma.TransactionClient,
     storeId: string,
     membershipId: string,
     nextStatus: "ACTIVE" | "SUSPENDED",
@@ -1015,7 +1022,7 @@ export class StoreRbacService {
     if (nextStatus === "ACTIVE") {
       return;
     }
-    const membership = await this.prisma.organizationMembership.findFirst({
+    const membership = await prisma.organizationMembership.findFirst({
       where: { id: membershipId, orgId: storeId },
       select: { role: true, status: true },
     });
@@ -1025,12 +1032,13 @@ export class StoreRbacService {
     ) {
       return;
     }
-    const activeOwners = await this.prisma.organizationMembership.count({
+    const activeOwners = await prisma.organizationMembership.count({
       where: {
         orgId: storeId,
         role: OrganizationMembershipRole.ORGANIZATION_OWNER,
         status: MembershipStatus.ACTIVE,
         id: { not: membershipId },
+        user: { status: UserStatus.ACTIVE },
       },
     });
     if (activeOwners === 0) {

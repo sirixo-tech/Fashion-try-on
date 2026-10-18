@@ -784,6 +784,7 @@ async function assertNotFinalActiveOwner(
       role: OrganizationMembershipRole.ORGANIZATION_OWNER,
       status: MembershipStatus.ACTIVE,
       id: { not: targetMembershipId },
+      user: { status: "ACTIVE" },
     },
   });
   if (owners === 0) {

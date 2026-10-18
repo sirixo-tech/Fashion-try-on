@@ -120,7 +120,7 @@ const navItems: SelfxNavItem[] = [
         icon: ShieldIcon,
       },
       { href: "/app/roles", label: "Platform Roles", icon: LockKeyholeIcon },
-      { href: "/app/users", label: "Platform Users", icon: UsersIcon },
+      { href: "/app/users", label: "Users", icon: UsersIcon },
     ],
   },
   { href: "/app/activity", label: "Activity", icon: ActivityIcon },

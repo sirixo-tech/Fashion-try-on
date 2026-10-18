@@ -2,6 +2,19 @@
 
 ## Implementation Plan
 
+### USERS-1 — Account edit modal and Store linking
+
+User-approved scope: rename Platform Users to Users; add clear paginated
+identity/access details and filters; implement one account edit modal; add
+explicit first-owner repair for ownerless active Stores. Reuse existing account,
+membership, RBAC, credential version and audit structures. Validate Superadmin
+authorization, duplicate emails, stale edits, cross-Store role rejection,
+credential invalidation, protected accounts, final-owner disabling and concurrent
+first-owner assignment with real local PostgreSQL plus UI regression tests.
+Deploy API and web together. No production account mutation is performed by
+implementing this feature. New account onboarding/invitations, protected
+Superadmin maintenance and ownership transfer remain separate workflows.
+
 ### MAIL-1 — Approved SMTP and password recovery
 
 Implement shared email delivery, encrypted Superadmin Mail Settings directly under

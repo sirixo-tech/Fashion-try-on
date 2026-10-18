@@ -1,5 +1,21 @@
 ## Document Evolution
 
+### USERS-1 — Unified account administration
+
+`GET /api/v1/admin/users` and `/users/stores` provide bounded page-based lists;
+`GET /users/:userId` returns a safe edit snapshot and concurrency digest.
+`PATCH /users/:userId` is Superadmin-only and atomically updates profile,
+credentials, status, optional dynamic platform roles and explicitly changed
+Store memberships. Existing bootstrap role assignments remain unchanged.
+`POST /users/:userId/first-store-owner` is an explicit Superadmin-only operation
+requiring the edit digest and exact Store-name confirmation. Serializable
+transactions, shared tenant mutation locks and owner checks prevent competing
+first-owner assignments and final-owner account disabling. Store roles are
+validated against their tenant; existing Store permission ceilings still apply.
+Credential/status edits increment credentialsVersion, revoke refresh sessions,
+consume reset tokens and end actor impersonations. Audit metadata excludes
+passwords and reset/session secrets. See `USERS-1-IMPLEMENTATION-REPORT.md`.
+
 ### MAIL-1 — SMTP and password recovery
 
 A shared NestJS MailModule stores versioned SMTP settings under platform.mail in

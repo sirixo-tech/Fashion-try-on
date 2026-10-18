@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { MailModule } from "../mail/mail.module.js";
 import { MailSettingsController } from "../mail/mail-settings.controller.js";
+import { UsersController } from "../platform/users.controller.js";
+import { UsersService } from "../platform/users.service.js";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
@@ -25,12 +27,14 @@ import { StoreRbacService } from "./store-rbac.service.js";
     MailModule,
   ],
   controllers: [
+    UsersController,
     MailSettingsController,
     StoreRbacController,
     AccessControlController,
     PlatformSettingsController,
   ],
   providers: [
+    UsersService,
     StoreRbacService,
     AccessControlService,
     LoginPageSettingsService,

@@ -2,6 +2,18 @@
 
 ## Database & Schema Design
 
+### USERS-1 account administration
+
+No new persistence or migration is required. Reuse users, user_sessions,
+password_reset_tokens, organization_memberships, store_membership_roles,
+platform_user_roles, platform_role_assignments and audit_logs. Product Store
+links target organizations, never legacy location stores. New ordinary links
+have explicit ALL_STORES scope within their selected tenant; existing scopes
+are preserved. First-owner assignment uses ACTIVE ORGANIZATION_OWNER plus
+ALL_STORES and the Store's store-admin RBAC role. Existing membership, role and
+permission ceiling constraints remain authoritative. Account edits and explicit
+first-owner assignments have attributable audit events without secret values.
+
 ### MAIL-1 — Recovery persistence
 
 Migration 20261017000000_mail_and_password_recovery adds users.credentials_version

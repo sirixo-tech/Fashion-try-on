@@ -1,5 +1,19 @@
 ## Document Evolution
 
+### USERS-1 — Clear account management and Store linking
+
+The platform Users page replaces the Platform Users label. Authorized platform
+readers see login identity, account status, separate platform roles and Store
+memberships (including inactive Stores), and creation date with paginated search
+and filters. Only protected SelfX Superadmins may edit account name, login email,
+optional new password, status, dynamic platform roles and non-owner memberships
+in one modal. Contact email is separate. Email/password changes revoke old login
+sessions and reset links; blank password preserves the current password.
+Protected Superadmin accounts are not editable here. Final active owners cannot
+be disabled. An explicit, confirmed first-owner action can establish ownership
+only when an active Store has no active owner; it must not transfer ownership or
+broaden Store permission ceilings. Multiple Store memberships remain supported.
+
 ### MAIL-1 — Platform email and account recovery
 
 Mail Settings is a direct navigation item under Platform Settings, alongside

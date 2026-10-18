@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### USERS-1 — Find, edit and link an account
+
+Superadmin opens Access Control → Users, searches the actual login email and
+opens Edit. One modal edits account details and separate platform/Store access.
+Existing memberships remain unless explicitly edited; archived Store links are
+visible and read-only. Adding a Store requires choosing its operational role(s).
+For an ownerless active Store, the administrator instead selects Assign first
+Store Owner, types the Store name and executes that explicit action. It grants
+owner membership plus Store Admin RBAC without changing other Store links or
+products. Login email/password changes require the affected user to sign in
+again. Ordinary edits cannot change protected Superadmins or transfer ownership.
+
 ### MAIL-1 — Email and password recovery
 
 Superadmin opens Platform Settings -> Mail Settings, saves SMTP/sender details and

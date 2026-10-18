@@ -14,6 +14,7 @@ export {
   BreadcrumbSeparator,
 } from "./components/breadcrumb";
 export { Button, buttonVariants } from "./components/button";
+export { Checkbox } from "./components/checkbox";
 export {
   Card,
   CardAction,
