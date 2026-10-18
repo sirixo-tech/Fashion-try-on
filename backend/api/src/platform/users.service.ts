@@ -8,6 +8,12 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import {
+  adminMembershipWhere,
+  isStoreAdmin,
+  PLATFORM_ROLE_CODES,
+  STORE_ROLE_CODES,
+} from "../rbac/role-policy.js";
+import {
   type AssignFirstOwnerDto,
   type UpdateUserDto,
   type UsersQueryDto,
@@ -15,12 +21,13 @@ import {
 
 // Explicit safe projection: hashes, reset links and session credentials never
 // enter the user-management response or its optimistic-concurrency digest.
-const userSelect = {
+export const userSelect = {
   id: true,
   email: true,
   displayName: true,
   status: true,
   credentialsVersion: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
   platformRoleAssignments: {
@@ -41,12 +48,15 @@ const userSelect = {
       role: true,
       status: true,
       updatedAt: true,
+      deletedAt: true,
       storeScopeMode: true,
       organization: { select: { name: true, status: true } },
       roleAssignments: {
         orderBy: { roleId: "asc" },
         select: {
-          role: { select: { id: true, name: true, isActive: true } },
+          role: {
+            select: { id: true, name: true, isActive: true, systemCode: true },
+          },
         },
       },
     },
@@ -85,7 +95,7 @@ export class UsersService {
           if (!actor)
             fail(
               "PLATFORM_PERMISSION_DENIED",
-              "Only SelfX Superadmins can assign the first Store Owner.",
+              "Only SelfX Superadmins can assign the first Store Admin.",
               HttpStatus.FORBIDDEN,
             );
           const user = await tx.user.findUnique({
@@ -94,6 +104,17 @@ export class UsersService {
           });
           if (!user)
             fail("USER_NOT_FOUND", "User was not found.", HttpStatus.NOT_FOUND);
+          if (user!.deletedAt)
+            fail(
+              "USER_DELETED",
+              "Deleted users cannot be edited or reactivated.",
+            );
+          if (
+            user!.memberships.some(
+              (member) => member.orgId === input.storeId && member.deletedAt,
+            )
+          )
+            fail("USER_DELETED", "A deleted Store link cannot be restored.");
           if (mapUser(user!).version !== input.version)
             fail(
               "USER_EDIT_CONFLICT",
@@ -119,7 +140,7 @@ export class UsersService {
           const owners = await tx.organizationMembership.count({
             where: {
               orgId: input.storeId,
-              role: "ORGANIZATION_OWNER",
+              ...adminMembershipWhere,
               status: "ACTIVE",
               user: { status: "ACTIVE" },
             },
@@ -238,6 +259,12 @@ export class UsersService {
           }
         : {}),
       ...(query.status ? { status: query.status } : {}),
+      deletedAt:
+        query.deleted === "only"
+          ? { not: null }
+          : query.deleted === "all"
+            ? undefined
+            : null,
       ...(query.storeId
         ? { memberships: { some: { orgId: query.storeId } } }
         : {}),
@@ -275,9 +302,7 @@ export class UsersService {
             },
           },
         };
-      else if (
-        ["store-admin", "manager", "staff", "viewer"].includes(query.role)
-      )
+      else if (STORE_ROLE_CODES.includes(query.role))
         roleFilter = {
           memberships: {
             some: {
@@ -332,6 +357,40 @@ export class UsersService {
     if (!user)
       fail("USER_NOT_FOUND", "User was not found.", HttpStatus.NOT_FOUND);
     return mapUser(user!);
+  }
+
+  async deletionHistory(query: UsersQueryDto) {
+    const page = query.page ?? 1,
+      pageSize = query.pageSize ?? 25;
+    const where = {
+      action: {
+        in: [
+          "USER_SOFT_DELETED",
+          "USER_HARD_DELETED",
+          "STORE_USER_DELETED",
+          "STORE_PERMANENTLY_DELETED",
+        ],
+      },
+    };
+    const [total, data] = await this.db.$transaction([
+      this.db.auditLog.count({ where }),
+      this.db.auditLog.findMany({
+        where,
+        select: { id: true, action: true, metadata: true, createdAt: true },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return {
+      data,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+    };
   }
 
   async stores(query: UsersQueryDto) {
@@ -397,6 +456,11 @@ export class UsersService {
           });
           if (!user)
             fail("USER_NOT_FOUND", "User was not found.", HttpStatus.NOT_FOUND);
+          if (user!.deletedAt)
+            fail(
+              "USER_DELETED",
+              "Deleted users cannot be edited or reactivated.",
+            );
           if (mapUser(user!).version !== input.version)
             fail(
               "USER_EDIT_CONFLICT",
@@ -423,12 +487,12 @@ export class UsersService {
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${storeId})::bigint)`;
           if (input.status !== "ACTIVE") {
             for (const membership of user!.memberships.filter(
-              (m) => m.role === "ORGANIZATION_OWNER" && m.status === "ACTIVE",
+              (m) => isStoreAdmin(m) && m.status === "ACTIVE",
             )) {
               const others = await tx.organizationMembership.count({
                 where: {
                   orgId: membership.orgId,
-                  role: "ORGANIZATION_OWNER",
+                  ...adminMembershipWhere,
                   status: "ACTIVE",
                   userId: { not: userId },
                   user: { status: "ACTIVE" },
@@ -454,6 +518,11 @@ export class UsersService {
             const current = user!.memberships.find(
               (m) => m.orgId === link.storeId,
             );
+            if (current?.deletedAt)
+              fail(
+                "USER_DELETED",
+                "Deleted Store memberships cannot be reactivated.",
+              );
             if (
               (current &&
                 (current.id !== link.membershipId ||
@@ -473,7 +542,7 @@ export class UsersService {
                 "STORE_INACTIVE",
                 "Only active Stores can have memberships edited.",
               );
-            if (current?.role === "ORGANIZATION_OWNER")
+            if (current && isStoreAdmin(current))
               fail(
                 "STORE_OWNER_PROTECTED",
                 "Owner memberships require a controlled ownership action.",
@@ -489,6 +558,7 @@ export class UsersService {
                 id: { in: link.roleIds },
                 orgId: link.storeId,
                 isActive: true,
+                systemCode: { in: STORE_ROLE_CODES },
               },
             });
             if (count !== link.roleIds.length)
@@ -553,7 +623,11 @@ export class UsersService {
           }
           if (input.platformRoleIds) {
             const count = await tx.platformAccessRole.count({
-              where: { id: { in: input.platformRoleIds }, isActive: true },
+              where: {
+                id: { in: input.platformRoleIds },
+                isActive: true,
+                systemCode: { in: PLATFORM_ROLE_CODES },
+              },
             });
             if (count !== input.platformRoleIds.length)
               fail(
@@ -650,11 +724,12 @@ export class UsersService {
   }
 }
 
-function mapUser(user: UserRecord) {
+export function mapUser(user: UserRecord) {
   return {
     id: user.id,
     email: user.email,
     displayName: user.displayName,
+    deletedAt: user.deletedAt?.toISOString() ?? null,
     status: user.status,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
@@ -671,6 +746,8 @@ function mapUser(user: UserRecord) {
       storeStatus: m.organization.status,
       membershipRole: m.role,
       status: m.status,
+      deletedAt: m.deletedAt?.toISOString() ?? null,
+      isStoreAdmin: isStoreAdmin(m),
       storeScopeMode: m.storeScopeMode,
       updatedAt: m.updatedAt.toISOString(),
       roles: m.roleAssignments.map((a) => a.role),

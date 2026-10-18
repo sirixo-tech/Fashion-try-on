@@ -7,7 +7,7 @@ export class StoreImpersonationSessionDto {
   id!: string;
 
   @ApiProperty()
-  actorUserId!: string;
+  actorUserId!: string | null;
 
   @ApiProperty()
   targetStoreId!: string;

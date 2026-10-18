@@ -51,6 +51,8 @@ import {
   type PlatformUser,
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
+import { deleteStoreUser } from "@/lib/users";
+import { UserDeleteDialog } from "@/components/user-delete-dialog";
 import {
   getCurrentMerchantStore,
   getCurrentMerchantStoreAccess,
@@ -87,6 +89,8 @@ export default function StaffPage() {
   const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
   const [platformRoles, setPlatformRoles] = useState<PlatformRole[]>([]);
   const [storeUsers, setStoreUsers] = useState<StoreUser[]>([]);
+  const [deletingUser, setDeletingUser] = useState<StoreUser | null>(null);
+  const [deletedFilter, setDeletedFilter] = useState("active");
   const [storeRoles, setStoreRoles] = useState<StoreRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -298,6 +302,7 @@ export default function StaffPage() {
       }
 
       const nextUsers = await listStoreUsers(accessToken, storeId, {
+        deleted: deletedFilter,
         pageSize: 100,
       });
       setStoreUsers(nextUsers.data);
@@ -320,6 +325,7 @@ export default function StaffPage() {
     canLoadSelectedStoreRoles,
     canViewPlatformUsers,
     canViewSelectedStoreStaff,
+    deletedFilter,
     scope,
     storeId,
   ]);
@@ -439,6 +445,18 @@ export default function StaffPage() {
       ) : (
         <>
           <PageSection>
+            {scope === "store" ? (
+              <SelectMenu
+                ariaLabel="Store deleted users filter"
+                value={deletedFilter}
+                onChange={setDeletedFilter}
+                options={[
+                  { value: "active", label: "Current users" },
+                  { value: "only", label: "Deleted users" },
+                  { value: "all", label: "All users" },
+                ]}
+              />
+            ) : null}
             <StatGrid>
               <StatCard
                 label="Total Staff"
@@ -494,6 +512,7 @@ export default function StaffPage() {
                 }
                 canUpdateStatus={canUpdateSelectedStoreStaff}
                 onEdit={setStoreDialogUser}
+                onDelete={setDeletingUser}
                 onStatus={(user, status) =>
                   void updateStoreStatus(user, status)
                 }
@@ -503,6 +522,23 @@ export default function StaffPage() {
         </>
       )}
 
+      {deletingUser && accessToken ? (
+        <UserDeleteDialog
+          name={deletingUser.displayName || deletingUser.email}
+          email={deletingUser.email}
+          description="Remove this user's access to this Store and retain their name and email marked as deleted. Access to other Stores or the Platform will be preserved."
+          onClose={() => setDeletingUser(null)}
+          onDelete={async (confirmEmail) => {
+            await deleteStoreUser(
+              accessToken,
+              storeId,
+              deletingUser,
+              confirmEmail,
+            );
+            await loadStaff();
+          }}
+        />
+      ) : null}
       <PlatformUserDialog
         user={platformDialogUser}
         roles={platformRoles}
@@ -665,6 +701,7 @@ function StoreStaffTable({
   canUpdateStatus,
   onEdit,
   onStatus,
+  onDelete,
 }: {
   loading: boolean;
   users: StoreUser[];
@@ -672,6 +709,7 @@ function StoreStaffTable({
   canUpdateStatus: boolean;
   onEdit: (user: StoreUser) => void;
   onStatus: (user: StoreUser, status: "ACTIVE" | "SUSPENDED") => void;
+  onDelete: (user: StoreUser) => void;
 }) {
   return (
     <TableContainer
@@ -703,6 +741,7 @@ function StoreStaffTable({
                 <TableCell>
                   <div className="font-medium">
                     {user.displayName ?? user.email}
+                    {user.deletedAt ? " (Deleted user)" : ""}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {user.email}
@@ -718,7 +757,7 @@ function StoreStaffTable({
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={!canAssignRoles}
+                      disabled={!canAssignRoles || Boolean(user.deletedAt)}
                       onClick={() => onEdit(user)}
                     >
                       <PencilIcon aria-hidden="true" />
@@ -728,7 +767,7 @@ function StoreStaffTable({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={!canUpdateStatus}
+                        disabled={!canUpdateStatus || Boolean(user.deletedAt)}
                         onClick={() => onStatus(user, "ACTIVE")}
                       >
                         Reactivate
@@ -737,12 +776,25 @@ function StoreStaffTable({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={!canUpdateStatus}
+                        disabled={!canUpdateStatus || Boolean(user.deletedAt)}
                         onClick={() => onStatus(user, "SUSPENDED")}
                       >
                         Suspend
                       </Button>
                     )}
+                    {canUpdateStatus &&
+                    !user.deletedAt &&
+                    !user.roles.some(
+                      (role) => role.systemCode === "store-admin",
+                    ) ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => onDelete(user)}
+                      >
+                        Delete
+                      </Button>
+                    ) : null}
                   </div>
                 </TableCell>
               </TableRow>

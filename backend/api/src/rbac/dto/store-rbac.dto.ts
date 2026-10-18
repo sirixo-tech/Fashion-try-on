@@ -40,6 +40,9 @@ export class StoreRbacListQueryDto {
 
 export class StoreUsersQueryDto extends StoreRbacListQueryDto {
   @IsOptional()
+  @IsIn(["active", "only", "all"])
+  deleted?: "active" | "only" | "all";
+  @IsOptional()
   @IsEnum(MembershipStatus)
   status?: MembershipStatus;
 }
@@ -189,6 +192,8 @@ export class StoreRoleListResponseDto {
 }
 
 export class StoreUserResponseDto {
+  @ApiPropertyOptional({ nullable: true })
+  deletedAt!: string | null;
   @ApiProperty()
   membershipId!: string;
 

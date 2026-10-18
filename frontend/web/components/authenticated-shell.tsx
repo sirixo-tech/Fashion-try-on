@@ -111,7 +111,7 @@ const navItems: SelfxNavItem[] = [
     ],
   },
   {
-    label: "Access Control",
+    label: "User Management",
     icon: LockKeyholeIcon,
     children: [
       {
@@ -119,7 +119,7 @@ const navItems: SelfxNavItem[] = [
         label: "Permissions",
         icon: ShieldIcon,
       },
-      { href: "/app/roles", label: "Platform Roles", icon: LockKeyholeIcon },
+      { href: "/app/roles", label: "Roles", icon: LockKeyholeIcon },
       { href: "/app/users", label: "Users", icon: UsersIcon },
     ],
   },

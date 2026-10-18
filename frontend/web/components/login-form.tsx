@@ -40,16 +40,14 @@ const demoLoginGroups = [
     label: "Platform",
     accounts: [
       { label: "Super Admin", email: "super-admin@selfx.local" },
-      { label: "Staff Admin", email: "platform-staff-admin@selfx.local" },
-      { label: "Support Admin", email: "support-admin@selfx.local" },
+      { label: "Admin", email: "platform-staff-admin@selfx.local" },
+      { label: "Staff", email: "support-admin@selfx.local" },
     ],
   },
   {
     label: "Store",
     accounts: [
-      { label: "Store Owner", email: "store-owner@selfx.local" },
       { label: "Store Admin", email: "store-admin@selfx.local" },
-      { label: "Store Manager", email: "store-manager@selfx.local" },
       { label: "Store Staff", email: "store-staff@selfx.local" },
     ],
   },

@@ -1,5 +1,28 @@
 ## Document Evolution
 
+### USERS-2 — Five roles and user/Store deletion
+
+The approved role model is Platform Superadmin, Platform Admin, Platform Staff,
+Store Admin and Staff. Store Owner/Admin and Manager/Staff are consolidated in
+product language. Historical database role values remain compatibility details.
+User Management replaces Access Control; Roles replaces Platform Roles.
+
+Superadmins may delete ordinary accounts; protected Superadmin removal remains
+out of scope. Store-associated accounts are soft deleted, lose login access and
+retain name/email as `Name (Deleted user)` without a restore action. Accounts
+with no Store association are permanently removed, retaining audit identity
+snapshots. Store Admins may remove Staff only within their authorized Store.
+Removal of a shared account's Store membership preserves its other access.
+The final active Store Admin must have a replacement before ordinary removal.
+
+Archive remains separate from permanent Store deletion. Confirmed Superadmin
+permanent deletion removes the tenant's products, shopping, billing and other
+business data and accounts exclusive to it, including soft-deleted accounts.
+Shared users and platform identities survive; physical kiosks are revoked and
+unassigned. Audit snapshots survive. Staff have daily products/stock, kiosk and
+analytics access, with no user/role administration or Store payment settings.
+
+
 ### USERS-1 — Clear account management and Store linking
 
 The platform Users page replaces the Platform Users label. Authorized platform

@@ -16,6 +16,7 @@ import {
 } from "@/lib/access-control";
 import {
   assignFirstStoreOwner,
+  deleteUser,
   getUser,
   listUsers,
   listUserStores,
@@ -37,6 +38,7 @@ vi.mock("@/lib/users", () => ({
   listUsers: vi.fn(),
   listUserStores: vi.fn(),
   updateUser: vi.fn(),
+  deleteUser: vi.fn(),
   assignFirstStoreOwner: vi.fn(),
 }));
 vi.mock("@/lib/stores", () => ({ listStoreRoles: vi.fn() }));
@@ -162,7 +164,7 @@ it("shows clear account and archived Store details, and opens one Edit modal", a
     ).value,
   ).toBe("");
   expect(
-    within(dialog).getByText(/Owner access requires a controlled/),
+    within(dialog).getByText(/Store Admin links are protected/),
   ).toBeTruthy();
 });
 it("omits the blank optional password and preserves unrelated memberships", async () => {
@@ -230,14 +232,14 @@ it("requires explicit Store name confirmation for first-owner assignment", async
   editor();
   await waitFor(() =>
     expect(
-      within(screen.getByLabelText("Owner Store")).getByText("Avinash stores"),
+      within(screen.getByLabelText("Admin Store")).getByText("Avinash stores"),
     ).toBeTruthy(),
   );
-  fireEvent.change(screen.getByLabelText("Owner Store"), {
+  fireEvent.change(screen.getByLabelText("Admin Store"), {
     target: { value: "new-store" },
   });
   const action = screen.getByRole("button", {
-    name: "Assign first Store Owner",
+    name: "Assign first Store Admin",
   }) as HTMLButtonElement;
   expect(action.disabled).toBe(true);
   fireEvent.change(screen.getByLabelText("Type “Avinash stores” to confirm"), {
@@ -286,6 +288,53 @@ it("keeps protected Superadmin accounts uneditable", async () => {
       (await screen.findByRole("button", {
         name: "Edit owner@example.com",
       })) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+});
+
+it("requires email confirmation and keeps a failed deletion open", async () => {
+  vi.mocked(deleteUser).mockRejectedValue(
+    new SafeApiError(
+      "STORE_FINAL_ADMIN_PROTECTED",
+      "Assign another active Store Admin first.",
+      409,
+    ),
+  );
+  render(<UsersPage />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Delete owner@example.com" }),
+  );
+  const action = screen.getByRole("button", {
+    name: "Delete user",
+  }) as HTMLButtonElement;
+  expect(action.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Type owner@example.com to confirm"), {
+    target: { value: user.email },
+  });
+  fireEvent.click(action);
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(deleteUser).toHaveBeenCalledWith("test-token", user, user.email);
+});
+
+it("shows deleted names and emails without edit or delete actions", async () => {
+  vi.mocked(listUsers).mockResolvedValue({
+    data: [
+      { ...user, status: "DISABLED", deletedAt: "2026-10-18T01:00:00.000Z" },
+    ],
+    pagination,
+  });
+  render(<UsersPage />);
+  expect(await screen.findByText("Avinash (Deleted user)")).toBeTruthy();
+  expect(screen.getAllByText(user.email).length).toBeGreaterThan(0);
+  expect(
+    screen.queryByRole("button", { name: "Delete owner@example.com" }),
+  ).toBeNull();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Edit owner@example.com",
+      }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
 });

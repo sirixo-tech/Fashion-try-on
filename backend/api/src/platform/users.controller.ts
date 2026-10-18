@@ -1,5 +1,6 @@
 import {
   Body,
+  Delete,
   Controller,
   Get,
   HttpStatus,
@@ -18,10 +19,12 @@ import { PlatformAuthorizationService } from "./platform-authorization.service.j
 import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
 import {
   AssignFirstOwnerDto,
+  DeleteUserDto,
   UpdateUserDto,
   UsersQueryDto,
 } from "./dto/users.dto.js";
 import { UsersService } from "./users.service.js";
+import { UserDeletionService } from "./user-deletion.service.js";
 
 @ApiTags("Users")
 @ApiBearerAuth()
@@ -31,6 +34,7 @@ export class UsersController {
     private readonly auth: AuthService,
     private readonly authorization: PlatformAuthorizationService,
     private readonly users: UsersService,
+    private readonly deletion: UserDeletionService,
   ) {}
   private async reader(request: FastifyRequest) {
     const user = await this.auth.requireAccessUser(
@@ -75,6 +79,13 @@ export class UsersController {
     await this.reader(request);
     return this.users.stores(query);
   }
+  @Get("deletion-history") async history(
+    @Req() request: FastifyRequest,
+    @Query() query: UsersQueryDto,
+  ) {
+    await this.reader(request);
+    return this.users.deletionHistory(query);
+  }
   @Get(":userId") async get(
     @Req() request: FastifyRequest,
     @Param("userId", SelfxUuidParamPipe) id: string,
@@ -89,6 +100,14 @@ export class UsersController {
   ) {
     const actor = await this.editor(request);
     return this.users.update(actor.id, id, input);
+  }
+  @Delete(":userId") async deleteUser(
+    @Req() request: FastifyRequest,
+    @Param("userId", SelfxUuidParamPipe) id: string,
+    @Body() input: DeleteUserDto,
+  ) {
+    const actor = await this.editor(request);
+    return this.deletion.deleteAccount(actor.id, id, input);
   }
   @Post(":userId/first-store-owner") async assignFirstOwner(
     @Req() request: FastifyRequest,

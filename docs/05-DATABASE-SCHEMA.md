@@ -2,6 +2,28 @@
 
 ## Database & Schema Design
 
+### USERS-2 — Deleted identities and Store purge
+
+Migration `20261018000000_user_deletion` adds users.deleted_at and
+organization_memberships.deleted_at. Check constraints require deleted accounts
+to be DISABLED and deleted memberships REVOKED. AuditLog gains actor_snapshot.
+Historical creator/actor references in impersonation sessions, applications,
+platform payment tests, integration credentials and API keys become nullable
+SET NULL references with safe identity snapshots. Hard account deletion stores
+these snapshots before removing the login row. Soft deletion retains name/email.
+
+`deleted_store_objects` stores a unique object key, retry attempts, next available
+time and creation time. Store purge queues cleanup in the same database transaction.
+Historical audit rows retain actor and deleted-Store context after FK SET NULL.
+
+Migration `20261018010000_five_roles` consolidates memberships into canonical
+store-admin/staff role assignments and retires other role definitions. Ordinary
+Platform roles retain internal codes platform-staff-admin/platform-support-admin
+but display Platform Admin/Platform Staff. Old enums remain compatibility data.
+The new products.manage permission is backfilled only for Stores that already
+held stores.update, preserving the existing ceiling for other Stores.
+
+
 ### USERS-1 account administration
 
 No new persistence or migration is required. Reuse users, user_sessions,

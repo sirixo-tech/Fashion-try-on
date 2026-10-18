@@ -152,7 +152,7 @@ export default function StoreProductsPage() {
       setPagination(nextProducts.pagination);
       setCanUpdateProducts(
         nextPermissions.platformBypass ||
-          nextPermissions.permissions.includes("stores.update"),
+          nextPermissions.permissions.includes("products.manage"),
       );
     } catch (caught) {
       setError(messageFor(caught));

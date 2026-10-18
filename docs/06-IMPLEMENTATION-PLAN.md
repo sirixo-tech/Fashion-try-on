@@ -2,6 +2,23 @@
 
 ## Implementation Plan
 
+### USERS-2 — Approved deletion and role consolidation
+
+Implement five business roles, User Management/Users/Roles labels, confirmed
+Superadmin account deletion, Store Admin removal of Staff, deleted identity
+display, and separate Superadmin permanent Store deletion. Consolidate legacy
+roles using a tracked migration while retaining internal enum compatibility.
+Store Staff receives product/stock, kiosk and analytics operations only.
+
+Verify soft/hard deletion, credential revocation, deleted-link protection,
+cross-Store/peer protection, final-admin safety, shared identities, audit
+snapshots, catalog/shopping/PAYG cleanup, kiosk preservation, object cleanup,
+legacy role conversion and UI confirmation/error states. Use disposable local
+PostgreSQL, run relevant API/UI regressions and typechecks, and provide a rollout
+report. Apply migrations before the new API/web; production deletion requires a
+separate explicit administrator action. No Superadmin-removal workflow is added.
+
+
 ### USERS-1 — Account edit modal and Store linking
 
 User-approved scope: rename Platform Users to Users; add clear paginated

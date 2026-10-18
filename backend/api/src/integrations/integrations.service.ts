@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { deletedIdentityEmail } from "../platform/deleted-identity.js";
 
 import { HttpStatus, Injectable } from "@nestjs/common";
 import {
@@ -514,7 +515,9 @@ function mapCredential(
         : "ACTIVE",
     expiresAt: credential.expiresAt?.toISOString() ?? null,
     lastUsedAt: credential.lastUsedAt?.toISOString() ?? null,
-    createdByEmail: credential.createdByUser.email,
+    createdByEmail:
+      credential.createdByUser?.email ??
+      deletedIdentityEmail(credential.createdBySnapshot),
     createdAt: credential.createdAt.toISOString(),
     revokedAt: credential.revokedAt?.toISOString() ?? null,
   };

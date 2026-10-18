@@ -1,5 +1,32 @@
 ## Document Evolution
 
+### USERS-2 — Deletion boundaries and fixed roles
+
+`DELETE /api/v1/admin/users/:userId` requires Superadmin authority, a fresh edit
+digest and login-email confirmation. `DELETE /api/v1/admin/stores/:storeId/users/:membershipId`
+requires current Store permission and administrative membership, rejects peers
+and protected targets, and confirms membership version/email. Deleted links and
+accounts cannot be reactivated. Credential versions, session removal and reset
+token removal invalidate deleted logins. A queued reset cannot target a newly
+created account reusing a hard-deleted account's email.
+
+`DELETE /api/v1/admin/stores/:storeId/permanent` rechecks Superadmin in a
+serializable transaction, confirms exact Store name/version, locks the tenant,
+deletes an explicit allowlist of tenant resources in FK dependency order, checks
+cross-tenant references and preserves shared/platform users. Unexpected remaining
+dependencies abort the whole deletion. The physical kiosk is retained but its
+sessions are revoked and Store configuration cleared. Object keys are queued
+atomically for retryable background deletion; still-referenced files survive.
+Audit snapshots contain identity and Store context, never credentials or images.
+
+Role policy recognizes two Store roles and two ordinary Platform roles plus
+protected bootstrap Superadmin. Migration consolidates old assignments and
+retires custom roles. Effective permissions still intersect Store ceilings.
+`products.manage` separates catalog/stock work from `stores.update` so Staff
+cannot acquire payment/profile administration through product editing.
+See `USERS-2-IMPLEMENTATION-REPORT.md` for migration and deployment details.
+
+
 ### USERS-1 — Unified account administration
 
 `GET /api/v1/admin/users` and `/users/stores` provide bounded page-based lists;

@@ -1,6 +1,7 @@
 export const STORE_PERMISSION_CODES = {
   storesView: "stores.view",
   storesUpdate: "stores.update",
+  productsManage: "products.manage",
   usersView: "users.view",
   usersInvite: "users.invite",
   usersUpdate: "users.update",
@@ -37,6 +38,15 @@ export type StorePermissionDefinition = {
 };
 
 export const STORE_PERMISSION_REGISTRY: readonly StorePermissionDefinition[] = [
+  {
+    code: STORE_PERMISSION_CODES.productsManage,
+    module: "products",
+    action: "manage",
+    label: "Manage products and stock",
+    description:
+      "Create and update Store catalog products and their stock without Store account, payment or user administration.",
+    applicability: "STORE",
+  },
   {
     code: STORE_PERMISSION_CODES.storesView,
     module: "stores",

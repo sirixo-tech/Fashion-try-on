@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { UsersController } from "./users.controller.js";
-import { UpdateUserDto, UsersQueryDto } from "./dto/users.dto.js";
+import {
+  DeleteUserDto,
+  UpdateUserDto,
+  UsersQueryDto,
+} from "./dto/users.dto.js";
 
 describe("Users authorization and validation", () => {
   const request = { headers: { authorization: "Bearer test" } } as never;
@@ -15,6 +19,7 @@ describe("Users authorization and validation", () => {
       } as never,
       { isSuperadmin: vi.fn().mockResolvedValue(false) } as never,
       users as never,
+      {} as never,
     );
     await expect(
       controller.update(request, "target", {} as never),
@@ -33,6 +38,7 @@ describe("Users authorization and validation", () => {
       } as never,
       { hasPermission: vi.fn().mockResolvedValue(false) } as never,
       users as never,
+      {} as never,
     );
     await expect(
       controller.list(request, new UsersQueryDto()),
@@ -47,6 +53,7 @@ describe("Users authorization and validation", () => {
       } as never,
       { isSuperadmin: vi.fn().mockResolvedValue(true) } as never,
       users as never,
+      {} as never,
     );
     await controller.update(request, "target", {} as never);
     expect(users.update).toHaveBeenCalledWith("actor", "target", {});
@@ -77,5 +84,28 @@ describe("Users authorization and validation", () => {
         "memberships",
       ]),
     );
+  });
+  it("blocks account deletion before service execution for non-Superadmins", async () => {
+    const deletion = { deleteAccount: vi.fn() };
+    const controller = new UsersController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "actor" }),
+      } as never,
+      { isSuperadmin: vi.fn().mockResolvedValue(false) } as never,
+      {} as never,
+      deletion as never,
+    );
+    await expect(
+      controller.deleteUser(request, "target", {} as never),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(deletion.deleteAccount).not.toHaveBeenCalled();
+    expect(
+      await validate(
+        plainToInstance(DeleteUserDto, {
+          version: "stale",
+          confirmEmail: "bad",
+        }),
+      ),
+    ).toHaveLength(2);
   });
 });

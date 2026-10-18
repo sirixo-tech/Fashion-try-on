@@ -24,22 +24,6 @@ export type MerchantPermission =
 
 const OWNER_PERMISSIONS = Object.values(MERCHANT_PERMISSIONS);
 
-const ORGANIZATION_ADMIN_PERMISSIONS: readonly MerchantPermission[] = [
-  MERCHANT_PERMISSIONS.organizationRead,
-  MERCHANT_PERMISSIONS.organizationUpdate,
-  MERCHANT_PERMISSIONS.storeRead,
-  MERCHANT_PERMISSIONS.storeCreate,
-  MERCHANT_PERMISSIONS.storeUpdate,
-  MERCHANT_PERMISSIONS.storeArchive,
-  MERCHANT_PERMISSIONS.membershipRead,
-  MERCHANT_PERMISSIONS.membershipCreate,
-  MERCHANT_PERMISSIONS.membershipUpdate,
-  MERCHANT_PERMISSIONS.membershipRoleUpdate,
-  MERCHANT_PERMISSIONS.membershipScopeUpdate,
-  MERCHANT_PERMISSIONS.membershipSuspend,
-  MERCHANT_PERMISSIONS.membershipReactivate,
-];
-
 const STORE_MANAGER_PERMISSIONS: readonly MerchantPermission[] = [
   MERCHANT_PERMISSIONS.organizationRead,
   MERCHANT_PERMISSIONS.storeRead,
@@ -49,14 +33,16 @@ const STORE_MANAGER_PERMISSIONS: readonly MerchantPermission[] = [
 
 const ROLE_PERMISSIONS = {
   [OrganizationMembershipRole.ORGANIZATION_OWNER]: OWNER_PERMISSIONS,
-  [OrganizationMembershipRole.ORGANIZATION_ADMIN]:
-    ORGANIZATION_ADMIN_PERMISSIONS,
+  [OrganizationMembershipRole.ORGANIZATION_ADMIN]: OWNER_PERMISSIONS,
   [OrganizationMembershipRole.ORGANIZATION_STAFF]: [
     MERCHANT_PERMISSIONS.organizationRead,
     MERCHANT_PERMISSIONS.storeRead,
   ],
   [OrganizationMembershipRole.STORE_OWNER]: STORE_MANAGER_PERMISSIONS,
-  [OrganizationMembershipRole.STORE_MANAGER]: STORE_MANAGER_PERMISSIONS,
+  [OrganizationMembershipRole.STORE_MANAGER]: [
+    MERCHANT_PERMISSIONS.organizationRead,
+    MERCHANT_PERMISSIONS.storeRead,
+  ],
   [OrganizationMembershipRole.STORE_STAFF]: [
     MERCHANT_PERMISSIONS.organizationRead,
     MERCHANT_PERMISSIONS.storeRead,

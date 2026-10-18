@@ -21,7 +21,7 @@ const impersonationTtlMs = 30 * 60 * 1000;
 
 type SessionWithStore = {
   id: string;
-  actorUserId: string;
+  actorUserId: string | null;
   targetStoreId: string;
   status: ImpersonationSessionStatus;
   startedAt: Date;

@@ -67,7 +67,7 @@ export class CurrentTenantStoreImpersonationDto {
   id!: string;
 
   @ApiProperty()
-  actorUserId!: string;
+  actorUserId!: string | null;
 
   @ApiProperty()
   targetStoreId!: string;

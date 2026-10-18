@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PencilIcon, RefreshCwIcon } from "lucide-react";
+import { PencilIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
 import {
   Alert,
   AlertDescription,
@@ -30,12 +30,15 @@ import {
 import { useSession } from "@/lib/session";
 import {
   getUser,
+  deleteUser,
   listUsers,
   type ManagedUser,
   type Paged,
   type StoreOption,
 } from "@/lib/users";
 import { UserEditor } from "./user-editor";
+import { UserDeleteDialog } from "./user-delete-dialog";
+import { UserDeletionHistory } from "./user-deletion-history";
 import {
   StorePicker,
   UserError,
@@ -64,6 +67,9 @@ export function UsersPage() {
     [notice, setNotice] = useState("");
   const [accessError, setAccessError] = useState("");
   const [editing, setEditing] = useState<ManagedUser | null>(null);
+  const [deleting, setDeleting] = useState<ManagedUser | null>(null);
+  const [deleted, setDeleted] = useState("active");
+  const [historyOpen, setHistoryOpen] = useState(false);
   useEffect(() => {
     if (!token) return;
     let active = true;
@@ -94,6 +100,7 @@ export function UsersPage() {
         access,
         role,
         storeId: store?.id,
+        deleted,
       })
         .then((next) => {
           if (active) {
@@ -125,6 +132,7 @@ export function UsersPage() {
     role,
     store?.id,
     revision,
+    deleted,
   ]);
   async function edit(id: string) {
     if (!token) return;
@@ -142,14 +150,19 @@ export function UsersPage() {
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Access Control"
+        eyebrow="User Management"
         title="Users"
         description="Manage login accounts, Platform access and Store memberships."
         actions={
-          <Button variant="outline" onClick={() => setRevision((v) => v + 1)}>
-            <RefreshCwIcon aria-hidden="true" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setHistoryOpen(true)}>
+              Deletion history
+            </Button>
+            <Button variant="outline" onClick={() => setRevision((v) => v + 1)}>
+              <RefreshCwIcon aria-hidden="true" />
+              Refresh
+            </Button>
+          </div>
         }
       />
       {error ? <UserError message={error} /> : null}
@@ -205,11 +218,8 @@ export function UsersPage() {
                 }}
                 options={[
                   { value: "", label: "All roles" },
-                  { value: "owner", label: "Store Owner" },
                   { value: "store-admin", label: "Store Admin" },
-                  { value: "manager", label: "Store Manager" },
                   { value: "staff", label: "Store Staff" },
-                  { value: "viewer", label: "Store Viewer" },
                   ...roles.map((r) => ({ value: r.id, label: r.name })),
                 ]}
               />
@@ -229,6 +239,22 @@ export function UsersPage() {
                   { value: "superadmin", label: "Protected Superadmin" },
                   { value: "store", label: "Store memberships" },
                   { value: "unlinked", label: "No access assigned" },
+                ]}
+              />
+            </div>
+            <div>
+              <Label>Deletion</Label>
+              <SelectMenu
+                ariaLabel="Deleted users filter"
+                value={deleted}
+                onChange={(value) => {
+                  setDeleted(value);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "active", label: "Current users" },
+                  { value: "only", label: "Deleted users" },
+                  { value: "all", label: "All users" },
                 ]}
               />
             </div>
@@ -317,6 +343,7 @@ export function UsersPage() {
                     <TableCell>
                       <div className="font-medium">
                         {user.displayName || "Unnamed user"}
+                        {user.deletedAt ? " (Deleted user)" : ""}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {user.email}
@@ -325,7 +352,9 @@ export function UsersPage() {
                     <TableCell>
                       <StatusBadge
                         status={user.status}
-                        label={title(user.status)}
+                        label={
+                          user.deletedAt ? "Deleted user" : title(user.status)
+                        }
                       />
                     </TableCell>
                     <TableCell>
@@ -370,13 +399,11 @@ export function UsersPage() {
                                   : ""}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {link.membershipRole === "ORGANIZATION_OWNER"
-                                  ? "Store Owner · "
-                                  : ""}
                                 {link.roles
                                   .map((role) => role.name)
                                   .join(", ") || "No operational roles"}{" "}
                                 · {title(link.status)}
+                                {link.deletedAt ? " (Deleted user)" : ""}
                               </div>
                             </div>
                           ))
@@ -394,7 +421,11 @@ export function UsersPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={opening || user.isProtectedSuperadmin}
+                          disabled={
+                            opening ||
+                            user.isProtectedSuperadmin ||
+                            Boolean(user.deletedAt)
+                          }
                           onClick={() => void edit(user.id)}
                         >
                           <PencilIcon aria-hidden="true" />
@@ -403,6 +434,21 @@ export function UsersPage() {
                       ) : (
                         "View only"
                       )}
+                      {canEdit && !user.deletedAt ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="ml-2"
+                          disabled={
+                            user.isProtectedSuperadmin ||
+                            user.id === session.user?.id
+                          }
+                          onClick={() => setDeleting(user)}
+                        >
+                          <Trash2Icon aria-hidden="true" />
+                          Delete<span className="sr-only"> {user.email}</span>
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))
@@ -425,9 +471,32 @@ export function UsersPage() {
           }}
           onOwnerAssigned={(next) => {
             setEditing(next);
-            setNotice("First Store Owner assigned successfully.");
+            setNotice("First Store Admin assigned successfully.");
             setRevision((v) => v + 1);
           }}
+        />
+      ) : null}
+      {deleting && token ? (
+        <UserDeleteDialog
+          name={deleting.displayName || deleting.email}
+          email={deleting.email}
+          description={
+            deleting.memberships.length
+              ? "This user is associated with a Store. Their account will be disabled and marked as deleted; their name and email remain for history. There is no restore action."
+              : "This user has no Store association. Their login account will be permanently removed. Historical actions retain their name and email marked as deleted."
+          }
+          onClose={() => setDeleting(null)}
+          onDelete={async (confirmEmail) => {
+            await deleteUser(token, deleting, confirmEmail);
+            setRevision((value) => value + 1);
+            setNotice("User deleted successfully.");
+          }}
+        />
+      ) : null}
+      {historyOpen && token ? (
+        <UserDeletionHistory
+          token={token}
+          onClose={() => setHistoryOpen(false)}
         />
       ) : null}
     </PageContainer>

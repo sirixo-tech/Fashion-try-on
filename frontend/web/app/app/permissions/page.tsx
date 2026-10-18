@@ -103,7 +103,7 @@ export default function PermissionsPage() {
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Access Control"
+        eyebrow="User Management"
         title="Permission Registry"
         description="Read-only canonical SelfX permissions used by platform and Store RBAC."
         actions={

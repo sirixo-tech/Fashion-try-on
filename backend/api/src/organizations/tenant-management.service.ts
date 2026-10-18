@@ -19,6 +19,7 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "../common/pagination.dto.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { adminMembershipWhere, isStoreAdmin } from "../rbac/role-policy.js";
 import {
   hasOwnershipAuthority,
   isStoreScopeModeAllowedForRole,
@@ -53,13 +54,17 @@ import {
 } from "./tenant-authorization.service.js";
 
 type MembershipWithRelations = OrganizationMembership & {
+  roleAssignments: Array<{
+    role: { systemCode: string | null; isActive: boolean };
+  }>;
   storeScopes: MembershipStoreScope[];
   user: Pick<User, "id" | "email" | "displayName">;
 };
 
-type ImpersonationSessionWithTargetStore = Prisma.ImpersonationSessionGetPayload<{
-  include: { targetStore: true };
-}>;
+type ImpersonationSessionWithTargetStore =
+  Prisma.ImpersonationSessionGetPayload<{
+    include: { targetStore: true };
+  }>;
 
 @Injectable()
 export class TenantManagementService {
@@ -501,10 +506,7 @@ export class TenantManagementService {
       if (input.role !== undefined) {
         assertCanMutateOwner(auth, target, input.role);
         assertCanAssignRole(auth, input.role);
-        if (
-          target.role === OrganizationMembershipRole.ORGANIZATION_OWNER &&
-          input.role !== OrganizationMembershipRole.ORGANIZATION_OWNER
-        ) {
+        if (isStoreAdmin(target) && !isStoreAdmin({ role: input.role })) {
           await assertNotFinalActiveOwner(tx, organizationId, target.id);
         }
       }
@@ -588,10 +590,7 @@ export class TenantManagementService {
         membershipId,
       );
       assertCanMutateOwner(auth, target);
-      if (
-        target.role === OrganizationMembershipRole.ORGANIZATION_OWNER &&
-        target.status === MembershipStatus.ACTIVE
-      ) {
+      if (isStoreAdmin(target) && target.status === MembershipStatus.ACTIVE) {
         await assertNotFinalActiveOwner(tx, organizationId, target.id);
       }
 
@@ -698,6 +697,9 @@ export class TenantManagementService {
 
 function membershipInclude() {
   return {
+    roleAssignments: {
+      select: { role: { select: { systemCode: true, isActive: true } } },
+    },
     user: { select: { id: true, email: true, displayName: true } },
     storeScopes: { orderBy: { createdAt: "asc" } },
   } satisfies Prisma.OrganizationMembershipInclude;
@@ -727,7 +729,12 @@ async function findMembershipOrThrow(
   membershipId: string,
 ): Promise<MembershipWithRelations> {
   const membership = await prisma.organizationMembership.findFirst({
-    where: { id: membershipId, orgId: organizationId },
+    where: {
+      id: membershipId,
+      orgId: organizationId,
+      deletedAt: null,
+      user: { deletedAt: null },
+    },
     include: membershipInclude(),
   });
   if (!membership) {
@@ -781,10 +788,11 @@ async function assertNotFinalActiveOwner(
   const owners = await prisma.organizationMembership.count({
     where: {
       orgId: organizationId,
-      role: OrganizationMembershipRole.ORGANIZATION_OWNER,
+      ...adminMembershipWhere,
+      deletedAt: null,
       status: MembershipStatus.ACTIVE,
       id: { not: targetMembershipId },
-      user: { status: "ACTIVE" },
+      user: { status: "ACTIVE", deletedAt: null },
     },
   });
   if (owners === 0) {

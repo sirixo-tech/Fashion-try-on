@@ -72,7 +72,7 @@ export class OrganizationApplicationResponseDto {
   organization!: OrganizationSummaryDto;
 
   @ApiProperty()
-  submittedByUserId!: string;
+  submittedByUserId!: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   submittedAt!: string | null;

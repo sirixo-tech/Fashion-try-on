@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### USERS-2 — Delete users and permanently remove a Store
+
+Superadmin opens User Management -> Users, reviews identity/Store links and
+selects Delete. The confirmation explains soft versus hard deletion and requires
+the login email. Deleted Store-associated users remain available through the
+Deleted users filter with their original details. Deletion history shows retained
+snapshots for permanently removed accounts. Protected Superadmins cannot be
+removed here. If the target is the last active Store Admin, assign a replacement
+before deleting. Store Admin removes ordinary Staff from the Store staff list;
+another Store's links and platform identity remain unaffected.
+
+Superadmin can separately choose Archive Store or Delete permanently. Archived
+Stores are available through the Archived filter. Permanent deletion requires
+the exact Store name and explicitly explains business data and exclusive-user
+removal. The Store disappears after commit, and audit context remains available.
+Its physical kiosks stay in the fleet, revoked and unassigned.
+
+
 ### USERS-1 — Find, edit and link an account
 
 Superadmin opens Access Control → Users, searches the actual login email and

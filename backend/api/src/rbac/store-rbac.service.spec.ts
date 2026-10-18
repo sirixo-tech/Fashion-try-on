@@ -1,12 +1,4 @@
-import {
-  MembershipStatus,
-  OrganizationMembershipRole,
-  OrganizationStatus,
-  PlatformRole,
-  PlatformRoleAssignmentStatus,
-  Prisma,
-  UserStatus,
-} from "@prisma/client";
+import "reflect-metadata";
 import {
   afterAll,
   afterEach,
@@ -16,605 +8,243 @@ import {
   expect,
   it,
 } from "vitest";
-
+import { PrismaClient } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
-
-import { ApiErrorException } from "../common/api-error.exception.js";
-import { loadSelfxEnv } from "../config/load-env.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
-import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
-import {
-  STORE_PERMISSION_CODES,
-  STORE_PERMISSION_REGISTRY,
-} from "./store-permissions.js";
-import {
-  STORE_RBAC_ERROR_CODES,
-  StoreRbacService,
-} from "./store-rbac.service.js";
+import { StoreRbacService } from "./store-rbac.service.js";
+import { STORE_PERMISSION_REGISTRY } from "./store-permissions.js";
 
-loadSelfxEnv();
-
-describe("RBAC-1.1 Store authorization security", () => {
-  let prisma: PrismaService;
-  let rbac: StoreRbacService;
-  let platformAuth: PlatformAuthorizationService;
-  let userIds: string[];
-  let storeIds: string[];
-  let kioskIds: string[];
-
-  beforeAll(async () => {
-    prisma = new PrismaService();
-    await prisma.$connect();
-    rbac = new StoreRbacService(prisma);
-    platformAuth = new PlatformAuthorizationService(prisma);
-  }, 15_000);
-
+const url = process.env.USERS_TEST_DATABASE_URL;
+if (
+  url &&
+  (!["localhost", "127.0.0.1"].includes(new URL(url).hostname) ||
+    !new URL(url).pathname.endsWith("_test"))
+)
+  throw new Error("Disposable localhost test database required.");
+describe.skipIf(!url)("Store RBAC — fixed Store Admin and Staff roles", () => {
+  const db = new PrismaClient({
+    datasourceUrl: url ?? "postgresql://unused@localhost/unused_test",
+  });
+  const rbac = new StoreRbacService(db as PrismaService);
+  let users: string[], stores: string[];
+  beforeAll(() => db.$connect());
   beforeEach(() => {
-    userIds = [];
-    storeIds = [];
-    kioskIds = [];
+    users = [];
+    stores = [];
   });
-
   afterEach(async () => {
-    await cleanup();
-  });
-
-  afterAll(async () => {
-    await prisma.$disconnect();
-  });
-
-  it("keeps platform authority separate from Store role names and staff-admin limits", async () => {
-    const superadmin = await createUser("super");
-    const staffAdmin = await createUser("staff-admin");
-    const storeUser = await createUser("store-user");
-    const store = await createStore("platform-boundary");
-    await assignPlatformRole(superadmin.id, PlatformRole.SELFX_SUPER_ADMIN);
-    await assignPlatformRole(staffAdmin.id, PlatformRole.SELFX_STAFF_ADMIN);
-    await createMembershipWithRole(
-      store.id,
-      storeUser.id,
-      "SELFX_SUPER_ADMIN",
-      [STORE_PERMISSION_CODES.rolesUpdate],
-    );
-
-    await expect(
-      platformAuth.requirePermission(
-        superadmin.id,
-        PLATFORM_PERMISSIONS.permissionsManage,
-      ),
-    ).resolves.toBeUndefined();
-    await expectApiCode(
-      platformAuth.requirePermission(
-        staffAdmin.id,
-        PLATFORM_PERMISSIONS.permissionsManage,
-      ),
-      "PLATFORM_PERMISSION_DENIED",
-    );
-    await expectApiCode(
-      platformAuth.requirePermission(
-        staffAdmin.id,
-        PLATFORM_PERMISSIONS.organizationSuspend,
-      ),
-      "PLATFORM_PERMISSION_DENIED",
-    );
-    await expectApiCode(
-      platformAuth.requirePermission(
-        storeUser.id,
-        PLATFORM_PERMISSIONS.kiosksView,
-      ),
-      "PLATFORM_PERMISSION_DENIED",
-    );
-  });
-
-  it("enforces cross-Store isolation and role assignment Store matching", async () => {
-    const userA = await createUser("store-a-user");
-    const storeA = await createStore("isolation-a");
-    const storeB = await createStore("isolation-b");
-    const { membership, role } = await createMembershipWithRole(
-      storeA.id,
-      userA.id,
-      "A Kiosk Manager",
-      [
-        STORE_PERMISSION_CODES.kiosksConfigure,
-        STORE_PERMISSION_CODES.usersView,
-      ],
-    );
-    const roleB = await createRole(storeB.id, "B Role", [
-      STORE_PERMISSION_CODES.kiosksConfigure,
-    ]);
-
-    await expect(
-      rbac.requireStorePermission(
-        userA.id,
-        storeA.id,
-        STORE_PERMISSION_CODES.kiosksConfigure,
-      ),
-    ).resolves.toBeUndefined();
-    await expectApiCode(
-      rbac.requireStorePermission(
-        userA.id,
-        storeB.id,
-        STORE_PERMISSION_CODES.kiosksConfigure,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-    await expectApiCode(
-      rbac.replaceUserRoles(userA.id, storeA.id, membership.id, {
-        roleIds: [roleB.id],
-      }),
-      STORE_RBAC_ERROR_CODES.crossStoreRoleAssignment,
-    );
-    await expectApiCode(
-      rbac.updateRole(userA.id, storeB.id, role.id, { name: "Nope" }),
-      STORE_RBAC_ERROR_CODES.roleNotFound,
-    );
-    await expectApiCode(
-      rbac.updateUserStatus(userA.id, storeB.id, membership.id, {
-        status: "SUSPENDED",
-      }),
-      STORE_RBAC_ERROR_CODES.membershipNotFound,
-    );
-  }, 15_000);
-
-  it("resolves effective permissions from active DB state and denies inactive subjects", async () => {
-    const user = await createUser("effective");
-    const inactiveUser = await createUser("inactive", UserStatus.SUSPENDED);
-    const store = await createStore("effective");
-    const inactiveStore = await createStore(
-      "inactive-store",
-      OrganizationStatus.SUSPENDED,
-    );
-    await createMembershipWithRole(store.id, user.id, "Empty", []);
-    await createMembershipWithRole(
-      store.id,
-      inactiveUser.id,
-      "Inactive User Role",
-      [STORE_PERMISSION_CODES.storesView],
-    );
-    const second = await createRole(store.id, "View Custom", [
-      STORE_PERMISSION_CODES.storesView,
-    ]);
-    await rbac.replaceUserRoles(
-      user.id,
-      store.id,
-      await membershipId(store.id, user.id),
-      {
-        roleIds: [second.id],
-      },
-    );
-
-    await expect(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.storesView,
-      ),
-    ).resolves.toBeUndefined();
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.kiosksPair,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-    await expectApiCode(
-      rbac.requireStorePermission(
-        inactiveUser.id,
-        store.id,
-        STORE_PERMISSION_CODES.storesView,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        inactiveStore.id,
-        STORE_PERMISSION_CODES.storesView,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-    await prisma.storeRole.update({
-      where: { id: second.id },
-      data: { isActive: false },
-    });
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.storesView,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        "unknown.permission" as never,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-  }, 15_000);
-
-  it("unions multiple roles and revokes permissions immediately from DB changes", async () => {
-    const user = await createUser("stale-token");
-    const store = await createStore("stale-token");
-    const configureRole = await createRole(store.id, "Configure", [
-      STORE_PERMISSION_CODES.kiosksConfigure,
-    ]);
-    const viewRole = await createRole(store.id, "View", [
-      STORE_PERMISSION_CODES.kiosksView,
-    ]);
-    const membership = await createMembership(store.id, user.id);
-    await rbac.replaceUserRoles(user.id, store.id, membership.id, {
-      roleIds: [configureRole.id, viewRole.id],
-    });
-
-    const unioned = await rbac.effectivePermissions(user.id, store.id);
-    expect(unioned.permissions).toEqual(
-      expect.arrayContaining([
-        STORE_PERMISSION_CODES.kiosksConfigure,
-        STORE_PERMISSION_CODES.kiosksView,
-      ]),
-    );
-    await expect(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.kiosksConfigure,
-      ),
-    ).resolves.toBeUndefined();
-
-    await rbac.replaceRolePermissions(user.id, store.id, configureRole.id, {
-      permissionCodes: [],
-    });
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.kiosksConfigure,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-
-    await rbac.replaceUserRoles(user.id, store.id, membership.id, {
-      roleIds: [configureRole.id],
-    });
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.kiosksView,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-
-    await rbac.updateUserStatus(user.id, store.id, membership.id, {
-      status: "SUSPENDED",
-    });
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.storesView,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-  }, 15_000);
-
-  it("protects uniqueness invariants and safe role deletion behavior", async () => {
-    const user = await createUser("invariants");
-    const store = await createStore("invariants");
-    const role = await createRole(store.id, "Unique Role", [
-      STORE_PERMISSION_CODES.storesView,
-      STORE_PERMISSION_CODES.storesView,
-    ]);
-    const membership = await createMembership(store.id, user.id);
-    await rbac.replaceUserRoles(user.id, store.id, membership.id, {
-      roleIds: [role.id, role.id],
-    });
-
-    await expectApiCode(
-      rbac.createRole(user.id, store.id, {
-        name: "Unique Role",
-        permissionCodes: [],
-      }),
-      STORE_RBAC_ERROR_CODES.roleConflict,
-    );
-    await expectApiCode(
-      rbac.addUser(user.id, store.id, { email: user.email, roleIds: [] }),
-      STORE_RBAC_ERROR_CODES.membershipAlreadyExists,
-    );
-    await expectApiCode(
-      rbac.deleteRole(user.id, store.id, role.id),
-      STORE_RBAC_ERROR_CODES.roleAssigned,
-    );
-    await expect(
-      prisma.storeMembershipRole.count({
-        where: { membershipId: membership.id },
-      }),
-    ).resolves.toBe(1);
-    await expect(
-      prisma.storeRolePermission.count({ where: { roleId: role.id } }),
-    ).resolves.toBe(1);
-
-    await expect(
-      prisma.permission.create({
-        data: {
-          id: createSelfxId(),
-          code: STORE_PERMISSION_CODES.storesView,
-          module: "stores",
-          action: "view",
-          label: "Duplicate",
-        },
-      }),
-    ).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
-  }, 15_000);
-
-  it("initializes default Store RBAC idempotently and safely under concurrency", async () => {
-    const store = await createStore("defaults");
-
-    await rbac.ensureStoreRbac(store.id);
-    const roleCount = await prisma.storeRole.count({
-      where: { orgId: store.id },
-    });
-    const rolePermissionCount = await prisma.storeRolePermission.count({
-      where: { role: { orgId: store.id } },
-    });
-    await Promise.all([
-      rbac.ensureStoreRbac(store.id),
-      rbac.ensureStoreRbac(store.id),
-      rbac.ensureStoreRbac(store.id),
-    ]);
-
-    await expect(
-      prisma.storeRole.count({ where: { orgId: store.id } }),
-    ).resolves.toBe(roleCount);
-    await expect(
-      prisma.storeRolePermission.count({
-        where: { role: { orgId: store.id } },
-      }),
-    ).resolves.toBe(rolePermissionCount);
-    await expect(
-      prisma.permission.count({
-        where: {
-          code: { in: STORE_PERMISSION_REGISTRY.map((entry) => entry.code) },
-        },
-      }),
-    ).resolves.toBe(STORE_PERMISSION_REGISTRY.length);
-  });
-
-  it("intersects Store role permissions with the SelfX-granted Store ceiling", async () => {
-    const user = await createUser("ceiling-user");
-    const store = await createStore("ceiling-store");
-    await createMembershipWithRole(store.id, user.id, "Kiosk Manager", [
-      STORE_PERMISSION_CODES.kiosksConfigure,
-      STORE_PERMISSION_CODES.kiosksView,
-    ]);
-    const initialEffective = await rbac.effectivePermissions(user.id, store.id);
-    expect(initialEffective.permissions).toEqual(
-      expect.arrayContaining([
-        STORE_PERMISSION_CODES.kiosksConfigure,
-        STORE_PERMISSION_CODES.kiosksView,
-      ]),
-    );
-    const revokedPermission = await prisma.permission.findUniqueOrThrow({
-      where: { code: STORE_PERMISSION_CODES.kiosksConfigure },
-      select: { id: true },
-    });
-
-    await prisma.storePermissionGrant.deleteMany({
-      where: {
-        storeTenantId: store.id,
-        permissionId: revokedPermission.id,
-      },
-    });
-
-    const effective = await rbac.effectivePermissions(user.id, store.id);
-
-    expect(effective.permissions).toContain(STORE_PERMISSION_CODES.kiosksView);
-    expect(effective.permissions).not.toContain(
-      STORE_PERMISSION_CODES.kiosksConfigure,
-    );
-    await expectApiCode(
-      rbac.requireStorePermission(
-        user.id,
-        store.id,
-        STORE_PERMISSION_CODES.kiosksConfigure,
-      ),
-      STORE_RBAC_ERROR_CODES.permissionDenied,
-    );
-    await expectApiCode(
-      rbac.createRole(user.id, store.id, {
-        name: "Blocked Manager",
-        permissionCodes: [STORE_PERMISSION_CODES.kiosksConfigure],
-      }),
-      STORE_RBAC_ERROR_CODES.permissionNotGranted,
-    );
-  }, 15_000);
-
-  it("denies Store role permissions outside the SelfX-granted Store ceiling", async () => {
-    const user = await createUser("outside-ceiling");
-    const store = await createStore("outside-ceiling");
-
-    await expectApiCode(
-      rbac.createRole(user.id, store.id, {
-        name: "Ungrantable Kiosk Manager",
-        permissionCodes: [STORE_PERMISSION_CODES.kiosksConfigure],
-      }),
-      STORE_RBAC_ERROR_CODES.permissionNotGranted,
-    );
-  });
-
-  async function createUser(
-    label: string,
-    status: UserStatus = UserStatus.ACTIVE,
-  ) {
-    const id = createSelfxId();
-    userIds.push(id);
-    return prisma.user.create({
-      data: {
-        id,
-        email: `${label}-${id}@rbac11.test`,
-        passwordHash: "not-used",
-        status,
-      },
-    });
-  }
-
-  async function createStore(
-    label: string,
-    status: OrganizationStatus = OrganizationStatus.ACTIVE,
-  ) {
-    const id = createSelfxId();
-    storeIds.push(id);
-    const store = await prisma.organization.create({
-      data: {
-        id,
-        name: `RBAC ${label}`,
-        slug: `rbac-${label}-${id}`,
-        status,
-      },
-    });
-    await rbac.ensureStoreRbac(store.id);
-    return store;
-  }
-
-  async function createMembership(storeId: string, userId: string) {
-    return prisma.organizationMembership.create({
-      data: {
-        id: createSelfxId(),
-        orgId: storeId,
-        userId,
-        role: OrganizationMembershipRole.STORE_STAFF,
-        status: MembershipStatus.ACTIVE,
-        joinedAt: new Date(),
-      },
-    });
-  }
-
-  async function createRole(
-    storeId: string,
-    name: string,
-    permissionCodes: string[],
-  ) {
-    await grantStorePermissions(storeId, permissionCodes);
-    return rbac.createRole(userIds[0] ?? createSelfxId(), storeId, {
-      name,
-      permissionCodes,
-    });
-  }
-
-  async function createMembershipWithRole(
-    storeId: string,
-    userId: string,
-    roleName: string,
-    permissionCodes: string[],
-  ) {
-    await grantStorePermissions(storeId, permissionCodes);
-    const role = await rbac.createRole(userId, storeId, {
-      name: roleName,
-      permissionCodes,
-    });
-    const membership = await createMembership(storeId, userId);
-    await rbac.replaceUserRoles(userId, storeId, membership.id, {
-      roleIds: [role.id],
-    });
-    return { membership, role };
-  }
-
-  async function grantStorePermissions(
-    storeId: string,
-    permissionCodes: string[],
-  ): Promise<void> {
-    const uniqueCodes = [...new Set(permissionCodes)];
-    if (uniqueCodes.length === 0) {
-      return;
-    }
-    const permissions = await prisma.permission.findMany({
-      where: { code: { in: uniqueCodes } },
-      select: { id: true, code: true },
-    });
-    expect(permissions.map((permission) => permission.code).sort()).toEqual(
-      uniqueCodes.sort(),
-    );
-    await prisma.storePermissionGrant.createMany({
-      data: permissions.map((permission) => ({
-        id: createSelfxId(),
-        storeTenantId: storeId,
-        permissionId: permission.id,
-      })),
-      skipDuplicates: true,
-    });
-  }
-
-  async function membershipId(storeId: string, userId: string) {
-    const membership = await prisma.organizationMembership.findUniqueOrThrow({
-      where: { orgId_userId: { orgId: storeId, userId } },
-    });
-    return membership.id;
-  }
-
-  async function assignPlatformRole(userId: string, role: PlatformRole) {
-    await prisma.platformRoleAssignment.create({
-      data: {
-        id: createSelfxId(),
-        userId,
-        role,
-        status: PlatformRoleAssignmentStatus.ACTIVE,
-      },
-    });
-  }
-
-  async function cleanup() {
-    await prisma.kioskDeviceSession.deleteMany({
-      where: { kioskDeviceId: { in: kioskIds } },
-    });
-    await prisma.kioskDevice.deleteMany({ where: { id: { in: kioskIds } } });
-    await prisma.auditLog.deleteMany({
+    await db.auditLog.deleteMany({
       where: {
         OR: [
-          { actorUserId: { in: userIds } },
-          { organizationId: { in: storeIds } },
+          { actorUserId: { in: users } },
+          { organizationId: { in: stores } },
         ],
       },
     });
-    await prisma.storeMembershipRole.deleteMany({
-      where: { orgId: { in: storeIds } },
+    await db.storeMembershipRole.deleteMany({
+      where: { orgId: { in: stores } },
     });
-    await prisma.storePermissionGrant.deleteMany({
-      where: { storeTenantId: { in: storeIds } },
+    await db.organizationMembership.deleteMany({
+      where: { orgId: { in: stores } },
     });
-    await prisma.storeRolePermission.deleteMany({
-      where: { role: { orgId: { in: storeIds } } },
+    await db.storeRolePermission.deleteMany({
+      where: { role: { orgId: { in: stores } } },
     });
-    await prisma.storeRole.deleteMany({ where: { orgId: { in: storeIds } } });
-    await prisma.organizationMembership.deleteMany({
-      where: {
-        OR: [{ orgId: { in: storeIds } }, { userId: { in: userIds } }],
+    await db.storeRole.deleteMany({ where: { orgId: { in: stores } } });
+    await db.storePermissionGrant.deleteMany({
+      where: { storeTenantId: { in: stores } },
+    });
+    await db.organization.deleteMany({ where: { id: { in: stores } } });
+    await db.platformRoleAssignment.deleteMany({
+      where: { userId: { in: users } },
+    });
+    await db.user.deleteMany({ where: { id: { in: users } } });
+  });
+  afterAll(() => db.$disconnect());
+  async function user() {
+    const id = createSelfxId();
+    users.push(id);
+    await db.user.create({
+      data: { id, email: `${id}@rbac.test`, passwordHash: "test-only" },
+    });
+    return id;
+  }
+  async function store() {
+    const id = createSelfxId();
+    stores.push(id);
+    await db.organization.create({
+      data: { id, name: "RBAC Store", slug: id, status: "ACTIVE" },
+    });
+    await db.$transaction((tx) =>
+      rbac.ensureStoreRbacInTransaction(tx, id, true),
+    );
+    return id;
+  }
+  async function member(userId: string, orgId: string, systemCode = "staff") {
+    const role = await db.storeRole.findUniqueOrThrow({
+      where: { orgId_systemCode: { orgId, systemCode } },
+    });
+    const id = createSelfxId();
+    await db.organizationMembership.create({
+      data: {
+        id,
+        orgId,
+        userId,
+        role: "STORE_STAFF",
+        status: "ACTIVE",
+        storeScopeMode: "ALL_STORES",
+        roleAssignments: { create: { id: createSelfxId(), roleId: role.id } },
       },
     });
-    await prisma.platformRoleAssignment.deleteMany({
-      where: { userId: { in: userIds } },
-    });
-    await prisma.organization.deleteMany({ where: { id: { in: storeIds } } });
-    await prisma.userSession.deleteMany({ where: { userId: { in: userIds } } });
-    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    return { id, roleId: role.id };
   }
+  const error = (code: string) => ({ response: { error: { code } } });
+  it("enforces cross-Store isolation and rejects foreign role assignment", async () => {
+    const id = await user(),
+      a = await store(),
+      b = await store(),
+      membership = await member(id, a);
+    await expect(
+      rbac.requireStorePermission(id, a, "products.manage"),
+    ).resolves.toBeUndefined();
+    await expect(
+      rbac.requireStorePermission(id, b, "products.manage"),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    const foreign = await db.storeRole.findUniqueOrThrow({
+      where: { orgId_systemCode: { orgId: b, systemCode: "staff" } },
+    });
+    await expect(
+      rbac.replaceUserRoles(id, a, membership.id, { roleIds: [foreign.id] }),
+    ).rejects.toMatchObject(error("STORE_ROLE_TENANT_MISMATCH"));
+    await expect(
+      rbac.updateUserStatus(id, b, membership.id, { status: "SUSPENDED" }),
+    ).rejects.toMatchObject(error("STORE_MEMBERSHIP_NOT_FOUND"));
+  });
+  it("gives Staff daily operations without profile, payments, users or role administration", async () => {
+    const id = await user(),
+      tenant = await store();
+    await member(id, tenant);
+    const resolved = await rbac.effectivePermissions(id, tenant);
+    expect(resolved.permissions).toEqual(
+      expect.arrayContaining([
+        "products.manage",
+        "kiosks.configure",
+        "analytics.view",
+      ]),
+    );
+    for (const code of [
+      "stores.update",
+      "users.deactivate",
+      "roles.assign",
+    ] as const)
+      await expect(
+        rbac.requireStorePermission(id, tenant, code),
+      ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    const access = await rbac.listRoles(tenant, { page: 1, pageSize: 25 });
+    expect(access.data.map((r) => r.name).sort()).toEqual([
+      "Staff",
+      "Store Admin",
+    ]);
+  });
+  it("revokes access immediately for inactive accounts, links, Stores and permission ceilings", async () => {
+    const id = await user(),
+      tenant = await store(),
+      membership = await member(id, tenant);
+    const permission = await db.permission.findUniqueOrThrow({
+      where: { code: "products.manage" },
+    });
+    await db.storePermissionGrant.deleteMany({
+      where: { storeTenantId: tenant, permissionId: permission.id },
+    });
+    expect(
+      (await rbac.effectivePermissions(id, tenant)).permissions,
+    ).not.toContain("products.manage");
+    await db.organizationMembership.update({
+      where: { id: membership.id },
+      data: { status: "SUSPENDED" },
+    });
+    expect((await rbac.effectivePermissions(id, tenant)).permissions).toEqual(
+      [],
+    );
+    await db.organizationMembership.update({
+      where: { id: membership.id },
+      data: { status: "ACTIVE" },
+    });
+    await db.user.update({ where: { id }, data: { status: "DISABLED" } });
+    expect((await rbac.effectivePermissions(id, tenant)).permissions).toEqual(
+      [],
+    );
+    await db.user.update({ where: { id }, data: { status: "ACTIVE" } });
+    await db.organization.update({
+      where: { id: tenant },
+      data: { status: "SUSPENDED" },
+    });
+    expect((await rbac.effectivePermissions(id, tenant)).permissions).toEqual(
+      [],
+    );
+  });
+  it("protects fixed roles and initializes their permission maps idempotently", async () => {
+    const id = await user(),
+      tenant = await store();
+    const staff = await db.storeRole.findUniqueOrThrow({
+      where: { orgId_systemCode: { orgId: tenant, systemCode: "staff" } },
+    });
+    await expect(
+      rbac.createRole(id, tenant, { name: "Manager" }),
+    ).rejects.toMatchObject(error("FIXED_ROLES_ONLY"));
+    await expect(
+      rbac.updateRole(id, tenant, staff.id, { name: "Manager" }),
+    ).rejects.toMatchObject(error("FIXED_ROLES_ONLY"));
+    await expect(
+      rbac.replaceRolePermissions(id, tenant, staff.id, {
+        permissionCodes: ["users.deactivate"],
+      }),
+    ).rejects.toMatchObject(error("STORE_SYSTEM_ROLE_PROTECTED"));
+    await expect(rbac.deleteRole(id, tenant, staff.id)).rejects.toMatchObject(
+      error("STORE_SYSTEM_ROLE_PROTECTED"),
+    );
+    await Promise.all([
+      rbac.ensureStoreRbac(tenant),
+      rbac.ensureStoreRbac(tenant),
+    ]);
+    expect(await db.storeRole.count({ where: { orgId: tenant } })).toBe(2);
+    expect(
+      await db.permission.count({
+        where: { code: { in: STORE_PERMISSION_REGISTRY.map((p) => p.code) } },
+      }),
+    ).toBe(STORE_PERMISSION_REGISTRY.length);
+  });
+  it("protects the final Store Admin from role removal and suspension", async () => {
+    const id = await user(),
+      tenant = await store(),
+      membership = await member(id, tenant, "store-admin");
+    await expect(
+      rbac.updateUserStatus(id, tenant, membership.id, { status: "SUSPENDED" }),
+    ).rejects.toMatchObject(error("STORE_SYSTEM_ROLE_PROTECTED"));
+    await expect(
+      rbac.replaceUserRoles(id, tenant, membership.id, { roleIds: [] }),
+    ).rejects.toMatchObject(error("STORE_SYSTEM_ROLE_PROTECTED"));
+    const replacement = await user();
+    await member(replacement, tenant, "store-admin");
+    await expect(
+      rbac.updateUserStatus(replacement, tenant, membership.id, {
+        status: "SUSPENDED",
+      }),
+    ).resolves.toMatchObject({ status: "SUSPENDED" });
+  });
+  it("keeps Store role authority separate from protected Platform authority", async () => {
+    const id = await user(),
+      tenant = await store();
+    await member(id, tenant, "store-admin");
+    expect((await rbac.effectivePermissions(id, tenant)).platformBypass).toBe(
+      false,
+    );
+    const superId = await user();
+    await db.platformRoleAssignment.create({
+      data: { id: createSelfxId(), userId: superId, role: "SELFX_SUPER_ADMIN" },
+    });
+    expect(
+      (await rbac.effectivePermissions(superId, tenant)).platformBypass,
+    ).toBe(true);
+  });
 });
-
-async function expectApiCode(
-  promise: Promise<unknown>,
-  code: string,
-): Promise<void> {
-  try {
-    await promise;
-    throw new Error(`Expected ${code}`);
-  } catch (error) {
-    expect(error).toBeInstanceOf(ApiErrorException);
-    expect((error as ApiErrorException).getResponse()).toMatchObject({
-      error: { code },
-    });
-  }
-}

@@ -42,6 +42,7 @@ import {
 export enum AdminStoreStatus {
   ACTIVE = "ACTIVE",
   INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
 }
 
 export class RequestStoreCatalogSyncDto {

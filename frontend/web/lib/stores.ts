@@ -10,7 +10,7 @@ export type ProductVertical = "GARMENT" | "JEWELLERY";
 export type JewelleryType = "RING" | "BRACELET" | "NECKLACE" | "EARRING";
 export type StoreTryOnCapability = "GARMENT_TRY_ON" | "JEWELLERY_TRY_ON";
 
-export type StoreStatus = "ACTIVE" | "INACTIVE";
+export type StoreStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
 export type AdminStore = {
   id: string;
@@ -143,6 +143,7 @@ export type StoreRole = {
 };
 
 export type StoreUser = {
+  deletedAt?: string | null;
   membershipId: string;
   userId: string;
   email: string;
@@ -296,7 +297,7 @@ export type StoreInput = {
 
 export type StoreImpersonationSession = {
   id: string;
-  actorUserId: string;
+  actorUserId: string | null;
   targetStoreId: string;
   targetStoreName: string;
   targetStoreSlug: string;
@@ -514,6 +515,21 @@ export function deleteStore(
     method: "DELETE",
     accessToken,
   });
+}
+
+export function permanentlyDeleteStore(
+  accessToken: string,
+  store: AdminStore,
+  confirmName: string,
+) {
+  return selfxApi<{ id: string; deletedUsers: number; preservedUsers: number }>(
+    `/api/v1/admin/stores/${store.id}/permanent`,
+    {
+      accessToken,
+      method: "DELETE",
+      body: JSON.stringify({ confirmName, updatedAt: store.updatedAt }),
+    },
+  );
 }
 
 export function listStoreProducts(
@@ -806,6 +822,7 @@ export function listStoreUsers(
     pageSize?: number;
     search?: string;
     status?: string;
+    deleted?: string;
   } = {},
 ): Promise<StoreRbacListResponse<StoreUser>> {
   const params = new URLSearchParams();
@@ -817,6 +834,7 @@ export function listStoreUsers(
   if (query.status) {
     params.set("status", query.status);
   }
+  if (query.deleted) params.set("deleted", query.deleted);
   return selfxApi<StoreRbacListResponse<StoreUser>>(
     `/api/v1/admin/stores/${storeId}/users?${params}`,
     { accessToken },

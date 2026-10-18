@@ -170,7 +170,7 @@ describe("STORE-1 admin Stores", () => {
       where: { id: "store-active" },
       data: { status: OrganizationStatus.ARCHIVED },
     });
-    expect(archived.status).toBe(AdminStoreStatus.INACTIVE);
+    expect(archived.status).toBe(AdminStoreStatus.ARCHIVED);
   });
 
   it("excludes archived Stores from normal Store lists", async () => {
@@ -592,7 +592,7 @@ describe("STORE-1 admin Stores", () => {
     expect(rbac.requireStorePermission).toHaveBeenCalledWith(
       "store-user",
       "store-1",
-      "stores.update",
+      "products.manage",
     );
     expect(configurations.requestStoreCatalogSync).toHaveBeenCalledWith(
       "store-user",
@@ -649,13 +649,15 @@ describe("STORE-1 admin Stores", () => {
       {} as never,
       createRbacMock() as never,
       {
-        resolveStoreContext: vi.fn().mockRejectedValue(
-          new ApiErrorException(
-            HttpStatus.FORBIDDEN,
-            STORE_IMPERSONATION_ERROR_CODES.storeMismatch,
-            "This impersonation session can only access its target Store.",
+        resolveStoreContext: vi
+          .fn()
+          .mockRejectedValue(
+            new ApiErrorException(
+              HttpStatus.FORBIDDEN,
+              STORE_IMPERSONATION_ERROR_CODES.storeMismatch,
+              "This impersonation session can only access its target Store.",
+            ),
           ),
-        ),
       } as never,
     );
 

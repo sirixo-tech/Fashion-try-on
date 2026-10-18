@@ -18,6 +18,11 @@ import { normalizeEmail } from "../auth/auth.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import {
+  adminMembershipWhere,
+  isStoreAdmin,
+  STORE_ROLE_CODES,
+} from "./role-policy.js";
+import {
   STORE_PERMISSION_REGISTRY,
   STORE_PERMISSION_SET,
   type StorePermissionCode,
@@ -80,6 +85,7 @@ const DEFAULT_ROLE_DEFINITIONS = [
     permissions: [
       "stores.view",
       "stores.update",
+      "products.manage",
       "users.view",
       "users.invite",
       "users.update",
@@ -94,21 +100,8 @@ const DEFAULT_ROLE_DEFINITIONS = [
       "kiosks.revoke",
       "analytics.view",
       "integrations.view",
-      "developer_api.view",
-      "developer_api.manage",
-    ],
-  },
-  {
-    systemCode: "manager",
-    name: "Manager",
-    description:
-      "Manage daily Store operations, kiosks and basic user visibility.",
-    permissions: [
-      "stores.view",
-      "users.view",
-      "kiosks.view",
-      "kiosks.configure",
-      "analytics.view",
+      "integrations.manage",
+      "tryon.garment_preview",
       "developer_api.view",
       "developer_api.manage",
     ],
@@ -116,14 +109,17 @@ const DEFAULT_ROLE_DEFINITIONS = [
   {
     systemCode: "staff",
     name: "Staff",
-    description: "Operate assigned Store workflows with limited access.",
-    permissions: ["stores.view", "kiosks.view"],
-  },
-  {
-    systemCode: "viewer",
-    name: "Viewer",
-    description: "Read-only Store visibility.",
-    permissions: ["stores.view", "kiosks.view", "analytics.view"],
+    description:
+      "Daily products, stock, kiosk and analytics operations without user or role administration.",
+    permissions: [
+      "stores.view",
+      "products.manage",
+      "kiosks.view",
+      "kiosks.configure",
+      "kiosks.update",
+      "analytics.view",
+      "tryon.garment_preview",
+    ],
   },
 ] as const;
 
@@ -131,8 +127,8 @@ const LEGACY_ROLE_DEFAULTS = {
   [OrganizationMembershipRole.ORGANIZATION_OWNER]: "store-admin",
   [OrganizationMembershipRole.ORGANIZATION_ADMIN]: "store-admin",
   [OrganizationMembershipRole.ORGANIZATION_STAFF]: "staff",
-  [OrganizationMembershipRole.STORE_OWNER]: "manager",
-  [OrganizationMembershipRole.STORE_MANAGER]: "manager",
+  [OrganizationMembershipRole.STORE_OWNER]: "store-admin",
+  [OrganizationMembershipRole.STORE_MANAGER]: "staff",
   [OrganizationMembershipRole.STORE_STAFF]: "staff",
   [OrganizationMembershipRole.KIOSK_OPERATOR]: "staff",
 } satisfies Record<OrganizationMembershipRole, string>;
@@ -148,7 +144,13 @@ type MembershipWithRoles = {
   joinedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  user: { id: string; email: string; displayName: string | null };
+  deletedAt: Date | null;
+  user: {
+    id: string;
+    email: string;
+    displayName: string | null;
+    deletedAt: Date | null;
+  };
   roleAssignments: Array<{ role: RoleWithRelations }>;
 };
 
@@ -188,6 +190,7 @@ export class StoreRbacService {
     );
     const where: Prisma.StoreRoleWhereInput = {
       orgId: storeId,
+      systemCode: { in: STORE_ROLE_CODES },
       ...(query.search
         ? {
             OR: [
@@ -221,6 +224,12 @@ export class StoreRbacService {
     input: CreateStoreRoleDto,
   ): Promise<StoreRoleResponseDto> {
     await this.ensureStoreRbac(storeId);
+    if (!["Store Admin", "Staff"].includes(input.name.trim()))
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "FIXED_ROLES_ONLY",
+        "Only Store Admin and Staff roles are supported.",
+      );
     const permissionIds = await this.permissionIdsForStoreGrantedCodes(
       storeId,
       input.permissionCodes ?? [],
@@ -272,6 +281,12 @@ export class StoreRbacService {
   ): Promise<StoreRoleResponseDto> {
     await this.ensureStoreRbac(storeId);
     const existing = await this.findRoleOrThrow(storeId, roleId);
+    if (input.name && input.name.trim() !== existing.name)
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "FIXED_ROLES_ONLY",
+        "Built-in role names cannot be changed.",
+      );
     if (existing.isSystem && input.isActive === false) {
       throw new ApiErrorException(
         HttpStatus.CONFLICT,
@@ -407,6 +422,12 @@ export class StoreRbacService {
     );
     const where: Prisma.OrganizationMembershipWhereInput = {
       orgId: storeId,
+      deletedAt:
+        query.deleted === "only"
+          ? { not: null }
+          : query.deleted === "all"
+            ? undefined
+            : null,
       ...(query.status ? { status: query.status } : {}),
       ...(query.search
         ? {
@@ -448,7 +469,7 @@ export class StoreRbacService {
     await this.ensureStoreRbac(storeId);
     const user = await this.prisma.user.findUnique({
       where: { email: normalizeEmail(input.email) },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
     if (!user) {
       throw new ApiErrorException(
@@ -457,6 +478,12 @@ export class StoreRbacService {
         "Email invitation flow deferred. Add an existing SelfX user for RBAC-1.",
       );
     }
+    if (user.deletedAt)
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "USER_DELETED",
+        "Deleted accounts cannot be added to a Store.",
+      );
     const roleIds =
       input.roleIds && input.roleIds.length > 0
         ? input.roleIds
@@ -568,6 +595,13 @@ export class StoreRbacService {
     const roleIds = [...new Set(input.roleIds)];
     await this.assertRolesBelongToStore(storeId, roleIds);
     const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${storeId})::bigint)`;
+      await this.assertNotProtectedOwner(
+        tx,
+        storeId,
+        membershipId,
+        "SUSPENDED",
+      );
       await tx.storeMembershipRole.deleteMany({ where: { membershipId } });
       if (roleIds.length > 0) {
         await tx.storeMembershipRole.createMany({
@@ -650,7 +684,9 @@ export class StoreRbacService {
       select: {
         id: true,
         roleAssignments: {
-          where: { role: { isActive: true } },
+          where: {
+            role: { isActive: true, systemCode: { in: STORE_ROLE_CODES } },
+          },
           select: {
             role: {
               select: {
@@ -915,7 +951,12 @@ export class StoreRbacService {
     membershipId: string,
   ): Promise<MembershipWithRoles> {
     const membership = await this.prisma.organizationMembership.findFirst({
-      where: { id: membershipId, orgId: storeId },
+      where: {
+        id: membershipId,
+        orgId: storeId,
+        deletedAt: null,
+        user: { deletedAt: null },
+      },
       include: membershipRoleInclude(),
     });
     if (!membership) {
@@ -937,7 +978,12 @@ export class StoreRbacService {
       return;
     }
     const count = await this.prisma.storeRole.count({
-      where: { orgId: storeId, id: { in: uniqueRoleIds }, isActive: true },
+      where: {
+        orgId: storeId,
+        id: { in: uniqueRoleIds },
+        isActive: true,
+        systemCode: { in: STORE_ROLE_CODES },
+      },
     });
     if (count !== uniqueRoleIds.length) {
       throw new ApiErrorException(
@@ -1024,10 +1070,17 @@ export class StoreRbacService {
     }
     const membership = await prisma.organizationMembership.findFirst({
       where: { id: membershipId, orgId: storeId },
-      select: { role: true, status: true },
+      select: {
+        role: true,
+        status: true,
+        roleAssignments: {
+          select: { role: { select: { systemCode: true, isActive: true } } },
+        },
+      },
     });
     if (
-      membership?.role !== OrganizationMembershipRole.ORGANIZATION_OWNER ||
+      !membership ||
+      !isStoreAdmin(membership) ||
       membership.status !== MembershipStatus.ACTIVE
     ) {
       return;
@@ -1035,17 +1088,18 @@ export class StoreRbacService {
     const activeOwners = await prisma.organizationMembership.count({
       where: {
         orgId: storeId,
-        role: OrganizationMembershipRole.ORGANIZATION_OWNER,
+        ...adminMembershipWhere,
         status: MembershipStatus.ACTIVE,
         id: { not: membershipId },
-        user: { status: UserStatus.ACTIVE },
+        deletedAt: null,
+        user: { status: UserStatus.ACTIVE, deletedAt: null },
       },
     });
     if (activeOwners === 0) {
       throw new ApiErrorException(
         HttpStatus.CONFLICT,
         STORE_RBAC_ERROR_CODES.systemRoleProtected,
-        "A Store cannot lose its final active owner membership.",
+        "A Store cannot lose its final active Store Admin.",
       );
     }
   }
@@ -1076,7 +1130,9 @@ function roleInclude() {
 
 function membershipRoleInclude() {
   return {
-    user: { select: { id: true, email: true, displayName: true } },
+    user: {
+      select: { id: true, email: true, displayName: true, deletedAt: true },
+    },
     roleAssignments: {
       include: { role: { include: roleInclude() } },
       orderBy: { assignedAt: "asc" },
@@ -1125,6 +1181,9 @@ function mapUser(membership: MembershipWithRoles): StoreUserResponseDto {
     userId: membership.user.id,
     email: membership.user.email,
     displayName: membership.user.displayName,
+    deletedAt:
+      (membership.deletedAt ?? membership.user.deletedAt)?.toISOString() ??
+      null,
     status: membership.status,
     roles: membership.roleAssignments.map((assignment) =>
       mapRole(assignment.role),

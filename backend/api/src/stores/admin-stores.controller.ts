@@ -342,7 +342,7 @@ export class AdminStoresController {
       request,
       storeId,
       PLATFORM_PERMISSIONS.storesUpdate,
-      STORE_PERMISSION_CODES.storesUpdate,
+      STORE_PERMISSION_CODES.productsManage,
     );
     return this.stores.createStoreProduct(storeId, dto);
   }
@@ -361,7 +361,7 @@ export class AdminStoresController {
       request,
       storeId,
       PLATFORM_PERMISSIONS.storesUpdate,
-      STORE_PERMISSION_CODES.storesUpdate,
+      STORE_PERMISSION_CODES.productsManage,
     );
     return this.configurations.requestStoreCatalogSync(
       user.id,
@@ -386,7 +386,7 @@ export class AdminStoresController {
       request,
       storeId,
       PLATFORM_PERMISSIONS.storesUpdate,
-      STORE_PERMISSION_CODES.storesUpdate,
+      STORE_PERMISSION_CODES.productsManage,
     );
     const result = await this.stores.setImportedProductsVtoEnabled(
       storeId,
@@ -416,7 +416,7 @@ export class AdminStoresController {
       request,
       storeId,
       PLATFORM_PERMISSIONS.storesUpdate,
-      STORE_PERMISSION_CODES.storesUpdate,
+      STORE_PERMISSION_CODES.productsManage,
     );
     return this.stores.updateStoreProduct(storeId, productId, dto);
   }
@@ -433,7 +433,7 @@ export class AdminStoresController {
       request,
       storeId,
       PLATFORM_PERMISSIONS.storesUpdate,
-      STORE_PERMISSION_CODES.storesUpdate,
+      STORE_PERMISSION_CODES.productsManage,
     );
     return this.stores.deleteStoreProduct(storeId, productId);
   }
@@ -450,7 +450,7 @@ export class AdminStoresController {
       request,
       storeId,
       PLATFORM_PERMISSIONS.storesUpdate,
-      STORE_PERMISSION_CODES.storesUpdate,
+      STORE_PERMISSION_CODES.productsManage,
     );
     return this.stores.createStoreProductImageUploadIntent(storeId, dto);
   }

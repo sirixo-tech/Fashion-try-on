@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { StorePurgeController } from "./store-purge.controller.js";
+import { StorePurgeService } from "./store-purge.service.js";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
@@ -52,6 +54,7 @@ import {
     TryOnModule,
   ],
   controllers: [
+    StorePurgeController,
     AdminStoresController,
     StoreImpersonationController,
     ProductStockController,
@@ -67,6 +70,7 @@ import {
     PlatformPaymentTestCallbacksController,
   ],
   providers: [
+    StorePurgeService,
     AdminStoresService,
     ProductStockService,
     CommerceService,

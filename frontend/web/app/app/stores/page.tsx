@@ -51,6 +51,7 @@ import {
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
+import { getCurrentPlatformAccess } from "@/lib/access-control";
 import { listPricingPlans, type PricingPlan } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
 import {
@@ -58,17 +59,24 @@ import {
   assignStorePricingPlan,
   deactivateStore,
   deleteStore,
+  permanentlyDeleteStore,
   listStores,
   startStoreImpersonation,
   type AdminStore,
   type StoreStatus,
 } from "@/lib/stores";
 
-const statusOptions: Array<StoreStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
+const statusOptions: Array<StoreStatus | "ALL"> = [
+  "ALL",
+  "ACTIVE",
+  "INACTIVE",
+  "ARCHIVED",
+];
 const statusLabels: Record<StoreStatus | "ALL", string> = {
   ALL: "All Stores",
   ACTIVE: "Active",
   INACTIVE: "Suspended",
+  ARCHIVED: "Archived",
 };
 
 export default function StoresPage() {
@@ -94,6 +102,22 @@ export default function StoresPage() {
     null,
   );
   const [planStoreId, setPlanStoreId] = useState<string | null>(null);
+  const [canPurge, setCanPurge] = useState(false);
+  const [purgingStore, setPurgingStore] = useState<AdminStore | null>(null);
+  useEffect(() => {
+    if (!accessToken) return;
+    let active = true;
+    getCurrentPlatformAccess(accessToken)
+      .then((access) => {
+        if (active) setCanPurge(access.isSuperadmin);
+      })
+      .catch(() => {
+        if (active) setCanPurge(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -341,6 +365,9 @@ export default function StoresPage() {
                   statusChanging={statusStoreId === store.id}
                   impersonating={impersonatingStoreId === store.id}
                   onDelete={() => void removeStore(store.id)}
+                  onPermanentDelete={
+                    canPurge ? () => setPurgingStore(store) : undefined
+                  }
                   onChangeStatus={() => void changeStoreStatus(store)}
                   onImpersonate={() => void impersonateStore(store)}
                   onManagePlan={() => openPlanDialog(store)}
@@ -373,6 +400,20 @@ export default function StoresPage() {
         </div>
       </PageSection>
 
+      {purgingStore && accessToken ? (
+        <PermanentStoreDialog
+          store={purgingStore}
+          onClose={() => setPurgingStore(null)}
+          onDelete={async (confirmation) => {
+            await permanentlyDeleteStore(
+              accessToken,
+              purgingStore,
+              confirmation,
+            );
+            await load();
+          }}
+        />
+      ) : null}
       <StorePlanDialog
         store={planDialogStore}
         plans={pricingPlans}
@@ -396,6 +437,7 @@ function StoreDirectoryCard({
   statusChanging,
   impersonating,
   onDelete,
+  onPermanentDelete,
   onChangeStatus,
   onImpersonate,
   onManagePlan,
@@ -405,6 +447,7 @@ function StoreDirectoryCard({
   statusChanging: boolean;
   impersonating: boolean;
   onDelete: () => void;
+  onPermanentDelete?: () => void;
   onChangeStatus: () => void;
   onImpersonate: () => void;
   onManagePlan: () => void;
@@ -440,7 +483,13 @@ function StoreDirectoryCard({
         <CardAction>
           <StatusBadge
             status={store.status}
-            label={active ? "Active" : "Suspended"}
+            label={
+              store.status === "ARCHIVED"
+                ? "Archived"
+                : active
+                  ? "Active"
+                  : "Suspended"
+            }
           />
         </CardAction>
       </CardHeader>
@@ -542,7 +591,7 @@ function StoreDirectoryCard({
                 size="icon-sm"
                 aria-label={active ? "Suspend Store" : "Reactivate Store"}
                 title={active ? "Suspend Store" : "Reactivate Store"}
-                disabled={statusChanging}
+                disabled={statusChanging || store.status === "ARCHIVED"}
               >
                 {active ? (
                   <BanIcon aria-hidden="true" />
@@ -559,16 +608,16 @@ function StoreDirectoryCard({
             size="icon-sm"
             aria-label="Impersonate Store owner"
             title="Impersonate Store owner"
-            disabled={impersonating}
+            disabled={impersonating || store.status === "ARCHIVED"}
             onClick={onImpersonate}
           >
             <UserCircleIcon aria-hidden="true" />
           </Button>
 
           <ConfirmDialog
-            title="Delete Store?"
+            title="Archive Store?"
             description="This removes the Store from normal Store management. Kiosk records, settings, products and audit history are retained for later review."
-            confirmLabel="Delete"
+            confirmLabel="Archive"
             destructive
             confirmVariant="default"
             onConfirm={onDelete}
@@ -577,17 +626,97 @@ function StoreDirectoryCard({
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                aria-label="Delete Store"
-                title="Delete Store"
-                disabled={deleting}
+                aria-label="Archive Store"
+                title="Archive Store"
+                disabled={deleting || store.status === "ARCHIVED"}
               >
                 <Trash2Icon aria-hidden="true" />
               </Button>
             }
           />
+          {onPermanentDelete ? (
+            <Button variant="destructive" size="sm" onClick={onPermanentDelete}>
+              Delete permanently
+            </Button>
+          ) : null}
         </div>
       </CardFooter>
     </Card>
+  );
+}
+
+function PermanentStoreDialog({
+  store,
+  onClose,
+  onDelete,
+}: {
+  store: AdminStore;
+  onClose: () => void;
+  onDelete: (confirmation: string) => Promise<void>;
+}) {
+  const [confirmation, setConfirmation] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  async function remove() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onDelete(confirmation);
+      onClose();
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Permanently delete {store.name}?</DialogTitle>
+          <DialogDescription>
+            This permanently removes the Store, its products, orders, billing
+            records and users associated only with this Store, including
+            previously deleted users. Shared users and platform accounts are
+            preserved. Physical kiosks are revoked and unassigned. Audit
+            snapshots remain. This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+        ) : null}
+        <label className="space-y-2">
+          Type {store.name} to confirm
+          <Input
+            aria-label="Confirm Store name"
+            autoComplete="off"
+            value={confirmation}
+            disabled={busy}
+            onChange={(event) => setConfirmation(event.target.value)}
+          />
+        </label>
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={busy || confirmation !== store.name}
+            onClick={() => void remove()}
+          >
+            {busy ? "Deleting…" : "Delete permanently"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

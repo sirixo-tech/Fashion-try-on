@@ -149,11 +149,11 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
         permissionId: permission.id,
       },
     });
-    platformRole = createSelfxId();
-    roleIds.push(platformRole);
-    await db.platformAccessRole.create({
-      data: { id: platformRole, name: `Test role ${platformRole}` },
-    });
+    platformRole = (
+      await db.platformAccessRole.findUniqueOrThrow({
+        where: { systemCode: "platform-support-admin" },
+      })
+    ).id;
   }, 20000);
   afterAll(async () => {
     await cleanup();
@@ -355,12 +355,15 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
     ).rejects.toMatchObject(code("STORE_MEMBERSHIP_CONFLICT"));
   });
   it("updates and revokes a normal membership while preserving its scope", async () => {
+    const staffRole = await db.storeRole.findUniqueOrThrow({
+      where: { orgId_systemCode: { orgId: store, systemCode: "staff" } },
+    });
     await service.update(
       admin,
       user,
       await input({
         memberships: [
-          { storeId: store, status: "ACTIVE", roleIds: [storeRole] },
+          { storeId: store, status: "ACTIVE", roleIds: [staffRole.id] },
         ],
       }),
     );
@@ -375,7 +378,7 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
             membershipId: current.membershipId,
             updatedAt: current.updatedAt,
             status: "REVOKED",
-            roleIds: [storeRole],
+            roleIds: [staffRole.id],
           },
         ],
       }),

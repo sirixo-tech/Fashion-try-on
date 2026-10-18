@@ -93,7 +93,7 @@ export class ProductStockController {
         user.id,
         storeId,
         writing
-          ? STORE_PERMISSION_CODES.storesUpdate
+          ? STORE_PERMISSION_CODES.productsManage
           : STORE_PERMISSION_CODES.storesView,
       );
     }

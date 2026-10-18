@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckIcon,
-  PlusIcon,
   RefreshCwIcon,
   SearchIcon,
   ShieldAlertIcon,
@@ -93,18 +92,14 @@ export default function PlatformRolesPage() {
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Access Control"
-        title="Platform Roles"
+        eyebrow="User Management"
+        title="Roles"
         description="Global SelfX roles for platform users. Superadmin bootstrap authority is protected outside normal role assignment."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => void load()}>
               <RefreshCwIcon aria-hidden="true" />
               Refresh
-            </Button>
-            <Button onClick={() => setSelectedRoleKey(NEW_ROLE_KEY)}>
-              <PlusIcon aria-hidden="true" />
-              Add Role
             </Button>
           </div>
         }
@@ -176,7 +171,6 @@ export default function PlatformRolesPage() {
             role={selectedRole}
             permissions={permissions}
             loading={loading}
-            onCreateNew={() => setSelectedRoleKey(NEW_ROLE_KEY)}
             onSubmit={async (input) => {
               if (!accessToken) {
                 return;
@@ -210,14 +204,12 @@ function PlatformRoleEditor({
   role,
   permissions,
   loading,
-  onCreateNew,
   onSubmit,
 }: {
   roleKey: string | null;
   role: PlatformRole | null;
   permissions: AccessPermission[];
   loading: boolean;
-  onCreateNew: () => void;
   onSubmit: (input: {
     name: string;
     description?: string | null;
@@ -314,13 +306,9 @@ function PlatformRoleEditor({
             <div>
               <p className="font-medium text-foreground">Select a role</p>
               <p className="text-sm text-muted-foreground">
-                Choose an existing role or create a new one.
+                Choose a built-in role to configure its permissions.
               </p>
             </div>
-            <Button onClick={onCreateNew}>
-              <PlusIcon aria-hidden="true" />
-              Add Role
-            </Button>
           </div>
         </CardContent>
       </Card>

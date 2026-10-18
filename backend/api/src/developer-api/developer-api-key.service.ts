@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { deletedIdentityEmail } from "../platform/deleted-identity.js";
 
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { OrganizationStatus, Prisma, type ApiKey } from "@prisma/client";
@@ -41,7 +42,7 @@ const maxPageSize = 100;
 
 type ApiKeyWithRelations = ApiKey & {
   organization: { id: string; name: string };
-  createdByUser: { email: string };
+  createdByUser: { email: string } | null;
 };
 
 @Injectable()
@@ -274,7 +275,8 @@ function mapApiKey(key: ApiKeyWithRelations): DeveloperApiKeyDto {
       : [],
     expiresAt: key.expiresAt?.toISOString() ?? null,
     lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
-    createdByEmail: key.createdByUser.email,
+    createdByEmail:
+      key.createdByUser?.email ?? deletedIdentityEmail(key.createdBySnapshot),
     createdAt: key.createdAt.toISOString(),
     revokedAt: key.revokedAt?.toISOString() ?? null,
   };

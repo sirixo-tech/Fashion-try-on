@@ -6,6 +6,7 @@ import StoresPage from "../app/app/stores/page";
 import {
   activateStore,
   deleteStore,
+  permanentlyDeleteStore,
   deactivateStore,
   getEffectiveStorePermissions,
   getStore,
@@ -22,6 +23,8 @@ import {
   updateStoreVirtualTryOnSettings,
 } from "@/lib/stores";
 import { useSession } from "@/lib/session";
+import { getCurrentPlatformAccess } from "@/lib/access-control";
+vi.mock("@/lib/access-control", () => ({ getCurrentPlatformAccess: vi.fn() }));
 
 const pushMock = vi.hoisted(() => vi.fn());
 
@@ -40,6 +43,7 @@ vi.mock("@/lib/stores", () => ({
   createStoreKioskConfigurationAssetUploadIntent: vi.fn(),
   deactivateStore: vi.fn(),
   deleteStore: vi.fn(),
+  permanentlyDeleteStore: vi.fn(),
   getEffectiveStorePermissions: vi.fn(),
   getStore: vi.fn(),
   getStoreCreditDiagnostics: vi.fn(),
@@ -241,6 +245,15 @@ const storeUser = {
 
 describe("STORE-1 web Store management", () => {
   beforeEach(() => {
+    vi.mocked(getCurrentPlatformAccess).mockResolvedValue({
+      isSuperadmin: true,
+      permissions: [],
+    });
+    vi.mocked(permanentlyDeleteStore).mockResolvedValue({
+      id: store.id,
+      deletedUsers: 1,
+      preservedUsers: 0,
+    });
     pushMock.mockReset();
     vi.mocked(useSession).mockReturnValue({
       status: "authenticated",
@@ -442,21 +455,49 @@ describe("STORE-1 web Store management", () => {
     );
   });
 
-  it("allows active Stores to be deleted from the directory while retaining history", async () => {
+  it("archives active Stores from the directory while retaining history", async () => {
     render(<StoresPage />);
 
     expect(await screen.findByText("SelfX Demo Store")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Delete Store" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive Store" }));
     expect(
       await screen.findByText(/audit history are retained for later review/i),
     ).toBeTruthy();
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Archive" }));
 
     await waitFor(() =>
       expect(deleteStore).toHaveBeenCalledWith("staff-token", "store-1"),
     );
     await waitFor(() =>
       expect(screen.queryByText("SelfX Demo Store")).toBeNull(),
+    );
+  });
+
+  it("requires the exact Store name before permanent deletion", async () => {
+    render(<StoresPage />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete permanently" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent).toContain(
+      "Shared users and platform accounts are preserved",
+    );
+    const buttons = screen.getAllByRole("button", {
+      name: "Delete permanently",
+    });
+    expect((buttons[buttons.length - 1] as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    fireEvent.change(screen.getByLabelText("Confirm Store name"), {
+      target: { value: store.name },
+    });
+    fireEvent.click(buttons[buttons.length - 1]!);
+    await waitFor(() =>
+      expect(permanentlyDeleteStore).toHaveBeenCalledWith(
+        "staff-token",
+        store,
+        store.name,
+      ),
     );
   });
 

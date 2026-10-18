@@ -1410,6 +1410,7 @@ function storeProductSelect(): Prisma.Sql {
 function organizationStatusFilter(
   status: AdminStoreStatus | undefined,
 ): Prisma.EnumOrganizationStatusFilter | OrganizationStatus {
+  if (status === AdminStoreStatus.ARCHIVED) return OrganizationStatus.ARCHIVED;
   if (status === AdminStoreStatus.ACTIVE) {
     return OrganizationStatus.ACTIVE;
   }
@@ -1476,6 +1477,7 @@ function mapStore(
 function storeStatusFromOrganizationStatus(
   status: OrganizationStatus,
 ): AdminStoreStatus {
+  if (status === OrganizationStatus.ARCHIVED) return AdminStoreStatus.ARCHIVED;
   return status === OrganizationStatus.ACTIVE
     ? AdminStoreStatus.ACTIVE
     : AdminStoreStatus.INACTIVE;
@@ -1484,6 +1486,12 @@ function storeStatusFromOrganizationStatus(
 function organizationStatusFromStoreStatus(
   status: AdminStoreStatus,
 ): OrganizationStatus {
+  if (status === AdminStoreStatus.ARCHIVED)
+    throw new ApiErrorException(
+      HttpStatus.BAD_REQUEST,
+      "STORE_ARCHIVE_ACTION_REQUIRED",
+      "Use the explicit Archive Store action.",
+    );
   return status === AdminStoreStatus.ACTIVE
     ? OrganizationStatus.ACTIVE
     : OrganizationStatus.SUSPENDED;

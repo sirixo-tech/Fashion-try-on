@@ -244,6 +244,7 @@ model User {
   passwordChangedAt             DateTime?                           @map("password_changed_at") @db.Timestamptz(3)
   displayName                   String?                             @map("display_name") @db.VarChar(160)
   status                        UserStatus                          @default(ACTIVE)
+  deletedAt                     DateTime?                           @map("deleted_at") @db.Timestamptz(3)
   emailVerifiedAt               DateTime?                           @map("email_verified_at") @db.Timestamptz(3)
   lastLoginAt                   DateTime?                           @map("last_login_at") @db.Timestamptz(3)
   createdAt                     DateTime                            @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -335,6 +336,15 @@ model PasswordRecoveryRateBucket {
   @@map("password_recovery_rate_buckets")
 }
 
+// Durable cleanup after a committed permanent Store deletion.
+model DeletedStoreObject {
+  storageKey String @id @map("storage_key") @db.VarChar(512)
+  attempts Int @default(0)
+  availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@map("deleted_store_objects")
+}
+
 model Organization {
   commerceTaxSettings            StoreTaxSettings?
   shoppingOrders                 ShoppingOrder[]
@@ -385,7 +395,8 @@ model Organization {
 
 model ImpersonationSession {
   id            String                     @id @db.Uuid
-  actorUserId   String                     @map("actor_user_id") @db.Uuid
+  actorUserId   String?                    @map("actor_user_id") @db.Uuid
+  actorSnapshot Json?                      @map("actor_snapshot")
   targetStoreId String                     @map("target_store_id") @db.Uuid
   status        ImpersonationSessionStatus @default(ACTIVE)
   startedAt     DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
@@ -393,7 +404,7 @@ model ImpersonationSession {
   endedAt       DateTime?                  @map("ended_at") @db.Timestamptz(3)
   createdAt     DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
-  actorUser     User                       @relation("ImpersonationSessionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  actorUser     User?                      @relation("ImpersonationSessionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   targetStore   Organization               @relation("ImpersonationSessionTargetStore", fields: [targetStoreId], references: [id], onDelete: Restrict)
 
   @@index([actorUserId])
@@ -410,6 +421,7 @@ model OrganizationMembership {
   role            OrganizationMembershipRole
   storeScopeMode  MembershipStoreScopeMode   @default(SELECTED_STORES) @map("store_scope_mode")
   status          MembershipStatus           @default(ACTIVE)
+  deletedAt       DateTime?                   @map("deleted_at") @db.Timestamptz(3)
   joinedAt        DateTime?                  @map("joined_at") @db.Timestamptz(3)
   suspendedAt     DateTime?                  @map("suspended_at") @db.Timestamptz(3)
   createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -431,7 +443,8 @@ model OrganizationMembership {
 model OrganizationApplication {
   id                     String                              @id @db.Uuid
   organizationId         String                              @map("organization_id") @db.Uuid
-  submittedByUserId      String                              @map("submitted_by_user_id") @db.Uuid
+  submittedByUserId      String?                             @map("submitted_by_user_id") @db.Uuid
+  submittedBySnapshot   Json?                               @map("submitted_by_snapshot")
   status                 OrganizationApplicationStatus       @default(DRAFT)
   submittedAt            DateTime?                           @map("submitted_at") @db.Timestamptz(3)
   reviewStartedAt        DateTime?                           @map("review_started_at") @db.Timestamptz(3)
@@ -445,7 +458,7 @@ model OrganizationApplication {
   organization           Organization                        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   requirements           OrganizationActivationRequirement[]
   reviewedBy             User?                               @relation("OrganizationApplicationReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  submittedBy            User                                @relation("OrganizationApplicationSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  submittedBy            User?                               @relation("OrganizationApplicationSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -746,7 +759,8 @@ model PlatformPaymentTest {
   provider             String                     @db.VarChar(30)
   environment          String                     @db.VarChar(20)
   connectionVersion    Int                        @map("connection_version")
-  createdById          String                     @map("created_by_id") @db.Uuid
+  createdById          String?                    @map("created_by_id") @db.Uuid
+  createdBySnapshot    Json?                      @map("created_by_snapshot")
   transactionId        String                     @unique @map("transaction_id") @db.VarChar(34)
   keyDigest            String                     @map("key_digest") @db.Char(64)
   status               String                     @db.VarChar(20)
@@ -767,7 +781,7 @@ model PlatformPaymentTest {
   checkCount           Int                        @default(0) @map("check_count")
   createdAt            DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
-  createdBy            User                       @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy            User?                      @relation(fields: [createdById], references: [id], onDelete: SetNull)
   events               PlatformPaymentTestEvent[]
 
   @@unique([provider, createdById, keyDigest])
@@ -1537,12 +1551,13 @@ model IntegrationCredential {
   status          IntegrationCredentialStatus @default(ACTIVE)
   expiresAt       DateTime?                   @map("expires_at") @db.Timestamptz(3)
   lastUsedAt      DateTime?                   @map("last_used_at") @db.Timestamptz(3)
-  createdByUserId String                      @map("created_by_user_id") @db.Uuid
+  createdByUserId String?                     @map("created_by_user_id") @db.Uuid
+  createdBySnapshot Json?                     @map("created_by_snapshot")
   createdAt       DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
   revokedAt       DateTime?                   @map("revoked_at") @db.Timestamptz(3)
   integration     Integration                 @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByUser   User                        @relation("IntegrationCredentialCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdByUser   User?                       @relation("IntegrationCredentialCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([integrationId])
   @@index([organizationId, status])
@@ -1826,11 +1841,12 @@ model ApiKey {
   scopes           Json                 @map("scopes_json")
   expiresAt        DateTime?            @map("expires_at") @db.Timestamptz(3)
   lastUsedAt       DateTime?            @map("last_used_at") @db.Timestamptz(3)
-  createdByUserId  String               @map("created_by_user_id") @db.Uuid
+  createdByUserId  String?              @map("created_by_user_id") @db.Uuid
+  createdBySnapshot Json?              @map("created_by_snapshot")
   createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
   revokedAt        DateTime?            @map("revoked_at") @db.Timestamptz(3)
   organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdByUser    User                 @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdByUser    User?                @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   tryOnRuns        KioskTryOnRun[]      @relation("ApiKeyTryOnRuns")
   usageEvents      UsageEvent[]
   rateLimitBuckets ApiRateLimitBucket[]
@@ -1907,6 +1923,7 @@ model AuditLog {
   organizationId String?       @map("organization_id") @db.Uuid
   storeId        String?       @map("store_id") @db.Uuid
   actorUserId    String?       @map("actor_user_id") @db.Uuid
+  actorSnapshot  Json?         @map("actor_snapshot")
   action         String        @db.VarChar(160)
   resourceType   String        @map("resource_type") @db.VarChar(160)
   resourceId     String?       @map("resource_id") @db.Uuid

@@ -130,6 +130,9 @@ export function title(value: string) {
     .replace(/^./, (c) => c.toUpperCase());
 }
 export function platformRoleName(value: string) {
+  if (value === "SELFX_STAFF_ADMIN") return "Platform Admin";
+  if (value === "SELFX_SUPPORT_ADMIN") return "Platform Staff";
+  if (value === "SELFX_SUPER_ADMIN") return "Platform Superadmin";
   return title(value.replace(/^SELFX_/, ""));
 }
 export function UserError({ message }: { message: string }) {

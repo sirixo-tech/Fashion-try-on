@@ -2,6 +2,8 @@ import { selfxApi } from "@/lib/api";
 
 export type UserRole = { id: string; name: string; isActive: boolean };
 export type UserMembership = {
+  deletedAt?: string | null;
+  isStoreAdmin?: boolean;
   membershipId: string;
   storeId: string;
   storeName: string;
@@ -13,6 +15,7 @@ export type UserMembership = {
   roles: UserRole[];
 };
 export type ManagedUser = {
+  deletedAt?: string | null;
   id: string;
   email: string;
   displayName: string | null;
@@ -61,6 +64,7 @@ export function listUsers(
     storeId?: string;
     access?: string;
     role?: string;
+    deleted?: string;
   },
 ) {
   const params = new URLSearchParams();
@@ -106,4 +110,31 @@ export function assignFirstStoreOwner(
     accessToken: token,
     body: JSON.stringify(input),
   });
+}
+
+export function deleteUser(
+  token: string,
+  user: ManagedUser,
+  confirmEmail: string,
+) {
+  return selfxApi<{ kind: "SOFT" | "HARD" }>(`/api/v1/admin/users/${user.id}`, {
+    method: "DELETE",
+    accessToken: token,
+    body: JSON.stringify({ version: user.version, confirmEmail }),
+  });
+}
+export function deleteStoreUser(
+  token: string,
+  storeId: string,
+  membership: { membershipId: string; updatedAt: string },
+  confirmEmail: string,
+) {
+  return selfxApi<{ kind: string; sharedAccountPreserved: boolean }>(
+    `/api/v1/admin/stores/${storeId}/users/${membership.membershipId}`,
+    {
+      method: "DELETE",
+      accessToken: token,
+      body: JSON.stringify({ updatedAt: membership.updatedAt, confirmEmail }),
+    },
+  );
 }

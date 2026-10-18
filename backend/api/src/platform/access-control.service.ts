@@ -13,6 +13,7 @@ import { createSelfxId } from "@selfx/database";
 import { normalizeEmail } from "../auth/auth.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { PLATFORM_ROLE_CODES } from "../rbac/role-policy.js";
 import {
   STORE_PERMISSION_REGISTRY,
   STORE_PERMISSION_SET,
@@ -61,14 +62,14 @@ const PLATFORM_ACCESS_AUDIT_ACTIONS = {
 const DEFAULT_PLATFORM_ACCESS_ROLES = [
   {
     systemCode: "platform-staff-admin",
-    name: "Platform Staff Admin",
+    name: "Platform Admin",
     description:
       "Broad SelfX platform operations except Superadmin-only access control and suspension authorities.",
     permissions: permissionsForPlatformRole(PlatformRole.SELFX_STAFF_ADMIN),
   },
   {
     systemCode: "platform-support-admin",
-    name: "Platform Support Admin",
+    name: "Platform Staff",
     description: "Support access for Store onboarding review.",
     permissions: permissionsForPlatformRole(PlatformRole.SELFX_SUPPORT_ADMIN),
   },
@@ -99,6 +100,7 @@ export class AccessControlService {
   async listPlatformRoles(): Promise<{ data: PlatformRoleDto[] }> {
     await this.ensurePlatformAccessRoles();
     const roles = await this.prisma.platformAccessRole.findMany({
+      where: { systemCode: { in: PLATFORM_ROLE_CODES } },
       include: platformRoleInclude(),
       orderBy: [{ isSystem: "desc" }, { name: "asc" }],
     });
@@ -109,7 +111,13 @@ export class AccessControlService {
     actorUserId: string,
     input: CreatePlatformRoleDto,
   ): Promise<PlatformRoleDto> {
-    await this.ensureGlobalPermissionCatalog();
+    await this.ensurePlatformAccessRoles();
+    if (!["Platform Admin", "Platform Staff"].includes(input.name.trim()))
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "FIXED_ROLES_ONLY",
+        "Only Platform Superadmin, Admin and Staff roles are supported.",
+      );
     await this.assertActorCanManagePermissionCodes(
       actorUserId,
       input.permissionCodes ?? [],
@@ -157,7 +165,13 @@ export class AccessControlService {
     roleId: string,
     input: UpdatePlatformRoleDto,
   ): Promise<PlatformRoleDto> {
-    await this.findPlatformRoleOrThrow(roleId);
+    const existing = await this.findPlatformRoleOrThrow(roleId);
+    if (input.name && input.name.trim() !== existing.name)
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "FIXED_ROLES_ONLY",
+        "Built-in role names cannot be changed.",
+      );
     const role = await this.prisma
       .$transaction(async (tx) => {
         await tx.platformAccessRole.update({
@@ -225,6 +239,7 @@ export class AccessControlService {
   async listPlatformUsers(): Promise<{ data: PlatformUserDto[] }> {
     await this.ensurePlatformAccessRoles();
     const users = await this.prisma.user.findMany({
+      where: { deletedAt: null },
       include: {
         platformRoleAssignments: {
           where: { status: PlatformRoleAssignmentStatus.ACTIVE },
@@ -522,7 +537,11 @@ export class AccessControlService {
       return;
     }
     const count = await this.prisma.platformAccessRole.count({
-      where: { id: { in: roleIds }, isActive: true },
+      where: {
+        id: { in: roleIds },
+        isActive: true,
+        systemCode: { in: PLATFORM_ROLE_CODES },
+      },
     });
     if (count !== roleIds.length) {
       throw new ApiErrorException(
@@ -540,6 +559,7 @@ export class AccessControlService {
       where: { id: userId },
       select: {
         id: true,
+        deletedAt: true,
         platformRoleAssignments: {
           where: {
             role: PlatformRole.SELFX_SUPER_ADMIN,
@@ -559,6 +579,12 @@ export class AccessControlService {
         "SelfX Superadmin bootstrap authority cannot be changed here.",
       );
     }
+    if (user.deletedAt)
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "USER_DELETED",
+        "Deleted users cannot be assigned roles.",
+      );
   }
 
   private async assertActorCanManagePermissionCodes(
@@ -572,7 +598,9 @@ export class AccessControlService {
     if (await this.actorIsProtectedSuperadmin(actorUserId)) {
       return;
     }
-    if (uniqueCodes.some((code) => SUPERADMIN_ONLY_PERMISSION_CODES.has(code))) {
+    if (
+      uniqueCodes.some((code) => SUPERADMIN_ONLY_PERMISSION_CODES.has(code))
+    ) {
       throw new ApiErrorException(
         HttpStatus.FORBIDDEN,
         ACCESS_CONTROL_ERROR_CODES.protectedSuperadmin,

@@ -1,5 +1,25 @@
 ## Document Evolution
 
+### USERS-2 — User Management and deletion confirmations
+
+Navigation shows User Management -> Users, Roles and Permissions. Users retain
+their login identity and separate Platform/Store access. Current, deleted and
+all-user filters are server-side. Deleted rows show `Name (Deleted user)` plus
+the original email and disabled editing. Deletion history is paginated.
+
+Superadmin Delete opens one confirmation dialog requiring the login email; the
+Store Staff list uses the same dialog for authorized Staff removal. Errors keep
+the dialog open. Protected, current-user and peer-admin deletion is guarded.
+Store role selectors expose Store Admin and Staff only; ordinary Platform role
+selectors expose Platform Admin and Platform Staff. Superadmin stays protected.
+The explicit first-admin repair action retains the existing controlled API.
+
+Stores distinguish Archive from Delete permanently. Only Superadmin sees the
+permanent-delete action; its dialog requires exact Store-name confirmation and
+describes permanent business-data removal, exclusive-user removal, retained audit
+snapshots and revoked/unassigned physical kiosks. Archived Stores can be filtered.
+
+
 ### USERS-1 — `/app/users`
 
 Navigation and heading say Users. The shared table shows name/login email,

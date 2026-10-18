@@ -527,7 +527,7 @@ function locationFromStore(store: AdminStoreDetail): LocationRow {
     address: storeAddress(store) || "-",
     timezone: store.timezone,
     kiosks: store.totalKiosks,
-    status: store.status,
+    status: store.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
     defaultLocation: true,
   };
 }

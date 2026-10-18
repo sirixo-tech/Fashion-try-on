@@ -1,8 +1,4 @@
-import {
-  PlatformRole,
-  PlatformRoleAssignmentStatus,
-  UserStatus,
-} from "@prisma/client";
+import "reflect-metadata";
 import {
   afterAll,
   afterEach,
@@ -12,178 +8,107 @@ import {
   expect,
   it,
 } from "vitest";
-
+import { PrismaClient } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
-
-import { ApiErrorException } from "../common/api-error.exception.js";
-import { loadSelfxEnv } from "../config/load-env.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { AccessControlService } from "./access-control.service.js";
-import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
 import { PlatformAuthorizationService } from "./platform-authorization.service.js";
-
-loadSelfxEnv();
-
-describe("RBAC-2 global access control", () => {
-  let prisma: PrismaService;
-  let accessControl: AccessControlService;
-  let authorization: PlatformAuthorizationService;
-  let userIds: string[];
-  let platformRoleIds: string[];
-
-  beforeAll(async () => {
-    prisma = new PrismaService();
-    await prisma.$connect();
-    accessControl = new AccessControlService(prisma);
-    authorization = new PlatformAuthorizationService(prisma);
-  }, 15_000);
-
+import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
+const url = process.env.USERS_TEST_DATABASE_URL;
+if (
+  url &&
+  (!["localhost", "127.0.0.1"].includes(new URL(url).hostname) ||
+    !new URL(url).pathname.endsWith("_test"))
+)
+  throw new Error("Disposable localhost test database required.");
+describe.skipIf(!url)("Platform RBAC — Superadmin, Admin and Staff", () => {
+  const db = new PrismaClient({
+    datasourceUrl: url ?? "postgresql://unused@localhost/unused_test",
+  });
+  const access = new AccessControlService(db as PrismaService),
+    authorization = new PlatformAuthorizationService(db as PrismaService);
+  let ids: string[];
+  beforeAll(() => db.$connect());
   beforeEach(() => {
-    userIds = [];
-    platformRoleIds = [];
+    ids = [];
   });
-
   afterEach(async () => {
-    await prisma.auditLog.deleteMany({
-      where: { actorUserId: { in: userIds } },
+    await db.auditLog.deleteMany({ where: { actorUserId: { in: ids } } });
+    await db.platformUserAccessRole.deleteMany({
+      where: { userId: { in: ids } },
     });
-    await prisma.platformUserAccessRole.deleteMany({
-      where: {
-        OR: [{ userId: { in: userIds } }, { roleId: { in: platformRoleIds } }],
-      },
+    await db.platformRoleAssignment.deleteMany({
+      where: { userId: { in: ids } },
     });
-    await prisma.platformAccessRolePermission.deleteMany({
-      where: { roleId: { in: platformRoleIds } },
-    });
-    await prisma.platformAccessRole.deleteMany({
-      where: { id: { in: platformRoleIds } },
-    });
-    await prisma.platformRoleAssignment.deleteMany({
-      where: { userId: { in: userIds } },
-    });
-    await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    await db.user.deleteMany({ where: { id: { in: ids } } });
   });
-
-  afterAll(async () => {
-    await prisma.$disconnect();
-  });
-
-  it("grants Platform permissions through configurable Platform roles", async () => {
-    const actor = await createUser("actor");
-    const platformUser = await createUser("platform-user");
-    await assignBootstrapRole(actor.id, PlatformRole.SELFX_SUPER_ADMIN);
-
-    const role = await accessControl.createPlatformRole(actor.id, {
-      name: `Kiosk Viewer ${createSelfxId()}`,
-      permissionCodes: [PLATFORM_PERMISSIONS.kiosksView],
+  afterAll(() => db.$disconnect());
+  async function user(role?: "SELFX_SUPER_ADMIN" | "SELFX_STAFF_ADMIN") {
+    const id = createSelfxId();
+    ids.push(id);
+    await db.user.create({
+      data: { id, email: `${id}@platform.test`, passwordHash: "test-only" },
     });
-    platformRoleIds.push(role.id);
-
-    await accessControl.replaceUserPlatformRoles(actor.id, platformUser.id, {
+    if (role)
+      await db.platformRoleAssignment.create({
+        data: { id: createSelfxId(), userId: id, role },
+      });
+    return id;
+  }
+  const error = (code: string) => ({ response: { error: { code } } });
+  it("uses only the two ordinary Platform roles and forbids custom role creation", async () => {
+    const actor = await user("SELFX_SUPER_ADMIN");
+    expect(
+      (await access.listPlatformRoles()).data.map((r) => r.name).sort(),
+    ).toEqual(["Platform Admin", "Platform Staff"]);
+    await expect(
+      access.createPlatformRole(actor, { name: "Kiosk Viewer" }),
+    ).rejects.toMatchObject(error("FIXED_ROLES_ONLY"));
+  });
+  it("grants and revokes ordinary Platform authority immediately from database assignments", async () => {
+    const actor = await user("SELFX_SUPER_ADMIN"),
+      target = await user();
+    const role = (await access.listPlatformRoles()).data.find(
+      (r) => r.systemCode === "platform-staff-admin",
+    )!;
+    await access.replaceUserPlatformRoles(actor, target, {
       roleIds: [role.id],
     });
-
     await expect(
-      authorization.requirePermission(
-        platformUser.id,
-        PLATFORM_PERMISSIONS.kiosksView,
-      ),
+      authorization.requirePermission(target, PLATFORM_PERMISSIONS.kiosksView),
     ).resolves.toBeUndefined();
-
-    await accessControl.updatePlatformRole(actor.id, role.id, {
-      isActive: false,
-    });
-
-    await expectApiCode(
-      authorization.requirePermission(
-        platformUser.id,
-        PLATFORM_PERMISSIONS.kiosksView,
-      ),
-      "PLATFORM_PERMISSION_DENIED",
-    );
-  }, 15_000);
-
-  it("protects bootstrap Superadmin users from normal Platform role assignment", async () => {
-    const actor = await createUser("super-actor");
-    const protectedSuperadmin = await createUser("protected-super");
-    await assignBootstrapRole(actor.id, PlatformRole.SELFX_SUPER_ADMIN);
-    await assignBootstrapRole(
-      protectedSuperadmin.id,
-      PlatformRole.SELFX_SUPER_ADMIN,
-    );
-
-    await expectApiCode(
-      accessControl.replaceUserPlatformRoles(actor.id, protectedSuperadmin.id, {
-        roleIds: [],
-      }),
-      "SELFX_SUPERADMIN_PROTECTED",
-    );
+    await access.replaceUserPlatformRoles(actor, target, { roleIds: [] });
+    await expect(
+      authorization.requirePermission(target, PLATFORM_PERMISSIONS.kiosksView),
+    ).rejects.toMatchObject(error("PLATFORM_PERMISSION_DENIED"));
   });
-
-  it("blocks non-Superadmin actors from assigning Superadmin-only permissions", async () => {
-    const actor = await createUser("staff-actor");
-    await assignBootstrapRole(actor.id, PlatformRole.SELFX_STAFF_ADMIN);
-
-    await expectApiCode(
-      accessControl.createPlatformRole(actor.id, {
-        name: `Protected Access ${createSelfxId()}`,
+  it("protects Superadmins from ordinary role assignment and keeps exclusive permissions protected", async () => {
+    const actor = await user("SELFX_SUPER_ADMIN"),
+      protectedUser = await user("SELFX_SUPER_ADMIN"),
+      ordinary = await user("SELFX_STAFF_ADMIN");
+    await expect(
+      access.replaceUserPlatformRoles(actor, protectedUser, { roleIds: [] }),
+    ).rejects.toMatchObject(error("SELFX_SUPERADMIN_PROTECTED"));
+    const role = (await access.listPlatformRoles()).data.find(
+      (r) => r.systemCode === "platform-support-admin",
+    )!;
+    await expect(
+      access.replacePlatformRolePermissions(ordinary, role.id, {
         permissionCodes: [PLATFORM_PERMISSIONS.permissionsManage],
       }),
-      "SELFX_SUPERADMIN_PROTECTED",
-    );
+    ).rejects.toMatchObject(error("SELFX_SUPERADMIN_PROTECTED"));
   });
-
-  it("allows non-Superadmin actors to assign permissions they already hold", async () => {
-    const actor = await createUser("delegated-actor");
-    await assignBootstrapRole(actor.id, PlatformRole.SELFX_STAFF_ADMIN);
-
-    const role = await accessControl.createPlatformRole(actor.id, {
-      name: `Delegated Store Roles ${createSelfxId()}`,
-      permissionCodes: [PLATFORM_PERMISSIONS.storeRolesManage],
-    });
-    platformRoleIds.push(role.id);
-
-    expect(role.permissions.map((permission) => permission.code)).toContain(
-      PLATFORM_PERMISSIONS.storeRolesManage,
-    );
+  it("rejects renamed and legacy custom role assignments", async () => {
+    const actor = await user("SELFX_SUPER_ADMIN"),
+      target = await user();
+    const role = (await access.listPlatformRoles()).data[0]!;
+    await expect(
+      access.updatePlatformRole(actor, role.id, { name: "Manager" }),
+    ).rejects.toMatchObject(error("FIXED_ROLES_ONLY"));
+    await expect(
+      access.replaceUserPlatformRoles(actor, target, {
+        roleIds: [createSelfxId()],
+      }),
+    ).rejects.toMatchObject(error("PLATFORM_ROLE_NOT_FOUND"));
   });
-
-  async function createUser(label: string) {
-    const id = createSelfxId();
-    userIds.push(id);
-    return prisma.user.create({
-      data: {
-        id,
-        email: `${label}-${id}@rbac2.test`,
-        passwordHash: "not-used",
-        status: UserStatus.ACTIVE,
-      },
-    });
-  }
-
-  async function assignBootstrapRole(userId: string, role: PlatformRole) {
-    await prisma.platformRoleAssignment.create({
-      data: {
-        id: createSelfxId(),
-        userId,
-        role,
-        status: PlatformRoleAssignmentStatus.ACTIVE,
-      },
-    });
-  }
 });
-
-async function expectApiCode(
-  promise: Promise<unknown>,
-  code: string,
-): Promise<void> {
-  try {
-    await promise;
-    throw new Error(`Expected ${code}`);
-  } catch (error) {
-    expect(error).toBeInstanceOf(ApiErrorException);
-    expect((error as ApiErrorException).getResponse()).toMatchObject({
-      error: { code },
-    });
-  }
-}

@@ -195,7 +195,7 @@ describe("stock authorization", () => {
       2,
       "actual-user",
       "store-a",
-      "stores.update",
+      "products.manage",
     );
     expect(h.stock.update).toHaveBeenCalledWith(
       "store-a",

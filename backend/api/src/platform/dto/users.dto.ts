@@ -21,6 +21,9 @@ import {
 
 export class UsersQueryDto {
   @IsOptional()
+  @IsIn(["active", "only", "all"])
+  deleted?: "active" | "only" | "all";
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -103,4 +106,14 @@ export class AssignFirstOwnerDto {
   @IsString() @Matches(/^[a-f0-9]{64}$/) version!: string;
   @IsUUID() storeId!: string;
   @IsString() @Length(1, 200) confirmStoreName!: string;
+}
+
+export class DeleteUserDto {
+  @IsString() @Matches(/^[a-f0-9]{64}$/) version!: string;
+  @IsEmail() @MaxLength(320) confirmEmail!: string;
+}
+
+export class DeleteStoreMemberDto {
+  @IsISO8601() updatedAt!: string;
+  @IsEmail() @MaxLength(320) confirmEmail!: string;
 }

@@ -365,16 +365,15 @@ export function UserEditor({
               aria-labelledby="first-owner-heading"
             >
               <h3 id="first-owner-heading" className="font-semibold">
-                Assign first Store Owner
+                Assign first Store Admin
               </h3>
               <p className="text-sm text-muted-foreground">
-                For an active Store with no active owner. Grants Store Owner
-                status and Store Admin permissions within its current permission
-                limits. Existing ownership cannot be transferred here.
+                For an active Store with no active Store Admin. Grants Store
+                Admin permissions within its current permission limits.
               </p>
               <StorePicker
                 token={token}
-                label="Owner Store"
+                label="Admin Store"
                 value={ownerStore}
                 activeOnly
                 onChange={(value) => {
@@ -397,8 +396,8 @@ export function UserEditor({
               ) : null}
               {dirty ? (
                 <p className="text-sm text-muted-foreground">
-                  Save your other changes and reopen Edit before assigning
-                  ownership.
+                  Save your other changes and reopen Edit before assigning Store
+                  Admin access.
                 </p>
               ) : null}
               <Button
@@ -413,7 +412,7 @@ export function UserEditor({
                 }
                 onClick={() => void assignOwner()}
               >
-                Assign first Store Owner
+                Assign first Store Admin
               </Button>
             </section>
           </fieldset>
@@ -472,7 +471,9 @@ function MembershipEditor({
   const locked =
     (membership?.storeStatus !== undefined &&
       membership.storeStatus !== "ACTIVE") ||
-    membership?.membershipRole === "ORGANIZATION_OWNER";
+    membership?.isStoreAdmin === true ||
+    membership?.membershipRole === "ORGANIZATION_OWNER" ||
+    Boolean(membership?.deletedAt);
   const [roles, setRoles] = useState<UserRole[]>([]),
     [error, setError] = useState(""),
     [page, setPage] = useState(1),
@@ -512,15 +513,15 @@ function MembershipEditor({
       </div>
       {locked ? (
         <p className="text-sm text-muted-foreground">
-          {membership?.membershipRole === "ORGANIZATION_OWNER"
-            ? "Store Owner · "
-            : ""}
           {membership?.roles.map((r) => r.name).join(", ") ||
             "No operational roles"}{" "}
           · {title(membership!.status)} · {title(membership!.storeStatus)}.{" "}
-          {membership?.membershipRole === "ORGANIZATION_OWNER"
-            ? "Owner access requires a controlled ownership action."
-            : "Inactive Store links are read-only."}
+          {membership?.isStoreAdmin ||
+          membership?.membershipRole === "ORGANIZATION_OWNER"
+            ? "Store Admin links are protected in this account editor."
+            : membership?.deletedAt
+              ? "Deleted links cannot be restored."
+              : "Inactive Store links are read-only."}
         </p>
       ) : (
         <>

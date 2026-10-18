@@ -3,6 +3,8 @@ import { MailModule } from "../mail/mail.module.js";
 import { MailSettingsController } from "../mail/mail-settings.controller.js";
 import { UsersController } from "../platform/users.controller.js";
 import { UsersService } from "../platform/users.service.js";
+import { UserDeletionService } from "../platform/user-deletion.service.js";
+import { StoreUserDeletionController } from "../platform/store-user-deletion.controller.js";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
@@ -27,6 +29,7 @@ import { StoreRbacService } from "./store-rbac.service.js";
     MailModule,
   ],
   controllers: [
+    StoreUserDeletionController,
     UsersController,
     MailSettingsController,
     StoreRbacController,
@@ -34,6 +37,7 @@ import { StoreRbacService } from "./store-rbac.service.js";
     PlatformSettingsController,
   ],
   providers: [
+    UserDeletionService,
     UsersService,
     StoreRbacService,
     AccessControlService,
@@ -42,6 +46,6 @@ import { StoreRbacService } from "./store-rbac.service.js";
     PlatformAuthorizationService,
     StoreImpersonationService,
   ],
-  exports: [StoreRbacService],
+  exports: [StoreRbacService, UserDeletionService],
 })
 export class RbacModule {}
