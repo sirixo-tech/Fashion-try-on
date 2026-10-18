@@ -1,5 +1,39 @@
 ## Document Evolution
 
+### KIOSK-STORE-1 — Membership authorization for operational resources
+
+Resolve product and kiosk permissions from active user, active Store membership,
+canonical Store role and the Store permission ceiling, without platform bypass.
+Expose actual membership permissions separately as resourcePermissions when
+other Store administration still uses platform bypass. Enforce this on product
+CRUD, stock, uploads, sync and Store kiosk read/configuration/lifecycle endpoints.
+Shopify installation and manual catalog sync also require products.manage on
+the owning Store. Remove /admin/kiosks runtime routes, the platform configuration
+controller, fleet sync and id-only cross-Store assignment. Lifecycle routes use
+/admin/stores/:storeId/kiosks/:deviceId; validate ownership inside transactions.
+Serialize pairing by installation id and reject installations still linked to a
+non-deleted kiosk, including revoked records. Re-pair through the existing Store
+device record. Preserve device authentication, heartbeat and runtime protocol.
+Retire all historic KIOSKS_* platform permissions even for Superadmin resolution.
+
+### CATALOG-STORE-1 — Shared Store catalog and strict resolution
+
+Merchant /app/products routes resolve the authenticated current Store and reuse
+the same shared UI and /admin/stores/:storeId/products services as explicit Store
+routes. Store visibility uses stores.view; mutations use products.manage under
+the tenant ceiling. Include the safe default currency in the authorized product
+listing instead of requiring access to platform settings. Platform navigation
+does not expose the merchant catalog. Controlled impersonation uses target Store
+context. Remove /admin/catalog runtime routes and platform catalog sync.
+Retire PLATFORM_PRODUCTS_VIEW/MANAGE from the registry, effective authority,
+permission lists, role responses and assignment validation, even if historic
+permission rows remain. Kiosk lists, categories, revisions, snapshots and direct
+Try-On/capture-requirement lookups are always bounded to Store-owned products
+and categories; null Store context matches nothing. Legacy platform records are
+not deleted. Transfer tooling remains explicit and requires platform access-control
+and Store-update authority.
+
+
 ### USERS-4 — Atomic Store Admin account creation
 
 `POST /api/v1/admin/users/store-admin` accepts Store id, current Store name,

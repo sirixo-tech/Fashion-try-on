@@ -1,127 +1,216 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import KiosksPage from "../app/app/kiosks/page";
 import {
-  deleteKioskDevice,
-  listKioskAssignmentOptions,
-  listKioskDevices,
-  pairExistingKioskDevice,
-  unpairKioskDevice,
-} from "@/lib/kiosks";
-import { useSession } from "@/lib/session";
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import KiosksPage from "../app/app/kiosks/page";
+import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
+import {
+  changeStoreKioskState,
+  listStoreKiosks,
+  pairExistingStoreKiosk,
+  pairStoreKiosk,
+} from "@/lib/stores";
+import { type KioskDevice } from "@/lib/kiosks";
 
 vi.mock("@/lib/session", () => ({
-  useSession: vi.fn(),
+  useSession: () => ({ status: "authenticated", accessToken: "identity" }),
+}));
+vi.mock("@/lib/current-store", async (original) => ({
+  ...(await original<typeof import("@/lib/current-store")>()),
+  getCurrentMerchantStoreAccess: vi.fn(),
+}));
+vi.mock("@/lib/stores", () => ({
+  changeStoreKioskState: vi.fn(),
+  listStoreKiosks: vi.fn(),
+  pairExistingStoreKiosk: vi.fn(),
+  pairStoreKiosk: vi.fn(),
 }));
 
-vi.mock("@/lib/kiosks", () => ({
-  activateKioskDevice: vi.fn(),
-  assignKioskDeviceToStore: vi.fn(),
-  createKioskConfigurationAssetUploadIntent: vi.fn(),
-  deactivateKioskDevice: vi.fn(),
-  deleteKioskDevice: vi.fn(),
-  getKioskConfiguration: vi.fn(),
-  listKioskAssignmentOptions: vi.fn(),
-  listKioskDevices: vi.fn(),
-  pairExistingKioskDevice: vi.fn(),
-  pairKioskDevice: vi.fn(),
-  revokeKioskDevice: vi.fn(),
-  unpairKioskDevice: vi.fn(),
-  updateKioskAssignment: vi.fn(),
-  updateKioskConfiguration: vi.fn(),
-  updateKioskDevice: vi.fn(),
-}));
-
-const activeDevice = {
-  id: "01a0006a-0000-7000-8000-000000000001",
+const device: KioskDevice = {
+  id: "device-a",
   displayName: "Front Display",
   status: "ACTIVE",
   assignment: {
-    scope: "PLATFORM",
-    organizationId: null,
-    organizationName: null,
+    scope: "ORGANIZATION",
+    organizationId: "store-a",
+    organizationName: "Avinash stores",
     storeId: null,
     storeName: null,
   },
-  platform: "windows",
-  appVersion: "1.0.0",
-  installationId: "install-1",
-  pairedAt: "2026-08-16T00:00:00.000Z",
-  lastSeenAt: "2026-08-16T00:01:00.000Z",
+  platform: "android",
+  appVersion: "1.0",
+  installationId: "install-a",
+  pairedAt: "2026-10-18T00:00:00Z",
+  lastSeenAt: null,
   inactiveAt: null,
   revokedAt: null,
   deletedAt: null,
-  createdAt: "2026-08-16T00:00:00.000Z",
-  updatedAt: "2026-08-16T00:00:00.000Z",
-  latestConfigurationVersion: 4,
-} as const;
+  createdAt: "2026-10-18T00:00:00Z",
+  updatedAt: "2026-10-18T00:00:00Z",
+  latestConfigurationVersion: 1,
+};
+const context = {
+  store: { id: "store-a", name: "Avinash stores", status: "ACTIVE" },
+  permissions: {
+    storeId: "store-a",
+    permissions: [
+      "kiosks.view",
+      "kiosks.pair",
+      "kiosks.configure",
+      "kiosks.update",
+      "kiosks.revoke",
+    ],
+    platformBypass: false,
+    membershipId: "membership",
+    featureKeys: ["KIOSK_MANAGEMENT"],
+  },
+  hasMultipleStores: false,
+  impersonation: null,
+};
 
-const revokedDevice = {
-  ...activeDevice,
-  status: "REVOKED",
-  revokedAt: "2026-08-16T00:05:00.000Z",
-} as const;
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue(context);
+  vi.mocked(listStoreKiosks).mockResolvedValue([device]);
+  vi.mocked(pairStoreKiosk).mockResolvedValue(device);
+  vi.mocked(pairExistingStoreKiosk).mockResolvedValue(device);
+  vi.mocked(changeStoreKioskState).mockResolvedValue(device);
+});
+afterEach(cleanup);
 
-describe("Kiosks page lifecycle UI", () => {
-  beforeEach(() => {
-    vi.mocked(useSession).mockReturnValue({
-      status: "authenticated",
-      accessToken: "staff-token",
-      user: { email: "admin@selfx.test", displayName: "Admin" },
-    } as never);
-    vi.mocked(listKioskDevices).mockResolvedValue([activeDevice] as never);
-    vi.mocked(listKioskAssignmentOptions).mockResolvedValue({
-      organizations: [],
-      stores: [],
+describe("Store-only kiosk lifecycle", () => {
+  it("loads only the current Store and links its configuration page", async () => {
+    render(<KiosksPage />);
+    expect(await screen.findByText("Front Display")).toBeTruthy();
+    expect(listStoreKiosks).toHaveBeenCalledWith("identity", "store-a");
+    expect(
+      screen.getByRole("link", { name: "Configure" }).getAttribute("href"),
+    ).toBe("/app/kiosks/device-a/edit");
+    expect(screen.queryByText("Platform fleet")).toBeNull();
+  });
+  it("pairs the first kiosk without a tenant selector or platform assignment", async () => {
+    vi.mocked(listStoreKiosks).mockResolvedValue([]);
+    render(<KiosksPage />);
+    await screen.findByText("No kiosks paired yet.");
+    fireEvent.click(screen.getByRole("button", { name: "Pair New Kiosk" }));
+    fireEvent.change(screen.getByLabelText("Pairing Code"), {
+      target: { value: "004281" },
     });
-    vi.mocked(unpairKioskDevice).mockResolvedValue(revokedDevice as never);
-    vi.mocked(pairExistingKioskDevice).mockResolvedValue(
-      activeDevice as never,
+    fireEvent.change(screen.getByLabelText("Kiosk name"), {
+      target: { value: "New screen" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Pair Kiosk" }));
+    await waitFor(() =>
+      expect(pairStoreKiosk).toHaveBeenCalledWith("identity", "store-a", {
+        pairingCode: "004281",
+        displayName: "New screen",
+      }),
     );
-    vi.mocked(deleteKioskDevice).mockResolvedValue({
-      ...activeDevice,
-      status: "DELETED",
-      deletedAt: "2026-08-16T00:10:00.000Z",
-    } as never);
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
-
-  it("links Edit to the kiosk edit page instead of opening configuration inline", async () => {
+  it("unpairs through the Store endpoint and then offers re-pairing", async () => {
+    vi.mocked(changeStoreKioskState).mockImplementation(async () => {
+      vi.mocked(listStoreKiosks).mockResolvedValue([
+        { ...device, status: "REVOKED" },
+      ]);
+      return { ...device, status: "REVOKED" };
+    });
     render(<KiosksPage />);
-
-    const editLink = await screen.findByRole("link", { name: /Edit/i });
-
-    expect(editLink.getAttribute("href")).toBe(
-      `/app/kiosks/${activeDevice.id}/edit`,
+    fireEvent.click(await screen.findByRole("button", { name: "Unpair" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Unpair" }).at(-1)!);
+    await waitFor(() =>
+      expect(changeStoreKioskState).toHaveBeenCalledWith(
+        "identity",
+        "store-a",
+        "device-a",
+        "revoke",
+      ),
     );
-    expect(screen.queryByRole("button", { name: /Configure/i })).toBeNull();
+    expect(
+      await screen.findByRole("button", { name: "Pair again" }),
+    ).toBeTruthy();
   });
-
-  it("changes Unpair to Pair after the kiosk is unpaired", async () => {
+  it("pairs an existing Store kiosk using its new physical code", async () => {
+    vi.mocked(listStoreKiosks).mockResolvedValue([
+      { ...device, status: "REVOKED" },
+    ]);
     render(<KiosksPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Unpair/i }));
-    fireEvent.click(screen.getAllByRole("button", { name: /^Unpair$/i }).at(-1)!);
-
-    await waitFor(() => expect(unpairKioskDevice).toHaveBeenCalled());
-    expect(await screen.findByRole("button", { name: /^Pair$/i })).toBeTruthy();
-  });
-
-  it("pairs an existing unpaired kiosk with a pairing code", async () => {
-    vi.mocked(listKioskDevices).mockResolvedValue([revokedDevice] as never);
-    render(<KiosksPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /^Pair$/i }));
-    fireEvent.change(await screen.findByLabelText("Pairing Code"), {
+    fireEvent.click(await screen.findByRole("button", { name: "Pair again" }));
+    fireEvent.change(screen.getByLabelText("Pairing Code"), {
       target: { value: "123456" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: /^Pair$/i }).at(-1)!);
-
-    await waitFor(() => expect(pairExistingKioskDevice).toHaveBeenCalled());
-    expect(pairExistingKioskDevice).toHaveBeenCalledWith(
-      "staff-token",
-      revokedDevice.id,
-      { pairingCode: "123456" },
+    fireEvent.click(screen.getByRole("button", { name: "Pair Kiosk" }));
+    await waitFor(() =>
+      expect(pairExistingStoreKiosk).toHaveBeenCalledWith(
+        "identity",
+        "store-a",
+        "device-a",
+        "123456",
+      ),
     );
+  });
+  it("keeps Staff operations separate from Admin pairing/removal", async () => {
+    vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({
+      ...context,
+      permissions: {
+        ...context.permissions,
+        permissions: ["kiosks.view", "kiosks.configure", "kiosks.update"],
+      },
+    });
+    render(<KiosksPage />);
+    await screen.findByText("Front Display");
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Pair New Kiosk",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Unpair" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    await waitFor(() =>
+      expect(changeStoreKioskState).toHaveBeenCalledWith(
+        "identity",
+        "store-a",
+        "device-a",
+        "deactivate",
+      ),
+    );
+  });
+  it("does not turn platform bypass into kiosk membership", async () => {
+    vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({
+      ...context,
+      permissions: {
+        ...context.permissions,
+        platformBypass: true,
+        resourcePermissions: [],
+      },
+    });
+    render(<KiosksPage />);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(listStoreKiosks).not.toHaveBeenCalled();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Pair New Kiosk",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+  it("has no global fallback when there is no Store", async () => {
+    vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({
+      store: null,
+      permissions: null,
+      hasMultipleStores: false,
+      impersonation: null,
+    });
+    render(<KiosksPage />);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(listStoreKiosks).not.toHaveBeenCalled();
   });
 });

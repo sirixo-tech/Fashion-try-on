@@ -634,6 +634,7 @@ export class StoreRbacService {
   async effectivePermissions(
     userId: string,
     storeId: string,
+    allowPlatformBypass = true,
   ): Promise<EffectiveStorePermissionsResponseDto> {
     await this.ensureStoreRbac(storeId);
     const user = await this.prisma.user.findUnique({
@@ -649,13 +650,18 @@ export class StoreRbacService {
         membershipId: null,
       };
     }
-    const platformBypass = await this.hasPlatformStoreBypass(userId);
+    const platformBypass =
+      allowPlatformBypass && (await this.hasPlatformStoreBypass(userId));
     if (platformBypass) {
+      const resources = await this.effectivePermissions(userId, storeId, false);
       return {
         storeId,
-        permissions: STORE_PERMISSION_REGISTRY.map(
-          (permission) => permission.code,
-        ),
+        resourcePermissions: resources.permissions,
+        permissions: STORE_PERMISSION_REGISTRY.filter(
+          (permission) =>
+            permission.code !== "products.manage" &&
+            !permission.code.startsWith("kiosks."),
+        ).map((permission) => permission.code),
         platformBypass: true,
         featureKeys: [],
         membershipId: null,
@@ -732,6 +738,9 @@ export class StoreRbacService {
     storeId: string,
     permission: StorePermissionCode,
   ): Promise<void> {
+    if (permission === "products.manage" || permission.startsWith("kiosks.")) {
+      return this.requireStoreResourcePermission(userId, storeId, permission);
+    }
     const resolved = await this.effectivePermissions(userId, storeId);
     if (resolved.platformBypass || resolved.permissions.includes(permission)) {
       return;
@@ -741,6 +750,20 @@ export class StoreRbacService {
       STORE_RBAC_ERROR_CODES.permissionDenied,
       "Store permission denied.",
     );
+  }
+
+  async requireStoreResourcePermission(
+    userId: string,
+    storeId: string,
+    permission: StorePermissionCode,
+  ): Promise<void> {
+    const resolved = await this.effectivePermissions(userId, storeId, false);
+    if (!resolved.permissions.includes(permission))
+      throw new ApiErrorException(
+        HttpStatus.FORBIDDEN,
+        STORE_RBAC_ERROR_CODES.permissionDenied,
+        "Store membership and permission are required for products and kiosks.",
+      );
   }
 
   async ensureStoreRbac(storeId: string): Promise<void> {

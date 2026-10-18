@@ -129,6 +129,7 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
+      "Products",
       "Kiosks",
       "Team & locations",
       "Locations",
@@ -159,7 +160,6 @@ describe("permission-aware navigation", () => {
     ).toEqual([
       "Dashboard",
       "Stores",
-      "Kiosks",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -195,6 +195,7 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
+      "Products",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -235,6 +236,7 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
+      "Products",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -258,7 +260,6 @@ describe("permission-aware navigation", () => {
       }),
     ).toEqual([
       "Dashboard",
-      "Kiosks",
       "Team & locations",
       "Locations",
       "Staff",
@@ -277,8 +278,6 @@ describe("permission-aware navigation", () => {
     expect(labelsFor({ ...baseAccess, isSuperadmin: true })).toEqual([
       "Dashboard",
       "Stores",
-      "Products",
-      "Kiosks",
       "Try-On Lab",
       "Garment Lab",
       "Jewellery Lab",
@@ -309,10 +308,56 @@ describe("permission-aware navigation", () => {
       storeLocationLimit: 3,
       storeFeatureKeys: ["ANALYTICS"],
     };
-    for (const href of ["/app/analytics", "/app/staff", "/app/locations"]) {
+    for (const href of [
+      "/app/analytics",
+      "/app/staff",
+      "/app/locations",
+      "/app/products",
+      "/app/products/garments",
+      "/app/products/jewellery",
+    ]) {
       expect(canSeeHref(href, access)).toBe(false);
       expect(isMerchantOnlyRoute(`${href}/details`)).toBe(true);
     }
+  });
+
+  it("shows Store kiosks with permission and plan even before any device exists", () => {
+    const access = {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["kiosks.view", "kiosks.pair"],
+      storeFeatureKeys: ["KIOSK_MANAGEMENT"],
+    };
+    expect(canSeeHref("/app/kiosks", access)).toBe(true);
+    expect(canSeeHref("/app/kiosks/device/edit", access)).toBe(true);
+    expect(canSeeHref("/app/kiosks", { ...access, storePermissions: [] })).toBe(
+      false,
+    );
+    expect(canSeeHref("/app/kiosks", { ...access, storeFeatureKeys: [] })).toBe(
+      false,
+    );
+    expect(
+      canSeeHref("/app/kiosks", {
+        ...access,
+        storePlatformBypass: true,
+        storeResourcePermissions: [],
+      }),
+    ).toBe(false);
+    expect(
+      canSeeHref("/app/products", {
+        ...access,
+        storePermissions: ["stores.view"],
+        storePlatformBypass: true,
+        storeResourcePermissions: [],
+      }),
+    ).toBe(false);
+    expect(
+      canSeeHref("/app/kiosks", {
+        ...access,
+        hasPlatformAccess: true,
+        isSuperadmin: true,
+      }),
+    ).toBe(false);
   });
 
   it("requires Store analytics permission and plan, including impersonation", () => {

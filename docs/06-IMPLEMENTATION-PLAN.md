@@ -2,6 +2,31 @@
 
 ## Implementation Plan
 
+### KIOSK-STORE-1 — Finish the Store resource boundary
+
+Retire platform kiosk routes/permissions/fleet UI and platform bypass for product
+and kiosk operations. Reuse shared services behind Store-scoped lifecycle routes
+and Store-only screens. Verify strict authorization, foreign-Store lifecycle denial,
+pairing installation conflicts, token revocation, re-pairing, product/stock/catalog
+isolation, empty Store navigation, configuration and platform-detail hiding.
+Run API/web typechecks, focused tests, changed-file lint and both builds. Deploy
+API and web together; no new migration/environment variable or kiosk protocol
+change. Review any historical platform devices separately before migration.
+See KIOSK-STORE-1-IMPLEMENTATION-REPORT.md for implementation and rollout checks.
+
+### CATALOG-STORE-1 — Retire platform testing catalog
+
+Reuse Store catalog management behind merchant Products navigation, preserve
+Store roles and tenant ceilings, remove platform catalog endpoints/UI/sync and
+retire old platform product permissions. Remove kiosk fallback in every catalog
+lookup. Verify empty catalogs, migrated Store products, vertical isolation,
+cross-Store/platform ids, unassigned kiosks, permissions, Store-only currency
+loading, navigation and stock regressions. Deploy API and web together without a
+new schema migration; refresh kiosk caches online. No production transfer or data
+deletion runs automatically. This approved evolution supersedes earlier platform
+catalog fallback requirements.
+
+
 ### USERS-4 — New login for a Store without an Admin
 
 Add Superadmin-only inline creation to Edit Store and one shared backend route.

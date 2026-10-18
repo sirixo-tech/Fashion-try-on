@@ -10,11 +10,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
-import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
-import {
-  AdminKioskConfigurationController,
-  KioskConfigurationController,
-} from "./kiosk-configuration.controller.js";
+import { KioskConfigurationController } from "./kiosk-configuration.controller.js";
 import { KIOSK_ERROR_CODES } from "./kiosk.constants.js";
 import { KioskConfigurationService } from "./kiosk-configuration.service.js";
 import { mapDevice } from "./kiosk.service.js";
@@ -49,78 +45,6 @@ describe("KIOSK-6A remote kiosk configuration", () => {
     expect(configuration.experience.multiGarmentSelectionEnabled).toBe(true);
     expect(configuration.experience.maxTryOnPicks).toBe(5);
     expect(configuration.experience.sessionIdleTimeoutSeconds).toBe(120);
-  });
-
-  it("lets a superadmin read and update kiosk configuration", async () => {
-    const service = {
-      getAdminConfiguration: vi.fn().mockResolvedValue({ version: 4 }),
-      updateAdminConfiguration: vi.fn().mockResolvedValue({ version: 5 }),
-    };
-    const platformAuthorization = {
-      requirePermission: vi.fn().mockResolvedValue(undefined),
-    };
-    const controller = new AdminKioskConfigurationController(
-      {
-        requireAccessUser: vi.fn().mockResolvedValue({ id: "super-user" }),
-      } as never,
-      platformAuthorization as never,
-      service as never,
-    );
-    const request = {
-      headers: { authorization: "Bearer staff" },
-    };
-
-    await expect(
-      controller.get(request as never, "01a0006a-0000-7000-8000-000000000001"),
-    ).resolves.toEqual({ version: 4 });
-    await expect(
-      controller.update(
-        request as never,
-        "01a0006a-0000-7000-8000-000000000001",
-        configurationInput(),
-      ),
-    ).resolves.toEqual({ version: 5 });
-
-    expect(platformAuthorization.requirePermission).toHaveBeenCalledWith(
-      "super-user",
-      PLATFORM_PERMISSIONS.kiosksConfigure,
-    );
-    expect(service.updateAdminConfiguration).toHaveBeenCalledWith(
-      "super-user",
-      "01a0006a-0000-7000-8000-000000000001",
-      configurationInput(),
-    );
-  });
-
-  it("rejects non-superadmin configuration updates through platform authorization", async () => {
-    const service = { updateAdminConfiguration: vi.fn() };
-    const controller = new AdminKioskConfigurationController(
-      {
-        requireAccessUser: vi.fn().mockResolvedValue({ id: "support-user" }),
-      } as never,
-      {
-        requirePermission: vi
-          .fn()
-          .mockRejectedValue(
-            new ApiErrorException(
-              HttpStatus.FORBIDDEN,
-              "PLATFORM_PERMISSION_DENIED",
-              "Platform permission denied.",
-            ),
-          ),
-      } as never,
-      service as never,
-    );
-
-    await expectApiCode(
-      controller.update(
-        { headers: { authorization: "Bearer support" } } as never,
-        "01a0006a-0000-7000-8000-000000000001",
-        configurationInput(),
-      ),
-      "PLATFORM_PERMISSION_DENIED",
-    );
-    expect(service.updateAdminConfiguration).not.toHaveBeenCalled();
   });
 
   it("lets an active paired kiosk fetch only its own effective configuration", async () => {
@@ -183,32 +107,6 @@ describe("KIOSK-6A remote kiosk configuration", () => {
 
     expect(first.version).toBe(2);
     expect(second.version).toBe(3);
-  });
-
-  it("syncs a platform catalog only to platform and fallback kiosks", async () => {
-    const prisma = catalogSyncPrisma([
-      syncDevice("platform", null, 2),
-      syncDevice("store-fallback", "store-fallback", 4),
-      syncDevice("store-own", "store-own", 6),
-    ]);
-    prisma.$queryRaw.mockResolvedValue([{ organization_id: "store-own" }]);
-    const service = catalogSyncService(prisma);
-
-    const result = await service.requestPlatformCatalogSync(
-      "platform-user",
-      "GARMENT",
-    );
-
-    expect(result.updatedDevices).toBe(2);
-    expect(prisma.kioskDeviceConfiguration.update).toHaveBeenCalledTimes(2);
-    expect(prisma.kioskDeviceConfiguration.update).toHaveBeenCalledWith({
-      where: { id: "configuration-platform" },
-      data: { version: 3, updatedByUserId: "platform-user" },
-    });
-    expect(prisma.kioskDeviceConfiguration.update).toHaveBeenCalledWith({
-      where: { id: "configuration-store-fallback" },
-      data: { version: 5, updatedByUserId: "platform-user" },
-    });
   });
 
   it("syncs a Store catalog only to kiosks assigned to that Store", async () => {

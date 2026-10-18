@@ -1,4 +1,5 @@
 "use client";
+import { storeResourcePermissions } from "@/lib/current-store";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -103,6 +104,7 @@ export default function StoreDashboardPage() {
     [],
   );
   const [platformBypass, setPlatformBypass] = useState(false);
+  const [resourcePermissions, setResourcePermissions] = useState<string[]>([]);
   const [canViewUsage, setCanViewUsage] = useState(false);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [creditDiagnostics, setCreditDiagnostics] =
@@ -141,6 +143,9 @@ export default function StoreDashboardPage() {
       setStore(nextStore);
       setStoreTryOnSettings(nextStoreTryOnSettings);
       setEffectivePermissions(nextEffectivePermissionCodes);
+      setResourcePermissions(
+        storeResourcePermissions(nextEffectivePermissions),
+      );
       setPlatformBypass(nextEffectivePermissions.platformBypass);
       setIsSuperadmin(nextPlatformAccess.isSuperadmin);
       setCanViewUsage(
@@ -166,8 +171,11 @@ export default function StoreDashboardPage() {
 
   const kiosks = store?.kiosks.data ?? [];
   const can = useCallback(
-    (permission: string) => effectivePermissions.includes(permission),
-    [effectivePermissions],
+    (permission: string) =>
+      permission === "products.manage" || permission.startsWith("kiosks.")
+        ? resourcePermissions.includes(permission)
+        : effectivePermissions.includes(permission),
+    [effectivePermissions, resourcePermissions],
   );
   const canPairKiosks = can("kiosks.pair");
   const canConfigureKiosks = can("kiosks.configure");
@@ -220,13 +228,15 @@ export default function StoreDashboardPage() {
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button
-              render={<Link href={`/app/stores/${storeId}/products`} />}
-              variant="outline"
-            >
-              <PackageIcon aria-hidden="true" />
-              Products
-            </Button>
+            {resourcePermissions.includes("stores.view") ? (
+              <Button
+                render={<Link href={`/app/stores/${storeId}/products`} />}
+                variant="outline"
+              >
+                <PackageIcon aria-hidden="true" />
+                Products
+              </Button>
+            ) : null}
             <Button
               render={<Link href={`/app/stores/${storeId}/shopping`} />}
               variant="outline"
@@ -241,13 +251,15 @@ export default function StoreDashboardPage() {
                 Payments
               </Button>
             )}
-            <Button
-              onClick={() => setPairOpen(true)}
-              disabled={!store || !canPairKiosks}
-            >
-              <PlusIcon aria-hidden="true" />
-              Pair Kiosk
-            </Button>
+            {canPairKiosks ? (
+              <Button
+                onClick={() => setPairOpen(true)}
+                disabled={!store || !canPairKiosks}
+              >
+                <PlusIcon aria-hidden="true" />
+                Pair Kiosk
+              </Button>
+            ) : null}
           </div>
         }
         status={
@@ -268,24 +280,28 @@ export default function StoreDashboardPage() {
 
       <PageSection>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <MetricCard
-            label="Total Kiosks"
-            value={store?.totalKiosks ?? 0}
-            icon={<MonitorIcon size={18} aria-hidden="true" />}
-            caption="Paired devices"
-          />
-          <MetricCard
-            label="Active Kiosks"
-            value={store?.activeKiosks ?? 0}
-            icon={<ActivityIcon size={18} aria-hidden="true" />}
-            caption={`${activeKioskShare}% fleet active`}
-          />
-          <MetricCard
-            label="Last Activity"
-            value={formatDate(store?.lastActivityAt ?? null)}
-            icon={<Clock3Icon size={18} aria-hidden="true" />}
-            caption="Most recent kiosk signal"
-          />
+          {can("kiosks.view") ? (
+            <>
+              <MetricCard
+                label="Total Kiosks"
+                value={store?.totalKiosks ?? 0}
+                icon={<MonitorIcon size={18} aria-hidden="true" />}
+                caption="Paired devices"
+              />
+              <MetricCard
+                label="Active Kiosks"
+                value={store?.activeKiosks ?? 0}
+                icon={<ActivityIcon size={18} aria-hidden="true" />}
+                caption={`${activeKioskShare}% fleet active`}
+              />
+              <MetricCard
+                label="Last Activity"
+                value={formatDate(store?.lastActivityAt ?? null)}
+                icon={<Clock3Icon size={18} aria-hidden="true" />}
+                caption="Most recent kiosk signal"
+              />
+            </>
+          ) : null}
           <MetricCard
             label="Try-On Credits"
             value={postpaid?.billableCredits ?? availableCredits ?? 0}
@@ -296,12 +312,14 @@ export default function StoreDashboardPage() {
                 : creditStatusCaption(creditHealth, currentPricingPlan?.name)
             }
           />
-          <MetricCard
-            label="Configuration"
-            value={kiosks.length}
-            icon={<SettingsIcon size={18} aria-hidden="true" />}
-            caption="Kiosks ready to manage"
-          />
+          {can("kiosks.configure") ? (
+            <MetricCard
+              label="Configuration"
+              value={kiosks.length}
+              icon={<SettingsIcon size={18} aria-hidden="true" />}
+              caption="Kiosks ready to manage"
+            />
+          ) : null}
         </div>
       </PageSection>
 
@@ -386,80 +404,84 @@ export default function StoreDashboardPage() {
 
       <PageSection>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.55fr)]">
-          <TableContainer
-            title="Store Kiosks"
-            description="Kiosks assigned to this Store. Configuration remains attached to each kiosk device."
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead>Config</TableHead>
-                  <TableHead>Last Seen</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+          {can("kiosks.view") ? (
+            <TableContainer
+              title="Store Kiosks"
+              description="Kiosks assigned to this Store. Configuration remains attached to each kiosk device."
+            >
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6}>Loading Store kiosks...</TableCell>
+                    <TableHead>Device</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Platform</TableHead>
+                    <TableHead>Config</TableHead>
+                    <TableHead>Last Seen</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : kiosks.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>
-                      <div className="flex items-center gap-3 py-8 text-muted-foreground">
-                        <MonitorIcon size={20} aria-hidden="true" />
-                        No kiosks are paired to this Store yet.
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  kiosks.map((device) => (
-                    <TableRow key={device.id}>
-                      <TableCell>
-                        <div className="font-medium">{device.displayName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {device.id}
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6}>Loading Store kiosks...</TableCell>
+                    </TableRow>
+                  ) : kiosks.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6}>
+                        <div className="flex items-center gap-3 py-8 text-muted-foreground">
+                          <MonitorIcon size={20} aria-hidden="true" />
+                          No kiosks are paired to this Store yet.
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          status={device.status}
-                          label={device.status}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {device.platform ?? "Unknown"}
-                        {device.appVersion ? ` / ${device.appVersion}` : ""}
-                      </TableCell>
-                      <TableCell>
-                        v{device.latestConfigurationVersion}
-                      </TableCell>
-                      <TableCell>{formatDate(device.lastSeenAt)}</TableCell>
-                      <TableCell className="text-right">
-                        {canConfigureKiosks ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setConfigurationDevice(device)}
-                          >
-                            <SettingsIcon aria-hidden="true" />
-                            Manage
-                          </Button>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            -
-                          </span>
-                        )}
-                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ) : (
+                    kiosks.map((device) => (
+                      <TableRow key={device.id}>
+                        <TableCell>
+                          <div className="font-medium">
+                            {device.displayName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {device.id}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge
+                            status={device.status}
+                            label={device.status}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {device.platform ?? "Unknown"}
+                          {device.appVersion ? ` / ${device.appVersion}` : ""}
+                        </TableCell>
+                        <TableCell>
+                          v{device.latestConfigurationVersion}
+                        </TableCell>
+                        <TableCell>{formatDate(device.lastSeenAt)}</TableCell>
+                        <TableCell className="text-right">
+                          {canConfigureKiosks ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setConfigurationDevice(device)}
+                            >
+                              <SettingsIcon aria-hidden="true" />
+                              Manage
+                            </Button>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              -
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : null}
 
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             {store ? (

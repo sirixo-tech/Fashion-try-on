@@ -2,6 +2,28 @@
 
 ## Database & Schema Design
 
+### KIOSK-STORE-1 — Existing Store-owned device records
+
+No schema migration is required. Continue mapping merchant Store to organization_id
+with kiosk assignment scope ORGANIZATION and legacy store_id null. Keep historical
+platform devices/products, permission rows and audit history; remove their runtime
+administration/authority rather than deleting data. Store lifecycle operations
+check organization ownership inside the device mutation transaction. Pairing uses
+an advisory transaction lock per installation to prevent duplicate live links.
+Revoked records retain ownership until removed, and re-pairing preserves device
+identity. Deployment does not automatically move or delete any device or product.
+
+### CATALOG-STORE-1 — Retain history, use Store ownership
+
+No schema migration is required. Operational products and categories use scope
+STORE and organization_id as the merchant Store tenant. Legacy PLATFORM_DEFAULT
+rows remain intact for history or an explicit transfer but cannot be served as a
+kiosk fallback or managed through platform catalog endpoints. Historic platform
+product permission rows and links may remain; runtime registry/assignment checks
+and safe role projections retire their authority and presentation. No products,
+stock, orders, subscriptions or users are deleted or reassigned by this change.
+
+
 ### USERS-4 — Reuse existing account and Admin records
 
 No persistence structure or migration is added. Create the user, first-admin

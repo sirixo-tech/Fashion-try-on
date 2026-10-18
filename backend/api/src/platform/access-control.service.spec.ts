@@ -75,11 +75,11 @@ describe.skipIf(!url)("Platform RBAC — Superadmin, Admin and Staff", () => {
       roleIds: [role.id],
     });
     await expect(
-      authorization.requirePermission(target, PLATFORM_PERMISSIONS.kiosksView),
+      authorization.requirePermission(target, PLATFORM_PERMISSIONS.storesView),
     ).resolves.toBeUndefined();
     await access.replaceUserPlatformRoles(actor, target, { roleIds: [] });
     await expect(
-      authorization.requirePermission(target, PLATFORM_PERMISSIONS.kiosksView),
+      authorization.requirePermission(target, PLATFORM_PERMISSIONS.storesView),
     ).rejects.toMatchObject(error("PLATFORM_PERMISSION_DENIED"));
   });
   it("protects Superadmins from ordinary role assignment and keeps exclusive permissions protected", async () => {
@@ -111,4 +111,78 @@ describe.skipIf(!url)("Platform RBAC — Superadmin, Admin and Staff", () => {
       }),
     ).rejects.toMatchObject(error("PLATFORM_ROLE_NOT_FOUND"));
   });
+  it.each([
+    "PLATFORM_PRODUCTS_MANAGE",
+    "KIOSKS_VIEW",
+    "KIOSKS_PAIR",
+    "KIOSKS_UPDATE",
+    "KIOSKS_ASSIGN",
+    "KIOSKS_REVOKE",
+    "KIOSKS_DELETE",
+    "KIOSKS_CONFIGURE",
+  ])(
+    "retires %s even when historic role rows retain it",
+    async (retiredCode) => {
+      const actor = await user("SELFX_SUPER_ADMIN");
+      const role = (await access.listPlatformRoles()).data.find(
+        (r) => r.systemCode === "platform-support-admin",
+      )!;
+      const historic = await db.permission.upsert({
+        where: { code: retiredCode },
+        create: {
+          id: createSelfxId(),
+          code: retiredCode,
+          module: "platform.products",
+          label: "Historic platform catalog permission",
+          action: "manage",
+          applicability: "PLATFORM_ONLY",
+        },
+        update: {},
+      });
+      await db.platformAccessRolePermission.upsert({
+        where: {
+          roleId_permissionId: { roleId: role.id, permissionId: historic.id },
+        },
+        create: {
+          id: createSelfxId(),
+          roleId: role.id,
+          permissionId: historic.id,
+        },
+        update: {},
+      });
+      try {
+        expect(
+          (await access.listPermissions()).data.some(
+            (p) => p.code === retiredCode,
+          ),
+        ).toBe(false);
+        const returnedRole = (await access.listPlatformRoles()).data.find(
+          (r) => r.id === role.id,
+        )!;
+        expect(
+          returnedRole.permissions.some((p) => p.code === retiredCode),
+        ).toBe(false);
+        expect(returnedRole.permissionsCount).toBe(
+          returnedRole.permissions.length,
+        );
+        await expect(
+          access.replacePlatformRolePermissions(actor, role.id, {
+            permissionCodes: [historic.code],
+          }),
+        ).rejects.toMatchObject(error("GLOBAL_PERMISSION_INVALID"));
+        expect(
+          await authorization.hasPermission(actor, historic.code as never),
+        ).toBe(false);
+        expect(
+          (await authorization.allPlatformPermissionsForUser(actor)).some(
+            (p) => p === retiredCode,
+          ),
+        ).toBe(false);
+      } finally {
+        await db.platformAccessRolePermission.deleteMany({
+          where: { roleId: role.id, permissionId: historic.id },
+        });
+      }
+    },
+  );
 });

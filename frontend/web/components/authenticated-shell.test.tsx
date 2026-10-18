@@ -25,7 +25,8 @@ vi.mock("@/lib/session", () => ({
     logout: vi.fn(),
   }),
 }));
-vi.mock("@/lib/current-store", () => ({
+vi.mock("@/lib/current-store", async (original) => ({
+  ...(await original<typeof import("@/lib/current-store")>()),
   getCurrentMerchantStoreAccess: mocks.getStoreAccess,
 }));
 vi.mock("@/lib/access-control", () => ({
@@ -69,23 +70,28 @@ describe("merchant-only shell routes", () => {
 
   afterEach(cleanup);
 
-  it.each(["/app/analytics", "/app/locations", "/app/staff"])(
-    "does not mount %s in platform mode",
-    async (pathname) => {
-      mocks.pathname = pathname;
-      mocks.getPlatformAccess.mockResolvedValue({
-        isSuperadmin: true,
-        permissions: [],
-      });
-      render(
-        <AuthenticatedShell>
-          <MerchantPage />
-        </AuthenticatedShell>,
-      );
-      expect(await screen.findByText("Store access required")).toBeTruthy();
-      expect(mocks.pageMounted).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    "/app/analytics",
+    "/app/locations",
+    "/app/staff",
+    "/app/products/garments",
+    "/app/products/jewellery",
+    "/app/kiosks",
+    "/app/kiosks/device/edit",
+  ])("does not mount %s in platform mode", async (pathname) => {
+    mocks.pathname = pathname;
+    mocks.getPlatformAccess.mockResolvedValue({
+      isSuperadmin: true,
+      permissions: [],
+    });
+    render(
+      <AuthenticatedShell>
+        <MerchantPage />
+      </AuthenticatedShell>,
+    );
+    expect(await screen.findByText("Store access required")).toBeTruthy();
+    expect(mocks.pageMounted).not.toHaveBeenCalled();
+  });
 
   it("waits for Store access before mounting a merchant page", () => {
     mocks.getStoreAccess.mockReturnValue(new Promise(() => {}));

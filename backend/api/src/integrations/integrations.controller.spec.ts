@@ -7,6 +7,42 @@ import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import { IntegrationsController } from "./integrations.controller.js";
 
 describe("IntegrationsController", () => {
+  it.each(["start", "sync"] as const)(
+    "does not let platform integration authority %s a Store catalog operation",
+    async (operation) => {
+      const storeRbac = rbac();
+      storeRbac.requireStoreResourcePermission.mockRejectedValue(
+        new ApiErrorException(
+          HttpStatus.FORBIDDEN,
+          "STORE_PERMISSION_DENIED",
+          "Store permission denied.",
+        ),
+      );
+      const shopify = oauth();
+      const controller = new IntegrationsController(
+        auth(),
+        platformAuthorization(true) as never,
+        storeRbac as never,
+        { integrationStoreId: vi.fn().mockResolvedValue("store-1") } as never,
+        shopify as never,
+      );
+      const result =
+        operation === "start"
+          ? controller.startShopifyOauth(request(), {
+              storeId: "store-1",
+              shop: "merchant.myshopify.com",
+            })
+          : controller.syncShopify(request(), "integration-1");
+      await expect(result).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: expect.objectContaining({ code: "STORE_PERMISSION_DENIED" }),
+        }),
+      });
+      expect(shopify.start).not.toHaveBeenCalled();
+      expect(shopify.sync).not.toHaveBeenCalled();
+    },
+  );
+
   it("starts Shopify OAuth only after Store manage authorization", async () => {
     const storeRbac = rbac();
     const shopify = oauth();
@@ -37,6 +73,11 @@ describe("IntegrationsController", () => {
       "store-1",
       "merchant.myshopify.com",
     );
+    expect(storeRbac.requireStoreResourcePermission).toHaveBeenCalledWith(
+      "user-1",
+      "store-1",
+      STORE_PERMISSION_CODES.productsManage,
+    );
   });
 
   it("authorizes a manual Shopify sync against its owning Store", async () => {
@@ -56,6 +97,11 @@ describe("IntegrationsController", () => {
     await controller.syncShopify(request(), "integration-1");
 
     expect(shopify.sync).toHaveBeenCalledWith("user-1", "integration-1");
+    expect(storeRbac.requireStoreResourcePermission).toHaveBeenCalledWith(
+      "user-1",
+      "store-1",
+      STORE_PERMISSION_CODES.productsManage,
+    );
     expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
       "user-1",
       "store-1",
@@ -246,7 +292,10 @@ function platformAuthorization(hasPermission: boolean) {
 }
 
 function rbac() {
-  return { requireStorePermission: vi.fn() };
+  return {
+    requireStorePermission: vi.fn(),
+    requireStoreResourcePermission: vi.fn(),
+  };
 }
 
 function rbacReject() {

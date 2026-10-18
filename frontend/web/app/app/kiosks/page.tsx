@@ -1,16 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  PencilIcon,
-  MonitorIcon,
-  PlusIcon,
-  RefreshCwIcon,
-  ShieldAlertIcon,
-  Trash2Icon,
-} from "lucide-react";
-
+import { useCallback, useEffect, useState } from "react";
 import {
   Button,
   ConfirmDialog,
@@ -25,235 +16,288 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
-  SelectMenu,
   StatusBadge,
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableHeader,
   TableRow,
-  TableContainer,
 } from "@selfx/ui";
-
-import { SafeApiError } from "@/lib/api";
-import {
-  getCurrentPlatformAccess,
-  type CurrentPlatformAccess,
-} from "@/lib/access-control";
 import {
   getCurrentMerchantStoreAccess,
-  hasCurrentStorePermission,
+  hasStoreResourcePermission,
+  type CurrentStoreAccess,
 } from "@/lib/current-store";
 import {
-  deleteKioskDevice,
-  listKioskAssignmentOptions,
-  listKioskDevices,
-  pairExistingKioskDevice,
-  pairKioskDevice,
-  unpairKioskDevice,
-  type KioskAssignmentOptions,
-  type KioskAssignmentScope,
-  type KioskDevice,
-} from "@/lib/kiosks";
+  changeStoreKioskState,
+  listStoreKiosks,
+  pairExistingStoreKiosk,
+  pairStoreKiosk,
+} from "@/lib/stores";
+import { type KioskDevice } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
-import { listStoreKiosks, pairStoreKiosk } from "@/lib/stores";
-
-const assignmentScopes: KioskAssignmentScope[] = ["PLATFORM", "ORGANIZATION"];
-
-type StoreOption = { id: string; name: string; status: string };
+import { SafeApiError } from "@/lib/api";
 
 export default function KiosksPage() {
   const session = useSession();
-  const accessToken =
-    session.status === "authenticated" ? session.accessToken : null;
+  const token = session.status === "authenticated" ? session.accessToken : null;
+  const [context, setContext] = useState<CurrentStoreAccess | null>(null);
   const [devices, setDevices] = useState<KioskDevice[]>([]);
-  const [options, setOptions] = useState<KioskAssignmentOptions>({
-    organizations: [],
-    stores: [],
-  });
-  const [platformFleetMode, setPlatformFleetMode] = useState(false);
-  const [activeStore, setActiveStore] = useState<StoreOption | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [pairOpen, setPairOpen] = useState(false);
+  const [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
+  const [busy, setBusy] = useState(false),
+    [pairOpen, setPairOpen] = useState(false);
   const [pairingDevice, setPairingDevice] = useState<KioskDevice | null>(null);
+  const [code, setCode] = useState(""),
+    [name, setName] = useState("");
+  const [pairError, setPairError] = useState("");
+  const can = (permission: string) =>
+    hasStoreResourcePermission(context?.permissions ?? null, permission);
+  const storeId = context?.store?.id;
 
   const load = useCallback(async () => {
-    if (!accessToken) {
-      return;
-    }
+    if (!token) return;
     setLoading(true);
-    setError(null);
+    setError("");
     try {
-      const fallbackPlatformAccess: CurrentPlatformAccess = {
-        isSuperadmin: false,
-        permissions: [],
-      };
-      const platformAccess = await getCurrentPlatformAccess(accessToken).catch(
-        () => fallbackPlatformAccess,
-      );
-      const canManagePlatformFleet =
-        platformAccess.isSuperadmin ||
-        platformAccess.permissions.includes("KIOSKS_VIEW");
-
-      if (canManagePlatformFleet) {
-        const [nextDevices, nextOptions] = await Promise.all([
-          listKioskDevices(accessToken),
-          listKioskAssignmentOptions(accessToken),
-        ]);
-        setPlatformFleetMode(true);
-        setActiveStore(null);
-        setDevices(nextDevices);
-        setOptions(nextOptions);
-        return;
-      }
-
-      const { store, permissions } =
-        await getCurrentMerchantStoreAccess(accessToken);
-      if (!store) {
-        setPlatformFleetMode(false);
-        setActiveStore(null);
+      const access = await getCurrentMerchantStoreAccess(token);
+      setContext(access);
+      if (
+        !access.store ||
+        !hasStoreResourcePermission(access.permissions, "kiosks.view")
+      ) {
         setDevices([]);
-        setOptions({ organizations: [], stores: [] });
-        setError("No active Store is available for this account.");
+        setError("Store membership and kiosk viewing permission are required.");
         return;
       }
-
-      const canViewStoreKiosks = hasCurrentStorePermission(permissions, [
-        "kiosks.view",
-        "kiosks.pair",
-        "kiosks.configure",
-      ]);
-      if (!canViewStoreKiosks) {
-        setPlatformFleetMode(false);
-        setActiveStore({ id: store.id, name: store.name, status: store.status });
-        setDevices([]);
-        setOptions({ organizations: [], stores: [] });
-        setError("You do not have access to this Store's kiosks.");
-        return;
-      }
-
-      const storeOption = {
-        id: store.id,
-        name: store.name,
-        status: store.status,
-      };
-      setPlatformFleetMode(false);
-      setActiveStore(storeOption);
-      setOptions({ organizations: [storeOption], stores: [] });
-      setDevices(await listStoreKiosks(accessToken, store.id));
+      setDevices(await listStoreKiosks(token, access.store.id));
     } catch (caught) {
+      setDevices([]);
       setError(messageFor(caught));
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
-
+  }, [token]);
   useEffect(() => {
     void load();
+    const refresh = () => {
+      setContext(null);
+      setDevices([]);
+      setPairOpen(false);
+      void load();
+    };
+    window.addEventListener("selfx:impersonation-changed", refresh);
+    return () =>
+      window.removeEventListener("selfx:impersonation-changed", refresh);
   }, [load]);
 
-  const activeCount = devices.filter(
-    (device) => device.status === "ACTIVE",
-  ).length;
-
+  async function change(
+    device: KioskDevice,
+    action: "revoke" | "activate" | "deactivate" | "delete",
+  ) {
+    if (!token || !storeId || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await changeStoreKioskState(token, storeId, device.id, action);
+      await load();
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+  function openPair(device: KioskDevice | null) {
+    setPairingDevice(device);
+    setCode("");
+    setName(device?.displayName ?? "");
+    setPairError("");
+    setPairOpen(true);
+  }
+  async function pair() {
+    if (!token || !storeId || busy) return;
+    const pairingCode = code.replace(/\s/g, "");
+    if (!/^\d{6}$/.test(pairingCode)) {
+      setPairError("Enter the six-digit code shown on the kiosk.");
+      return;
+    }
+    setBusy(true);
+    setPairError("");
+    try {
+      if (pairingDevice)
+        await pairExistingStoreKiosk(
+          token,
+          storeId,
+          pairingDevice.id,
+          pairingCode,
+        );
+      else
+        await pairStoreKiosk(token, storeId, {
+          pairingCode,
+          displayName: name.trim(),
+        });
+      setPairOpen(false);
+      setCode("");
+      await load();
+    } catch (caught) {
+      setPairError(messageFor(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow={platformFleetMode ? "Platform fleet" : "Store kiosks"}
+        eyebrow="Store kiosks"
         title="Kiosks"
-        description={
-          platformFleetMode
-            ? "Pair and manage SelfX kiosk devices across the platform fleet."
-            : `Pair and monitor kiosk devices for ${activeStore?.name ?? "your Store"}.`
-        }
+        description={`Connect and manage kiosks for ${context?.store?.name ?? "your Store"}.`}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void load()}>
-              <RefreshCwIcon aria-hidden="true" />
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={loading || busy}
+              onClick={() => void load()}
+            >
               Refresh
             </Button>
-            <Button onClick={() => setPairOpen(true)}>
-              <PlusIcon aria-hidden="true" />
+            <Button
+              disabled={loading || busy || !can("kiosks.pair")}
+              onClick={() => openPair(null)}
+            >
               Pair New Kiosk
             </Button>
           </div>
         }
-        status={<StatusBadge status="ACTIVE" label={`${activeCount} active`} />}
       />
-
+      {error ? (
+        <PageSection>
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+        </PageSection>
+      ) : null}
       <PageSection>
         <TableContainer
-          title={platformFleetMode ? "Fleet devices" : "Store devices"}
-          description={
-            platformFleetMode
-              ? "Kiosks belong to the SelfX platform fleet and may be assigned to platform or Store scope."
-              : "Kiosks are attached to your Store account. Branch/location assignment can be added later under this same Store."
-          }
+          title="Store devices"
+          description="Enter the code shown on a physical kiosk to connect it to this Store."
         >
-          {error ? (
-            <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-              <ShieldAlertIcon size={18} aria-hidden="true" />
-              {error}
-            </div>
-          ) : null}
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Device</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Assignment</TableHead>
-                <TableHead>Platform</TableHead>
-                <TableHead>Last Seen</TableHead>
-                <TableHead>Paired</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Device platform</TableHead>
+                <TableHead>Last seen</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7}>Loading kiosks...</TableCell>
+                  <TableCell colSpan={5}>Loading kiosks…</TableCell>
                 </TableRow>
               ) : devices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7}>
-                    <div className="flex items-center gap-3 py-8 text-muted-foreground">
-                      <MonitorIcon size={20} aria-hidden="true" />
-                      No kiosks paired yet.
-                    </div>
-                  </TableCell>
+                  <TableCell colSpan={5}>No kiosks paired yet.</TableCell>
                 </TableRow>
               ) : (
                 devices.map((device) => (
                   <TableRow key={device.id}>
+                    <TableCell>{device.displayName}</TableCell>
                     <TableCell>
-                      <div className="font-medium">{device.displayName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {device.id}
-                      </div>
+                      <StatusBadge status={device.status} />
                     </TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        status={device.status}
-                        label={device.status}
-                      />
-                    </TableCell>
-                    <TableCell>{assignmentLabel(device)}</TableCell>
                     <TableCell>
                       {device.platform ?? "Unknown"}
                       {device.appVersion ? ` / ${device.appVersion}` : ""}
                     </TableCell>
-                    <TableCell>{formatDate(device.lastSeenAt)}</TableCell>
-                    <TableCell>{formatDate(device.pairedAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <KioskLifecycleActions
-                        device={device}
-                        platformFleetMode={platformFleetMode}
-                        onPair={() => setPairingDevice(device)}
-                        onUnpair={() => void unpair(device.id)}
-                        onDelete={() => void remove(device.id)}
-                      />
+                    <TableCell>
+                      {device.lastSeenAt
+                        ? new Date(device.lastSeenAt).toLocaleString()
+                        : "Never"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        {can("kiosks.configure") ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            render={
+                              <Link href={`/app/kiosks/${device.id}/edit`} />
+                            }
+                          >
+                            Configure
+                          </Button>
+                        ) : null}
+                        {device.status === "REVOKED" && can("kiosks.pair") ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => openPair(device)}
+                          >
+                            Pair again
+                          </Button>
+                        ) : null}
+                        {device.status !== "REVOKED" && can("kiosks.update") ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() =>
+                              void change(
+                                device,
+                                device.status === "ACTIVE"
+                                  ? "deactivate"
+                                  : "activate",
+                              )
+                            }
+                          >
+                            {device.status === "ACTIVE"
+                              ? "Deactivate"
+                              : "Activate"}
+                          </Button>
+                        ) : null}
+                        {device.status !== "REVOKED" && can("kiosks.revoke") ? (
+                          <ConfirmDialog
+                            title="Unpair kiosk?"
+                            description="This revokes device sessions and returns the physical kiosk to its pairing screen. Its Store link and configuration are retained for re-pairing."
+                            confirmLabel="Unpair"
+                            destructive
+                            onConfirm={() => change(device, "revoke")}
+                            trigger={
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                disabled={busy}
+                              >
+                                Unpair
+                              </Button>
+                            }
+                          />
+                        ) : null}
+                        {can("kiosks.revoke") ? (
+                          <ConfirmDialog
+                            title="Remove kiosk?"
+                            description="This removes the kiosk from this Store's device list and revokes its sessions. Audit history remains."
+                            confirmLabel="Remove"
+                            destructive
+                            onConfirm={() => change(device, "delete")}
+                            trigger={
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={busy}
+                              >
+                                Remove
+                              </Button>
+                            }
+                          />
+                        ) : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -262,410 +306,79 @@ export default function KiosksPage() {
           </Table>
         </TableContainer>
       </PageSection>
-
-      <PairKioskDialog
+      <Dialog
         open={pairOpen}
-        options={options}
-        activeStore={activeStore}
-        onOpenChange={setPairOpen}
-        onPaired={(device) => {
-          setDevices((current) => [device, ...current]);
-          setPairOpen(false);
-        }}
-      />
-      <PairExistingKioskDialog
-        device={pairingDevice}
         onOpenChange={(open) => {
-          if (!open) {
-            setPairingDevice(null);
-          }
+          if (!busy) setPairOpen(open);
         }}
-        onPaired={(updatedDevice) => {
-          setDevices((current) =>
-            current.map((device) =>
-              device.id === updatedDevice.id ? updatedDevice : device,
-            ),
-          );
-          setPairingDevice(null);
-        }}
-      />
-    </PageContainer>
-  );
-
-  async function unpair(deviceId: string) {
-    await updateDevice((token) => unpairKioskDevice(token, deviceId));
-  }
-
-  async function remove(deviceId: string) {
-    await updateDevice((token) => deleteKioskDevice(token, deviceId), {
-      removeFromList: true,
-    });
-  }
-
-  async function updateDevice(
-    action: (accessToken: string) => Promise<KioskDevice>,
-    options: { removeFromList?: boolean } = {},
-  ) {
-    if (session.status !== "authenticated") {
-      return;
-    }
-    setError(null);
-    try {
-      const updated = await action(session.accessToken);
-      setDevices((current) =>
-        options.removeFromList
-          ? current.filter((device) => device.id !== updated.id)
-          : current.map((device) =>
-              device.id === updated.id ? updated : device,
-            ),
-      );
-    } catch (caught) {
-      setError(messageFor(caught));
-    }
-  }
-}
-
-function KioskLifecycleActions({
-  device,
-  platformFleetMode,
-  onPair,
-  onUnpair,
-  onDelete,
-}: {
-  device: KioskDevice;
-  platformFleetMode: boolean;
-  onPair: () => void;
-  onUnpair: () => void;
-  onDelete: () => void;
-}) {
-  if (!platformFleetMode) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        Store kiosk
-      </span>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap justify-end gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        render={<Link href={`/app/kiosks/${device.id}/edit`} />}
       >
-        <PencilIcon aria-hidden="true" />
-        Edit
-      </Button>
-      {device.status !== "REVOKED" ? (
-        <ConfirmDialog
-          title="Unpair kiosk?"
-          description="This unpairs the kiosk, revokes active device sessions, and sends the physical display back to the pairing screen so it can show a new code."
-          confirmLabel="Unpair"
-          destructive
-          onConfirm={onUnpair}
-          trigger={
-            <Button variant="destructive" size="sm">
-              Unpair
-            </Button>
-          }
-        />
-      ) : (
-        <Button variant="outline" size="sm" onClick={onPair}>
-          <PlusIcon aria-hidden="true" />
-          Pair
-        </Button>
-      )}
-      <ConfirmDialog
-        title="Delete kiosk?"
-        description="This removes the kiosk from the fleet list and revokes any remaining device sessions. Audit history is retained."
-        confirmLabel="Delete"
-        onConfirm={onDelete}
-        trigger={
-          <Button variant="outline" size="sm">
-            <Trash2Icon aria-hidden="true" />
-            Delete
-          </Button>
-        }
-      />
-    </div>
-  );
-}
-
-function PairKioskDialog({
-  open,
-  options,
-  activeStore,
-  onOpenChange,
-  onPaired,
-}: {
-  open: boolean;
-  options: KioskAssignmentOptions;
-  activeStore: StoreOption | null;
-  onOpenChange: (open: boolean) => void;
-  onPaired: (device: KioskDevice) => void;
-}) {
-  const session = useSession();
-  const [pairingCode, setPairingCode] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [assignmentScope, setAssignmentScope] =
-    useState<KioskAssignmentScope>("PLATFORM");
-  const [organizationId, setOrganizationId] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const stores = options.organizations;
-  const storeMode = activeStore !== null;
-
-  async function submit() {
-    if (session.status !== "authenticated") {
-      return;
-    }
-    const canonicalCode = pairingCode.replace(/\s/g, "");
-    if (!/^\d{6}$/.test(canonicalCode)) {
-      setError("Pairing code expired or invalid.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const device = activeStore
-        ? await pairStoreKiosk(session.accessToken, activeStore.id, {
-            pairingCode: canonicalCode,
-            displayName,
-          })
-        : await pairKioskDevice(session.accessToken, {
-            pairingCode: canonicalCode,
-            displayName,
-            assignmentScope,
-            ...(assignmentScope !== "PLATFORM" ? { organizationId } : {}),
-          });
-      onPaired(device);
-      setPairingCode("");
-      setDisplayName("");
-      setAssignmentScope("PLATFORM");
-      setOrganizationId("");
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Pair New Kiosk</DialogTitle>
-          <DialogDescription>
-            Enter the six-digit code shown on the physical kiosk.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          {error ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              {error}
-            </div>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pairingDevice
+                ? `Pair ${pairingDevice.displayName} again`
+                : "Pair New Kiosk"}
+            </DialogTitle>
+            <DialogDescription>
+              Enter the six-digit code shown on the physical kiosk. It will
+              connect to {context?.store?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          {pairError ? (
+            <p role="alert" className="text-destructive">
+              {pairError}
+            </p>
           ) : null}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="pairing-code">Pairing Code</Label>
             <Input
               id="pairing-code"
-              value={pairingCode}
               inputMode="numeric"
-              placeholder="482 731"
-              maxLength={7}
-              onChange={(event) => setPairingCode(event.target.value)}
+              autoComplete="off"
+              maxLength={6}
+              value={code}
+              disabled={busy}
+              onChange={(event) => setCode(event.target.value)}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="device-name">Device Name</Label>
-            <Input
-              id="device-name"
-              value={displayName}
-              maxLength={160}
-              onChange={(event) => setDisplayName(event.target.value)}
-            />
-          </div>
-          {storeMode ? (
-            <div className="rounded-lg border bg-muted/25 p-3 text-sm text-muted-foreground">
-              This kiosk will be paired to {activeStore.name}.
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="assignment-scope">Assignment Scope</Label>
-                <SelectMenu
-                  id="assignment-scope"
-                  ariaLabel="Assignment scope"
-                  value={assignmentScope}
-                  options={assignmentScopes.map((scope) => ({
-                    value: scope,
-                    label: scope === "ORGANIZATION" ? "STORE" : scope,
-                  }))}
-                  onChange={(value) => {
-                    setAssignmentScope(value);
-                    setOrganizationId("");
-                  }}
+            {!pairingDevice ? (
+              <>
+                <Label htmlFor="kiosk-name">Kiosk name</Label>
+                <Input
+                  id="kiosk-name"
+                  value={name}
+                  maxLength={160}
+                  disabled={busy}
+                  onChange={(event) => setName(event.target.value)}
                 />
-              </div>
-              {assignmentScope !== "PLATFORM" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="organization">Store</Label>
-                  <SelectMenu
-                    id="organization"
-                    ariaLabel="Store"
-                    value={organizationId}
-                    options={[
-                      { value: "", label: "Select Store" },
-                      ...stores.map((store) => ({
-                        value: store.id,
-                        label: store.name,
-                      })),
-                    ]}
-                    onChange={setOrganizationId}
-                  />
-                </div>
-              ) : null}
-            </>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              submitting ||
-              !displayName.trim() ||
-              (!storeMode && assignmentScope !== "PLATFORM" && !organizationId)
-            }
-            onClick={submit}
-          >
-            Pair
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PairExistingKioskDialog({
-  device,
-  onOpenChange,
-  onPaired,
-}: {
-  device: KioskDevice | null;
-  onOpenChange: (open: boolean) => void;
-  onPaired: (device: KioskDevice) => void;
-}) {
-  const session = useSession();
-  const [pairingCode, setPairingCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const open = device !== null;
-
-  function close() {
-    setPairingCode("");
-    setError(null);
-    onOpenChange(false);
-  }
-
-  async function submit() {
-    if (session.status !== "authenticated" || !device) {
-      return;
-    }
-    const canonicalCode = pairingCode.replace(/\s/g, "");
-    if (!/^\d{6}$/.test(canonicalCode)) {
-      setError("Pairing code expired or invalid.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const updatedDevice = await pairExistingKioskDevice(
-        session.accessToken,
-        device.id,
-        { pairingCode: canonicalCode },
-      );
-      setPairingCode("");
-      onPaired(updatedDevice);
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) {
-          setPairingCode("");
-          setError(null);
-        }
-        onOpenChange(nextOpen);
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Pair Kiosk</DialogTitle>
-          <DialogDescription>
-            Enter the six-digit code shown on the physical kiosk to connect it
-            to {device?.displayName ?? "this kiosk"}.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          {error ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              {error}
-            </div>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="existing-pairing-code">Pairing Code</Label>
-            <Input
-              id="existing-pairing-code"
-              value={pairingCode}
-              inputMode="numeric"
-              placeholder="482 731"
-              maxLength={7}
-              onChange={(event) => setPairingCode(event.target.value)}
-            />
+              </>
+            ) : null}
           </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={close}>
-            Cancel
-          </Button>
-          <Button disabled={submitting || !device} onClick={submit}>
-            Pair
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => setPairOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                busy ||
+                !/^\d{6}$/.test(code) ||
+                (!pairingDevice && !name.trim())
+              }
+              onClick={() => void pair()}
+            >
+              {busy ? "Pairing…" : "Pair Kiosk"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageContainer>
   );
 }
-
-function assignmentLabel(device: KioskDevice): string {
-  if (device.assignment.scope === "PLATFORM") {
-    return "Platform";
-  }
-  if (device.assignment.scope === "ORGANIZATION") {
-    return device.assignment.organizationName ?? "Store";
-  }
-  return [
-    device.assignment.organizationName ?? "Store",
-    device.assignment.storeName ?? "Store",
-  ].join(" / ");
-}
-
-function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "-";
-}
-
-function messageFor(caught: unknown): string {
-  if (caught instanceof SafeApiError) {
-    return caught.message;
-  }
-  return "The kiosk request could not be completed.";
+function messageFor(error: unknown) {
+  return error instanceof SafeApiError
+    ? error.message
+    : "Could not complete the kiosk action. Try again.";
 }

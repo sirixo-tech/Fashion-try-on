@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { StoreKiosksController } from "./store-kiosks.controller.js";
 import { StorePurgeController } from "./store-purge.controller.js";
 import { StorePurgeService } from "./store-purge.service.js";
 
@@ -54,6 +55,7 @@ import {
     TryOnModule,
   ],
   controllers: [
+    StoreKiosksController,
     StorePurgeController,
     AdminStoresController,
     StoreImpersonationController,

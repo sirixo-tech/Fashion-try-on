@@ -707,6 +707,8 @@ export class StoreProductDto {
 }
 
 export class StoreProductListResponseDto {
+  @ApiProperty()
+  defaultCurrency!: string;
   @ApiProperty({ type: [StoreProductDto] })
   data!: StoreProductDto[];
 

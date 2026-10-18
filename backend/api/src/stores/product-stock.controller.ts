@@ -12,8 +12,6 @@ import { AuthService } from "../auth/auth.service.js";
 import { ApiErrorResponseDto } from "../auth/dto/auth-response.dto.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { KioskService } from "../kiosks/kiosk.service.js";
-import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
-import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import {
@@ -34,7 +32,6 @@ import { StoreImpersonationService } from "./store-impersonation.service.js";
 export class ProductStockController {
   constructor(
     private readonly auth: AuthService,
-    private readonly platform: PlatformAuthorizationService,
     private readonly rbac: StoreRbacService,
     private readonly impersonation: StoreImpersonationService,
     private readonly stock: ProductStockService,
@@ -81,22 +78,13 @@ export class ProductStockController {
       request.headers.authorization,
     );
     await this.impersonation.resolveStoreContext(user.id, storeId);
-    if (
-      !(await this.platform.hasPermission(
-        user.id,
-        writing
-          ? PLATFORM_PERMISSIONS.storesUpdate
-          : PLATFORM_PERMISSIONS.storesView,
-      ))
-    ) {
-      await this.rbac.requireStorePermission(
-        user.id,
-        storeId,
-        writing
-          ? STORE_PERMISSION_CODES.productsManage
-          : STORE_PERMISSION_CODES.storesView,
-      );
-    }
+    await this.rbac.requireStoreResourcePermission(
+      user.id,
+      storeId,
+      writing
+        ? STORE_PERMISSION_CODES.productsManage
+        : STORE_PERMISSION_CODES.storesView,
+    );
     return user;
   }
 }

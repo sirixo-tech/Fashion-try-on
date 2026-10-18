@@ -13,6 +13,7 @@ import {
   KioskPairingSessionStatus,
   OrganizationStatus,
   StoreStatus,
+  type Prisma,
   type KioskDevice,
   type KioskDeviceConfiguration,
   type Organization,
@@ -243,6 +244,7 @@ export class KioskService {
         );
       }
 
+      await this.assertAvailableInstallation(tx, session.installationId);
       const created = await tx.kioskDevice.create({
         data: {
           id: createSelfxId(),
@@ -302,6 +304,7 @@ export class KioskService {
     actorUserId: string,
     deviceId: string,
     input: PairExistingKioskDto,
+    expectedStoreId?: string,
   ): Promise<KioskDeviceResponseDto> {
     const now = new Date();
     const pairingCode = canonicalPairingCode(input.pairingCode);
@@ -312,6 +315,7 @@ export class KioskService {
         where: { id: deviceId },
       });
       assertManageableDeviceExists(existing);
+      assertExpectedStore(existing, expectedStoreId);
 
       if (existing.status !== KioskDeviceStatus.REVOKED) {
         throw new ApiErrorException(
@@ -337,6 +341,12 @@ export class KioskService {
           "Pairing code expired or invalid.",
         );
       }
+
+      await this.assertAvailableInstallation(
+        tx,
+        session.installationId,
+        deviceId,
+      );
 
       const claimed = await tx.kioskPairingSession.updateMany({
         where: {
@@ -644,6 +654,7 @@ export class KioskService {
     actorUserId: string,
     deviceId: string,
     input: UpdateKioskDeviceDto,
+    expectedStoreId?: string,
   ): Promise<KioskDeviceResponseDto> {
     const displayName = input.displayName.trim();
     if (!displayName) {
@@ -659,6 +670,7 @@ export class KioskService {
         where: { id: deviceId },
       });
       assertManageableDeviceExists(existing);
+      assertExpectedStore(existing, expectedStoreId);
 
       const updated = await tx.kioskDevice.update({
         where: { id: deviceId },
@@ -736,12 +748,14 @@ export class KioskService {
   async activateDevice(
     actorUserId: string,
     deviceId: string,
+    expectedStoreId?: string,
   ): Promise<KioskDeviceResponseDto> {
     const device = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.kioskDevice.findUnique({
         where: { id: deviceId },
       });
       assertManageableDeviceExists(existing);
+      assertExpectedStore(existing, expectedStoreId);
 
       if (existing.status === KioskDeviceStatus.ACTIVE) {
         return tx.kioskDevice.findUniqueOrThrow({
@@ -782,6 +796,7 @@ export class KioskService {
   async deactivateDevice(
     actorUserId: string,
     deviceId: string,
+    expectedStoreId?: string,
   ): Promise<KioskDeviceResponseDto> {
     const now = new Date();
     const device = await this.prisma.$transaction(async (tx) => {
@@ -789,6 +804,7 @@ export class KioskService {
         where: { id: deviceId },
       });
       assertManageableDeviceExists(existing);
+      assertExpectedStore(existing, expectedStoreId);
 
       if (existing.status === KioskDeviceStatus.INACTIVE) {
         return tx.kioskDevice.findUniqueOrThrow({
@@ -829,12 +845,14 @@ export class KioskService {
   async revokeDevice(
     actorUserId: string,
     deviceId: string,
+    expectedStoreId?: string,
   ): Promise<KioskDeviceResponseDto> {
     const device = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.kioskDevice.findUnique({
         where: { id: deviceId },
       });
       assertManageableDeviceExists(existing);
+      assertExpectedStore(existing, expectedStoreId);
 
       await tx.kioskDeviceSession.updateMany({
         where: { kioskDeviceId: deviceId, revokedAt: null },
@@ -864,6 +882,7 @@ export class KioskService {
   async deleteDevice(
     actorUserId: string,
     deviceId: string,
+    expectedStoreId?: string,
   ): Promise<KioskDeviceResponseDto> {
     const now = new Date();
     const device = await this.prisma.$transaction(async (tx) => {
@@ -871,6 +890,7 @@ export class KioskService {
         where: { id: deviceId },
       });
       assertManageableDeviceExists(existing);
+      assertExpectedStore(existing, expectedStoreId);
 
       await tx.kioskDeviceSession.updateMany({
         where: { kioskDeviceId: deviceId, revokedAt: null },
@@ -899,6 +919,29 @@ export class KioskService {
       return updated;
     });
     return mapDevice(device);
+  }
+
+  private async assertAvailableInstallation(
+    tx: Prisma.TransactionClient,
+    installationId: string | null,
+    exceptDeviceId?: string,
+  ) {
+    if (!installationId) return;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${installationId})::bigint)`;
+    const existing = await tx.kioskDevice.findFirst({
+      where: {
+        installationId,
+        status: { not: KioskDeviceStatus.DELETED },
+        ...(exceptDeviceId ? { id: { not: exceptDeviceId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (existing)
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "KIOSK_ALREADY_LINKED",
+        "This installation is already linked. Unpair it and re-pair the existing Store kiosk; it cannot be claimed by another Store.",
+      );
   }
 
   private async issueDeviceTokens(
@@ -1202,16 +1245,32 @@ function throwDeviceDeleted(): never {
   );
 }
 
+function assertExpectedStore(
+  device: Pick<KioskDevice, "organizationId" | "assignmentScope">,
+  storeId?: string,
+): void {
+  if (
+    storeId &&
+    (device.organizationId !== storeId ||
+      device.assignmentScope === KioskAssignmentScope.PLATFORM)
+  )
+    throw new ApiErrorException(
+      HttpStatus.NOT_FOUND,
+      "STORE_KIOSK_NOT_FOUND",
+      "Kiosk was not found in this Store.",
+    );
+}
+
 function assertDeviceActive(status: KioskDeviceStatus): void {
   switch (status) {
     case KioskDeviceStatus.ACTIVE:
       return;
     case KioskDeviceStatus.INACTIVE:
-      throwDeviceInactive();
+      return throwDeviceInactive();
     case KioskDeviceStatus.DELETED:
-      throwDeviceDeleted();
+      return throwDeviceDeleted();
     case KioskDeviceStatus.REVOKED:
-      throwDeviceRevoked();
+      return throwDeviceRevoked();
   }
 }
 

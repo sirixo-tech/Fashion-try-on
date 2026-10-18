@@ -77,6 +77,15 @@ export class IntegrationsController {
       STORE_PERMISSION_CODES.integrationsManage,
       "SHOPIFY_INTEGRATION",
     );
+    await this.rbac.requireStoreResourcePermission(
+      user.id,
+      dto.storeId,
+      STORE_PERMISSION_CODES.productsManage,
+    );
+    await this.entitlements?.assertStoreHasFeature(
+      dto.storeId,
+      "SHOPIFY_INTEGRATION",
+    );
     return this.shopifyOauth.start(user.id, dto.storeId, dto.shop);
   }
 
@@ -104,6 +113,15 @@ export class IntegrationsController {
       storeId,
       [PLATFORM_PERMISSIONS.integrationsManage],
       STORE_PERMISSION_CODES.integrationsManage,
+      "SHOPIFY_INTEGRATION",
+    );
+    await this.rbac.requireStoreResourcePermission(
+      user.id,
+      storeId,
+      STORE_PERMISSION_CODES.productsManage,
+    );
+    await this.entitlements?.assertStoreHasFeature(
+      storeId,
       "SHOPIFY_INTEGRATION",
     );
     return this.shopifyOauth.sync(user.id, integrationId);

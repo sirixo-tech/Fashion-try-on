@@ -122,11 +122,7 @@ export class CatalogService {
       maxPageSize,
     );
     const offset = (page - 1) * pageSize;
-    const productVertical = query.productVertical ?? "GARMENT";
-    const context = await this.resolveCatalogContext(
-      storeTenantId,
-      productVertical,
-    );
+    const context = this.resolveCatalogContext(storeTenantId);
     const where = productWhere(context, query);
     const [countRow, rows] = await Promise.all([
       this.prisma.$queryRaw<Array<{ total: bigint | number }>>`
@@ -183,11 +179,7 @@ export class CatalogService {
     storeTenantId: string | null,
     query: KioskCatalogCategoryQueryDto,
   ): Promise<KioskCatalogCategoryListResponseDto> {
-    const productVertical = query.productVertical ?? "GARMENT";
-    const context = await this.resolveCatalogContext(
-      storeTenantId,
-      productVertical,
-    );
+    const context = this.resolveCatalogContext(storeTenantId);
     const where = categoryWhere(context, query);
     const rows = await this.prisma.$queryRaw<CategoryRow[]>`
       SELECT
@@ -210,10 +202,7 @@ export class CatalogService {
     syncVersion: number,
     productVertical: ProductVertical = "GARMENT",
   ): Promise<KioskCatalogRevisionDto> {
-    const context = await this.resolveCatalogContext(
-      storeTenantId,
-      productVertical,
-    );
+    const context = this.resolveCatalogContext(storeTenantId);
     const stats = await this.catalogRevisionStats(context, productVertical);
     return mapRevision(context, stats, syncVersion);
   }
@@ -223,10 +212,7 @@ export class CatalogService {
     syncVersion: number,
     productVertical: ProductVertical = "GARMENT",
   ): Promise<KioskCatalogSnapshotDto> {
-    const context = await this.resolveCatalogContext(
-      storeTenantId,
-      productVertical,
-    );
+    const context = this.resolveCatalogContext(storeTenantId);
     const where = productWhere(context, { productVertical });
     const [stats, categories, products] = await Promise.all([
       this.catalogRevisionStats(context, productVertical),
@@ -283,7 +269,7 @@ export class CatalogService {
     storeTenantId: string | null,
     productId: string,
   ): Promise<KioskCatalogProductForTryOn> {
-    const context = await this.resolveCatalogContext(storeTenantId, "GARMENT");
+    const context = this.resolveCatalogContext(storeTenantId);
     const where = Prisma.join(
       [
         ...baseProductConditions(context, "GARMENT"),
@@ -339,10 +325,7 @@ export class CatalogService {
     storeTenantId: string | null,
     productId: string,
   ): Promise<KioskCatalogJewelleryProductForTryOn> {
-    const context = await this.resolveCatalogContext(
-      storeTenantId,
-      "JEWELLERY",
-    );
+    const context = this.resolveCatalogContext(storeTenantId);
     const where = Prisma.join(
       [
         ...baseProductConditions(context, "JEWELLERY"),
@@ -390,10 +373,7 @@ export class CatalogService {
     storeTenantId: string | null,
     productId: string,
   ): Promise<SelfxJewelleryCaptureRequirements> {
-    const context = await this.resolveCatalogContext(
-      storeTenantId,
-      "JEWELLERY",
-    );
+    const context = this.resolveCatalogContext(storeTenantId);
     const where = Prisma.join(
       [
         ...baseProductConditions(context, "JEWELLERY"),
@@ -427,30 +407,12 @@ export class CatalogService {
     );
   }
 
-  private async resolveCatalogContext(
-    storeTenantId: string | null,
-    vertical: ProductVertical = "GARMENT",
-  ): Promise<{ scope: CatalogScope; storeTenantId: string | null }> {
-    if (!storeTenantId) {
-      return { scope: "PLATFORM_DEFAULT", storeTenantId: null };
-    }
-    const rows = await this.prisma.$queryRaw<Array<{ has_products: boolean }>>`
-      SELECT EXISTS (
-        SELECT 1
-        FROM products p
-        INNER JOIN product_categories c ON c.id = p.category_id
-        WHERE p.scope::text = 'STORE'
-          AND p.organization_id = ${storeTenantId}::uuid
-          AND p.active = true
-          AND p.vto_enabled = true
-          AND p.product_vertical::text = ${vertical}
-          AND c.active = true
-        LIMIT 1
-      ) AS has_products
-    `;
-    return rows[0]?.has_products
-      ? { scope: "STORE", storeTenantId }
-      : { scope: "PLATFORM_DEFAULT", storeTenantId: null };
+  private resolveCatalogContext(storeTenantId: string | null): {
+    scope: CatalogScope;
+    storeTenantId: string | null;
+  } {
+    // Empty or unassigned kiosks must never discover the historic platform catalog.
+    return { scope: "STORE", storeTenantId };
   }
 
   private mapProduct(row: ProductRow): KioskCatalogProductDto {
@@ -637,9 +599,11 @@ function baseProductConditions(
   if (context.scope === "STORE" && context.storeTenantId) {
     conditions.push(
       Prisma.sql`p.organization_id = ${context.storeTenantId}::uuid`,
+      Prisma.sql`c.scope::text = 'STORE'`,
+      Prisma.sql`c.organization_id = ${context.storeTenantId}::uuid`,
     );
   } else {
-    conditions.push(Prisma.sql`p.organization_id IS NULL`);
+    conditions.push(Prisma.sql`FALSE`);
   }
   return conditions;
 }
@@ -665,7 +629,7 @@ function mapRevision(
   return {
     revision: [
       context.scope,
-      context.storeTenantId ?? "platform",
+      context.storeTenantId ?? "unassigned",
       productCount,
       categoryCount,
       updatedAt ?? "empty",

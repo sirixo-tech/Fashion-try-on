@@ -246,5 +246,34 @@ describe.skipIf(!url)("Store RBAC — fixed Store Admin and Staff roles", () => 
     expect(
       (await rbac.effectivePermissions(superId, tenant)).platformBypass,
     ).toBe(true);
+    const platformAccess = await rbac.effectivePermissions(superId, tenant);
+    expect(
+      platformAccess.permissions.some(
+        (code) => code.startsWith("kiosks.") || code === "products.manage",
+      ),
+    ).toBe(false);
+    expect(platformAccess.resourcePermissions).toEqual([]);
+    await expect(
+      rbac.requireStoreResourcePermission(superId, tenant, "stores.view"),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    await expect(
+      rbac.requireStorePermission(superId, tenant, "kiosks.pair"),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    await expect(
+      rbac.requireStorePermission(superId, tenant, "products.manage"),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    await member(superId, tenant, "staff");
+    await expect(
+      rbac.requireStoreResourcePermission(superId, tenant, "products.manage"),
+    ).resolves.toBeUndefined();
+    await expect(
+      rbac.requireStoreResourcePermission(superId, tenant, "kiosks.configure"),
+    ).resolves.toBeUndefined();
+    await expect(
+      rbac.requireStoreResourcePermission(superId, tenant, "kiosks.pair"),
+    ).rejects.toMatchObject(error("STORE_PERMISSION_DENIED"));
+    const ownAccess = await rbac.effectivePermissions(superId, tenant);
+    expect(ownAccess.resourcePermissions).toContain("products.manage");
+    expect(ownAccess.resourcePermissions).not.toContain("kiosks.pair");
   });
 });

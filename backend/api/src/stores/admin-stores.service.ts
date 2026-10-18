@@ -160,6 +160,7 @@ export class AdminStoresService {
 
   async listStores(
     query: AdminStoreListQueryDto,
+    includeKiosks = true,
   ): Promise<AdminStoreListResponseDto> {
     const page = boundedPositiveInt(query.page, defaultPage);
     const pageSize = Math.min(
@@ -176,9 +177,9 @@ export class AdminStoresService {
         take: pageSize,
       }),
     ]);
-    const stats = await this.kioskStatsForStores(
-      stores.map((store) => store.id),
-    );
+    const stats = includeKiosks
+      ? await this.kioskStatsForStores(stores.map((store) => store.id))
+      : new Map<string, StoreStats>();
     const subscriptions = await this.storeCreditSummariesForStores(
       stores.map((store) => store.id),
     );
@@ -229,12 +230,19 @@ export class AdminStoresService {
     }
   }
 
-  async getStore(storeId: string): Promise<AdminStoreDetailResponseDto> {
+  async getStore(
+    storeId: string,
+    includeKiosks = true,
+  ): Promise<AdminStoreDetailResponseDto> {
     const store = await this.findStoreOrThrow(storeId);
-    const stats = await this.kioskStatsForStores([store.id]);
+    const stats = includeKiosks
+      ? await this.kioskStatsForStores([store.id])
+      : new Map<string, StoreStats>();
     return {
       ...mapStore(store, stats.get(store.id)),
-      kiosks: await this.listStoreKiosks(store.id),
+      kiosks: includeKiosks
+        ? await this.listStoreKiosks(store.id)
+        : { data: [] },
       subscription: await this.storeCreditSummary(store.id),
     };
   }
@@ -577,6 +585,8 @@ export class AdminStoresService {
     const total = Number(countRows[0]?.total ?? 0);
     return {
       data: rows.map((row) => this.mapStoreProduct(row)),
+      defaultCurrency:
+        await this.garmentPreviewSettings.platformDefaultCurrency(),
       pagination: {
         page,
         pageSize,

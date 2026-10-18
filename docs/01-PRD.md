@@ -1,5 +1,30 @@
 ## Document Evolution
 
+### KIOSK-STORE-1 — Store-only products and kiosks
+
+Product and kiosk operations belong to active Store memberships and Store roles.
+Platform Superadmin, Admin and Staff authority alone grants no product/stock or
+kiosk access, including through Store detail pages or impersonation. Remove
+platform product/kiosk navigation, operational metrics, permission choices and
+runtime administration routes. Store Admins pair their own physical kiosks;
+Staff perform only their granted daily operations. Empty Stores still show their
+authorized Products/Kiosks menus. Keep platform account, plan, user and billing
+administration separate. Retain existing data without automatic reassignment.
+This supersedes earlier platform-fleet, catalog-fallback and support-bypass rules
+for these operational resources.
+
+### CATALOG-STORE-1 — Store-owned operational catalog
+
+Products belong to Stores, not user accounts or the platform testing catalog.
+Products -> Garments / Jewellery appears in the Store workspace based on Store
+view permission, including an empty catalog; product/stock edits require
+products.manage. Remove the standalone platform catalog, its platform permissions
+and its runtime administration routes. Keep authorized Store-scoped support.
+Kiosks use only their assigned Store catalog. Empty, inactive or disabled catalog
+content never falls back to platform products; unassigned kiosks receive no
+products. Existing product data is retained and no automatic transfer is implied.
+
+
 ### USERS-4 — Create the first Store Admin login
 
 When an active Store has no current linked Admin, Superadmin may create a new

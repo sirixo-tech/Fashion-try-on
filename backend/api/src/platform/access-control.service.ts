@@ -20,6 +20,7 @@ import {
 } from "../rbac/store-permissions.js";
 import {
   PLATFORM_PERMISSIONS,
+  RETIRED_PLATFORM_PERMISSION_CODES,
   PLATFORM_PERMISSION_REGISTRY,
   permissionsForPlatformRole,
 } from "./platform-permissions.js";
@@ -94,7 +95,14 @@ export class AccessControlService {
         { code: "asc" },
       ],
     });
-    return { data: permissions.map(mapPermission) };
+    return {
+      data: permissions
+        .filter(
+          (permission) =>
+            !RETIRED_PLATFORM_PERMISSION_CODES.includes(permission.code),
+        )
+        .map(mapPermission),
+    };
   }
 
   async listPlatformRoles(): Promise<{ data: PlatformRoleDto[] }> {
@@ -472,6 +480,13 @@ export class AccessControlService {
     codes: string[],
   ): Promise<string[]> {
     const uniqueCodes = [...new Set(codes)];
+    if (
+      uniqueCodes.some(
+        (code) =>
+          !(Object.values(PLATFORM_PERMISSIONS) as string[]).includes(code),
+      )
+    )
+      throwInvalidPermission();
     if (uniqueCodes.length === 0) {
       return [];
     }
@@ -731,6 +746,10 @@ function mapPermission(permission: Permission): AccessPermissionDto {
 }
 
 function mapPlatformRole(role: PlatformRoleWithRelations): PlatformRoleDto {
+  const permissions = role.permissions.filter(
+    (entry) =>
+      !RETIRED_PLATFORM_PERMISSION_CODES.includes(entry.permission.code),
+  );
   return {
     id: role.id,
     name: role.name,
@@ -738,11 +757,9 @@ function mapPlatformRole(role: PlatformRoleWithRelations): PlatformRoleDto {
     systemCode: role.systemCode,
     isSystem: role.isSystem,
     isActive: role.isActive,
-    permissionsCount: role._count.permissions,
+    permissionsCount: permissions.length,
     assignedUsersCount: role._count.assignments,
-    permissions: role.permissions.map((entry) =>
-      mapPermission(entry.permission),
-    ),
+    permissions: permissions.map((entry) => mapPermission(entry.permission)),
     createdAt: role.createdAt.toISOString(),
     updatedAt: role.updatedAt.toISOString(),
   };

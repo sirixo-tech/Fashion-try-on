@@ -26,14 +26,6 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import {
-  createKioskConfigurationAssetUploadIntent,
-  getKioskConfiguration,
-  listKioskAssignmentOptions,
-  listKioskDevices,
-  updateKioskAssignment,
-  updateKioskConfiguration,
-  updateKioskDevice,
-  type KioskAssignmentOptions,
   type KioskConfiguration,
   type KioskConfigurationAssetType,
   type KioskConfigurationGarmentIntent,
@@ -42,6 +34,17 @@ import {
   type KioskIdleMode,
 } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
+import {
+  getCurrentMerchantStoreAccess,
+  hasStoreResourcePermission,
+} from "@/lib/current-store";
+import {
+  getStoreKiosk,
+  getStoreKioskConfiguration,
+  updateStoreKiosk,
+  updateStoreKioskConfiguration,
+  createStoreKioskConfigurationAssetUploadIntent,
+} from "@/lib/stores";
 
 const soundProfiles: KioskConfigurationSoundProfile[] = [
   "SELFX_SIGNATURE",
@@ -98,14 +101,11 @@ export default function KioskEditPage() {
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
   const [device, setDevice] = useState<KioskDevice | null>(null);
-  const [options, setOptions] = useState<KioskAssignmentOptions>({
-    organizations: [],
-    stores: [],
-  });
+  const [storeId, setStoreId] = useState("");
+  const [canRename, setCanRename] = useState(false);
   const [form, setForm] = useState<KioskConfigurationForm>(defaultConfigForm());
   const [version, setVersion] = useState(1);
   const [displayName, setDisplayName] = useState("");
-  const [assignmentStoreId, setAssignmentStoreId] = useState("");
   const [assetUploadLimits, setAssetUploadLimits] = useState({
     maxImageBytes: 12 * 1024 * 1024,
     maxVideoBytes: 80 * 1024 * 1024,
@@ -129,21 +129,29 @@ export default function KioskEditPage() {
       return;
     }
     setLoading(true);
+    setDevice(null);
+    setStoreId("");
     setError(null);
     try {
-      const [devices, nextOptions, configuration] = await Promise.all([
-        listKioskDevices(accessToken),
-        listKioskAssignmentOptions(accessToken),
-        getKioskConfiguration(accessToken, deviceId),
+      const access = await getCurrentMerchantStoreAccess(accessToken);
+      if (
+        !access.store ||
+        !hasStoreResourcePermission(access.permissions, "kiosks.configure")
+      )
+        throw new SafeApiError(
+          "STORE_PERMISSION_DENIED",
+          "Store membership and kiosk configuration permission are required.",
+          403,
+        );
+      const [nextDevice, configuration] = await Promise.all([
+        getStoreKiosk(accessToken, access.store.id, deviceId),
+        getStoreKioskConfiguration(accessToken, access.store.id, deviceId),
       ]);
-      const nextDevice = devices.find((item) => item.id === deviceId) ?? null;
-      if (!nextDevice) {
-        setDevice(null);
-        setError("Kiosk device was not found.");
-        return;
-      }
+      setStoreId(access.store.id);
+      setCanRename(
+        hasStoreResourcePermission(access.permissions, "kiosks.update"),
+      );
       setDevice(nextDevice);
-      setOptions(nextOptions);
       setVersion(configuration.version);
       setForm(formFromConfiguration(configuration));
       setAssetUploadLimits({
@@ -151,7 +159,6 @@ export default function KioskEditPage() {
         maxVideoBytes: configuration.assetUpload.maxVideoBytes,
       });
       setDisplayName(nextDevice.displayName);
-      setAssignmentStoreId(currentAssignmentStoreId(nextDevice));
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -161,6 +168,12 @@ export default function KioskEditPage() {
 
   useEffect(() => {
     void load();
+    const refresh = () => {
+      void load();
+    };
+    window.addEventListener("selfx:impersonation-changed", refresh);
+    return () =>
+      window.removeEventListener("selfx:impersonation-changed", refresh);
   }, [load]);
 
   async function save() {
@@ -181,25 +194,14 @@ export default function KioskEditPage() {
     setError(null);
     try {
       let nextDevice = device;
-      if (assignmentStoreId !== currentAssignmentStoreId(device)) {
-        nextDevice = await updateKioskAssignment(
-          accessToken,
-          device.id,
-          assignmentStoreId
-            ? {
-                assignmentScope: "ORGANIZATION",
-                organizationId: assignmentStoreId,
-              }
-            : { assignmentScope: "PLATFORM" },
-        );
-      }
       if (nextDisplayName !== nextDevice.displayName) {
-        nextDevice = await updateKioskDevice(accessToken, device.id, {
+        nextDevice = await updateStoreKiosk(accessToken, storeId, device.id, {
           displayName: nextDisplayName,
         });
       }
-      const configuration = await updateKioskConfiguration(
+      const configuration = await updateStoreKioskConfiguration(
         accessToken,
+        storeId,
         device.id,
         {
           display: {
@@ -235,7 +237,6 @@ export default function KioskEditPage() {
         maxVideoBytes: configuration.assetUpload.maxVideoBytes,
       });
       setDisplayName(nextDevice.displayName);
-      setAssignmentStoreId(currentAssignmentStoreId(nextDevice));
       setSuccessMessage("Kiosk configuration saved successfully.");
     } catch (caught) {
       setError(messageFor(caught));
@@ -276,8 +277,9 @@ export default function KioskEditPage() {
     try {
       const uploadedAssets: PresentationAssetFormItem[] = [];
       for (const file of uploadableFiles) {
-        const intent = await createKioskConfigurationAssetUploadIntent(
+        const intent = await createStoreKioskConfigurationAssetUploadIntent(
           accessToken,
+          storeId,
           device.id,
           {
             contentType: file.type,
@@ -317,14 +319,13 @@ export default function KioskEditPage() {
     }
   }
 
-  const storeOptions = assignmentStoreOptions(options, device);
   const currentStoreName =
     device?.assignment.organizationName ?? device?.assignment.storeName ?? null;
 
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Platform fleet"
+        eyebrow="Store kiosk"
         title={device ? `Edit ${device.displayName}` : "Edit Kiosk"}
         description={`Configure kiosk runtime settings. Current version ${version}.`}
         actions={
@@ -374,34 +375,17 @@ export default function KioskEditPage() {
                       <Label htmlFor="configure-kiosk-name">Kiosk Name</Label>
                       <Input
                         id="configure-kiosk-name"
+                        disabled={!canRename || saving}
                         value={displayName}
                         maxLength={160}
                         onChange={(event) => setDisplayName(event.target.value)}
                       />
                     </div>
                     <div className="space-y-2 text-sm">
-                      <Label htmlFor="store-assignment">Store Assignment</Label>
-                      <SelectMenu
-                        id="store-assignment"
-                        ariaLabel="Store assignment"
-                        value={assignmentStoreId}
-                        options={[
-                          { value: "", label: "Platform fleet" },
-                          ...storeOptions.map((store) => ({
-                            value: store.id,
-                            label:
-                              store.status === "ACTIVE"
-                                ? store.name
-                                : `${store.name} (${store.status.toLowerCase()})`,
-                          })),
-                        ]}
-                        onChange={setAssignmentStoreId}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {currentStoreName
-                          ? `Currently assigned to ${currentStoreName}.`
-                          : "Assign this screen to a Store when it is ready for the floor."}
-                      </p>
+                      <Label>Store</Label>
+                      <p className="text-sm">
+                        {currentStoreName ?? "Current Store"}
+                      </p>{" "}
                     </div>
                   </div>
                 </fieldset>
@@ -820,34 +804,6 @@ function configurationAssets(form: KioskConfigurationForm) {
     ...(asset.contentType ? { contentType: asset.contentType } : {}),
     ...(asset.sizeBytes ? { sizeBytes: asset.sizeBytes } : {}),
   }));
-}
-
-function assignmentStoreOptions(
-  options: KioskAssignmentOptions,
-  device: KioskDevice | null,
-): KioskAssignmentOptions["organizations"] {
-  const currentStoreId = currentAssignmentStoreId(device);
-  const stores = options.organizations.filter(
-    (store) => store.status === "ACTIVE" || store.id === currentStoreId,
-  );
-  if (currentStoreId && !stores.some((store) => store.id === currentStoreId)) {
-    stores.unshift({
-      id: currentStoreId,
-      name:
-        device?.assignment.organizationName ??
-        device?.assignment.storeName ??
-        "Assigned Store",
-      status: "ACTIVE",
-    });
-  }
-  return stores;
-}
-
-function currentAssignmentStoreId(device: KioskDevice | null): string {
-  if (!device || device.assignment.scope === "PLATFORM") {
-    return "";
-  }
-  return device.assignment.organizationId ?? device.assignment.storeId ?? "";
 }
 
 function defaultConfigForm(): KioskConfigurationForm {

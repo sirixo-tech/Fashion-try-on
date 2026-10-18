@@ -231,6 +231,8 @@ export class StoreUserListResponseDto {
 }
 
 export class EffectiveStorePermissionsResponseDto {
+  @ApiPropertyOptional({ type: [String] })
+  resourcePermissions?: string[];
   @ApiProperty()
   storeId!: string;
 

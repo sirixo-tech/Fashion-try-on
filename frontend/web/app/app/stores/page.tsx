@@ -16,7 +16,6 @@ import {
   EyeIcon,
   MailIcon,
   MapPinIcon,
-  MonitorIcon,
   PlusIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -267,7 +266,7 @@ export default function StoresPage() {
       <PageHeader
         eyebrow="Platform"
         title="Stores"
-        description="Create and manage merchant Stores, then pair and configure their SelfX kiosks."
+        description="Create and manage merchant Store accounts and subscriptions."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => void load()}>
@@ -290,8 +289,7 @@ export default function StoresPage() {
               Store directory
             </h2>
             <p className="text-sm text-muted-foreground">
-              {total} Stores found. Store is the merchant tenant for SelfX
-              kiosks.
+              {total} merchant Store accounts found.
             </p>
           </div>
 
@@ -352,8 +350,7 @@ export default function StoresPage() {
           ) : stores.length === 0 ? (
             <div className="flex items-center gap-3 rounded-lg border border-dashed bg-background p-8 text-muted-foreground">
               <StoreIcon size={20} aria-hidden="true" />
-              No Stores yet. Create your first Store to start pairing and
-              managing SelfX kiosks.
+              No Stores yet. Create your first merchant Store account.
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -515,12 +512,6 @@ function StoreDirectoryCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 border-y py-3">
-          <StoreMetric label="Kiosks" value={store.totalKiosks} />
-          <StoreMetric label="Active" value={store.activeKiosks} />
-          <StoreMetric label="Offline" value={store.offlineKiosks} />
-        </div>
-
         <div className="space-y-2.5">
           <StoreInfoLine
             icon={<MailIcon size={15} aria-hidden="true" />}
@@ -533,11 +524,6 @@ function StoreDirectoryCard({
             value={location}
           />
           <StoreInfoLine
-            icon={<RefreshCwIcon size={15} aria-hidden="true" />}
-            label="Last activity"
-            value={formatDate(store.lastActivityAt)}
-          />
-          <StoreInfoLine
             icon={<CalendarDaysIcon size={15} aria-hidden="true" />}
             label="Created"
             value={formatDate(store.createdAt)}
@@ -546,13 +532,7 @@ function StoreDirectoryCard({
       </CardContent>
 
       <CardFooter className="justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-          <MonitorIcon size={15} aria-hidden="true" />
-          <span className="truncate">
-            {store.totalKiosks} assigned kiosk
-            {store.totalKiosks === 1 ? "" : "s"}
-          </span>
-        </div>
+        <span className="text-xs text-muted-foreground">Store account</span>
         <div className="flex shrink-0 items-center gap-2">
           <Button
             type="button"
@@ -717,19 +697,6 @@ function PermanentStoreDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function StoreMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <div className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-bold leading-none text-foreground">
-        {value}
-      </div>
-    </div>
   );
 }
 

@@ -167,6 +167,7 @@ export type StoreRbacListResponse<T> = {
 };
 
 export type EffectiveStorePermissions = {
+  resourcePermissions?: string[];
   storeId: string;
   permissions: string[];
   platformBypass: boolean;
@@ -216,6 +217,7 @@ export type StoreProduct = {
 };
 
 export type StoreProductListResponse = {
+  defaultCurrency?: string;
   data: StoreProduct[];
   pagination: {
     page: number;
@@ -661,6 +663,54 @@ export function pairStoreKiosk(
       body: JSON.stringify(input),
     },
   ).then((response) => response.device);
+}
+
+export function getStoreKiosk(
+  token: string,
+  storeId: string,
+  deviceId: string,
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(
+    `/api/v1/admin/stores/${storeId}/kiosks/${deviceId}`,
+    { accessToken: token },
+  );
+}
+export function updateStoreKiosk(
+  token: string,
+  storeId: string,
+  deviceId: string,
+  input: { displayName: string },
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(
+    `/api/v1/admin/stores/${storeId}/kiosks/${deviceId}`,
+    { accessToken: token, method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+export function pairExistingStoreKiosk(
+  token: string,
+  storeId: string,
+  deviceId: string,
+  pairingCode: string,
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(
+    `/api/v1/admin/stores/${storeId}/kiosks/${deviceId}/pair`,
+    {
+      accessToken: token,
+      method: "POST",
+      body: JSON.stringify({ pairingCode }),
+    },
+  );
+}
+export function changeStoreKioskState(
+  token: string,
+  storeId: string,
+  deviceId: string,
+  action: "revoke" | "activate" | "deactivate" | "delete",
+): Promise<KioskDevice> {
+  return selfxApi<KioskDevice>(
+    `/api/v1/admin/stores/${storeId}/kiosks/${deviceId}${action === "delete" ? "" : `/${action}`}`,
+    { accessToken: token, method: action === "delete" ? "DELETE" : "POST" },
+  );
 }
 
 export async function listStoreKiosks(

@@ -18,6 +18,27 @@ import { AdminStoreStatus } from "./dto/admin-store.dto.js";
 import { STORE_IMPERSONATION_ERROR_CODES } from "./store-impersonation.service.js";
 
 describe("STORE-1 admin Stores", () => {
+  it("returns catalog currency through the authorized Store listing, including an empty catalog", async () => {
+    const prisma = createPrismaMock();
+    prisma.organization.findUnique.mockResolvedValue(organizationRecord());
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ total: 0 }])
+      .mockResolvedValueOnce([]);
+    const settings = {
+      platformDefaultCurrency: vi.fn().mockResolvedValue("INR"),
+    };
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      settings as never,
+    );
+    expect(await service.listStoreProducts("store-1", {})).toMatchObject({
+      defaultCurrency: "INR",
+      data: [],
+      pagination: { total: 0 },
+    });
+  });
   it("creates a product Store as an active internal tenant row with Store profile settings", async () => {
     const prisma = createPrismaMock();
     const rbac = createRbacMock();
@@ -539,7 +560,7 @@ describe("STORE-1 admin Stores", () => {
         { display: { ctaLabel: "Start" } } as never,
       ),
     ).resolves.toMatchObject({ version: 2 });
-    expect(rbac.requireStorePermission).toHaveBeenCalledWith(
+    expect(rbac.requireStoreResourcePermission).toHaveBeenCalledWith(
       "store-user",
       "store-a",
       "kiosks.configure",
@@ -589,7 +610,7 @@ describe("STORE-1 admin Stores", () => {
       updatedProducts: 935,
       updatedDevices: 4,
     });
-    expect(rbac.requireStorePermission).toHaveBeenCalledWith(
+    expect(rbac.requireStoreResourcePermission).toHaveBeenCalledWith(
       "store-user",
       "store-1",
       "products.manage",
@@ -734,6 +755,10 @@ function createRbacMock() {
     ensureStoreRbac: vi.fn(),
     ensureStoreRbacInTransaction: vi.fn(),
     requireStorePermission: vi.fn(),
+    requireStoreResourcePermission: vi.fn(),
+    effectivePermissions: vi
+      .fn()
+      .mockResolvedValue({ permissions: ["kiosks.view"] }),
   };
 }
 

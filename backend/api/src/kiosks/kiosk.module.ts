@@ -4,14 +4,12 @@ import { JwtModule } from "@nestjs/jwt";
 import { AuthModule } from "../auth/auth.module.js";
 import { CatalogService } from "../catalog/catalog.service.js";
 import { DatabaseModule } from "../database/database.module.js";
-import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { MediaUploadSettingsService } from "../platform/media-upload-settings.service.js";
 import { TryOnModule } from "../try-on/try-on.module.js";
 import { GarmentPreviewProviderRegistry } from "../ai/garment-preview/garment-preview.registry.js";
 import { GarmentPreviewService } from "../ai/garment-preview/garment-preview.service.js";
 import { FashnGarmentPreviewProvider } from "../ai/garment-preview/providers/fashn-garment-preview.provider.js";
 import { OpenAiGarmentPreviewProvider } from "../ai/garment-preview/providers/openai-garment-preview.provider.js";
-import { AdminKiosksController } from "./admin-kiosks.controller.js";
 import {
   CustomerUploadCapabilityController,
   KioskCustomerUploadDeviceController,
@@ -40,10 +38,7 @@ import { KioskTryOnService } from "./kiosk-try-on.service.js";
 import { KioskService } from "./kiosk.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { UsageModule } from "../usage/usage.module.js";
-import {
-  AdminKioskConfigurationController,
-  KioskConfigurationController,
-} from "./kiosk-configuration.controller.js";
+import { KioskConfigurationController } from "./kiosk-configuration.controller.js";
 import { KioskConfigurationService } from "./kiosk-configuration.service.js";
 import { KioskGarmentExtractionController } from "./kiosk-garment-extraction.controller.js";
 import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.service.js";
@@ -57,7 +52,6 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     UsageModule,
   ],
   controllers: [
-    AdminKiosksController,
     KioskProvisioningController,
     KioskSessionController,
     KioskDeviceSessionController,
@@ -69,7 +63,6 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskGarmentExtractionController,
     KioskCustomerUploadDeviceController,
     CustomerUploadCapabilityController,
-    AdminKioskConfigurationController,
     KioskConfigurationController,
   ],
   providers: [
@@ -86,7 +79,6 @@ import { KioskGarmentExtractionService } from "./kiosk-garment-extraction.servic
     KioskConfigurationService,
     MediaUploadSettingsService,
     ObjectStorageService,
-    PlatformAuthorizationService,
     { provide: KIOSK_CONFIG, useFactory: () => loadKioskConfig() },
   ],
   exports: [KioskService, KioskConfigurationService],

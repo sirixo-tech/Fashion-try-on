@@ -1,4 +1,5 @@
 "use client";
+import { hasStoreResourcePermission } from "@/lib/current-store";
 
 import {
   useCallback,
@@ -44,7 +45,7 @@ import {
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
 import { getCurrentMerchantStore } from "@/lib/current-store";
-import { listKioskDevices, type KioskDevice } from "@/lib/kiosks";
+import { type KioskDevice } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
 import {
   getEffectiveStorePermissions,
@@ -95,9 +96,6 @@ export default function DashboardPage() {
   const hasPlatformUsageAccess = Boolean(
     platformAccess?.isSuperadmin || platformPermissions.includes("USAGE_VIEW"),
   );
-  const canViewPlatformKiosks = Boolean(
-    platformAccess?.isSuperadmin || platformPermissions.includes("KIOSKS_VIEW"),
-  );
   const canChooseStoreScope = Boolean(
     platformAccess?.isSuperadmin || platformPermissions.includes("STORES_VIEW"),
   );
@@ -114,10 +112,10 @@ export default function DashboardPage() {
     hasStoreFeature(["ANALYTICS"]),
   );
   const canViewStoreDetails = Boolean(
-    hasStoreBypass || storePermissions.includes("stores.view"),
+    hasStoreResourcePermission(storeAccess, "stores.view"),
   );
   const canViewStoreKiosks = Boolean(
-    (hasStoreBypass || storePermissions.includes("kiosks.view")) &&
+    hasStoreResourcePermission(storeAccess, "kiosks.view") &&
     hasStoreFeature(["KIOSK_MANAGEMENT", "KIOSK_RENTAL"]),
   );
   const canViewStoreStaff = Boolean(
@@ -237,9 +235,7 @@ export default function DashboardPage() {
             ? canViewStoreKiosks
               ? listStoreKiosks(accessToken, storeId)
               : Promise.resolve([])
-            : canViewPlatformKiosks
-              ? listKioskDevices(accessToken)
-              : Promise.resolve([]),
+            : Promise.resolve([]),
           storeId && canViewStoreDetails
             ? listStoreProducts(accessToken, storeId, { pageSize: 8 })
             : Promise.resolve(null),
@@ -258,7 +254,6 @@ export default function DashboardPage() {
     }
   }, [
     accessToken,
-    canViewPlatformKiosks,
     canViewStoreDetails,
     canViewStoreKiosks,
     canViewStoreStaff,
@@ -353,18 +348,22 @@ export default function DashboardPage() {
                 secondaryValue={`${displayPercent(summary?.totals.successRate)} success rate`}
                 icon={<SparklesIcon size={18} aria-hidden="true" />}
               />
-              <StatCard
-                label="Store Kiosks"
-                value={displayNumber(kiosks.length)}
-                secondaryValue={`${displayNumber(activeKiosks.length)} active`}
-                icon={<MonitorIcon size={18} aria-hidden="true" />}
-              />
-              <StatCard
-                label="Products"
-                value={displayNumber(products.length)}
-                secondaryValue={`${displayNumber(activeProducts.length)} active`}
-                icon={<PackageIcon size={18} aria-hidden="true" />}
-              />
+              {canViewStoreKiosks ? (
+                <StatCard
+                  label="Store Kiosks"
+                  value={displayNumber(kiosks.length)}
+                  secondaryValue={`${displayNumber(activeKiosks.length)} active`}
+                  icon={<MonitorIcon size={18} aria-hidden="true" />}
+                />
+              ) : null}
+              {canViewStoreDetails ? (
+                <StatCard
+                  label="Products"
+                  value={displayNumber(products.length)}
+                  secondaryValue={`${displayNumber(activeProducts.length)} active`}
+                  icon={<PackageIcon size={18} aria-hidden="true" />}
+                />
+              ) : null}
               <StatCard
                 label="Staff"
                 value={displayNumber(staff.length)}
@@ -379,12 +378,6 @@ export default function DashboardPage() {
                 value={displayNumber(stores.length)}
                 secondaryValue={`${displayNumber(activeStores.length)} active`}
                 icon={<StoreIcon size={18} aria-hidden="true" />}
-              />
-              <StatCard
-                label="Fleet Kiosks"
-                value={displayNumber(kiosks.length)}
-                secondaryValue={`${displayNumber(activeKiosks.length)} active`}
-                icon={<MonitorIcon size={18} aria-hidden="true" />}
               />
               <StatCard
                 label="Generated Looks"
@@ -440,51 +433,55 @@ export default function DashboardPage() {
                   ])
             }
           />
-          <DashboardTable
-            title="Kiosks"
-            icon={<MonitorIcon size={18} aria-hidden="true" />}
-            loading={loading}
-            empty="No kiosks visible for this scope."
-            headers={["Kiosk", "Scope", "Status", "Last Seen"]}
-            rows={kiosks
-              .slice(0, 8)
-              .map((kiosk) => [
-                kiosk.displayName,
-                kiosk.assignment.organizationName ??
-                  kiosk.assignment.storeName ??
-                  "Platform fleet",
-                kiosk.status,
-                formatOptionalDate(kiosk.lastSeenAt),
-              ])}
-          />
-          <DashboardTable
-            title={isStoreScope ? "Products" : "Product Usage"}
-            icon={<PackageIcon size={18} aria-hidden="true" />}
-            loading={loading}
-            empty="No product data visible for this scope."
-            headers={
-              isStoreScope
-                ? ["Product", "Category", "Status", "Try-On"]
-                : ["Product", "Category", "Looks", "Downloads"]
-            }
-            rows={
-              isStoreScope
-                ? products
-                    .slice(0, 8)
-                    .map((product) => [
-                      product.name,
-                      product.categoryName,
-                      product.active ? "Active" : "Inactive",
-                      product.vtoEnabled ? "Enabled" : "Disabled",
+          {isStoreScope && canViewStoreKiosks ? (
+            <DashboardTable
+              title="Kiosks"
+              icon={<MonitorIcon size={18} aria-hidden="true" />}
+              loading={loading}
+              empty="No kiosks visible for this scope."
+              headers={["Kiosk", "Scope", "Status", "Last Seen"]}
+              rows={kiosks
+                .slice(0, 8)
+                .map((kiosk) => [
+                  kiosk.displayName,
+                  kiosk.assignment.organizationName ??
+                    kiosk.assignment.storeName ??
+                    "Platform fleet",
+                  kiosk.status,
+                  formatOptionalDate(kiosk.lastSeenAt),
+                ])}
+            />
+          ) : null}
+          {isStoreScope && canViewStoreDetails ? (
+            <DashboardTable
+              title={isStoreScope ? "Products" : "Product Usage"}
+              icon={<PackageIcon size={18} aria-hidden="true" />}
+              loading={loading}
+              empty="No product data visible for this scope."
+              headers={
+                isStoreScope
+                  ? ["Product", "Category", "Status", "Try-On"]
+                  : ["Product", "Category", "Looks", "Downloads"]
+              }
+              rows={
+                isStoreScope
+                  ? products
+                      .slice(0, 8)
+                      .map((product) => [
+                        product.name,
+                        product.categoryName,
+                        product.active ? "Active" : "Inactive",
+                        product.vtoEnabled ? "Enabled" : "Disabled",
+                      ])
+                  : (summary?.products ?? []).map((row) => [
+                      row.name,
+                      row.category ?? "-",
+                      displayNumber(row.tryOnsGenerated),
+                      displayNumber(row.downloadsCompleted),
                     ])
-                : (summary?.products ?? []).map((row) => [
-                    row.name,
-                    row.category ?? "-",
-                    displayNumber(row.tryOnsGenerated),
-                    displayNumber(row.downloadsCompleted),
-                  ])
-            }
-          />
+              }
+            />
+          ) : null}
           <DashboardTable
             title={isStoreScope ? "Staff" : "Channels"}
             icon={

@@ -1,5 +1,28 @@
 ## Document Evolution
 
+### KIOSK-STORE-1 — Stores connect their own devices
+
+Store Admin signs in, opens Kiosks and enters the six-digit code displayed on
+the physical device. The server links it directly to the current Store without
+an assignment selector. Authorized Store users configure it or activate/deactivate
+it; Admin can unpair/remove it. An unpaired record uses Pair again to retain its
+Store assignment and identity. Another Store cannot claim its installation using
+a fresh pairing code while that record remains linked. Platform users administer
+merchant accounts rather than products or devices; impersonation alone does not
+unlock these operations. Product support described below now requires actual
+Store membership and permission, rather than platform authority.
+
+### CATALOG-STORE-1 — Browse the Store's products
+
+Store Admin and Staff sign in and open Products -> Garments or Jewellery. They
+see products linked to that Store, including migrated items, and can add the
+first product to an empty catalog when allowed. Read-only users can browse but
+cannot edit. Product and stock work uses Store permissions. Platform users use
+explicit authorized Store detail/support context rather than a standalone catalog.
+Assigned kiosks synchronize only that Store's eligible products; an empty Store
+stays empty. After deployment refresh kiosk catalogs online to replace legacy caches.
+
+
 ### USERS-4 — Create a Store login from Edit Store
 
 Superadmin opens Edit Store for an active Store without a linked Admin, chooses

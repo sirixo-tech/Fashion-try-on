@@ -1,5 +1,18 @@
 import { PlatformRole } from "@prisma/client";
 
+// Historic rows may remain for audit compatibility, but are no longer assignable.
+export const RETIRED_PLATFORM_PERMISSION_CODES = [
+  "PLATFORM_PRODUCTS_VIEW",
+  "PLATFORM_PRODUCTS_MANAGE",
+  "KIOSKS_VIEW",
+  "KIOSKS_PAIR",
+  "KIOSKS_UPDATE",
+  "KIOSKS_ASSIGN",
+  "KIOSKS_REVOKE",
+  "KIOSKS_DELETE",
+  "KIOSKS_CONFIGURE",
+];
+
 export const PLATFORM_PERMISSIONS = {
   organizationApplicationReview: "ORGANIZATION_APPLICATION_REVIEW",
   organizationApplicationApprove: "ORGANIZATION_APPLICATION_APPROVE",
@@ -14,8 +27,6 @@ export const PLATFORM_PERMISSIONS = {
   storeUsersManage: "STORE_USERS_MANAGE",
   storeRolesView: "STORE_ROLES_VIEW",
   storeRolesManage: "STORE_ROLES_MANAGE",
-  platformProductsView: "PLATFORM_PRODUCTS_VIEW",
-  platformProductsManage: "PLATFORM_PRODUCTS_MANAGE",
   usageView: "USAGE_VIEW",
   pricingView: "PRICING_VIEW",
   pricingManage: "PRICING_MANAGE",
@@ -28,13 +39,6 @@ export const PLATFORM_PERMISSIONS = {
   permissionsManage: "PERMISSIONS_MANAGE",
   platformRolesManage: "PLATFORM_ROLES_MANAGE",
   platformUsersManage: "PLATFORM_USERS_MANAGE",
-  kiosksView: "KIOSKS_VIEW",
-  kiosksPair: "KIOSKS_PAIR",
-  kiosksUpdate: "KIOSKS_UPDATE",
-  kiosksAssign: "KIOSKS_ASSIGN",
-  kiosksRevoke: "KIOSKS_REVOKE",
-  kiosksDelete: "KIOSKS_DELETE",
-  kiosksConfigure: "KIOSKS_CONFIGURE",
 } as const;
 
 export type PlatformPermission =
@@ -156,22 +160,6 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
       applicability: "PLATFORM_ONLY",
     },
     {
-      code: PLATFORM_PERMISSIONS.platformProductsView,
-      module: "platform.products",
-      action: "view",
-      label: "View Platform Products",
-      description: "View the SelfX platform default product catalog.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
-      code: PLATFORM_PERMISSIONS.platformProductsManage,
-      module: "platform.products",
-      action: "manage",
-      label: "Manage Platform Products",
-      description: "Manage SelfX platform default catalog products.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
       code: PLATFORM_PERMISSIONS.usageView,
       module: "platform.usage",
       action: "view",
@@ -273,62 +261,6 @@ export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition
         "Assign non-protected SelfX Platform roles to Platform users.",
       applicability: "PLATFORM_ONLY",
     },
-    {
-      code: PLATFORM_PERMISSIONS.kiosksView,
-      module: "platform.kiosks",
-      action: "view",
-      label: "View Kiosks Globally",
-      description: "View kiosks across the SelfX platform.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
-      code: PLATFORM_PERMISSIONS.kiosksPair,
-      module: "platform.kiosks",
-      action: "pair",
-      label: "Pair Kiosks Globally",
-      description: "Pair kiosks from the SelfX platform console.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
-      code: PLATFORM_PERMISSIONS.kiosksUpdate,
-      module: "platform.kiosks",
-      action: "update",
-      label: "Update Kiosks Globally",
-      description: "Update kiosk metadata across the SelfX platform.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
-      code: PLATFORM_PERMISSIONS.kiosksAssign,
-      module: "platform.kiosks",
-      action: "assign",
-      label: "Assign Kiosks Globally",
-      description: "Assign kiosks to Store tenants.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
-      code: PLATFORM_PERMISSIONS.kiosksRevoke,
-      module: "platform.kiosks",
-      action: "revoke",
-      label: "Revoke Kiosks Globally",
-      description: "Revoke kiosk devices or sessions.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
-      code: PLATFORM_PERMISSIONS.kiosksDelete,
-      module: "platform.kiosks",
-      action: "delete",
-      label: "Delete Kiosks Globally",
-      description: "Delete kiosk devices from the platform console.",
-      applicability: "PLATFORM_ONLY",
-    },
-    {
-      code: PLATFORM_PERMISSIONS.kiosksConfigure,
-      module: "platform.kiosks",
-      action: "configure",
-      label: "Configure Kiosks Globally",
-      description: "Configure kiosk runtime settings across Store tenants.",
-      applicability: "PLATFORM_ONLY",
-    },
   ] as const;
 
 const SUPER_ADMIN_PERMISSIONS = Object.values(PLATFORM_PERMISSIONS);
@@ -338,8 +270,6 @@ const STAFF_ADMIN_PERMISSIONS: readonly PlatformPermission[] =
     (permission) =>
       permission !== PLATFORM_PERMISSIONS.permissionsManage &&
       permission !== PLATFORM_PERMISSIONS.organizationSuspend &&
-      permission !== PLATFORM_PERMISSIONS.platformProductsView &&
-      permission !== PLATFORM_PERMISSIONS.platformProductsManage &&
       permission !== PLATFORM_PERMISSIONS.pricingView &&
       permission !== PLATFORM_PERMISSIONS.pricingManage,
   );

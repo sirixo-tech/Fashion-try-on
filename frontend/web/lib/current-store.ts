@@ -5,10 +5,7 @@ import type {
   StoreImpersonationSession,
 } from "@/lib/stores";
 
-export type CurrentStore = Pick<
-  TenantOrganization,
-  "id" | "name" | "status"
->;
+export type CurrentStore = Pick<TenantOrganization, "id" | "name" | "status">;
 
 export type CurrentStoreAccess = {
   store: CurrentStore | null;
@@ -67,4 +64,20 @@ export function hasCurrentStorePermission(
       permissions.permissions.includes(permission),
     )
   );
+}
+
+export function storeResourcePermissions(
+  permissions: EffectiveStorePermissions | null,
+): string[] {
+  return (
+    permissions?.resourcePermissions ??
+    (permissions?.platformBypass ? [] : (permissions?.permissions ?? []))
+  );
+}
+
+export function hasStoreResourcePermission(
+  permissions: EffectiveStorePermissions | null,
+  code: string,
+): boolean {
+  return storeResourcePermissions(permissions).includes(code);
 }

@@ -5,15 +5,12 @@ import { CatalogService } from "./catalog.service.js";
 
 describe("CatalogService jewellery capture requirements", () => {
   it("uses the selected Store catalog product's stored jewellery type", async () => {
-    const queryRaw = vi
-      .fn()
-      .mockResolvedValueOnce([{ has_products: true }])
-      .mockResolvedValueOnce([
-        {
-          id: "11111111-1111-4111-8111-111111111111",
-          jewellery_type: "EARRING",
-        },
-      ]);
+    const queryRaw = vi.fn().mockResolvedValueOnce([
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        jewellery_type: "EARRING",
+      },
+    ]);
     const service = new CatalogService(
       { $queryRaw: queryRaw } as never,
       {} as never,
@@ -33,6 +30,6 @@ describe("CatalogService jewellery capture requirements", () => {
       targetRegion: "FACE_AND_EARS",
       guide: "FACE_AND_EARS",
     });
-    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 });

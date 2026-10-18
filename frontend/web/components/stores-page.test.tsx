@@ -359,6 +359,13 @@ describe("STORE-1 web Store management", () => {
         "kiosks.pair",
         "kiosks.configure",
       ],
+      resourcePermissions: [
+        "stores.view",
+        "products.manage",
+        "kiosks.view",
+        "kiosks.pair",
+        "kiosks.configure",
+      ],
       platformBypass: true,
       featureKeys: [],
       membershipId: null,
@@ -577,10 +584,27 @@ describe("STORE-1 web Store management", () => {
       screen.queryByRole("heading", { name: "Store Admin account" }),
     ).toBeNull();
   });
+  it("hides products and kiosks in platform Store details without membership", async () => {
+    vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
+      storeId: "store-1",
+      permissions: ["stores.view", "stores.update"],
+      resourcePermissions: [],
+      platformBypass: true,
+      featureKeys: [],
+      membershipId: null,
+    });
+    render(<StoreDashboardPage />);
+    await screen.findByText("SelfX Demo Store");
+    expect(screen.queryByRole("link", { name: "Products" })).toBeNull();
+    expect(screen.queryByText("Front Display")).toBeNull();
+    expect(screen.queryByText("Store Kiosks")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Pair Kiosk/i })).toBeNull();
+  });
+
   it("hides kiosk configuration when kiosks.configure is missing", async () => {
     vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
       storeId: "store-1",
-      permissions: ["kiosks.pair"],
+      permissions: ["kiosks.view", "kiosks.pair"],
       platformBypass: false,
       featureKeys: [],
       membershipId: "membership-1",

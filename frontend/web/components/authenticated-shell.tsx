@@ -43,6 +43,7 @@ import {
 } from "@/lib/navigation-access";
 import {
   getCurrentMerchantStoreAccess,
+  storeResourcePermissions,
   type CurrentStore,
 } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
@@ -399,6 +400,7 @@ function navigationAccess({
       (platformAccess?.isSuperadmin ?? false),
     platformPermissions: platformAccess?.permissions ?? [],
     storePermissions: storeAccess?.permissions ?? [],
+    storeResourcePermissions: storeResourcePermissions(storeAccess),
     storePlatformBypass: storeAccess?.platformBypass ?? false,
     storeFeatureKeys: storeAccess?.featureKeys ?? [],
     storeLocationLimit: storeAccess?.storeLocationLimit,

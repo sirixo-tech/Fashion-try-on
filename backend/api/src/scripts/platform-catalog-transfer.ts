@@ -456,7 +456,7 @@ async function requireActor(tx: Database, email: string): Promise<string> {
     assignments.flatMap((row) => permissionsForPlatformRole(row.role)),
   );
   const required = [
-    PLATFORM_PERMISSIONS.platformProductsManage,
+    PLATFORM_PERMISSIONS.permissionsManage,
     PLATFORM_PERMISSIONS.storesUpdate,
   ];
   for (const permission of required) {
@@ -474,7 +474,7 @@ async function requireActor(tx: Database, email: string): Promise<string> {
     });
     if (!dynamic)
       fail(
-        "Actor requires platform product management and Store update permissions.",
+        "Actor requires platform access-control and Store update permissions.",
       );
   }
   return user.id;

@@ -5,6 +5,7 @@ export type NavigationAccess = {
   hasPlatformAccess: boolean;
   platformPermissions: string[];
   storePermissions: string[];
+  storeResourcePermissions?: string[];
   storePlatformBypass: boolean;
   storeFeatureKeys: string[];
   storeLocationLimit?: number | null;
@@ -14,8 +15,6 @@ export type NavigationAccess = {
 const platformPermissionsByHref: Record<string, string[]> = {
   "/app/stores": ["STORES_VIEW"],
   "/app/locations": ["STORES_VIEW"],
-  "/app/products": ["PLATFORM_PRODUCTS_VIEW", "PLATFORM_PRODUCTS_MANAGE"],
-  "/app/kiosks": ["KIOSKS_VIEW"],
   "/app/analytics": ["USAGE_VIEW"],
   "/app/billing": ["USAGE_VIEW"],
   "/app/developer": ["DEVELOPER_API_VIEW", "DEVELOPER_API_MANAGE"],
@@ -56,6 +55,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
 };
 
 const storePermissionsByHref: Record<string, string[]> = {
+  "/app/products": ["stores.view"],
   "/app/locations": ["stores.view"],
   "/app/kiosks": ["kiosks.view", "kiosks.pair", "kiosks.configure"],
   "/app/staff": ["users.view"],
@@ -114,7 +114,13 @@ function filterNavigationItem(
 
 export function isMerchantOnlyRoute(href: string): boolean {
   const route = normalizeAccessRoute(href);
-  return ["/app/locations", "/app/staff", "/app/analytics"].some(
+  return [
+    "/app/locations",
+    "/app/staff",
+    "/app/analytics",
+    "/app/products",
+    "/app/kiosks",
+  ].some(
     (merchantRoute) =>
       route === merchantRoute || route.startsWith(`${merchantRoute}/`),
   );
@@ -123,6 +129,27 @@ export function isMerchantOnlyRoute(href: string): boolean {
 export function canSeeHref(href: string, access: NavigationAccess): boolean {
   const route = normalizeAccessRoute(href);
   if (route === "/app/platform/mail-settings") return access.isSuperadmin;
+  if (
+    route === "/app/kiosks" ||
+    route.startsWith("/app/kiosks/") ||
+    route === "/app/products"
+  ) {
+    if (
+      access.hasPlatformAccess ||
+      access.isSuperadmin ||
+      !access.hasActiveStore
+    )
+      return false;
+    const codes =
+      access.storeResourcePermissions ??
+      (access.storePlatformBypass ? [] : access.storePermissions);
+    if (route === "/app/products") return codes.includes("stores.view");
+    return (
+      codes.some((code) =>
+        ["kiosks.view", "kiosks.pair", "kiosks.configure"].includes(code),
+      ) && hasAny(access.storeFeatureKeys, ["KIOSK_MANAGEMENT", "KIOSK_RENTAL"])
+    );
+  }
   if (
     isMerchantOnlyRoute(route) &&
     (access.hasPlatformAccess || access.isSuperadmin)

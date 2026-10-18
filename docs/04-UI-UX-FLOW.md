@@ -1,5 +1,29 @@
 ## Document Evolution
 
+### KIOSK-STORE-1 — Merchant-only resource UI
+
+Hide Products/Kiosks and their operational metrics from platform navigation and
+screens; block direct merchant routes in platform mode. In Store mode use actual
+membership resource permissions, not platformBypass. Show permitted menus for
+empty Stores; Kiosks retains plan feature visibility rules. Pairing asks for code
+and name in one popup. Configuration uses the same Store-scoped API and existing
+configuration controls, with no platform/Store assignment selector. Name changes
+require kiosks.update. Confirm unpair/removal. Show clear access/API errors and
+disable mutations while busy. Store detail product links, kiosk table, pairing
+and configuration actions require actual Store permissions.
+
+### CATALOG-STORE-1 — Store Products menu
+
+Show Products with Garments and Jewellery children only in an authorized Store
+workspace. Visibility does not depend on product counts, kiosk entitlements or
+location limits. Wait for Store context before mounting the catalog and show a
+clear access error if absent. Each destination opens its vertical using the
+shared Store product component; the merchant back action opens Dashboard.
+Preserve search, pagination, imported-product controls, uploads, stock and product
+dialogs. Disable edit actions without products.manage. Remove standalone platform
+catalog UI and retired product permission choices from platform Roles/Users.
+
+
 ### USERS-4 — Inline first-admin creation
 
 Show Create new account only after linked Admin discovery succeeds with zero

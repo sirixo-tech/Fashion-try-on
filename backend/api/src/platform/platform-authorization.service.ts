@@ -29,6 +29,8 @@ export class PlatformAuthorizationService {
     userId: string,
     permission: PlatformPermission,
   ): Promise<boolean> {
+    if (!(Object.values(PLATFORM_PERMISSIONS) as string[]).includes(permission))
+      return false;
     await this.ensurePlatformPermissionCatalog();
     const assignments = await this.prisma.platformRoleAssignment.findMany({
       where: {

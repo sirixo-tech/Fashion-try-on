@@ -22,7 +22,7 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { loadSelfxEnv } from "../config/load-env.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
+
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 import { KIOSK_AUDIT_ACTIONS, KIOSK_ERROR_CODES } from "./kiosk.constants.js";
 import { canonicalPairingCode, KioskService } from "./kiosk.service.js";
@@ -159,7 +159,7 @@ describe("KIOSK-4A device provisioning", () => {
     );
   });
 
-  it("authorizes only superadmin for kiosk pairing in this phase", async () => {
+  it("does not grant kiosk pairing authority to any platform role", async () => {
     const support = await createUser("support");
     await prisma.platformRoleAssignment.create({
       data: {
@@ -170,21 +170,15 @@ describe("KIOSK-4A device provisioning", () => {
       },
     });
     await expectApiCode(
-      platformAuth.requirePermission(
-        support.id,
-        PLATFORM_PERMISSIONS.kiosksPair,
-      ),
+      platformAuth.requirePermission(support.id, "KIOSKS_PAIR" as never),
       "PLATFORM_PERMISSION_DENIED",
     );
 
     const superadmin = await createUser("super-auth");
     await assignSuperAdmin(superadmin.id);
     await expect(
-      platformAuth.requirePermission(
-        superadmin.id,
-        PLATFORM_PERMISSIONS.kiosksPair,
-      ),
-    ).resolves.toBeUndefined();
+      platformAuth.requirePermission(superadmin.id, "KIOSKS_PAIR" as never),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it("supports PLATFORM assignment and rejects invalid organization/store relationships", async () => {
@@ -211,14 +205,16 @@ describe("KIOSK-4A device provisioning", () => {
         organizationId: org.id,
       },
     );
-    expect(reassigned.assignment.scope).toBe(
-      KioskAssignmentScope.ORGANIZATION,
-    );
+    expect(reassigned.assignment.scope).toBe(KioskAssignmentScope.ORGANIZATION);
     expect(reassigned.assignment.organizationId).toBe(org.id);
 
-    const returned = await service.updateAssignment(admin.id, platformDevice.id, {
-      assignmentScope: KioskAssignmentScope.PLATFORM,
-    });
+    const returned = await service.updateAssignment(
+      admin.id,
+      platformDevice.id,
+      {
+        assignmentScope: KioskAssignmentScope.PLATFORM,
+      },
+    );
     expect(returned.assignment.scope).toBe(KioskAssignmentScope.PLATFORM);
     expect(returned.assignment.organizationId).toBeNull();
 
@@ -320,7 +316,10 @@ describe("KIOSK-4A device provisioning", () => {
     await assignSuperAdmin(admin.id);
     const credentials = await pairedCredentials(admin.id);
 
-    const unpaired = await service.revokeDevice(admin.id, credentials.device.id);
+    const unpaired = await service.revokeDevice(
+      admin.id,
+      credentials.device.id,
+    );
     expect(unpaired.status).toBe(KioskDeviceStatus.REVOKED);
     await expectApiCode(
       service.refreshDeviceSession({ refreshToken: credentials.refreshToken }),
@@ -436,6 +435,117 @@ describe("KIOSK-4A device provisioning", () => {
     const current = await service.me(`Bearer ${credentials.accessToken}`);
     expect(current.assignment.scope).toBe(KioskAssignmentScope.ORGANIZATION);
     expect(current.assignment.organizationId).toBe(org.id);
+  });
+
+  it("keeps lifecycle changes within the expected Store and prevents installation claims", async () => {
+    const actor = await createUser("store-actor");
+    const a = await createOrganization("store-a"),
+      b = await createOrganization("store-b");
+    const installationId = createSelfxId();
+    const firstSession = await createPairingSession(
+      { installationId },
+      "127.0.3.1",
+    );
+    const device = await service.pairKiosk(actor.id, {
+      pairingCode: firstSession.pairingCode,
+      displayName: "Store screen",
+      assignmentScope: KioskAssignmentScope.ORGANIZATION,
+      organizationId: a.id,
+    });
+    for (const operation of [
+      () =>
+        service.updateDevice(
+          actor.id,
+          device.id,
+          { displayName: "Wrong" },
+          b.id,
+        ),
+      () => service.activateDevice(actor.id, device.id, b.id),
+      () => service.deactivateDevice(actor.id, device.id, b.id),
+      () => service.revokeDevice(actor.id, device.id, b.id),
+      () => service.deleteDevice(actor.id, device.id, b.id),
+      () =>
+        service.pairExistingKiosk(
+          actor.id,
+          device.id,
+          { pairingCode: "123456" },
+          b.id,
+        ),
+    ])
+      await expect(operation()).rejects.toMatchObject({ status: 404 });
+    expect(
+      await prisma.kioskDevice.findUnique({ where: { id: device.id } }),
+    ).toMatchObject({
+      displayName: "Store screen",
+      status: "ACTIVE",
+      organizationId: a.id,
+    });
+    const secondSession = await createPairingSession(
+      { installationId },
+      "127.0.3.2",
+    );
+    await expect(
+      service.pairKiosk(actor.id, {
+        pairingCode: secondSession.pairingCode,
+        displayName: "Stolen",
+        assignmentScope: KioskAssignmentScope.ORGANIZATION,
+        organizationId: b.id,
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: "KIOSK_ALREADY_LINKED" } },
+    });
+    expect(
+      (
+        await prisma.kioskPairingSession.findUniqueOrThrow({
+          where: { id: secondSession.pairingSessionId },
+        })
+      ).status,
+    ).toBe("PENDING");
+    const credentials = await service.getPairingStatus(
+      firstSession.pairingSessionId,
+      firstSession.provisioningSecret,
+    );
+    const tokens = await service.exchangeProvisioningGrant({
+      pairingSessionId: firstSession.pairingSessionId,
+      provisioningSecret: firstSession.provisioningSecret,
+      provisioningGrant: credentials.provisioningGrant!,
+    });
+    await service.updateDevice(
+      actor.id,
+      device.id,
+      { displayName: "Renamed" },
+      a.id,
+    );
+    await service.deactivateDevice(actor.id, device.id, a.id);
+    await service.activateDevice(actor.id, device.id, a.id);
+    await service.revokeDevice(actor.id, device.id, a.id);
+    await expect(
+      service.me(`Bearer ${tokens.accessToken}`),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      service.pairKiosk(actor.id, {
+        pairingCode: secondSession.pairingCode,
+        displayName: "New claim",
+        assignmentScope: KioskAssignmentScope.ORGANIZATION,
+        organizationId: b.id,
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: "KIOSK_ALREADY_LINKED" } },
+    });
+    const repaired = await service.pairExistingKiosk(
+      actor.id,
+      device.id,
+      { pairingCode: secondSession.pairingCode },
+      a.id,
+    );
+    expect(repaired.assignment.organizationId).toBe(a.id);
+    expect(repaired.displayName).toBe("Renamed");
+    expect(repaired.status).toBe("ACTIVE");
+    await service.deleteDevice(actor.id, device.id, a.id);
+    expect(
+      (await prisma.kioskDevice.findUniqueOrThrow({ where: { id: device.id } }))
+        .status,
+    ).toBe("DELETED");
   });
 
   async function pairedCredentials(adminUserId: string) {

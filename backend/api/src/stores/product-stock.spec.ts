@@ -160,7 +160,7 @@ function controllerSetup() {
     requireAccessUser: vi.fn().mockResolvedValue({ id: "actual-user" }),
   };
   const platform = { hasPermission: vi.fn().mockResolvedValue(false) };
-  const rbac = { requireStorePermission: vi.fn() };
+  const rbac = { requireStoreResourcePermission: vi.fn() };
   const impersonation = { resolveStoreContext: vi.fn() };
   const stock = { get: vi.fn(), update: vi.fn() };
   return {
@@ -171,7 +171,6 @@ function controllerSetup() {
     stock,
     controller: new ProductStockController(
       auth as never,
-      platform as never,
       rbac as never,
       impersonation as never,
       stock as never,
@@ -185,13 +184,13 @@ describe("stock authorization", () => {
     const h = controllerSetup();
     await h.controller.get(request, "store-a", "product-a");
     await h.controller.update(request, "store-a", "product-a", input());
-    expect(h.rbac.requireStorePermission).toHaveBeenNthCalledWith(
+    expect(h.rbac.requireStoreResourcePermission).toHaveBeenNthCalledWith(
       1,
       "actual-user",
       "store-a",
       "stores.view",
     );
-    expect(h.rbac.requireStorePermission).toHaveBeenNthCalledWith(
+    expect(h.rbac.requireStoreResourcePermission).toHaveBeenNthCalledWith(
       2,
       "actual-user",
       "store-a",
@@ -206,7 +205,9 @@ describe("stock authorization", () => {
   });
   it("does not read or mutate when Store permissions fail", async () => {
     const h = controllerSetup();
-    h.rbac.requireStorePermission.mockRejectedValue(new Error("Forbidden"));
+    h.rbac.requireStoreResourcePermission.mockRejectedValue(
+      new Error("Forbidden"),
+    );
     await expect(
       h.controller.get(request, "store-b", "product-b"),
     ).rejects.toThrow("Forbidden");
