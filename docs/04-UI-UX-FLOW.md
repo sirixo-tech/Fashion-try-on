@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### USERS-3 — Single Edit Store popup
+
+Edit Store includes a Superadmin-only Store Admin account section with a
+paginated linked-admin selector, login email input, save action and session/reset
+notice. Shared accounts list other Store names and require acknowledging the
+account-wide change. Existing-account assignment expands inline with paginated
+server search, an account selector and exact Store-name confirmation. No second
+popup is opened. The content scrolls within the viewport and the footer remains
+visible. Loading/errors, protected accounts and busy controls are explicit.
+
+
 ### USERS-2 — User Management and deletion confirmations
 
 Navigation shows User Management -> Users, Roles and Permissions. Users retain

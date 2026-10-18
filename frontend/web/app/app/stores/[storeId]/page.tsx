@@ -53,6 +53,7 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import { StoreTryOnUsage } from "@/components/store-try-on-usage";
+import { StoreAdminAccounts } from "@/components/store-admin-accounts";
 import { PostpaidBillingSummary } from "@/components/postpaid-billing-summary";
 import {
   getCurrentPlatformAccess,
@@ -103,6 +104,7 @@ export default function StoreDashboardPage() {
   );
   const [platformBypass, setPlatformBypass] = useState(false);
   const [canViewUsage, setCanViewUsage] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [creditDiagnostics, setCreditDiagnostics] =
     useState<StoreCreditDiagnostics | null>(null);
   const [pairOpen, setPairOpen] = useState(false);
@@ -140,6 +142,7 @@ export default function StoreDashboardPage() {
       setStoreTryOnSettings(nextStoreTryOnSettings);
       setEffectivePermissions(nextEffectivePermissionCodes);
       setPlatformBypass(nextEffectivePermissions.platformBypass);
+      setIsSuperadmin(nextPlatformAccess.isSuperadmin);
       setCanViewUsage(
         nextPlatformAccess.isSuperadmin ||
           nextPlatformAccess.permissions.includes("USAGE_VIEW") ||
@@ -627,6 +630,8 @@ export default function StoreDashboardPage() {
         <EditStoreDialog
           open={editOpen}
           store={store}
+          accessToken={accessToken}
+          canManageAdmins={isSuperadmin}
           onOpenChange={setEditOpen}
           onSubmit={async (input) => {
             if (!accessToken) {
@@ -1404,11 +1409,15 @@ function PairStoreKioskDialog({
 function EditStoreDialog({
   open,
   store,
+  accessToken,
+  canManageAdmins,
   onOpenChange,
   onSubmit,
 }: {
   open: boolean;
   store: AdminStoreDetail;
+  accessToken: string | null;
+  canManageAdmins: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (input: StoreInput) => Promise<void>;
 }) {
@@ -1418,6 +1427,7 @@ function EditStoreDialog({
   const [website, setWebsite] = useState(store.website ?? "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [accountBusy, setAccountBusy] = useState(false);
 
   async function submit() {
     if (!name.trim()) {
@@ -1444,8 +1454,13 @@ function EditStoreDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!submitting && !accountBusy) onOpenChange(next);
+      }}
+    >
+      <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit Store</DialogTitle>
           <DialogDescription>Update Store details.</DialogDescription>
@@ -1455,11 +1470,12 @@ function EditStoreDialog({
             {error}
           </div>
         ) : null}
-        <div className="space-y-4">
+        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
           <label className="space-y-2 text-sm">
             <span>Store Name *</span>
             <Input
               value={name}
+              disabled={submitting || accountBusy}
               maxLength={200}
               onChange={(event) => setName(event.target.value)}
             />
@@ -1468,6 +1484,7 @@ function EditStoreDialog({
             <span>Contact Email</span>
             <Input
               value={contactEmail}
+              disabled={submitting || accountBusy}
               maxLength={254}
               onChange={(event) => setContactEmail(event.target.value)}
             />
@@ -1476,6 +1493,7 @@ function EditStoreDialog({
             <span>Contact Phone</span>
             <Input
               value={contactPhone}
+              disabled={submitting || accountBusy}
               maxLength={40}
               onChange={(event) => setContactPhone(event.target.value)}
             />
@@ -1484,16 +1502,33 @@ function EditStoreDialog({
             <span>Website</span>
             <Input
               value={website}
+              disabled={submitting || accountBusy}
               maxLength={2048}
               onChange={(event) => setWebsite(event.target.value)}
             />
           </label>
+          {open && canManageAdmins && accessToken ? (
+            <StoreAdminAccounts
+              token={accessToken}
+              storeId={store.id}
+              storeName={store.name}
+              disabled={submitting}
+              onBusyChange={setAccountBusy}
+            />
+          ) : null}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            disabled={submitting || accountBusy}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button disabled={submitting} onClick={() => void submit()}>
+          <Button
+            disabled={submitting || accountBusy}
+            onClick={() => void submit()}
+          >
             Save Store
           </Button>
         </DialogFooter>

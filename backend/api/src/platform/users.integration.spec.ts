@@ -566,6 +566,246 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
       ).status,
     ).toBe("ACTIVE");
   });
+  it("edits a Store Admin email preserving null profile, credentials, Store links and contact details", async () => {
+    await owner();
+    await owner(user, second);
+    await db.user.update({ where: { id: user }, data: { displayName: null } });
+    await db.organization.update({
+      where: { id: store },
+      data: {
+        settings: { storeProfile: { contactEmail: "contact@example.invalid" } },
+      },
+    });
+    await db.userSession.create({
+      data: {
+        id: createSelfxId(),
+        userId: user,
+        refreshTokenHash: "email-test-session",
+        expiresAt: new Date(Date.now() + 100000),
+      },
+    });
+    await db.passwordResetToken.create({
+      data: {
+        id: createSelfxId(),
+        userId: user,
+        tokenHash: "a".repeat(64),
+        credentialsVersion: 0,
+        expiresAt: new Date(Date.now() + 100000),
+      },
+    });
+    const before = await service.get(user);
+    const changed = await service.updateStoreAdminEmail(admin, user, {
+      version: before.version,
+      storeId: store,
+      email: "new-admin@example.invalid",
+    });
+    expect(changed).toMatchObject({
+      email: "new-admin@example.invalid",
+      displayName: null,
+      status: "ACTIVE",
+      memberships: before.memberships,
+      platformRoles: before.platformRoles,
+    });
+    expect(await db.user.findUnique({ where: { id: user } })).toMatchObject({
+      passwordHash: hash,
+      credentialsVersion: 1,
+    });
+    expect(
+      (await db.userSession.findFirstOrThrow({ where: { userId: user } }))
+        .revokedAt,
+    ).toBeTruthy();
+    expect(
+      (
+        await db.passwordResetToken.findFirstOrThrow({
+          where: { userId: user },
+        })
+      ).usedAt,
+    ).toBeTruthy();
+    expect(
+      (await db.organization.findUniqueOrThrow({ where: { id: store } }))
+        .settings,
+    ).toMatchObject({
+      storeProfile: { contactEmail: "contact@example.invalid" },
+    });
+    expect(
+      (
+        await db.auditLog.findFirstOrThrow({
+          where: { actorUserId: admin, action: "USER_ACCOUNT_UPDATED" },
+        })
+      ).metadata,
+    ).toMatchObject({
+      source_store_id: store,
+      change: "STORE_ADMIN_LOGIN_EMAIL",
+      sessions_revoked: true,
+    });
+  });
+  it("rejects admin email edits for unlinked users, Staff, duplicate emails and stale snapshots", async () => {
+    let before = await service.get(user);
+    await expect(
+      service.updateStoreAdminEmail(admin, user, {
+        version: before.version,
+        storeId: store,
+        email: "unlinked@example.invalid",
+      }),
+    ).rejects.toMatchObject(code("STORE_ADMIN_NOT_LINKED"));
+    const staff = await db.storeRole.findUniqueOrThrow({
+      where: { orgId_systemCode: { orgId: store, systemCode: "staff" } },
+    });
+    await service.update(
+      admin,
+      user,
+      await input({
+        memberships: [
+          { storeId: store, status: "ACTIVE", roleIds: [staff.id] },
+        ],
+      }),
+    );
+    before = await service.get(user);
+    await expect(
+      service.updateStoreAdminEmail(admin, user, {
+        version: before.version,
+        storeId: store,
+        email: "staff@example.invalid",
+      }),
+    ).rejects.toMatchObject(code("STORE_ADMIN_NOT_LINKED"));
+    await service.assignStoreAdmin(admin, user, {
+      version: before.version,
+      storeId: store,
+      confirmStoreName: "Avinash stores",
+    });
+    before = await service.get(user);
+    await expect(
+      service.updateStoreAdminEmail(admin, user, {
+        version: before.version,
+        storeId: store,
+        email: (await service.get(other)).email,
+      }),
+    ).rejects.toMatchObject(code("USER_EMAIL_CONFLICT"));
+    await db.user.update({
+      where: { id: user },
+      data: { displayName: "Changed elsewhere" },
+    });
+    await expect(
+      service.updateStoreAdminEmail(admin, user, {
+        version: before.version,
+        storeId: store,
+        email: "stale@example.invalid",
+      }),
+    ).rejects.toMatchObject(code("USER_EDIT_CONFLICT"));
+  });
+  it("adds another Store Admin preserving ownership, other access, credentials and permission ceilings", async () => {
+    const originalOwner = await owner(other);
+    await owner(user, second);
+    const before = await service.get(user);
+    expect(
+      (
+        await service.list({
+          page: 1,
+          pageSize: 25,
+          storeId: store,
+          role: "store-admin",
+        })
+      ).data.map((account) => account.id),
+    ).toEqual([other]);
+    const result = await service.assignStoreAdmin(admin, user, {
+      version: before.version,
+      storeId: store,
+      confirmStoreName: "Avinash stores",
+    });
+    expect(result.memberships.find((m) => m.storeId === store)).toMatchObject({
+      isStoreAdmin: true,
+      membershipRole: "ORGANIZATION_ADMIN",
+      status: "ACTIVE",
+      storeScopeMode: "ALL_STORES",
+    });
+    expect(result.memberships.find((m) => m.storeId === second)).toEqual(
+      before.memberships[0],
+    );
+    expect(
+      (
+        await service.list({
+          page: 1,
+          pageSize: 25,
+          storeId: store,
+          role: "store-admin",
+        })
+      ).data
+        .map((account) => account.id)
+        .sort(),
+    ).toEqual([other, user].sort());
+    expect(
+      (
+        await db.organizationMembership.findUniqueOrThrow({
+          where: { id: originalOwner.id },
+        })
+      ).role,
+    ).toBe("ORGANIZATION_OWNER");
+    expect(await db.user.findUnique({ where: { id: user } })).toMatchObject({
+      email: before.email,
+      passwordHash: hash,
+      credentialsVersion: 0,
+    });
+    expect(
+      await db.storePermissionGrant.count({ where: { storeTenantId: store } }),
+    ).toBe(1);
+    expect(
+      (
+        await db.auditLog.findFirstOrThrow({
+          where: { action: "STORE_ADMIN_ASSIGNED", actorUserId: admin },
+        })
+      ).metadata,
+    ).toMatchObject({ user_id: user, first_admin: false });
+    await expect(
+      service.assignStoreAdmin(admin, user, {
+        version: result.version,
+        storeId: store,
+        confirmStoreName: "Avinash stores",
+      }),
+    ).rejects.toMatchObject(code("STORE_ADMIN_ALREADY_ASSIGNED"));
+  });
+  it("repairs an ownerless Store and rejects unauthorized actors, protected targets and wrong confirmations", async () => {
+    const before = await service.get(user);
+    await expect(
+      service.assignStoreAdmin(other, user, {
+        version: before.version,
+        storeId: store,
+        confirmStoreName: "Avinash stores",
+      }),
+    ).rejects.toMatchObject(code("PLATFORM_PERMISSION_DENIED"));
+    await expect(
+      service.assignStoreAdmin(admin, user, {
+        version: before.version,
+        storeId: store,
+        confirmStoreName: "Wrong",
+      }),
+    ).rejects.toMatchObject(code("STORE_OWNER_CONFIRMATION_REQUIRED"));
+    const assigned = await service.assignStoreAdmin(admin, user, {
+      version: before.version,
+      storeId: store,
+      confirmStoreName: "Avinash stores",
+    });
+    expect(assigned.memberships[0]).toMatchObject({
+      membershipRole: "ORGANIZATION_OWNER",
+      isStoreAdmin: true,
+    });
+    await db.platformRoleAssignment.create({
+      data: { id: createSelfxId(), userId: other, role: "SELFX_SUPER_ADMIN" },
+    });
+    await expect(
+      service.assignStoreAdmin(admin, other, {
+        version: (await service.get(other)).version,
+        storeId: store,
+        confirmStoreName: "Avinash stores",
+      }),
+    ).rejects.toMatchObject(code("STORE_OWNER_ACCOUNT_INVALID"));
+    await expect(
+      service.updateStoreAdminEmail(admin, user, {
+        version: assigned.version,
+        storeId: second,
+        email: "cross-store@example.invalid",
+      }),
+    ).rejects.toMatchObject(code("STORE_ADMIN_NOT_LINKED"));
+  });
   it("rejects unsupported role filters and keeps inactive Store memberships read-only", async () => {
     await expect(
       service.list({ page: 1, pageSize: 25, role: "-".repeat(36) }),

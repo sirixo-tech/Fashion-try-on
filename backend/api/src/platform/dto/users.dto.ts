@@ -108,6 +108,12 @@ export class AssignFirstOwnerDto {
   @IsString() @Length(1, 200) confirmStoreName!: string;
 }
 
+export class StoreAdminEmailDto {
+  @IsString() @Matches(/^[a-f0-9]{64}$/) version!: string;
+  @IsUUID() storeId!: string;
+  @IsEmail() @MaxLength(320) email!: string;
+}
+
 export class DeleteUserDto {
   @IsString() @Matches(/^[a-f0-9]{64}$/) version!: string;
   @IsEmail() @MaxLength(320) confirmEmail!: string;

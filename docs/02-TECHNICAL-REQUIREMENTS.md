@@ -1,5 +1,20 @@
 ## Document Evolution
 
+### USERS-3 — Contextual admin login management
+
+`PATCH /api/v1/admin/users/:userId/store-admin-email` accepts Store id, account
+version and email. It verifies a current Admin membership and active Superadmin
+authority inside the shared account-mutation transaction. It preserves profile,
+status, password and access while reusing credential/session/reset invalidation.
+`POST /api/v1/admin/users/:userId/store-admin` accepts the account version, Store
+id and exact Store-name confirmation. It shares controlled first-admin mutation
+logic, retains existing admins, adds the canonical Admin role and audits the
+actual actor. Only ownerless Stores receive first-owner bootstrap compatibility;
+additional admins never receive ownership transfer. Both routes reject stale,
+deleted and protected targets. The existing paginated Users API supplies account
+search and current Admin discovery using the centralized Admin policy.
+
+
 ### USERS-2 — Deletion boundaries and fixed roles
 
 `DELETE /api/v1/admin/users/:userId` requires Superadmin authority, a fresh edit

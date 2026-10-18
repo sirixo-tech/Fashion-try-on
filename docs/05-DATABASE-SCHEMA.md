@@ -2,6 +2,18 @@
 
 ## Database & Schema Design
 
+### USERS-3 — Store Admin convenience actions
+
+No new table, column or migration is required. Reuse Users-2 account versions,
+memberships, Store RBAC, sessions, reset tokens and audit data. Email-only edits
+preserve nullable names, statuses, passwords and all role/membership rows. Audit
+metadata identifies the source Store without recording credential values.
+Admin assignment retains other Store links and permission ceilings. Additional
+admins use ORGANIZATION_ADMIN compatibility membership; first-admin repair uses
+ORGANIZATION_OWNER. Both receive the canonical store-admin role with explicit
+ALL_STORES scope for the selected merchant tenant.
+
+
 ### USERS-2 — Deleted identities and Store purge
 
 Migration `20261018000000_user_deletion` adds users.deleted_at and

@@ -112,6 +112,35 @@ export function assignFirstStoreOwner(
   });
 }
 
+export function assignStoreAdmin(
+  token: string,
+  user: ManagedUser,
+  storeId: string,
+  confirmStoreName: string,
+) {
+  return selfxApi<ManagedUser>(`/api/v1/admin/users/${user.id}/store-admin`, {
+    method: "POST",
+    accessToken: token,
+    body: JSON.stringify({ version: user.version, storeId, confirmStoreName }),
+  });
+}
+
+export function updateStoreAdminEmail(
+  token: string,
+  user: ManagedUser,
+  storeId: string,
+  email: string,
+) {
+  return selfxApi<ManagedUser>(
+    `/api/v1/admin/users/${user.id}/store-admin-email`,
+    {
+      method: "PATCH",
+      accessToken: token,
+      body: JSON.stringify({ version: user.version, storeId, email }),
+    },
+  );
+}
+
 export function deleteUser(
   token: string,
   user: ManagedUser,

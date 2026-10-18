@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### USERS-3 — Edit a Store's admin login
+
+Superadmin opens Edit Store and selects a linked Store Admin account. They edit
+Admin login email and choose Save login email; shared accounts require an
+acknowledgement. The account uses the new address for login/recovery and must
+sign in again. Store profile fields use the separate Save Store action.
+To add an admin, choose Assign existing account, search/select the actual login
+account, type the exact Store name and assign it. Existing admins retain access.
+An ownerless Store uses the same explicit assignment UI. Errors remain in the
+single popup; ordinary Store administrators retain profile editing only.
+
+
 ### USERS-2 — Delete users and permanently remove a Store
 
 Superadmin opens User Management -> Users, reviews identity/Store links and

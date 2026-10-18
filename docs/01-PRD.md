@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### USERS-3 — Store Admin accounts in Edit Store
+
+Superadmin can manage linked Store Admin login emails from the Edit Store popup.
+The Store contact email remains independent. A shared account's login email
+changes across all its linked Stores; the UI requires acknowledging that effect.
+Selecting an existing active account explicitly adds Store Admin access while
+retaining current admins and the account's other access and credentials. A Store
+with no active admin uses controlled first-admin repair. Protected Superadmins,
+deleted accounts/links and Store permission ceilings remain protected.
+
+
 ### USERS-2 — Five roles and user/Store deletion
 
 The approved role model is Platform Superadmin, Platform Admin, Platform Staff,

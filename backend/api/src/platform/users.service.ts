@@ -15,6 +15,7 @@ import {
 } from "../rbac/role-policy.js";
 import {
   type AssignFirstOwnerDto,
+  type StoreAdminEmailDto,
   type UpdateUserDto,
   type UsersQueryDto,
 } from "./dto/users.dto.js";
@@ -76,6 +77,23 @@ export class UsersService {
     actorUserId: string,
     userId: string,
     input: AssignFirstOwnerDto,
+  ) {
+    return this.assignAdmin(actorUserId, userId, input, true);
+  }
+
+  async assignStoreAdmin(
+    actorUserId: string,
+    userId: string,
+    input: AssignFirstOwnerDto,
+  ) {
+    return this.assignAdmin(actorUserId, userId, input, false);
+  }
+
+  private async assignAdmin(
+    actorUserId: string,
+    userId: string,
+    input: AssignFirstOwnerDto,
+    firstOnly: boolean,
   ) {
     try {
       await this.db.$transaction(
@@ -145,10 +163,22 @@ export class UsersService {
               user: { status: "ACTIVE" },
             },
           });
-          if (owners)
+          if (owners && firstOnly)
             fail(
               "STORE_ALREADY_HAS_OWNER",
               "This Store already has an active owner. Ownership transfer requires a separate controlled operation.",
+            );
+          const existing = user!.memberships.find(
+            (member) => member.orgId === input.storeId,
+          );
+          if (
+            !firstOnly &&
+            existing?.status === "ACTIVE" &&
+            isStoreAdmin(existing)
+          )
+            fail(
+              "STORE_ADMIN_ALREADY_ASSIGNED",
+              "This account is already a Store Admin.",
             );
           // Reuse default Store RBAC; never seed or broaden the Store's permission ceiling.
           await this.rbac.ensureStoreRbacInTransaction(tx, input.storeId);
@@ -180,13 +210,16 @@ export class UsersService {
               id: createSelfxId(),
               orgId: input.storeId,
               userId,
-              role: "ORGANIZATION_OWNER",
+              role: owners ? "ORGANIZATION_ADMIN" : "ORGANIZATION_OWNER",
               status: "ACTIVE",
               storeScopeMode: "ALL_STORES",
               joinedAt: new Date(),
             },
             update: {
-              role: "ORGANIZATION_OWNER",
+              role:
+                !owners || existing?.role === "ORGANIZATION_OWNER"
+                  ? "ORGANIZATION_OWNER"
+                  : "ORGANIZATION_ADMIN",
               status: "ACTIVE",
               storeScopeMode: "ALL_STORES",
               suspendedAt: null,
@@ -194,6 +227,9 @@ export class UsersService {
             },
           });
           await tx.membershipStoreScope.deleteMany({
+            where: { membershipId: membership.id },
+          });
+          await tx.storeMembershipRole.deleteMany({
             where: { membershipId: membership.id },
           });
           await tx.storeMembershipRole.upsert({
@@ -217,10 +253,16 @@ export class UsersService {
               id: createSelfxId(),
               actorUserId,
               organizationId: input.storeId,
-              action: "STORE_FIRST_OWNER_ASSIGNED",
+              action: firstOnly
+                ? "STORE_FIRST_OWNER_ASSIGNED"
+                : "STORE_ADMIN_ASSIGNED",
               resourceType: "organization_membership",
               resourceId: membership.id,
-              metadata: { user_id: userId, role_id: role.id },
+              metadata: {
+                user_id: userId,
+                role_id: role.id,
+                first_admin: !owners,
+              },
             },
           });
         },
@@ -298,6 +340,17 @@ export class UsersService {
           memberships: {
             some: {
               role: "ORGANIZATION_OWNER",
+              ...(query.storeId ? { orgId: query.storeId } : {}),
+            },
+          },
+        };
+      else if (query.role === "store-admin")
+        roleFilter = {
+          memberships: {
+            some: {
+              ...adminMembershipWhere,
+              deletedAt: null,
+              status: "ACTIVE",
               ...(query.storeId ? { orgId: query.storeId } : {}),
             },
           },
@@ -426,6 +479,34 @@ export class UsersService {
   }
 
   async update(actorUserId: string, userId: string, input: UpdateUserDto) {
+    return this.updateAccount(actorUserId, userId, input);
+  }
+
+  async updateStoreAdminEmail(
+    actorUserId: string,
+    userId: string,
+    input: StoreAdminEmailDto,
+  ) {
+    return this.updateAccount(
+      actorUserId,
+      userId,
+      {
+        version: input.version,
+        email: input.email,
+        displayName: "",
+        status: "ACTIVE",
+        memberships: [],
+      },
+      input.storeId,
+    );
+  }
+
+  private async updateAccount(
+    actorUserId: string,
+    userId: string,
+    input: UpdateUserDto,
+    adminStoreId?: string,
+  ) {
     // Recheck authority in the transaction as well as at the controller boundary.
     const passwordHash = input.newPassword
       ? await this.passwords.hashPassword(input.newPassword)
@@ -477,6 +558,24 @@ export class UsersService {
               "Protected Superadmin accounts require controlled account maintenance.",
             );
           const email = input.email.trim().toLowerCase();
+          if (adminStoreId) {
+            const membership = user!.memberships.find(
+              (member) =>
+                member.orgId === adminStoreId &&
+                !member.deletedAt &&
+                member.status === "ACTIVE",
+            );
+            if (!membership || !isStoreAdmin(membership))
+              fail(
+                "STORE_ADMIN_NOT_LINKED",
+                "Select an existing Store Admin linked to this Store.",
+                HttpStatus.NOT_FOUND,
+              );
+          }
+          const nextStatus = adminStoreId ? user!.status : input.status;
+          const nextName = adminStoreId
+            ? user!.displayName
+            : input.displayName.trim();
           const storeIds = [
             ...new Set([
               ...user!.memberships.map((m) => m.orgId),
@@ -485,7 +584,7 @@ export class UsersService {
           ].sort();
           for (const storeId of storeIds)
             await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${storeId})::bigint)`;
-          if (input.status !== "ACTIVE") {
+          if (nextStatus !== user!.status && nextStatus !== "ACTIVE") {
             for (const membership of user!.memberships.filter(
               (m) => isStoreAdmin(m) && m.status === "ACTIVE",
             )) {
@@ -647,15 +746,14 @@ export class UsersService {
           }
           const credentialsChanged =
             email !== user!.email || Boolean(passwordHash);
-          const invalidate =
-            credentialsChanged || input.status !== user!.status;
+          const invalidate = credentialsChanged || nextStatus !== user!.status;
           const now = new Date();
           await tx.user.update({
             where: { id: userId },
             data: {
-              displayName: input.displayName.trim(),
+              displayName: nextName,
               email,
-              status: input.status,
+              status: nextStatus,
               ...(email !== user!.email ? { emailVerifiedAt: null } : {}),
               ...(passwordHash ? { passwordHash } : {}),
               ...(invalidate
@@ -688,10 +786,16 @@ export class UsersService {
               resourceType: "user",
               resourceId: userId,
               metadata: {
-                profile_changed: input.displayName.trim() !== user!.displayName,
+                profile_changed: nextName !== user!.displayName,
                 email_changed: email !== user!.email,
                 password_changed: Boolean(passwordHash),
-                status: input.status,
+                status: nextStatus,
+                ...(adminStoreId
+                  ? {
+                      source_store_id: adminStoreId,
+                      change: "STORE_ADMIN_LOGIN_EMAIL",
+                    }
+                  : {}),
                 sessions_revoked: invalidate,
                 ...(input.platformRoleIds
                   ? { platform_role_ids: input.platformRoleIds }

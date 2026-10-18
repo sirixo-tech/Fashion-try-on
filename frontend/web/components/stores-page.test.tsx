@@ -24,6 +24,12 @@ import {
 } from "@/lib/stores";
 import { useSession } from "@/lib/session";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
+import { listUsers } from "@/lib/users";
+vi.mock("@/lib/users", () => ({
+  listUsers: vi.fn(),
+  assignStoreAdmin: vi.fn(),
+  updateStoreAdminEmail: vi.fn(),
+}));
 vi.mock("@/lib/access-control", () => ({ getCurrentPlatformAccess: vi.fn() }));
 
 const pushMock = vi.hoisted(() => vi.fn());
@@ -245,6 +251,10 @@ const storeUser = {
 
 describe("STORE-1 web Store management", () => {
   beforeEach(() => {
+    vi.mocked(listUsers).mockResolvedValue({
+      data: [],
+      pagination: { page: 1, pageSize: 25, total: 0, totalPages: 1 },
+    });
     vi.mocked(getCurrentPlatformAccess).mockResolvedValue({
       isSuperadmin: true,
       permissions: [],
@@ -537,6 +547,30 @@ describe("STORE-1 web Store management", () => {
     );
   });
 
+  it("shows Store Admin account controls in the same Edit Store popup for Superadmin", async () => {
+    render(<StoreDashboardPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Store" }));
+    expect(
+      await screen.findByText(/No Store Admin account is linked/),
+    ).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByLabelText("Contact Email")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Assign existing account" }),
+    ).toBeTruthy();
+  });
+  it("keeps Store Admin account controls hidden for an ordinary Store administrator", async () => {
+    vi.mocked(getCurrentPlatformAccess).mockResolvedValue({
+      isSuperadmin: false,
+      permissions: [],
+    });
+    render(<StoreDashboardPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Store" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Store Admin account" }),
+    ).toBeNull();
+  });
   it("hides kiosk configuration when kiosks.configure is missing", async () => {
     vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
       storeId: "store-1",

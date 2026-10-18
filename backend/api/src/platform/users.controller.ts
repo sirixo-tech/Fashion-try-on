@@ -19,6 +19,7 @@ import { PlatformAuthorizationService } from "./platform-authorization.service.j
 import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
 import {
   AssignFirstOwnerDto,
+  StoreAdminEmailDto,
   DeleteUserDto,
   UpdateUserDto,
   UsersQueryDto,
@@ -116,5 +117,21 @@ export class UsersController {
   ) {
     const actor = await this.editor(request);
     return this.users.assignFirstOwner(actor.id, id, input);
+  }
+  @Post(":userId/store-admin") async assignStoreAdmin(
+    @Req() request: FastifyRequest,
+    @Param("userId", SelfxUuidParamPipe) id: string,
+    @Body() input: AssignFirstOwnerDto,
+  ) {
+    const actor = await this.editor(request);
+    return this.users.assignStoreAdmin(actor.id, id, input);
+  }
+  @Patch(":userId/store-admin-email") async updateStoreAdminEmail(
+    @Req() request: FastifyRequest,
+    @Param("userId", SelfxUuidParamPipe) id: string,
+    @Body() input: StoreAdminEmailDto,
+  ) {
+    const actor = await this.editor(request);
+    return this.users.updateStoreAdminEmail(actor.id, id, input);
   }
 }

@@ -2,6 +2,17 @@
 
 ## Implementation Plan
 
+### USERS-3 — Store Admin selection and email editing
+
+Add Superadmin-only inline account controls to Edit Store. Reuse shared account
+mutations and first-admin logic through explicit, validated context-specific APIs.
+Verify selected-Store membership, protected/deleted targets, duplicate/stale
+emails, session invalidation, multiple/shared admins, preserved credentials and
+permission ceilings, ownerless repair and single-popup UI states. Run existing
+account/deletion regressions, UI tests, typechecks and lint. Deploy API and web
+together; this milestone needs no new migration or environment variable.
+
+
 ### USERS-2 — Approved deletion and role consolidation
 
 Implement five business roles, User Management/Users/Roles labels, confirmed

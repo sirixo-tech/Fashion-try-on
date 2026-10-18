@@ -5,12 +5,55 @@ import { validate } from "class-validator";
 import { UsersController } from "./users.controller.js";
 import {
   DeleteUserDto,
+  StoreAdminEmailDto,
+  AssignFirstOwnerDto,
   UpdateUserDto,
   UsersQueryDto,
 } from "./dto/users.dto.js";
 
 describe("Users authorization and validation", () => {
   const request = { headers: { authorization: "Bearer test" } } as never;
+  it("blocks Store account selection and email changes for non-Superadmins", async () => {
+    const users = { assignStoreAdmin: vi.fn(), updateStoreAdminEmail: vi.fn() };
+    const controller = new UsersController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "actor" }),
+      } as never,
+      { isSuperadmin: vi.fn().mockResolvedValue(false) } as never,
+      users as never,
+      {} as never,
+    );
+    await expect(
+      controller.assignStoreAdmin(request, "target", {} as never),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      controller.updateStoreAdminEmail(request, "target", {} as never),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(users.assignStoreAdmin).not.toHaveBeenCalled();
+    expect(users.updateStoreAdminEmail).not.toHaveBeenCalled();
+    expect(
+      (
+        await validate(
+          plainToInstance(StoreAdminEmailDto, {
+            version: "bad",
+            storeId: "bad",
+            email: "bad",
+          }),
+        )
+      )
+        .map((e) => e.property)
+        .sort(),
+    ).toEqual(["email", "storeId", "version"]);
+    expect(
+      await validate(
+        plainToInstance(AssignFirstOwnerDto, {
+          version: "bad",
+          storeId: "bad",
+          confirmStoreName: "",
+        }),
+      ),
+    ).toHaveLength(3);
+  });
   it("rejects account updates and first-owner assignment before service execution for non-Superadmins", async () => {
     const users = { update: vi.fn(), assignFirstOwner: vi.fn() };
     const controller = new UsersController(
