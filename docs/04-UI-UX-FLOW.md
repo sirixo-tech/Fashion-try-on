@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### PAYMENTS-1E — Store QR test popup
+
+Use public @selfx/ui Dialog components with a responsive desktop width up to the
+shared 3xl utility and viewport-bounded scrolling. Show Generating/Open progress
+before the API resolves, then the shared result view. Block duplicate clicks and
+dismissal during in-flight actions. Show a server-time-based countdown and remove
+expired or terminal-state QRs. Present initialization and latest status-check
+guidance, diagnostic references, test id and callback status. Keep failure/retry
+inside the popup; uncertain retries reuse the request key. Open test reuses that
+dialog, without adding a second popup. Viewing-only accounts retain safe history
+and cannot open QR details or execute tests. This supersedes Store inline result
+placement, while platform testing retains its existing single dialog.
+
 ### ROLES-1 — Unified Roles page
 
 Keep /app/roles under User Management. Show Platform roles only to authorized

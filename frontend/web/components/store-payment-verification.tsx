@@ -5,6 +5,11 @@ import {
   AlertDescription,
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
   SectionCard,
   Table,
   TableBody,
@@ -51,6 +56,11 @@ export function StorePaymentVerification({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false),
+    [dialogError, setDialogError] = useState<string | null>(null);
+  const [operation, setOperation] = useState<"GENERATE" | "OPEN">("GENERATE");
+  const openId = useRef<string | null>(null);
+  const inFlight = useRef(false);
   const [busy, setBusy] = useState(false),
     [checking, setChecking] = useState(false),
     [revision, setRevision] = useState(0);
@@ -94,7 +104,19 @@ export function StorePaymentVerification({
     workspace.callbackConfigured &&
     !pending;
   async function start() {
-    if (locked || !canEdit || !ready || !workspace?.connection) return;
+    if (
+      locked ||
+      inFlight.current ||
+      !canEdit ||
+      (!ready && !startKey.current) ||
+      !workspace?.connection
+    )
+      return;
+    inFlight.current = true;
+    setOperation("GENERATE");
+    setDialogOpen(true);
+    setDialogError(null);
+    setSelected(null);
     setBusy(true);
     setError(null);
     startKey.current ??= crypto.randomUUID();
@@ -109,20 +131,29 @@ export function StorePaymentVerification({
       );
       startKey.current = null;
     } catch (caught) {
-      setError(message(caught));
+      setDialogError(message(caught));
+      setRevision((value) => value + 1);
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
   async function open(id: string) {
-    if (locked || !canEdit) return;
+    if (locked || inFlight.current || !canEdit) return;
+    inFlight.current = true;
+    openId.current = id;
+    setOperation("OPEN");
+    setDialogOpen(true);
+    setDialogError(null);
+    setSelected(null);
     setBusy(true);
     setError(null);
     try {
       setSelected(await getStorePaymentTest(accessToken, storeId, id));
     } catch (caught) {
-      setError(message(caught));
+      setDialogError(message(caught));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -211,18 +242,6 @@ export function StorePaymentVerification({
                 Refresh verification
               </Button>
             </div>
-            {selected && canEdit && (
-              <PaymentTestResult
-                key={selected.id}
-                accessToken={accessToken}
-                storeId={storeId}
-                initial={selected}
-                disabled={locked}
-                onBusyChange={setChecking}
-                onResultChange={update}
-                onClose={() => setSelected(null)}
-              />
-            )}
             <p className="text-sm text-muted-foreground">
               A passed UAT test verifies only this saved Store configuration. It
               does not verify live credentials or another Store's account.
@@ -279,6 +298,81 @@ export function StorePaymentVerification({
           </>
         )}
       </div>
+      {canEdit && (
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(value) => {
+            if (!locked && !inFlight.current) setDialogOpen(value);
+          }}
+        >
+          <DialogContent
+            className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
+            showCloseButton={!locked}
+          >
+            <DialogHeader>
+              <DialogTitle>PhonePe test payment</DialogTitle>
+              <DialogDescription>
+                ₹1.00 UAT test for this Store. Closing keeps the test in Recent
+                Store tests.
+              </DialogDescription>
+            </DialogHeader>
+            {busy && (
+              <p role="status">
+                {operation === "GENERATE"
+                  ? "Generating your test QR…"
+                  : "Opening saved test…"}
+              </p>
+            )}
+            {dialogError && (
+              <Alert variant="destructive">
+                <AlertDescription>{dialogError}</AlertDescription>
+                <p className="mt-2 text-sm">
+                  {operation === "GENERATE"
+                    ? "The request outcome may be uncertain. Retry the same request or open its saved test; do not create another payment."
+                    : "Retry opening this saved test."}
+                </p>
+                <Button
+                  variant="outline"
+                  disabled={locked}
+                  onClick={() =>
+                    operation === "GENERATE"
+                      ? void start()
+                      : openId.current
+                        ? void open(openId.current)
+                        : undefined
+                  }
+                >
+                  {operation === "GENERATE"
+                    ? "Retry same request"
+                    : "Retry opening test"}
+                </Button>
+              </Alert>
+            )}
+            {selected && (
+              <PaymentTestResult
+                key={selected.id}
+                accessToken={accessToken}
+                storeId={storeId}
+                initial={selected}
+                disabled={locked}
+                onBusyChange={setChecking}
+                onResultChange={update}
+                onClose={() => setDialogOpen(false)}
+                closeLabel="Close test"
+              />
+            )}
+            {!selected && !busy && (
+              <Button
+                variant="outline"
+                disabled={locked}
+                onClick={() => setDialogOpen(false)}
+              >
+                Close
+              </Button>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </SectionCard>
   );
 }

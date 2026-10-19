@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYMENTS-1E — Store test QR popup and understandable failures
+
+Generate test QR opens a single Store test popup immediately, showing progress,
+the usable QR with expiry countdown, processing/confirmation, success or verified
+failure. Open test resumes the same saved test. Closing does not cancel/delete it.
+An uncertain browser request retries with its original idempotency key; pending
+tests continue to prevent duplicate payment initialization. Expiry/timeouts alone
+do not prove payment failure. Expose safe reasons for QR initialization and the
+latest provider status check without exposing credentials or raw provider data.
+Live checkout, product orders and APK Buy remain outside this test milestone.
+
 ### ROLES-1 — Unified role visibility and controlled permission editing
 
 User Management > Roles presents the five approved role types: Platform

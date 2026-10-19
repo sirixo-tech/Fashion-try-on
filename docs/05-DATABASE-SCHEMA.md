@@ -2,6 +2,17 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1E — Redacted test diagnostic snapshots
+
+Migration 20261019000000_payment_test_diagnostics adds nullable JSONB
+initialization_diagnostic and status_diagnostic to platform_payment_tests, the
+existing shared scoped test table. Each snapshot contains only a fixed internal
+code, numeric HTTP status or null, allowlisted provider code or null and timestamp.
+Display messages are resolved from the backend registry. Do not store arbitrary
+provider/request/error data. New reads revalidate stored snapshots before returning
+them. Existing rows remain null; no invented/backfilled failure reason is added.
+Existing Store/platform isolation, retention, audit and cascade behavior remain.
+
 ### ROLES-1 — Existing role maps and permission limits
 
 No new table or schema migration is required. Keep global platform_roles and

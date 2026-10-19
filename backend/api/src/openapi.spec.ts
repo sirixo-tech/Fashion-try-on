@@ -72,6 +72,19 @@ describe("OpenAPI documentation", () => {
     expect(paths).toContain(
       "/api/v1/payments/phonepe/stores/{storeId}/tests/{testId}/callback",
     );
+    expect(
+      response.body.components.schemas.PlatformPaymentTestDetailDto.properties
+        .diagnostics,
+    ).toBeTruthy();
+    expect(
+      response.body.components.schemas.PaymentTestDiagnosticDto.properties,
+    ).toMatchObject({
+      code: expect.any(Object),
+      message: expect.any(Object),
+      httpStatus: expect.any(Object),
+      providerCode: expect.any(Object),
+      at: expect.any(Object),
+    });
     const anonymous = await request(app.getHttpServer()).get(
       "/api/v1/admin/stores/0199aee0-0000-7000-8000-000000000001/payments/phonepe/testing",
     );

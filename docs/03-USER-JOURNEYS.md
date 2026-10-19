@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### PAYMENTS-1E — Generate and resume a Store QR test
+
+Store Admin clicks Generate test QR and immediately sees a generating popup. A
+usable QR appears with its remaining lifetime; payment confirmation is shown in
+that same popup. If no usable QR was obtained, display the recorded reason and
+allow checking the same test. A lost browser request offers Retry same request,
+retaining its key. Close and later Open test resume the persisted test; closing
+does not cancel it. Once the QR expires, hide it and continue confirmation rather
+than claiming failure. Verified success/failure and callback receipt remain
+separate facts. Historic discarded responses cannot be recovered; checking an old
+unknown test records a new status diagnostic where possible.
+
 ### ROLES-1 — Review and edit scoped role permissions
 
 Superadmin opens User Management > Roles and chooses Platform roles or Store

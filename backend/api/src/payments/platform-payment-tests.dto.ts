@@ -34,7 +34,22 @@ export class PlatformPaymentTestSummaryDto {
   @ApiProperty() verificationPending!: boolean;
   @ApiProperty({ enum: [true] }) testOnly!: true;
 }
+export class PaymentTestDiagnosticDto {
+  @ApiProperty() code!: string;
+  @ApiProperty() message!: string;
+  @ApiProperty({ type: Number, nullable: true }) httpStatus!: number | null;
+  @ApiProperty({ type: String, nullable: true }) providerCode!: string | null;
+  @ApiProperty() at!: string;
+}
+export class PaymentTestDiagnosticsDto {
+  @ApiProperty({ type: PaymentTestDiagnosticDto, nullable: true })
+  initialization!: PaymentTestDiagnosticDto | null;
+  @ApiProperty({ type: PaymentTestDiagnosticDto, nullable: true })
+  status!: PaymentTestDiagnosticDto | null;
+}
 export class PlatformPaymentTestDetailDto extends PlatformPaymentTestSummaryDto {
+  @ApiProperty({ type: PaymentTestDiagnosticsDto })
+  diagnostics!: PaymentTestDiagnosticsDto;
   @ApiProperty({ nullable: true, type: String }) qrString!: string | null;
   @ApiProperty() serverTime!: string;
 }

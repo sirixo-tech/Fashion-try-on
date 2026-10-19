@@ -16,6 +16,8 @@ import { PlatformPaymentTestsService } from "./platform-payment-tests.service.js
 import { PaymentSettingsService } from "./payment-settings.service.js";
 import type { ProviderRequest } from "./payment-adapter.js";
 import type { SavePhonePeConnectionDto } from "./payment-settings.dto.js";
+import { PaymentProviderError } from "./payment-diagnostics.js";
+import { Logger } from "@nestjs/common";
 
 const url = process.env.PAYMENT_TEST_DATABASE_URL;
 if (
@@ -57,6 +59,7 @@ describe.skipIf(!url)(
       });
     });
     beforeEach(async () => {
+      vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
       engine = new PlatformPaymentTestsService(db, { send } as never);
       a = createSelfxId();
       b = createSelfxId();
@@ -116,6 +119,7 @@ describe.skipIf(!url)(
       });
       await db.platformPaymentTestConnection.deleteMany();
       await db.auditLog.deleteMany({ where: { actorUserId: actor } });
+      vi.restoreAllMocks();
     });
     afterAll(async () => {
       await db.user.delete({ where: { id: actor } });
@@ -367,6 +371,76 @@ describe.skipIf(!url)(
         await db.platformPaymentTestEvent.count({ where: { testId: ta.id } }),
       ).toBe(0);
       expect((await engine.detail(tb.id, b)).id).toBe(tb.id);
+    });
+    it("persists separate sanitized QR/status diagnostics, survives reopening and retains late success", async () => {
+      const key = createSelfxId();
+      send.mockRejectedValueOnce(
+        new PaymentProviderError("HTTP_REJECTED", 401, "AUTHORIZATION_FAILED"),
+      );
+      const test = await start(a, key);
+      expect(test.status).toBe("UNKNOWN");
+      expect(test.qrString).toBeNull();
+      expect(test.diagnostics.initialization).toMatchObject({
+        code: "HTTP_REJECTED",
+        httpStatus: 401,
+        providerCode: "AUTHORIZATION_FAILED",
+      });
+      expect(send).toHaveBeenCalledTimes(1);
+      expect((await start(a, key)).id).toBe(test.id);
+      expect(send).toHaveBeenCalledTimes(1);
+      const reopened = await new PlatformPaymentTestsService(db, {
+        send,
+      } as never).detail(test.id, a);
+      expect(reopened.diagnostics).toEqual(test.diagnostics);
+      await expect(engine.detail(test.id, b)).rejects.toThrow();
+      await expect(engine.detail(test.id)).rejects.toThrow();
+      expect(JSON.stringify(await engine.workspace(a))).not.toContain(
+        "initializationDiagnostic",
+      );
+      await due(test.id);
+      send.mockRejectedValueOnce(new Error(`sensitive transport data ${salt}`));
+      const checked = await engine.check(test.id, actor, a);
+      expect(checked.status).toBe("UNKNOWN");
+      expect(checked.diagnostics.initialization).toEqual(
+        test.diagnostics.initialization,
+      );
+      expect(checked.diagnostics.status?.code).toBe("UNCLASSIFIED");
+      expect(JSON.stringify(checked)).not.toContain(salt);
+      expect(
+        JSON.stringify(vi.mocked(Logger.prototype.warn).mock.calls),
+      ).not.toContain(salt);
+      await expect(start(a)).rejects.toMatchObject(
+        error("PAYMENT_TEST_PENDING"),
+      );
+      await due(test.id);
+      const success = await engine.check(test.id, actor, a);
+      expect(success.status).toBe("SUCCEEDED");
+      expect(success.diagnostics.status).toBeNull();
+      expect(success.diagnostics.initialization).toEqual(
+        test.diagnostics.initialization,
+      );
+    });
+    it("explains a successful HTTP response with invalid QR data without accepting it", async () => {
+      send.mockImplementationOnce(async (request) => {
+        const payload = JSON.parse(
+          Buffer.from(JSON.parse(request.body!).request, "base64").toString(),
+        );
+        return {
+          success: true,
+          code: "SUCCESS",
+          message: salt,
+          data: {
+            ...payload,
+            amount: 200,
+            qrString: `upi://pay?tr=${payload.transactionId}&am=2.00`,
+          },
+        };
+      });
+      const test = await start();
+      expect(test.status).toBe("UNKNOWN");
+      expect(test.diagnostics.initialization?.code).toBe("AMOUNT_MISMATCH");
+      expect(test.qrString).toBeNull();
+      expect(JSON.stringify(test)).not.toContain(salt);
     });
   },
 );

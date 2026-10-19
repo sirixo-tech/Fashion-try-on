@@ -2,6 +2,19 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1E — QR popup and actionable diagnostics
+
+Add the immediate Store QR dialog, resumable results and expiry countdown. Add
+safe provider transport/adapter failure classification and persist separate
+initialization/latest-check diagnostics using the additive migration. Verify
+redaction, popup loading/duplicate/retry behavior, terminal results, expiry,
+historical unknown tests, Store/platform boundaries, late success and existing
+order-payment handling with simulated provider calls on fresh local PostgreSQL.
+Run API/web typechecks, changed-file lint, API/OpenAPI initialization and builds.
+Deploy the migration before the updated API, then deploy web. No new environment
+variable; live provider acceptance and real merchant enablement remain separate.
+See PAYMENTS-1E-IMPLEMENTATION-REPORT.md for rollout and limits.
+
 ### ROLES-1 — Unified role management
 
 Replace the platform-only Roles page with one scoped workspace for all five

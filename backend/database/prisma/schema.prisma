@@ -778,6 +778,8 @@ model PlatformPaymentTest {
   qrString             String?                    @map("qr_string") @db.Text
   providerReference    String?                    @map("provider_reference") @db.VarChar(128)
   failureCode          String?                    @map("failure_code") @db.VarChar(60)
+  initializationDiagnostic Json?                  @map("initialization_diagnostic")
+  statusDiagnostic     Json?                      @map("status_diagnostic")
   expiresAt            DateTime                   @map("expires_at") @db.Timestamptz(3)
   confirmedAt          DateTime?                  @map("confirmed_at") @db.Timestamptz(3)
   checkedAt            DateTime?                  @map("checked_at") @db.Timestamptz(3)

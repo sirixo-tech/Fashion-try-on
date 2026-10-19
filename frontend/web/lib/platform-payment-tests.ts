@@ -21,8 +21,19 @@ export type PlatformPaymentTest = {
   testOnly: true;
 };
 export type PlatformPaymentTestDetail = PlatformPaymentTest & {
+  diagnostics?: {
+    initialization: PaymentTestDiagnostic | null;
+    status: PaymentTestDiagnostic | null;
+  };
   qrString: string | null;
   serverTime: string;
+};
+export type PaymentTestDiagnostic = {
+  code: string;
+  message: string;
+  httpStatus: number | null;
+  providerCode: string | null;
+  at: string;
 };
 export type PlatformPaymentWorkspace = {
   connection: {

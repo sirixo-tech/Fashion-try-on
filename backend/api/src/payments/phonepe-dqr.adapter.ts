@@ -1,5 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { PaymentEnvironment } from "./payment-gateways.js";
+import {
+  PaymentProviderError,
+  safeProviderCode,
+} from "./payment-diagnostics.js";
 import type {
   PaymentAdapter,
   PaymentExpectation,
@@ -34,13 +38,13 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
       callback.password ||
       callback.port
     )
-      invalid();
+      throw new PaymentProviderError("LOCAL_REQUEST_INVALID");
     if (
       !Number.isInteger(expiresInSeconds) ||
       expiresInSeconds < 1 ||
       expiresInSeconds > 300
     )
-      invalid();
+      throw new PaymentProviderError("LOCAL_REQUEST_INVALID");
     const encoded = Buffer.from(
       JSON.stringify({
         merchantId: this.credentials.merchantId,
@@ -69,31 +73,43 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
   }
   parseQr(response: unknown, expected: PaymentExpectation) {
     this.check(expected);
-    const root = record(response),
-      data = this.match(root, expected);
+    const root = record(response);
+    if (root.success === false)
+      throw new PaymentProviderError(
+        "PROVIDER_REJECTED",
+        null,
+        safeProviderCode(root.code),
+      );
+    const data = this.match(root, expected);
     if (
       root.success !== true ||
       root.code !== "SUCCESS" ||
       typeof data.qrString !== "string" ||
       data.qrString.length > 8192
     )
-      invalid();
-    const qr = new URL(data.qrString);
+      throw new PaymentProviderError("INVALID_QR");
+    let qr: URL;
+    try {
+      qr = new URL(data.qrString);
+    } catch {
+      throw new PaymentProviderError("INVALID_QR");
+    }
     if (
       qr.protocol !== "upi:" ||
       qr.host !== "pay" ||
       qr.searchParams.get("tr") !== expected.transactionId
     )
-      invalid();
+      throw new PaymentProviderError("INVALID_QR");
     // Compare exact integer minor units; avoid floating-point payment checks.
     const amount = qr.searchParams.get("am") ?? "";
-    if (!/^\d+(?:\.\d{1,2})?$/.test(amount)) invalid();
+    if (!/^\d+(?:\.\d{1,2})?$/.test(amount))
+      throw new PaymentProviderError("INVALID_QR");
     const [whole = "", fraction = ""] = amount.split(".");
     if (
       BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0")) !==
       BigInt(expected.amountMinor)
     )
-      invalid();
+      throw new PaymentProviderError("AMOUNT_MISMATCH");
     return { qrString: data.qrString };
   }
   parseStatus(
@@ -101,8 +117,22 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
     expected: PaymentExpectation,
   ): ProviderPaymentStatus {
     this.check(expected);
-    const root = record(response),
-      data = this.match(root, expected);
+    const root = record(response);
+    if (
+      root.success === false &&
+      ![
+        "PAYMENT_PENDING",
+        "PAYMENT_ERROR",
+        "PAYMENT_DECLINED",
+        "PAYMENT_CANCELLED",
+      ].includes(String(root.code))
+    )
+      throw new PaymentProviderError(
+        "PROVIDER_REJECTED",
+        null,
+        safeProviderCode(root.code),
+      );
+    const data = this.match(root, expected);
     let status: ProviderPaymentStatus["status"] = "UNKNOWN";
     if (
       root.code === "PAYMENT_SUCCESS" &&
@@ -156,19 +186,17 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
   }
   private match(root: Record<string, unknown>, expected: PaymentExpectation) {
     const data = record(root.data);
-    if (
-      data.merchantId !== this.credentials.merchantId ||
-      data.transactionId !== expected.transactionId ||
-      data.amount !== expected.amountMinor
-    )
-      invalid();
+    if (data.merchantId !== this.credentials.merchantId)
+      throw new PaymentProviderError("MERCHANT_MISMATCH");
+    if (data.transactionId !== expected.transactionId)
+      throw new PaymentProviderError("TRANSACTION_MISMATCH");
+    if (data.amount !== expected.amountMinor)
+      throw new PaymentProviderError("AMOUNT_MISMATCH");
     return data;
   }
   private check(expected: PaymentExpectation) {
     if (this.credentials.environment !== "UAT")
-      throw new Error(
-        "PhonePe requests require confirmed UAT configuration; production is not enabled.",
-      );
+      throw new PaymentProviderError("LOCAL_REQUEST_INVALID");
     if (
       !/^[A-Za-z0-9_-]{1,100}$/.test(this.credentials.merchantId) ||
       !/^[A-Za-z0-9_-]{1,37}$/.test(this.credentials.providerStoreId) ||
@@ -182,7 +210,7 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
       expected.amountMinor < 1 ||
       expected.amountMinor > 2_000_000_000
     )
-      invalid();
+      throw new PaymentProviderError("LOCAL_REQUEST_INVALID");
   }
   private checksum(prefix: string) {
     return (
@@ -208,5 +236,5 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 function invalid(): never {
-  throw new Error("Invalid PhonePe payment request or response.");
+  throw new PaymentProviderError("INVALID_RESPONSE");
 }

@@ -19,6 +19,7 @@ export function PaymentTestResult({
   onResultChange,
   disabled,
   storeId,
+  closeLabel = "Hide result",
 }: {
   accessToken: string;
   initial: PlatformPaymentTestDetail;
@@ -27,12 +28,29 @@ export function PaymentTestResult({
   onResultChange: (result: PlatformPaymentTestDetail) => void;
   disabled: boolean;
   storeId?: string;
+  closeLabel?: string;
 }) {
   const [test, setTest] = useState(initial),
     [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false),
     [qrImage, setQrImage] = useState<string | null>(null);
   const currentTest = useRef(initial);
+  const [clock, setClock] = useState(Date.now());
+  const serverOffset = useRef(
+    Number.isFinite(Date.parse(initial.serverTime))
+      ? Date.parse(initial.serverTime) - Date.now()
+      : 0,
+  );
+  const remaining = Math.max(
+    0,
+    Math.ceil(
+      (Date.parse(test.expiresAt) - (clock + serverOffset.current)) / 1000,
+    ),
+  );
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const checking = useRef(false);
   const requestVersion = useRef(0);
   const applyResult = useCallback(
@@ -45,7 +63,8 @@ export function PaymentTestResult({
       if (
         previous.status !== result.status ||
         previous.callbackReceived !== result.callbackReceived ||
-        previous.verificationPending !== result.verificationPending
+        previous.verificationPending !== result.verificationPending ||
+        previous.failureCode !== result.failureCode
       )
         onResultChange(result);
     },
@@ -105,7 +124,7 @@ export function PaymentTestResult({
     };
   }, [test.qrString]);
   async function check() {
-    if (busy || disabled) return;
+    if (busy || disabled || checking.current) return;
     checking.current = true;
     ++requestVersion.current;
     setBusy(true);
@@ -142,15 +161,75 @@ export function PaymentTestResult({
       <Badge variant={test.status === "SUCCEEDED" ? "default" : "outline"}>
         {resultLabel(test)}
       </Badge>
-      {qrImage && test.qrString && (
-        <Image
-          unoptimized
-          src={qrImage}
-          width={280}
-          height={280}
-          alt="PhonePe UAT test payment QR"
-          className="mx-auto rounded-lg bg-white"
-        />
+      {busy && <p role="status">Checking payment confirmation…</p>}
+      {test.status === "PENDING" && test.qrString && remaining > 0 && (
+        <p role="timer" aria-label="QR time remaining">
+          QR expires in {Math.floor(remaining / 60)}:
+          {String(remaining % 60).padStart(2, "0")}
+        </p>
+      )}
+      {test.status !== "SUCCEEDED" && remaining === 0 && (
+        <p>
+          QR expired. Payment confirmation may still arrive; check this same
+          test before starting another.
+        </p>
+      )}
+      {qrImage &&
+        test.qrString &&
+        test.status === "PENDING" &&
+        remaining > 0 && (
+          <Image
+            unoptimized
+            src={qrImage}
+            width={280}
+            height={280}
+            alt="PhonePe UAT test payment QR"
+            className="mx-auto rounded-lg bg-white"
+          />
+        )}
+      {["PREPARING", "PENDING", "UNKNOWN"].includes(test.status) &&
+        !test.qrString && (
+          <p>
+            No usable QR is available for this test. Check its status and review
+            the diagnostic below.
+          </p>
+        )}
+      {test.status === "UNKNOWN" &&
+        !test.diagnostics?.initialization &&
+        !test.diagnostics?.status && (
+          <p>
+            No diagnostic was recorded for this earlier request. Check this same
+            test to capture the latest status-check reason.
+          </p>
+        )}
+      {test.diagnostics && (
+        <div className="space-y-3">
+          {(["initialization", "status"] as const).map((stage) => {
+            const diagnostic = test.diagnostics?.[stage];
+            return diagnostic ? (
+              <Alert key={stage}>
+                <AlertDescription>
+                  <strong>
+                    {stage === "initialization"
+                      ? "QR generation attempt"
+                      : "Latest status check"}
+                    :
+                  </strong>{" "}
+                  {diagnostic.message}
+                  <span className="mt-1 block text-xs">
+                    Reference: {diagnostic.code}
+                    {diagnostic.httpStatus
+                      ? ` · HTTP ${diagnostic.httpStatus}`
+                      : ""}
+                    {diagnostic.providerCode
+                      ? ` · ${diagnostic.providerCode}`
+                      : ""}
+                  </span>
+                </AlertDescription>
+              </Alert>
+            ) : null;
+          })}
+        </div>
       )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
         <dt className="text-muted-foreground">Test ID</dt>
@@ -185,7 +264,7 @@ export function PaymentTestResult({
           {busy ? "Checking…" : "Check payment status"}
         </Button>
         <Button variant="outline" disabled={busy || disabled} onClick={onClose}>
-          Hide result
+          {closeLabel}
         </Button>
       </div>
     </section>

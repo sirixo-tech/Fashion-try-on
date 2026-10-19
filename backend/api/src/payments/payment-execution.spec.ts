@@ -110,9 +110,9 @@ describe("payment transport without real network", () => {
     async (response) => {
       vi.stubEnv("SELFX_PHONEPE_UAT_ENABLED", "true");
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
-      await expect(new PhonePeTransport().send(request)).rejects.toThrow(
-        "PhonePe response unavailable or invalid.",
-      );
+      await expect(new PhonePeTransport().send(request)).rejects.toMatchObject({
+        name: "PaymentProviderError",
+      });
     },
   );
 });

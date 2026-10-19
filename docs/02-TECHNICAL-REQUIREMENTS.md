@@ -1,5 +1,25 @@
 ## Document Evolution
 
+### PAYMENTS-1E — Durable redacted payment-test diagnostics
+
+Keep PhonePe transport, provider adapter and test orchestration separate. Classify
+timeout/network/HTTP failures, bounded-response decode failures, provider rejection
+and merchant/transaction/amount/QR mismatches using fixed internal codes. Retain
+only numeric HTTP status, explicitly allowlisted provider codes and timestamps;
+never retain raw bodies, headers, credentials, arbitrary error messages or stack
+traces in diagnostic snapshots/logs. Resolve display guidance from backend-owned
+messages. Persist initialization and latest status-check diagnostics separately;
+clear the latest status error on a valid response and retain initialization
+history for later reconciliation. Diagnostics never authorize payment success or
+turn request errors into terminal payment failure.
+
+Reuse existing Store/platform test detail APIs with additive diagnostics and
+existing management permissions. Keep summaries explicitly allowlisted and omit
+diagnostics/QR there. Preserve provider response matching, signatures, independent
+status verification, scope, idempotency, leases and retries. Use one responsive
+Store dialog for Generate/Open test; platform testing keeps its existing single
+workspace dialog and consumes the shared diagnostic result view.
+
 ### ROLES-1 — One workspace, separate authorization scopes
 
 Use authenticated GET /api/v1/admin/roles for platform role visibility and a

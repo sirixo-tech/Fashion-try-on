@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { Prisma, type PlatformPaymentTest } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
@@ -13,6 +13,11 @@ import {
 } from "./phonepe-dqr.adapter.js";
 import { PhonePeTransport } from "./phonepe.transport.js";
 import { paymentCallbackOrigin } from "./payment-execution-utils.js";
+import {
+  paymentDiagnostic,
+  readPaymentDiagnostic,
+  PaymentProviderError,
+} from "./payment-diagnostics.js";
 import type { ProviderPaymentStatus } from "./payment-adapter.js";
 import type {
   SavePlatformPhonePeTestDto,
@@ -49,6 +54,7 @@ type Summary = Prisma.PlatformPaymentTestGetPayload<{
 
 @Injectable()
 export class PaymentGatewayTestsService {
+  private readonly logger = new Logger(PaymentGatewayTestsService.name);
   // The historic database table names are retained for compatibility.
   // Every user-facing operation is bound to a Store or platform scope.
   private readonly buckets = new Map<
@@ -285,7 +291,7 @@ export class PaymentGatewayTestsService {
           (test.row.expiresAt.getTime() - Date.now()) / 1000,
         );
         if (remaining < 1)
-          throw new Error("Test QR deadline passed before initialization.");
+          throw new PaymentProviderError("LOCAL_REQUEST_INVALID");
         const response = await this.transport.send(
           adapter.createRequest(
             expected(test.row),
@@ -305,12 +311,20 @@ export class PaymentGatewayTestsService {
             nextCheckAt: new Date(Date.now() + 15000),
           },
         });
-      } catch {
+      } catch (error) {
+        const diagnostic = paymentDiagnostic(error);
+        this.logger.warn({
+          event: "payment_test_diagnostic",
+          testId: test.row.id,
+          stage: "INITIALIZATION",
+          ...diagnostic,
+        });
         await this.prisma.platformPaymentTest.updateMany({
           where: { id: test.row.id, status: { in: activeStatuses } },
           data: {
             status: "UNKNOWN",
             failureCode: "PAYMENT_REQUEST_UNCERTAIN",
+            initializationDiagnostic: diagnostic,
             leaseUntil: null,
             nextCheckAt: new Date(Date.now() + 15000),
           },
@@ -323,11 +337,20 @@ export class PaymentGatewayTestsService {
   async detail(id: string, storeId: string | null = null) {
     const row = await this.prisma.platformPaymentTest.findFirst({
       where: { id, scopeKey: scopeKey(storeId) },
-      select: { ...summarySelect, qrString: true },
+      select: {
+        ...summarySelect,
+        qrString: true,
+        initializationDiagnostic: true,
+        statusDiagnostic: true,
+      },
     });
     if (!row) notFound();
     return {
       ...summary(row),
+      diagnostics: {
+        initialization: readPaymentDiagnostic(row.initializationDiagnostic),
+        status: readPaymentDiagnostic(row.statusDiagnostic),
+      },
       qrString:
         row.status === "PENDING" && row.expiresAt > new Date()
           ? row.qrString
@@ -413,6 +436,7 @@ export class PaymentGatewayTestsService {
       where: { id },
     });
     let evidence: ProviderPaymentStatus | null = null;
+    let diagnostic: ReturnType<typeof paymentDiagnostic> | null = null;
     try {
       evidence = paymentTestAdapter(row).parseStatus(
         await this.transport.send(
@@ -420,8 +444,19 @@ export class PaymentGatewayTestsService {
         ),
         expected(row),
       );
-    } catch {
-      /* network errors must not become failed payments */
+      if (evidence.status === "UNKNOWN")
+        diagnostic = paymentDiagnostic(
+          new PaymentProviderError("UNRECOGNIZED_STATUS"),
+        );
+    } catch (error) {
+      diagnostic = paymentDiagnostic(error);
+      this.logger.warn({
+        event: "payment_test_diagnostic",
+        testId: id,
+        stage: "STATUS",
+        ...diagnostic,
+      });
+      // Diagnostic evidence never changes an uncertain payment into a failure.
     }
     await this.prisma.$transaction(async (tx) => {
       await lock(tx, row.organizationId); // matches the account configuration lock
@@ -447,6 +482,7 @@ export class PaymentGatewayTestsService {
             providerReference: evidence!.providerReference,
             failureCode:
               evidence!.status === "FAILED" ? "PAYMENT_FAILED" : null,
+            statusDiagnostic: Prisma.DbNull,
             leaseUntil: null,
             nextCheckAt: null,
             checkCount: { increment: 1 },
@@ -476,6 +512,7 @@ export class PaymentGatewayTestsService {
                 ? "PENDING"
                 : "UNKNOWN",
             checkedAt: new Date(),
+            statusDiagnostic: diagnostic ?? Prisma.DbNull,
             leaseUntil: null,
             nextCheckAt:
               failed && !successEvent ? null : new Date(Date.now() + delay),
@@ -619,10 +656,18 @@ function summary(row: Summary) {
     confirmedAt,
     checkedAt,
     nextCheckAt,
-    ...safe
+    // Additional database fields must never be spread into API summaries.
   } = row;
   return {
-    ...safe,
+    id: row.id,
+    provider: row.provider,
+    environment: row.environment,
+    connectionVersion: row.connectionVersion,
+    status: row.status,
+    amountMinor: row.amountMinor,
+    currency: row.currency,
+    failureCode: row.failureCode,
+    providerReference: row.providerReference,
     createdAt: createdAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
     confirmedAt: confirmedAt?.toISOString() ?? null,
