@@ -14,6 +14,7 @@ import {
 import {
   SavePhonePeConnectionDto,
   SelectPaymentGatewayDto,
+  EditPhonePeConnectionDto,
 } from "./payment-settings.dto.js";
 import {
   paymentEncryptionKey,
@@ -34,6 +35,32 @@ describe("payment configuration input and encryption readiness", () => {
     expect(
       await validate(plainToInstance(SavePhonePeConnectionDto, input)),
     ).toHaveLength(0);
+  });
+  it("permits an absent/blank edit Salt Key but rejects malformed replacements and missing create keys", async () => {
+    for (const saltKey of [undefined, "", "valid-replacement-fixture-key"])
+      expect(
+        await validate(
+          plainToInstance(EditPhonePeConnectionDto, { ...input, saltKey }),
+        ),
+      ).toHaveLength(0);
+    for (const saltKey of [null, " ", "too-short", "key-with-newline-123\n"])
+      expect(
+        (
+          await validate(
+            plainToInstance(EditPhonePeConnectionDto, { ...input, saltKey }),
+          )
+        ).length,
+      ).toBeGreaterThan(0);
+    expect(
+      (
+        await validate(
+          plainToInstance(SavePhonePeConnectionDto, {
+            ...input,
+            saltKey: undefined,
+          }),
+        )
+      ).length,
+    ).toBeGreaterThan(0);
   });
   it.each([
     { environment: null },
@@ -110,6 +137,9 @@ describe("payment configuration authorization", () => {
       select: vi.fn(),
       listGateways: vi.fn(),
       updatePolicy: vi.fn(),
+      getPhonePeEdit: vi.fn(),
+      editPhonePe: vi.fn(),
+      deletePhonePe: vi.fn(),
     };
     return {
       auth,
@@ -145,6 +175,49 @@ describe("payment configuration authorization", () => {
       input,
     );
   });
+  it("requires actual Store management permission for editable details, updates and deletion", async () => {
+    const c = setup();
+    await c.store.editDetails(request, "store-a");
+    await c.store.edit(request, "store-a", { ...input, saltKey: "" });
+    await c.store.remove(request, "store-a", { expectedVersion: 3 });
+    expect(c.payments.getPhonePeEdit).toHaveBeenCalledWith("store-a");
+    expect(c.payments.editPhonePe).toHaveBeenCalledWith(
+      "store-a",
+      "actor",
+      expect.objectContaining({ saltKey: "" }),
+    );
+    expect(c.payments.deletePhonePe).toHaveBeenCalledWith("store-a", "actor", {
+      expectedVersion: 3,
+    });
+    expect(
+      c.rbac.requireStorePaymentPermission.mock.calls.every(
+        (call) => call[2] === true,
+      ),
+    ).toBe(true);
+  });
+  it.each(["editDetails", "edit", "remove"] as const)(
+    "denies %s for unauthorized stores or impersonation",
+    async (action) => {
+      const denied = setup();
+      denied.rbac.requireStorePaymentPermission.mockRejectedValue(
+        new Error("denied"),
+      );
+      const invoke = (c: ReturnType<typeof setup>) =>
+        action === "editDetails"
+          ? c.store.editDetails(request, "store-b")
+          : action === "edit"
+            ? c.store.edit(request, "store-b", input)
+            : c.store.remove(request, "store-b", { expectedVersion: 0 });
+      await expect(invoke(denied)).rejects.toThrow();
+      const impersonating = setup(true, true);
+      await expect(invoke(impersonating)).rejects.toThrow();
+      for (const c of [denied, impersonating]) {
+        expect(c.payments.getPhonePeEdit).not.toHaveBeenCalled();
+        expect(c.payments.editPhonePe).not.toHaveBeenCalled();
+        expect(c.payments.deletePhonePe).not.toHaveBeenCalled();
+      }
+    },
+  );
   it("denies unauthorized requests before calling payment services", async () => {
     const c = setup();
     c.rbac.requireStorePaymentPermission.mockRejectedValue(new Error("denied"));

@@ -291,6 +291,178 @@ describe.skipIf(!url)(
       expect((await engine.workspace(b)).testStatus).toBe("NOT_TESTED");
       expect((await settings.getStore(a)).paymentAvailable).toBe(false);
     });
+    it("prefills only non-secret edit fields and retains the Salt Key on an unchanged edit", async () => {
+      const test = await start();
+      await due(test.id);
+      await engine.check(test.id, actor, a);
+      const before = await settings.getStore(a);
+      expect(before.connections[0]?.status).toBe("VERIFIED");
+      const details = await settings.getPhonePeEdit(a);
+      expect(details).toMatchObject({
+        merchantId: merchant(a),
+        saltIndex: "1",
+        environment: "UAT",
+        saltKeyConfigured: true,
+      });
+      expect(JSON.stringify(details)).not.toContain(salt);
+      expect(details).not.toHaveProperty("saltKey");
+      expect(details).not.toHaveProperty("encryptedPayload");
+      const unchanged = await settings.editPhonePe(a, actor, {
+        expectedVersion: before.version,
+        environment: details.environment,
+        merchantId: details.merchantId,
+        providerId: details.providerId,
+        providerStoreId: details.providerStoreId,
+        saltIndex: details.saltIndex,
+        dqrAccessConfirmed: details.dqrAccessConfirmed,
+        saltKey: "",
+      });
+      expect(unchanged.version).toBe(before.version);
+      expect(unchanged.connections[0]?.version).toBe(details.version);
+      expect(unchanged.connections[0]?.status).toBe("VERIFIED");
+    });
+    it("preserves the key on edits, resets verification and rejects stale updates/deletes", async () => {
+      const test = await start();
+      await due(test.id);
+      await engine.check(test.id, actor, a);
+      const before = await settings.getStore(a);
+      const details = await settings.getPhonePeEdit(a);
+      const changed = await settings.editPhonePe(a, actor, {
+        ...details,
+        expectedVersion: before.version,
+        merchantId: "UPDATED_MERCHANT",
+        saltKey: "",
+      });
+      expect(changed.connections[0]?.status).toBe("UNVERIFIED");
+      expect(changed.connections[0]!.version).toBeGreaterThan(details.version);
+      await expect(
+        settings.editPhonePe(a, actor, {
+          ...details,
+          expectedVersion: before.version,
+        }),
+      ).rejects.toMatchObject(error("PAYMENT_SETTINGS_CHANGED"));
+      await expect(
+        settings.deletePhonePe(a, actor, { expectedVersion: before.version }),
+      ).rejects.toMatchObject(error("PAYMENT_SETTINGS_CHANGED"));
+      const fresh = await start();
+      const request = send.mock.calls.at(-1)![0];
+      const encoded = JSON.parse(request.body!).request;
+      expect(request.headers["X-VERIFY"]).toBe(
+        createHash("sha256")
+          .update(encoded + "/v3/qr/init" + salt)
+          .digest("hex") + "###1",
+      );
+      expect(
+        JSON.parse(Buffer.from(encoded, "base64").toString()).merchantId,
+      ).toBe("UPDATED_MERCHANT");
+      expect(fresh.id).not.toBe(test.id);
+    });
+    it("deletes active credentials and selection while preserving old tests and late success", async () => {
+      const test = await start();
+      const configured = await settings.getStore(a);
+      const selected = await settings.select(a, actor, {
+        expectedVersion: configured.version,
+        provider: "PHONEPE",
+      });
+      const removed = await settings.deletePhonePe(a, actor, {
+        expectedVersion: selected.version,
+      });
+      expect(removed.connections).toEqual([]);
+      expect(removed.selectedProvider).toBeNull();
+      await expect(settings.getPhonePeEdit(a)).rejects.toMatchObject(
+        error("PAYMENT_CONNECTION_NOT_FOUND"),
+      );
+      await expect(
+        engine.start(
+          actor,
+          { expectedVersion: 1, idempotencyKey: createSelfxId() },
+          a,
+        ),
+      ).rejects.toMatchObject(error("PAYMENT_ACCOUNT_UNCONFIRMED"));
+      expect((await engine.detail(test.id, a)).status).toBe("PENDING");
+      await callback(test.id, a);
+      await due(test.id);
+      expect((await engine.check(test.id, actor, a)).status).toBe("SUCCEEDED");
+      expect((await settings.getStore(b)).connections).toHaveLength(1);
+      await save(a);
+      const recreated = await settings.getStore(a);
+      expect(recreated.connections[0]!.version).toBeGreaterThan(
+        test.connectionVersion,
+      );
+      expect(recreated.connections[0]?.status).toBe("UNVERIFIED");
+      expect((await engine.workspace(a)).testStatus).toBe("NOT_TESTED");
+      expect((await engine.workspace(a)).tests.map((row) => row.id)).toContain(
+        test.id,
+      );
+      const auditRows = await db.auditLog.findMany({
+        where: {
+          actorUserId: actor,
+          action: "STORE_PAYMENT_CONNECTION_DELETED",
+        },
+      });
+      expect(auditRows).toHaveLength(1);
+      expect(JSON.stringify(auditRows)).not.toContain(salt);
+    });
+    it("requires a fresh key on creation and permits a replacement key on edit", async () => {
+      const before = await settings.getStore(a);
+      const details = await settings.getPhonePeEdit(a);
+      const replacement = "new-merchant-fixture-salt-key";
+      await settings.editPhonePe(a, actor, {
+        ...details,
+        expectedVersion: before.version,
+        saltKey: replacement,
+      });
+      await start();
+      const request = send.mock.calls.at(-1)![0];
+      const encoded = JSON.parse(request.body!).request;
+      expect(request.headers["X-VERIFY"]).toBe(
+        createHash("sha256")
+          .update(encoded + "/v3/qr/init" + replacement)
+          .digest("hex") + "###1",
+      );
+      const state = await settings.getStore(a);
+      await settings.deletePhonePe(a, actor, {
+        expectedVersion: state.version,
+      });
+      await expect(
+        settings.editPhonePe(a, actor, {
+          ...details,
+          expectedVersion: state.version + 1,
+          saltKey: "",
+        }),
+      ).rejects.toMatchObject(error("PAYMENT_CONNECTION_NOT_FOUND"));
+      await expect(save(a, { saltKey: "" })).rejects.toMatchObject(
+        error("PAYMENT_SALT_KEY_REQUIRED"),
+      );
+    });
+    it("serializes deletion against a stale edit and allows removal while platform setup is disabled", async () => {
+      const state = await settings.getStore(a);
+      const details = await settings.getPhonePeEdit(a);
+      const results = await Promise.allSettled([
+        settings.editPhonePe(a, actor, {
+          ...details,
+          expectedVersion: state.version,
+          merchantId: "CHANGED",
+        }),
+        settings.deletePhonePe(a, actor, { expectedVersion: state.version }),
+      ]);
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      const policy = (await settings.listGateways()).data.find(
+        (row) => row.provider === "PHONEPE",
+      )!;
+      await settings.updatePolicy("PHONEPE", actor, {
+        expectedVersion: policy.version,
+        enabled: false,
+      });
+      const current = await settings.getStore(a);
+      if (current.connections.length)
+        await settings.deletePhonePe(a, actor, {
+          expectedVersion: current.version,
+        });
+      expect((await settings.getStore(a)).connections).toHaveLength(0);
+    });
     it("retains old credential snapshots but resets verification after replacement", async () => {
       const test = await start();
       await save(a, { merchantId: "replacement_mid" });

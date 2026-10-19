@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   PlatformPaymentTest,
   PlatformPaymentTestDetail,
@@ -18,12 +18,14 @@ export function useActivePaymentTest(
 ): PlatformPaymentTest | undefined {
   const serverTime = workspace?.serverTime ?? selected?.serverTime;
   const [clock, setClock] = useState(Date.now());
-  const [offset, setOffset] = useState(0);
-  useEffect(() => {
+  // Resolve the server clock during this render, before Generate is clickable.
+  // An effect-only offset briefly treated active QRs as expired on initial load.
+  const anchor = useMemo(() => {
     const server = Date.parse(serverTime ?? "");
-    setOffset(Number.isFinite(server) ? server - Date.now() : 0);
-    setClock(Date.now());
+    const client = Date.now();
+    return { server: Number.isFinite(server) ? server : client, client };
   }, [serverTime]);
+  const now = anchor.server + Math.max(0, clock - anchor.client);
   useEffect(() => {
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -34,7 +36,7 @@ export function useActivePaymentTest(
   return tests.find(
     (test) =>
       test.connectionVersion === workspace?.connection?.version &&
-      Date.parse(test.expiresAt) > clock + offset &&
+      Date.parse(test.expiresAt) > now &&
       (["PREPARING", "PENDING", "UNKNOWN"].includes(test.status) ||
         test.verificationPending ||
         test.failureCode === "PAYMENT_EVIDENCE_CONFLICT"),

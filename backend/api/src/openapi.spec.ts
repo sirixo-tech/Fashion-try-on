@@ -72,6 +72,21 @@ describe("OpenAPI documentation", () => {
     expect(paths).toContain(
       "/api/v1/payments/phonepe/stores/{storeId}/tests/{testId}/callback",
     );
+    const configuration =
+      response.body.paths[
+        "/api/v1/admin/stores/{storeId}/payments/connections/phonepe"
+      ];
+    expect(configuration).toMatchObject({
+      get: expect.any(Object),
+      patch: expect.any(Object),
+      delete: expect.any(Object),
+    });
+    const editFields =
+      response.body.components.schemas.PhonePeConnectionEditDto.properties;
+    expect(editFields.merchantId).toBeTruthy();
+    expect(editFields.saltKeyConfigured).toBeTruthy();
+    expect(editFields.saltKey).toBeUndefined();
+    expect(editFields.encryptedPayload).toBeUndefined();
     expect(
       response.body.components.schemas.PlatformPaymentTestDetailDto.properties
         .diagnostics,

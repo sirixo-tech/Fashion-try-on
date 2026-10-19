@@ -1,5 +1,22 @@
 ## Document Evolution
 
+### PAYMENTS-1H — Gateway management cards and Edit modal
+
+Use shared Card/Badge/Switch/StatCard and Dialog primitives. Show a compact gateway
+brand mark, description, configuration/verification state and Test/Live badge.
+Unconfigured gateways have Set up; configured supported gateways have Edit,
+Delete configuration and Verify payment. The future-checkout switch automatically
+saves selection; it does not enable customer checkout. Planned methods remain
+informational. Show configured, turned-on and live-verified account counts.
+
+Edit uses a responsive 3xl modal, two columns on desktop and one on mobile, with
+prefilled non-secret fields, empty optional Salt Key and persistent save/cancel
+actions. Clear entered secrets after failed submissions. Deletion has explicit
+confirmation and recoverable errors. Disable concurrent page operations while
+dialogs/actions are active. Credential changes reset current verification;
+unchanged edits preserve it. Keep QR verification/history accessible and show Live
+account verified instead of Ready for checkout. Platform testing remains separate.
+
 ### PAYMENTS-1G — Production QR labels and readiness
 
 For saved production accounts, show Generate INR 1 live verification QR and an

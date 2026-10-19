@@ -1,5 +1,27 @@
 ## Document Evolution
 
+### PAYMENTS-1H — Controlled account editing and deletion
+
+Keep existing PUT full-configuration save for initial setup and compatibility.
+Add management-only GET/PATCH/DELETE under Store /payments/connections/phonepe.
+GET returns explicit editable non-secret fields plus saltKeyConfigured, never
+encrypted fields or the Salt Key. PATCH accepts a blank/omitted key to retain the
+current decrypted secret, validates tenant/provider/environment binding and
+encrypts changes under the current key version. Require a fresh key on creation.
+Use Store settings expectedVersion and the existing Store lock for stale-write
+rejection and races among save, edit, delete, selection and verification start.
+Identical PATCH is a no-op. Changed/re-created configurations allocate a version
+above previous connection, settings revision and retained verification history.
+
+DELETE clears active selection before removing the connection; keep payment
+attempt/verification snapshots and history. Deletion works when platform setup is
+disabled, but Edit/save retain platform availability gates. GET editable fields
+and mutations require actual Store payment management access and cannot be used
+while impersonating. Safe summaries can report VERIFIED only for independently
+successful verification of the current provider/version/environment. Read-only
+summaries continue to omit editable account fields and secrets. Audit deletion
+and configuration saves without credentials. No new schema is needed.
+
 ### PAYMENTS-1G — Environment-specific Store verification
 
 Extend the shared Store verification service to PRODUCTION while platform probes

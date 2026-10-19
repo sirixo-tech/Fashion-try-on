@@ -1,5 +1,19 @@
 ## Document Evolution
 
+### PAYMENTS-1H — Store gateway cards, Edit and Delete
+
+Store Payment Settings uses gateway cards with account verification status,
+Test/Live badges, Set up, Edit, Delete configuration and a future-checkout on/off
+control. Turning off keeps credentials. Delete removes active configuration and
+selection while preserving transactions, history and encrypted snapshots needed
+for pending verification. Editing prefills non-secret account fields; blank Salt
+Key retains the existing secret. Never return/display saved Salt Keys. Unchanged
+edits retain verification; changed account details receive a new version and must
+be verified again. Re-created accounts cannot inherit deleted-account verification.
+Keep Store Admin permissions and impersonation restrictions. Account verification
+is distinct from checkout readiness; do not label a verified account Ready for
+checkout while product checkout is unavailable.
+
 ### PAYMENTS-1G — Store production account verification
 
 Store Admins may generate an INR 1.00 real-payment QR using their saved production

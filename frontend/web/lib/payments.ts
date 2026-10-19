@@ -23,7 +23,7 @@ export type StorePaymentSettings = {
     provider: PaymentProvider;
     version?: number;
     environment: PaymentEnvironment;
-    status: "UNVERIFIED";
+    status: "UNVERIFIED" | "VERIFIED";
     dqrAccessConfirmed?: boolean;
     updatedAt: string;
   }[];
@@ -36,6 +36,10 @@ export type PhonePeSetup = {
   providerStoreId?: string;
   saltIndex: string;
   saltKey: string;
+};
+export type PhonePeEditDetails = Omit<PhonePeSetup, "saltKey"> & {
+  version: number;
+  saltKeyConfigured: true;
 };
 const base = (storeId: string) => `/api/v1/admin/stores/${storeId}/payments`;
 export type StorePaymentWorkspace = Omit<
@@ -120,6 +124,32 @@ export const savePhonePeSetup = (
     accessToken,
     method: "PUT",
     body: JSON.stringify({ ...input, expectedVersion }),
+  });
+export const getPhonePeEdit = (accessToken: string, storeId: string) =>
+  selfxApi<PhonePeEditDetails>(`${base(storeId)}/connections/phonepe`, {
+    accessToken,
+    cache: "no-store",
+  });
+export const editPhonePeSetup = (
+  accessToken: string,
+  storeId: string,
+  expectedVersion: number,
+  input: PhonePeSetup,
+) =>
+  selfxApi<StorePaymentSettings>(`${base(storeId)}/connections/phonepe`, {
+    accessToken,
+    method: "PATCH",
+    body: JSON.stringify({ ...input, expectedVersion }),
+  });
+export const deletePhonePeSetup = (
+  accessToken: string,
+  storeId: string,
+  expectedVersion: number,
+) =>
+  selfxApi<StorePaymentSettings>(`${base(storeId)}/connections/phonepe`, {
+    accessToken,
+    method: "DELETE",
+    body: JSON.stringify({ expectedVersion }),
   });
 export const selectStoreGateway = (
   accessToken: string,

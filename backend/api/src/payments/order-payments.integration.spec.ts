@@ -758,6 +758,32 @@ describe.skipIf(!url)("PAYMENTS-1B real PostgreSQL, simulated PhonePe", () => {
     expect((await stock.get(storeId, a.id)).variants[0]!.stockQuantity).toBe(1);
     expect((await stock.get(storeId, b.id)).variants[0]!.stockQuantity).toBe(1);
   });
+  it("keeps order history and independent payment snapshots after deleting the active configuration", async () => {
+    const c = await checkout(),
+      attempt = await start(c);
+    const state = await config.getStore(storeId);
+    await config.deletePhonePe(storeId, actor, {
+      expectedVersion: state.version,
+    });
+    expect((await config.getStore(storeId)).connections).toHaveLength(0);
+    const row = await db.shoppingPaymentAttempt.findUniqueOrThrow({
+      where: { id: attempt.id },
+    });
+    expect(
+      attemptAdapter(row).statusRequest({
+        transactionId: row.transactionId,
+        amountMinor: row.amountMinor,
+        currency: "INR",
+      }).headers["X-VERIFY"],
+    ).toBeTruthy();
+    const n = await notification(attempt.id);
+    await service.callback(attempt.id, n.encoded, n.signature, "fixture-ip");
+    await reconcile(attempt.id);
+    expect((await commerce.getStaffOrder(storeId, c.order.id)).status).toBe(
+      "PAID",
+    );
+    await configure(true);
+  });
   it("continues verification using a retained prior encryption key after rotation", async () => {
     const c = await checkout(),
       attempt = await start(c);

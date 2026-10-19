@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYMENTS-1H — Maintain a Store payment account
+
+Store Admin sees gateway cards and configured/on/live-verified counts. Set up
+opens a wide account modal; Edit prefills account identifiers and leaves the
+secret blank. Blank Salt Key keeps the saved key. Save unchanged details without
+losing verification; changed details require re-verification. Turn off to retain
+credentials without selecting the account for future checkout. Delete configuration
+opens one confirmation modal and removes the active setup/selection only after
+confirmation. Retain saved history and late payment verification. A later new
+setup starts unverified. Read-only staff see safe status without edit/delete access.
+
 ### PAYMENTS-1G — Verify a Store's production merchant account
 
 Store Admin saves production credentials, then sees Generate INR 1 live

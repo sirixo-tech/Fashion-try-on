@@ -6,6 +6,8 @@ import {
   HttpStatus,
   Param,
   Put,
+  Patch,
+  Delete,
   Req,
 } from "@nestjs/common";
 import {
@@ -30,6 +32,9 @@ import {
   SelectPaymentGatewayDto,
   StorePaymentSettingsDto,
   UpdateGatewayPolicyDto,
+  EditPhonePeConnectionDto,
+  PhonePeConnectionEditDto,
+  PaymentRevisionDto,
 } from "./payment-settings.dto.js";
 import { PaymentSettingsService } from "./payment-settings.service.js";
 
@@ -134,6 +139,38 @@ export class StorePaymentSettingsController {
   ) {
     const user = await this.authorize(request, storeId, true);
     return this.payments.savePhonePe(storeId, user.id, input);
+  }
+  @Get("connections/phonepe")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOkResponse({ type: PhonePeConnectionEditDto })
+  async editDetails(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+  ) {
+    await this.authorize(request, storeId, true);
+    return this.payments.getPhonePeEdit(storeId);
+  }
+  @Patch("connections/phonepe")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOkResponse({ type: StorePaymentSettingsDto })
+  async edit(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() input: EditPhonePeConnectionDto,
+  ) {
+    const user = await this.authorize(request, storeId, true);
+    return this.payments.editPhonePe(storeId, user.id, input);
+  }
+  @Delete("connections/phonepe")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOkResponse({ type: StorePaymentSettingsDto })
+  async remove(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() input: PaymentRevisionDto,
+  ) {
+    const user = await this.authorize(request, storeId, true);
+    return this.payments.deletePhonePe(storeId, user.id, input);
   }
   @Put("selection")
   @Header("Cache-Control", "private, no-store")

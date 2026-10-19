@@ -1,5 +1,6 @@
 import {
   cleanup,
+  within,
   fireEvent,
   render,
   screen,
@@ -16,6 +17,9 @@ import {
   savePhonePeSetup,
   selectStoreGateway,
   updatePaymentGateway,
+  getPhonePeEdit,
+  editPhonePeSetup,
+  deletePhonePeSetup,
   type Gateway,
   type StorePaymentSettings,
 } from "@/lib/payments";
@@ -25,6 +29,9 @@ vi.mock("@/lib/payments", () => ({
   savePhonePeSetup: vi.fn(),
   selectStoreGateway: vi.fn(),
   updatePaymentGateway: vi.fn(),
+  getPhonePeEdit: vi.fn(),
+  editPhonePeSetup: vi.fn(),
+  deletePhonePeSetup: vi.fn(),
 }));
 const gateways: Gateway[] = [
   {
@@ -53,6 +60,7 @@ const settings: StorePaymentSettings = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal("PointerEvent", MouseEvent);
   vi.mocked(listPaymentGateways).mockResolvedValue({ data: gateways });
   vi.mocked(updatePaymentGateway).mockResolvedValue({
     data: [{ ...gateways[0]!, enabled: false, version: 3 }, gateways[1]!],
@@ -75,6 +83,29 @@ beforeEach(() => {
     version: 4,
     selectedProvider: "PHONEPE",
   });
+  vi.mocked(getPhonePeEdit).mockResolvedValue({
+    version: 2,
+    environment: "PRODUCTION",
+    merchantId: "fixture_mid",
+    providerId: "fixture_provider",
+    providerStoreId: "fixture_store",
+    saltIndex: "1",
+    saltKeyConfigured: true,
+  });
+  vi.mocked(editPhonePeSetup).mockResolvedValue({
+    ...settings,
+    version: 4,
+    connections: [
+      {
+        provider: "PHONEPE",
+        version: 3,
+        environment: "PRODUCTION",
+        status: "UNVERIFIED",
+        updatedAt: "2026-10-19T00:00:00Z",
+      },
+    ],
+  });
+  vi.mocked(deletePhonePeSetup).mockResolvedValue({ ...settings, version: 4 });
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({
@@ -106,9 +137,7 @@ describe("payment settings", () => {
     render(
       <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Configure PhonePe" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Set up" }));
     expect((screen.getByLabelText("Salt Key") as HTMLInputElement).type).toBe(
       "password",
     );
@@ -148,9 +177,7 @@ describe("payment settings", () => {
     render(
       <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Configure PhonePe" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Set up" }));
     fireEvent.change(screen.getByLabelText("Merchant ID"), {
       target: { value: "fixture_mid" },
     });
@@ -182,7 +209,9 @@ describe("payment settings", () => {
       <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Select gateway" }),
+      await screen.findByRole("switch", {
+        name: "Use PhonePe for future checkout",
+      }),
     );
     await waitFor(() =>
       expect(selectStoreGateway).toHaveBeenCalledWith(
@@ -193,7 +222,7 @@ describe("payment settings", () => {
       ),
     );
     expect(
-      await screen.findByText(/Account verification is still required/),
+      await screen.findByText(/Gateway turned on for future checkout/),
     ).toBeTruthy();
   });
   it("does not expose configuration actions to view-only staff", async () => {
@@ -205,9 +234,154 @@ describe("payment settings", () => {
       />,
     );
     await screen.findByText("PhonePe");
+    expect(screen.queryByRole("button", { name: "Set up" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Configure PhonePe" }),
+      screen.queryByRole("button", { name: "Delete configuration" }),
     ).toBeNull();
-    expect(screen.queryByRole("button", { name: "Select gateway" })).toBeNull();
+  });
+  const configured = {
+    ...settings,
+    selectedProvider: "PHONEPE" as const,
+    connections: [
+      {
+        provider: "PHONEPE" as const,
+        version: 2,
+        environment: "PRODUCTION" as const,
+        status: "VERIFIED" as const,
+        updatedAt: "2026-10-19T00:00:00Z",
+      },
+    ],
+  };
+  it("edits prefilled details in a wide modal while leaving the saved Salt Key blank", async () => {
+    vi.mocked(getStorePayments).mockResolvedValue(configured);
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit PhonePe" });
+    expect(dialog.className).toContain("sm:max-w-3xl");
+    expect(
+      (screen.getByLabelText("Merchant ID") as HTMLInputElement).value,
+    ).toBe("fixture_mid");
+    expect(
+      (screen.getByLabelText("Provider ID (optional)") as HTMLInputElement)
+        .value,
+    ).toBe("fixture_provider");
+    expect((screen.getByLabelText("Salt Key") as HTMLInputElement).value).toBe(
+      "",
+    );
+    expect(
+      (screen.getByLabelText("Salt Key") as HTMLInputElement).required,
+    ).toBe(false);
+    fireEvent.change(screen.getByLabelText("Merchant ID"), {
+      target: { value: "updated_mid" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(editPhonePeSetup).toHaveBeenCalledWith(
+        "fixture_token",
+        "store-a",
+        3,
+        expect.objectContaining({
+          merchantId: "updated_mid",
+          saltKey: "",
+          environment: "PRODUCTION",
+          saltIndex: "1",
+        }),
+      ),
+    );
+    expect(savePhonePeSetup).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(/Verify the updated configuration/),
+    ).toBeTruthy();
+  });
+  it("reports an unchanged edit without discarding existing verification", async () => {
+    vi.mocked(getStorePayments).mockResolvedValue(configured);
+    vi.mocked(editPhonePeSetup).mockResolvedValue(configured);
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save changes" }),
+    );
+    expect(await screen.findByText(/No account changes/)).toBeTruthy();
+    expect(screen.getByText("Live account verified")).toBeTruthy();
+  });
+  it("turns off selection without deleting saved credentials", async () => {
+    vi.mocked(getStorePayments).mockResolvedValue(configured);
+    vi.mocked(selectStoreGateway).mockResolvedValue({
+      ...configured,
+      selectedProvider: null,
+      version: 4,
+    });
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Use PhonePe for future checkout",
+      }),
+    );
+    await waitFor(() =>
+      expect(selectStoreGateway).toHaveBeenCalledWith(
+        "fixture_token",
+        "store-a",
+        3,
+        null,
+      ),
+    );
+    expect(deletePhonePeSetup).not.toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeTruthy();
+  });
+  it("requires confirmation for deletion and keeps deletion errors recoverable", async () => {
+    vi.mocked(getStorePayments).mockResolvedValue(configured);
+    vi.mocked(deletePhonePeSetup).mockRejectedValueOnce(
+      new Error("Payment settings changed. Reload before saving."),
+    );
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete configuration" }),
+    );
+    expect(deletePhonePeSetup).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(deletePhonePeSetup).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete configuration" }),
+    );
+    let dialog = screen.getByRole("dialog", {
+      name: "Delete PhonePe configuration?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Delete configuration" }),
+    );
+    expect(await screen.findByText(/Payment settings changed/)).toBeTruthy();
+    dialog = screen.getByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Delete configuration" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(deletePhonePeSetup).toHaveBeenLastCalledWith(
+      "fixture_token",
+      "store-a",
+      3,
+    );
+    expect(await screen.findByRole("button", { name: "Set up" })).toBeTruthy();
+    expect(
+      screen.getByText(/Payment history and pending verification are retained/),
+    ).toBeTruthy();
+  });
+  it("shows errors when protected edit details cannot be loaded", async () => {
+    vi.mocked(getStorePayments).mockResolvedValue(configured);
+    vi.mocked(getPhonePeEdit).mockRejectedValue(new Error("Permission denied"));
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(await screen.findByText("Permission denied")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

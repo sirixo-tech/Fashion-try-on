@@ -13,7 +13,11 @@ import {
   Label,
   SelectMenu,
 } from "@selfx/ui";
-import type { PhonePeSetup, PaymentEnvironment } from "@/lib/payments";
+import type {
+  PhonePeSetup,
+  PhonePeEditDetails,
+  PaymentEnvironment,
+} from "@/lib/payments";
 
 type PhonePeFormProps = {
   saveConfiguration: (input: PhonePeSetup) => Promise<void>;
@@ -21,16 +25,19 @@ type PhonePeFormProps = {
   onCancel: () => void;
   onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
+  initial?: PhonePeEditDetails;
 };
 
 export function PhonePeConfiguration({
   saveConfiguration,
   platformTest = false,
   onClose,
+  initial,
 }: {
   saveConfiguration: (input: PhonePeSetup) => Promise<void>;
   platformTest?: boolean;
   onClose: () => void;
+  initial?: PhonePeEditDetails;
 }) {
   const [busy, setBusy] = useState(false);
   return (
@@ -41,19 +48,24 @@ export function PhonePeConfiguration({
       }}
     >
       <DialogContent
-        className="max-h-[90dvh] overflow-y-auto"
+        className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
         showCloseButton={!busy}
       >
         <DialogHeader>
           <DialogTitle>
-            {platformTest ? "PhonePe test setup" : "Configure PhonePe"}
+            {platformTest
+              ? "PhonePe test setup"
+              : initial
+                ? "Edit PhonePe"
+                : "Set up PhonePe"}
           </DialogTitle>
           <DialogDescription>
             {platformTest
               ? "Enter confirmed UAT credentials for platform testing only. These are never used by Store checkout."
               : "Enter this Store’s merchant details."}{" "}
-            Saving replaces the full configuration. The Salt Key is never
-            displayed again.
+            {initial
+              ? "Leave Salt Key blank to keep the saved key. Changing account details resets verification."
+              : "Enter all required account details. The Salt Key is never displayed again."}
           </DialogDescription>
         </DialogHeader>
         <PhonePeConfigurationForm
@@ -61,6 +73,7 @@ export function PhonePeConfiguration({
           platformTest={platformTest}
           onCancel={onClose}
           onBusyChange={setBusy}
+          initial={initial}
         />
       </DialogContent>
     </Dialog>
@@ -73,15 +86,20 @@ export function PhonePeConfigurationForm({
   onCancel,
   onBusyChange,
   disabled = false,
+  initial,
 }: PhonePeFormProps) {
-  const [dqrAccessConfirmed, setDqrAccessConfirmed] = useState(false);
-  const [environment, setEnvironment] = useState<PaymentEnvironment>(
-    platformTest ? "UAT" : "UNCONFIRMED",
+  const [dqrAccessConfirmed, setDqrAccessConfirmed] = useState(
+    initial?.dqrAccessConfirmed ?? false,
   );
-  const [merchantId, setMerchantId] = useState(""),
-    [providerId, setProviderId] = useState("");
-  const [providerStoreId, setProviderStoreId] = useState(""),
-    [saltIndex, setSaltIndex] = useState(""),
+  const [environment, setEnvironment] = useState<PaymentEnvironment>(
+    initial?.environment ?? (platformTest ? "UAT" : "UNCONFIRMED"),
+  );
+  const [merchantId, setMerchantId] = useState(initial?.merchantId ?? ""),
+    [providerId, setProviderId] = useState(initial?.providerId ?? "");
+  const [providerStoreId, setProviderStoreId] = useState(
+      initial?.providerStoreId ?? "",
+    ),
+    [saltIndex, setSaltIndex] = useState(initial?.saltIndex ?? ""),
     [saltKey, setSaltKey] = useState("");
   const [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false);
@@ -129,9 +147,7 @@ export function PhonePeConfigurationForm({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <div
-        className={platformTest ? "grid gap-4 sm:grid-cols-2" : "grid gap-3"}
-      >
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="min-w-0 space-y-2">
           <Label htmlFor="phonepe-environment">Account environment</Label>
           <SelectMenu
@@ -237,18 +253,26 @@ export function PhonePeConfigurationForm({
             id="phonepe-key"
             type="password"
             autoComplete="new-password"
-            required
+            required={!initial}
             minLength={16}
             maxLength={256}
             value={saltKey}
             disabled={locked}
             onChange={(event) => setSaltKey(event.target.value)}
+            placeholder={
+              initial ? "Leave blank to keep the saved key" : undefined
+            }
           />
+          {initial && (
+            <p className="text-sm text-muted-foreground">
+              A Salt Key is saved. It is never returned or displayed.
+            </p>
+          )}
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t bg-background pt-4">
         <Button type="submit" disabled={locked}>
-          {busy ? "Saving…" : "Save configuration"}
+          {busy ? "Saving…" : initial ? "Save changes" : "Save configuration"}
         </Button>
         <Button
           type="button"

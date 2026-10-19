@@ -5,10 +5,13 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { encryptProviderSecret } from "../integrations/provider-secret-cipher.js";
 import { PAYMENT_GATEWAYS, type PaymentProvider } from "./payment-gateways.js";
+import { decryptPaymentSnapshot } from "./payment-snapshots.js";
+import type { PhonePeDqrCredentials } from "./phonepe-dqr.adapter.js";
 import type {
   SavePhonePeConnectionDto,
   SelectPaymentGatewayDto,
   UpdateGatewayPolicyDto,
+  EditPhonePeConnectionDto,
 } from "./payment-settings.dto.js";
 
 @Injectable()
@@ -67,7 +70,7 @@ export class PaymentSettingsService {
 
   async getStore(storeId: string) {
     await this.requireStore(this.prisma, storeId);
-    const [settings, connections, gateways] = await Promise.all([
+    const [settings, connections, gateways, verified] = await Promise.all([
       this.prisma.storePaymentSettings.findUnique({
         where: { organizationId: storeId },
       }),
@@ -83,6 +86,15 @@ export class PaymentSettingsService {
         orderBy: { provider: "asc" },
       }),
       this.listGateways(),
+      this.prisma.platformPaymentTest.findMany({
+        where: {
+          organizationId: storeId,
+          scopeKey: `STORE:${storeId.toLowerCase()}`,
+          status: "SUCCEEDED",
+        },
+        select: { provider: true, connectionVersion: true, environment: true },
+        distinct: ["provider", "connectionVersion", "environment"],
+      }),
     ]);
     return {
       version: settings?.version ?? 0,
@@ -91,7 +103,14 @@ export class PaymentSettingsService {
       gateways: gateways.data,
       connections: connections.map((item) => ({
         ...item,
-        status: "UNVERIFIED" as const,
+        status: verified.some(
+          (test) =>
+            test.provider === item.provider &&
+            test.connectionVersion === item.version &&
+            test.environment === item.environment,
+        )
+          ? ("VERIFIED" as const)
+          : ("UNVERIFIED" as const),
         updatedAt: item.updatedAt.toISOString(),
       })),
     };
@@ -102,30 +121,148 @@ export class PaymentSettingsService {
     actorUserId: string,
     input: SavePhonePeConnectionDto,
   ) {
-    const { key, version: keyVersion } = paymentEncryptionKey();
+    return this.writePhonePe(storeId, actorUserId, input, false);
+  }
+
+  async editPhonePe(
+    storeId: string,
+    actorUserId: string,
+    input: EditPhonePeConnectionDto,
+  ) {
+    return this.writePhonePe(storeId, actorUserId, input, true);
+  }
+
+  async getPhonePeEdit(storeId: string) {
+    await this.requireStore(this.prisma, storeId);
+    const row = await this.prisma.storePaymentConnection.findUnique({
+      where: {
+        organizationId_provider: {
+          organizationId: storeId,
+          provider: "PHONEPE",
+        },
+      },
+    });
+    if (!row) connectionNotFound();
+    const account = accountSnapshot(row);
+    return {
+      version: row.version,
+      environment: account.environment,
+      merchantId: account.merchantId,
+      providerId: account.providerId,
+      providerStoreId: account.providerStoreId,
+      saltIndex: account.saltIndex,
+      dqrAccessConfirmed: row.dqrAccessConfirmed,
+      saltKeyConfigured: true as const,
+    };
+  }
+
+  async deletePhonePe(
+    storeId: string,
+    actorUserId: string,
+    input: { expectedVersion: number },
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockStore(tx, storeId, input.expectedVersion);
+      const old = await tx.storePaymentConnection.findUnique({
+        where: {
+          organizationId_provider: {
+            organizationId: storeId,
+            provider: "PHONEPE",
+          },
+        },
+      });
+      if (!old) connectionNotFound();
+      const settings = await tx.storePaymentSettings.findUnique({
+        where: { organizationId: storeId },
+      });
+      await this.bump(
+        tx,
+        storeId,
+        settings?.selectedProvider === "PHONEPE" ? null : undefined,
+      );
+      await tx.storePaymentConnection.delete({ where: { id: old.id } });
+      await audit(
+        tx,
+        actorUserId,
+        storeId,
+        "STORE_PAYMENT_CONNECTION_DELETED",
+        "PHONEPE",
+        { environment: old.environment, connectionVersion: old.version },
+      );
+    });
+    return this.getStore(storeId);
+  }
+
+  private async writePhonePe(
+    storeId: string,
+    actorUserId: string,
+    input: SavePhonePeConnectionDto | EditPhonePeConnectionDto,
+    editing: boolean,
+  ) {
     if (input.dqrAccessConfirmed && input.environment !== "UAT")
       fail(
         "PAYMENT_ENVIRONMENT_UNCONFIRMED",
         "Only confirmed UAT Dynamic QR access is supported for payment testing.",
       );
-    // Bind encrypted contents to the tenant/provider; never return or audit them.
-    const encrypted = encryptProviderSecret(
-      {
+    await this.prisma.$transaction(async (tx) => {
+      await this.requireAvailable(tx, "PHONEPE");
+      await this.lockStore(tx, storeId, input.expectedVersion);
+      const old = await tx.storePaymentConnection.findUnique({
+        where: {
+          organizationId_provider: {
+            organizationId: storeId,
+            provider: "PHONEPE",
+          },
+        },
+      });
+      if (editing && !old) connectionNotFound();
+      const previous = editing && old ? accountSnapshot(old) : null;
+      const saltKey =
+        input.saltKey || (editing ? previous?.saltKey : undefined);
+      if (!saltKey)
+        fail(
+          "PAYMENT_SALT_KEY_REQUIRED",
+          "Enter the Salt Key when setting up a new account.",
+        );
+      const next = {
         organizationId: storeId,
         provider: "PHONEPE",
+        environment: input.environment,
         merchantId: input.merchantId,
         providerId: input.providerId,
         providerStoreId:
           input.providerStoreId ?? `SX${storeId.replaceAll("-", "")}`,
         saltIndex: input.saltIndex,
-        saltKey: input.saltKey,
-        environment: input.environment,
-      },
-      key,
-    );
-    await this.prisma.$transaction(async (tx) => {
-      await this.requireAvailable(tx, "PHONEPE");
-      await this.lockStore(tx, storeId, input.expectedVersion);
+        saltKey,
+      };
+      const declared = input.dqrAccessConfirmed ?? false;
+      if (
+        editing &&
+        previous &&
+        old &&
+        old.dqrAccessConfirmed === declared &&
+        Object.entries(next).every(
+          ([field, value]) =>
+            previous[field as keyof typeof previous] === value,
+        )
+      )
+        return;
+      const { key, version: keyVersion } = paymentEncryptionKey();
+      const encrypted = encryptProviderSecret(next, key);
+      const settings = await tx.storePaymentSettings.findUnique({
+        where: { organizationId: storeId },
+      });
+      const history = await tx.platformPaymentTest.aggregate({
+        where: { organizationId: storeId, provider: "PHONEPE" },
+        _max: { connectionVersion: true },
+      });
+      // Re-created configurations must not inherit an earlier account's verification.
+      const connectionVersion =
+        Math.max(
+          old?.version ?? 0,
+          settings?.version ?? 0,
+          history._max.connectionVersion ?? 0,
+        ) + 1;
       await tx.storePaymentConnection.upsert({
         where: {
           organizationId_provider: {
@@ -137,6 +274,7 @@ export class PaymentSettingsService {
           id: createSelfxId(),
           organizationId: storeId,
           provider: "PHONEPE",
+          version: connectionVersion,
           environment: input.environment,
           dqrAccessConfirmed: input.dqrAccessConfirmed ?? false,
           ...encrypted,
@@ -144,7 +282,7 @@ export class PaymentSettingsService {
         },
         update: {
           environment: input.environment,
-          version: { increment: 1 },
+          version: connectionVersion,
           dqrAccessConfirmed: input.dqrAccessConfirmed ?? false,
           ...encrypted,
           keyVersion,
@@ -263,6 +401,36 @@ export class PaymentSettingsService {
       },
     });
   }
+}
+function connectionNotFound(): never {
+  throw new ApiErrorException(
+    HttpStatus.NOT_FOUND,
+    "PAYMENT_CONNECTION_NOT_FOUND",
+    "No PhonePe configuration exists for this Store.",
+  );
+}
+function accountSnapshot(row: {
+  organizationId: string;
+  provider: string;
+  environment: string;
+  encryptedPayload: string;
+  initializationVector: string;
+  authenticationTag: string;
+  keyVersion: string;
+}) {
+  const value = decryptPaymentSnapshot<
+    PhonePeDqrCredentials & { organizationId: string; provider: string }
+  >(row);
+  if (
+    value.organizationId !== row.organizationId ||
+    value.provider !== row.provider ||
+    value.environment !== row.environment
+  )
+    fail(
+      "PAYMENT_SNAPSHOT_INVALID",
+      "The saved payment account could not be read.",
+    );
+  return value;
 }
 function revision(actual: number, expected: number) {
   if (actual !== expected)

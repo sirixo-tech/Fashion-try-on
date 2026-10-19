@@ -2,6 +2,18 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1H — Gateway settings UX and lifecycle
+
+Implement Store cards, summary counts, selection switches, prefilled Edit modal
+and confirmed deletion. Add scoped editable-detail/PATCH/DELETE routes using
+existing permission and Store-lock/version contracts. Verify blank key retention,
+replacement, unchanged saves, verification reset, deletion/recreation, history and
+late success, stale writes, concurrency, isolation and impersonation rejection.
+Run payment UI/controller/DB regressions, API contract checks, types, lint and
+builds. Deploy API before web; no new migration or environment variables. No real
+payments, production mutations or automatic credential changes are part of this
+local implementation. See PAYMENTS-1H-IMPLEMENTATION-REPORT.md.
+
 ### PAYMENTS-1G — Store production QR verification
 
 Add environment-specific endpoint validation, execution switches, encrypted

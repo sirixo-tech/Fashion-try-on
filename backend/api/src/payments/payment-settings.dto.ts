@@ -24,7 +24,7 @@ export class PaymentRevisionDto {
 export class UpdateGatewayPolicyDto extends PaymentRevisionDto {
   @ApiProperty() @IsBoolean() enabled!: boolean;
 }
-export class SavePhonePeConnectionDto extends PaymentRevisionDto {
+export class PhonePeConnectionFieldsDto extends PaymentRevisionDto {
   @ApiPropertyOptional({
     description:
       "Store administrator confirms these are UAT credentials enabled for Dynamic QR. This does not enable live payments.",
@@ -48,12 +48,36 @@ export class SavePhonePeConnectionDto extends PaymentRevisionDto {
   @Matches(/^[A-Za-z0-9_-]{1,37}$/)
   providerStoreId?: string;
   @ApiProperty() @Matches(/^[0-9]{1,10}$/) saltIndex!: string;
+}
+export class SavePhonePeConnectionDto extends PhonePeConnectionFieldsDto {
   @ApiProperty({ writeOnly: true })
   @IsString()
   @MinLength(16)
   @MaxLength(256)
   @Matches(/^\S+$/)
   saltKey!: string;
+}
+export class EditPhonePeConnectionDto extends PhonePeConnectionFieldsDto {
+  @ApiPropertyOptional({
+    writeOnly: true,
+    description: "Omit or leave blank to retain the saved Salt Key.",
+  })
+  @ValidateIf((_object, value) => value !== undefined && value !== "")
+  @IsString()
+  @MinLength(16)
+  @MaxLength(256)
+  @Matches(/^\S+$/)
+  saltKey?: string;
+}
+export class PhonePeConnectionEditDto {
+  @ApiProperty() version!: number;
+  @ApiProperty({ enum: PAYMENT_ENVIRONMENTS }) environment!: PaymentEnvironment;
+  @ApiProperty() merchantId!: string;
+  @ApiPropertyOptional() providerId?: string;
+  @ApiProperty() providerStoreId!: string;
+  @ApiProperty() saltIndex!: string;
+  @ApiProperty() dqrAccessConfirmed!: boolean;
+  @ApiProperty({ enum: [true] }) saltKeyConfigured!: true;
 }
 export class SelectPaymentGatewayDto extends PaymentRevisionDto {
   @ApiProperty({ enum: PAYMENT_PROVIDERS, nullable: true })
@@ -77,7 +101,8 @@ export class PaymentConnectionSummaryDto {
   @ApiProperty() dqrAccessConfirmed!: boolean;
   @ApiProperty() provider!: string;
   @ApiProperty({ enum: PAYMENT_ENVIRONMENTS }) environment!: string;
-  @ApiProperty({ enum: ["UNVERIFIED"] }) status!: "UNVERIFIED";
+  @ApiProperty({ enum: ["UNVERIFIED", "VERIFIED"] }) status!:
+    "UNVERIFIED" | "VERIFIED";
   @ApiProperty() updatedAt!: string;
 }
 export class StorePaymentSettingsDto {

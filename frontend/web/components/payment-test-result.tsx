@@ -36,15 +36,19 @@ export function PaymentTestResult({
     [qrImage, setQrImage] = useState<string | null>(null);
   const currentTest = useRef(initial);
   const [clock, setClock] = useState(Date.now());
-  const serverOffset = useRef(
-    Number.isFinite(Date.parse(initial.serverTime))
-      ? Date.parse(initial.serverTime) - Date.now()
-      : 0,
-  );
+  const serverClock = useRef({
+    client: Date.now(),
+    server: Number.isFinite(Date.parse(initial.serverTime))
+      ? Date.parse(initial.serverTime)
+      : Date.now(),
+  });
   const remaining = Math.max(
     0,
     Math.ceil(
-      (Date.parse(test.expiresAt) - (clock + serverOffset.current)) / 1000,
+      (Date.parse(test.expiresAt) -
+        (serverClock.current.server +
+          Math.max(0, clock - serverClock.current.client))) /
+        1000,
     ),
   );
   useEffect(() => {

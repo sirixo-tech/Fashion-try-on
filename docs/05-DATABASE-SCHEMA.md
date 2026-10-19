@@ -2,6 +2,16 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1H — Delete active connection, retain payment snapshots
+
+No schema migration. Store payment selection must be cleared before deleting its
+referenced store_payment_connections row. Historic shopping attempts retain their
+connection id provenance and independent encrypted credential snapshots; scoped
+verification records/events and audits remain. Re-created connection versions
+must exceed the retained Store settings revision and verification history, so a
+new account never inherits an old verification for the same provider/version.
+Edit encrypts the retained/replaced key without exposing it through read DTOs.
+
 ### PAYMENTS-1G — Store-only production verification snapshots
 
 Migration 20261019020000_store_live_payment_verification permits PRODUCTION in

@@ -43,12 +43,14 @@ export function StorePaymentVerification({
   canEdit,
   enabled,
   disabled = false,
+  onVerified,
 }: {
   accessToken: string;
   storeId: string;
   canEdit: boolean;
   enabled: boolean;
   disabled?: boolean;
+  onVerified?: () => void;
 }) {
   const [workspace, setWorkspace] = useState<StorePaymentWorkspace | null>(
     null,
@@ -80,10 +82,14 @@ export function StorePaymentVerification({
       current = false;
     };
   }, [accessToken, storeId, revision]);
-  const update = useCallback((value: PlatformPaymentTestDetail) => {
-    setSelected(value);
-    setRevision((old) => old + 1);
-  }, []);
+  const update = useCallback(
+    (value: PlatformPaymentTestDetail) => {
+      setSelected(value);
+      setRevision((old) => old + 1);
+      if (value.status === "SUCCEEDED") onVerified?.();
+    },
+    [onVerified],
+  );
   const activeTest = useActivePaymentTest(workspace, selected);
   const live = workspace?.connection?.environment === "PRODUCTION";
   const popupLive = selected ? selected.environment === "PRODUCTION" : live;
