@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### ROLES-2 — Shared Store authorization policy (2026-10-19)
+
+GET /api/v1/admin/roles returns shared Platform and Store role definitions with
+server-resolved capabilities. PUT /api/v1/admin/roles/store-roles/:systemCode/permissions
+updates one global Store role in a row-locked transaction, requires current
+expectedUpdatedAt, validates Store-only codes/Staff limits/essential Admin access,
+rechecks Platform authority, rejects impersonation and audits before/after codes.
+Store Admin and Store Staff maps live in global_store_roles and
+global_store_role_permissions. All protected Store requests resolve these maps
+through active, tenant-scoped membership assignments. No per-Store fan-out or JWT
+authorization state is used; future Stores immediately inherit current shared maps.
+Legacy store_role_permissions and store_permission_grants no longer grant or deny
+effective permissions. Legacy mutation endpoints reject changes; tenant role IDs
+remain for membership/FK compatibility. Plan gates remain independent. Global
+assigned-user counts are distinct users per role and visible only to authorized
+Platform viewers. Merchant role viewers receive read-only definitions without
+cross-Store counts. This supersedes ROLES-1 per-Store editing and ceiling behavior.
+
 ### PAYMENTS-1I — Shared secret-field presentation
 
 Use public @selfx/ui SecretInput for saved-secret placeholders and optional typed

@@ -143,28 +143,31 @@ export class UserDeletionService {
           userId: actorId,
           status: "ACTIVE",
           deletedAt: null,
-          organization: {
-            status: "ACTIVE",
-            permissionGrants: {
-              some: { permission: { code: "users.deactivate" } },
-            },
-          },
+          organization: { status: "ACTIVE" },
           ...adminMembershipWhere,
           roleAssignments: {
             some: {
               role: {
                 isActive: true,
                 systemCode: "store-admin",
-                permissions: {
-                  some: { permission: { code: "users.deactivate" } },
-                },
               },
             },
           },
         },
         select: { id: true },
       });
-      if (!actor || (!actorMembership && !actor.platformRoleAssignments.length))
+      const sharedPermission = await tx.globalStoreRolePermission.findFirst({
+        where: {
+          role: { systemCode: "store-admin" },
+          permission: { code: "users.deactivate" },
+        },
+        select: { id: true },
+      });
+      if (
+        !actor ||
+        (!(actorMembership && sharedPermission) &&
+          !actor.platformRoleAssignments.length)
+      )
         deletionError(
           "STORE_PERMISSION_DENIED",
           "Only an authorized Store Admin can remove Store staff.",

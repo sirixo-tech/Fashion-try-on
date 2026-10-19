@@ -19,10 +19,7 @@ import {
   platformRoleAuthority,
   roleDenied,
 } from "../rbac/role-management-policy.js";
-import {
-  STORE_PERMISSION_REGISTRY,
-  STORE_PERMISSION_SET,
-} from "../rbac/store-permissions.js";
+import { STORE_PERMISSION_REGISTRY } from "../rbac/store-permissions.js";
 import {
   PLATFORM_PERMISSIONS,
   RETIRED_PLATFORM_PERMISSION_CODES,
@@ -428,66 +425,14 @@ export class AccessControlService {
   }
 
   async replaceStorePermissionGrants(
-    actorUserId: string,
-    storeId: string,
-    input: ReplacePermissionCodesDto,
+    _actorUserId: string,
+    _storeId: string,
+    _input: ReplacePermissionCodesDto,
   ): Promise<{ data: StorePermissionGrantDto[] }> {
-    const authority = await platformRoleAuthority(this.prisma, actorUserId);
-    if (!authority.isSuperadmin || authority.impersonating)
-      roleDenied(
-        "Only Superadmin outside impersonation can change a Store permission limit.",
-      );
-    await this.ensureGlobalPermissionCatalog();
-    await this.assertStoreExists(storeId);
-    const uniqueCodes = uniqueStorePermissionCodes(input.permissionCodes);
-    const permissionIds = await this.storePermissionIdsForCodes(uniqueCodes);
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${storeId}::uuid FOR UPDATE`;
-      const current = await tx.organization.findUniqueOrThrow({
-        where: { id: storeId },
-      });
-      if (
-        input.expectedUpdatedAt &&
-        current.updatedAt.toISOString() !== input.expectedUpdatedAt
-      )
-        throw new ApiErrorException(
-          409,
-          "ROLE_CHANGED",
-          "Store permissions changed. Reload before saving.",
-        );
-      await tx.organization.update({
-        where: { id: storeId },
-        data: {
-          updatedAt: new Date(
-            Math.max(Date.now(), current.updatedAt.getTime() + 1),
-          ),
-        },
-      });
-      await tx.storePermissionGrant.deleteMany({
-        where: {
-          storeTenantId: storeId,
-          permission: { code: { notIn: uniqueCodes } },
-        },
-      });
-      await tx.storePermissionGrant.createMany({
-        data: permissionIds.map((permissionId) => ({
-          id: createSelfxId(),
-          storeTenantId: storeId,
-          permissionId,
-          grantedByUserId: actorUserId,
-        })),
-        skipDuplicates: true,
-      });
-      await createAudit(tx, {
-        actorUserId,
-        organizationId: storeId,
-        action: PLATFORM_ACCESS_AUDIT_ACTIONS.storePermissionCeilingUpdated,
-        resourceType: "store_permission_grant",
-        resourceId: storeId,
-        metadata: { permission_codes: uniqueCodes },
-      });
-    });
-    return this.listStorePermissionGrants(storeId);
+    void [_actorUserId, _storeId, _input];
+    roleDenied(
+      "Store-specific permission overrides are retired. Edit application-wide role permissions in User Management > Roles.",
+    );
   }
 
   private async ensureGlobalPermissionCatalog(): Promise<void> {
@@ -792,14 +737,6 @@ export class AccessControlService {
     });
     return new Set(grants.map((grant) => grant.permission.code));
   }
-}
-
-function uniqueStorePermissionCodes(codes: string[]): string[] {
-  const unique = [...new Set(codes)];
-  if (unique.some((code) => !STORE_PERMISSION_SET.has(code))) {
-    throwInvalidPermission();
-  }
-  return unique;
 }
 
 function platformRoleInclude() {

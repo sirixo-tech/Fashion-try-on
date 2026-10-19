@@ -386,6 +386,20 @@ SelfX administrator.
 
 # Development Rules
 
+## ROLES-2 application-wide role definitions (2026-10-19)
+
+The approved role permission maps are application-wide. Editing Store Admin or
+Store Staff in User Management > Roles applies to that role across all existing
+and future Stores. There is no Store selector or Store-specific permission editor.
+Only protected Superadmin or explicit Platform STORE_ROLES_MANAGE authority may
+edit shared Store role maps. Merchant administrators can view permitted role
+definitions and assign users within their own Store; they cannot edit global maps.
+Store-specific permission maps/ceilings are retired from effective authorization.
+Historic tenant role rows remain for membership IDs and tenant isolation only.
+Store memberships, active account/Store/role status, plan entitlements, final-Admin
+protection and protected Superadmin authority remain mandatory. This supersedes
+the earlier per-Store role-map, ceiling and merchant permission-delegation rules.
+
 Before implementing a feature:
 
 1. Read the relevant project documents.

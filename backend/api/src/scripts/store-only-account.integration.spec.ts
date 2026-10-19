@@ -220,11 +220,19 @@ describe.skipIf(!url)(
     it("previews without exposing secrets or mutating authority/sessions", async () => {
       const plan = await preview();
       expect(plan.target.id).toBe(targetId);
-      expect(plan.storePermissions).toEqual(["stores.view"]);
+      const shared = await db.globalStoreRole.findUniqueOrThrow({
+        where: { systemCode: "store-admin" },
+        include: { permissions: { include: { permission: true } } },
+      });
+      expect(plan.storePermissions).toEqual(
+        shared.permissions.map((p) => p.permission.code).sort(),
+      );
       expect(JSON.stringify(plan)).not.toMatch(
         /password|refreshToken|private-refresh/,
       );
-      expect(await db.auditLog.count()).toBe(0);
+      expect(
+        await db.auditLog.count({ where: { actorUserId: { in: users } } }),
+      ).toBe(0);
       expect(
         await db.platformRoleAssignment.count({ where: { status: "ACTIVE" } }),
       ).toBe(2);
@@ -286,7 +294,13 @@ describe.skipIf(!url)(
           where: { actorUserId: adminId, status: "ACTIVE" },
         }),
       ).toBe(1);
-      expect((await db.auditLog.findFirstOrThrow()).metadata).toMatchObject({
+      expect(
+        (
+          await db.auditLog.findFirstOrThrow({
+            where: { actorUserId: adminId },
+          })
+        ).metadata,
+      ).toMatchObject({
         targetUserId: targetId,
         planHash: plan.hash,
       });
@@ -311,7 +325,9 @@ describe.skipIf(!url)(
           })
         ).revokedAt,
       ).toBeNull();
-      expect(await db.auditLog.count()).toBe(1);
+      expect(
+        await db.auditLog.count({ where: { actorUserId: { in: users } } }),
+      ).toBe(1);
     });
     it("rejects the same account as remaining admin", async () => {
       await expect(
@@ -375,10 +391,18 @@ describe.skipIf(!url)(
         where: { orgId: storeId },
         data: { isActive: true },
       });
-      await db.storePermissionGrant.deleteMany({
-        where: { storeTenantId: storeId },
+      const removed = await db.globalStoreRolePermission.findFirstOrThrow({
+        where: {
+          role: { systemCode: "store-admin" },
+          permission: { code: "stores.view" },
+        },
       });
-      await expect(preview()).rejects.toThrow("stores.view");
+      await db.globalStoreRolePermission.delete({ where: { id: removed.id } });
+      try {
+        await expect(preview()).rejects.toThrow("stores.view");
+      } finally {
+        await db.globalStoreRolePermission.create({ data: removed });
+      }
     });
     it("rejects mismatched confirmations, tampered artifacts and another Railway environment", async () => {
       const plan = await preview();
@@ -394,7 +418,9 @@ describe.skipIf(!url)(
       await expect(
         apply(plan, { env: { ...env, RAILWAY_ENVIRONMENT_ID: "other" } }),
       ).rejects.toThrow("environment differs");
-      expect(await db.auditLog.count()).toBe(0);
+      expect(
+        await db.auditLog.count({ where: { actorUserId: { in: users } } }),
+      ).toBe(0);
     });
     it("detects stale roles before backup and again inside the commit", async () => {
       const plan = await preview();
@@ -465,7 +491,9 @@ describe.skipIf(!url)(
       expect(
         await db.impersonationSession.count({ where: { status: "ACTIVE" } }),
       ).toBe(2);
-      expect(await db.auditLog.count()).toBe(0);
+      expect(
+        await db.auditLog.count({ where: { actorUserId: { in: users } } }),
+      ).toBe(0);
     });
     it("refuses an old operation after platform access is granted again", async () => {
       const plan = await preview();

@@ -129,10 +129,15 @@ describe("OpenAPI documentation", () => {
     expect(Object.keys(response.body.paths)).toEqual(
       expect.arrayContaining([
         "/api/v1/admin/roles",
+        "/api/v1/admin/roles/store-roles/{systemCode}/permissions",
         "/api/v1/admin/roles/stores/{storeId}",
       ]),
     );
     await request(app.getHttpServer()).get("/api/v1/admin/roles").expect(401);
+    await request(app.getHttpServer())
+      .put("/api/v1/admin/roles/store-roles/staff/permissions")
+      .send({ permissionCodes: [] })
+      .expect(401);
     await request(app.getHttpServer())
       .get("/api/v1/admin/roles/stores/0199aee0-0000-7000-8000-000000000001")
       .expect(401);

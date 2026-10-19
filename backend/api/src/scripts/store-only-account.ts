@@ -118,23 +118,34 @@ async function buildPlan(
     fail(
       "The owner needs an active Store Admin RBAC assignment. Review Store Users/Roles before retrying.",
     );
-  const grants = await tx.storePermissionGrant.findMany({
-    where: { storeTenantId: store.id },
-    orderBy: { permissionId: "asc" },
-    select: { permission: { select: { code: true } } },
+  const sharedRoles = await tx.globalStoreRole.findMany({
+    where: {
+      systemCode: {
+        in: membership.roleAssignments
+          .filter((a) => a.role.isActive)
+          .flatMap((a) => (a.role.systemCode ? [a.role.systemCode] : [])),
+      },
+    },
+    select: {
+      systemCode: true,
+      updatedAt: true,
+      permissions: {
+        select: { permission: { select: { code: true } } },
+        orderBy: { permission: { code: "asc" } },
+      },
+    },
+    orderBy: { systemCode: "asc" },
   });
-  const granted = new Set(grants.map((g) => g.permission.code));
   const storePermissions = [
     ...new Set(
-      membership.roleAssignments
-        .filter((a) => a.role.isActive)
-        .flatMap((a) => a.role.permissions.map((p) => p.permission.code))
-        .filter((code) => granted.has(code)),
+      sharedRoles.flatMap((role) =>
+        role.permissions.map((p) => p.permission.code),
+      ),
     ),
   ].sort();
   if (!storePermissions.includes("stores.view"))
     fail(
-      "The existing Store role/permission ceiling does not allow stores.view. Review Store permissions first.",
+      "The shared Store Admin role does not allow stores.view. Review global role permissions first.",
     );
   const staticRoles = await tx.platformRoleAssignment.findMany({
     where: { userId: target.id, status: "ACTIVE" },
@@ -157,7 +168,7 @@ async function buildPlan(
     remainingAdmin: admin,
     store,
     membership,
-    grants,
+    sharedRoles,
     storePermissions,
     staticRoles,
     customRoles,
@@ -280,7 +291,7 @@ export async function applyStoreOnlyAccount(input: {
       await tx.$executeRaw`SET LOCAL lock_timeout = '5s'`;
       // Brief maintenance-only locks also protect against concurrent role grants,
       // owner changes, refreshes and impersonation starts from normal UI/API paths.
-      await tx.$executeRaw`LOCK TABLE users, organizations, organization_memberships, platform_role_assignments, platform_user_roles, store_membership_roles, store_roles, store_role_permissions, store_permission_grants, user_sessions, impersonation_sessions IN SHARE ROW EXCLUSIVE MODE`;
+      await tx.$executeRaw`LOCK TABLE users, organizations, organization_memberships, platform_role_assignments, platform_user_roles, store_membership_roles, store_roles, global_store_roles, global_store_role_permissions, user_sessions, impersonation_sessions IN SHARE ROW EXCLUSIVE MODE`;
       if (await verify(tx)) return { status: "ALREADY_APPLIED" as const };
       const now = new Date();
       const where = { userId: plan.target.id, status: "ACTIVE" as const };

@@ -344,9 +344,9 @@ export function UserEditor({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                New links grant Store-wide scope using the selected roles and
-                existing Store permission limits. Existing scopes stay
-                unchanged. Revoke a membership to remove Store access.
+                New links grant Store-wide scope using the selected shared
+                roles. Existing scopes stay unchanged. Revoke a membership to
+                remove Store access.
               </p>
             </section>
             <section
@@ -358,7 +358,7 @@ export function UserEditor({
               </h3>
               <p className="text-sm text-muted-foreground">
                 For an active Store with no active Store Admin. Grants Store
-                Admin permissions within its current permission limits.
+                Admin permissions from the shared Store Admin role.
               </p>
               <StorePicker
                 token={token}

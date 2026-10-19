@@ -18,7 +18,7 @@ describe("GarmentPreviewSettingsService Store capabilities", () => {
     const prisma = createPrismaMock();
     const service = new GarmentPreviewSettingsService(prisma as never);
     prisma.$queryRaw.mockResolvedValue([]);
-    prisma.storePermissionGrant.findFirst.mockResolvedValue(null);
+    prisma.globalStoreRolePermission.findFirst.mockResolvedValue(null);
     prisma.organization.findUnique.mockResolvedValue({ settings: {} });
 
     const settings = await service.storeSettings("store-1");
@@ -99,7 +99,7 @@ function createPrismaMock() {
     organization: {
       findUnique: vi.fn(),
     },
-    storePermissionGrant: {
+    globalStoreRolePermission: {
       findFirst: vi.fn(),
     },
   };

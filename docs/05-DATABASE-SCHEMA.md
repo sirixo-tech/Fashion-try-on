@@ -1,3 +1,21 @@
+## Document Evolution
+
+### ROLES-2 — Global Store role maps (2026-10-19)
+
+Migration 20261019030000_global_store_role_permissions adds global_store_roles
+(UUIDv7 id, unique checked system_code store-admin/staff, name, description,
+created_at, updated_at) and global_store_role_permissions (UUIDv7 id, role FK,
+permission FK, unique role/permission, permission index). Existing tenant role
+and membership IDs/FKs are preserved. Local permission and grant rows remain
+historical compatibility records, not authorization inputs.
+Initialize each shared map conservatively from the intersection of existing
+effective role maps (local permissions AND former Store grants), respecting
+empty maps and Staff restrictions. When no tenant role exists for a type, seed
+the approved initial baseline. Do not pick one Store or union conflicting maps.
+After migration only explicit global saves change policy; reads/onboarding never
+restore defaults. Deployment must review conservative initial maps, which may be
+narrower than some old Stores' maps. This supersedes ROLES-1 persistence rules.
+
 # SelfX Virtual Try-On
 
 ## Database & Schema Design

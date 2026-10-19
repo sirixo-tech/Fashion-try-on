@@ -153,10 +153,11 @@ export class GarmentPreviewSettingsService {
     return storeGarmentPreviewEnabledFromSettings(store?.settings);
   }
 
-  async storeHasGarmentPreviewPermission(storeId: string): Promise<boolean> {
-    const grant = await this.prisma.storePermissionGrant.findFirst({
+  async storeHasGarmentPreviewPermission(_storeId: string): Promise<boolean> {
+    void _storeId;
+    const grant = await this.prisma.globalStoreRolePermission.findFirst({
       where: {
-        storeTenantId: storeId,
+        role: { systemCode: "store-admin" },
         permission: { code: STORE_PERMISSION_CODES.tryOnGarmentPreview },
       },
       select: { id: true },

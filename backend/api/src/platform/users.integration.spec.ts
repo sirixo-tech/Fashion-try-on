@@ -539,22 +539,30 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
       }),
     ).toBe(1);
   });
-  it("does not assign first ownership without an existing Store viewing grant", async () => {
-    await db.storePermissionGrant.deleteMany({
-      where: { storeTenantId: store },
+  it("does not assign first ownership when the shared Store Admin map lacks viewing permission", async () => {
+    const removed = await db.globalStoreRolePermission.findFirstOrThrow({
+      where: {
+        role: { systemCode: "store-admin" },
+        permission: { code: "stores.view" },
+      },
     });
-    await expect(
-      service.assignFirstOwner(admin, user, {
-        version: (await service.get(user)).version,
-        storeId: store,
-        confirmStoreName: "Avinash stores",
-      }),
-    ).rejects.toMatchObject(code("STORE_PERMISSION_NOT_GRANTED"));
-    expect(
-      await db.organizationMembership.count({
-        where: { orgId: store, userId: user },
-      }),
-    ).toBe(0);
+    await db.globalStoreRolePermission.delete({ where: { id: removed.id } });
+    try {
+      await expect(
+        service.assignFirstOwner(admin, user, {
+          version: (await service.get(user)).version,
+          storeId: store,
+          confirmStoreName: "Avinash stores",
+        }),
+      ).rejects.toMatchObject(code("STORE_PERMISSION_NOT_GRANTED"));
+      expect(
+        await db.organizationMembership.count({
+          where: { orgId: store, userId: user },
+        }),
+      ).toBe(0);
+    } finally {
+      await db.globalStoreRolePermission.create({ data: removed });
+    }
   });
   it("does not count a disabled owner as a replacement in existing Store membership controls", async () => {
     const remaining = await owner(user);
@@ -957,7 +965,16 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
     ).toEqual(historicalEvent);
     expect(
       (await rbac.effectivePermissions(result.id, store)).permissions,
-    ).toEqual(["stores.view"]);
+    ).toEqual(
+      (
+        await db.globalStoreRole.findUniqueOrThrow({
+          where: { systemCode: "store-admin" },
+          include: { permissions: { include: { permission: true } } },
+        })
+      ).permissions
+        .map((p) => p.permission.code)
+        .sort(),
+    );
     const event = await db.auditLog.findFirstOrThrow({
       where: { action: "STORE_ADMIN_ACCOUNT_CREATED", resourceId: result.id },
     });
@@ -993,36 +1010,44 @@ describe.skipIf(!url)("Users — real PostgreSQL", () => {
     ).toBe(0);
   });
   it("rolls back new users when Store Admin assignment cannot be completed", async () => {
-    await db.storePermissionGrant.deleteMany({
-      where: { storeTenantId: store },
+    const removed = await db.globalStoreRolePermission.findFirstOrThrow({
+      where: {
+        role: { systemCode: "store-admin" },
+        permission: { code: "stores.view" },
+      },
     });
-    await expect(
-      service.createStoreAdmin(admin, {
-        storeId: store,
-        confirmStoreName: "Avinash stores",
-        displayName: "No orphan",
-        email: "no-orphan@example.invalid",
-        password: "New admin password 123!",
-      }),
-    ).rejects.toMatchObject(code("STORE_PERMISSION_NOT_GRANTED"));
-    expect(
-      await db.user.findUnique({
-        where: { email: "no-orphan@example.invalid" },
-      }),
-    ).toBeNull();
-    expect(
-      await db.organizationMembership.count({ where: { orgId: store } }),
-    ).toBe(0);
-    expect(
-      await db.auditLog.count({
-        where: {
-          action: {
-            in: ["STORE_ADMIN_ACCOUNT_CREATED", "STORE_FIRST_OWNER_ASSIGNED"],
+    await db.globalStoreRolePermission.delete({ where: { id: removed.id } });
+    try {
+      await expect(
+        service.createStoreAdmin(admin, {
+          storeId: store,
+          confirmStoreName: "Avinash stores",
+          displayName: "No orphan",
+          email: "no-orphan@example.invalid",
+          password: "New admin password 123!",
+        }),
+      ).rejects.toMatchObject(code("STORE_PERMISSION_NOT_GRANTED"));
+      expect(
+        await db.user.findUnique({
+          where: { email: "no-orphan@example.invalid" },
+        }),
+      ).toBeNull();
+      expect(
+        await db.organizationMembership.count({ where: { orgId: store } }),
+      ).toBe(0);
+      expect(
+        await db.auditLog.count({
+          where: {
+            action: {
+              in: ["STORE_ADMIN_ACCOUNT_CREATED", "STORE_FIRST_OWNER_ASSIGNED"],
+            },
+            organizationId: store,
           },
-          organizationId: store,
-        },
-      }),
-    ).toBe(0);
+        }),
+      ).toBe(0);
+    } finally {
+      await db.globalStoreRolePermission.create({ data: removed });
+    }
   });
   it("rejects unauthorized creation, inactive or renamed Stores and existing admin links", async () => {
     const request = {

@@ -1,3 +1,19 @@
+## Document Evolution
+
+### ROLES-2 — Application-wide Store roles (2026-10-19)
+
+Implement shared Store Admin/Staff persistence, conservative migration, global
+versioned/audited edit API, runtime resolution, read-only merchant viewing and
+registry UI without Store controls. Retire Store-specific permission mutations
+and authorization overrides while retaining memberships, plans and tenant IDs.
+Verify multi-Store grant/revocation, future-Store inheritance, empty maps,
+concurrency, migration with differing legacy maps, authority/impersonation denial,
+tenant isolation, Staff limits and account/payment/entitlement regressions.
+Apply the new migration and deploy API/web together; old API instances must not
+continue authorizing from legacy maps. Review the initial common maps deliberately
+before broad rollout. No automatic permission expansion. This supersedes ROLES-1
+Store selector, per-Store editing and no-migration rollout guidance.
+
 # SelfX Virtual Try-On
 
 ## Implementation Plan

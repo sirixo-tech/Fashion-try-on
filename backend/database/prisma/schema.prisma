@@ -536,19 +536,20 @@ model MembershipStoreScope {
 }
 
 model Permission {
-  id                      String                         @id @db.Uuid
-  code                    String                         @unique @db.VarChar(120)
-  module                  String                         @db.VarChar(80)
-  action                  String                         @db.VarChar(80)
-  label                   String                         @db.VarChar(160)
-  description             String?                        @db.Text
-  applicability           PermissionApplicability        @default(STORE)
-  isSystem                Boolean                        @default(true) @map("is_system")
-  createdAt               DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  platformRolePermissions PlatformAccessRolePermission[]
-  rolePermissions         StoreRolePermission[]
-  storeGrants             StorePermissionGrant[]
+  id                         String                         @id @db.Uuid
+  code                       String                         @unique @db.VarChar(120)
+  module                     String                         @db.VarChar(80)
+  action                     String                         @db.VarChar(80)
+  label                      String                         @db.VarChar(160)
+  description                String?                        @db.Text
+  applicability              PermissionApplicability        @default(STORE)
+  isSystem                   Boolean                        @default(true) @map("is_system")
+  createdAt                  DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  platformRolePermissions    PlatformAccessRolePermission[]
+  rolePermissions            StoreRolePermission[]
+  storeGrants                StorePermissionGrant[]
+  globalStoreRolePermissions GlobalStoreRolePermission[]
 
   @@index([module, action])
   @@index([applicability])
@@ -982,6 +983,32 @@ model ShoppingCheckoutRequest {
   @@id([kioskDeviceId, keyDigest])
   @@index([expiresAt])
   @@map("shopping_checkout_requests")
+}
+
+// Application-wide permission maps. Tenant StoreRole rows retain membership IDs.
+model GlobalStoreRole {
+  id          String                      @id @db.Uuid
+  systemCode  String                      @unique @map("system_code") @db.VarChar(80)
+  name        String                      @db.VarChar(120)
+  description String?                     @db.Text
+  createdAt   DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  permissions GlobalStoreRolePermission[]
+
+  @@map("global_store_roles")
+}
+
+model GlobalStoreRolePermission {
+  id           String          @id @db.Uuid
+  roleId       String          @map("role_id") @db.Uuid
+  permissionId String          @map("permission_id") @db.Uuid
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  role         GlobalStoreRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission      @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("global_store_role_permissions")
 }
 
 model StoreRole {

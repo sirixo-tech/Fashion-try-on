@@ -1,6 +1,6 @@
 import { selfxApi } from "./api";
 import type { AccessPermission, PlatformRole } from "./access-control";
-import type { StoreRole, StorePermission } from "./stores";
+import type { StorePermission } from "./stores";
 export type RolesContext = {
   canViewPlatform: boolean;
   canEditPlatformAdmin: boolean;
@@ -8,34 +8,39 @@ export type RolesContext = {
   assignablePlatformCodes: string[];
   roles: PlatformRole[];
   permissions: AccessPermission[];
-  stores: {
-    data: { id: string; name: string }[];
-    page: number;
-    total: number;
-    hasMore: boolean;
-  };
+  storeRoles: GlobalStoreRolesWorkspace;
 };
-export type StoreRolesWorkspace = {
-  canEditCeiling: boolean;
-  ceilingUpdatedAt: string;
-  roles: StoreRole[];
+export type GlobalStoreRolesWorkspace = {
+  canEdit: boolean;
+  roles: {
+    id: string;
+    systemCode: string;
+    name: string;
+    description: string | null;
+    permissions: { code: string }[];
+    updatedAt: string;
+    assignedUsersCount: number | null;
+  }[];
   permissions: StorePermission[];
-  policy: {
-    canView: boolean;
-    canEditAdmin: boolean;
-    canEditStaff: boolean;
-    assignableCodes: string[];
-    staffAssignableCodes: string[];
-    requiredAdminCodes: string[];
-  };
+  staffAssignableCodes: string[];
+  requiredAdminCodes: string[];
 };
-export const getRolesContext = (accessToken: string, page = 1, search = "") =>
-  selfxApi<RolesContext>(
-    `/api/v1/admin/roles?page=${page}&pageSize=25&search=${encodeURIComponent(search)}`,
-    { accessToken, cache: "no-store" },
-  );
-export const getStoreRolesWorkspace = (accessToken: string, storeId: string) =>
-  selfxApi<StoreRolesWorkspace>(`/api/v1/admin/roles/stores/${storeId}`, {
+export const getRolesContext = (accessToken: string) =>
+  selfxApi<RolesContext>("/api/v1/admin/roles", {
     accessToken,
     cache: "no-store",
   });
+export const replaceGlobalStoreRolePermissions = (
+  accessToken: string,
+  systemCode: string,
+  permissionCodes: string[],
+  expectedUpdatedAt: string,
+) =>
+  selfxApi<GlobalStoreRolesWorkspace>(
+    `/api/v1/admin/roles/store-roles/${systemCode}/permissions`,
+    {
+      method: "PUT",
+      accessToken,
+      body: JSON.stringify({ permissionCodes, expectedUpdatedAt }),
+    },
+  );

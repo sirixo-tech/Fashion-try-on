@@ -379,12 +379,15 @@ describe.skipIf(!url)(
         rbac.addUser(superId, secondId, { email: user.email, roleIds: [] }),
       ).rejects.toMatchObject(code("USER_DELETED"));
     });
-    it("rechecks the Store permission ceiling inside the deletion transaction", async () => {
-      const permission = await db.permission.findUniqueOrThrow({
-        where: { code: "users.deactivate" },
+    it("rechecks the shared Store Admin permission inside the deletion transaction", async () => {
+      const permission = await db.globalStoreRolePermission.findFirstOrThrow({
+        where: {
+          role: { systemCode: "store-admin" },
+          permission: { code: "users.deactivate" },
+        },
       });
-      await db.storePermissionGrant.deleteMany({
-        where: { storeTenantId: storeId, permissionId: permission.id },
+      await db.globalStoreRolePermission.delete({
+        where: { id: permission.id },
       });
       const checkedBeforeRevocation = vi
         .spyOn(rbac, "requireStorePermission")
@@ -407,6 +410,7 @@ describe.skipIf(!url)(
         ).toBeNull();
       } finally {
         checkedBeforeRevocation.mockRestore();
+        await db.globalStoreRolePermission.create({ data: permission });
       }
     });
     it("permanently removes Store records and exclusive users, preserving shared/platform users and audit details", async () => {

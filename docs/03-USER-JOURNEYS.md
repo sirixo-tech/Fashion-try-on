@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### ROLES-2 — Edit a role once for every Store (2026-10-19)
+
+An authorized Platform administrator opens User Management > Roles, selects any
+of the five role types, searches its grouped permissions and saves. A Store role
+save applies across every Store with that role; there is no Store selection.
+Store Admin viewers see shared definitions read-only and continue to assign Staff
+only within their own Store. Changes affect the next protected request without
+new login. Impersonation cannot open or mutate global role policy; compatibility
+reads remain target-Store scoped. This supersedes ROLES-1 Store selection,
+merchant permission editing and Store-limit management.
+
 ### PAYMENTS-1I — Simplified account maintenance
 
 Identify the gateway by its larger logo and choose Edit or Delete. Edit shows

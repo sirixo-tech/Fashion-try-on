@@ -1,5 +1,20 @@
 ## Document Evolution
 
+### ROLES-2 — Application-wide role permissions (2026-10-19)
+
+Role definitions are shared across the application. Editing Store Admin or Store
+Staff applies the saved map to all assigned users across all existing and future
+Stores. Platform roles retain their global definitions and separate authority.
+There are no per-Store permission overrides or Store permission ceilings in this
+model. Store membership determines which tenant data a user may access; plans,
+Store/user/membership/role status and protected Superadmin safeguards still apply.
+Only Superadmin or explicit Platform STORE_ROLES_MANAGE authority may edit shared
+Store maps. Store administrators may view definitions and manage authorized user
+assignments within their Store, but cannot change application-wide permissions.
+Staff remains operational-only; essential Store Admin permissions and final-Admin
+membership protections remain. This supersedes ROLES-1 and older per-Store maps,
+ceiling and merchant role-permission delegation behavior.
+
 ### PAYMENTS-1J — Accurate compact gateway status
 
 Group gateway name, short description and compact mode/status badges beside its

@@ -6,106 +6,57 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { RolesWorkspace } from "./roles-workspace";
 import {
   getRolesContext,
-  getStoreRolesWorkspace,
+  replaceGlobalStoreRolePermissions,
   type RolesContext,
-  type StoreRolesWorkspace,
 } from "@/lib/roles";
-import {
-  replacePlatformRolePermissions,
-  replaceStorePermissionGrants,
-} from "@/lib/access-control";
-import { replaceStoreRolePermissions } from "@/lib/stores";
+import { replacePlatformRolePermissions } from "@/lib/access-control";
 
 vi.mock("@/lib/session", () => ({
   useSession: () => ({ status: "authenticated", accessToken: "token" }),
 }));
 vi.mock("@/lib/roles", () => ({
   getRolesContext: vi.fn(),
-  getStoreRolesWorkspace: vi.fn(),
+  replaceGlobalStoreRolePermissions: vi.fn(),
 }));
 vi.mock("@/lib/access-control", () => ({
   replacePlatformRolePermissions: vi.fn(),
-  replaceStorePermissionGrants: vi.fn(),
 }));
-vi.mock("@/lib/stores", () => ({ replaceStoreRolePermissions: vi.fn() }));
-vi.mock("@selfx/ui", async (original) => ({
-  ...(await original<typeof import("@selfx/ui")>()),
-  SelectMenu: ({
-    ariaLabel,
-    value,
-    onChange,
-    options,
-    disabled,
-  }: {
-    ariaLabel: string;
-    value: string;
-    onChange: (value: string) => void;
-    options: { value: string; label: ReactNode }[];
-    disabled?: boolean;
-  }) => (
-    <select
-      aria-label={ariaLabel}
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  ),
-}));
-
-const timestamp = "2026-10-18T00:00:00.000Z";
-function permission(
-  code: string,
-  label: string,
-  applicability: "STORE" | "PLATFORM_ONLY" = "STORE",
-  granted = true,
-) {
-  return {
-    id: code,
-    code,
-    label,
-    module: "operations",
-    action: "manage",
-    description: label,
-    applicability,
-    isSystem: true,
-    granted,
-  };
-}
+const timestamp = "2026-10-19T00:00:00.000Z";
+const permission = (code: string, label: string) => ({
+  id: code,
+  code,
+  label,
+  module: "Operations",
+  description: label,
+  action: "manage",
+  applicability: "STORE" as const,
+  isSystem: true,
+  granted: true,
+});
 const platformPermissions = [
-  permission("STORES_VIEW", "View Stores", "PLATFORM_ONLY"),
-  permission("PERMISSIONS_MANAGE", "Protected administration", "PLATFORM_ONLY"),
-];
+  permission("STORES_VIEW", "View Stores"),
+  permission("PERMISSIONS_MANAGE", "Protected administration"),
+].map((p) => ({ ...p, applicability: "PLATFORM_ONLY" as const }));
 const storePermissions = [
   permission("roles.assign", "Manage Staff access"),
   permission("products.manage", "Manage products"),
-  permission("kiosks.update", "Update kiosks", "STORE", false),
+  permission("kiosks.update", "Update kiosks"),
 ];
 const role = (
   id: string,
   name: string,
   systemCode: string,
-  permissions = storePermissions.slice(0, 2),
+  permissions: { code: string }[],
 ) => ({
   id,
   name,
   systemCode,
-  description: `${name} access`,
-  isSystem: true,
-  isActive: true,
-  assignedUsersCount: 2,
-  permissionsCount: permissions.length,
+  description: name + " access",
+  assignedUsersCount: 3,
   permissions,
-  createdAt: timestamp,
   updatedAt: timestamp,
 });
 function context(): RolesContext {
@@ -116,46 +67,47 @@ function context(): RolesContext {
     assignablePlatformCodes: platformPermissions.map((p) => p.code),
     permissions: platformPermissions,
     roles: [
-      role(
-        "platform-admin",
-        "Platform Admin",
-        "platform-staff-admin",
-        platformPermissions,
-      ),
-      role(
-        "platform-staff",
-        "Platform Staff",
-        "platform-support-admin",
-        platformPermissions.slice(0, 1),
-      ),
+      {
+        ...role(
+          "platform-admin",
+          "Platform Admin",
+          "platform-staff-admin",
+          platformPermissions,
+        ),
+        permissions: platformPermissions,
+        isSystem: true,
+        isActive: true,
+        permissionsCount: 2,
+        createdAt: timestamp,
+      },
+      {
+        ...role(
+          "platform-staff",
+          "Platform Staff",
+          "platform-support-admin",
+          platformPermissions.slice(0, 1),
+        ),
+        permissions: platformPermissions.slice(0, 1),
+        isSystem: true,
+        isActive: true,
+        permissionsCount: 1,
+        createdAt: timestamp,
+      },
     ],
-    stores: {
-      data: [
-        { id: "store-a", name: "Avinash stores" },
-        { id: "store-b", name: "Other Store" },
-      ],
-      page: 1,
-      total: 2,
-      hasMore: false,
-    },
-  };
-}
-function storeWorkspace(): StoreRolesWorkspace {
-  return {
-    canEditCeiling: false,
-    ceilingUpdatedAt: timestamp,
-    permissions: storePermissions,
-    roles: [
-      role("store-admin", "Store Admin", "store-admin"),
-      role("store-staff", "Staff", "staff", storePermissions.slice(1, 2)),
-    ],
-    policy: {
-      canView: true,
-      canEditAdmin: false,
-      canEditStaff: true,
-      assignableCodes: ["roles.assign", "products.manage"],
-      staffAssignableCodes: ["products.manage"],
+    storeRoles: {
+      canEdit: true,
+      permissions: storePermissions,
+      staffAssignableCodes: ["products.manage", "kiosks.update"],
       requiredAdminCodes: ["roles.assign"],
+      roles: [
+        role("global-admin", "Store Admin", "store-admin", storePermissions),
+        role(
+          "global-staff",
+          "Store Staff",
+          "staff",
+          storePermissions.slice(1, 2),
+        ),
+      ],
     },
   };
 }
@@ -163,177 +115,51 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal("PointerEvent", MouseEvent);
   vi.mocked(getRolesContext).mockResolvedValue(context());
-  vi.mocked(getStoreRolesWorkspace).mockResolvedValue(storeWorkspace());
-  vi.mocked(replaceStoreRolePermissions).mockResolvedValue(
-    storeWorkspace().roles[1]!,
+  vi.mocked(replaceGlobalStoreRolePermissions).mockResolvedValue(
+    context().storeRoles,
   );
   vi.mocked(replacePlatformRolePermissions).mockResolvedValue(
     context().roles[0]!,
   );
-  vi.mocked(replaceStorePermissionGrants).mockResolvedValue({ data: [] });
 });
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-it("shows all five role types in one registry with protected Superadmin authority read-only", async () => {
+it("shows all five shared roles without a Store selector or permission ceiling", async () => {
   render(<RolesWorkspace />);
-  expect(
-    await screen.findByRole("button", { name: /Platform Superadmin/ }),
-  ).toBeTruthy();
-  expect(screen.getByRole("button", { name: /Platform Admin/ })).toBeTruthy();
-  expect(screen.getByRole("button", { name: /Platform Staff/ })).toBeTruthy();
-  expect(
-    await screen.findByRole("button", { name: /^Store Admin/ }),
-  ).toBeTruthy();
-  expect(screen.getByRole("button", { name: /^Store Staff/ })).toBeTruthy();
-  expect(screen.getByText("Role Registry")).toBeTruthy();
+  for (const name of [
+    "Platform Superadmin",
+    "Platform Admin",
+    "Platform Staff",
+    "Store Admin",
+    "Store Staff",
+  ])
+    expect(
+      await screen.findByRole("button", { name: new RegExp("^" + name) }),
+    ).toBeTruthy();
+  expect(screen.queryByRole("combobox")).toBeNull();
+  expect(screen.queryByLabelText("Search Stores")).toBeNull();
   expect(screen.queryByRole("tablist")).toBeNull();
-  expect(screen.queryByRole("button", { name: "Save permissions" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Manage Store permission limit" }),
+  ).toBeNull();
+  expect(getRolesContext).toHaveBeenCalledWith("token");
   expect(
     screen
       .getByRole("checkbox", { name: "View Stores" })
       .getAttribute("aria-disabled"),
   ).toBe("true");
-});
-it("saves platform permissions with their version and refreshes navigation access", async () => {
-  const changed = vi.fn();
-  window.addEventListener("selfx:permissions-changed", changed);
-  render(<RolesWorkspace />);
-  fireEvent.click(
-    await screen.findByRole("button", { name: /Platform Admin/ }),
-  );
-  fireEvent.click(screen.getByRole("checkbox", { name: "View Stores" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
-  await waitFor(() =>
-    expect(replacePlatformRolePermissions).toHaveBeenCalledWith(
-      "token",
-      "platform-admin",
-      ["PERMISSIONS_MANAGE"],
-      timestamp,
-    ),
-  );
-  expect(await screen.findByRole("status")).toBeTruthy();
-  expect(changed).toHaveBeenCalledOnce();
-  window.removeEventListener("selfx:permissions-changed", changed);
-});
-it("allows a delegated platform manager to edit Staff while Admin stays read-only", async () => {
-  vi.mocked(getRolesContext).mockResolvedValue({
-    ...context(),
-    canEditPlatformAdmin: false,
-    assignablePlatformCodes: ["STORES_VIEW"],
-  });
-  render(<RolesWorkspace />);
-  fireEvent.click(
-    await screen.findByRole("button", { name: /Platform Admin/ }),
-  );
   expect(screen.queryByRole("button", { name: "Save permissions" })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: /Platform Staff/ }));
-  expect(
-    screen
-      .getByRole("checkbox", {
-        name: "Protected administration",
-      })
-      .getAttribute("aria-disabled"),
-  ).toBe("true");
-  fireEvent.click(screen.getByRole("checkbox", { name: "View Stores" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
-  await waitFor(() =>
-    expect(replacePlatformRolePermissions).toHaveBeenCalledWith(
-      "token",
-      "platform-staff",
-      [],
-      timestamp,
-    ),
-  );
-});
-it("opens Store roles for a merchant and scopes Staff changes to the selected Store", async () => {
-  vi.mocked(getRolesContext).mockResolvedValue({
-    ...context(),
-    canViewPlatform: false,
-    roles: [],
-    permissions: [],
-  });
-  render(<RolesWorkspace />);
-  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
-  expect(
-    screen.queryByRole("button", { name: /Platform Superadmin/ }),
-  ).toBeNull();
-  expect(
-    screen
-      .getByRole("checkbox", {
-        name: "Manage Staff access",
-      })
-      .getAttribute("aria-disabled"),
-  ).toBe("true");
-  expect(
-    screen
-      .getByRole("checkbox", {
-        name: "Update kiosks",
-      })
-      .getAttribute("aria-disabled"),
-  ).toBe("true");
-  fireEvent.change(screen.getByLabelText("Store for roles"), {
-    target: { value: "store-b" },
-  });
-  await waitFor(() =>
-    expect(getStoreRolesWorkspace).toHaveBeenLastCalledWith("token", "store-b"),
-  );
-  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Manage products" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
-  await waitFor(() =>
-    expect(replaceStoreRolePermissions).toHaveBeenCalledWith(
-      "token",
-      "store-b",
-      "store-staff",
-      [],
-      timestamp,
-    ),
-  );
-  expect(replacePlatformRolePermissions).not.toHaveBeenCalled();
-});
-it("retains required Store Admin controls and offers the ceiling only to Superadmin", async () => {
-  vi.mocked(getStoreRolesWorkspace).mockResolvedValue({
-    ...storeWorkspace(),
-    canEditCeiling: true,
-    policy: { ...storeWorkspace().policy, canEditAdmin: true },
-  });
-  render(<RolesWorkspace />);
-  fireEvent.click(await screen.findByRole("button", { name: /^Store Admin/ }));
-  expect(
-    screen
-      .getByRole("checkbox", {
-        name: "Manage Staff access",
-      })
-      .getAttribute("aria-disabled"),
-  ).toBe("true");
-  fireEvent.click(
-    screen.getByRole("button", { name: "Manage Store permission limit" }),
-  );
-  fireEvent.click(screen.getByRole("checkbox", { name: "Update kiosks" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
-  await waitFor(() =>
-    expect(replaceStorePermissionGrants).toHaveBeenCalledWith(
-      "token",
-      "store-a",
-      ["roles.assign", "products.manage", "kiosks.update"],
-      timestamp,
-    ),
-  );
 });
 
-it("switches permission checkboxes directly between scopes and clearly marks the selected role", async () => {
+it("switches the selected border and checkboxes between role types", async () => {
   render(<RolesWorkspace />);
-  const platform = await screen.findByRole("button", {
-    name: /Platform Staff/,
-  });
   const staff = await screen.findByRole("button", { name: /^Store Staff/ });
   fireEvent.click(staff);
   expect(staff.getAttribute("aria-pressed")).toBe("true");
-  expect(staff.className).toContain("border-2");
-  expect(staff.className).toContain("border-primary");
+  expect(staff.className).toContain("border-primary!");
   expect(
     screen.getByRole("heading", { name: "Store Staff permissions" }),
   ).toBeTruthy();
@@ -343,30 +169,122 @@ it("switches permission checkboxes directly between scopes and clearly marks the
       .getAttribute("aria-checked"),
   ).toBe("true");
   expect(screen.queryByRole("checkbox", { name: "View Stores" })).toBeNull();
-
-  fireEvent.click(platform);
-  expect(platform.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: /^Platform Staff/ }));
   expect(staff.getAttribute("aria-pressed")).toBe("false");
-  expect(
-    screen.getByRole("heading", { name: "Platform Staff permissions" }),
-  ).toBeTruthy();
-  expect(
-    screen
-      .getByRole("checkbox", { name: "View Stores" })
-      .getAttribute("aria-checked"),
-  ).toBe("true");
-  expect(
-    screen.queryByRole("checkbox", { name: "Manage products" }),
-  ).toBeNull();
+  expect(screen.getByRole("checkbox", { name: "View Stores" })).toBeTruthy();
 });
 
-it("keeps platform permissions usable if Store roles cannot load", async () => {
-  vi.mocked(getStoreRolesWorkspace).mockRejectedValue(
-    new Error("Store roles unavailable"),
+it("saves Store Staff globally by system code and refreshes authorization", async () => {
+  const changed = vi.fn();
+  window.addEventListener("selfx:permissions-changed", changed);
+  render(<RolesWorkspace />);
+  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Update kiosks" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
+  await waitFor(() =>
+    expect(replaceGlobalStoreRolePermissions).toHaveBeenCalledWith(
+      "token",
+      "staff",
+      ["products.manage", "kiosks.update"],
+      timestamp,
+    ),
+  );
+  expect(await screen.findByRole("status")).toHaveProperty(
+    "textContent",
+    "Store Staff permissions saved across all Stores.",
+  );
+  expect(changed).toHaveBeenCalledOnce();
+  expect(replacePlatformRolePermissions).not.toHaveBeenCalled();
+  window.removeEventListener("selfx:permissions-changed", changed);
+});
+
+it("keeps required Store Admin permissions while clearing editable permissions", async () => {
+  render(<RolesWorkspace />);
+  fireEvent.click(await screen.findByRole("button", { name: /^Store Admin/ }));
+  expect(
+    screen
+      .getByRole("checkbox", { name: "Manage Staff access" })
+      .getAttribute("aria-disabled"),
+  ).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
+  await waitFor(() =>
+    expect(replaceGlobalStoreRolePermissions).toHaveBeenCalledWith(
+      "token",
+      "store-admin",
+      ["roles.assign"],
+      timestamp,
+    ),
+  );
+});
+
+it("limits Staff bulk selection and supports permission search", async () => {
+  render(<RolesWorkspace />);
+  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  expect(
+    screen
+      .getByRole("checkbox", { name: "Manage Staff access" })
+      .getAttribute("aria-checked"),
+  ).toBe("false");
+  expect(
+    screen
+      .getByRole("checkbox", { name: "Update kiosks" })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
+  fireEvent.change(screen.getByLabelText("Search permissions"), {
+    target: { value: "products" },
+  });
+  expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+  expect(
+    screen.getByRole("checkbox", { name: "Manage products" }),
+  ).toBeTruthy();
+});
+
+it("shows shared Store roles read-only to merchant viewers without cross-Store user counts", async () => {
+  const value = context();
+  value.canViewPlatform = false;
+  value.roles = [];
+  value.permissions = [];
+  value.storeRoles.canEdit = false;
+  value.storeRoles.roles.forEach((r) => {
+    r.assignedUsersCount = null;
+  });
+  vi.mocked(getRolesContext).mockResolvedValue(value);
+  render(<RolesWorkspace />);
+  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
+  expect(screen.queryByRole("button", { name: /^Platform Admin/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Save permissions" })).toBeNull();
+  expect(
+    screen
+      .getByRole("checkbox", { name: "Manage products" })
+      .getAttribute("aria-disabled"),
+  ).toBe("true");
+  expect(screen.queryByText(/\d+ assigned users/)).toBeNull();
+});
+
+it("preserves failed global drafts and displays stale-save guidance", async () => {
+  vi.mocked(replaceGlobalStoreRolePermissions).mockRejectedValue(
+    new Error("This role changed. Reload before saving."),
   );
   render(<RolesWorkspace />);
-  expect(await screen.findByText("Store roles unavailable")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /Platform Admin/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Manage products" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(
+    screen
+      .getByRole("checkbox", { name: "Manage products" })
+      .getAttribute("aria-checked"),
+  ).toBe("false");
+  expect(screen.queryByRole("status")).toBeNull();
+});
+
+it("continues saving Platform roles through the Platform API", async () => {
+  render(<RolesWorkspace />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /^Platform Admin/ }),
+  );
   fireEvent.click(screen.getByRole("checkbox", { name: "View Stores" }));
   fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
   await waitFor(() =>
@@ -377,158 +295,33 @@ it("keeps platform permissions usable if Store roles cannot load", async () => {
       timestamp,
     ),
   );
+  expect(replaceGlobalStoreRolePermissions).not.toHaveBeenCalled();
 });
 
-it("bounds Store Staff bulk selection and clearing by delegation limits", async () => {
-  render(<RolesWorkspace />);
-  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-  expect(
-    screen
-      .getByRole("checkbox", { name: "Manage products" })
-      .getAttribute("aria-checked"),
-  ).toBe("false");
-  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
-  expect(
-    screen
-      .getByRole("checkbox", { name: "Manage products" })
-      .getAttribute("aria-checked"),
-  ).toBe("true");
-  expect(
-    screen
-      .getByRole("checkbox", { name: "Manage Staff access" })
-      .getAttribute("aria-checked"),
-  ).toBe("false");
-  expect(
-    screen
-      .getByRole("checkbox", { name: "Update kiosks" })
-      .getAttribute("aria-checked"),
-  ).toBe("false");
-});
-it("keeps failed saves visible and preserves the draft for review", async () => {
-  vi.mocked(replacePlatformRolePermissions).mockRejectedValue(
-    new Error("This role changed. Reload before saving."),
-  );
-  render(<RolesWorkspace />);
-  fireEvent.click(
-    await screen.findByRole("button", { name: /Platform Admin/ }),
-  );
-  fireEvent.click(screen.getByRole("checkbox", { name: "View Stores" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
-  expect(await screen.findByRole("alert")).toBeTruthy();
-  expect(
-    screen.getByText("This role changed. Reload before saving."),
-  ).toBeTruthy();
-  expect(screen.queryByRole("status")).toBeNull();
-  expect(
-    screen
-      .getByRole("checkbox", { name: "View Stores" })
-      .getAttribute("aria-checked"),
-  ).toBe("false");
-});
-it("handles empty Stores and supports searching the paginated Store selector", async () => {
+it("respects delegated Platform editing limits", async () => {
   vi.mocked(getRolesContext).mockResolvedValue({
     ...context(),
-    canViewPlatform: false,
-    stores: { data: [], page: 1, total: 0, hasMore: false },
+    canEditPlatformAdmin: false,
+    assignablePlatformCodes: ["STORES_VIEW"],
   });
   render(<RolesWorkspace />);
-  expect(
-    await screen.findByText("No active Stores are available for this account."),
-  ).toBeTruthy();
-  fireEvent.change(screen.getByLabelText("Search Stores"), {
-    target: { value: "Avinash" },
-  });
-  await waitFor(() =>
-    expect(getRolesContext).toHaveBeenLastCalledWith("token", 1, "Avinash"),
-  );
-  expect(getStoreRolesWorkspace).not.toHaveBeenCalled();
-});
-it("keeps the selected Store clearly labelled while browsing another page of Stores", async () => {
-  const first = {
-    ...context(),
-    canViewPlatform: false,
-    stores: {
-      data: [{ id: "store-a", name: "Avinash stores" }],
-      page: 1,
-      total: 2,
-      hasMore: true,
-    },
-  };
-  vi.mocked(getRolesContext)
-    .mockResolvedValueOnce(first)
-    .mockResolvedValue({
-      ...first,
-      stores: {
-        data: [{ id: "store-b", name: "Other Store" }],
-        page: 2,
-        total: 2,
-        hasMore: false,
-      },
-    });
-  render(<RolesWorkspace />);
-  await screen.findByRole("button", { name: /^Store Staff/ });
-  fireEvent.click(screen.getByRole("button", { name: "Next Stores" }));
-  await waitFor(() =>
-    expect(getRolesContext).toHaveBeenLastCalledWith("token", 2, ""),
-  );
-  await screen.findByRole("option", { name: "Other Store" });
-  expect(
-    (screen.getByLabelText("Store for roles") as HTMLSelectElement).value,
-  ).toBe("store-a");
-  expect(screen.getByRole("option", { name: "Avinash stores" })).toBeTruthy();
-  expect(getStoreRolesWorkspace).toHaveBeenLastCalledWith("token", "store-a");
-});
-
-it("keeps the selected role type across Stores and saves only the new Store's permission map", async () => {
-  let resolveStore!: (workspace: StoreRolesWorkspace) => void;
-  vi.mocked(getStoreRolesWorkspace)
-    .mockResolvedValueOnce(storeWorkspace())
-    .mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveStore = resolve;
-        }),
-    )
-    .mockResolvedValue(storeWorkspace());
-  render(<RolesWorkspace />);
-  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Manage products" }));
-  fireEvent.change(screen.getByLabelText("Store for roles"), {
-    target: { value: "store-b" },
-  });
-  await waitFor(() =>
-    expect(getStoreRolesWorkspace).toHaveBeenLastCalledWith("token", "store-b"),
+  fireEvent.click(
+    await screen.findByRole("button", { name: /^Platform Admin/ }),
   );
   expect(screen.queryByRole("button", { name: "Save permissions" })).toBeNull();
-
-  resolveStore({
-    ...storeWorkspace(),
-    roles: [role("other-store-staff", "Staff", "staff", [])],
-  });
-  expect(
-    await screen.findByRole("heading", { name: "Store Staff permissions" }),
-  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /^Platform Staff/ }));
   expect(
     screen
-      .getByRole("button", { name: /^Store Staff/ })
-      .getAttribute("aria-pressed"),
+      .getByRole("checkbox", { name: "Protected administration" })
+      .getAttribute("aria-disabled"),
   ).toBe("true");
-  expect(
-    screen
-      .getByRole("checkbox", { name: "Manage products" })
-      .getAttribute("aria-checked"),
-  ).toBe("false");
-  fireEvent.click(screen.getByRole("checkbox", { name: "Manage products" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
-  await waitFor(() =>
-    expect(replaceStoreRolePermissions).toHaveBeenCalledWith(
-      "token",
-      "store-b",
-      "other-store-staff",
-      ["products.manage"],
-      timestamp,
-    ),
+});
+
+it("displays context failures without showing stale role editors", async () => {
+  vi.mocked(getRolesContext).mockRejectedValue(
+    new Error("Role access unavailable"),
   );
-  expect(replacePlatformRolePermissions).not.toHaveBeenCalled();
+  render(<RolesWorkspace />);
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.queryByRole("checkbox")).toBeNull();
 });

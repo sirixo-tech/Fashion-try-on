@@ -293,11 +293,11 @@ export class UsersService {
             "STORE_ADMIN_ALREADY_ASSIGNED",
             "This account is already a Store Admin.",
           );
-        // Reuse default Store RBAC; never seed or broaden the Store's permission ceiling.
+        // Assign the tenant-owned role link; the shared map is never changed here.
         await this.rbac.ensureStoreRbacInTransaction(tx, input.storeId);
-        const grant = await tx.storePermissionGrant.findFirst({
+        const grant = await tx.globalStoreRolePermission.findFirst({
           where: {
-            storeTenantId: input.storeId,
+            role: { systemCode: "store-admin" },
             permission: { code: "stores.view" },
           },
           select: { id: true },
@@ -305,7 +305,7 @@ export class UsersService {
         if (!grant)
           fail(
             "STORE_PERMISSION_NOT_GRANTED",
-            "Grant Store viewing permission before assigning its first owner.",
+            "Enable Store viewing in the shared Store Admin role before assigning its first owner.",
           );
         const role = await tx.storeRole.findUniqueOrThrow({
           where: {

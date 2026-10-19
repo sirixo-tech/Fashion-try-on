@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### ROLES-2 — Global registry without Store controls (2026-10-19)
+
+Keep the five-role registry on the left and the selected role's permission panel
+on the right, stacking on mobile. Remove Store search, Store selector, pagination
+and Manage Store permission limit. Keep a clear orange selected border and small
+Platform/Store labels. The permission search bar, grouped checkboxes, Select all,
+Clear, required/read-only states and Save permissions remain. Explicitly state
+that Store role saves apply across all Stores while membership and plans still
+restrict data/features. Merchant viewers cannot edit global roles or see global
+assigned-user counts. Preserve failed drafts and stale-save guidance. This
+supersedes ROLES-1 Store controls and per-Store scope wording.
+
 ### PAYMENTS-1J — Aligned gateway identity and compact status
 
 Align the provider logo left and group its name, description and compact wrapping
