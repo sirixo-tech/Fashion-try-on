@@ -97,9 +97,8 @@ export class StoreRbacController {
     );
     await this.impersonation.resolveStoreContext(user.id, storeId);
     const permissions = await this.rbac.effectivePermissions(user.id, storeId);
-    const creditSummary = await this.entitlements?.getStoreCreditSummary(
-      storeId,
-    );
+    const creditSummary =
+      await this.entitlements?.getStoreCreditSummary(storeId);
     return {
       ...permissions,
       featureKeys: creditSummary?.subscription?.featureKeys ?? [],
@@ -166,7 +165,7 @@ export class StoreRbacController {
   }
 
   @Put("roles/:roleId/permissions")
-  @ApiOperation({ summary: "Replace permissions on a custom Store role" })
+  @ApiOperation({ summary: "Replace authorized permissions on a Store role" })
   @ApiOkResponse({ type: StoreRoleResponseDto })
   async replaceRolePermissions(
     @Req() request: FastifyRequest,
@@ -174,13 +173,10 @@ export class StoreRbacController {
     @Param("roleId", SelfxUuidParamPipe) roleId: string,
     @Body() dto: ReplaceStoreRolePermissionsDto,
   ): Promise<StoreRoleResponseDto> {
-    const user = await this.requirePlatformOrStorePermission(
-      request,
-      storeId,
-      PLATFORM_PERMISSIONS.storeRolesManage,
-      STORE_PERMISSION_CODES.rolesUpdate,
+    const user = await this.auth.requireAccessUser(
+      request.headers.authorization,
     );
-    await this.requireStoreTeamLocationsEntitlement(storeId);
+    await this.impersonation.resolveStoreContext(user.id, storeId);
     return this.rbac.replaceRolePermissions(user.id, storeId, roleId, dto);
   }
 
@@ -279,9 +275,8 @@ export class StoreRbacController {
   private async requireStoreTeamLocationsEntitlement(
     storeId: string,
   ): Promise<void> {
-    const creditSummary = await this.entitlements?.getStoreCreditSummary(
-      storeId,
-    );
+    const creditSummary =
+      await this.entitlements?.getStoreCreditSummary(storeId);
     const storeLocationLimit =
       creditSummary?.subscription?.pricingPlan?.storeLocationLimit ?? 0;
     if (storeLocationLimit === null || storeLocationLimit > 0) {

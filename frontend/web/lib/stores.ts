@@ -843,13 +843,14 @@ export function replaceStoreRolePermissions(
   storeId: string,
   roleId: string,
   permissionCodes: string[],
+  expectedUpdatedAt?: string,
 ): Promise<StoreRole> {
   return selfxApi<StoreRole>(
     `/api/v1/admin/stores/${storeId}/roles/${roleId}/permissions`,
     {
       method: "PUT",
       accessToken,
-      body: JSON.stringify({ permissionCodes }),
+      body: JSON.stringify({ permissionCodes, expectedUpdatedAt }),
     },
   );
 }

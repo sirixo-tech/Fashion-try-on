@@ -1,5 +1,24 @@
 ## Document Evolution
 
+### ROLES-1 — Unified role visibility and controlled permission editing
+
+User Management > Roles presents the five approved role types: Platform
+Superadmin, Platform Admin, Platform Staff, Store Admin and Store Staff. Platform
+roles remain global; Store roles apply only to the selected Store. Superadmin
+authority remains protected outside ordinary role assignment and editing.
+
+Superadmin may configure ordinary roles and each Store's permission limit.
+Delegated platform role managers may change Platform Staff permissions only
+within their own authority. Delegated Store role managers may configure Store
+roles within that Store's permission limit. An actual Store Admin may configure
+only Staff's daily operational permissions in their own Store, bounded by their
+own permissions and the Store limit. Staff cannot receive user, role, account or
+payment administration. Keep essential Store Admin user/role administration
+permissions in the role map and preserve final-Admin membership protections.
+Saved revocations persist through refresh and affect all assigned users. Role
+assignment to individual accounts continues through Users. This supersedes the
+earlier rule that fixed Store role permission maps cannot be edited.
+
 ### PAYMENTS-1D — Store payment setup and account verification
 
 Store accounts have Payment Settings directly in their workspace. Each Store

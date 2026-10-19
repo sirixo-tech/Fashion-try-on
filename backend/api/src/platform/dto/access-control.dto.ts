@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEmail,
   IsOptional,
+  IsISO8601,
   IsString,
   IsUUID,
   Length,
@@ -71,6 +72,15 @@ export class UpdatePlatformRoleDto {
 }
 
 export class ReplacePermissionCodesDto {
+  @ApiPropertyOptional({
+    format: "date-time",
+    description:
+      "Version returned when loading the role or Store permission limit.",
+  })
+  @IsOptional()
+  @IsISO8601()
+  expectedUpdatedAt?: string;
+  @ApiProperty({ type: [String] })
   @IsArray()
   @ArrayMaxSize(200)
   @IsString({ each: true })

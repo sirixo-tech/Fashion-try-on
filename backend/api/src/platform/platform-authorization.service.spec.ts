@@ -20,6 +20,7 @@ import { loadSelfxEnv } from "../config/load-env.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { PLATFORM_PERMISSIONS } from "./platform-permissions.js";
 import { PlatformAuthorizationService } from "./platform-authorization.service.js";
+import { AccessControlService } from "./access-control.service.js";
 
 loadSelfxEnv();
 
@@ -27,6 +28,7 @@ describe("RBAC-1.1 platform authority boundaries", () => {
   let prisma: PrismaService;
   let authorization: PlatformAuthorizationService;
   let userIds: string[];
+  let adminMap: { id: string; permissions: { permissionId: string }[] };
 
   beforeAll(async () => {
     prisma = new PrismaService();
@@ -34,11 +36,47 @@ describe("RBAC-1.1 platform authority boundaries", () => {
     authorization = new PlatformAuthorizationService(prisma);
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     userIds = [];
+    await new AccessControlService(prisma).listPlatformRoles();
+    adminMap = await prisma.platformAccessRole.findUniqueOrThrow({
+      where: { systemCode: "platform-staff-admin" },
+      select: { id: true, permissions: { select: { permissionId: true } } },
+    });
+    // Bootstrap identities follow saved role maps; use explicit permissions rather than relying on read-time defaults.
+    await prisma.platformAccessRolePermission.deleteMany({
+      where: { roleId: adminMap.id },
+    });
+    const permissions = await prisma.permission.findMany({
+      where: {
+        code: {
+          in: [
+            PLATFORM_PERMISSIONS.platformRolesManage,
+            PLATFORM_PERMISSIONS.platformUsersManage,
+          ],
+        },
+      },
+    });
+    await prisma.platformAccessRolePermission.createMany({
+      data: permissions.map((p) => ({
+        id: createSelfxId(),
+        roleId: adminMap.id,
+        permissionId: p.id,
+      })),
+    });
   });
 
   afterEach(async () => {
+    await prisma.platformAccessRolePermission.deleteMany({
+      where: { roleId: adminMap.id },
+    });
+    await prisma.platformAccessRolePermission.createMany({
+      data: adminMap.permissions.map((p) => ({
+        id: createSelfxId(),
+        roleId: adminMap.id,
+        permissionId: p.permissionId,
+      })),
+    });
     await prisma.platformRoleAssignment.deleteMany({
       where: { userId: { in: userIds } },
     });

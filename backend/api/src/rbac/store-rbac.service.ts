@@ -13,6 +13,12 @@ import {
 } from "@prisma/client";
 
 import { createSelfxId } from "@selfx/database";
+import {
+  platformRoleAuthority,
+  roleDenied,
+  STAFF_OPERATIONAL_PERMISSIONS,
+  STORE_ADMIN_REQUIRED_PERMISSIONS,
+} from "./role-management-policy.js";
 
 import { normalizeEmail } from "../auth/auth.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
@@ -333,19 +339,70 @@ export class StoreRbacService {
   ): Promise<StoreRoleResponseDto> {
     await this.ensureStoreRbac(storeId);
     const role = await this.findRoleOrThrow(storeId, roleId);
-    if (role.isSystem) {
-      throw new ApiErrorException(
-        HttpStatus.CONFLICT,
-        STORE_RBAC_ERROR_CODES.systemRoleProtected,
-        "System Store role permissions are protected.",
-      );
-    }
+    const policy = await this.roleManagementPolicy(actorUserId, storeId);
+    if (
+      !(role.systemCode === "store-admin"
+        ? policy.canEditAdmin
+        : role.systemCode === "staff" && policy.canEditStaff)
+    )
+      roleDenied();
     const uniqueCodes = uniquePermissionCodes(input.permissionCodes);
-    const permissionIds = await this.permissionIdsForStoreGrantedCodes(
+    const previous = role.permissions.map((p) => p.permission.code);
+    if (
+      uniqueCodes.some(
+        (code) =>
+          !previous.includes(code) && !policy.assignableCodes.includes(code),
+      )
+    )
+      roleDenied(
+        "You can grant only permissions you are authorized to delegate.",
+      );
+    if (
+      role.systemCode === "staff" &&
+      uniqueCodes.some((code) => !STAFF_OPERATIONAL_PERMISSIONS.includes(code))
+    )
+      roleDenied(
+        "Store Staff cannot receive account, payment, user or role administration permissions.",
+      );
+    if (
+      role.systemCode === "store-admin" &&
+      STORE_ADMIN_REQUIRED_PERMISSIONS.some(
+        (code) => !new Set<string>(uniqueCodes).has(code),
+      )
+    )
+      roleDenied("Core Store Admin access must remain enabled.");
+    await this.permissionIdsForStoreGrantedCodes(
       storeId,
-      uniqueCodes,
+      uniqueCodes.filter((code) => !previous.includes(code)),
     );
+    const permissionIds = (
+      await this.prisma.permission.findMany({
+        where: { code: { in: uniqueCodes } },
+        select: { id: true },
+      })
+    ).map((p) => p.id);
     const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM store_roles WHERE id = ${roleId}::uuid AND organization_id = ${storeId}::uuid FOR UPDATE`;
+      const current = await tx.storeRole.findUniqueOrThrow({
+        where: { id: roleId },
+      });
+      if (
+        input.expectedUpdatedAt &&
+        current.updatedAt.toISOString() !== input.expectedUpdatedAt
+      )
+        throw new ApiErrorException(
+          409,
+          "ROLE_CHANGED",
+          "This role changed. Reload before saving.",
+        );
+      await tx.storeRole.update({
+        where: { id: roleId },
+        data: {
+          updatedAt: new Date(
+            Math.max(Date.now(), current.updatedAt.getTime() + 1),
+          ),
+        },
+      });
       await tx.storeRolePermission.deleteMany({ where: { roleId } });
       if (permissionIds.length > 0) {
         await tx.storeRolePermission.createMany({
@@ -801,6 +858,51 @@ export class StoreRbacService {
     );
   }
 
+  async roleManagementPolicy(actorId: string, storeId: string) {
+    const authority = await platformRoleAuthority(this.prisma, actorId);
+    const access = await this.effectivePermissions(actorId, storeId, false);
+    const globalView =
+      authority.isSuperadmin ||
+      authority.permissions.some((code) =>
+        [
+          "STORE_ROLES_VIEW",
+          "STORE_ROLES_MANAGE",
+          "PERMISSIONS_VIEW",
+          "PERMISSIONS_MANAGE",
+        ].includes(code),
+      );
+    const globalEdit =
+      authority.isSuperadmin ||
+      authority.permissions.includes("STORE_ROLES_MANAGE");
+    const membership = await this.prisma.organizationMembership.findFirst({
+      where: {
+        orgId: storeId,
+        userId: actorId,
+        status: "ACTIVE",
+        deletedAt: null,
+        ...adminMembershipWhere,
+      },
+      select: { id: true },
+    });
+    const ownAdmin =
+      !!membership &&
+      access.permissions.includes("roles.assign") &&
+      access.permissions.includes("roles.view");
+    const ceiling = [...(await this.storeGrantedPermissionCodes(storeId))];
+    return {
+      canView: globalView || access.permissions.includes("roles.view"),
+      canEditAdmin: !authority.impersonating && globalEdit,
+      canEditStaff: !authority.impersonating && (globalEdit || ownAdmin),
+      assignableCodes: globalEdit ? ceiling : access.permissions,
+      staffAssignableCodes: STAFF_OPERATIONAL_PERMISSIONS.filter(
+        (code) =>
+          ceiling.includes(code) &&
+          (globalEdit || access.permissions.includes(code)),
+      ),
+      requiredAdminCodes: STORE_ADMIN_REQUIRED_PERMISSIONS,
+    };
+  }
+
   async ensureStoreRbacInTransaction(
     tx: Prisma.TransactionClient,
     storeId: string,
@@ -886,7 +988,11 @@ export class StoreRbacService {
     storeId: string,
   ): Promise<void> {
     for (const definition of DEFAULT_ROLE_DEFINITIONS) {
-      const role = await prisma.storeRole.upsert({
+      const permissionIds = await prisma.permission.findMany({
+        where: { code: { in: [...definition.permissions] } },
+        select: { id: true },
+      });
+      await prisma.storeRole.upsert({
         where: {
           orgId_systemCode: {
             orgId: storeId,
@@ -901,25 +1007,14 @@ export class StoreRbacService {
           description: definition.description,
           isSystem: true,
           isActive: true,
+          permissions: {
+            create: permissionIds.map((p) => ({
+              id: createSelfxId(),
+              permissionId: p.id,
+            })),
+          },
         },
-        update: {
-          name: definition.name,
-          description: definition.description,
-          isSystem: true,
-          isActive: true,
-        },
-      });
-      const permissionIds = await prisma.permission.findMany({
-        where: { code: { in: [...definition.permissions] } },
-        select: { id: true },
-      });
-      await prisma.storeRolePermission.createMany({
-        data: permissionIds.map((permission) => ({
-          id: createSelfxId(),
-          roleId: role.id,
-          permissionId: permission.id,
-        })),
-        skipDuplicates: true,
+        update: {},
       });
     }
   }

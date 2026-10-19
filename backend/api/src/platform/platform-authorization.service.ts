@@ -32,19 +32,7 @@ export class PlatformAuthorizationService {
     if (!(Object.values(PLATFORM_PERMISSIONS) as string[]).includes(permission))
       return false;
     await this.ensurePlatformPermissionCatalog();
-    const assignments = await this.prisma.platformRoleAssignment.findMany({
-      where: {
-        userId,
-        status: PlatformRoleAssignmentStatus.ACTIVE,
-      },
-      select: { role: true },
-    });
-
-    if (
-      assignments.some((assignment) =>
-        permissionsForPlatformRole(assignment.role).includes(permission),
-      )
-    ) {
+    if ((await this.staticPermissionsForUser(userId)).includes(permission)) {
       return true;
     }
 
@@ -116,13 +104,46 @@ export class PlatformAuthorizationService {
       },
       select: { role: true },
     });
+    if (assignments.some((a) => a.role === "SELFX_SUPER_ADMIN"))
+      return [...permissionsForPlatformRole("SELFX_SUPER_ADMIN")];
+    const legacyMap = {
+      SELFX_STAFF_ADMIN: "platform-staff-admin",
+      SELFX_SUPPORT_ADMIN: "platform-support-admin",
+    } as const;
+    const canonical = await this.prisma.platformAccessRole.findMany({
+      where: {
+        systemCode: {
+          in: assignments.flatMap((a) =>
+            a.role === "SELFX_SUPER_ADMIN" ? [] : [legacyMap[a.role]],
+          ),
+        },
+      },
+      select: {
+        systemCode: true,
+        isActive: true,
+        permissions: { select: { permission: { select: { code: true } } } },
+      },
+    });
     return [
       ...new Set(
-        assignments.flatMap((assignment) =>
-          permissionsForPlatformRole(assignment.role),
-        ),
+        assignments.flatMap((assignment) => {
+          if (assignment.role === "SELFX_SUPER_ADMIN")
+            return [...permissionsForPlatformRole(assignment.role)];
+          const systemCode =
+            assignment.role === "SELFX_STAFF_ADMIN"
+              ? "platform-staff-admin"
+              : "platform-support-admin";
+          const role = canonical.find((r) => r.systemCode === systemCode);
+          return role
+            ? role.isActive
+              ? role.permissions.map((p) => p.permission.code)
+              : []
+            : [...permissionsForPlatformRole(assignment.role)];
+        }),
       ),
-    ];
+    ].filter((code): code is PlatformPermission =>
+      (Object.values(PLATFORM_PERMISSIONS) as string[]).includes(code),
+    );
   }
 
   async allPlatformPermissionsForUser(

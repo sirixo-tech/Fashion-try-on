@@ -2,6 +2,23 @@
 
 ## Database & Schema Design
 
+### ROLES-1 — Existing role maps and permission limits
+
+No new table or schema migration is required. Keep global platform_roles and
+platform_role_permissions separate from tenant store_roles,
+store_role_permissions, store_membership_roles and store_permission_grants.
+Organization ids remain the internal compatibility ids for merchant Stores.
+Superadmin remains a protected platform_role_assignments bootstrap identity.
+
+Populate default permissions atomically only when a canonical role is created;
+preserve existing maps, including intentionally empty maps. Never reset existing
+permissions as a migration/bootstrap side effect. Ordinary bootstrap platform
+identities consume the persisted canonical role permissions. Use each role's
+updated_at for permission-map versions and the organization's updated_at for its
+Store ceiling version. Replace mappings inside row-locked transactions and advance
+the timestamp monotonically. Reuse existing actor-attributed audit records. No
+production data rewrite or manual insertion of Store roles is part of deployment.
+
 ### PAYMENTS-1D — Versioned Store credentials and scoped test history
 
 Migration 20261018183000_store_payment_verification adds positive version to

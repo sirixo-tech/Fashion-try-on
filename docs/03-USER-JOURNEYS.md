@@ -1,5 +1,21 @@
 ## Document Evolution
 
+### ROLES-1 — Review and edit scoped role permissions
+
+Superadmin opens User Management > Roles and chooses Platform roles or Store
+roles. The platform list includes a protected Superadmin view plus Admin and
+Staff. For Store roles, select an active Store, then Admin or Staff. Review the
+assigned-user count and permission groups, search as needed, and save authorized
+changes. Superadmin can separately configure that Store's permission limit.
+
+Store Admin opens the same page, sees only accessible Stores, reviews their own
+Admin role read-only and adjusts Staff operational access. Delegated platform
+viewers/managers receive read-only or editable controls from their effective
+permissions. A successful save updates effective access; stale edits require a
+reload. Staff do not gain user/role administration. Impersonation permits only
+target-Store reads and never permission changes. Account-to-role assignments
+remain in the Users editor.
+
 ### PAYMENTS-1D — Store Admin connects and tests PhonePe
 
 Store Admin signs in and opens Payment Settings directly from the sidebar. They

@@ -13,7 +13,12 @@ import { createSelfxId } from "@selfx/database";
 import { normalizeEmail } from "../auth/auth.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { PlatformAuthorizationService } from "./platform-authorization.service.js";
 import { PLATFORM_ROLE_CODES } from "../rbac/role-policy.js";
+import {
+  platformRoleAuthority,
+  roleDenied,
+} from "../rbac/role-management-policy.js";
 import {
   STORE_PERMISSION_REGISTRY,
   STORE_PERMISSION_SET,
@@ -112,7 +117,42 @@ export class AccessControlService {
       include: platformRoleInclude(),
       orderBy: [{ isSystem: "desc" }, { name: "asc" }],
     });
-    return { data: roles.map(mapPlatformRole) };
+    const [bootstrap, assignments] = await Promise.all([
+      this.prisma.platformRoleAssignment.findMany({
+        where: {
+          status: "ACTIVE",
+          role: { in: ["SELFX_STAFF_ADMIN", "SELFX_SUPPORT_ADMIN"] },
+          user: { deletedAt: null },
+        },
+        select: { role: true, userId: true },
+      }),
+      this.prisma.platformUserAccessRole.findMany({
+        where: {
+          status: "ACTIVE",
+          roleId: { in: roles.map((role) => role.id) },
+          user: { deletedAt: null },
+        },
+        select: { roleId: true, userId: true },
+      }),
+    ]);
+    return {
+      data: roles.map((role) => ({
+        ...mapPlatformRole(role),
+        assignedUsersCount: new Set([
+          ...assignments
+            .filter((assignment) => assignment.roleId === role.id)
+            .map((assignment) => assignment.userId),
+          ...bootstrap
+            .filter(
+              (assignment) =>
+                (assignment.role === "SELFX_STAFF_ADMIN"
+                  ? "platform-staff-admin"
+                  : "platform-support-admin") === role.systemCode,
+            )
+            .map((assignment) => assignment.userId),
+        ]).size,
+      })),
+    };
   }
 
   async createPlatformRole(
@@ -180,6 +220,7 @@ export class AccessControlService {
         "FIXED_ROLES_ONLY",
         "Built-in role names cannot be changed.",
       );
+    await this.assertCanEditPlatformRole(actorUserId, existing.systemCode);
     const role = await this.prisma
       .$transaction(async (tx) => {
         await tx.platformAccessRole.update({
@@ -215,11 +256,41 @@ export class AccessControlService {
     roleId: string,
     input: ReplacePermissionCodesDto,
   ): Promise<PlatformRoleDto> {
-    await this.findPlatformRoleOrThrow(roleId);
+    const existing = await this.findPlatformRoleOrThrow(roleId);
+    await this.assertCanEditPlatformRole(actorUserId, existing.systemCode);
     const uniqueCodes = [...new Set(input.permissionCodes)];
-    await this.assertActorCanManagePermissionCodes(actorUserId, uniqueCodes);
+    const previous = existing.permissions
+      .map((p) => p.permission.code)
+      .filter((code) =>
+        (Object.values(PLATFORM_PERMISSIONS) as string[]).includes(code),
+      );
+    const changed = [...new Set([...previous, ...uniqueCodes])].filter(
+      (code) => previous.includes(code) !== uniqueCodes.includes(code),
+    );
+    await this.assertActorCanManagePermissionCodes(actorUserId, changed);
     const permissionIds = await this.platformPermissionIdsForCodes(uniqueCodes);
     const role = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM platform_roles WHERE id = ${roleId}::uuid FOR UPDATE`;
+      const current = await tx.platformAccessRole.findUniqueOrThrow({
+        where: { id: roleId },
+      });
+      if (
+        input.expectedUpdatedAt &&
+        current.updatedAt.toISOString() !== input.expectedUpdatedAt
+      )
+        throw new ApiErrorException(
+          409,
+          "ROLE_CHANGED",
+          "This role changed. Reload before saving.",
+        );
+      await tx.platformAccessRole.update({
+        where: { id: roleId },
+        data: {
+          updatedAt: new Date(
+            Math.max(Date.now(), current.updatedAt.getTime() + 1),
+          ),
+        },
+      });
       await tx.platformAccessRolePermission.deleteMany({ where: { roleId } });
       await tx.platformAccessRolePermission.createMany({
         data: permissionIds.map((permissionId) => ({
@@ -361,11 +432,37 @@ export class AccessControlService {
     storeId: string,
     input: ReplacePermissionCodesDto,
   ): Promise<{ data: StorePermissionGrantDto[] }> {
+    const authority = await platformRoleAuthority(this.prisma, actorUserId);
+    if (!authority.isSuperadmin || authority.impersonating)
+      roleDenied(
+        "Only Superadmin outside impersonation can change a Store permission limit.",
+      );
     await this.ensureGlobalPermissionCatalog();
     await this.assertStoreExists(storeId);
     const uniqueCodes = uniqueStorePermissionCodes(input.permissionCodes);
     const permissionIds = await this.storePermissionIdsForCodes(uniqueCodes);
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${storeId}::uuid FOR UPDATE`;
+      const current = await tx.organization.findUniqueOrThrow({
+        where: { id: storeId },
+      });
+      if (
+        input.expectedUpdatedAt &&
+        current.updatedAt.toISOString() !== input.expectedUpdatedAt
+      )
+        throw new ApiErrorException(
+          409,
+          "ROLE_CHANGED",
+          "Store permissions changed. Reload before saving.",
+        );
+      await tx.organization.update({
+        where: { id: storeId },
+        data: {
+          updatedAt: new Date(
+            Math.max(Date.now(), current.updatedAt.getTime() + 1),
+          ),
+        },
+      });
       await tx.storePermissionGrant.deleteMany({
         where: {
           storeTenantId: storeId,
@@ -445,7 +542,10 @@ export class AccessControlService {
   private async ensurePlatformAccessRoles(): Promise<void> {
     await this.ensureGlobalPermissionCatalog();
     for (const definition of DEFAULT_PLATFORM_ACCESS_ROLES) {
-      const role = await this.prisma.platformAccessRole.upsert({
+      const permissionIds = await this.platformPermissionIdsForCodes([
+        ...definition.permissions,
+      ]);
+      await this.prisma.platformAccessRole.upsert({
         where: { systemCode: definition.systemCode },
         create: {
           id: createSelfxId(),
@@ -454,24 +554,14 @@ export class AccessControlService {
           description: definition.description,
           isSystem: true,
           isActive: true,
+          permissions: {
+            create: permissionIds.map((permissionId) => ({
+              id: createSelfxId(),
+              permissionId,
+            })),
+          },
         },
-        update: {
-          name: definition.name,
-          description: definition.description,
-          isSystem: true,
-          isActive: true,
-        },
-      });
-      const permissionIds = await this.platformPermissionIdsForCodes([
-        ...definition.permissions,
-      ]);
-      await this.prisma.platformAccessRolePermission.createMany({
-        data: permissionIds.map((permissionId) => ({
-          id: createSelfxId(),
-          roleId: role.id,
-          permissionId,
-        })),
-        skipDuplicates: true,
+        update: {},
       });
     }
   }
@@ -637,6 +727,24 @@ export class AccessControlService {
     );
   }
 
+  private async assertCanEditPlatformRole(
+    actorUserId: string,
+    systemCode: string | null,
+  ): Promise<void> {
+    const authority = await platformRoleAuthority(this.prisma, actorUserId);
+    if (
+      authority.impersonating ||
+      (!authority.isSuperadmin &&
+        (!authority.permissions.includes(
+          PLATFORM_PERMISSIONS.platformRolesManage,
+        ) ||
+          systemCode !== "platform-support-admin"))
+    )
+      roleDenied();
+    if (!PLATFORM_ROLE_CODES.includes(systemCode ?? ""))
+      roleDenied("Protected or retired roles cannot be edited here.");
+  }
+
   private async actorIsProtectedSuperadmin(
     actorUserId: string,
   ): Promise<boolean> {
@@ -654,39 +762,11 @@ export class AccessControlService {
   private async platformPermissionCodesForUser(
     userId: string,
   ): Promise<Set<string>> {
-    const [staticAssignments, dynamicAssignments] = await Promise.all([
-      this.prisma.platformRoleAssignment.findMany({
-        where: {
-          userId,
-          status: PlatformRoleAssignmentStatus.ACTIVE,
-        },
-        select: { role: true },
-      }),
-      this.prisma.platformUserAccessRole.findMany({
-        where: {
-          userId,
-          status: PlatformRoleAssignmentStatus.ACTIVE,
-          role: { isActive: true },
-        },
-        select: {
-          role: {
-            select: {
-              permissions: {
-                select: { permission: { select: { code: true } } },
-              },
-            },
-          },
-        },
-      }),
-    ]);
-    return new Set([
-      ...staticAssignments.flatMap((assignment) =>
-        permissionsForPlatformRole(assignment.role),
-      ),
-      ...dynamicAssignments.flatMap((assignment) =>
-        assignment.role.permissions.map((entry) => entry.permission.code),
-      ),
-    ]);
+    return new Set(
+      await new PlatformAuthorizationService(
+        this.prisma,
+      ).allPlatformPermissionsForUser(userId),
+    );
   }
 
   private async assertStoreExists(storeId: string): Promise<void> {

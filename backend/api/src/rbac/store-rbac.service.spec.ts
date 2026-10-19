@@ -13,6 +13,9 @@ import { createSelfxId } from "@selfx/database";
 import { PrismaService } from "../database/prisma.service.js";
 import { StoreRbacService } from "./store-rbac.service.js";
 import { STORE_PERMISSION_REGISTRY } from "./store-permissions.js";
+import { RolesWorkspaceController } from "./roles-workspace.controller.js";
+import { AccessControlService } from "../platform/access-control.service.js";
+import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 
 const url = process.env.USERS_TEST_DATABASE_URL;
 if (
@@ -33,6 +36,9 @@ describe.skipIf(!url)("Store RBAC — fixed Store Admin and Staff roles", () => 
     stores = [];
   });
   afterEach(async () => {
+    await db.impersonationSession.deleteMany({
+      where: { actorUserId: { in: users } },
+    });
     await db.auditLog.deleteMany({
       where: {
         OR: [
@@ -56,6 +62,9 @@ describe.skipIf(!url)("Store RBAC — fixed Store Admin and Staff roles", () => 
     });
     await db.organization.deleteMany({ where: { id: { in: stores } } });
     await db.platformRoleAssignment.deleteMany({
+      where: { userId: { in: users } },
+    });
+    await db.platformUserAccessRole.deleteMany({
       where: { userId: { in: users } },
     });
     await db.user.deleteMany({ where: { id: { in: users } } });
@@ -99,6 +108,322 @@ describe.skipIf(!url)("Store RBAC — fixed Store Admin and Staff roles", () => 
     return { id, roleId: role.id };
   }
   const error = (code: string) => ({ response: { error: { code } } });
+  const request = { headers: { authorization: "Bearer test-token" } } as never;
+  const access = new AccessControlService(db as PrismaService);
+  const impersonation = new StoreImpersonationService(db as PrismaService);
+  function workspace(actorId: string) {
+    return new RolesWorkspaceController(
+      { requireAccessUser: async () => ({ id: actorId }) } as never,
+      db as PrismaService,
+      access,
+      rbac,
+      impersonation,
+    );
+  }
+  it("keeps platform Store role viewing separate from delegated Store role management", async () => {
+    const superadmin = await user(),
+      actor = await user(),
+      tenant = await store();
+    await db.platformRoleAssignment.create({
+      data: {
+        id: createSelfxId(),
+        userId: superadmin,
+        role: "SELFX_SUPER_ADMIN",
+      },
+    });
+    const staff = (await access.listPlatformRoles()).data.find(
+      (r) => r.systemCode === "platform-support-admin",
+    )!;
+    const original = staff.permissions.map((p) => p.code);
+    try {
+      await access.replacePlatformRolePermissions(superadmin, staff.id, {
+        permissionCodes: ["STORE_ROLES_VIEW"],
+      });
+      await access.replaceUserPlatformRoles(superadmin, actor, {
+        roleIds: [staff.id],
+      });
+      const controller = workspace(actor);
+      const context = await controller.context(request, {});
+      expect(context.canViewPlatform).toBe(false);
+      expect(context.stores.data.map((s) => s.id)).toContain(tenant);
+      const current = await controller.store(request, tenant);
+      expect(current.policy).toMatchObject({
+        canView: true,
+        canEditAdmin: false,
+        canEditStaff: false,
+      });
+      const admin = current.roles.find((r) => r.systemCode === "store-admin")!;
+      await expect(
+        rbac.replaceRolePermissions(actor, tenant, admin.id, {
+          permissionCodes: admin.permissions.map((p) => p.code),
+        }),
+      ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+      await access.replacePlatformRolePermissions(superadmin, staff.id, {
+        permissionCodes: ["STORE_ROLES_MANAGE"],
+      });
+      expect(
+        (await controller.store(request, tenant)).policy.canEditAdmin,
+      ).toBe(true);
+      await expect(
+        rbac.replaceRolePermissions(actor, tenant, admin.id, {
+          permissionCodes: admin.permissions
+            .map((p) => p.code)
+            .filter((c) => c !== "products.manage"),
+        }),
+      ).resolves.toMatchObject({ id: admin.id });
+      expect((await controller.store(request, tenant)).canEditCeiling).toBe(
+        false,
+      );
+    } finally {
+      await access.replacePlatformRolePermissions(superadmin, staff.id, {
+        permissionCodes: original,
+      });
+    }
+  }, 20000);
+  it("exposes only a member's Store roles and derives editing capability from actual authority", async () => {
+    const actor = await user(),
+      staff = await user(),
+      tenant = await store(),
+      foreign = await store();
+    await member(actor, tenant, "store-admin");
+    await member(staff, tenant);
+    const controller = workspace(actor);
+    const context = await controller.context(request, {});
+    expect(context.canViewPlatform).toBe(false);
+    expect(context.roles).toEqual([]);
+    expect(context.stores.data.map((s) => s.id)).toEqual([tenant]);
+    const result = await controller.store(request, tenant);
+    expect(result.roles.map((r) => r.systemCode).sort()).toEqual([
+      "staff",
+      "store-admin",
+    ]);
+    expect(result.policy).toMatchObject({
+      canEditAdmin: false,
+      canEditStaff: true,
+    });
+    expect(result.canEditCeiling).toBe(false);
+    await expect(controller.store(request, foreign)).rejects.toMatchObject(
+      error("ROLE_MANAGEMENT_DENIED"),
+    );
+    await expect(workspace(staff).store(request, tenant)).rejects.toMatchObject(
+      error("ROLE_MANAGEMENT_DENIED"),
+    );
+    await expect(
+      access.replaceStorePermissionGrants(actor, tenant, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+  });
+  it("makes role management read-only during impersonation and restricts the Store selector to its target", async () => {
+    const actor = await user(),
+      tenant = await store(),
+      other = await store();
+    await db.platformRoleAssignment.create({
+      data: { id: createSelfxId(), userId: actor, role: "SELFX_SUPER_ADMIN" },
+    });
+    const controller = workspace(actor);
+    const context = await controller.context(request, { pageSize: 1 });
+    expect(context).toMatchObject({
+      canViewPlatform: true,
+      canEditPlatformAdmin: true,
+    });
+    expect(context.stores.data).toHaveLength(1);
+    expect(context.stores.hasMore).toBe(true);
+    const before = await controller.store(request, tenant);
+    expect(before.canEditCeiling).toBe(true);
+    await impersonation.startSession(actor, tenant);
+    const current = await controller.context(request, {});
+    expect(current.canViewPlatform).toBe(false);
+    expect(current.stores.data.map((s) => s.id)).toEqual([tenant]);
+    expect((await controller.store(request, tenant)).policy).toMatchObject({
+      canEditAdmin: false,
+      canEditStaff: false,
+    });
+    await expect(controller.store(request, other)).rejects.toMatchObject(
+      error("IMPERSONATION_STORE_MISMATCH"),
+    );
+    await expect(
+      rbac.replaceRolePermissions(actor, tenant, before.roles[0]!.id, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    await expect(
+      access.replaceStorePermissionGrants(actor, tenant, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    const platformRole = (await access.listPlatformRoles()).data[0]!;
+    await expect(
+      access.replacePlatformRolePermissions(actor, platformRole.id, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+  });
+  it("applies the Store ceiling immediately and rejects stale ceiling saves", async () => {
+    const actor = await user(),
+      admin = await user(),
+      tenant = await store();
+    await member(admin, tenant, "store-admin");
+    await db.platformRoleAssignment.create({
+      data: { id: createSelfxId(), userId: actor, role: "SELFX_SUPER_ADMIN" },
+    });
+    const current = await workspace(actor).store(request, tenant);
+    const codes = current.permissions
+      .filter((p) => p.granted && p.code !== "products.manage")
+      .map((p) => p.code);
+    await access.replaceStorePermissionGrants(actor, tenant, {
+      permissionCodes: codes,
+      expectedUpdatedAt: current.ceilingUpdatedAt,
+    });
+    expect(
+      (await rbac.effectivePermissions(admin, tenant)).permissions,
+    ).not.toContain("products.manage");
+    await expect(
+      access.replaceStorePermissionGrants(actor, tenant, {
+        permissionCodes: codes,
+        expectedUpdatedAt: current.ceilingUpdatedAt,
+      }),
+    ).rejects.toMatchObject(error("ROLE_CHANGED"));
+  });
+  it("persists Staff revocations across role loading and enforces them for assigned users", async () => {
+    const admin = await user(),
+      staff = await user(),
+      tenant = await store();
+    await member(admin, tenant, "store-admin");
+    const assignment = await member(staff, tenant);
+    const current = (await rbac.listRoles(tenant, {})).data.find(
+      (r) => r.id === assignment.roleId,
+    )!;
+    const saved = await rbac.replaceRolePermissions(admin, tenant, current.id, {
+      permissionCodes: current.permissions
+        .map((p) => p.code)
+        .filter((c) => c !== "products.manage"),
+      expectedUpdatedAt: current.updatedAt,
+    });
+    const fresh = new StoreRbacService(db as PrismaService);
+    await fresh.ensureStoreRbac(tenant);
+    expect(
+      (await fresh.listRoles(tenant, {})).data
+        .find((r) => r.id === current.id)
+        ?.permissions.map((p) => p.code),
+    ).not.toContain("products.manage");
+    expect(
+      (await fresh.effectivePermissions(staff, tenant)).permissions,
+    ).not.toContain("products.manage");
+    await expect(
+      rbac.replaceRolePermissions(admin, tenant, current.id, {
+        permissionCodes: current.permissions.map((p) => p.code),
+        expectedUpdatedAt: current.updatedAt,
+      }),
+    ).rejects.toMatchObject(error("ROLE_CHANGED"));
+    await expect(
+      rbac.replaceRolePermissions(admin, tenant, saved.id, {
+        permissionCodes: current.permissions.map((p) => p.code),
+        expectedUpdatedAt: saved.updatedAt,
+      }),
+    ).resolves.toMatchObject({ id: current.id });
+  });
+  it("limits Store Admin delegation to Staff operations and their own Store", async () => {
+    const admin = await user(),
+      staff = await user(),
+      tenant = await store(),
+      foreign = await store();
+    const adminMember = await member(admin, tenant, "store-admin");
+    const staffMember = await member(staff, tenant);
+    const current = (await rbac.listRoles(tenant, {})).data.find(
+      (r) => r.id === staffMember.roleId,
+    )!;
+    await expect(
+      rbac.replaceRolePermissions(staff, tenant, current.id, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    await expect(
+      rbac.replaceRolePermissions(admin, tenant, adminMember.roleId, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    await expect(
+      rbac.replaceRolePermissions(admin, tenant, current.id, {
+        permissionCodes: ["users.update"],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    await expect(
+      rbac.replaceRolePermissions(admin, foreign, current.id, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("STORE_ROLE_NOT_FOUND"));
+    const permission = await db.permission.findUniqueOrThrow({
+      where: { code: "products.manage" },
+    });
+    await db.storeRolePermission.deleteMany({
+      where: { roleId: adminMember.roleId, permissionId: permission.id },
+    });
+    await rbac.replaceRolePermissions(admin, tenant, current.id, {
+      permissionCodes: [],
+    });
+    await expect(
+      rbac.replaceRolePermissions(admin, tenant, current.id, {
+        permissionCodes: ["products.manage"],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    await db.storePermissionGrant.deleteMany({
+      where: { storeTenantId: tenant, permissionId: permission.id },
+    });
+    const superadmin = await user();
+    await db.platformRoleAssignment.create({
+      data: {
+        id: createSelfxId(),
+        userId: superadmin,
+        role: "SELFX_SUPER_ADMIN",
+      },
+    });
+    await expect(
+      rbac.replaceRolePermissions(superadmin, tenant, current.id, {
+        permissionCodes: ["products.manage"],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+  });
+  it("lets Superadmin configure Store Admin while retaining core administration", async () => {
+    const actor = await user(),
+      tenant = await store();
+    await db.platformRoleAssignment.create({
+      data: { id: createSelfxId(), userId: actor, role: "SELFX_SUPER_ADMIN" },
+    });
+    const role = (await rbac.listRoles(tenant, {})).data.find(
+      (r) => r.systemCode === "store-admin",
+    )!;
+    await expect(
+      rbac.replaceRolePermissions(actor, tenant, role.id, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    const codes = role.permissions
+      .map((p) => p.code)
+      .filter((c) => c !== "products.manage");
+    const result = await rbac.replaceRolePermissions(actor, tenant, role.id, {
+      permissionCodes: codes,
+    });
+    expect(result.permissions.map((p) => p.code)).toEqual(
+      expect.arrayContaining(["users.update", "roles.assign"]),
+    );
+    expect(result.permissions.map((p) => p.code)).not.toContain(
+      "products.manage",
+    );
+    expect(
+      await db.auditLog.count({
+        where: { actorUserId: actor, resourceId: role.id },
+      }),
+    ).toBe(1);
+    const staff = (await rbac.listRoles(tenant, {})).data.find(
+      (r) => r.systemCode === "staff",
+    )!;
+    await expect(
+      rbac.replaceRolePermissions(actor, tenant, staff.id, {
+        permissionCodes: ["roles.assign"],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+  });
   it("enforces cross-Store isolation and rejects foreign role assignment", async () => {
     const id = await user(),
       a = await store(),
@@ -199,7 +524,7 @@ describe.skipIf(!url)("Store RBAC — fixed Store Admin and Staff roles", () => 
       rbac.replaceRolePermissions(id, tenant, staff.id, {
         permissionCodes: ["users.deactivate"],
       }),
-    ).rejects.toMatchObject(error("STORE_SYSTEM_ROLE_PROTECTED"));
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
     await expect(rbac.deleteRole(id, tenant, staff.id)).rejects.toMatchObject(
       error("STORE_SYSTEM_ROLE_PROTECTED"),
     );

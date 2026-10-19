@@ -1,5 +1,30 @@
 ## Document Evolution
 
+### ROLES-1 — One workspace, separate authorization scopes
+
+Use authenticated GET /api/v1/admin/roles for platform role visibility and a
+paginated, searchable list of accessible active Stores. Use GET
+/api/v1/admin/roles/stores/:storeId for explicit Store role maps, permission
+availability and server-computed editing capabilities. Actual active membership
+and permissions govern merchant access; platform Store-role viewing/management
+permissions independently govern cross-Store administrative access. Do not infer
+editing rights from a role label or client-supplied Store id.
+
+Reuse existing permission replacement routes with centralized hierarchy checks.
+Only Superadmin may change the Store permission ceiling; other managers cannot
+grant beyond it. Platform managers can edit only lower Platform Staff authority,
+including metadata/status changes, and change only permissions they hold.
+Store Admin delegation is restricted to the approved Staff operational set.
+Disable all permission mutations while impersonating; scope reads to the target
+Store. Default role maps are populated only at initial creation, never restored
+on reads. Historic ordinary platform bootstrap identities resolve through the
+saved canonical role map; protected Superadmin bootstrap authority is unchanged.
+Lock permission replacement, audit the actor and requested codes, and accept an
+optional expectedUpdatedAt for backward-compatible stale-save rejection. The new
+web workspace always supplies that version and refreshes navigation permissions
+after a successful save. Fixed-role visibility/editing does not depend on the
+legacy location-count entitlement; user/team APIs retain their existing gates.
+
 ### PAYMENTS-1D — Shared gateway probes with Store isolation
 
 Add /app/payments with automatic current-Store resolution and direct sidebar

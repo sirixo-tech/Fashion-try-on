@@ -220,9 +220,17 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       "selfx:impersonation-changed",
       refreshImpersonationContext,
     );
+    window.addEventListener(
+      "selfx:permissions-changed",
+      refreshImpersonationContext,
+    );
     return () => {
       window.removeEventListener(
         "selfx:impersonation-changed",
+        refreshImpersonationContext,
+      );
+      window.removeEventListener(
+        "selfx:permissions-changed",
         refreshImpersonationContext,
       );
     };
@@ -251,7 +259,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [session.accessToken, session.status]);
+  }, [contextReloadKey, session.accessToken, session.status]);
 
   useEffect(() => {
     if (session.status !== "unauthenticated") {

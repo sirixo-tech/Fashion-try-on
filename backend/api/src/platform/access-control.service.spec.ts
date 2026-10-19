@@ -28,11 +28,30 @@ describe.skipIf(!url)("Platform RBAC — Superadmin, Admin and Staff", () => {
   const access = new AccessControlService(db as PrismaService),
     authorization = new PlatformAuthorizationService(db as PrismaService);
   let ids: string[];
-  beforeAll(() => db.$connect());
-  beforeEach(() => {
+  let maps: { id: string; permissions: { permissionId: string }[] }[];
+  beforeAll(async () => {
+    await db.$connect();
+    await access.listPlatformRoles();
+  });
+  beforeEach(async () => {
     ids = [];
+    maps = await db.platformAccessRole.findMany({
+      select: { id: true, permissions: { select: { permissionId: true } } },
+    });
   });
   afterEach(async () => {
+    for (const map of maps) {
+      await db.platformAccessRolePermission.deleteMany({
+        where: { roleId: map.id },
+      });
+      await db.platformAccessRolePermission.createMany({
+        data: map.permissions.map((p) => ({
+          id: createSelfxId(),
+          roleId: map.id,
+          permissionId: p.permissionId,
+        })),
+      });
+    }
     await db.auditLog.deleteMany({ where: { actorUserId: { in: ids } } });
     await db.platformUserAccessRole.deleteMany({
       where: { userId: { in: ids } },
@@ -92,8 +111,104 @@ describe.skipIf(!url)("Platform RBAC — Superadmin, Admin and Staff", () => {
     const role = (await access.listPlatformRoles()).data.find(
       (r) => r.systemCode === "platform-support-admin",
     )!;
+    const admin = (await access.listPlatformRoles()).data.find(
+      (r) => r.systemCode === "platform-staff-admin",
+    )!;
+    await access.replacePlatformRolePermissions(actor, admin.id, {
+      permissionCodes: [PLATFORM_PERMISSIONS.platformRolesManage],
+    });
     await expect(
       access.replacePlatformRolePermissions(ordinary, role.id, {
+        permissionCodes: [PLATFORM_PERMISSIONS.permissionsManage],
+      }),
+    ).rejects.toMatchObject(error("SELFX_SUPERADMIN_PROTECTED"));
+  });
+  it("persists revocations for bootstrap and ordinary assignments without restoring defaults", async () => {
+    const actor = await user("SELFX_SUPER_ADMIN"),
+      legacy = await user("SELFX_STAFF_ADMIN"),
+      dynamic = await user();
+    const admin = (await access.listPlatformRoles()).data.find(
+      (r) => r.systemCode === "platform-staff-admin",
+    )!;
+    await access.replacePlatformRolePermissions(actor, admin.id, {
+      permissionCodes: [PLATFORM_PERMISSIONS.storesView],
+    });
+    await access.replaceUserPlatformRoles(actor, dynamic, {
+      roleIds: [admin.id],
+    });
+    await access.replaceUserPlatformRoles(actor, legacy, {
+      roleIds: [admin.id],
+    });
+    expect(
+      (await access.listPlatformRoles()).data.find(
+        (role) => role.id === admin.id,
+      )?.assignedUsersCount,
+    ).toBe(2);
+    for (const id of [legacy, dynamic])
+      expect(
+        await authorization.hasPermission(id, PLATFORM_PERMISSIONS.storesView),
+      ).toBe(true);
+    const current = (await access.listPlatformRoles()).data.find(
+      (r) => r.id === admin.id,
+    )!;
+    await access.replacePlatformRolePermissions(actor, admin.id, {
+      permissionCodes: [],
+      expectedUpdatedAt: current.updatedAt,
+    });
+    const fresh = new AccessControlService(db as PrismaService);
+    expect(
+      (await fresh.listPlatformRoles()).data.find((r) => r.id === admin.id)
+        ?.permissions,
+    ).toEqual([]);
+    for (const id of [legacy, dynamic])
+      expect(
+        await authorization.hasPermission(id, PLATFORM_PERMISSIONS.storesView),
+      ).toBe(false);
+    expect(
+      await authorization.hasPermission(actor, PLATFORM_PERMISSIONS.storesView),
+    ).toBe(true);
+    await expect(
+      access.replacePlatformRolePermissions(actor, admin.id, {
+        permissionCodes: [],
+        expectedUpdatedAt: current.updatedAt,
+      }),
+    ).rejects.toMatchObject(error("ROLE_CHANGED"));
+  });
+  it("allows delegated platform managers to edit Staff only within held permissions", async () => {
+    const actor = await user("SELFX_SUPER_ADMIN"),
+      manager = await user("SELFX_STAFF_ADMIN");
+    const roles = (await access.listPlatformRoles()).data;
+    const admin = roles.find((r) => r.systemCode === "platform-staff-admin")!,
+      staff = roles.find((r) => r.systemCode === "platform-support-admin")!;
+    await access.replacePlatformRolePermissions(actor, admin.id, {
+      permissionCodes: [
+        PLATFORM_PERMISSIONS.platformRolesManage,
+        PLATFORM_PERMISSIONS.storesView,
+      ],
+    });
+    await access.replacePlatformRolePermissions(actor, staff.id, {
+      permissionCodes: [],
+    });
+    await expect(
+      access.replacePlatformRolePermissions(manager, admin.id, {
+        permissionCodes: [],
+      }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    await expect(
+      access.updatePlatformRole(manager, admin.id, { isActive: false }),
+    ).rejects.toMatchObject(error("ROLE_MANAGEMENT_DENIED"));
+    await expect(
+      access.replacePlatformRolePermissions(manager, staff.id, {
+        permissionCodes: [PLATFORM_PERMISSIONS.storesView],
+      }),
+    ).resolves.toMatchObject({ id: staff.id });
+    await expect(
+      access.replacePlatformRolePermissions(manager, staff.id, {
+        permissionCodes: [PLATFORM_PERMISSIONS.platformUsersManage],
+      }),
+    ).rejects.toMatchObject(error("PLATFORM_PERMISSION_DENIED"));
+    await expect(
+      access.replacePlatformRolePermissions(manager, staff.id, {
         permissionCodes: [PLATFORM_PERMISSIONS.permissionsManage],
       }),
     ).rejects.toMatchObject(error("SELFX_SUPERADMIN_PROTECTED"));

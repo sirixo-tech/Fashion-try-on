@@ -78,4 +78,19 @@ describe("OpenAPI documentation", () => {
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers["cache-control"]).toBe("private, no-store");
   });
+  it("registers the unified Roles workspace behind staff authentication", async () => {
+    const response = await request(app.getHttpServer())
+      .get("/api/docs-json")
+      .expect(200);
+    expect(Object.keys(response.body.paths)).toEqual(
+      expect.arrayContaining([
+        "/api/v1/admin/roles",
+        "/api/v1/admin/roles/stores/{storeId}",
+      ]),
+    );
+    await request(app.getHttpServer()).get("/api/v1/admin/roles").expect(401);
+    await request(app.getHttpServer())
+      .get("/api/v1/admin/roles/stores/0199aee0-0000-7000-8000-000000000001")
+      .expect(401);
+  });
 });

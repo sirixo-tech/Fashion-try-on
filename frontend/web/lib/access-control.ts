@@ -97,13 +97,14 @@ export function replacePlatformRolePermissions(
   accessToken: string,
   roleId: string,
   permissionCodes: string[],
+  expectedUpdatedAt?: string,
 ): Promise<PlatformRole> {
   return selfxApi<PlatformRole>(
     `/api/v1/admin/access/roles/${roleId}/permissions`,
     {
       method: "PUT",
       accessToken,
-      body: JSON.stringify({ permissionCodes }),
+      body: JSON.stringify({ permissionCodes, expectedUpdatedAt }),
     },
   );
 }
@@ -153,13 +154,14 @@ export function replaceStorePermissionGrants(
   accessToken: string,
   storeId: string,
   permissionCodes: string[],
+  expectedUpdatedAt?: string,
 ): Promise<{ data: StorePermissionGrant[] }> {
   return selfxApi<{ data: StorePermissionGrant[] }>(
     `/api/v1/admin/access/stores/${storeId}/permission-grants`,
     {
       method: "PUT",
       accessToken,
-      body: JSON.stringify({ permissionCodes }),
+      body: JSON.stringify({ permissionCodes, expectedUpdatedAt }),
     },
   );
 }

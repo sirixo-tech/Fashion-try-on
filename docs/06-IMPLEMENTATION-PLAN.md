@@ -2,6 +2,19 @@
 
 ## Implementation Plan
 
+### ROLES-1 — Unified role management
+
+Replace the platform-only Roles page with one scoped workspace for all five
+approved role types. Reuse existing role tables and replacement APIs, centralize
+delegation/hierarchy checks, preserve saved revocations and make legacy ordinary
+platform bootstrap identities follow their saved role maps. Keep Superadmin,
+Store isolation, Staff administration limits and final-Admin protections intact.
+Verify Store selection, read-only capabilities, stale saves, impersonation,
+effective revocation and account/payment regressions on isolated localhost
+PostgreSQL. Run frontend tests, typechecks, changed-file lint and API/web builds.
+Deploy API and web together; no new migration or environment variable. See
+ROLES-1-IMPLEMENTATION-REPORT.md for behavior and rollout checks.
+
 ### PAYMENTS-1D — Store account configuration and UAT verification
 
 Expose existing encrypted gateway setup in direct Store Payment Settings, restrict

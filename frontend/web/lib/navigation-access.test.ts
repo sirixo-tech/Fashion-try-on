@@ -64,6 +64,28 @@ const baseAccess: NavigationAccess = {
   storeFeatureKeys: [],
   hasActiveStore: false,
 };
+it("shows unified Roles for Store role viewers without a location-count plan gate", () => {
+  const merchant = {
+    ...baseAccess,
+    hasActiveStore: true,
+    storePermissions: ["roles.view"],
+    storeLocationLimit: 0,
+  };
+  expect(canSeeHref("/app/roles", merchant)).toBe(true);
+  expect(
+    canSeeHref("/app/roles", {
+      ...merchant,
+      storePermissions: ["products.manage"],
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref("/app/roles", {
+      ...baseAccess,
+      hasPlatformAccess: true,
+      platformPermissions: ["STORE_ROLES_VIEW"],
+    }),
+  ).toBe(true);
+});
 it("shows Store Payment Settings only for actual Store payment viewing access", () => {
   const merchant = {
     ...baseAccess,

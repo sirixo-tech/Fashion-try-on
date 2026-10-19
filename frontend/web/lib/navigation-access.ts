@@ -36,6 +36,8 @@ const platformPermissionsByHref: Record<string, string[]> = {
     "PERMISSIONS_VIEW",
     "PLATFORM_ROLES_MANAGE",
     "PLATFORM_USERS_MANAGE",
+    "STORE_ROLES_VIEW",
+    "STORE_ROLES_MANAGE",
   ],
   "/app/users": [
     "PERMISSIONS_MANAGE",
@@ -56,6 +58,7 @@ const platformPermissionsByHref: Record<string, string[]> = {
 };
 
 const storePermissionsByHref: Record<string, string[]> = {
+  "/app/roles": ["roles.view"],
   "/app/products": ["stores.view"],
   "/app/locations": ["stores.view"],
   "/app/kiosks": ["kiosks.view", "kiosks.pair", "kiosks.configure"],
@@ -189,7 +192,7 @@ export function canSeeHref(href: string, access: NavigationAccess): boolean {
       access.hasActiveStore &&
       hasStoreEntitlement &&
       hasStorePlanEntitlement &&
-      (access.storePlatformBypass ||
+      ((route !== "/app/roles" && access.storePlatformBypass) ||
         hasAny(access.storePermissions, storePermissions)))
   );
 }

@@ -1,5 +1,22 @@
 ## Document Evolution
 
+### ROLES-1 — Unified Roles page
+
+Keep /app/roles under User Management. Show Platform roles only to authorized
+platform viewers; Store accounts start in Store roles. Provide searchable,
+paginated active Store selection and keep the selected Store visibly labelled
+while browsing other pages. Render protected/read-only states, role scope,
+assigned-user count, grouped searchable permission checkboxes, bulk selection
+within delegation limits and Save permissions. Clearly mark required Admin
+permissions and permissions unavailable within the Store limit.
+
+Superadmin alone sees Manage Store permission limit, separate from the five role
+types. Disable saves while loading/in flight, keep failed drafts visible and show
+stale-save guidance. Refresh the role view and current navigation authority after
+saving. Store Roles navigation requires actual roles.view or explicit platform
+viewing/management permission; a generic Store platform bypass is insufficient.
+Use public @selfx/ui components and accessible checkbox labels/descriptions.
+
 ### PAYMENTS-1D — Store Payment Settings navigation and verification
 
 Show Payment Settings directly in Store sidebar when server-resolved

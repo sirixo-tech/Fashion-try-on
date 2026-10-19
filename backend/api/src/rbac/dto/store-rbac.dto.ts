@@ -9,6 +9,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
@@ -81,6 +82,14 @@ export class UpdateStoreRoleDto {
 }
 
 export class ReplaceStoreRolePermissionsDto {
+  @ApiPropertyOptional({
+    format: "date-time",
+    description: "Role version returned when loading its permissions.",
+  })
+  @IsOptional()
+  @IsISO8601()
+  expectedUpdatedAt?: string;
+  @ApiProperty({ type: [String] })
   @IsArray()
   @ArrayMaxSize(100)
   @IsString({ each: true })
