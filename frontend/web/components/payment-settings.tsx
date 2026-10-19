@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  CheckCircle2Icon,
   CreditCardIcon,
   PencilIcon,
   RefreshCwIcon,
@@ -31,6 +30,7 @@ import {
 } from "@selfx/ui";
 import { PlatformPaymentGateways } from "./platform-payment-gateways";
 import { PhonePeConfiguration } from "./phonepe-configuration";
+import { PaymentProviderLogo } from "./payment-provider-logo";
 import { StorePaymentVerification } from "./store-payment-verification";
 import {
   getStorePayments,
@@ -39,7 +39,6 @@ import {
   editPhonePeSetup,
   deletePhonePeSetup,
   selectStoreGateway,
-  type PaymentEnvironment,
   type PaymentProvider,
   type StorePaymentSettings,
   type PhonePeEditDetails,
@@ -220,7 +219,6 @@ function StorePaymentSettingsPanel({
             (item) => item.provider === gateway.provider,
           );
           const selected = store.selectedProvider === gateway.provider;
-          const verified = connection?.status === "VERIFIED";
           return (
             <Card
               key={gateway.provider}
@@ -230,25 +228,12 @@ function StorePaymentSettingsPanel({
             >
               <CardHeader>
                 <div className="flex items-start gap-4">
-                  <GatewayMark provider={gateway.provider} />
+                  <PaymentProviderLogo provider={gateway.provider} />
                   <div className="min-w-0 space-y-2">
                     <CardTitle>{gateway.name}</CardTitle>
                     <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline">
-                        {!gateway.setupAvailable
-                          ? "Planned"
-                          : !connection
-                            ? "Needs setup"
-                            : verified
-                              ? connection.environment === "PRODUCTION"
-                                ? "Live account verified"
-                                : "Test account verified"
-                              : "Not verified"}
-                      </Badge>
-                      {connection && (
-                        <Badge variant="outline">
-                          {environmentLabel(connection.environment)}
-                        </Badge>
+                      {!gateway.setupAvailable && (
+                        <Badge variant="outline">Planned</Badge>
                       )}
                     </div>
                   </div>
@@ -293,68 +278,50 @@ function StorePaymentSettingsPanel({
                     />
                   </div>
                 )}
-                {verified && (
-                  <p className="flex items-center gap-2 text-sm">
-                    <CheckCircle2Icon className="size-4" aria-hidden="true" />
-                    Account verification passed
-                  </p>
-                )}
               </CardContent>
-              <CardFooter className="flex flex-wrap gap-2">
-                {canEdit && gateway.setupAvailable && !connection && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={locked || !gateway.enabled}
-                    onClick={() => {
-                      formVersion.current = store.version;
-                      setInitial(undefined);
-                      setSetup(true);
-                    }}
-                  >
-                    <Settings2Icon aria-hidden="true" />
-                    Set up
-                  </Button>
-                )}
-                {canEdit && gateway.setupAvailable && connection && (
-                  <>
+              {canEdit && gateway.setupAvailable && (
+                <CardFooter className="flex flex-wrap gap-2">
+                  {canEdit && gateway.setupAvailable && !connection && (
                     <Button
                       variant="outline"
+                      className="w-full"
                       disabled={locked || !gateway.enabled}
-                      onClick={() => void edit()}
-                    >
-                      <PencilIcon aria-hidden="true" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      disabled={locked}
                       onClick={() => {
-                        deleteVersion.current = store.version;
-                        setDeleteError(null);
-                        setDeleting(true);
+                        formVersion.current = store.version;
+                        setInitial(undefined);
+                        setSetup(true);
                       }}
                     >
-                      <Trash2Icon aria-hidden="true" />
-                      Delete configuration
+                      <Settings2Icon aria-hidden="true" />
+                      Set up
                     </Button>
-                    <Button
-                      variant="outline"
-                      disabled={locked}
-                      onClick={() =>
-                        document
-                          .getElementById("phonepe-verification")
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "start",
-                          })
-                      }
-                    >
-                      Verify payment
-                    </Button>
-                  </>
-                )}
-              </CardFooter>
+                  )}
+                  {canEdit && gateway.setupAvailable && connection && (
+                    <>
+                      <Button
+                        variant="outline"
+                        disabled={locked || !gateway.enabled}
+                        onClick={() => void edit()}
+                      >
+                        <PencilIcon aria-hidden="true" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        disabled={locked}
+                        onClick={() => {
+                          deleteVersion.current = store.version;
+                          setDeleteError(null);
+                          setDeleting(true);
+                        }}
+                      >
+                        <Trash2Icon aria-hidden="true" />
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                </CardFooter>
+              )}
             </Card>
           );
         })}
@@ -453,30 +420,6 @@ function StorePaymentSettingsPanel({
       )}
     </PageSection>
   );
-}
-function GatewayMark({ provider }: { provider: PaymentProvider }) {
-  const brands = {
-    PHONEPE: ["पे", "text-purple-700"],
-    STRIPE: ["stripe", "text-indigo-600"],
-    RAZORPAY: ["R", "text-blue-700"],
-    PAYTM: ["paytm", "text-sky-600"],
-    PAYPAL: ["PayPal", "text-blue-800"],
-  } as const;
-  return (
-    <span
-      aria-hidden="true"
-      className={`flex size-14 shrink-0 items-center justify-center rounded-xl border bg-background text-sm font-bold shadow-sm ${brands[provider][1]}`}
-    >
-      {brands[provider][0]}
-    </span>
-  );
-}
-function environmentLabel(environment: PaymentEnvironment) {
-  return {
-    UNCONFIRMED: "Environment unconfirmed",
-    UAT: "Test mode",
-    PRODUCTION: "Live mode (real payments)",
-  }[environment];
 }
 function message(caught: unknown) {
   return caught instanceof Error

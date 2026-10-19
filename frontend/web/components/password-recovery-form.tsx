@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  SecretInput,
   Label,
 } from "@selfx/ui";
 import { SafeApiError, selfxApi } from "@/lib/api";
@@ -107,9 +108,10 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="new-password">New password</Label>
-                    <Input
+                    <SecretInput
                       id="new-password"
-                      type="password"
+                      revealable
+                      visibilityLabel="new password"
                       autoComplete="new-password"
                       minLength={12}
                       maxLength={256}
@@ -123,9 +125,10 @@ export function PasswordRecoveryForm({ reset = false }: { reset?: boolean }) {
                     <Label htmlFor="confirm-new-password">
                       Confirm password
                     </Label>
-                    <Input
+                    <SecretInput
                       id="confirm-new-password"
-                      type="password"
+                      revealable
+                      visibilityLabel="confirmed password"
                       autoComplete="new-password"
                       minLength={12}
                       maxLength={256}

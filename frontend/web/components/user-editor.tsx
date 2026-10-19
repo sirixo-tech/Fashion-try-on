@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
 import {
   Button,
   Checkbox,
@@ -12,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  SecretInput,
   Label,
   SelectMenu,
 } from "@selfx/ui";
@@ -53,8 +53,7 @@ export function UserEditor({
   const [name, setName] = useState(user.displayName ?? ""),
     [email, setEmail] = useState(user.email);
   const [status, setStatus] = useState(user.status),
-    [password, setPassword] = useState(""),
-    [showPassword, setShowPassword] = useState(false);
+    [password, setPassword] = useState("");
   const [roleIds, setRoleIds] = useState(user.platformRoles.map((r) => r.id));
   const [links, setLinks] = useState<MembershipInput[]>([]),
     [addedStores, setAddedStores] = useState<StoreOption[]>([]);
@@ -120,7 +119,6 @@ export function UserEditor({
         setFieldError("email");
     } finally {
       setPassword("");
-      setShowPassword(false);
       setBusy(false);
     }
   }
@@ -200,34 +198,25 @@ export function UserEditor({
               <Label htmlFor="edit-user-password">
                 New password (optional)
               </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="edit-user-password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  minLength={12}
-                  maxLength={256}
-                  placeholder="Leave blank to keep current password"
-                  value={password}
-                  aria-invalid={fieldError === "password"}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((value) => !value)}
-                >
-                  {showPassword ? (
-                    <EyeOffIcon aria-hidden="true" />
-                  ) : (
-                    <EyeIcon aria-hidden="true" />
-                  )}
-                </Button>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Changing login email or password signs the user out and
-                invalidates existing reset links.
+              <SecretInput
+                id="edit-user-password"
+                saved
+                revealable
+                aria-describedby="edit-user-password-hint"
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={256}
+                value={password}
+                aria-invalid={fieldError === "password"}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <p
+                id="edit-user-password-hint"
+                className="mt-1 text-xs text-muted-foreground"
+              >
+                Password saved. Enter a new password to replace it. Changing
+                login email or password signs the user out and invalidates
+                existing reset links.
               </p>
             </div>
             <div>

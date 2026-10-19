@@ -2,6 +2,11 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1I — Presentation-only secret presence
+
+No schema change. Placeholder dots are not persisted. Retain the PAYMENTS-1H
+encrypted-credential, version, verification and deletion/history contracts.
+
 ### PAYMENTS-1H — Delete active connection, retain payment snapshots
 
 No schema migration. Store payment selection must be cleared before deleting its

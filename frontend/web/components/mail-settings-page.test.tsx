@@ -52,6 +52,16 @@ it("keeps saved passwords blank and omits them when saving other changes", async
   expect(
     ((await screen.findByLabelText("SMTP password")) as HTMLInputElement).value,
   ).toBe("");
+  expect(
+    (screen.getByLabelText("SMTP password") as HTMLInputElement).placeholder,
+  ).toBe("••••••••");
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Show SMTP password",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
   fireEvent.change(screen.getByLabelText("Sender name"), {
     target: { value: "New sender" },
   });

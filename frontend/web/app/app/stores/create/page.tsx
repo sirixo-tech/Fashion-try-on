@@ -23,6 +23,7 @@ import {
   CardContent,
   FormActions,
   Input,
+  SecretInput,
   Label,
   LoadingState,
   ErrorState,
@@ -366,10 +367,11 @@ export default function CreateStorePage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirm-password">Confirm password</Label>
-                    <Input
+                    <SecretInput
                       id="confirm-password"
                       placeholder="Re-enter password"
-                      type="password"
+                      revealable
+                      visibilityLabel="confirmed password"
                       autoComplete="new-password"
                       required
                       minLength={12}

@@ -5,6 +5,7 @@ import {
   AlertDescription,
   Button,
   Input,
+  SecretInput,
   Label,
   LoadingState,
   PageContainer,
@@ -257,23 +258,25 @@ export function MailSettingsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="smtp-password">SMTP password</Label>
-                      <Input
+                      <SecretInput
                         id="smtp-password"
-                        type="password"
+                        saved={saved.hasPassword}
+                        revealable
+                        visibilityLabel="SMTP password"
+                        aria-describedby="smtp-password-hint"
                         autoComplete="new-password"
                         required={!saved.hasPassword}
                         maxLength={1024}
                         value={password}
-                        placeholder={
-                          saved.hasPassword
-                            ? "Leave blank to keep saved password"
-                            : "Enter SMTP password"
-                        }
+                        placeholder="Enter SMTP password"
                         onChange={(e) => setPassword(e.target.value)}
                       />
-                      <p className="text-sm text-muted-foreground">
+                      <p
+                        id="smtp-password-hint"
+                        className="text-sm text-muted-foreground"
+                      >
                         {saved.hasPassword
-                          ? "A password is saved and will never be displayed."
+                          ? "Password saved. Enter a new password to replace it. Only newly entered text can be shown."
                           : "Use the SMTP password or app password supplied by your email provider."}
                       </p>
                     </div>

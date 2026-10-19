@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### PAYMENTS-1I — Shared secret-field presentation
+
+Use public @selfx/ui SecretInput for saved-secret placeholders and optional typed
+password visibility. Mask dots exist only as placeholder text, never as input
+values, API payloads or stored-secret length. Reveal controls never fetch saved
+secrets. Keep existing blank/omitted-secret retention and new-setup requirements.
+Provider logos are local static assets. No new API, authorization or payment
+execution behavior is introduced by the card/dialog presentation update.
+
 ### PAYMENTS-1H — Controlled account editing and deletion
 
 Keep existing PUT full-configuration save for initial setup and compatibility.

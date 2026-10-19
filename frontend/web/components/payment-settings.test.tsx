@@ -150,7 +150,7 @@ describe("payment settings", () => {
     fireEvent.change(screen.getByLabelText("Salt Key"), {
       target: { value: "fixture-key-not-a-real-secret" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save configuration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save gateway" }));
     await waitFor(() =>
       expect(savePhonePeSetup).toHaveBeenCalledWith(
         "fixture_token",
@@ -164,7 +164,7 @@ describe("payment settings", () => {
         },
       ),
     );
-    expect(await screen.findByText(/Environment unconfirmed/)).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeTruthy();
     expect(screen.queryByLabelText("Salt Key")).toBeNull();
     expect(document.body.textContent).not.toContain(
       "fixture-key-not-a-real-secret",
@@ -187,7 +187,7 @@ describe("payment settings", () => {
     fireEvent.change(screen.getByLabelText("Salt Key"), {
       target: { value: "fixture-key-not-a-real-secret" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save configuration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save gateway" }));
     expect(await screen.findByText(/Payment settings changed/)).toBeTruthy();
     expect((screen.getByLabelText("Salt Key") as HTMLInputElement).value).toBe(
       "",
@@ -236,9 +236,7 @@ describe("payment settings", () => {
     await screen.findByText("PhonePe");
     expect(screen.queryByRole("button", { name: "Set up" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Delete configuration" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
   });
   const configured = {
     ...settings,
@@ -272,12 +270,16 @@ describe("payment settings", () => {
       "",
     );
     expect(
+      (screen.getByLabelText("Salt Key") as HTMLInputElement).placeholder,
+    ).toBe("••••••••");
+    expect(screen.queryByRole("button", { name: /Show.*key/i })).toBeNull();
+    expect(
       (screen.getByLabelText("Salt Key") as HTMLInputElement).required,
     ).toBe(false);
     fireEvent.change(screen.getByLabelText("Merchant ID"), {
       target: { value: "updated_mid" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save gateway" }));
     await waitFor(() =>
       expect(editPhonePeSetup).toHaveBeenCalledWith(
         "fixture_token",
@@ -304,10 +306,35 @@ describe("payment settings", () => {
     );
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Save changes" }),
+      await screen.findByRole("button", { name: "Save gateway" }),
     );
     expect(await screen.findByText(/No account changes/)).toBeTruthy();
-    expect(screen.getByText("Live account verified")).toBeTruthy();
+    expect(screen.queryByText("Live account verified")).toBeNull();
+    expect(
+      screen.getByText("Live accounts verified").parentElement?.textContent,
+    ).toContain("1");
+  });
+  it("shows provider logos and only Edit/Delete on configured gateway cards", async () => {
+    vi.mocked(getStorePayments).mockResolvedValue(configured);
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    const edit = await screen.findByRole("button", { name: "Edit" });
+    const card = edit.closest('[data-slot="card"]')!;
+    expect(
+      within(card as HTMLElement)
+        .getByRole("img", { name: "PhonePe logo" })
+        .getAttribute("src"),
+    ).toBe("/brand/payments/phonepe.svg");
+    expect(
+      within(card as HTMLElement)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Edit", "Delete"]);
+    expect(screen.queryByText("Live account verified")).toBeNull();
+    expect(screen.queryByText("Live mode (real payments)")).toBeNull();
+    expect(screen.queryByText("Account verification passed")).toBeNull();
+    expect(screen.getByText("Store verification workspace")).toBeTruthy();
   });
   it("turns off selection without deleting saved credentials", async () => {
     vi.mocked(getStorePayments).mockResolvedValue(configured);
@@ -343,15 +370,11 @@ describe("payment settings", () => {
     render(
       <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Delete configuration" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
     expect(deletePhonePeSetup).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(deletePhonePeSetup).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Delete configuration" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     let dialog = screen.getByRole("dialog", {
       name: "Delete PhonePe configuration?",
     });

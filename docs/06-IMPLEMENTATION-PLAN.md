@@ -2,6 +2,15 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1I — Simplify gateway presentation and secret inputs
+
+Update provider assets, cards and fixed-header/footer single-column setup/edit
+dialogs. Share saved-secret presence UI and typed-password visibility controls.
+Verify new vs saved fields, untouched-secret payloads, no Salt Key reveal,
+password reveal/reset, retained verification/history, authorization visibility
+and desktop/mobile scrolling. Run affected UI tests, shared/web types, lint and
+web production build. No migration or new environment variable is required.
+
 ### PAYMENTS-1H — Gateway settings UX and lifecycle
 
 Implement Store cards, summary counts, selection switches, prefilled Edit modal

@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYMENTS-1I — Simplified cards and saved-secret fields
+
+Use larger provider logos on Store gateway cards. Remove per-card Live/Verified
+badges, repeated verification text and Verify payment; configured cards retain
+Edit/Delete and selection controls. Keep separate verification/history and all
+existing payment gates. Setup/Edit uses one account-details column with fixed
+header/footer. Saved secrets show fixed-length placeholder dots, never a stored
+value or length. Untouched fields preserve secrets. New secrets remain empty and
+required. Password eyes reveal newly typed text only; Salt Keys and integration
+secrets have no reveal control.
+
 ### PAYMENTS-1H — Store gateway cards, Edit and Delete
 
 Store Payment Settings uses gateway cards with account verification status,

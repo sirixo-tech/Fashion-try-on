@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### PAYMENTS-1I — Simplified account maintenance
+
+Identify the gateway by its larger logo and choose Edit or Delete. Edit shows
+the existing account identifiers and placeholder dots for its saved secret.
+Leave the secret untouched to keep it, or type a replacement. Setup has an empty
+required secret. Scroll account details while the header and save actions remain
+visible. Payment verification and history remain a separate section below cards.
+
 ### PAYMENTS-1H — Maintain a Store payment account
 
 Store Admin sees gateway cards and configured/on/live-verified counts. Set up

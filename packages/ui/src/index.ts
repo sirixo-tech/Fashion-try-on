@@ -59,6 +59,7 @@ export {
   DropdownMenuTrigger,
 } from "./components/dropdown-menu";
 export { Input } from "./components/input";
+export { SecretInput } from "./components/secret-input";
 export { Label } from "./components/label";
 export { Progress } from "./components/progress";
 export { Separator } from "./components/separator";

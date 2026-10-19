@@ -1,5 +1,19 @@
 ## Document Evolution
 
+### PAYMENTS-1I — Provider logos and account dialog
+
+Supersedes PAYMENTS-1H card badges and two-column modal presentation. Use large
+local provider logos with names/descriptions, planned badges where applicable,
+selection switch and only Edit/Delete for configured gateways. Remove redundant
+Live/Verified labels and Verify payment from cards; keep verification below.
+Both Set up and Edit use a provider-logo header, scrollable single-column Account
+details body and fixed Cancel/Save gateway footer. Maintain responsive viewport
+bounds. Secret presence uses an eight-dot placeholder plus a replacement hint;
+the controlled field value remains empty until typed. SMTP and user-password
+edits use the same presence convention. Eye buttons reveal only typed passwords
+and are unavailable with no typed value; Salt Keys have no eye. New setup shows
+no saved-secret placeholder. Do not add unsupported payment-account fields.
+
 ### PAYMENTS-1H — Gateway management cards and Edit modal
 
 Use shared Card/Badge/Switch/StatCard and Dialog primitives. Show a compact gateway
