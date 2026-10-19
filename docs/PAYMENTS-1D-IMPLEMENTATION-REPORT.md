@@ -11,6 +11,29 @@ This milestone completes Store setup and UAT verification. **Live payment
 collection and the APK Buy button remain disabled.** Razorpay, Stripe, Paytm and
 PayPal remain Planned; their credential forms/connectors are not enabled.
 
+## Follow-up — Store Payment Settings access fix (19 October 2026)
+
+The shared Payment Settings page was calling the platform-only impersonation
+status API for every account. A normal Store login therefore received
+`PLATFORM_PERMISSION_DENIED` before its payment settings could load, despite
+having the correct Store payment access.
+
+The page now reads impersonation status from the existing authenticated current
+Store context. Explicit Store links still use the requested Store's server-resolved
+`paymentAccess.view/manage`; the default Store's permissions are never substituted.
+Store logins make no platform access or platform impersonation API requests.
+Impersonation still disables payment editing, and context failures remain blocking
+with a Retry action. Platform gateway access still requires its own integration
+permissions and remains blocked during impersonation.
+
+Regression coverage includes the actual Store payment route, viewers, Admins,
+explicit Store selection, context failure/retry and platform gateway access without
+impersonation privileges. All 35 targeted payment/gateway tests, web typechecking,
+changed-file lint and the production web build passed. The build retains existing
+image-optimization warnings on unrelated pages. This fix changes only the web page and its tests;
+redeploy the web service. No API change, permission grant, database migration or
+new environment variable is required.
+
 ## What changed
 
 - Store Admins with `integrations.manage` can replace credentials, select/clear

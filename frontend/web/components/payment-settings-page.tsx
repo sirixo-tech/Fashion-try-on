@@ -9,10 +9,8 @@ import {
   PageHeader,
 } from "@selfx/ui";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
-import {
-  getCurrentStoreImpersonation,
-  getEffectiveStorePermissions,
-} from "@/lib/stores";
+import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
+import { getEffectiveStorePermissions } from "@/lib/stores";
 import { useSession } from "@/lib/session";
 import { PaymentSettings } from "./payment-settings";
 
@@ -50,20 +48,20 @@ export function PaymentSettingsPage({
         storeId
           ? getEffectiveStorePermissions(accessToken, storeId)
           : Promise.resolve(null),
-        getCurrentStoreImpersonation(accessToken),
+        getCurrentMerchantStoreAccess(accessToken),
       ])
-        .then(([platform, store, impersonation]) => {
+        .then(([platform, store, context]) => {
           if (!current) return;
           setAccess({
             view: storeId
               ? store?.paymentAccess?.view === true
-              : !impersonation.session &&
+              : !context.impersonation &&
                 !!(
                   platform?.isSuperadmin ||
                   platform?.permissions.includes("INTEGRATIONS_VIEW")
                 ),
             edit:
-              !impersonation.session &&
+              !context.impersonation &&
               (storeId
                 ? store?.paymentAccess?.manage === true
                 : !!(
