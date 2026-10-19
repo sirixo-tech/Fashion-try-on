@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { cn } from "@selfx/ui";
 import type { PaymentProvider } from "@/lib/payments";
 
 const logos: Record<PaymentProvider, { file: string; name: string }> = {
@@ -11,12 +12,19 @@ const logos: Record<PaymentProvider, { file: string; name: string }> = {
 
 export function PaymentProviderLogo({
   provider,
+  className,
 }: {
   provider: PaymentProvider;
+  className?: string;
 }) {
   const logo = logos[provider];
   return (
-    <div className="flex h-20 w-32 shrink-0 items-center justify-center rounded-xl border bg-white p-3 shadow-sm">
+    <div
+      className={cn(
+        "flex h-20 w-32 shrink-0 items-center justify-center rounded-xl border bg-white p-3 shadow-sm",
+        className,
+      )}
+    >
       <Image
         src={`/brand/payments/${logo.file}`}
         alt={`${logo.name} logo`}

@@ -1,5 +1,12 @@
 ## Document Evolution
 
+### PAYMENTS-1J — Accurate compact gateway status
+
+Group gateway name, short description and compact mode/status badges beside its
+logo. Badges derive from the current saved environment, verification, selection
+and platform availability. A verified live account may show Live mode / Verified;
+it must not show Ready for checkout while customer checkout remains disabled.
+
 ### PAYMENTS-1I — Simplified cards and saved-secret fields
 
 Use larger provider logos on Store gateway cards. Remove per-card Live/Verified

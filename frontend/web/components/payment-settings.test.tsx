@@ -333,9 +333,68 @@ describe("payment settings", () => {
     ).toEqual(["Edit", "Delete"]);
     expect(screen.queryByText("Live account verified")).toBeNull();
     expect(screen.queryByText("Live mode (real payments)")).toBeNull();
+    expect(screen.getByText("Live mode")).toBeTruthy();
+    expect(screen.getByText("Verified")).toBeTruthy();
+    expect(screen.queryByText("Ready for checkout")).toBeNull();
     expect(screen.queryByText("Account verification passed")).toBeNull();
     expect(screen.getByText("Store verification workspace")).toBeTruthy();
   });
+  it.each([
+    {
+      environment: "UAT" as const,
+      status: "VERIFIED" as const,
+      selected: false,
+      enabled: true,
+      mode: "Test mode",
+      state: "Off",
+    },
+    {
+      environment: "PRODUCTION" as const,
+      status: "UNVERIFIED" as const,
+      selected: true,
+      enabled: true,
+      mode: "Live mode",
+      state: "Needs verification",
+    },
+    {
+      environment: "UNCONFIRMED" as const,
+      status: "UNVERIFIED" as const,
+      selected: true,
+      enabled: true,
+      mode: "Mode unconfirmed",
+      state: "Needs verification",
+    },
+    {
+      environment: "PRODUCTION" as const,
+      status: "VERIFIED" as const,
+      selected: true,
+      enabled: false,
+      mode: "Live mode",
+      state: "Off",
+    },
+  ])(
+    "shows $mode / $state for the actual gateway state",
+    async ({ environment, status, selected, enabled, mode, state }) => {
+      vi.mocked(getStorePayments).mockResolvedValue({
+        ...configured,
+        selectedProvider: selected ? "PHONEPE" : null,
+        gateways: [{ ...gateways[0]!, enabled }, gateways[1]!],
+        connections: [{ ...configured.connections[0]!, environment, status }],
+      });
+      render(
+        <PaymentSettings
+          accessToken="fixture_token"
+          storeId="store-a"
+          canEdit
+        />,
+      );
+      await screen.findByRole("button", { name: "Edit" });
+      expect(screen.getByText(mode)).toBeTruthy();
+      expect(screen.getByText(state, { exact: true })).toBeTruthy();
+      expect(screen.queryByText("Ready for checkout")).toBeNull();
+      expect(screen.getByText("Planned")).toBeTruthy();
+    },
+  );
   it("turns off selection without deleting saved credentials", async () => {
     vi.mocked(getStorePayments).mockResolvedValue(configured);
     vi.mocked(selectStoreGateway).mockResolvedValue({

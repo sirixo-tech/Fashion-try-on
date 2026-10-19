@@ -219,6 +219,15 @@ function StorePaymentSettingsPanel({
             (item) => item.provider === gateway.provider,
           );
           const selected = store.selectedProvider === gateway.provider;
+          const status = !gateway.setupAvailable
+            ? "Planned"
+            : !connection
+              ? "Needs setup"
+              : !gateway.enabled || !selected
+                ? "Off"
+                : connection.status === "VERIFIED"
+                  ? "Verified"
+                  : "Needs verification";
           return (
             <Card
               key={gateway.provider}
@@ -227,58 +236,90 @@ function StorePaymentSettingsPanel({
               }
             >
               <CardHeader>
-                <div className="flex items-start gap-4">
-                  <PaymentProviderLogo provider={gateway.provider} />
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <PaymentProviderLogo
+                    provider={gateway.provider}
+                    className="w-24 sm:w-32"
+                  />
                   <div className="min-w-0 space-y-2">
                     <CardTitle>{gateway.name}</CardTitle>
-                    <div className="flex flex-wrap gap-2">
-                      {!gateway.setupAvailable && (
-                        <Badge variant="outline">Planned</Badge>
+                    <p className="text-sm text-muted-foreground">
+                      {gateway.provider === "PHONEPE" ||
+                      gateway.provider === "PAYTM"
+                        ? "Dynamic UPI QR payments."
+                        : gateway.provider === "STRIPE"
+                          ? "Cards and international payments."
+                          : gateway.provider === "RAZORPAY"
+                            ? "Payments for India."
+                            : "Payments with PayPal."}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {gateway.setupAvailable && connection && (
+                        <Badge
+                          variant="outline"
+                          className="border-info/20 bg-info/10 text-info text-[11px]"
+                        >
+                          {connection.environment === "PRODUCTION"
+                            ? "Live mode"
+                            : connection.environment === "UAT"
+                              ? "Test mode"
+                              : "Mode unconfirmed"}
+                        </Badge>
                       )}
+                      <Badge
+                        variant="outline"
+                        className={
+                          status === "Verified"
+                            ? "border-success/20 bg-success/10 text-success text-[11px]"
+                            : status === "Needs verification" ||
+                                status === "Needs setup"
+                              ? "border-warning/30 bg-warning/10 text-foreground text-[11px]"
+                              : "border-border bg-muted/50 text-muted-foreground text-[11px]"
+                        }
+                        title={
+                          status === "Verified"
+                            ? "Account verification passed. Customer checkout is not enabled yet."
+                            : undefined
+                        }
+                      >
+                        {status}
+                      </Badge>
                     </div>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  {gateway.provider === "PHONEPE" ||
-                  gateway.provider === "PAYTM"
-                    ? "Dynamic UPI QR payments."
-                    : gateway.provider === "STRIPE"
-                      ? "Cards and international payments."
-                      : gateway.provider === "RAZORPAY"
-                        ? "Payments for India."
-                        : "Payments with PayPal."}
-                </p>
-                {!gateway.enabled && gateway.setupAvailable && (
-                  <p className="text-sm text-muted-foreground">
-                    New setup and selection are disabled by SelfX.
-                  </p>
-                )}
-                {gateway.setupAvailable && (
-                  <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 p-4">
-                    <div>
-                      <p className="font-medium">Use for future checkout</p>
-                      <p className="text-sm text-muted-foreground">
-                        {selected ? "On" : "Off"} · Saved automatically
-                      </p>
+              {gateway.setupAvailable && (
+                <CardContent className="space-y-4">
+                  {!gateway.enabled && gateway.setupAvailable && (
+                    <p className="text-sm text-muted-foreground">
+                      New setup and selection are disabled by SelfX.
+                    </p>
+                  )}
+                  {gateway.setupAvailable && (
+                    <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 p-4">
+                      <div>
+                        <p className="font-medium">Use for future checkout</p>
+                        <p className="text-sm text-muted-foreground">
+                          {selected ? "On" : "Off"} · Saved automatically
+                        </p>
+                      </div>
+                      <Switch
+                        aria-label={`Use ${gateway.name} for future checkout`}
+                        checked={selected}
+                        disabled={
+                          !canEdit ||
+                          locked ||
+                          !connection ||
+                          (!selected && !gateway.enabled)
+                        }
+                        onCheckedChange={(on) =>
+                          void change(on ? gateway.provider : null)
+                        }
+                      />
                     </div>
-                    <Switch
-                      aria-label={`Use ${gateway.name} for future checkout`}
-                      checked={selected}
-                      disabled={
-                        !canEdit ||
-                        locked ||
-                        !connection ||
-                        (!selected && !gateway.enabled)
-                      }
-                      onCheckedChange={(on) =>
-                        void change(on ? gateway.provider : null)
-                      }
-                    />
-                  </div>
-                )}
-              </CardContent>
+                  )}
+                </CardContent>
+              )}
               {canEdit && gateway.setupAvailable && (
                 <CardFooter className="flex flex-wrap gap-2">
                   {canEdit && gateway.setupAvailable && !connection && (

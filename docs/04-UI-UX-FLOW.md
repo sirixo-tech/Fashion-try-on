@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### PAYMENTS-1J — Aligned gateway identity and compact status
+
+Align the provider logo left and group its name, description and compact wrapping
+badges on the right. Supported configured gateways show Live mode, Test mode or
+Mode unconfirmed, plus Verified, Needs verification or Off. Disabled/unselected
+configured gateways show Off. Unconfigured supported gateways show Needs setup;
+unsupported gateways show Planned only. Verified means account verification,
+never checkout readiness: customer checkout remains unavailable. Keep Edit/Delete,
+the selection switch and separate verification/history. Mobile logos narrow to
+leave space for text; no horizontal overflow. This supersedes PAYMENTS-1I's removal
+of mode/status badges while keeping its other simplifications.
+
 ### PAYMENTS-1I — Provider logos and account dialog
 
 Supersedes PAYMENTS-1H card badges and two-column modal presentation. Use large
