@@ -362,7 +362,7 @@ it("retries opening the same saved test when reading it fails", async () => {
   expect(startStorePaymentTest).not.toHaveBeenCalled();
 });
 it.each(["UNCONFIRMED", "PRODUCTION"] as const)(
-  "does not enable QR tests for %s configuration",
+  "keeps verification disabled for unconfirmed or unconfigured %s accounts",
   async (environment) => {
     vi.mocked(getStorePaymentWorkspace).mockResolvedValue({
       ...workspace,
@@ -374,7 +374,10 @@ it.each(["UNCONFIRMED", "PRODUCTION"] as const)(
     });
     render(panel());
     const button = await screen.findByRole("button", {
-      name: "Generate ₹1 test QR",
+      name:
+        environment === "PRODUCTION"
+          ? "Generate ₹1 live verification QR"
+          : "Generate ₹1 test QR",
     });
     expect((button as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(button);
@@ -391,3 +394,90 @@ it("keeps a previous account's passed test separate from the current setup state
   expect(screen.getByText("Previous account configuration")).toBeTruthy();
   expect(screen.getByText("Live payments: Not enabled")).toBeTruthy();
 });
+it("opens a production QR for the Store's saved version and labels it as real money", async () => {
+  const live: PlatformPaymentTestDetail = {
+    ...test,
+    environment: "PRODUCTION",
+    testOnly: false,
+  };
+  vi.mocked(getStorePaymentWorkspace).mockResolvedValue({
+    ...workspace,
+    connection: {
+      ...workspace.connection!,
+      environment: "PRODUCTION",
+      dqrAccessConfirmed: false,
+    },
+    productionEndpointConfigured: true,
+  });
+  vi.mocked(startStorePaymentTest).mockResolvedValue(live);
+  vi.mocked(checkStorePaymentTest).mockResolvedValue({
+    ...live,
+    status: "SUCCEEDED",
+    qrString: null,
+  });
+  render(panel());
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Generate ₹1 live verification QR",
+    }),
+  );
+  expect(
+    await screen.findByRole("dialog", {
+      name: "PhonePe live account verification",
+    }),
+  ).toBeTruthy();
+  expect(
+    await screen.findByAltText("PhonePe live verification payment QR"),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(/Production. Paying this QR transfers real money/),
+  ).toBeTruthy();
+  expect(startStorePaymentTest).toHaveBeenCalledWith(
+    "identity",
+    "store-a",
+    3,
+    expect.any(String),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Check payment status" }));
+  expect(
+    (await screen.findAllByText("Live verification passed")).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.queryByAltText("PhonePe live verification payment QR"),
+  ).toBeNull();
+});
+it("keeps a historical UAT result labelled UAT when current credentials are production", async () => {
+  vi.mocked(getStorePaymentWorkspace).mockResolvedValue({
+    ...workspace,
+    connection: { ...workspace.connection!, environment: "PRODUCTION" },
+    tests: [{ ...test, connectionVersion: 2 }],
+    productionEndpointConfigured: true,
+  });
+  render(panel());
+  fireEvent.click(await screen.findByRole("button", { name: "Open test" }));
+  expect(
+    await screen.findByRole("dialog", { name: "PhonePe test payment" }),
+  ).toBeTruthy();
+  expect(
+    await screen.findByAltText("PhonePe UAT test payment QR"),
+  ).toBeTruthy();
+  expect(startStorePaymentTest).not.toHaveBeenCalled();
+});
+it.each(["endpoint", "execution"])(
+  "does not enable live verification without %s readiness",
+  async (missing) => {
+    vi.mocked(getStorePaymentWorkspace).mockResolvedValue({
+      ...workspace,
+      connection: { ...workspace.connection!, environment: "PRODUCTION" },
+      productionEndpointConfigured: missing !== "endpoint",
+      executionEnabled: missing !== "execution",
+    });
+    render(panel());
+    const button = await screen.findByRole("button", {
+      name: "Generate ₹1 live verification QR",
+    });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(button);
+    expect(startStorePaymentTest).not.toHaveBeenCalled();
+  },
+);

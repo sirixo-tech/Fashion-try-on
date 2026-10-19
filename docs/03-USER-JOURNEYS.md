@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### PAYMENTS-1G — Verify a Store's production merchant account
+
+Store Admin saves production credentials, then sees Generate INR 1 live
+verification QR once SelfX has configured the provider-confirmed connection and
+enabled live verification. Explain that paying transfers real money to the saved
+merchant. Open the QR/result popup immediately, preserve the verification in
+history, and show status and callback receipt separately. Older UAT results keep
+their UAT labels even after production credentials are saved. Reopen an active
+verification; after expiry, a new verification can be generated. Passing does not
+enable customer checkout. Missing endpoint confirmation remains an explicit setup
+prerequisite, not a fabricated successful QR or provider/account verification.
+
 ### PAYMENTS-1F — Reopen active QR or generate after expiry
 
 Generate reopens an unresolved test until its QR deadline. After that deadline,

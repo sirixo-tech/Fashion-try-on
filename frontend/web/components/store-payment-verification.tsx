@@ -85,12 +85,16 @@ export function StorePaymentVerification({
     setRevision((old) => old + 1);
   }, []);
   const activeTest = useActivePaymentTest(workspace, selected);
+  const live = workspace?.connection?.environment === "PRODUCTION";
+  const popupLive = selected ? selected.environment === "PRODUCTION" : live;
   const ready =
     enabled &&
-    workspace?.connection?.environment === "UAT" &&
-    workspace.connection.dqrAccessConfirmed &&
-    workspace.executionEnabled &&
-    workspace.callbackConfigured;
+    (live
+      ? workspace?.productionEndpointConfigured
+      : workspace?.connection?.environment === "UAT" &&
+        workspace.connection.dqrAccessConfirmed) &&
+    workspace?.executionEnabled &&
+    workspace?.callbackConfigured;
   async function start() {
     if (activeTest && !startKey.current) {
       await open(activeTest.id);
@@ -153,7 +157,11 @@ export function StorePaymentVerification({
   return (
     <SectionCard
       title="PhonePe account verification"
-      description="Test this Store's saved account. Tests do not create orders, reserve stock or enable live checkout."
+      description={
+        live
+          ? "Verify this Store's saved production account with a ₹1 real payment. This does not create an order or enable customer checkout."
+          : "Test this Store's saved account. Tests do not create orders, reserve stock or enable live checkout."
+      }
     >
       <div className="space-y-4">
         {error && (
@@ -185,24 +193,46 @@ export function StorePaymentVerification({
                   workspace.testStatus === "PASSED" ? "default" : "outline"
                 }
               >
-                {labels[workspace.testStatus]}
+                {live && workspace.testStatus === "PASSED"
+                  ? "Live verification passed"
+                  : labels[workspace.testStatus]}
               </Badge>
-              <Badge variant="outline">Live payments: Not enabled</Badge>
+              <Badge variant="outline">
+                {live
+                  ? "Customer checkout: Not enabled"
+                  : "Live payments: Not enabled"}
+              </Badge>
             </div>
-            {workspace.connection?.environment !== "UAT" && (
+            {workspace.connection?.environment !== "UAT" && !live && (
               <p>
-                Configure confirmed UAT credentials before testing. Live and
-                unconfirmed accounts cannot generate test QRs.
+                Configure production credentials or confirmed UAT credentials
+                before account verification.
               </p>
             )}
-            {!workspace.connection?.dqrAccessConfirmed && (
+            {!live && !workspace.connection?.dqrAccessConfirmed && (
               <p>
                 Dynamic QR test access has not been confirmed for this Store
                 account.
               </p>
             )}
             {!workspace.executionEnabled && (
-              <p>Payment testing has not been enabled by SelfX.</p>
+              <p>
+                {live
+                  ? "Live account verification has not been enabled by SelfX."
+                  : "Payment testing has not been enabled by SelfX."}
+              </p>
+            )}
+            {live && !workspace.productionEndpointConfigured && (
+              <p>
+                PhonePe's production Dynamic QR endpoint must be confirmed and
+                configured by SelfX before a live QR can be generated.
+              </p>
+            )}
+            {live && (
+              <p>
+                Scanning and paying this verification QR transfers ₹1 in real
+                money to the configured merchant account.
+              </p>
             )}
             {!workspace.callbackConfigured && (
               <p>
@@ -221,7 +251,11 @@ export function StorePaymentVerification({
                   disabled={locked || !ready}
                   onClick={() => void start()}
                 >
-                  {busy ? "Please wait…" : "Generate ₹1 test QR"}
+                  {busy
+                    ? "Please wait…"
+                    : live
+                      ? "Generate ₹1 live verification QR"
+                      : "Generate ₹1 test QR"}
                 </Button>
               )}
               <Button
@@ -242,8 +276,9 @@ export function StorePaymentVerification({
               </p>
             )}
             <p className="text-sm text-muted-foreground">
-              A passed UAT test verifies only this saved Store configuration. It
-              does not verify live credentials or another Store's account.
+              {live
+                ? "A successful live verification applies only to this Store's saved production configuration. It does not enable customer checkout."
+                : "A passed UAT test verifies only this saved Store configuration. It does not verify live credentials or another Store's account."}{" "}
               Callback delivery is shown separately in each result.
             </p>
             <h3 className="font-medium">Recent Store tests</h3>
@@ -255,6 +290,7 @@ export function StorePaymentVerification({
                   <TableRow>
                     <TableHead>Created</TableHead>
                     <TableHead>Configuration</TableHead>
+                    <TableHead>Environment</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -272,10 +308,17 @@ export function StorePaymentVerification({
                           : "Previous account configuration"}
                       </TableCell>
                       <TableCell>
+                        {test.environment === "PRODUCTION"
+                          ? "Production / real payment"
+                          : "UAT / test"}
+                      </TableCell>
+                      <TableCell>
                         {test.verificationPending
                           ? "Confirmation pending"
                           : test.status === "SUCCEEDED"
-                            ? "Test passed"
+                            ? test.environment === "PRODUCTION"
+                              ? "Live verification passed"
+                              : "Test passed"
                             : test.status}
                       </TableCell>
                       <TableCell>
@@ -309,10 +352,16 @@ export function StorePaymentVerification({
             showCloseButton={!locked}
           >
             <DialogHeader>
-              <DialogTitle>PhonePe test payment</DialogTitle>
+              <DialogTitle>
+                {popupLive
+                  ? "PhonePe live account verification"
+                  : "PhonePe test payment"}
+              </DialogTitle>
               <DialogDescription>
-                ₹1.00 UAT test for this Store. Closing keeps the test in Recent
-                Store tests.
+                {popupLive
+                  ? "₹1.00 real payment using this Store's saved production merchant account."
+                  : "₹1.00 UAT test for this Store."}{" "}
+                Closing keeps the verification in Recent Store tests.
               </DialogDescription>
             </DialogHeader>
             {busy && (

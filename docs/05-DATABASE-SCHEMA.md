@@ -2,6 +2,16 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1G — Store-only production verification snapshots
+
+Migration 20261019020000_store_live_payment_verification permits PRODUCTION in
+platform_payment_tests only when organization_id is non-null. Platform test
+connections/records remain UAT-only. Existing INR 100-minor-unit checks, scopes,
+FKs, histories, idempotency and transaction uniqueness remain. Pin apiBaseUrl in
+the encrypted production snapshot without new columns; public summaries omit it
+and all credentials. testOnly is false for production verification, which is a
+real payment. Do not rewrite historical UAT environments or outcomes.
+
 ### PAYMENTS-1F — Reuse existing test lifetime and history
 
 Migration 20261019010000_payment_test_qr_renewal replaces the indefinite unique

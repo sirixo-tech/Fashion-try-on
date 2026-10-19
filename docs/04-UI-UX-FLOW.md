@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYMENTS-1G — Production QR labels and readiness
+
+For saved production accounts, show Generate INR 1 live verification QR and an
+inline real-money explanation. Do not require the UAT access dropdown for this
+action. Show missing SelfX execution/production-connection/callback prerequisites
+and disable Generate until ready. Production popup, QR alternative text, result
+and history environment labels distinguish real payments from UAT. Derive result
+labels from the opened record, not the current configuration. Display Live
+verification passed after independent success; customer checkout remains disabled.
+Reuse the shared popup, active-test reopening, expiry and diagnostic behavior.
+
 ### PAYMENTS-1F — Expiry-aware Generate action
 
 Keep Generate enabled when the account is ready and no operation is in flight.

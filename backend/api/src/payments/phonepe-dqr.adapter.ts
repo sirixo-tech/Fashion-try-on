@@ -10,6 +10,10 @@ import type {
   ProviderPaymentStatus,
   ProviderRequest,
 } from "./payment-adapter.js";
+import {
+  phonePeUatBase,
+  validatePhonePeProductionBase,
+} from "./phonepe-endpoints.js";
 
 export type PhonePeDqrCredentials = {
   environment: PaymentEnvironment;
@@ -18,11 +22,11 @@ export type PhonePeDqrCredentials = {
   providerStoreId: string;
   saltIndex: string;
   saltKey: string;
+  apiBaseUrl?: string;
 };
-const uatBase = "https://mercury-uat.phonepe.com/enterprise-sandbox";
 
-// In-store Dynamic QR adapter. Only explicit, confirmed UAT setup is supported;
-// production remains rejected pending real merchant/provider verification.
+// In-store v3 Dynamic QR. Production endpoint provenance is pinned in the
+// encrypted Store verification snapshot, independently from UAT credentials.
 export class PhonePeDqrAdapter implements PaymentAdapter {
   constructor(private readonly credentials: PhonePeDqrCredentials) {}
   createRequest(
@@ -56,7 +60,7 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
       }),
     ).toString("base64");
     return {
-      url: `${uatBase}/v3/qr/init`,
+      url: `${this.base()}/v3/qr/init`,
       method: "POST",
       headers: {
         ...this.headers(encoded + "/v3/qr/init"),
@@ -69,7 +73,11 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
   statusRequest(expected: PaymentExpectation): ProviderRequest {
     this.check(expected);
     const path = `/v3/transaction/${this.credentials.merchantId}/${expected.transactionId}/status`;
-    return { url: uatBase + path, method: "GET", headers: this.headers(path) };
+    return {
+      url: this.base() + path,
+      method: "GET",
+      headers: this.headers(path),
+    };
   }
   parseQr(response: unknown, expected: PaymentExpectation) {
     this.check(expected);
@@ -195,8 +203,9 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
     return data;
   }
   private check(expected: PaymentExpectation) {
-    if (this.credentials.environment !== "UAT")
+    if (!["UAT", "PRODUCTION"].includes(this.credentials.environment))
       throw new PaymentProviderError("LOCAL_REQUEST_INVALID");
+    this.base();
     if (
       !/^[A-Za-z0-9_-]{1,100}$/.test(this.credentials.merchantId) ||
       !/^[A-Za-z0-9_-]{1,37}$/.test(this.credentials.providerStoreId) ||
@@ -220,6 +229,11 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
       "###" +
       this.credentials.saltIndex
     );
+  }
+  private base() {
+    return this.credentials.environment === "UAT"
+      ? phonePeUatBase
+      : validatePhonePeProductionBase(this.credentials.apiBaseUrl);
   }
   private headers(prefix: string) {
     return {

@@ -44,6 +44,8 @@ describe.skipIf(!url)(
         SELFX_PAYMENT_ENCRYPTION_KEY: Buffer.alloc(32, 6).toString("base64"),
         SELFX_PAYMENT_ENCRYPTION_KEY_VERSION: "store_verification_fixture",
         SELFX_PHONEPE_UAT_ENABLED: "true",
+        SELFX_PHONEPE_PRODUCTION_ENABLED: "false",
+        SELFX_PHONEPE_PRODUCTION_BASE_URL: "",
         SELFX_PAYMENT_CALLBACK_BASE_URL: "https://callbacks.example.test",
       })) {
         old.set(key, process.env[key]);
@@ -79,6 +81,8 @@ describe.skipIf(!url)(
         enabled: true,
       });
       process.env.SELFX_PHONEPE_UAT_ENABLED = "true";
+      process.env.SELFX_PHONEPE_PRODUCTION_ENABLED = "false";
+      process.env.SELFX_PHONEPE_PRODUCTION_BASE_URL = "";
       process.env.SELFX_PAYMENT_CALLBACK_BASE_URL =
         "https://callbacks.example.test";
       send.mockReset();
@@ -374,7 +378,115 @@ describe.skipIf(!url)(
         await db.platformPaymentTest.count({ where: { organizationId: a } }),
       ).toBe(2);
     });
-    it.each(["UNCONFIRMED", "PRODUCTION"] as const)(
+    it("requires production readiness and uses each Store's own live snapshot for QR, status and callback", async () => {
+      await save(a, {
+        environment: "PRODUCTION",
+        dqrAccessConfirmed: false,
+        providerId: "LIVE_PROVIDER_A",
+      });
+      await save(b, {
+        environment: "PRODUCTION",
+        dqrAccessConfirmed: false,
+        providerId: "LIVE_PROVIDER_B",
+      });
+      await expect(start(a)).rejects.toMatchObject(
+        error("PAYMENT_NOT_ENABLED"),
+      );
+      process.env.SELFX_PHONEPE_PRODUCTION_ENABLED = "true";
+      await expect(start(a)).rejects.toMatchObject(
+        error("PRODUCTION_ENDPOINT_UNCONFIGURED"),
+      );
+      expect(send).not.toHaveBeenCalled();
+      // Fixture only, not a claim about the account's real production endpoint.
+      const base = "https://fixture.phonepe.com/merchant";
+      process.env.SELFX_PHONEPE_PRODUCTION_BASE_URL = base;
+      process.env.SELFX_PHONEPE_UAT_ENABLED = "false";
+      expect((await engine.workspace(a)).executionEnabled).toBe(true);
+      const key = createSelfxId();
+      const first = await start(a, key),
+        second = await start(b, key);
+      expect(first.environment).toBe("PRODUCTION");
+      expect(first.testOnly).toBe(false);
+      expect(first.qrString).toContain("upi://pay");
+      for (const [index, storeId] of [a, b].entries()) {
+        const request = send.mock.calls[index]![0];
+        expect(request.url).toBe(base + "/v3/qr/init");
+        expect(request.headers["X-PROVIDER-ID"]).toBe(
+          index === 0 ? "LIVE_PROVIDER_A" : "LIVE_PROVIDER_B",
+        );
+        const encoded = JSON.parse(request.body!).request;
+        expect(
+          JSON.parse(Buffer.from(encoded, "base64").toString()).merchantId,
+        ).toBe(merchant(storeId));
+        expect(request.headers["X-VERIFY"]).toBe(
+          createHash("sha256")
+            .update(encoded + "/v3/qr/init" + salt)
+            .digest("hex") + "###1",
+        );
+      }
+      expect((await start(a, key)).id).toBe(first.id);
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(JSON.stringify(first)).not.toContain(salt);
+      await expect(engine.detail(first.id, b)).rejects.toThrow();
+      await expect(engine.detail(first.id)).rejects.toThrow();
+      // Replacement must not alter the original merchant or production endpoint.
+      await save(a, {
+        environment: "UAT",
+        merchantId: "NEW_UAT_MERCHANT",
+        saltKey: "replacement-fixture-salt-key",
+      });
+      process.env.SELFX_PHONEPE_PRODUCTION_BASE_URL =
+        "https://new-fixture.phonepe.com";
+      await callback(first.id, a);
+      await due(first.id);
+      const checked = await engine.check(first.id, actor, a);
+      expect(checked.status).toBe("SUCCEEDED");
+      expect(send.mock.calls.at(-1)![0].url).toContain(
+        base + "/v3/transaction/" + merchant(a),
+      );
+      expect((await engine.workspace(a)).testStatus).toBe("NOT_TESTED");
+      expect((await settings.getStore(a)).paymentAvailable).toBe(false);
+      const audits = await db.auditLog.findMany({
+        where: { actorUserId: actor, resourceId: first.id },
+      });
+      expect(
+        audits.some(
+          (row) =>
+            (row.metadata as { environment?: string }).environment ===
+            "PRODUCTION",
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(audits)).not.toContain(salt);
+      // The database also refuses to turn platform testing into live collection.
+      await expect(
+        db.platformPaymentTest.update({
+          where: { id: second.id },
+          data: { organizationId: null, scopeKey: "PLATFORM_TEST" },
+        }),
+      ).rejects.toThrow();
+    });
+    it("renews an expired production QR and preserves late verification", async () => {
+      await save(a, { environment: "PRODUCTION", dqrAccessConfirmed: false });
+      process.env.SELFX_PHONEPE_PRODUCTION_ENABLED = "true";
+      process.env.SELFX_PHONEPE_PRODUCTION_BASE_URL =
+        "https://fixture.phonepe.com";
+      const first = await start();
+      await expect(start()).rejects.toMatchObject(
+        error("PAYMENT_TEST_PENDING"),
+      );
+      await db.platformPaymentTest.update({
+        where: { id: first.id },
+        data: { expiresAt: new Date(0) },
+      });
+      const second = await start();
+      expect(second.id).not.toBe(first.id);
+      expect((await engine.detail(first.id, a)).qrString).toBeNull();
+      await callback(first.id, a);
+      await due(first.id);
+      expect((await engine.check(first.id, actor, a)).status).toBe("SUCCEEDED");
+      expect((await engine.detail(second.id, a)).status).toBe("PENDING");
+    });
+    it.each(["UNCONFIRMED"] as const)(
       "never executes %s credentials as a UAT test",
       async (environment) => {
         await save(a, { environment, dqrAccessConfirmed: false });

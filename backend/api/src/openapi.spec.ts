@@ -81,6 +81,18 @@ describe("OpenAPI documentation", () => {
         .properties.serverTime,
     ).toBeTruthy();
     expect(
+      response.body.components.schemas.PlatformPaymentTestWorkspaceDto
+        .properties.productionEndpointConfigured,
+    ).toBeTruthy();
+    expect(
+      response.body.components.schemas.PlatformPaymentTestSummaryDto.properties
+        .environment.enum,
+    ).toEqual(["UAT", "PRODUCTION"]);
+    expect(
+      response.body.components.schemas.PlatformPaymentTestSummaryDto.properties
+        .testOnly.type,
+    ).toBe("boolean");
+    expect(
       response.body.components.schemas.PaymentTestDiagnosticDto.properties,
     ).toMatchObject({
       code: expect.any(Object),

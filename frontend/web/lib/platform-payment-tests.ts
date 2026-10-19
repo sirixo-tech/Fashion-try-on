@@ -4,7 +4,7 @@ import type { PhonePeSetup } from "./payments";
 export type PlatformPaymentTest = {
   id: string;
   provider: string;
-  environment: "UAT";
+  environment: "UAT" | "PRODUCTION";
   connectionVersion: number;
   status: "PREPARING" | "PENDING" | "UNKNOWN" | "FAILED" | "SUCCEEDED";
   amountMinor: number;
@@ -18,7 +18,7 @@ export type PlatformPaymentTest = {
   failureCode: string | null;
   callbackReceived: boolean;
   verificationPending: boolean;
-  testOnly: true;
+  testOnly: boolean;
 };
 export type PlatformPaymentTestDetail = PlatformPaymentTest & {
   diagnostics?: {
@@ -45,6 +45,7 @@ export type PlatformPaymentWorkspace = {
     updatedAt: string;
   } | null;
   executionEnabled: boolean;
+  productionEndpointConfigured?: boolean;
   callbackConfigured: boolean;
   testStatus:
     | "NOT_CONFIGURED"

@@ -1,5 +1,27 @@
 ## Document Evolution
 
+### PAYMENTS-1G — Environment-specific Store verification
+
+Extend the shared Store verification service to PRODUCTION while platform probes
+remain UAT-only. Use the Store's saved environment and locked credential version;
+never accept merchant routing/secrets/endpoints from the Generate request. UAT
+still requires its declared access and API switch. Production requires independent
+SELFX_PHONEPE_PRODUCTION_ENABLED=true and SELFX_PHONEPE_PRODUCTION_BASE_URL, the
+PhonePe-confirmed base before /v3/qr/init. Supply no guessed production default.
+Validate HTTPS PhonePe subdomain, canonical path and absence of userinfo, port,
+query, fragment and sandbox/UAT markers. Restrict transport to exact QR/status
+paths and disallow redirects. The existing v3 request/response contract is reused;
+account support and mandatory fields must be confirmed with PhonePe before use.
+
+Pin the production base with the merchant/provider/Store/signing credentials in
+the encrypted verification snapshot. Later credential edits must not change the
+old transaction. A changed global endpoint may pause old checks because transport
+only permits the currently configured base; retain the original snapshot and do
+not reroute it. Separate UAT and production execution switches remain effective
+for reconciliation. Callback signature and independently matched status evidence
+remain necessary for verified outcomes. Audit the actual environment. No order
+execution, checkout enablement or stock changes are added by live verification.
+
 ### PAYMENTS-1F — Expiry-bounded test initialization guard
 
 Under the existing account-scope transaction lock, block a fresh test only for

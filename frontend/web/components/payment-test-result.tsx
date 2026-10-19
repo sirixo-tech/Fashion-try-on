@@ -149,9 +149,15 @@ export function PaymentTestResult({
       aria-label="PhonePe test result"
       className="space-y-4 rounded-lg border p-4"
     >
-      <h3 className="font-medium">PhonePe test result</h3>
+      <h3 className="font-medium">
+        {test.environment === "PRODUCTION"
+          ? "PhonePe live verification result"
+          : "PhonePe test result"}
+      </h3>
       <p className="text-sm text-muted-foreground">
-        ₹1.00 · UAT only. Use PhonePe's supported test tooling.
+        {test.environment === "PRODUCTION"
+          ? "₹1.00 · Production. Paying this QR transfers real money to the configured merchant account."
+          : "₹1.00 · UAT only. Use PhonePe's supported test tooling."}
       </p>
       {error && (
         <Alert variant="destructive">
@@ -183,7 +189,11 @@ export function PaymentTestResult({
             src={qrImage}
             width={280}
             height={280}
-            alt="PhonePe UAT test payment QR"
+            alt={
+              test.environment === "PRODUCTION"
+                ? "PhonePe live verification payment QR"
+                : "PhonePe UAT test payment QR"
+            }
             className="mx-auto rounded-lg bg-white"
           />
         )}
@@ -271,6 +281,8 @@ export function PaymentTestResult({
   );
 }
 function resultLabel(test: PlatformPaymentTest) {
+  if (test.environment === "PRODUCTION" && test.status === "SUCCEEDED")
+    return "Live verification passed";
   if (
     test.verificationPending ||
     test.failureCode === "PAYMENT_EVIDENCE_CONFLICT"
@@ -292,7 +304,7 @@ function guidance(test: PlatformPaymentTest) {
   if (test.failureCode === "PAYMENT_EVIDENCE_CONFLICT")
     return "The notification and status response disagree. Verification continues; do not start another payment.";
   if (test.status === "FAILED")
-    return "PhonePe confirmed failure for this test. Inspect your UAT account and test scenario before trying again.";
+    return "PhonePe confirmed failure for this verification. Review the account configuration and payment result before trying again.";
   return "Payment is not confirmed yet. An expired QR or a network timeout does not prove failure. Background checks continue; use Open test to resume after leaving this page.";
 }
 function date(value: string) {

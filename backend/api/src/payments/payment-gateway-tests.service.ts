@@ -19,6 +19,10 @@ import {
   PaymentProviderError,
 } from "./payment-diagnostics.js";
 import type { ProviderPaymentStatus } from "./payment-adapter.js";
+import {
+  phonePeProductionBase,
+  phonePeProductionReady,
+} from "./phonepe-endpoints.js";
 import type {
   SavePlatformPhonePeTestDto,
   StartPlatformPaymentTestDto,
@@ -77,7 +81,10 @@ export class PaymentGatewayTestsService {
       }),
     ]);
     const latest = rows.find(
-      (row) => row.connectionVersion === connection?.version,
+      (row) =>
+        !!connection &&
+        row.connectionVersion === connection.version &&
+        row.environment === connection.environment,
     );
     let callbackConfigured = false;
     try {
@@ -91,7 +98,11 @@ export class PaymentGatewayTestsService {
       connection: connection
         ? { ...connection, updatedAt: connection.updatedAt.toISOString() }
         : null,
-      executionEnabled: process.env.SELFX_PHONEPE_UAT_ENABLED === "true",
+      executionEnabled:
+        connection?.environment === "PRODUCTION" && storeId
+          ? process.env.SELFX_PHONEPE_PRODUCTION_ENABLED === "true"
+          : process.env.SELFX_PHONEPE_UAT_ENABLED === "true",
+      productionEndpointConfigured: phonePeProductionReady(),
       callbackConfigured,
       testStatus: !connection
         ? "NOT_CONFIGURED"
@@ -199,11 +210,6 @@ export class PaymentGatewayTestsService {
         },
       });
       if (old) return { row: old, created: false };
-      if (process.env.SELFX_PHONEPE_UAT_ENABLED !== "true")
-        fail(
-          "PAYMENT_NOT_ENABLED",
-          "PhonePe UAT execution is disabled on the API.",
-        );
       paymentCallbackOrigin();
       const connection = storeId
         ? await tx.storePaymentConnection.findUnique({
@@ -216,13 +222,55 @@ export class PaymentGatewayTestsService {
           });
       if (
         !connection ||
-        !connection.dqrAccessConfirmed ||
-        connection.environment !== "UAT"
+        (connection.environment !== "PRODUCTION" &&
+          connection.environment !== "UAT") ||
+        (connection.environment === "UAT" && !connection.dqrAccessConfirmed) ||
+        (!storeId && connection.environment !== "UAT")
       )
         fail(
           "PAYMENT_ACCOUNT_UNCONFIRMED",
-          "Save and confirm this account's UAT Dynamic QR access before testing.",
+          "Save production credentials or confirmed UAT Dynamic QR credentials before account verification.",
         );
+      const live = connection.environment === "PRODUCTION";
+      if (
+        (live
+          ? process.env.SELFX_PHONEPE_PRODUCTION_ENABLED
+          : process.env.SELFX_PHONEPE_UAT_ENABLED) !== "true"
+      )
+        fail(
+          "PAYMENT_NOT_ENABLED",
+          live
+            ? "Production account verification has not been enabled by SelfX."
+            : "PhonePe UAT execution is disabled on the API.",
+        );
+      let snapshot = {
+        encryptedPayload: connection.encryptedPayload,
+        initializationVector: connection.initializationVector,
+        authenticationTag: connection.authenticationTag,
+        keyVersion: connection.keyVersion,
+      };
+      if (live) {
+        let apiBaseUrl: string;
+        try {
+          apiBaseUrl = phonePeProductionBase();
+        } catch {
+          fail(
+            "PRODUCTION_ENDPOINT_UNCONFIGURED",
+            "Configure the PhonePe-confirmed production Dynamic QR endpoint before live verification.",
+          );
+        }
+        const key = paymentEncryptionKey();
+        snapshot = {
+          ...encryptProviderSecret(
+            {
+              ...decryptPaymentSnapshot<Record<string, unknown>>(connection),
+              apiBaseUrl,
+            },
+            key.key,
+          ),
+          keyVersion: key.version,
+        };
+      }
       revision(connection.version, input.expectedVersion);
       const pending = await tx.platformPaymentTest.findFirst({
         where: {
@@ -267,7 +315,7 @@ export class PaymentGatewayTestsService {
           scopeKey: scopeKey(storeId),
           organizationId: storeId,
           provider,
-          environment: "UAT",
+          environment: connection.environment,
           connectionVersion: connection.version,
           createdById: actorId,
           transactionId: `${storeId ? "ST" : "PT"}${id.replaceAll("-", "")}`,
@@ -275,17 +323,21 @@ export class PaymentGatewayTestsService {
           status: "PREPARING",
           amountMinor: 100,
           currency: "INR",
-          encryptedPayload: connection.encryptedPayload,
-          initializationVector: connection.initializationVector,
-          authenticationTag: connection.authenticationTag,
-          keyVersion: connection.keyVersion,
+          ...snapshot,
           expiresAt: new Date(now.getTime() + 300000),
           leaseUntil: new Date(now.getTime() + 30000),
           nextCheckAt: new Date(now.getTime() + 30000),
         },
       });
       paymentTestAdapter(row).statusRequest(expected(row));
-      await audit(tx, actorId, "PLATFORM_PAYMENT_TEST_STARTED", id, storeId);
+      await audit(
+        tx,
+        actorId,
+        "PLATFORM_PAYMENT_TEST_STARTED",
+        id,
+        storeId,
+        connection.environment,
+      );
       return { row, created: true };
     });
     if (test.created) {
@@ -500,6 +552,7 @@ export class PaymentGatewayTestsService {
             : "PLATFORM_PAYMENT_TEST_FAILED",
           id,
           row.organizationId,
+          row.environment,
         );
       } else {
         const failed = current.status === "FAILED";
@@ -620,7 +673,7 @@ function paymentTestAdapter(row: TestSnapshot) {
       row.organizationId.toLowerCase() ||
     snapshot.provider !== row.provider ||
     snapshot.environment !== row.environment ||
-    row.environment !== "UAT" ||
+    !["UAT", "PRODUCTION"].includes(row.environment) ||
     row.scopeKey !== scopeKey(row.organizationId)
   )
     throw new Error("Store test snapshot mismatch.");
@@ -679,7 +732,7 @@ function summary(row: Summary) {
     nextCheckAt: nextCheckAt?.toISOString() ?? null,
     callbackReceived: _count.events > 0,
     verificationPending: row.status !== "SUCCEEDED" && events.length > 0,
-    testOnly: true as const,
+    testOnly: row.environment !== "PRODUCTION",
   };
 }
 function expected(row: PlatformPaymentTest) {
@@ -727,6 +780,7 @@ async function audit(
   action: string,
   id: string | null,
   storeId: string | null = null,
+  environment = "UAT",
 ) {
   await tx.auditLog.create({
     data: {
@@ -736,7 +790,7 @@ async function audit(
       resourceType: storeId ? "store_payment_test" : "platform_payment_test",
       resourceId: id,
       action: storeId ? action.replace("PLATFORM_", "STORE_") : action,
-      metadata: { provider, environment: "UAT" },
+      metadata: { provider, environment },
     },
   });
 }

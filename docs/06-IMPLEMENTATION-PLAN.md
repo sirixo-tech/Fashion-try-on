@@ -2,6 +2,19 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1G — Store production QR verification
+
+Add environment-specific endpoint validation, execution switches, encrypted
+production snapshot provenance, Store-only database constraint and explicit live
+popup/history labels. Verify signing/routing, missing endpoint/switch rejection,
+Store/platform boundaries, real-money metadata, old-account callbacks/status,
+expiry/replay/concurrency and existing order regressions with simulated providers.
+Run payment UI/API tests, TypeScript, lint and production builds. Apply migration,
+deploy API then web. Configure the production endpoint only after PhonePe confirms
+the account's v3 Dynamic QR contract; this external prerequisite is outstanding.
+Do not perform real payments, deploy production, enable customer checkout or APK
+Buy as part of this local implementation. See PAYMENTS-1G-IMPLEMENTATION-REPORT.md.
+
 ### PAYMENTS-1F — Allow another UAT test after QR expiry
 
 Update the shared Store/platform guard and Generate action together. Verify active

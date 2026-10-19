@@ -14,7 +14,7 @@ export class StartPlatformPaymentTestDto extends PaymentRevisionDto {
 export class PlatformPaymentTestSummaryDto {
   @ApiProperty() id!: string;
   @ApiProperty() provider!: string;
-  @ApiProperty({ enum: ["UAT"] }) environment!: string;
+  @ApiProperty({ enum: ["UAT", "PRODUCTION"] }) environment!: string;
   @ApiProperty() connectionVersion!: number;
   @ApiProperty({
     enum: ["PREPARING", "PENDING", "UNKNOWN", "FAILED", "SUCCEEDED"],
@@ -32,7 +32,11 @@ export class PlatformPaymentTestSummaryDto {
     string | null;
   @ApiProperty() callbackReceived!: boolean;
   @ApiProperty() verificationPending!: boolean;
-  @ApiProperty({ enum: [true] }) testOnly!: true;
+  @ApiProperty({
+    description:
+      "False for a Store production verification, which collects real money.",
+  })
+  testOnly!: boolean;
 }
 export class PaymentTestDiagnosticDto {
   @ApiProperty() code!: string;
@@ -66,6 +70,7 @@ export class PlatformPaymentTestWorkspaceDto {
   @ApiProperty({ nullable: true, type: PlatformPaymentTestConnectionDto })
   connection!: PlatformPaymentTestConnectionDto | null;
   @ApiProperty() executionEnabled!: boolean;
+  @ApiProperty() productionEndpointConfigured!: boolean;
   @ApiProperty() callbackConfigured!: boolean;
   @ApiProperty({
     enum: [

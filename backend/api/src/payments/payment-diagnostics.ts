@@ -1,8 +1,10 @@
 // Only fixed codes and numeric HTTP status may leave the provider boundary.
 // Never persist/log response bodies, headers, URLs, credentials or Error.message.
 const reasons = {
+  PRODUCTION_ENDPOINT_UNCONFIGURED:
+    "SelfX must configure the PhonePe-confirmed production Dynamic QR endpoint before live verification.",
   REQUEST_DISABLED:
-    "PhonePe UAT requests are disabled or the endpoint is not allowed.",
+    "PhonePe requests for this environment are disabled or the endpoint is not allowed.",
   TIMEOUT: "PhonePe did not respond before the request timed out.",
   NETWORK_ERROR:
     "SelfX could not obtain a response from PhonePe. Check API connectivity.",
@@ -13,7 +15,7 @@ const reasons = {
   UNRECOGNIZED_STATUS:
     "PhonePe's response did not establish a recognized payment outcome. Confirmation is still pending.",
   PROVIDER_REJECTED:
-    "PhonePe rejected the request. Check that the saved credentials and Dynamic QR access match the UAT account.",
+    "PhonePe rejected the request. Check that the saved credentials and Dynamic QR access match this account's environment.",
   MERCHANT_MISMATCH: "The response merchant did not match this test's account.",
   TRANSACTION_MISMATCH: "The response transaction did not match this test.",
   AMOUNT_MISMATCH: "The response amount did not match the test amount.",
@@ -80,7 +82,7 @@ export function readPaymentDiagnostic(value: unknown) {
   const httpStatus = validHttp(row.httpStatus);
   const message =
     code === "HTTP_REJECTED" && [401, 403].includes(httpStatus ?? 0)
-      ? "PhonePe denied API access. Confirm the UAT account, credentials and Dynamic QR permissions."
+      ? "PhonePe denied API access. Confirm the account environment, credentials and Dynamic QR permissions."
       : code === "HTTP_REJECTED" && httpStatus === 429
         ? "PhonePe is limiting requests. Wait before checking this same test again."
         : reasons[code];

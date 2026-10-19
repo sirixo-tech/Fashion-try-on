@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### PAYMENTS-1G — Store production account verification
+
+Store Admins may generate an INR 1.00 real-payment QR using their saved production
+PhonePe account. Label it Production and real money throughout the popup/history;
+never present it as a UAT simulation. Keep platform testing UAT-only. Successful
+account verification is not permission to enable shopping checkout or APK Buy.
+Production execution requires a separately enabled, PhonePe-confirmed v3 Dynamic
+QR endpoint. Credentials alone do not establish provider access or API support.
+Store isolation, versioned encrypted snapshots, strict response matching,
+idempotency, five-minute expiry and delayed confirmation checks remain mandatory.
+
 ### PAYMENTS-1F — Fresh test QR after expiry
 
 An unexpired UAT test is reopened by Generate instead of initializing another

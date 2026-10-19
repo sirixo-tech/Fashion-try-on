@@ -4,15 +4,11 @@ import {
   PaymentProviderError,
   safeProviderCode,
 } from "./payment-diagnostics.js";
+import { phonePeUatBase, phonePeProductionBase } from "./phonepe-endpoints.js";
 @Injectable()
 export class PhonePeTransport {
   async send(request: ProviderRequest): Promise<unknown> {
-    if (
-      process.env.SELFX_PHONEPE_UAT_ENABLED !== "true" ||
-      !request.url.startsWith(
-        "https://mercury-uat.phonepe.com/enterprise-sandbox/v3/",
-      )
-    )
+    if (!allowedRequest(request))
       throw new PaymentProviderError("REQUEST_DISABLED");
     try {
       const response = await fetch(request.url, {
@@ -76,4 +72,27 @@ export class PhonePeTransport {
       );
     }
   }
+}
+function allowedRequest(request: ProviderRequest) {
+  const bases: string[] = [];
+  if (process.env.SELFX_PHONEPE_UAT_ENABLED === "true")
+    bases.push(phonePeUatBase);
+  if (process.env.SELFX_PHONEPE_PRODUCTION_ENABLED === "true") {
+    try {
+      bases.push(phonePeProductionBase());
+    } catch {
+      /* fail closed */
+    }
+  }
+  return bases.some((base) => {
+    if (!request.url.startsWith(base + "/v3/")) return false;
+    const path = request.url.slice(base.length);
+    return (
+      (request.method === "POST" && path === "/v3/qr/init") ||
+      (request.method === "GET" &&
+        /^\/v3\/transaction\/[A-Za-z0-9_-]{1,100}\/[A-Za-z0-9_-]{1,34}\/status$/.test(
+          path,
+        ))
+    );
+  });
 }
