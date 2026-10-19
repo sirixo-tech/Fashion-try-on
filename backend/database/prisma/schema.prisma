@@ -793,6 +793,7 @@ model PlatformPaymentTest {
 
   @@unique([scopeKey, provider, createdById, keyDigest], map: "payment_tests_scope_actor_key")
   @@index([scopeKey, provider, createdAt, id], map: "payment_tests_scope_history")
+  @@index([scopeKey, provider, connectionVersion, expiresAt], map: "payment_tests_scope_qr_deadline")
   @@index([provider, createdAt, id])
   @@index([status, nextCheckAt])
   @@map("platform_payment_tests")

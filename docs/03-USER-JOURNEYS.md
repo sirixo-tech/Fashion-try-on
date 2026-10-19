@@ -1,5 +1,12 @@
 ## Document Evolution
 
+### PAYMENTS-1F — Reopen active QR or generate after expiry
+
+Generate reopens an unresolved test until its QR deadline. After that deadline,
+the same action opens a fresh test QR. Closing/reopening and historical status
+checks remain available; expired tests keep checking for late confirmation. A
+network-error retry retains its request key and does not become a new test.
+
 ### PAYMENTS-1E — Generate and resume a Store QR test
 
 Store Admin clicks Generate test QR and immediately sees a generating popup. A

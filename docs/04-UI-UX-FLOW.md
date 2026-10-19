@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### PAYMENTS-1F — Expiry-aware Generate action
+
+Keep Generate enabled when the account is ready and no operation is in flight.
+If the current configuration has an unexpired unresolved test, Generate opens it.
+Once its five-minute QR deadline passes, Generate creates a fresh test without a
+page reload. Use API time to account for browser clock differences. Explain that
+expired tests remain in history and continue checking for delayed payment. This
+supersedes the earlier indefinite pending/uncertain test block in the test UI.
+
 ### PAYMENTS-1E — Store QR test popup
 
 Use public @selfx/ui Dialog components with a responsive desktop width up to the

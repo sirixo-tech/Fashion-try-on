@@ -328,9 +328,12 @@ describe.skipIf(!url)(
         status: "PENDING",
         qrString: null,
       });
+      const fresh = await start();
+      expect(fresh.id).not.toBe(test.id);
       await code(start(), "PAYMENT_TEST_PENDING");
       await reconcile(test.id);
       expect((await service.detail(test.id)).status).toBe("SUCCEEDED");
+      expect((await service.detail(fresh.id)).status).toBe("PENDING");
     });
     it("keeps network, unknown and mismatched status responses unresolved", async () => {
       const test = await start(),

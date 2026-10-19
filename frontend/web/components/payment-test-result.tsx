@@ -170,8 +170,8 @@ export function PaymentTestResult({
       )}
       {test.status !== "SUCCEEDED" && remaining === 0 && (
         <p>
-          QR expired. Payment confirmation may still arrive; check this same
-          test before starting another.
+          QR expired. You can generate a fresh test QR. This test stays in
+          history and continues checking for delayed payment confirmation.
         </p>
       )}
       {qrImage &&

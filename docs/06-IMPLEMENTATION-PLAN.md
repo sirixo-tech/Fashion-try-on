@@ -2,6 +2,16 @@
 
 ## Implementation Plan
 
+### PAYMENTS-1F — Allow another UAT test after QR expiry
+
+Update the shared Store/platform guard and Generate action together. Verify active
+test reopening, expired pending/unknown/preparing renewal, distinct transactions,
+same-key replay, concurrent starts, automatic UI expiry and late verified success
+on an older test. Run payment regressions, typechecks and changed-file lint.
+Apply the QR-renewal index migration, then deploy API and web. No new environment
+variable is required beyond PAYMENTS-1E prerequisites. Do not change live shopping
+payment handling.
+
 ### PAYMENTS-1E — QR popup and actionable diagnostics
 
 Add the immediate Store QR dialog, resumable results and expiry countdown. Add

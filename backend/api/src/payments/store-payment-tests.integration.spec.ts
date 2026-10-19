@@ -315,6 +315,65 @@ describe.skipIf(!url)(
         error("PAYMENT_TEST_PENDING"),
       );
     });
+    it.each(["PENDING", "UNKNOWN", "PREPARING"] as const)(
+      "replaces an expired %s QR with a unique test and still verifies late success",
+      async (status) => {
+        const key = createSelfxId();
+        const first = await start(a, key);
+        await db.platformPaymentTest.update({
+          where: { id: first.id },
+          data: { status, expiresAt: new Date(Date.now() - 1) },
+        });
+        const second = await start(a);
+        expect(second.id).not.toBe(first.id);
+        expect(
+          Date.parse(second.expiresAt) - Date.parse(second.serverTime),
+        ).toBeGreaterThan(290000);
+        expect(
+          Date.parse(second.expiresAt) - Date.parse(second.serverTime),
+        ).toBeLessThanOrEqual(300000);
+        const rows = await db.platformPaymentTest.findMany({
+          where: { id: { in: [first.id, second.id] } },
+        });
+        expect(new Set(rows.map((row) => row.transactionId)).size).toBe(2);
+        expect((await engine.detail(first.id, a)).qrString).toBeNull();
+        expect((await engine.detail(first.id, a)).status).toBe(status);
+        // Even after expiry, replaying an old request must never initialize it again.
+        expect((await start(a, key)).id).toBe(first.id);
+        expect(send).toHaveBeenCalledTimes(2);
+        await expect(start(a)).rejects.toMatchObject(
+          error("PAYMENT_TEST_PENDING"),
+        );
+        await callback(first.id, a);
+        await due(first.id);
+        await engine.reconcileDue();
+        expect((await engine.detail(first.id, a)).status).toBe("SUCCEEDED");
+        expect((await engine.detail(second.id, a)).status).toBe("PENDING");
+        expect((await engine.workspace(a)).testStatus).toBe("PENDING");
+        expect(
+          (await engine.workspace(a)).tests.map((row) => row.id),
+        ).toContain(first.id);
+        expect((await settings.getStore(a)).paymentAvailable).toBe(false);
+      },
+    );
+    it("serializes concurrent fresh requests after expiry", async () => {
+      const first = await start();
+      await db.platformPaymentTest.update({
+        where: { id: first.id },
+        data: { expiresAt: new Date(Date.now() - 1) },
+      });
+      const results = await Promise.allSettled([start(), start()]);
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result.status === "rejected"),
+      ).toHaveLength(1);
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(
+        await db.platformPaymentTest.count({ where: { organizationId: a } }),
+      ).toBe(2);
+    });
     it.each(["UNCONFIRMED", "PRODUCTION"] as const)(
       "never executes %s credentials as a UAT test",
       async (environment) => {

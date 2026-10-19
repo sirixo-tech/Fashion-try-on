@@ -26,6 +26,7 @@ vi.mock("@/lib/payments", () => ({
 }));
 vi.mock("qrcode", () => qr);
 const workspace: StorePaymentWorkspace = {
+  serverTime: "2026-10-18T00:00:00Z",
   connection: {
     provider: "PHONEPE",
     environment: "UAT",
@@ -150,14 +151,16 @@ it("shows read-only history without QR or provider-execution controls", async ()
   expect(screen.queryByRole("button", { name: "Open test" })).toBeNull();
   expect(startStorePaymentTest).not.toHaveBeenCalled();
 });
-it("opens saved tests for this Store instead of generating a replacement", async () => {
+it("Generate reopens an unexpired test without initializing another payment", async () => {
   vi.mocked(getStorePaymentWorkspace).mockResolvedValue({
     ...workspace,
     tests: [test],
     testStatus: "PENDING",
   });
   render(panel());
-  fireEvent.click(await screen.findByRole("button", { name: "Open test" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Generate ₹1 test QR" }),
+  );
   await waitFor(() =>
     expect(getStorePaymentTest).toHaveBeenCalledWith(
       "identity",
@@ -173,8 +176,37 @@ it("opens saved tests for this Store instead of generating a replacement", async
         name: "Generate ₹1 test QR",
       }) as HTMLButtonElement
     ).disabled,
-  ).toBe(true);
+  ).toBe(false);
 });
+it.each(["PENDING", "UNKNOWN"] as const)(
+  "generates a fresh QR after an expired %s test while keeping its history",
+  async (status) => {
+    vi.mocked(getStorePaymentWorkspace).mockResolvedValue({
+      ...workspace,
+      serverTime: "2026-10-18T00:06:00Z",
+      tests: [{ ...test, status }],
+      testStatus: status,
+    });
+    vi.mocked(startStorePaymentTest).mockResolvedValue({
+      ...test,
+      id: "test-new",
+      createdAt: "2026-10-18T00:06:00Z",
+      expiresAt: "2026-10-18T00:11:00Z",
+      serverTime: "2026-10-18T00:06:00Z",
+    });
+    render(panel());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Generate ₹1 test QR" }),
+    );
+    await screen.findByAltText("PhonePe UAT test payment QR");
+    expect(startStorePaymentTest).toHaveBeenCalledTimes(1);
+    expect(getStorePaymentTest).not.toHaveBeenCalled();
+    expect(screen.getByRole("timer").textContent).toContain("5:00");
+    expect(
+      screen.getByRole("button", { hidden: true, name: "Open test" }),
+    ).toBeTruthy();
+  },
+);
 it("opens one wide popup immediately, blocks duplicate starts and dismissal while generating, then shows the QR", async () => {
   let complete!: (value: PlatformPaymentTestDetail) => void;
   vi.mocked(startStorePaymentTest).mockReturnValue(
@@ -270,6 +302,24 @@ it("expires the QR locally without declaring payment failure", async () => {
   expect(
     screen.getByRole("button", { name: "Check payment status" }),
   ).toBeTruthy();
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Close test" }));
+  });
+  vi.mocked(startStorePaymentTest).mockResolvedValue({
+    ...test,
+    id: "test-after-expiry",
+    expiresAt: "2026-10-18T00:10:01Z",
+    serverTime: "2026-10-18T00:05:01Z",
+  });
+  await act(async () => {
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate ₹1 test QR" }),
+    );
+  });
+  expect(startStorePaymentTest).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(startStorePaymentTest).mock.calls[0]?.[3]).not.toBe(
+    vi.mocked(startStorePaymentTest).mock.calls[1]?.[3],
+  );
 });
 it("shows a confirmed failure in the same popup and permits closing it", async () => {
   vi.mocked(checkStorePaymentTest).mockResolvedValue({

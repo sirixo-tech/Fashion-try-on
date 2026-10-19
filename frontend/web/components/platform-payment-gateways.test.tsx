@@ -55,6 +55,7 @@ const gateways: Gateway[] = [
   },
 ];
 const workspace: PlatformPaymentWorkspace = {
+  serverTime: "2026-10-16T00:00:00Z",
   connection: null,
   executionEnabled: false,
   callbackConfigured: false,
@@ -274,7 +275,7 @@ describe("platform gateway controls and isolated testing", () => {
       vi.mocked(startPlatformPaymentTest).mock.calls[1]![2],
     );
   });
-  it("opens existing tests and blocks another QR while confirmation is pending", async () => {
+  it("Generate reopens an unexpired platform test without creating another", async () => {
     vi.mocked(getPlatformPaymentWorkspace).mockResolvedValue({
       ...workspace,
       connection,
@@ -289,13 +290,34 @@ describe("platform gateway controls and isolated testing", () => {
       screen
         .getByRole("button", { name: "Generate ₹1 test QR" })
         .hasAttribute("disabled"),
-    ).toBe(true);
+    ).toBe(false);
     expect(screen.queryByRole("button", { name: "Open test" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Recent tests/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Open test" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate ₹1 test QR" }),
+    );
     await screen.findByRole("heading", { name: "PhonePe test result" });
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(getPlatformPaymentTest).toHaveBeenCalledWith("fixture", test.id);
+    expect(startPlatformPaymentTest).not.toHaveBeenCalled();
+  });
+  it("allows a new platform QR after an unknown test's deadline", async () => {
+    vi.mocked(getPlatformPaymentWorkspace).mockResolvedValue({
+      ...workspace,
+      connection,
+      serverTime: "2026-10-16T00:06:00Z",
+      executionEnabled: true,
+      callbackConfigured: true,
+      tests: [{ ...test, status: "UNKNOWN" }],
+      testStatus: "UNKNOWN",
+    });
+    render(<PlatformPaymentGateways accessToken="fixture" canEdit />);
+    await openWorkspace();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate ₹1 test QR" }),
+    );
+    await screen.findByRole("heading", { name: "PhonePe test result" });
+    expect(startPlatformPaymentTest).toHaveBeenCalledTimes(1);
+    expect(getPlatformPaymentTest).not.toHaveBeenCalled();
   });
   it("keeps read-only viewers limited to metadata and safe history", async () => {
     vi.mocked(getPlatformPaymentWorkspace).mockResolvedValue({

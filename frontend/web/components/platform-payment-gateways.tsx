@@ -44,6 +44,7 @@ import {
   type PlatformPaymentWorkspace,
 } from "@/lib/platform-payment-tests";
 import { PaymentTestResult } from "./payment-test-result";
+import { useActivePaymentTest } from "./use-active-payment-test";
 import { PhonePeConfigurationForm } from "./phonepe-configuration";
 
 const descriptions: Record<string, string> = {
@@ -133,6 +134,10 @@ export function PlatformPaymentGateways({
   }
   async function start() {
     if (locked || !canEdit || !workspace?.connection) return;
+    if (activeTest && !startKey.current) {
+      await openTest(activeTest.id);
+      return;
+    }
     setBusy(true);
     setError(null);
     // Keep the same key after a browser/network error; do not create another test.
@@ -158,29 +163,18 @@ export function PlatformPaymentGateways({
     setError(null);
     try {
       setSelectedTest(await getPlatformPaymentTest(accessToken, id));
+      startKey.current = null;
     } catch (caught) {
       setError(message(caught));
     } finally {
       setBusy(false);
     }
   }
-  const currentPending =
-    (selectedTest?.connectionVersion === workspace?.connection?.version &&
-      !!selectedTest &&
-      (["PREPARING", "PENDING", "UNKNOWN"].includes(selectedTest.status) ||
-        selectedTest.verificationPending)) ||
-    workspace?.tests.some(
-      (test) =>
-        test.connectionVersion === workspace.connection?.version &&
-        (["PREPARING", "PENDING", "UNKNOWN"].includes(test.status) ||
-          test.verificationPending ||
-          test.failureCode === "PAYMENT_EVIDENCE_CONFLICT"),
-    );
+  const activeTest = useActivePaymentTest(workspace, selectedTest);
   const canStart =
     !!workspace?.connection?.dqrAccessConfirmed &&
     workspace.executionEnabled &&
     workspace.callbackConfigured &&
-    !currentPending &&
     !editingCredentials;
   return (
     <PageSection>
@@ -400,10 +394,10 @@ export function PlatformPaymentGateways({
                 {busy ? "Working…" : "Generate ₹1 test QR"}
               </Button>
             )}
-            {currentPending && (
+            {activeTest && (
               <p className="text-sm text-muted-foreground">
-                An existing test is awaiting confirmation. Open it below; do not
-                start another payment.
+                An unexpired test already exists. Generate reopens that test; a
+                fresh QR can be generated after its deadline.
               </p>
             )}
             <p className="text-xs text-muted-foreground">

@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### PAYMENTS-1F — Fresh test QR after expiry
+
+An unexpired UAT test is reopened by Generate instead of initializing another
+payment. After its five-minute QR deadline, Generate may create a fresh test even
+if the older payment remains pending or unknown. Keep older tests in history and
+continue independent checks and callbacks for late success. Expiry never proves
+payment failure. This supersedes the indefinite pending-test block in PAYMENTS-1E
+for Store and platform test QRs only; live shopping payment behavior is unchanged.
+
 ### PAYMENTS-1E — Store test QR popup and understandable failures
 
 Generate test QR opens a single Store test popup immediately, showing progress,

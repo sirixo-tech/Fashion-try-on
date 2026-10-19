@@ -36,6 +36,7 @@ export type PaymentTestDiagnostic = {
   at: string;
 };
 export type PlatformPaymentWorkspace = {
+  serverTime?: string;
   connection: {
     provider: string;
     environment: "UAT";

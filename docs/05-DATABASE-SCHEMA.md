@@ -2,6 +2,16 @@
 
 ## Database & Schema Design
 
+### PAYMENTS-1F — Reuse existing test lifetime and history
+
+Migration 20261019010000_payment_test_qr_renewal replaces the indefinite unique
+unresolved-test index with a non-unique scope/provider/version/expiry lookup index.
+The shared account transaction lock serializes new-test checks and creation;
+existing transaction-id and idempotency uniqueness remain. Use expires_at to
+bound the new-test guard. Preserve expired rows, events, transaction ids, encrypted
+credential snapshots, payment statuses and reconciliation metadata. Expired QR
+visibility is independent of the persisted payment outcome.
+
 ### PAYMENTS-1E — Redacted test diagnostic snapshots
 
 Migration 20261019000000_payment_test_diagnostics adds nullable JSONB

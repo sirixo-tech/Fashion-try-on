@@ -62,6 +62,7 @@ export class PlatformPaymentTestConnectionDto {
   @ApiProperty() updatedAt!: string;
 }
 export class PlatformPaymentTestWorkspaceDto {
+  @ApiProperty() serverTime!: string;
   @ApiProperty({ nullable: true, type: PlatformPaymentTestConnectionDto })
   connection!: PlatformPaymentTestConnectionDto | null;
   @ApiProperty() executionEnabled!: boolean;

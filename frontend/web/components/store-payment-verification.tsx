@@ -26,6 +26,7 @@ import {
 } from "@/lib/payments";
 import type { PlatformPaymentTestDetail } from "@/lib/platform-payment-tests";
 import { PaymentTestResult } from "./payment-test-result";
+import { useActivePaymentTest } from "./use-active-payment-test";
 
 const labels = {
   NOT_CONFIGURED: "Not configured",
@@ -83,27 +84,18 @@ export function StorePaymentVerification({
     setSelected(value);
     setRevision((old) => old + 1);
   }, []);
-  const pending =
-    (selected?.connectionVersion === workspace?.connection?.version &&
-      !!selected &&
-      (["PREPARING", "PENDING", "UNKNOWN"].includes(selected.status) ||
-        selected.verificationPending ||
-        selected.failureCode === "PAYMENT_EVIDENCE_CONFLICT")) ||
-    workspace?.tests.some(
-      (test) =>
-        test.connectionVersion === workspace.connection?.version &&
-        (["PREPARING", "PENDING", "UNKNOWN"].includes(test.status) ||
-          test.verificationPending ||
-          test.failureCode === "PAYMENT_EVIDENCE_CONFLICT"),
-    );
+  const activeTest = useActivePaymentTest(workspace, selected);
   const ready =
     enabled &&
     workspace?.connection?.environment === "UAT" &&
     workspace.connection.dqrAccessConfirmed &&
     workspace.executionEnabled &&
-    workspace.callbackConfigured &&
-    !pending;
+    workspace.callbackConfigured;
   async function start() {
+    if (activeTest && !startKey.current) {
+      await open(activeTest.id);
+      return;
+    }
     if (
       locked ||
       inFlight.current ||
@@ -150,6 +142,7 @@ export function StorePaymentVerification({
     setError(null);
     try {
       setSelected(await getStorePaymentTest(accessToken, storeId, id));
+      startKey.current = null;
     } catch (caught) {
       setDialogError(message(caught));
     } finally {
@@ -242,6 +235,12 @@ export function StorePaymentVerification({
                 Refresh verification
               </Button>
             </div>
+            {activeTest && (
+              <p className="text-sm text-muted-foreground">
+                An unexpired test already exists. Generate reopens that test; a
+                fresh QR can be generated after its deadline.
+              </p>
+            )}
             <p className="text-sm text-muted-foreground">
               A passed UAT test verifies only this saved Store configuration. It
               does not verify live credentials or another Store's account.
@@ -328,7 +327,7 @@ export function StorePaymentVerification({
                 <AlertDescription>{dialogError}</AlertDescription>
                 <p className="mt-2 text-sm">
                   {operation === "GENERATE"
-                    ? "The request outcome may be uncertain. Retry the same request or open its saved test; do not create another payment."
+                    ? "The request outcome may be uncertain. Retry the same request or open its saved test. A fresh QR is available after that test's QR deadline."
                     : "Retry opening this saved test."}
                 </p>
                 <Button

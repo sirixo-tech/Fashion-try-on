@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### PAYMENTS-1F — Expiry-bounded test initialization guard
+
+Under the existing account-scope transaction lock, block a fresh test only for
+unresolved tests whose expiresAt is strictly after API time. Replaying an old
+idempotency key still returns that same test, including after expiry. Keep old
+transaction ids, credential snapshots, callback/status checks and reconciliation
+schedules independent from new tests. Workspace responses add serverTime; the web
+uses it to update the Generate/reopen decision at expiry without refresh. The API
+remains authoritative. Keep UAT/readiness/permission/rate-limit gates unchanged.
+Replace the indefinite unresolved-test unique index with a scope/version/deadline
+lookup index. All new-test writers must retain the existing Store row lock or
+platform advisory transaction lock across the expiry check and insertion.
+
 ### PAYMENTS-1E — Durable redacted payment-test diagnostics
 
 Keep PhonePe transport, provider adapter and test orchestration separate. Classify

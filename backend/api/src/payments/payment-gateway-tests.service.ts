@@ -87,6 +87,7 @@ export class PaymentGatewayTestsService {
       /* safe readiness metadata */
     }
     return {
+      serverTime: new Date().toISOString(),
       connection: connection
         ? { ...connection, updatedAt: connection.updatedAt.toISOString() }
         : null,
@@ -228,6 +229,9 @@ export class PaymentGatewayTestsService {
           provider,
           scopeKey: scopeKey(storeId),
           connectionVersion: connection.version,
+          // QR lifetime and payment confirmation are independent. Keep expired
+          // tests reconciling, but do not let them block a fresh UAT test.
+          expiresAt: { gt: new Date() },
           OR: [
             { status: { in: activeStatuses } },
             {
@@ -241,7 +245,7 @@ export class PaymentGatewayTestsService {
       if (pending)
         fail(
           "PAYMENT_TEST_PENDING",
-          "An existing test is awaiting confirmation. Open it and check its status.",
+          "An unexpired test already exists. Open it, or wait for its QR deadline before generating another.",
         );
       const daily = await tx.platformPaymentTest.count({
         where: {

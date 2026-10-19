@@ -77,6 +77,10 @@ describe("OpenAPI documentation", () => {
         .diagnostics,
     ).toBeTruthy();
     expect(
+      response.body.components.schemas.PlatformPaymentTestWorkspaceDto
+        .properties.serverTime,
+    ).toBeTruthy();
+    expect(
       response.body.components.schemas.PaymentTestDiagnosticDto.properties,
     ).toMatchObject({
       code: expect.any(Object),
