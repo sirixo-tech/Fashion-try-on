@@ -28,7 +28,7 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import { PublicLegalLinks } from "@/components/public-legal-links";
-import { safeLoginNextPath } from "@/lib/login-next";
+import { resolveLoginNextPath, safeLoginNextPath } from "@/lib/login-next";
 import {
   getPublicLoginPageSettings,
   type LoginPageSettings,
@@ -142,11 +142,12 @@ export function LoginForm() {
     setErrorCode(null);
 
     try {
-      await session.login(email, password);
-      const next = safeLoginNextPath(
+      const authenticated = await session.login(email, password);
+      const next = await resolveLoginNextPath(
         new URLSearchParams(window.location.search).get("next"),
+        authenticated,
       );
-      router.push(next);
+      router.replace(next);
     } catch (error) {
       setErrorCode(
         error instanceof SafeApiError ? error.code : "REQUEST_FAILED",

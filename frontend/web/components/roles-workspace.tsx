@@ -16,9 +16,6 @@ import {
   PageHeader,
   PageSection,
   SelectMenu,
-  Tabs,
-  TabsList,
-  TabsTrigger,
 } from "@selfx/ui";
 import { useSession } from "@/lib/session";
 import {
@@ -34,6 +31,7 @@ import {
 import { replaceStoreRolePermissions } from "@/lib/stores";
 
 type RoleView = {
+  scope: "platform" | "store";
   id: string;
   name: string;
   description: string | null;
@@ -45,6 +43,7 @@ type RoleView = {
   limit?: boolean;
 };
 const protectedRole: RoleView = {
+  scope: "platform",
   id: "protected-superadmin",
   name: "Platform Superadmin",
   description:
@@ -56,13 +55,16 @@ const protectedRole: RoleView = {
   protected: true,
 };
 
+function selectionKey(role: RoleView): string {
+  return `${role.scope}:${role.systemCode ?? role.id}`;
+}
+
 export function RolesWorkspace() {
   const session = useSession(),
     token = session.status === "authenticated" ? session.accessToken : null;
   const [context, setContext] = useState<RolesContext | null>(null),
     [store, setStore] = useState<StoreRolesWorkspace | null>(null);
-  const [scope, setScope] = useState("platform"),
-    [roleId, setRoleId] = useState("");
+  const [roleKey, setRoleKey] = useState("");
   const [selectedStore, setSelectedStore] = useState<{
     id: string;
     name: string;
@@ -75,12 +77,13 @@ export function RolesWorkspace() {
     [storeLoading, setStoreLoading] = useState(false),
     [saving, setSaving] = useState(false);
   const [error, setError] = useState(""),
+    [storeError, setStoreError] = useState(""),
     [notice, setNotice] = useState("");
   useEffect(() => {
     const refresh = () => {
       setContext(null);
       setStore(null);
-      setRoleId("");
+      setRoleKey("");
       setSelectedStore(null);
       setStoreSearch("");
       setPage(1);
@@ -101,7 +104,6 @@ export function RolesWorkspace() {
           .then((value) => {
             if (!active) return;
             setContext(value);
-            if (!value.canViewPlatform) setScope("store");
             setSelectedStore(
               (current) => current ?? value.stores.data[0] ?? null,
             );
@@ -109,6 +111,7 @@ export function RolesWorkspace() {
           .catch((caught) => {
             if (active) {
               setContext(null);
+              setStore(null);
               setError(message(caught));
             }
           })
@@ -123,17 +126,17 @@ export function RolesWorkspace() {
     };
   }, [token, page, storeSearch, revision]);
   useEffect(() => {
-    if (!token || !storeId || scope !== "store") return;
+    if (!token || !storeId) return;
     let active = true;
     setStore(null);
     setStoreLoading(true);
-    setError("");
+    setStoreError("");
     void getStoreRolesWorkspace(token, storeId)
       .then((value) => {
         if (active) setStore(value);
       })
       .catch((caught) => {
-        if (active) setError(message(caught));
+        if (active) setStoreError(message(caught));
       })
       .finally(() => {
         if (active) setStoreLoading(false);
@@ -141,22 +144,29 @@ export function RolesWorkspace() {
     return () => {
       active = false;
     };
-  }, [token, storeId, scope, revision]);
-  const roles: RoleView[] =
-    scope === "platform"
-      ? context?.canViewPlatform
-        ? [
-            { ...protectedRole, permissions: context.permissions },
-            ...context.roles,
-          ]
-        : []
-      : (store?.roles.map((role) => ({
+  }, [token, storeId, revision]);
+  const roles: RoleView[] = [
+    ...(context?.canViewPlatform
+      ? [
+          { ...protectedRole, permissions: context.permissions },
+          ...context.roles.map((role) => ({
+            ...role,
+            scope: "platform" as const,
+          })),
+        ]
+      : []),
+    ...(context && store
+      ? store.roles.map((role) => ({
           ...role,
+          scope: "store" as const,
           name: role.systemCode === "staff" ? "Store Staff" : role.name,
-        })) ?? []);
+        }))
+      : []),
+  ];
   const selected: RoleView | null =
-    scope === "store" && roleId === "store-limit" && store?.canEditCeiling
+    roleKey === "store:store-limit" && store?.canEditCeiling
       ? {
+          scope: "store",
           id: "store-limit",
           name: "Store permission limit",
           systemCode: "store-limit",
@@ -167,7 +177,11 @@ export function RolesWorkspace() {
           updatedAt: store.ceilingUpdatedAt,
           limit: true,
         }
-      : (roles.find((role) => role.id === roleId) ?? roles[0] ?? null);
+      : (roles.find((role) => selectionKey(role) === roleKey) ??
+        (roleKey.startsWith("store:") && (storeLoading || storeError)
+          ? null
+          : (roles[0] ?? null)));
+  const scope = selected?.scope ?? "platform";
   const permissions =
     scope === "platform"
       ? (context?.permissions ?? [])
@@ -202,7 +216,7 @@ export function RolesWorkspace() {
       ? store?.permissions.filter((p) => !p.granted).map((p) => p.code)
       : [],
   );
-  const busy = loading || storeLoading || saving;
+  const busy = loading || (scope === "store" && storeLoading) || saving;
   const storeOptions = [
     ...(selectedStore &&
     !context?.stores.data.some((option) => option.id === selectedStore.id)
@@ -210,13 +224,6 @@ export function RolesWorkspace() {
       : []),
     ...(context?.stores.data ?? []),
   ];
-  function changeScope(value: string) {
-    if (saving) return;
-    setScope(value);
-    setRoleId("");
-    setNotice("");
-    setError("");
-  }
   return (
     <PageContainer width="wide">
       <PageHeader
@@ -241,21 +248,14 @@ export function RolesWorkspace() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      {storeError && (
+        <Alert variant="destructive">
+          <AlertDescription>{storeError}</AlertDescription>
+        </Alert>
+      )}
       {notice && <p role="status">{notice}</p>}
       <PageSection>
-        <Tabs value={scope} onValueChange={changeScope}>
-          <TabsList aria-label="Role scope">
-            {context?.canViewPlatform && (
-              <TabsTrigger value="platform" disabled={saving}>
-                Platform roles
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="store" disabled={saving}>
-              Store roles
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {scope === "store" && (
+        {context && (
           <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="role-store-search">Search Stores</Label>
@@ -283,12 +283,25 @@ export function RolesWorkspace() {
                   setSelectedStore(
                     storeOptions.find((option) => option.id === value) ?? null,
                   );
-                  setRoleId("");
+                  setStore(null);
+                  setStoreLoading(true);
+                  setStoreError("");
                   setNotice("");
                 }}
               />
             </div>
-            <div className="flex items-center gap-3 text-sm">
+            {selectedStore && (
+              <p className="text-sm text-muted-foreground md:col-span-2">
+                Store roles apply to{" "}
+                <span className="font-medium text-foreground">
+                  {selectedStore.name}
+                </span>
+                .
+                {context.canViewPlatform &&
+                  " Platform roles apply across SelfX."}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-3 text-sm">
               <Button
                 variant="outline"
                 disabled={busy || page === 1}
@@ -309,59 +322,68 @@ export function RolesWorkspace() {
         )}
         {loading ? (
           <p>Loading role access…</p>
-        ) : scope === "store" && !storeId ? (
-          <p>No active Stores are available for this account.</p>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
+          <div className="grid items-start gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
             <Card>
               <CardHeader>
-                <CardTitle>
-                  {scope === "platform" ? "Platform roles" : "Store roles"}
+                <CardTitle role="heading" aria-level={2}>
+                  Role Registry
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {storeLoading ? (
-                  <p>Loading Store roles…</p>
-                ) : (
-                  roles.map((role) => (
-                    <button
-                      type="button"
-                      key={role.id}
-                      disabled={saving}
-                      aria-pressed={selected?.id === role.id}
-                      className={`selfx-card-motion flex w-full flex-col gap-2 rounded-lg border p-3 text-left ${selected?.id === role.id ? "border-primary bg-primary/5" : "bg-card"}`}
-                      onClick={() => {
-                        setRoleId(role.id);
-                        setNotice("");
-                      }}
-                    >
-                      <span className="font-medium">{role.name}</span>
-                      <span>
-                        <Badge variant="outline">
-                          {role.protected
-                            ? "Protected"
-                            : scope === "platform"
-                              ? "Platform"
-                              : "Selected Store only"}
-                        </Badge>
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {role.permissions.length} permissions
-                        {!role.protected &&
-                          ` · ${role.assignedUsersCount} assigned users`}
-                      </span>
-                    </button>
-                  ))
+                {roles.map((role) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    key={`${role.scope}:${role.id}`}
+                    disabled={saving}
+                    aria-pressed={
+                      selected?.scope === role.scope && selected.id === role.id
+                    }
+                    aria-controls="role-permissions"
+                    className={`h-auto w-full flex-col items-start gap-2 whitespace-normal border-2 p-3 text-left ${selected?.scope === role.scope && selected.id === role.id ? "border-primary! bg-primary/5 ring-1 ring-primary/20" : "border-border bg-card"}`}
+                    onClick={() => {
+                      setRoleKey(selectionKey(role));
+                      setNotice("");
+                      setError("");
+                    }}
+                  >
+                    <span className="font-medium">{role.name}</span>
+                    <span className="flex flex-wrap gap-2">
+                      <Badge variant="outline">
+                        {role.scope === "platform" ? "Platform" : "Store"}
+                      </Badge>
+                      {role.protected && (
+                        <Badge variant="outline">Protected</Badge>
+                      )}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {role.permissions.length} permissions
+                      {!role.protected &&
+                        ` · ${role.assignedUsersCount} assigned users`}
+                    </span>
+                  </Button>
+                ))}
+                {storeLoading && <p>Loading Store roles…</p>}
+                {!storeId && (
+                  <p>No active Stores are available for this account.</p>
                 )}
-                {scope === "store" && store?.canEditCeiling && (
+                {store?.canEditCeiling && (
                   <div className="border-t pt-3">
                     <p className="mb-2 text-xs text-muted-foreground">
                       Store access limit
                     </p>
                     <Button
                       variant="outline"
+                      aria-pressed={selected?.limit === true}
+                      aria-controls="role-permissions"
                       disabled={saving}
-                      onClick={() => setRoleId("store-limit")}
+                      className={`h-auto whitespace-normal py-2 ${selected?.limit ? "border-2 border-primary! bg-primary/5" : ""}`}
+                      onClick={() => {
+                        setRoleKey("store:store-limit");
+                        setNotice("");
+                        setError("");
+                      }}
                     >
                       Manage Store permission limit
                     </Button>
@@ -369,9 +391,9 @@ export function RolesWorkspace() {
                 )}
               </CardContent>
             </Card>
-            {selected && !storeLoading && (
+            {selected && (scope === "platform" || !storeLoading) && (
               <RolePermissionsEditor
-                key={`${scope}:${storeId}:${selected.id}:${selected.updatedAt}`}
+                key={`${scope}:${scope === "store" ? storeId : ""}:${selected.id}:${selected.updatedAt}`}
                 role={selected}
                 permissions={permissions}
                 canEdit={canEdit}
@@ -497,9 +519,11 @@ function RolePermissionsEditor({
     );
   }
   return (
-    <Card>
+    <Card id="role-permissions" aria-labelledby="role-permissions-title">
       <CardHeader>
-        <CardTitle>{role.name} permissions</CardTitle>
+        <CardTitle id="role-permissions-title" role="heading" aria-level={2}>
+          {role.name} permissions
+        </CardTitle>
         <p className="text-sm text-muted-foreground">{role.description}</p>
         {!role.protected && !role.limit && (
           <p className="text-sm">
@@ -535,7 +559,7 @@ function RolePermissionsEditor({
                   ])
                 }
               >
-                Select available permissions
+                Select all
               </Button>
               <Button
                 variant="outline"
@@ -548,7 +572,7 @@ function RolePermissionsEditor({
                   )
                 }
               >
-                Clear editable permissions
+                Clear
               </Button>
             </>
           )}

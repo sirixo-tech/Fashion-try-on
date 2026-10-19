@@ -8,7 +8,9 @@ Mode unconfirmed, plus Verified, Needs verification or Off. Disabled/unselected
 configured gateways show Off. Unconfigured supported gateways show Needs setup;
 unsupported gateways show Planned only. Verified means account verification,
 never checkout readiness: customer checkout remains unavailable. Keep Edit/Delete,
-the selection switch and separate verification/history. Mobile logos narrow to
+the selection switch and separate verification/history. Align Edit then Delete
+at the bottom-right of the card footer with consistent spacing and padding.
+Mobile logos narrow to
 leave space for text; no horizontal overflow. This supersedes PAYMENTS-1I's removal
 of mode/status badges while keeping its other simplifications.
 
@@ -78,8 +80,12 @@ placement, while platform testing retains its existing single dialog.
 
 ### ROLES-1 — Unified Roles page
 
-Keep /app/roles under User Management. Show Platform roles only to authorized
-platform viewers; Store accounts start in Store roles. Provide searchable,
+Keep /app/roles under User Management. Use one left-hand Role Registry for all
+five role types, without separate Platform/Store tabs, and show the selected
+role's grouped permission checkboxes on the right (stacked on narrow screens).
+Use a clear selected border/highlight and small Platform/Store scope labels.
+Show Platform roles only to authorized platform viewers; Store accounts see
+their accessible Store roles. Provide searchable,
 paginated active Store selection and keep the selected Store visibly labelled
 while browsing other pages. Render protected/read-only states, role scope,
 assigned-user count, grouped searchable permission checkboxes, bulk selection
@@ -92,6 +98,12 @@ stale-save guidance. Refresh the role view and current navigation authority afte
 saving. Store Roles navigation requires actual roles.view or explicit platform
 viewing/management permission; a generic Store platform bypass is insufficient.
 Use public @selfx/ui components and accessible checkbox labels/descriptions.
+
+After sign-in, validate the saved return destination against the newly signed-in
+account's server-resolved navigation permissions and entitlements. Fall back to
+/app/dashboard for inaccessible destinations (including Store-only /app/payments
+for Platform accounts). Preserve permitted return paths, queries and fragments,
+including the separately authorized Shopify installation approval continuation.
 
 ### PAYMENTS-1D — Store Payment Settings navigation and verification
 

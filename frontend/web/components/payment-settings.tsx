@@ -321,7 +321,7 @@ function StorePaymentSettingsPanel({
                 </CardContent>
               )}
               {canEdit && gateway.setupAvailable && (
-                <CardFooter className="flex flex-wrap gap-2">
+                <CardFooter className="mt-auto flex flex-wrap justify-end gap-2">
                   {canEdit && gateway.setupAvailable && !connection && (
                     <Button
                       variant="outline"

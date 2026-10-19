@@ -21,7 +21,7 @@ export type StaffUser = {
   hasPlatformAccess: boolean;
 };
 
-type AuthTokenResponse = {
+export type AuthTokenResponse = {
   accessToken: string;
   accessTokenExpiresAt: string;
   user: StaffUser;
@@ -33,7 +33,7 @@ type SessionState =
   | { status: "authenticated"; user: StaffUser; accessToken: string };
 
 type SessionContextValue = SessionState & {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthTokenResponse>;
   signup: (input: SignupInput) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -188,6 +188,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (operationVersionRef.current === loginVersion) {
           applyTokenResponse(response);
         }
+        return response;
       } catch (error) {
         if (
           operationVersionRef.current === loginVersion &&

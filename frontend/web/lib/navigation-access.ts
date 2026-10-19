@@ -1,4 +1,7 @@
 import type { SelfxNavItem } from "@selfx/ui";
+import type { CurrentPlatformAccess } from "./access-control";
+import { storeResourcePermissions } from "./current-store";
+import type { EffectiveStorePermissions } from "./stores";
 
 export type NavigationAccess = {
   isSuperadmin: boolean;
@@ -12,6 +15,34 @@ export type NavigationAccess = {
   storeLocationLimit?: number | null;
   hasActiveStore: boolean;
 };
+
+export function navigationAccess({
+  sessionHasPlatformAccess,
+  platformAccess,
+  storeAccess,
+  hasActiveStore,
+}: {
+  sessionHasPlatformAccess: boolean;
+  platformAccess: CurrentPlatformAccess | null;
+  storeAccess: EffectiveStorePermissions | null;
+  hasActiveStore: boolean;
+}): NavigationAccess {
+  return {
+    isSuperadmin: platformAccess?.isSuperadmin ?? false,
+    hasPlatformAccess:
+      sessionHasPlatformAccess ||
+      (platformAccess?.permissions.length ?? 0) > 0 ||
+      (platformAccess?.isSuperadmin ?? false),
+    platformPermissions: platformAccess?.permissions ?? [],
+    storePermissions: storeAccess?.permissions ?? [],
+    storeResourcePermissions: storeResourcePermissions(storeAccess),
+    storePaymentAccess: storeAccess?.paymentAccess,
+    storePlatformBypass: storeAccess?.platformBypass ?? false,
+    storeFeatureKeys: storeAccess?.featureKeys ?? [],
+    storeLocationLimit: storeAccess?.storeLocationLimit,
+    hasActiveStore,
+  };
+}
 
 const platformPermissionsByHref: Record<string, string[]> = {
   "/app/stores": ["STORES_VIEW"],
@@ -87,6 +118,29 @@ const platformOrStoreAccessHrefs = new Set([
 ]);
 
 const alwaysVisibleHrefs = new Set(["/app/dashboard", "/app/activity"]);
+
+// Nested detail pages inherit their workspace's navigation rule. Resource-level
+// authorization is still checked by the page and backend using the explicit ID.
+export function canReturnToAppPath(
+  pathname: string,
+  access: NavigationAccess,
+): boolean {
+  const routes = new Set([
+    ...Object.keys(platformPermissionsByHref),
+    ...Object.keys(storePermissionsByHref),
+    ...platformOrStoreAccessHrefs,
+    ...alwaysVisibleHrefs,
+    "/app/payments",
+    "/app/platform/mail-settings",
+  ]);
+  const route = [...routes]
+    .sort((a, b) => b.length - a.length)
+    .find(
+      (candidate) =>
+        pathname === candidate || pathname.startsWith(`${candidate}/`),
+    );
+  return !!route && canSeeHref(route, access);
+}
 
 export function filterNavigationItems(
   items: SelfxNavItem[],

@@ -52,9 +52,11 @@ unknown test records a new status diagnostic where possible.
 
 ### ROLES-1 — Review and edit scoped role permissions
 
-Superadmin opens User Management > Roles and chooses Platform roles or Store
-roles. The platform list includes a protected Superadmin view plus Admin and
-Staff. For Store roles, select an active Store, then Admin or Staff. Review the
+Superadmin opens User Management > Roles and sees one Role Registry containing
+Platform Superadmin, Platform Admin, Platform Staff, Store Admin and Store Staff,
+without separate scope tabs. Select any role to show its permission checkboxes;
+the selected role has a clear border and highlight. For Store roles, select an
+active Store. Platform/Store labels keep each role's scope explicit. Review the
 assigned-user count and permission groups, search as needed, and save authorized
 changes. Superadmin can separately configure that Store's permission limit.
 

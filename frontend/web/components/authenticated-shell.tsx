@@ -39,11 +39,10 @@ import {
   filterNavigationItems,
   canSeeHref,
   isMerchantOnlyRoute,
-  type NavigationAccess,
+  navigationAccess,
 } from "@/lib/navigation-access";
 import {
   getCurrentMerchantStoreAccess,
-  storeResourcePermissions,
   type CurrentStore,
 } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
@@ -388,32 +387,4 @@ function loginUrlForCurrentPage(): string {
     `${window.location.pathname}${window.location.search}${window.location.hash}`,
   );
   return `/login?next=${encodeURIComponent(next)}`;
-}
-
-function navigationAccess({
-  sessionHasPlatformAccess,
-  platformAccess,
-  storeAccess,
-  hasActiveStore,
-}: {
-  sessionHasPlatformAccess: boolean;
-  platformAccess: CurrentPlatformAccess | null;
-  storeAccess: EffectiveStorePermissions | null;
-  hasActiveStore: boolean;
-}): NavigationAccess {
-  return {
-    isSuperadmin: platformAccess?.isSuperadmin ?? false,
-    hasPlatformAccess:
-      sessionHasPlatformAccess ||
-      (platformAccess?.permissions.length ?? 0) > 0 ||
-      (platformAccess?.isSuperadmin ?? false),
-    platformPermissions: platformAccess?.permissions ?? [],
-    storePermissions: storeAccess?.permissions ?? [],
-    storeResourcePermissions: storeResourcePermissions(storeAccess),
-    storePaymentAccess: storeAccess?.paymentAccess,
-    storePlatformBypass: storeAccess?.platformBypass ?? false,
-    storeFeatureKeys: storeAccess?.featureKeys ?? [],
-    storeLocationLimit: storeAccess?.storeLocationLimit,
-    hasActiveStore,
-  };
 }
