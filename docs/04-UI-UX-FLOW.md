@@ -1,5 +1,32 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
+
+Show a shared Continue with Google button above the email form only when backend
+configuration enables it. Support opening, disabled and recoverable error states.
+Keep password login/signup, recovery and Shopify continuation. Explain matching
+password authentication when Google linking is pending. After a successful Google
+callback, restore the HttpOnly SelfX session on /auth/google/complete and resolve
+the permitted destination; never expose tokens in the completion URL. A failed
+session restore offers Return to sign in.
+
+Remove Developer / API from Store navigation, Store role checkboxes and Store
+permission bypasses. Direct page access shows a Platform-only explanation; backend
+denial remains authoritative. Platform view/manage permissions control the console.
+
+### PAYMENTS-1K — Available gateway cards without verification panel (2026-10-20)
+
+Store Payment Settings shows only supported gateways marked Available to Stores.
+Hide disabled and Coming soon/Planned cards and their configuration controls.
+Summary counts reflect available gateways only. Show an explanatory empty state
+when none are available. Preserve responsive logos, modes, historical Verified
+status, setup/edit/delete dialogs and selection switches. Selected configured
+accounts without historical verification show Configured rather than prompting
+verification. Remove the INR 1 verification/history panel and post-save verify
+instruction from this page. Platform administration retains every gateway and
+its availability controls and testing workspace. This supersedes PAYMENTS-1J
+Store visibility and separate verification-panel requirements.
+
 ### ROLES-2 — Global registry without Store controls (2026-10-19)
 
 Keep the five-role registry on the left and the selected role's permission panel

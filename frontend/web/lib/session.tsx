@@ -34,7 +34,7 @@ type SessionState =
 
 type SessionContextValue = SessionState & {
   login: (email: string, password: string) => Promise<AuthTokenResponse>;
-  signup: (input: SignupInput) => Promise<void>;
+  signup: (input: SignupInput) => Promise<AuthTokenResponse>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -224,6 +224,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (operationVersionRef.current === signupVersion) {
           applyTokenResponse(response);
         }
+        return response;
       } catch (error) {
         if (
           operationVersionRef.current === signupVersion &&

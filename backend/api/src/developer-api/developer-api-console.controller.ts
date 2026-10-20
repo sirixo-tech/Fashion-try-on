@@ -31,11 +31,6 @@ import {
   type PlatformPermission,
 } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
-import {
-  STORE_PERMISSION_CODES,
-  type StorePermissionCode,
-} from "../rbac/store-permissions.js";
-import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { DeveloperApiKeyService } from "./developer-api-key.service.js";
 import { DeveloperApiConsoleService } from "./developer-api-console.service.js";
 import {
@@ -59,7 +54,6 @@ export class DeveloperApiConsoleController {
   constructor(
     private readonly auth: AuthService,
     private readonly platformAuthorization: PlatformAuthorizationService,
-    private readonly rbac: StoreRbacService,
     private readonly apiKeys: DeveloperApiKeyService,
     private readonly console: DeveloperApiConsoleService,
     private readonly webhooks: PublicApiWebhookService,
@@ -74,6 +68,10 @@ export class DeveloperApiConsoleController {
     @Req() request: FastifyRequest,
     @Query() query: AdminDeveloperApiUsageQueryDto,
   ): Promise<AdminDeveloperApiUsageResponseDto> {
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiView,
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     const apiKeyStoreId = query.apiKeyId
       ? await this.apiKeys.storeIdForKey(query.apiKeyId)
       : undefined;
@@ -84,16 +82,6 @@ export class DeveloperApiConsoleController {
         "API key does not belong to the selected Store.",
       );
     }
-    const storeId = query.storeId ?? apiKeyStoreId;
-    await this.requirePlatformOrStorePermission(
-      request,
-      storeId,
-      [
-        PLATFORM_PERMISSIONS.developerApiView,
-        PLATFORM_PERMISSIONS.developerApiManage,
-      ],
-      STORE_PERMISSION_CODES.developerApiView,
-    );
     return this.console.usageSummary(query);
   }
 
@@ -106,15 +94,10 @@ export class DeveloperApiConsoleController {
     @Req() request: FastifyRequest,
     @Query() query: AdminDeveloperWebhookListQueryDto,
   ): Promise<AdminDeveloperWebhookEndpointListResponseDto> {
-    await this.requirePlatformOrStorePermission(
-      request,
-      query.storeId,
-      [
-        PLATFORM_PERMISSIONS.developerApiView,
-        PLATFORM_PERMISSIONS.developerApiManage,
-      ],
-      STORE_PERMISSION_CODES.developerApiView,
-    );
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiView,
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     return this.console.listWebhookEndpoints(query);
   }
 
@@ -128,12 +111,9 @@ export class DeveloperApiConsoleController {
     @Req() request: FastifyRequest,
     @Body() dto: CreateAdminDeveloperWebhookEndpointDto,
   ): Promise<CreateAdminDeveloperWebhookEndpointResponseDto> {
-    await this.requirePlatformOrStorePermission(
-      request,
-      dto.storeId,
-      [PLATFORM_PERMISSIONS.developerApiManage],
-      STORE_PERMISSION_CODES.developerApiManage,
-    );
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     const credential = await this.console.credentialForStore(dto.storeId);
     const created = await this.webhooks.createEndpoint(credential, dto);
     const endpoint = await this.console.webhookEndpoint(created.id);
@@ -152,13 +132,10 @@ export class DeveloperApiConsoleController {
     @Param("endpointId", SelfxUuidParamPipe) endpointId: string,
     @Body() dto: UpdateAdminDeveloperWebhookEndpointDto,
   ): Promise<AdminDeveloperWebhookEndpointDto> {
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     const storeId = await this.console.storeIdForWebhookEndpoint(endpointId);
-    await this.requirePlatformOrStorePermission(
-      request,
-      storeId,
-      [PLATFORM_PERMISSIONS.developerApiManage],
-      STORE_PERMISSION_CODES.developerApiManage,
-    );
     const credential = await this.console.credentialForStore(storeId);
     await this.webhooks.updateEndpoint(credential, endpointId, dto);
     return this.console.webhookEndpoint(endpointId);
@@ -175,13 +152,10 @@ export class DeveloperApiConsoleController {
     @Req() request: FastifyRequest,
     @Param("endpointId", SelfxUuidParamPipe) endpointId: string,
   ): Promise<void> {
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     const storeId = await this.console.storeIdForWebhookEndpoint(endpointId);
-    await this.requirePlatformOrStorePermission(
-      request,
-      storeId,
-      [PLATFORM_PERMISSIONS.developerApiManage],
-      STORE_PERMISSION_CODES.developerApiManage,
-    );
     const credential = await this.console.credentialForStore(storeId);
     await this.webhooks.disableEndpoint(credential, endpointId);
   }
@@ -195,6 +169,10 @@ export class DeveloperApiConsoleController {
     @Req() request: FastifyRequest,
     @Query() query: AdminDeveloperWebhookDeliveryListQueryDto,
   ): Promise<AdminDeveloperWebhookDeliveryListResponseDto> {
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiView,
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     const endpointStoreId =
       query.endpointId !== undefined
         ? await this.console.storeIdForWebhookEndpoint(query.endpointId)
@@ -206,24 +184,12 @@ export class DeveloperApiConsoleController {
         "Webhook endpoint does not belong to the selected Store.",
       );
     }
-    const storeId = query.storeId ?? endpointStoreId;
-    await this.requirePlatformOrStorePermission(
-      request,
-      storeId,
-      [
-        PLATFORM_PERMISSIONS.developerApiView,
-        PLATFORM_PERMISSIONS.developerApiManage,
-      ],
-      STORE_PERMISSION_CODES.developerApiView,
-    );
     return this.console.listWebhookDeliveries(query);
   }
 
-  private async requirePlatformOrStorePermission(
+  private async requireDeveloperPermission(
     request: FastifyRequest,
-    storeId: string | undefined,
     platformPermissions: readonly PlatformPermission[],
-    storePermission: StorePermissionCode,
   ) {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
@@ -232,10 +198,6 @@ export class DeveloperApiConsoleController {
       if (await this.platformAuthorization.hasPermission(user.id, permission)) {
         return user;
       }
-    }
-    if (storeId) {
-      await this.rbac.requireStorePermission(user.id, storeId, storePermission);
-      return user;
     }
     const fallbackPermission = platformPermissions[0];
     if (!fallbackPermission) {

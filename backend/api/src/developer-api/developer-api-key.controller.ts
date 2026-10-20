@@ -17,11 +17,6 @@ import {
   type PlatformPermission,
 } from "../platform/platform-permissions.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
-import {
-  STORE_PERMISSION_CODES,
-  type StorePermissionCode,
-} from "../rbac/store-permissions.js";
-import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { DeveloperApiKeyService } from "./developer-api-key.service.js";
 import {
   CreateDeveloperApiKeyDto,
@@ -38,7 +33,6 @@ export class DeveloperApiKeyController {
   constructor(
     private readonly auth: AuthService,
     private readonly platformAuthorization: PlatformAuthorizationService,
-    private readonly rbac: StoreRbacService,
     private readonly apiKeys: DeveloperApiKeyService,
   ) {}
 
@@ -51,15 +45,10 @@ export class DeveloperApiKeyController {
     @Req() request: FastifyRequest,
     @Query() query: DeveloperApiKeyListQueryDto,
   ): Promise<DeveloperApiKeyListResponseDto> {
-    await this.requirePlatformOrStorePermission(
-      request,
-      query.storeId,
-      [
-        PLATFORM_PERMISSIONS.developerApiView,
-        PLATFORM_PERMISSIONS.developerApiManage,
-      ],
-      STORE_PERMISSION_CODES.developerApiView,
-    );
+    await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiView,
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     return this.apiKeys.listKeys(query);
   }
 
@@ -73,12 +62,9 @@ export class DeveloperApiKeyController {
     @Req() request: FastifyRequest,
     @Body() dto: CreateDeveloperApiKeyDto,
   ): Promise<CreateDeveloperApiKeyResponseDto> {
-    const user = await this.requirePlatformOrStorePermission(
-      request,
-      dto.storeId,
-      [PLATFORM_PERMISSIONS.developerApiManage],
-      STORE_PERMISSION_CODES.developerApiManage,
-    );
+    const user = await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     return this.apiKeys.createKey(user.id, dto);
   }
 
@@ -92,21 +78,15 @@ export class DeveloperApiKeyController {
     @Req() request: FastifyRequest,
     @Param("keyId", SelfxUuidParamPipe) keyId: string,
   ): Promise<DeveloperApiKeyDto> {
-    const storeId = await this.apiKeys.storeIdForKey(keyId);
-    const user = await this.requirePlatformOrStorePermission(
-      request,
-      storeId,
-      [PLATFORM_PERMISSIONS.developerApiManage],
-      STORE_PERMISSION_CODES.developerApiManage,
-    );
+    const user = await this.requireDeveloperPermission(request, [
+      PLATFORM_PERMISSIONS.developerApiManage,
+    ]);
     return this.apiKeys.revokeKey(user.id, keyId);
   }
 
-  private async requirePlatformOrStorePermission(
+  private async requireDeveloperPermission(
     request: FastifyRequest,
-    storeId: string | undefined,
     platformPermissions: readonly PlatformPermission[],
-    storePermission: StorePermissionCode,
   ) {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
@@ -115,10 +95,6 @@ export class DeveloperApiKeyController {
       if (await this.platformAuthorization.hasPermission(user.id, permission)) {
         return user;
       }
-    }
-    if (storeId) {
-      await this.rbac.requireStorePermission(user.id, storeId, storePermission);
-      return user;
     }
     const fallbackPermission = platformPermissions[0];
     if (!fallbackPermission) {

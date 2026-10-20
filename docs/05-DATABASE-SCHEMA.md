@@ -1,5 +1,30 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1 (2026-10-20)
+
+Migration 20261020000000_google_staff_sign_in makes users.password_hash nullable
+for verified Google-only users and adds user_external_identities: UUIDv7 id, user
+FK with cascade deletion, GOOGLE provider, stable subject, email_at_link and
+created_at; unique provider/subject and user/provider. Link email is provenance,
+not the login identity key.
+
+user_oauth_requests stores UUIDv7 id, unique state_hash, browser_hash, nonce, PKCE
+verifier, login/signup mode, validated return_path, expires_at, consumed_at,
+optional pending-link user FK/subject/email/credentials version, linked_at and
+created_at. Expiry and pending-user indexes support bounded cleanup and linking.
+Requests expire in ten minutes and are single use; expired rows are removed in
+bounded batches on new OAuth starts. Never store Google access/ID/refresh tokens.
+Historic Store developer permission rows may remain as compatibility history;
+they are filtered from active registry/maps and cannot authorize Developer/API.
+
+### PAYMENTS-1K — Availability without deleting configuration (2026-10-20)
+
+No schema migration. payment_gateway_policies.enabled controls availability in
+the Store catalog as well as existing mutation/execution checks. Missing policies
+remain unavailable. Filtering the catalog and removing its verification panel
+must not delete saved connection/selection rows, test records, attempts, encrypted
+snapshots, events or audit history.
+
 ### ROLES-2 — Global Store role maps (2026-10-19)
 
 Migration 20261019030000_global_store_role_permissions adds global_store_roles

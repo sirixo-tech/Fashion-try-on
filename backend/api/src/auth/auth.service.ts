@@ -81,7 +81,7 @@ export class AuthService {
       password,
     );
 
-    if (!user || !passwordMatches) {
+    if (!user || !user.passwordHash || !passwordMatches) {
       await this.auditLoginFailure(normalizedEmail, "invalid_credentials");
       throwInvalidCredentials();
     }
@@ -341,6 +341,29 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async loginWithGoogle(
+    userId: string,
+    metadata: RequestMetadata,
+  ): Promise<AuthResult> {
+    const user = await this.repository.findUserById(userId);
+    if (!user || !isActiveUser(user.status)) {
+      throw new ApiErrorException(
+        HttpStatus.FORBIDDEN,
+        AUTH_ERROR_CODES.userDisabled,
+        "User is disabled or suspended.",
+      );
+    }
+    const result = await this.issueTokens(user, metadata);
+    await this.repository.updateUserLogin(user.id, new Date());
+    await this.audit(AUTH_AUDIT_ACTIONS.loginSuccess, {
+      actorUserId: user.id,
+      resourceType: "user",
+      resourceId: user.id,
+      metadata: { ...safeRequestMetadata(metadata), method: "GOOGLE" },
+    });
+    return result;
   }
 
   private async issueTokens(

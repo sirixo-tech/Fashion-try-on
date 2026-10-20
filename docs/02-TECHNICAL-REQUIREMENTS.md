@@ -1,5 +1,40 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
+
+Use backend Google OIDC authorization-code exchange with PKCE S256, nonce,
+audience/issuer/signature/expiry and verified-email validation. Persist hashed
+single-use state/browser binding with a ten-minute expiry. Keep Google tokens
+transient; identify accounts by provider/subject. Existing-email linking requires
+the browser-bound pending proof, authenticated matching SelfX user and fresh
+password verification with unchanged credentials version. No automatic email
+merge. Google-only users have null password_hash and cannot use password login
+or the existing password-recovery path. Existing passwords remain unchanged.
+Reuse SelfX rotating refresh sessions, suspension checks and role resolution.
+Production callbacks use the public web origin through the same-origin API
+rewrite; never put SelfX credentials in URLs or browser storage. Resolve the final
+return destination through current access for password login/signup and Google.
+Keep the feature disabled until configured, migrated and deployed everywhere.
+
+Developer console endpoints require Platform view/manage permissions before
+resource lookup. Public key authentication additionally requires a non-deleted,
+active creator with current DEVELOPER_API_MANAGE authority. Store developer codes
+are retired from the registry and effective maps. Device and integration
+credentials use separate existing paths and retain their authorization gates.
+
+### PAYMENTS-1K — Available Store gateway catalog (2026-10-20)
+
+Store payment settings return gateways only when backend setup support and the
+current Platform enabled policy are both true. A missing policy is unavailable.
+Platform gateway administration continues to return the complete registry.
+Retain saved connection metadata and selection when disabled; these are not
+execution authority. Existing transaction-locked availability checks on setup,
+edit, selection and new payment attempts remain mandatory. Callback/status
+reconciliation uses retained snapshots independently of current availability.
+Store UI defensively applies the same filter and counts only available accounts.
+Remove its verification workspace mount, keeping backend verification/history
+contracts and Platform testing intact. No checkout execution gate is relaxed.
+
 ### ROLES-2 — Shared Store authorization policy (2026-10-19)
 
 GET /api/v1/admin/roles returns shared Platform and Store role definitions with

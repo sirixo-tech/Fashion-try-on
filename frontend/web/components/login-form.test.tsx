@@ -9,6 +9,12 @@ import {
 import { LoginForm } from "./login-form";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
 import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
+import { selfxApi } from "@/lib/api";
+vi.mock("./google-sign-in", () => ({ GoogleSignIn: () => null }));
+vi.mock("@/lib/api", async (original) => ({
+  ...(await original<typeof import("@/lib/api")>()),
+  selfxApi: vi.fn(),
+}));
 
 const { login, replace } = vi.hoisted(() => ({
   login: vi.fn(),
@@ -27,6 +33,7 @@ vi.mock("@/lib/current-store", async (original) => ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(selfxApi).mockResolvedValue({ ok: true });
   login.mockResolvedValue({
     accessToken: "fresh-superadmin-token",
     accessTokenExpiresAt: "2026-10-19T12:00:00Z",
@@ -89,4 +96,40 @@ it("stays on sign-in when authentication fails", async () => {
   expect(await screen.findByRole("alert")).toBeTruthy();
   expect(replace).not.toHaveBeenCalled();
   expect(getCurrentPlatformAccess).not.toHaveBeenCalled();
+});
+it("connects Google only after password sign-in succeeds", async () => {
+  window.history.replaceState(
+    {},
+    "",
+    "/login?google=link_required&next=%2Fapp%2Froles",
+  );
+  submit();
+  await waitFor(() =>
+    expect(selfxApi).toHaveBeenCalledWith("/api/v1/auth/google/link", {
+      method: "POST",
+      accessToken: "fresh-superadmin-token",
+      body: JSON.stringify({ password: "test-password" }),
+    }),
+  );
+  await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/roles"));
+});
+it("lets password login continue without an expired Google link", async () => {
+  window.history.replaceState({}, "", "/login?google=link_required");
+  render(<LoginForm />);
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Sign in without connecting Google",
+    }),
+  );
+  fireEvent.change(screen.getByLabelText("Email address"), {
+    target: { value: "admin@selfx.test" },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: "test-password" },
+  });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Sign in" }).closest("form")!,
+  );
+  await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/dashboard"));
+  expect(selfxApi).not.toHaveBeenCalled();
 });

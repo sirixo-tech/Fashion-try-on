@@ -156,6 +156,64 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
   const request = { headers: { authorization: "Bearer test" } } as never;
   const denied = { response: { error: { code: "ROLE_MANAGEMENT_DENIED" } } };
 
+  it("retires stored Developer API grants from Store roles, runtime permissions and permission lists", async () => {
+    const actor = await user(true),
+      tenant = await store(),
+      admin = await user();
+    await member(admin, tenant, "store-admin");
+    const permission = await db.permission.upsert({
+      where: { code: "developer_api.view" },
+      create: {
+        id: createSelfxId(),
+        code: "developer_api.view",
+        module: "developer_api",
+        action: "view",
+        label: "Retired Store API access",
+        applicability: "STORE",
+      },
+      update: {},
+    });
+    const role = (await readGlobalStoreRoles(db)).find(
+      (r) => r.systemCode === "store-admin",
+    )!;
+    await db.globalStoreRolePermission.upsert({
+      where: {
+        roleId_permissionId: { roleId: role.id, permissionId: permission.id },
+      },
+      create: {
+        id: createSelfxId(),
+        roleId: role.id,
+        permissionId: permission.id,
+      },
+      update: {},
+    });
+    const workspace = await global.workspace(actor);
+    expect(
+      workspace.permissions.some((p) => p.code.startsWith("developer_api.")),
+    ).toBe(false);
+    expect(
+      workspace.roles
+        .flatMap((r) => r.permissions)
+        .some((p) => p.code.startsWith("developer_api.")),
+    ).toBe(false);
+    expect(
+      (await rbac.effectivePermissions(admin, tenant, false)).permissions,
+    ).not.toContain("developer_api.view");
+    expect(
+      (await access.listPermissions()).data.some((p) =>
+        p.code.startsWith("developer_api."),
+      ),
+    ).toBe(false);
+    await expect(
+      save(actor, "store-admin", [
+        ...STORE_ADMIN_REQUIRED_PERMISSIONS,
+        "developer_api.view",
+      ]),
+    ).rejects.toMatchObject({
+      response: { error: { code: "STORE_PERMISSION_INVALID" } },
+    });
+  });
+
   it("applies revocation and grant immediately to Staff in multiple Stores and future Stores", async () => {
     const actor = await user(true),
       a = await store(),

@@ -96,7 +96,6 @@ const storePermissionsByHref: Record<string, string[]> = {
   "/app/staff": ["users.view"],
   "/app/analytics": ["analytics.view"],
   "/app/billing": ["analytics.view"],
-  "/app/developer": ["developer_api.view", "developer_api.manage"],
   "/app/integrations/shopify": ["integrations.view"],
   "/app/integrations/woocommerce": ["integrations.view"],
 };
@@ -104,7 +103,6 @@ const storePermissionsByHref: Record<string, string[]> = {
 const storeFeaturesByHref: Record<string, string[]> = {
   "/app/kiosks": ["KIOSK_MANAGEMENT", "KIOSK_RENTAL"],
   "/app/analytics": ["ANALYTICS"],
-  "/app/developer": ["PUBLIC_API"],
   "/app/integrations/shopify": ["SHOPIFY_INTEGRATION"],
   "/app/integrations/woocommerce": ["WOOCOMMERCE_INTEGRATION"],
 };
@@ -221,6 +219,16 @@ export function canSeeHref(href: string, access: NavigationAccess): boolean {
     (access.hasPlatformAccess || access.isSuperadmin)
   ) {
     return false;
+  }
+  if (route === "/app/developer") {
+    return (
+      access.isSuperadmin ||
+      (access.hasPlatformAccess &&
+        hasAny(access.platformPermissions, [
+          "DEVELOPER_API_VIEW",
+          "DEVELOPER_API_MANAGE",
+        ]))
+    );
   }
   if (access.isSuperadmin) return true;
   if (alwaysVisibleHrefs.has(route)) {

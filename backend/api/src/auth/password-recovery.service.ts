@@ -113,6 +113,7 @@ export class PasswordRecoveryService implements OnModuleInit {
       });
       if (
         user.status !== "ACTIVE" ||
+        !user.passwordHash ||
         user.createdAt > job.createdAt ||
         (user.passwordChangedAt && user.passwordChangedAt >= job.createdAt)
       )

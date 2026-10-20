@@ -30,6 +30,40 @@ const input: SavePhonePeConnectionDto = {
 const request = {
   headers: { authorization: "Bearer fixture" },
 } as FastifyRequest;
+describe("Store gateway availability", () => {
+  it.each([
+    { policies: [], providers: [] },
+    {
+      policies: [{ provider: "PHONEPE", enabled: false, version: 1 }],
+      providers: [],
+    },
+    {
+      policies: [{ provider: "PHONEPE", enabled: true, version: 1 }],
+      providers: ["PHONEPE"],
+    },
+    {
+      policies: [{ provider: "STRIPE", enabled: true, version: 1 }],
+      providers: [],
+    },
+  ])("filters Store catalog for $policies", async ({ policies, providers }) => {
+    const prisma = {
+      organization: { findFirst: vi.fn().mockResolvedValue({ id: "store-a" }) },
+      storePaymentSettings: { findUnique: vi.fn().mockResolvedValue(null) },
+      storePaymentConnection: { findMany: vi.fn().mockResolvedValue([]) },
+      platformPaymentTest: { findMany: vi.fn().mockResolvedValue([]) },
+      paymentGatewayPolicy: { findMany: vi.fn().mockResolvedValue(policies) },
+    };
+    const service = new PaymentSettingsService(
+      prisma as unknown as ConstructorParameters<
+        typeof PaymentSettingsService
+      >[0],
+    );
+    expect(
+      (await service.getStore("store-a")).gateways.map((item) => item.provider),
+    ).toEqual(providers);
+    expect((await service.listGateways()).data).toHaveLength(5);
+  });
+});
 describe("payment configuration input and encryption readiness", () => {
   it("accepts unconfirmed environment without pretending account access was verified", async () => {
     expect(

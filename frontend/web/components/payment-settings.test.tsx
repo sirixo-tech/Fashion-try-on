@@ -295,7 +295,7 @@ describe("payment settings", () => {
     );
     expect(savePhonePeSetup).not.toHaveBeenCalled();
     expect(
-      await screen.findByText(/Verify the updated configuration/),
+      await screen.findByText("PhonePe account saved securely."),
     ).toBeTruthy();
   });
   it("reports an unchanged edit without discarding existing verification", async () => {
@@ -337,7 +337,7 @@ describe("payment settings", () => {
     expect(screen.getByText("Verified")).toBeTruthy();
     expect(screen.queryByText("Ready for checkout")).toBeNull();
     expect(screen.queryByText("Account verification passed")).toBeNull();
-    expect(screen.getByText("Store verification workspace")).toBeTruthy();
+    expect(screen.queryByText("Store verification workspace")).toBeNull();
   });
   it.each([
     {
@@ -354,7 +354,7 @@ describe("payment settings", () => {
       selected: true,
       enabled: true,
       mode: "Live mode",
-      state: "Needs verification",
+      state: "Configured",
     },
     {
       environment: "UNCONFIRMED" as const,
@@ -362,15 +362,7 @@ describe("payment settings", () => {
       selected: true,
       enabled: true,
       mode: "Mode unconfirmed",
-      state: "Needs verification",
-    },
-    {
-      environment: "PRODUCTION" as const,
-      status: "VERIFIED" as const,
-      selected: true,
-      enabled: false,
-      mode: "Live mode",
-      state: "Off",
+      state: "Configured",
     },
   ])(
     "shows $mode / $state for the actual gateway state",
@@ -388,13 +380,62 @@ describe("payment settings", () => {
           canEdit
         />,
       );
-      await screen.findByRole("button", { name: "Edit" });
+      const edit = await screen.findByRole("button", { name: "Edit" });
       expect(screen.getByText(mode)).toBeTruthy();
-      expect(screen.getByText(state, { exact: true })).toBeTruthy();
+      expect(
+        within(edit.closest('[data-slot="card"]') as HTMLElement).getByText(
+          state,
+          { exact: true },
+        ),
+      ).toBeTruthy();
       expect(screen.queryByText("Ready for checkout")).toBeNull();
-      expect(screen.getByText("Planned")).toBeTruthy();
+      expect(screen.queryByText("Planned")).toBeNull();
     },
   );
+  it("shows only supported gateways made available by Superadmin", async () => {
+    vi.mocked(getStorePayments).mockResolvedValue({
+      ...settings,
+      // Even an obsolete response or inconsistent policy cannot expose a planned gateway.
+      gateways: [gateways[0]!, { ...gateways[1]!, enabled: true }],
+    });
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    await screen.findByText("PhonePe");
+    expect(screen.queryByText("Stripe")).toBeNull();
+    expect(screen.queryByText("Planned")).toBeNull();
+    expect(screen.queryByText("Store verification workspace")).toBeNull();
+  });
+  it("hides a disabled saved gateway and restores it after Superadmin re-enables it", async () => {
+    vi.mocked(getStorePayments)
+      .mockResolvedValueOnce({
+        ...configured,
+        gateways: [{ ...gateways[0]!, enabled: false }, gateways[1]!],
+      })
+      .mockResolvedValue(configured);
+    render(
+      <PaymentSettings accessToken="fixture_token" storeId="store-a" canEdit />,
+    );
+    await screen.findByText(/No payment gateways are currently available/);
+    expect(screen.queryByText("PhonePe")).toBeNull();
+    expect(screen.queryByText("Stripe")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    for (const label of ["Configured", "Turned on", "Live accounts verified"])
+      expect(screen.getByText(label).parentElement?.textContent).toContain("0");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh gateways" }));
+    await screen.findByRole("button", { name: "Edit" });
+    expect(
+      screen
+        .getByRole("switch", { name: "Use PhonePe for future checkout" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      screen.queryByText(/No payment gateways are currently available/),
+    ).toBeNull();
+    expect(deletePhonePeSetup).not.toHaveBeenCalled();
+    expect(selectStoreGateway).not.toHaveBeenCalled();
+  });
   it("turns off selection without deleting saved credentials", async () => {
     vi.mocked(getStorePayments).mockResolvedValue(configured);
     vi.mocked(selectStoreGateway).mockResolvedValue({

@@ -1,5 +1,32 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
+
+Implement Platform-only console/API key access, retire effective Store developer
+permissions, and preserve kiosk/Shopify/WooCommerce authentication. Add the Google
+identity migration, code-flow verification, secure account linking, shared session
+issuance, conditional buttons and permission-aware completion/signup redirects.
+Verify disabled configuration, callback validation/replay/expiry/browser binding,
+account linking conflicts, password/version checks, concurrent signup, Starter
+onboarding, suspension, password/session/recovery regressions and Platform-only
+Developer/API execution. Run real local PostgreSQL migration/auth tests, types,
+lint and production builds. Deploy the migration, all API instances and web before
+enabling Google. Google Cloud credentials/branding/redirect registration and live
+Google smoke testing are operator setup. See AUTH-GOOGLE-1-IMPLEMENTATION-REPORT.md.
+No customer-account, APK login/payment or new sales channel is implemented here.
+
+### PAYMENTS-1K — Honor gateway availability in Store settings (2026-10-20)
+
+Filter the Store API catalog and UI by supported/enabled policies; preserve the
+full Platform registry. Remove routine Store verification UI while retaining
+backend histories and reconciliation. Verify missing/disabled/unsupported
+catalogs, empty UI, policy disable/re-enable without data loss, setup/edit/select
+denials and rejection of new payment attempts before provider calls. Run focused
+UI, controller and PostgreSQL regressions, types, lint and production web build.
+No migration or new environment variable is required. Deploy API and web for the
+new visibility contract. This work does not implement or enable player APK or
+live checkout payments.
+
 ### ROLES-2 — Application-wide Store roles (2026-10-19)
 
 Implement shared Store Admin/Staff persistence, conservative migration, global

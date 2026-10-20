@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CreditCardIcon,
   PencilIcon,
@@ -31,7 +31,6 @@ import {
 import { PlatformPaymentGateways } from "./platform-payment-gateways";
 import { PhonePeConfiguration } from "./phonepe-configuration";
 import { PaymentProviderLogo } from "./payment-provider-logo";
-import { StorePaymentVerification } from "./store-payment-verification";
 import {
   getStorePayments,
   getPhonePeEdit,
@@ -85,11 +84,6 @@ function StorePaymentSettingsPanel({
   const formVersion = useRef(0),
     deleteVersion = useRef(0);
   const locked = busy || setup || deleting;
-  const refreshVerified = useCallback(() => {
-    void getStorePayments(accessToken, storeId)
-      .then(setStore)
-      .catch((caught) => setError(message(caught)));
-  }, [accessToken, storeId]);
   useEffect(() => {
     let current = true;
     setError(null);
@@ -162,20 +156,28 @@ function StorePaymentSettingsPanel({
       setBusy(false);
     }
   }
-  const configured = store?.connections.length ?? 0;
-  const verifiedLive =
-    store?.connections.filter(
-      (item) => item.environment === "PRODUCTION" && item.status === "VERIFIED",
-    ).length ?? 0;
-  const phonePe = store?.connections.find(
-    (item) => item.provider === "PHONEPE",
+  const availableGateways =
+    store?.gateways.filter(
+      (gateway) => gateway.setupAvailable && gateway.enabled,
+    ) ?? [];
+  const availableConnections =
+    store?.connections.filter((connection) =>
+      availableGateways.some(
+        (gateway) => gateway.provider === connection.provider,
+      ),
+    ) ?? [];
+  const verifiedLive = availableConnections.filter(
+    (item) => item.environment === "PRODUCTION" && item.status === "VERIFIED",
+  ).length;
+  const selectedAvailable = availableGateways.some(
+    (gateway) => gateway.provider === store?.selectedProvider,
   );
   return (
     <PageSection>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground">
-          Set up and verify your Store's payment accounts. Customer checkout is
-          not enabled yet.
+          Configure the payment gateways made available by SelfX. Customer
+          checkout is not enabled yet.
         </p>
         <Button
           variant="outline"
@@ -197,12 +199,12 @@ function StorePaymentSettingsPanel({
         <div className="grid gap-4 sm:grid-cols-3">
           <StatCard
             label="Configured"
-            value={String(configured)}
+            value={String(availableConnections.length)}
             icon={<Settings2Icon />}
           />
           <StatCard
             label="Turned on"
-            value={store.selectedProvider ? "1" : "0"}
+            value={selectedAvailable ? "1" : "0"}
             secondaryValue="Selected for future checkout"
             icon={<CreditCardIcon />}
           />
@@ -213,176 +215,161 @@ function StorePaymentSettingsPanel({
           />
         </div>
       )}
+      {store && availableGateways.length === 0 && (
+        <Alert>
+          <AlertDescription>
+            No payment gateways are currently available. Contact SelfX support
+            for assistance.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {store?.gateways.map((gateway) => {
-          const connection = store.connections.find(
-            (item) => item.provider === gateway.provider,
-          );
-          const selected = store.selectedProvider === gateway.provider;
-          const status = !gateway.setupAvailable
-            ? "Planned"
-            : !connection
+        {store &&
+          availableGateways.map((gateway) => {
+            const connection = store.connections.find(
+              (item) => item.provider === gateway.provider,
+            );
+            const selected = store.selectedProvider === gateway.provider;
+            const status = !connection
               ? "Needs setup"
-              : !gateway.enabled || !selected
+              : !selected
                 ? "Off"
                 : connection.status === "VERIFIED"
                   ? "Verified"
-                  : "Needs verification";
-          return (
-            <Card
-              key={gateway.provider}
-              className={
-                selected ? "border-primary ring-1 ring-primary/20" : undefined
-              }
-            >
-              <CardHeader>
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <PaymentProviderLogo
-                    provider={gateway.provider}
-                    className="w-24 sm:w-32"
-                  />
-                  <div className="min-w-0 space-y-2">
-                    <CardTitle>{gateway.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {gateway.provider === "PHONEPE" ||
-                      gateway.provider === "PAYTM"
-                        ? "Dynamic UPI QR payments."
-                        : gateway.provider === "STRIPE"
-                          ? "Cards and international payments."
-                          : gateway.provider === "RAZORPAY"
-                            ? "Payments for India."
-                            : "Payments with PayPal."}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {gateway.setupAvailable && connection && (
+                  : "Configured";
+            return (
+              <Card
+                key={gateway.provider}
+                className={
+                  selected ? "border-primary ring-1 ring-primary/20" : undefined
+                }
+              >
+                <CardHeader>
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <PaymentProviderLogo
+                      provider={gateway.provider}
+                      className="w-24 sm:w-32"
+                    />
+                    <div className="min-w-0 space-y-2">
+                      <CardTitle>{gateway.name}</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {gateway.provider === "PHONEPE" ||
+                        gateway.provider === "PAYTM"
+                          ? "Dynamic UPI QR payments."
+                          : gateway.provider === "STRIPE"
+                            ? "Cards and international payments."
+                            : gateway.provider === "RAZORPAY"
+                              ? "Payments for India."
+                              : "Payments with PayPal."}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {gateway.setupAvailable && connection && (
+                          <Badge
+                            variant="outline"
+                            className="border-info/20 bg-info/10 text-info text-[11px]"
+                          >
+                            {connection.environment === "PRODUCTION"
+                              ? "Live mode"
+                              : connection.environment === "UAT"
+                                ? "Test mode"
+                                : "Mode unconfirmed"}
+                          </Badge>
+                        )}
                         <Badge
                           variant="outline"
-                          className="border-info/20 bg-info/10 text-info text-[11px]"
+                          className={
+                            status === "Verified"
+                              ? "border-success/20 bg-success/10 text-success text-[11px]"
+                              : status === "Needs setup"
+                                ? "border-warning/30 bg-warning/10 text-foreground text-[11px]"
+                                : "border-border bg-muted/50 text-muted-foreground text-[11px]"
+                          }
+                          title={
+                            status === "Verified"
+                              ? "Account verification passed. Customer checkout is not enabled yet."
+                              : undefined
+                          }
                         >
-                          {connection.environment === "PRODUCTION"
-                            ? "Live mode"
-                            : connection.environment === "UAT"
-                              ? "Test mode"
-                              : "Mode unconfirmed"}
+                          {status}
                         </Badge>
-                      )}
-                      <Badge
-                        variant="outline"
-                        className={
-                          status === "Verified"
-                            ? "border-success/20 bg-success/10 text-success text-[11px]"
-                            : status === "Needs verification" ||
-                                status === "Needs setup"
-                              ? "border-warning/30 bg-warning/10 text-foreground text-[11px]"
-                              : "border-border bg-muted/50 text-muted-foreground text-[11px]"
-                        }
-                        title={
-                          status === "Verified"
-                            ? "Account verification passed. Customer checkout is not enabled yet."
-                            : undefined
-                        }
-                      >
-                        {status}
-                      </Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              {gateway.setupAvailable && (
-                <CardContent className="space-y-4">
-                  {!gateway.enabled && gateway.setupAvailable && (
-                    <p className="text-sm text-muted-foreground">
-                      New setup and selection are disabled by SelfX.
-                    </p>
-                  )}
-                  {gateway.setupAvailable && (
-                    <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 p-4">
-                      <div>
-                        <p className="font-medium">Use for future checkout</p>
-                        <p className="text-sm text-muted-foreground">
-                          {selected ? "On" : "Off"} · Saved automatically
-                        </p>
+                </CardHeader>
+                {gateway.setupAvailable && (
+                  <CardContent className="space-y-4">
+                    {gateway.setupAvailable && (
+                      <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 p-4">
+                        <div>
+                          <p className="font-medium">Use for future checkout</p>
+                          <p className="text-sm text-muted-foreground">
+                            {selected ? "On" : "Off"} · Saved automatically
+                          </p>
+                        </div>
+                        <Switch
+                          aria-label={`Use ${gateway.name} for future checkout`}
+                          checked={selected}
+                          disabled={
+                            !canEdit ||
+                            locked ||
+                            !connection ||
+                            (!selected && !gateway.enabled)
+                          }
+                          onCheckedChange={(on) =>
+                            void change(on ? gateway.provider : null)
+                          }
+                        />
                       </div>
-                      <Switch
-                        aria-label={`Use ${gateway.name} for future checkout`}
-                        checked={selected}
-                        disabled={
-                          !canEdit ||
-                          locked ||
-                          !connection ||
-                          (!selected && !gateway.enabled)
-                        }
-                        onCheckedChange={(on) =>
-                          void change(on ? gateway.provider : null)
-                        }
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              )}
-              {canEdit && gateway.setupAvailable && (
-                <CardFooter className="mt-auto flex flex-wrap justify-end gap-2">
-                  {canEdit && gateway.setupAvailable && !connection && (
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      disabled={locked || !gateway.enabled}
-                      onClick={() => {
-                        formVersion.current = store.version;
-                        setInitial(undefined);
-                        setSetup(true);
-                      }}
-                    >
-                      <Settings2Icon aria-hidden="true" />
-                      Set up
-                    </Button>
-                  )}
-                  {canEdit && gateway.setupAvailable && connection && (
-                    <>
+                    )}
+                  </CardContent>
+                )}
+                {canEdit && gateway.setupAvailable && (
+                  <CardFooter className="mt-auto flex flex-wrap justify-end gap-2">
+                    {canEdit && gateway.setupAvailable && !connection && (
                       <Button
                         variant="outline"
+                        className="w-full"
                         disabled={locked || !gateway.enabled}
-                        onClick={() => void edit()}
-                      >
-                        <PencilIcon aria-hidden="true" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        disabled={locked}
                         onClick={() => {
-                          deleteVersion.current = store.version;
-                          setDeleteError(null);
-                          setDeleting(true);
+                          formVersion.current = store.version;
+                          setInitial(undefined);
+                          setSetup(true);
                         }}
                       >
-                        <Trash2Icon aria-hidden="true" />
-                        Delete
+                        <Settings2Icon aria-hidden="true" />
+                        Set up
                       </Button>
-                    </>
-                  )}
-                </CardFooter>
-              )}
-            </Card>
-          );
-        })}
+                    )}
+                    {canEdit && gateway.setupAvailable && connection && (
+                      <>
+                        <Button
+                          variant="outline"
+                          disabled={locked || !gateway.enabled}
+                          onClick={() => void edit()}
+                        >
+                          <PencilIcon aria-hidden="true" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          disabled={locked}
+                          onClick={() => {
+                            deleteVersion.current = store.version;
+                            setDeleteError(null);
+                            setDeleting(true);
+                          }}
+                        >
+                          <Trash2Icon aria-hidden="true" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </CardFooter>
+                )}
+              </Card>
+            );
+          })}
       </div>
-      {store && (
-        <div id="phonepe-verification" className="scroll-mt-4">
-          <StorePaymentVerification
-            key={`${storeId}:${phonePe?.version ?? 0}`}
-            accessToken={accessToken}
-            storeId={storeId}
-            canEdit={canEdit}
-            enabled={
-              !!store.gateways.find((item) => item.provider === "PHONEPE")
-                ?.enabled
-            }
-            disabled={locked}
-            onVerified={refreshVerified}
-          />
-        </div>
-      )}
       {setup && store && (
         <PhonePeConfiguration
           initial={initial}
@@ -414,7 +401,7 @@ function StorePaymentSettingsPanel({
             setNotice(
               unchanged
                 ? "No account changes. Existing verification was kept."
-                : "PhonePe account saved securely. Verify the updated configuration before use.",
+                : "PhonePe account saved securely.",
             );
           }}
         />

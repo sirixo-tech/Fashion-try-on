@@ -15,10 +15,17 @@ import { BrowserSecurityService } from "./browser-security.service.js";
 import { PasswordService } from "./password.service.js";
 import { AuthRateLimiterService } from "./rate-limiter.service.js";
 import { RefreshTokenService } from "./refresh-token.service.js";
+import { GoogleAuthController } from "./google-auth.controller.js";
+import { GoogleAuthService } from "./google-auth.service.js";
+import { GoogleIdentityClient } from "./google-identity.client.js";
 
 @Module({
   imports: [DatabaseModule, MailModule],
-  controllers: [AuthController, PasswordRecoveryController],
+  controllers: [
+    AuthController,
+    PasswordRecoveryController,
+    GoogleAuthController,
+  ],
   providers: [
     PasswordRecoveryService,
     JwtService,
@@ -27,6 +34,8 @@ import { RefreshTokenService } from "./refresh-token.service.js";
     AuthRateLimiterService,
     BrowserSecurityService,
     AuthService,
+    GoogleAuthService,
+    GoogleIdentityClient,
     {
       provide: AUTH_CONFIG,
       useFactory: () => loadAuthConfig(),

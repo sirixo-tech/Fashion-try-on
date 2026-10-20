@@ -59,11 +59,17 @@ export async function readGlobalStoreRoles(
   db: Pick<Prisma.TransactionClient, "globalStoreRole">,
 ) {
   // These rows are migration-owned. Never recreate defaults on a read.
-  return db.globalStoreRole.findMany({
+  const roles = await db.globalStoreRole.findMany({
     where: { systemCode: { in: STORE_ROLE_CODES } },
     include: globalStoreRoleInclude,
     orderBy: { systemCode: "desc" },
   });
+  return roles.map((role) => ({
+    ...role,
+    permissions: role.permissions.filter((entry) =>
+      STORE_PERMISSION_SET.has(entry.permission.code),
+    ),
+  }));
 }
 
 export class GlobalStoreRolesService {
@@ -161,10 +167,12 @@ export class GlobalStoreRolesService {
       canEdit: policy.canEdit,
       requiredAdminCodes: STORE_ADMIN_REQUIRED_PERMISSIONS,
       staffAssignableCodes: STAFF_OPERATIONAL_PERMISSIONS,
-      permissions: permissions.map((p) => ({
-        ...permissionView(p),
-        granted: true,
-      })),
+      permissions: permissions
+        .filter((p) => STORE_PERMISSION_SET.has(p.code))
+        .map((p) => ({
+          ...permissionView(p),
+          granted: true,
+        })),
       roles: roles.map((role) => ({
         id: role.id,
         systemCode: role.systemCode,

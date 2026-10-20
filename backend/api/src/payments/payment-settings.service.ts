@@ -100,7 +100,9 @@ export class PaymentSettingsService {
       version: settings?.version ?? 0,
       selectedProvider: settings?.selectedProvider ?? null,
       paymentAvailable: false as const,
-      gateways: gateways.data,
+      gateways: gateways.data.filter(
+        (gateway) => gateway.setupAvailable && gateway.enabled,
+      ),
       connections: connections.map((item) => ({
         ...item,
         status: verified.some(

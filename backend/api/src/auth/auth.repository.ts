@@ -48,6 +48,10 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
   async createSelfServeSignup(
     input: SignupInput,
   ): Promise<AuthUserRecord | null> {
+    if (!input.passwordHash && !input.googleIdentity)
+      throw new Error(
+        "A signup must include a verified identity or password hash.",
+      );
     return this.prisma.$transaction(async (tx) => {
       const existingUser = await tx.user.findUnique({
         where: { email: input.email },
@@ -64,6 +68,19 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
           email: input.email,
           passwordHash: input.passwordHash,
           displayName: input.displayName,
+          ...(input.googleIdentity
+            ? {
+                emailVerifiedAt: now,
+                externalIdentities: {
+                  create: {
+                    id: createSelfxId(),
+                    provider: "GOOGLE",
+                    subject: input.googleIdentity.subject,
+                    emailAtLink: input.googleIdentity.email,
+                  },
+                },
+              }
+            : {}),
           status: UserStatus.ACTIVE,
           lastLoginAt: now,
         },

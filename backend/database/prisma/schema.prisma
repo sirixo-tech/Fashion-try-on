@@ -239,7 +239,7 @@ enum ActivationRequirementStatus {
 model User {
   id                            String                              @id @db.Uuid
   email                         String                              @unique @db.VarChar(320)
-  passwordHash                  String                              @map("password_hash")
+  passwordHash                  String?                             @map("password_hash")
   credentialsVersion            Int                                 @default(0) @map("credentials_version")
   passwordChangedAt             DateTime?                           @map("password_changed_at") @db.Timestamptz(3)
   displayName                   String?                             @map("display_name") @db.VarChar(160)
@@ -263,6 +263,8 @@ model User {
   storeMembershipRolesAssigned  StoreMembershipRole[]               @relation("StoreMembershipRoleAssignedBy")
   storePermissionGrantsAssigned StorePermissionGrant[]              @relation("StorePermissionGrantGrantedByUser")
   sessions                      UserSession[]
+  externalIdentities            UserExternalIdentity[]
+  googleLinkRequests            UserOAuthRequest[]
   passwordResetTokens           PasswordResetToken[]
   kioskPairingClaims            KioskPairingSession[]               @relation("KioskPairingClaimedBy")
   kioskConfigurationsUpdated    KioskDeviceConfiguration[]          @relation("KioskConfigurationUpdatedBy")
@@ -273,6 +275,43 @@ model User {
   shopifyLinkSessionsApproved   ShopifyLinkSession[]                @relation("ShopifyLinkSessionApprovedByUser")
 
   @@map("users")
+}
+
+model UserExternalIdentity {
+  id              String   @id @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  provider        String   @db.VarChar(32)
+  subject         String   @db.VarChar(255)
+  emailAtLink      String   @map("email_at_link") @db.VarChar(320)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@unique([userId, provider])
+  @@map("user_external_identities")
+}
+
+model UserOAuthRequest {
+  id                     String    @id @db.Uuid
+  stateHash              String    @unique @map("state_hash") @db.Char(64)
+  browserHash            String    @map("browser_hash") @db.Char(64)
+  nonce                  String    @db.VarChar(64)
+  codeVerifier           String    @map("code_verifier") @db.VarChar(128)
+  mode                   String    @db.VarChar(16)
+  returnPath             String    @map("return_path") @db.VarChar(2048)
+  expiresAt              DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt             DateTime? @map("consumed_at") @db.Timestamptz(3)
+  linkUserId             String?   @map("link_user_id") @db.Uuid
+  linkSubject            String?   @map("link_subject") @db.VarChar(255)
+  linkEmail              String?   @map("link_email") @db.VarChar(320)
+  linkCredentialsVersion Int?      @map("link_credentials_version")
+  linkedAt               DateTime? @map("linked_at") @db.Timestamptz(3)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  linkUser               User?     @relation(fields: [linkUserId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([linkUserId])
+  @@map("user_oauth_requests")
 }
 
 model UserSession {

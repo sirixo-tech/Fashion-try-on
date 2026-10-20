@@ -45,7 +45,6 @@ import {
   type CurrentPlatformAccess,
 } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
-import { getCurrentMerchantStore } from "@/lib/current-store";
 import {
   createDeveloperApiKey,
   createDeveloperApiWebhook,
@@ -67,12 +66,7 @@ import {
   type DeveloperApiWebhookEvent,
 } from "@/lib/developer-api";
 import { useSession } from "@/lib/session";
-import {
-  getEffectiveStorePermissions,
-  listStores,
-  type AdminStore,
-  type EffectiveStorePermissions,
-} from "@/lib/stores";
+import { listStores, type AdminStore } from "@/lib/stores";
 
 const apiKeyScopes: Array<{
   value: DeveloperApiKeyScope;
@@ -155,8 +149,6 @@ export default function DeveloperPage() {
     session.status === "authenticated" ? session.accessToken : null;
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
-  const [selectedStoreAccess, setSelectedStoreAccess] =
-    useState<EffectiveStorePermissions | null>(null);
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
   const [keys, setKeys] = useState<DeveloperApiKey[]>([]);
@@ -200,17 +192,8 @@ export default function DeveloperPage() {
     platformAccess?.isSuperadmin ||
     platformAccess?.permissions.includes("DEVELOPER_API_MANAGE"),
   );
-  const canManageSelectedDeveloperApi = Boolean(
-    canManagePlatformDeveloperApi ||
-      selectedStoreAccess?.platformBypass ||
-      selectedStoreAccess?.permissions.includes("developer_api.manage"),
-  );
-  const canViewSelectedDeveloperApi = Boolean(
-    hasPlatformDeveloperAccess ||
-      selectedStoreAccess?.platformBypass ||
-      selectedStoreAccess?.permissions.includes("developer_api.view") ||
-      selectedStoreAccess?.permissions.includes("developer_api.manage"),
-  );
+  const canManageSelectedDeveloperApi = canManagePlatformDeveloperApi;
+  const canViewSelectedDeveloperApi = hasPlatformDeveloperAccess;
   const selectedStoreName =
     storeOptions.find((store) => store.id === selectedStoreId)?.name ?? "";
   const canCreate =
@@ -228,7 +211,6 @@ export default function DeveloperPage() {
       setPlatformAccess(access);
       if (
         access.isSuperadmin ||
-        access.permissions.includes("STORES_VIEW") ||
         access.permissions.includes("DEVELOPER_API_VIEW") ||
         access.permissions.includes("DEVELOPER_API_MANAGE")
       ) {
@@ -237,12 +219,7 @@ export default function DeveloperPage() {
         return;
       }
 
-      const currentStore = await getCurrentMerchantStore(accessToken);
-      const options = currentStore
-        ? [{ id: currentStore.id, name: currentStore.name }]
-        : [];
-      setStoreOptions(options);
-      setSelectedStoreId((current) => current || options[0]?.id || "");
+      setStoreOptions([]);
     } catch (caught) {
       setError(messageFor(caught));
       setPlatformAccess({ isSuperadmin: false, permissions: [] });
@@ -250,35 +227,14 @@ export default function DeveloperPage() {
     }
   }, [accessToken]);
 
-  useEffect(() => {
-    if (!accessToken || !selectedStoreId) {
-      setSelectedStoreAccess(null);
-      return;
-    }
-
-    let cancelled = false;
-    getEffectiveStorePermissions(accessToken, selectedStoreId)
-      .then((nextAccess) => {
-        if (!cancelled) {
-          setSelectedStoreAccess(nextAccess);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSelectedStoreAccess(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken, selectedStoreId]);
-
   const loadKeys = useCallback(async () => {
     if (!accessToken) {
       return;
     }
-    if (!hasPlatformDeveloperAccess && (!selectedStoreId || !canViewSelectedDeveloperApi)) {
+    if (
+      !hasPlatformDeveloperAccess &&
+      (!selectedStoreId || !canViewSelectedDeveloperApi)
+    ) {
       setKeys([]);
       setLoading(false);
       return;
@@ -308,7 +264,10 @@ export default function DeveloperPage() {
     if (!accessToken) {
       return;
     }
-    if (!hasPlatformDeveloperAccess && (!selectedStoreId || !canViewSelectedDeveloperApi)) {
+    if (
+      !hasPlatformDeveloperAccess &&
+      (!selectedStoreId || !canViewSelectedDeveloperApi)
+    ) {
       setUsage(null);
       setWebhooks([]);
       setDeliveries([]);
@@ -538,6 +497,17 @@ export default function DeveloperPage() {
         : [...current.subscribedEvents, event];
       return { ...current, subscribedEvents };
     });
+  }
+
+  if (platformAccess && !hasPlatformDeveloperAccess) {
+    return (
+      <PageContainer>
+        <PageHeader
+          title="Developer / API"
+          description="Developer / API access is available only to authorized Platform users."
+        />
+      </PageContainer>
+    );
   }
 
   return (

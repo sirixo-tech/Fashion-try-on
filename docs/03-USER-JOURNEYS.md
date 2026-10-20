@@ -1,5 +1,32 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
+
+When configured, Login and Create account show Continue with Google. A linked
+Google identity opens the same permitted SelfX workspace as password login. An
+unknown identity on Login is directed to Create account; Google signup creates
+the normal Store/owner/Starter trial once. An existing unlinked email returns to
+Login with an explanation: enter that SelfX account's password to connect Google.
+Wrong-account, expired, changed-credential or conflicting links do not merge users.
+Cancellation/failure permits retry and preserves validated continuation where
+available. Suspended users/Stores are not reactivated by Google sign-in.
+
+Only authorized Platform users open Developer / API. Store users see kiosks and
+the Shopify/WooCommerce integrations their permissions and plan allow. Old Store
+API keys cannot restore direct API access. Platform administrators retain their
+permission-controlled key, usage and webhook management.
+
+### PAYMENTS-1K — Configure only available gateways (2026-10-20)
+
+SelfX administration controls Available to Stores in the full gateway registry.
+Store Admin opens Payment Settings and sees only supported enabled gateways, or
+a clear no-gateways-available message. Setup/Edit and future-checkout selection
+remain permission controlled. Refresh after a policy change hides or restores
+the card without deleting the saved account or payment history. The routine
+INR 1 verification workflow is removed from this page; historical verification
+remains retained. Player APK payment integration is a separate implementation.
+This supersedes earlier Store planned-card and verification-panel journeys.
+
 ### ROLES-2 — Edit a role once for every Store (2026-10-19)
 
 An authorized Platform administrator opens User Management > Roles, selects any

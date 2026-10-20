@@ -19,7 +19,10 @@ import {
   platformRoleAuthority,
   roleDenied,
 } from "../rbac/role-management-policy.js";
-import { STORE_PERMISSION_REGISTRY } from "../rbac/store-permissions.js";
+import {
+  RETIRED_STORE_PERMISSION_CODES,
+  STORE_PERMISSION_REGISTRY,
+} from "../rbac/store-permissions.js";
 import {
   PLATFORM_PERMISSIONS,
   RETIRED_PLATFORM_PERMISSION_CODES,
@@ -101,7 +104,8 @@ export class AccessControlService {
       data: permissions
         .filter(
           (permission) =>
-            !RETIRED_PLATFORM_PERMISSION_CODES.includes(permission.code),
+            !RETIRED_PLATFORM_PERMISSION_CODES.includes(permission.code) &&
+            !RETIRED_STORE_PERMISSION_CODES.includes(permission.code),
         )
         .map(mapPermission),
     };
@@ -417,10 +421,15 @@ export class AccessControlService {
       orderBy: [{ module: "asc" }, { action: "asc" }, { code: "asc" }],
     });
     return {
-      data: permissions.map((permission) => ({
-        ...mapPermission(permission),
-        granted: granted.has(permission.code),
-      })),
+      data: permissions
+        .filter(
+          (permission) =>
+            !RETIRED_STORE_PERMISSION_CODES.includes(permission.code),
+        )
+        .map((permission) => ({
+          ...mapPermission(permission),
+          granted: granted.has(permission.code),
+        })),
     };
   }
 

@@ -6,7 +6,7 @@ import {
 export interface AuthUserRecord {
   id: string;
   email: string;
-  passwordHash: string;
+  passwordHash: string | null;
   credentialsVersion?: number;
   displayName: string | null;
   status: UserStatus;
@@ -63,8 +63,9 @@ export interface AuthResult {
 
 export interface SignupInput {
   email: string;
-  passwordHash: string;
+  passwordHash: string | null;
   displayName: string;
+  googleIdentity?: { subject: string; email: string };
   metadata?: Record<string, unknown>;
 }
 

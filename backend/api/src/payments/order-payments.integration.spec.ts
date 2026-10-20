@@ -670,11 +670,32 @@ describe.skipIf(!url)("PAYMENTS-1B real PostgreSQL, simulated PhonePe", () => {
     );
     await configure(true);
   });
-  it("rejects unconfirmed access, disabled execution and a wrong device/session without provider calls", async () => {
+  it("rejects unavailable gateway policy, unconfirmed access, disabled execution and a wrong device/session without provider calls", async () => {
     const c = await checkout();
     await configure(false);
     await code(start(c), "PAYMENT_ACCOUNT_UNCONFIRMED");
     await configure(true);
+    const policy = (await config.listGateways()).data.find(
+      (row) => row.provider === "PHONEPE",
+    )!;
+    await config.updatePolicy("PHONEPE", actor, {
+      expectedVersion: policy.version,
+      enabled: false,
+    });
+    try {
+      await code(start(c), "PAYMENT_ACCOUNT_UNCONFIRMED");
+      expect(send).not.toHaveBeenCalled();
+      expect(
+        await db.shoppingPaymentAttempt.count({
+          where: { orderId: c.order.id },
+        }),
+      ).toBe(0);
+    } finally {
+      await config.updatePolicy("PHONEPE", actor, {
+        expectedVersion: policy.version + 1,
+        enabled: true,
+      });
+    }
     process.env.SELFX_PHONEPE_UAT_ENABLED = "false";
     await code(start(c), "PAYMENT_NOT_ENABLED");
     process.env.SELFX_PHONEPE_UAT_ENABLED = "true";

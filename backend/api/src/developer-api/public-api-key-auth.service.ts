@@ -6,6 +6,8 @@ import { type FastifyRequest } from "fastify";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
+import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import {
   DEVELOPER_API_KEY_PREFIX_LENGTH,
   hashApiKeySecret,
@@ -18,6 +20,7 @@ import {
 } from "./dto/developer-api-key.dto.js";
 
 export const PUBLIC_API_AUTH_ERROR_CODES = {
+  platformOnly: "PUBLIC_API_PLATFORM_ONLY",
   missingKey: "PUBLIC_API_KEY_MISSING",
   invalidKey: "PUBLIC_API_KEY_INVALID",
   revokedKey: "PUBLIC_API_KEY_REVOKED",
@@ -45,7 +48,10 @@ type ApiKeyWithStore = ApiKey & {
 
 @Injectable()
 export class PublicApiKeyAuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platform: PlatformAuthorizationService,
+  ) {}
 
   async verifyRequest(
     request: FastifyRequest,
@@ -76,6 +82,7 @@ export class PublicApiKeyAuthService {
       where: { keyPrefix },
       include: {
         organization: { select: { id: true, name: true, status: true } },
+        createdByUser: { select: { status: true, deletedAt: true } },
       },
     });
 
@@ -104,6 +111,21 @@ export class PublicApiKeyAuthService {
       );
     }
 
+    if (
+      !apiKey.createdByUserId ||
+      apiKey.createdByUser?.status !== "ACTIVE" ||
+      apiKey.createdByUser.deletedAt ||
+      !(await this.platform.hasPermission(
+        apiKey.createdByUserId,
+        PLATFORM_PERMISSIONS.developerApiManage,
+      ))
+    ) {
+      throw new ApiErrorException(
+        HttpStatus.FORBIDDEN,
+        PUBLIC_API_AUTH_ERROR_CODES.platformOnly,
+        "Direct Public API access is currently reserved for Platform-managed credentials.",
+      );
+    }
     const scopes = cleanStoredScopes(apiKey.scopes);
     const missingScopes = requiredScopes.filter(
       (scope) => !scopes.includes(scope),

@@ -175,9 +175,22 @@ describe.skipIf(!databaseUrl)("PAYMENTS-1A PostgreSQL", () => {
       await service.select(id, actor, { expectedVersion: 2, provider: null }),
     ).toMatchObject({ version: 3, selectedProvider: null });
   });
-  it("disabling platform availability prevents selection without deleting Store credentials", async () => {
+  it("lists all gateways for Platform administration but only enabled supported gateways for Stores", async () => {
+    const id = await store();
+    expect(
+      (await service.listGateways()).data.map((item) => item.provider),
+    ).toEqual(["PHONEPE", "RAZORPAY", "STRIPE", "PAYTM", "PAYPAL"]);
+    expect(
+      (await service.getStore(id)).gateways.map((item) => item.provider),
+    ).toEqual(["PHONEPE"]);
+  });
+  it("hides disabled gateways and blocks selection/setup/edit without deleting Store credentials", async () => {
     const id = await store();
     await service.savePhonePe(id, actor, input());
+    await service.select(id, actor, {
+      expectedVersion: 1,
+      provider: "PHONEPE",
+    });
     const current = (await service.listGateways()).data.find(
       (item) => item.provider === "PHONEPE",
     )!;
@@ -186,18 +199,29 @@ describe.skipIf(!databaseUrl)("PAYMENTS-1A PostgreSQL", () => {
       enabled: false,
     });
     await expectCode(
-      service.select(id, actor, { expectedVersion: 1, provider: "PHONEPE" }),
+      service.select(id, actor, { expectedVersion: 2, provider: "PHONEPE" }),
       "PAYMENT_GATEWAY_DISABLED",
     );
     await expectCode(
-      service.savePhonePe(id, actor, input({ expectedVersion: 1 })),
+      service.savePhonePe(id, actor, input({ expectedVersion: 2 })),
       "PAYMENT_GATEWAY_DISABLED",
     );
-    expect((await service.getStore(id)).connections).toHaveLength(1);
+    await expectCode(
+      service.editPhonePe(id, actor, input({ expectedVersion: 2 })),
+      "PAYMENT_GATEWAY_DISABLED",
+    );
+    const disabled = await service.getStore(id);
+    expect(disabled.gateways).toEqual([]);
+    expect(disabled.connections).toHaveLength(1);
+    expect(disabled.selectedProvider).toBe("PHONEPE");
     await service.updatePolicy("PHONEPE", actor, {
       expectedVersion: current.version + 1,
       enabled: true,
     });
+    const restored = await service.getStore(id);
+    expect(restored.gateways.map((item) => item.provider)).toEqual(["PHONEPE"]);
+    expect(restored.connections).toEqual(disabled.connections);
+    expect(restored.selectedProvider).toBe("PHONEPE");
     await expectCode(
       service.updatePolicy("PHONEPE", actor, {
         expectedVersion: current.version,

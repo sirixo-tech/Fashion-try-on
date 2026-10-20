@@ -111,6 +111,24 @@ describe("AuthService", () => {
       AUTH_ERROR_CODES.userDisabled,
     );
   });
+  it("Google login preserves Platform authority and uses revocable SelfX sessions", async () => {
+    const user = await createUser(repository, passwords, {
+      platformRoleAssignments: [{ status: "ACTIVE" }],
+    });
+    const result = await auth.loginWithGoogle(user.id, requestMetadata());
+    expect(result.user).toMatchObject({ id: user.id, hasPlatformAccess: true });
+    expect(repository.sessions).toHaveLength(1);
+    await auth.logout(result.refreshToken);
+    await expectAuthCode(
+      auth.refresh(result.refreshToken, requestMetadata()),
+      AUTH_ERROR_CODES.refreshTokenInvalid,
+    );
+    user.status = UserStatus.DISABLED;
+    await expectAuthCode(
+      auth.loginWithGoogle(user.id, requestMetadata()),
+      AUTH_ERROR_CODES.userDisabled,
+    );
+  });
 
   it("validates access tokens and rejects expired or malformed tokens", async () => {
     const user = await createUser(repository, passwords);
@@ -369,6 +387,8 @@ async function createUser(
     lastLoginAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+    platformRoleAssignments: options.platformRoleAssignments,
+    platformAccessRoleAssignments: options.platformAccessRoleAssignments,
   };
   repository.users.push(user);
   return user;

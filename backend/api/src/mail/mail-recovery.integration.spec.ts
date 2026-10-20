@@ -268,6 +268,25 @@ describe.skipIf(!url)(
       ).toBe(true);
       expect(await db.passwordResetToken.count()).toBe(1);
     });
+    it("keeps Google-only accounts passwordless through the password-recovery path", async () => {
+      await db.user.update({
+        where: { id: ownerId },
+        data: { passwordHash: null },
+      });
+      expect(
+        await recovery.request("owner@mail.invalid", "google-only-ip"),
+      ).toEqual(recoveryResponse);
+      await outbox.processNext();
+      expect(sender.send).not.toHaveBeenCalled();
+      expect(
+        await db.passwordResetToken.count({ where: { userId: ownerId } }),
+      ).toBe(0);
+      expect(
+        (await db.user.findUniqueOrThrow({ where: { id: ownerId } }))
+          .passwordHash,
+      ).toBeNull();
+    });
+
     it("resets one account atomically, invalidates old access/refresh tokens and preserves Store ownership and other users", async () => {
       const old = await auth.login(
         "owner@mail.invalid",

@@ -12,7 +12,11 @@ export class PasswordService {
     });
   }
 
-  async verifyPassword(hash: string, password: string): Promise<boolean> {
+  async verifyPassword(
+    hash: string | null,
+    password: string,
+  ): Promise<boolean> {
+    if (!hash) return false;
     try {
       return await argon2.verify(hash, password);
     } catch {

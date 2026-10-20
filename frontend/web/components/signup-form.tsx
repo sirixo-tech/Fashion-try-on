@@ -18,7 +18,8 @@ import {
 import { Alert, AlertDescription, Button, Input, Label } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
-import { safeLoginNextPath } from "@/lib/login-next";
+import { resolveLoginNextPath, safeLoginNextPath } from "@/lib/login-next";
+import { GoogleSignIn } from "./google-sign-in";
 import { useSession } from "@/lib/session";
 import { getSignupChallenge, type SignupChallenge } from "@/lib/signup";
 
@@ -38,7 +39,9 @@ export function SignupForm() {
 
   useEffect(() => {
     setNextPath(
-      safeLoginNextPath(new URLSearchParams(window.location.search).get("next")),
+      safeLoginNextPath(
+        new URLSearchParams(window.location.search).get("next"),
+      ),
     );
   }, []);
 
@@ -79,14 +82,14 @@ export function SignupForm() {
     setErrorCode(null);
 
     try {
-      await session.signup({
+      const authenticated = await session.signup({
         displayName,
         email,
         password,
         challengeToken: challenge.challengeToken,
         challengeAnswer,
       });
-      router.push(nextPath);
+      router.push(await resolveLoginNextPath(nextPath, authenticated));
     } catch (error) {
       setErrorCode(
         error instanceof SafeApiError ? error.code : "REQUEST_FAILED",
@@ -137,6 +140,7 @@ export function SignupForm() {
               </p>
             </div>
 
+            <GoogleSignIn mode="signup" disabled={submitting} />
             <form onSubmit={onSubmit} className="space-y-3">
               <div className="space-y-2">
                 <Label
@@ -152,7 +156,9 @@ export function SignupForm() {
                   placeholder="Your name"
                   value={displayName}
                   className="h-10 bg-white text-sm"
-                  onChange={(event) => setDisplayName(event.currentTarget.value)}
+                  onChange={(event) =>
+                    setDisplayName(event.currentTarget.value)
+                  }
                   required
                 />
               </div>
@@ -233,7 +239,9 @@ export function SignupForm() {
                 </div>
                 <div className="grid grid-cols-[8.25rem_minmax(0,1fr)] gap-2">
                   <div className="flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-base font-semibold text-slate-950">
-                    {loadingChallenge ? "..." : `${challenge?.question ?? "--"} =`}
+                    {loadingChallenge
+                      ? "..."
+                      : `${challenge?.question ?? "--"} =`}
                   </div>
                   <Input
                     id="selfx-signup-challenge"
@@ -264,7 +272,9 @@ export function SignupForm() {
                 disabled={submitting || loadingChallenge}
                 className="h-11 w-full justify-between bg-slate-950 px-5 text-sm font-semibold hover:bg-slate-800"
               >
-                <span>{submitting ? "Creating account" : "Create account"}</span>
+                <span>
+                  {submitting ? "Creating account" : "Create account"}
+                </span>
                 <ArrowRightIcon size={18} aria-hidden="true" />
               </Button>
             </form>
@@ -319,8 +329,14 @@ export function SignupForm() {
             </p>
             <div className="mt-8 grid max-w-[43rem] gap-3 lg:grid-cols-2">
               {[
-                ["Store created automatically", "No separate approval step for trial access."],
-                ["Credits ready immediately", "Use the same trial credits across supported channels."],
+                [
+                  "Store created automatically",
+                  "No separate approval step for trial access.",
+                ],
+                [
+                  "Credits ready immediately",
+                  "Use the same trial credits across supported channels.",
+                ],
               ].map(([title, body]) => (
                 <div
                   key={title}

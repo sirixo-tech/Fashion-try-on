@@ -1,5 +1,34 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
+
+Dashboard staff, Store owners and Platform users may sign in with Google alongside
+email/password. Google verifies identity; SelfX retains its own user, memberships,
+roles and sessions. Existing email matches require existing-account password
+authentication before linking. New Google Store signups reuse active Store,
+owner membership and Starter trial onboarding exactly once. Never auto-grant
+Platform access or reactivate suspended users/Stores. This is separate from
+future customer social login and kiosk device authentication.
+
+Developer / API is now reserved for Platform roles with explicit Developer API
+permissions. Retire Store developer permissions, navigation and console access.
+Direct Public API credentials require an active creator with current Platform
+Developer API management authority; historical Store-issued keys cannot bypass
+the restriction. Keep credentials/history for administration. Stores currently
+use kiosks, Shopify and WooCommerce through their existing authentication paths.
+This supersedes the older Store Developer API administration requirement.
+
+### PAYMENTS-1K — Store gateway availability (2026-10-20)
+
+Stores see only supported payment gateways enabled as Available to Stores by
+SelfX administration. Hide disabled and planned gateways; keep the full registry
+in Platform settings. Disabling availability blocks new setup, selection and
+payments while preserving saved accounts, selection and historical records.
+Remove the routine INR 1 account-verification panel from Store Payment Settings;
+retain verification records and backend reconciliation. Configuring an account
+does not enable customer checkout or implement payment in the player APK.
+This supersedes earlier Store planned-card and mandatory verification-panel UX.
+
 ### ROLES-2 — Application-wide role permissions (2026-10-19)
 
 Role definitions are shared across the application. Editing Store Admin or Store

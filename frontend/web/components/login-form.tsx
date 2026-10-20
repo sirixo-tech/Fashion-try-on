@@ -26,7 +26,8 @@ import {
   type SelectMenuOption,
 } from "@selfx/ui";
 
-import { SafeApiError } from "@/lib/api";
+import { SafeApiError, selfxApi } from "@/lib/api";
+import { GoogleSignIn } from "./google-sign-in";
 import { PublicLegalLinks } from "@/components/public-legal-links";
 import { resolveLoginNextPath, safeLoginNextPath } from "@/lib/login-next";
 import {
@@ -106,6 +107,8 @@ export function LoginForm() {
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [signupHref, setSignupHref] = useState("/signup");
+  const [googleNotice, setGoogleNotice] = useState<string | null>(null);
+  const [linkPending, setLinkPending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +131,19 @@ export function LoginForm() {
   }, []);
 
   useEffect(() => {
+    const google = new URLSearchParams(window.location.search).get("google");
+    setLinkPending(google === "link_required");
+    setGoogleNotice(
+      google === "link_required"
+        ? "An account already uses this email. Sign in with that account’s password to connect Google."
+        : google === "signup_required"
+          ? "Create your SelfX account using Continue with Google on the signup page."
+          : google === "cancelled"
+            ? "Google sign-in was cancelled. You can try again."
+            : google
+              ? "Google sign-in could not be completed. Please try again."
+              : null,
+    );
     const next = new URLSearchParams(window.location.search).get("next");
     setSignupHref(
       next
@@ -143,6 +159,13 @@ export function LoginForm() {
 
     try {
       const authenticated = await session.login(email, password);
+      if (linkPending) {
+        await selfxApi("/api/v1/auth/google/link", {
+          method: "POST",
+          accessToken: authenticated.accessToken,
+          body: JSON.stringify({ password }),
+        });
+      }
       const next = await resolveLoginNextPath(
         new URLSearchParams(window.location.search).get("next"),
         authenticated,
@@ -194,6 +217,33 @@ export function LoginForm() {
               </p>
             </div>
 
+            {googleNotice && (
+              <Alert className="mb-4">
+                <AlertDescription>{googleNotice}</AlertDescription>
+                {linkPending && (
+                  <Button
+                    variant="link"
+                    className="mt-2 p-0"
+                    disabled={submitting}
+                    onClick={() => {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("google");
+                      window.history.replaceState(
+                        {},
+                        "",
+                        `${url.pathname}${url.search}`,
+                      );
+                      setLinkPending(false);
+                      setGoogleNotice(null);
+                      setErrorCode(null);
+                    }}
+                  >
+                    Sign in without connecting Google
+                  </Button>
+                )}
+              </Alert>
+            )}
+            <GoogleSignIn mode="login" disabled={submitting} />
             <form onSubmit={onSubmit} className="space-y-3">
               {demoLoginsEnabled ? (
                 <DemoRoleAccess
@@ -258,7 +308,9 @@ export function LoginForm() {
               {errorCode ? (
                 <Alert variant="destructive">
                   <AlertDescription>
-                    Sign in failed: {errorCode}
+                    {errorCode.startsWith("AUTH_GOOGLE_")
+                      ? "Google could not be connected. Use the matching SelfX account and start Google sign-in again if the request has expired."
+                      : `Sign in failed: ${errorCode}`}
                   </AlertDescription>
                 </Alert>
               ) : null}
