@@ -112,6 +112,7 @@ describe("Google browser authentication boundary", () => {
     );
     expect(c.reply.redirect).toHaveBeenCalledWith(
       "https://selfx.example/auth/google/complete?next=%2Fapp%2Fdeveloper",
+      302,
     );
   });
   it("returns a matching-email link request to password login without issuing a session", async () => {
@@ -132,6 +133,7 @@ describe("Google browser authentication boundary", () => {
     );
     expect(c.reply.redirect).toHaveBeenCalledWith(
       "https://selfx.example/login?google=link_required&next=%2Fapp%2Fdashboard",
+      302,
     );
     expect(c.auth.loginWithGoogle).not.toHaveBeenCalled();
   });
@@ -147,6 +149,7 @@ describe("Google browser authentication boundary", () => {
     );
     expect(c.reply.redirect).toHaveBeenCalledWith(
       "https://selfx.example/login?google=failed",
+      302,
     );
     await c.controller.callback(
       { state: ["bad", "array"] },

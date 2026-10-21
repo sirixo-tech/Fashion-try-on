@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1A — Explicit callback redirects (2026-10-21)
+
+Every Google callback navigation outcome must explicitly send HTTP 302 with its
+Location header, including login completion, account linking, cancellation and
+failure. NestJS initializes the response status to 200; Fastify preserves that
+status when redirect is called without an explicit code. An empty 200 response
+with a Location header is not a browser redirect. Preserve existing cookie and
+session controls; disabled Google authentication continues to return 404.
+
 ### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
 
 Use backend Google OIDC authorization-code exchange with PKCE S256, nonce,

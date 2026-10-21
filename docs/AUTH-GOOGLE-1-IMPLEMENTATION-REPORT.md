@@ -2,6 +2,34 @@
 
 Date: 20 October 2026
 
+## Callback redirect correction — 21 October 2026
+
+Production evidence showed GET /api/v1/auth/google/callback returning an empty
+HTTP 200, leaving the browser on a blank page. The callback had a Location header,
+but NestJS had initialized the status to 200 and Fastify's redirect preserved it.
+The original mocked-response tests did not exercise that framework behavior.
+
+All four callback redirect branches now explicitly pass HTTP 302 to Fastify:
+login completion, existing-account linking, returned outcomes and caught errors.
+The existing cookies, session issuance and disabled-feature 404 are retained.
+An HTTP regression suite exercises the actual NestJS/Fastify response pipeline
+with simulated Google/session services. Before the fix, ten redirect assertions
+failed with 200 instead of 302; the disabled-feature 404 test passed.
+
+After the correction, all 46 focused tests passed across the HTTP callback suite
+(11), controller suite (5), OIDC/configuration suite (14) and password/session
+suite (16). Redirect tests inspect real HTTP status, Location, refresh/link cookie
+attributes and browser-cookie cleanup rather than only mocking reply.redirect.
+API TypeScript compilation, changed-file ESLint, formatting and git diff checks
+also passed. The correction is local and has not been deployed by this task.
+
+To release this correction, deploy the updated **API** service, then start a new
+Google login from `/login`. Do not refresh or reuse the old callback URL: its
+state/code may already have been consumed. A matching existing account should
+redirect to the password-linking screen; a linked account should continue to
+the authenticated workspace. No new migration, frontend deployment, environment
+variable or Google Cloud change is needed for this specific correction.
+
 ## What changed
 
 - Developer/API navigation, pages, keys, usage and webhook management require

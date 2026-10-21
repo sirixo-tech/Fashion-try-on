@@ -1,5 +1,15 @@
 ## Document Evolution
 
+### AUTH-GOOGLE-1A — Callback redirect regression (2026-10-21)
+
+Set explicit 302 status on every callback redirect. Reproduce the empty-200 bug
+and verify the fix through the real NestJS/Fastify HTTP response pipeline, using
+simulated Google/session services. Assert statuses, destinations and cookie
+headers across success/link/cancellation/signup-required/errors and disabled
+configuration. Run auth regressions, API types, lint and compilation. Redeploy
+the API and begin a fresh Google sign-in; no migration, frontend change or Google
+Cloud configuration change is needed for this correction.
+
 ### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
 
 Implement Platform-only console/API key access, retire effective Store developer

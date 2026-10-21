@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpStatus,
   Inject,
   Post,
   Query,
@@ -109,11 +110,13 @@ export class GoogleAuthController {
       if (result.reason)
         return reply.redirect(
           `${web}/login?google=${result.reason}&next=${encodeURIComponent(result.next)}`,
+          HttpStatus.FOUND,
         );
       if (result.linkProof) {
         this.cookie(reply, linkCookie, result.linkProof);
         return reply.redirect(
           `${web}/login?google=link_required&next=${encodeURIComponent(result.next)}`,
+          HttpStatus.FOUND,
         );
       }
       const session = await this.auth.loginWithGoogle(
@@ -131,6 +134,7 @@ export class GoogleAuthController {
       this.clear(reply, linkCookie);
       return reply.redirect(
         `${web}/auth/google/complete?next=${encodeURIComponent(result.next)}`,
+        HttpStatus.FOUND,
       );
     } catch (error) {
       const response =
@@ -148,7 +152,7 @@ export class GoogleAuthController {
             ? "cancelled"
             : "failed";
       this.clear(reply, linkCookie);
-      return reply.redirect(`${web}/login?google=${reason}`);
+      return reply.redirect(`${web}/login?google=${reason}`, HttpStatus.FOUND);
     }
   }
   @Post("link")
