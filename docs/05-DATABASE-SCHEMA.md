@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### APPS-1 / REGIONAL-1 — Release records and account preferences (2026-10-21)
+
+Add nullable users.regional_timezone (automatic/device when null), enum-checked
+regional_date_format AUTO/DMY/MDY/YMD and regional_time_format AUTO/H12/H24.
+AppRelease uses UUIDv7 id, immutable package/version/code/architecture/minSDK,
+filename, object key, size, file SHA-256, signer SHA-256, release notes, uploader
+FK (SetNull), created/updated/published timestamps, DRAFT/PUBLISHED/RETIRED status,
+recommended flag and revision. Uniqueness covers checksum, object key and
+package/versionCode/architecture. A partial unique architecture index permits
+only one recommended row; recommended must imply PUBLISHED. Status/id pagination
+is indexed. These are Platform release assets, not tenant/customer photographs;
+the customer-image seven-day retention policy does not apply to APK binaries.
+
 ### AUTH-GOOGLE-1 (2026-10-20)
 
 Migration 20261020000000_google_staff_sign_in makes users.password_hash nullable

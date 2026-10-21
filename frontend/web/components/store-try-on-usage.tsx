@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import { useEffect, useMemo, useState } from "react";
 import { GemIcon, PackageIcon, RefreshCwIcon } from "lucide-react";
@@ -272,10 +273,6 @@ function ProductThumbnail({
   );
 }
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+function formatDate(value: string) {
+  return <RegionalDateTime value={value} kind="date" />;
 }

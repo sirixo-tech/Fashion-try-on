@@ -1,5 +1,39 @@
 ## Document Evolution
 
+### APPS-1 / REGIONAL-1 — Apps sidebar and account settings (2026-10-21)
+
+Platform Apps & Downloads is a top-level permission-filtered sidebar destination
+at /app/apps-downloads, separate from Platform Settings. Show release cards with
+version/code, architecture, file size, min SDK, notes, uploader (Platform only),
+upload date, checksum, state and recommended badge. Managers see upload draft,
+Publish, Set recommended and Retire; viewers see history and Download. Confirm
+lifecycle changes and surface upload, validation, stale-state and download errors.
+Keep drafts/retired releases out of the Store download page. Kiosks exposes a
+Download Kiosk APK action to /app/kiosks/downloads with paginated published builds.
+Account & Regional Settings is available through both shell account menus for all
+staff users at /app/account: searchable timezone suggestions, empty = device
+automatic, date/time format controls, live preview, Save, load failure Retry and
+save feedback. Existing workspace timestamps use shared reactive formatting.
+
+### NAV-ORDER-1 — Operational modules before configuration (2026-10-21)
+
+Store navigation is Dashboard, Products, Kiosks, Try-On Lab, Integrations,
+Team & Locations, User Management, Analytics, Activity, Usage & Billing, Settings,
+filtered by current permissions and plan entitlements. Move Payment Settings
+inside Settings; retain its /app/payments URL and existing access rules. Hide
+Settings when none of its children is permitted. Platform users retain Stores
+after Dashboard, Plans after the operational groups, Developer / API and their
+separate Platform Settings group with Payment Gateways. This supersedes the
+PAYMENTS-1D top-level Payment Settings placement.
+
+### AUTH-UI-2A — Desktop login viewport fit (2026-10-21)
+
+Use tighter desktop spacing around the logo, header, form and footer so the normal
+login card fits the available browser height, including typical desktop display
+scaling. Keep readable input/button sizes. Do not lock document overflow or hide
+controls to remove a scrollbar: mobile, short windows, enlarged text and expanded
+error/linking notices retain natural scrolling when the content needs it.
+
 ### AUTH-UI-2 — Compact login and shared workspace loading (2026-10-21)
 
 Login uses one compact shadcn/SelfX card containing the logo, Welcome back,

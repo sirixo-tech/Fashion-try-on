@@ -18,6 +18,7 @@ import { RefreshTokenService } from "./refresh-token.service.js";
 import { GoogleAuthController } from "./google-auth.controller.js";
 import { GoogleAuthService } from "./google-auth.service.js";
 import { GoogleIdentityClient } from "./google-identity.client.js";
+import { RegionalSettingsController } from "../account/regional-settings.controller.js";
 
 @Module({
   imports: [DatabaseModule, MailModule],
@@ -25,6 +26,7 @@ import { GoogleIdentityClient } from "./google-identity.client.js";
     AuthController,
     PasswordRecoveryController,
     GoogleAuthController,
+    RegionalSettingsController,
   ],
   providers: [
     PasswordRecoveryService,

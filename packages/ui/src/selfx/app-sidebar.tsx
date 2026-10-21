@@ -163,7 +163,12 @@ export function AppSidebar({
           collapsed ? "p-2" : "p-3",
         )}
       >
-        <SidebarAccount user={user} onLogout={onLogout} collapsed={collapsed} />
+        <SidebarAccount
+          user={user}
+          onLogout={onLogout}
+          onNavigateTo={onNavigateTo}
+          collapsed={collapsed}
+        />
         {footer ? <div className="mt-3">{footer}</div> : null}
       </div>
     </div>
@@ -307,10 +312,12 @@ function SidebarAccount({
   user,
   onLogout,
   collapsed,
+  onNavigateTo,
 }: {
   user?: SelfxUserSummary | null;
   onLogout?: () => void;
   collapsed: boolean;
+  onNavigateTo?: (href: string) => void;
 }) {
   const initials = user ? initialsFor(user) : "SX";
   const { theme, toggleTheme } = useSelfxTheme();
@@ -397,7 +404,12 @@ function SidebarAccount({
             <DropdownMenuSeparator />
           </>
         ) : null}
-        <AccountMenuItem icon={BadgeCheckIcon} label="Account" disabled />
+        <AccountMenuItem
+          icon={BadgeCheckIcon}
+          label="Account & Regional Settings"
+          disabled={!onNavigateTo}
+          onClick={() => onNavigateTo?.("/app/account")}
+        />
         {showStoreCommercialActions ? (
           <AccountMenuItem icon={CreditCardIcon} label="Billing" disabled />
         ) : null}

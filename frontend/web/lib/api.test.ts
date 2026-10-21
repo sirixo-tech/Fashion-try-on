@@ -227,10 +227,13 @@ describe("selfx web API routing", () => {
   it("keeps current protected clients on the shared selfxApi path", () => {
     const protectedClients = [
       "lib/stores.ts",
-      "lib/kiosks.ts",
       "lib/organizations.ts",
       "lib/try-on-lab-api.ts",
+      "lib/regional-settings.tsx",
+      "components/app-releases-page.tsx",
     ];
+
+    // lib/kiosks.ts contains types only; Store kiosk requests live in stores.ts.
 
     for (const relativePath of protectedClients) {
       const source = readFileSync(join(process.cwd(), relativePath), "utf8");

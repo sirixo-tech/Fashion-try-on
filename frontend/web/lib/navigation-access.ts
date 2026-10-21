@@ -45,6 +45,7 @@ export function navigationAccess({
 }
 
 const platformPermissionsByHref: Record<string, string[]> = {
+  "/app/apps-downloads": ["APP_RELEASES_VIEW", "APP_RELEASES_MANAGE"],
   "/app/stores": ["STORES_VIEW"],
   "/app/locations": ["STORES_VIEW"],
   "/app/analytics": ["USAGE_VIEW"],
@@ -115,7 +116,11 @@ const platformOrStoreAccessHrefs = new Set([
   "/app/try-on-lab/jewellery",
 ]);
 
-const alwaysVisibleHrefs = new Set(["/app/dashboard", "/app/activity"]);
+const alwaysVisibleHrefs = new Set([
+  "/app/dashboard",
+  "/app/activity",
+  "/app/account",
+]);
 
 // Nested detail pages inherit their workspace's navigation rule. Resource-level
 // authorization is still checked by the page and backend using the explicit ID.

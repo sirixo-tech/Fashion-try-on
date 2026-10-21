@@ -57,7 +57,13 @@ export function GoogleSignIn({
   }
   if (!enabled) return null;
   return (
-    <div className={mode === "login" ? "mt-4 space-y-3" : "mb-4 space-y-3"}>
+    <div
+      className={
+        mode === "login"
+          ? "mt-4 space-y-3 lg:mt-3 lg:space-y-2"
+          : "mb-4 space-y-3"
+      }
+    >
       {mode === "login" && (
         <div className="flex items-center gap-3">
           <Separator className="h-px min-w-0 flex-1" />

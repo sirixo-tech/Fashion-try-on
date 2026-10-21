@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import Link from "next/link";
 import {
@@ -824,14 +825,11 @@ function formatNullableNumber(value: number | null): string {
   return value === null ? "-" : new Intl.NumberFormat().format(value);
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null) {
   if (!value) {
     return "Never";
   }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return <RegionalDateTime value={value} />;
 }
 
 function formatHealthReason(reason: string): string {

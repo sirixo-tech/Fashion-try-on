@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -1090,8 +1091,8 @@ function displayNumber(value: number): string {
   );
 }
 
-function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "-";
+function formatDate(value: string | null) {
+  return value ? <RegionalDateTime value={value} /> : "-";
 }
 
 function messageFor(caught: unknown): string {

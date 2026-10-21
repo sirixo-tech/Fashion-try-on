@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import {
   useCallback,
@@ -311,9 +312,14 @@ export default function BillingPage() {
             </div>
           )}
           <div className="flex items-end text-sm text-muted-foreground">
-            {summary
-              ? `${formatDate(summary.range.from)} to ${formatDate(summary.range.to)}`
-              : "Usage and credit events come from SelfX billing ledgers."}
+            {summary ? (
+              <>
+                {formatDate(summary.range.from)} to{" "}
+                {formatDate(summary.range.to)}
+              </>
+            ) : (
+              "Usage and credit events come from SelfX billing ledgers."
+            )}
           </div>
         </div>
       </PageSection>
@@ -853,8 +859,8 @@ function BillingMetric({
   detail,
 }: {
   label: string;
-  value: string;
-  detail: string;
+  value: ReactNode;
+  detail: ReactNode;
 }) {
   return (
     <div className="rounded-lg border bg-muted/20 p-4">
@@ -880,16 +886,16 @@ function storeOptionFromAdminStore(store: AdminStore): StoreOption {
   return { id: store.id, name: store.name };
 }
 
-function periodLabel(subscription: StoreSubscriptionSummary | null): string {
+function periodLabel(subscription: StoreSubscriptionSummary | null) {
   if (!subscription?.subscription?.currentPeriodStart) {
     return "Trial";
   }
   return formatDate(subscription.subscription.currentPeriodStart);
 }
 
-function resetLabel(subscription: StoreSubscriptionSummary | null): string {
+function resetLabel(subscription: StoreSubscriptionSummary | null) {
   const end = subscription?.subscription?.currentPeriodEnd;
-  return end ? `Renews ${formatDate(end)}` : "No renewal scheduled";
+  return end ? <>Renews {formatDate(end)}</> : "No renewal scheduled";
 }
 
 function statusLabel(value: string): string {
@@ -947,11 +953,8 @@ function money(value: number, currency: string): string {
   }).format(value / 100);
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+function formatDate(value: string) {
+  return <RegionalDateTime value={value} />;
 }
 
 function messageFor(caught: unknown): string {

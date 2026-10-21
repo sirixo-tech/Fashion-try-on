@@ -64,6 +64,23 @@ const baseAccess: NavigationAccess = {
   storeFeatureKeys: [],
   hasActiveStore: false,
 };
+it("keeps Apps & Downloads platform-only and Account available to every signed-in user", () => {
+  expect(canSeeHref("/app/account", baseAccess)).toBe(true);
+  expect(
+    canSeeHref("/app/apps-downloads", {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["APP_RELEASES_MANAGE"],
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref("/app/apps-downloads", {
+      ...baseAccess,
+      hasPlatformAccess: true,
+      platformPermissions: ["APP_RELEASES_VIEW"],
+    }),
+  ).toBe(true);
+});
 it("shows unified Roles for Store role viewers without a location-count plan gate", () => {
   const merchant = {
     ...baseAccess,

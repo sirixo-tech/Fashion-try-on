@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AuthModule } from "./auth/auth.module.js";
+import { AppsModule } from "./apps/apps.module.js";
 import { CatalogModule } from "./catalog/catalog.module.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { DeveloperApiModule } from "./developer-api/developer-api.module.js";
@@ -18,6 +19,7 @@ import { UsageModule } from "./usage/usage.module.js";
   imports: [
     DatabaseModule,
     AuthModule,
+    AppsModule,
     OrganizationsModule,
     RbacModule,
     StoresModule,

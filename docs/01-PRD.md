@@ -1,5 +1,16 @@
 ## Document Evolution
 
+### APPS-1 / REGIONAL-1 — Kiosk downloads and personal display preferences (2026-10-21)
+
+Platform Apps & Downloads distributes signed standalone SelfX kiosk APKs. Separate
+view/manage authorities control release administration. Uploads create validated
+drafts; explicit publication exposes downloads to active Store members with kiosk
+viewing permission and kiosk plan access. Keep version history; recommend one
+release per architecture and retire old releases without updating installed kiosks.
+User accounts may select automatic/device or explicit timezone, date order and
+12/24-hour display. Preferences follow the user across devices, without changing
+UTC persistence, entitlement periods, operational schedules or report day buckets.
+
 ### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
 
 Dashboard staff, Store owners and Platform users may sign in with Google alongside

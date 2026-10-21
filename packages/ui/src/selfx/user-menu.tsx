@@ -92,13 +92,13 @@ export function UserMenu({
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!onNavigateTo}
-            onClick={() => onNavigateTo?.("/app/settings")}
+            onClick={() => onNavigateTo?.("/app/account")}
             className="min-h-11 cursor-pointer gap-3 rounded-lg border border-transparent px-2.5 py-2 font-sans text-sm font-semibold text-sidebar-muted hover:border-sidebar-border focus:border-sidebar-border focus:bg-sidebar-accent focus:text-sidebar-accent-foreground"
           >
             <span className="flex size-8 items-center justify-center rounded-md border border-sidebar-border bg-background text-sidebar-muted group-focus/dropdown-menu-item:border-[color-mix(in_srgb,var(--selfx-primary),white_72%)] group-focus/dropdown-menu-item:bg-white group-focus/dropdown-menu-item:text-primary">
               <SettingsIcon size={16} strokeWidth={1.9} aria-hidden="true" />
             </span>
-            Settings
+            Regional Settings
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

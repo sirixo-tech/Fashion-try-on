@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { hasStoreResourcePermission } from "@/lib/current-store";
 
 import {
@@ -329,9 +330,14 @@ export default function DashboardPage() {
             </div>
           )}
           <div className="flex items-end text-sm text-muted-foreground">
-            {summary
-              ? `${formatDate(summary.range.from)} to ${formatDate(summary.range.to)}`
-              : "Dashboard data follows the permissions on this account."}
+            {summary ? (
+              <>
+                {formatDate(summary.range.from)} to{" "}
+                {formatDate(summary.range.to)}
+              </>
+            ) : (
+              "Dashboard data follows the permissions on this account."
+            )}
           </div>
         </div>
       </PageSection>
@@ -533,7 +539,7 @@ function DashboardTable({
   title: string;
   icon: ReactNode;
   headers: string[];
-  rows: string[][];
+  rows: ReactNode[][];
   empty: string;
   loading: boolean;
 }) {
@@ -616,15 +622,12 @@ function displayPercent(value: number | null | undefined): string {
   }).format(value ?? 0)}%`;
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+function formatDate(value: string) {
+  return <RegionalDateTime value={value} />;
 }
 
-function formatOptionalDate(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "-";
+function formatOptionalDate(value: string | null) {
+  return value ? <RegionalDateTime value={value} /> : "-";
 }
 
 function messageFor(caught: unknown): string {

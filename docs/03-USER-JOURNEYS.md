@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### APPS-1 / REGIONAL-1 — Release and account journeys (2026-10-21)
+
+Authorized Platform user opens Apps & Downloads, uploads a signed APK with release
+notes, reviews derived version/ABI/checksum, then confirms Publish. Set recommended
+selects the current download for that architecture. Retire stops new Store links
+but preserves release history. A replacement is a new version upload, rather than
+overwriting a previously published binary. Store operator opens Kiosks > Download
+Kiosk APK and chooses an appropriate published build for manual installation.
+Every signed-in user can open Account & Regional Settings from the account menu,
+choose timezone and date/time formats, preview and Save. The same preferences load
+on the next session/device; editing them does not change Store or kiosk schedules.
+
 ### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
 
 When configured, Login and Create account show Continue with Google. A linked

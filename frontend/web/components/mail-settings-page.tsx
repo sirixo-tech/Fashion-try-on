@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   Alert,
@@ -361,7 +362,7 @@ export function MailSettingsPage() {
                     {saved.lastTest.status === "ACCEPTED"
                       ? "Accepted by SMTP server; check inbox/spam."
                       : `Failed (${saved.lastTest.code ?? "SMTP_DELIVERY_FAILED"}).`}{" "}
-                    {new Date(saved.lastTest.at).toLocaleString()}
+                    {<RegionalDateTime value={saved.lastTest.at} />}
                   </p>
                 ) : null}
               </form>

@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import { useEffect, useState } from "react";
 import { PencilIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
@@ -410,11 +411,7 @@ export function UsersPage() {
                         : "No Store linked"}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {new Date(user.createdAt).toLocaleDateString(undefined, {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {<RegionalDateTime value={user.createdAt} kind="date" />}
                     </TableCell>
                     <TableCell className="text-right">
                       {canEdit ? (

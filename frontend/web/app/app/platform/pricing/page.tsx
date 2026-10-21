@@ -1,4 +1,8 @@
 "use client";
+import {
+  formatRegionalDate,
+  useRegionalSettings,
+} from "@/lib/regional-settings";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -270,6 +274,7 @@ function PricingPlanCard({
   const archived = plan.status === "ARCHIVED";
   const featureItems = featureItemsForKeys(plan.featureKeys, features);
   const [featuresOpen, setFeaturesOpen] = useState(false);
+  const { settings: regionalSettings } = useRegionalSettings();
   const hiddenFeatureCount = Math.max(featureItems.length - 5, 0);
   const supportsLocations =
     plan.storeLocationLimit === null || plan.storeLocationLimit > 0;
@@ -378,7 +383,7 @@ function PricingPlanCard({
         <CardFooter className="justify-between gap-3">
           <div
             className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"
-            title={`Updated ${formatDate(plan.updatedAt)}`}
+            title={`Updated ${formatRegionalDate(plan.updatedAt, regionalSettings)}`}
           >
             <StoreIcon size={15} aria-hidden="true" className="shrink-0" />
             <span className="truncate">
@@ -574,13 +579,6 @@ function number(value: number): string {
 
 function locationLimitLabel(value: number | null): string {
   return value === null ? "Custom" : number(value);
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
 
 function messageFor(caught: unknown): string {

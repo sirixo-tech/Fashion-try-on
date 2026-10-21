@@ -39,6 +39,8 @@ export const PLATFORM_PERMISSIONS = {
   permissionsManage: "PERMISSIONS_MANAGE",
   platformRolesManage: "PLATFORM_ROLES_MANAGE",
   platformUsersManage: "PLATFORM_USERS_MANAGE",
+  appReleasesView: "APP_RELEASES_VIEW",
+  appReleasesManage: "APP_RELEASES_MANAGE",
 } as const;
 
 export type PlatformPermission =
@@ -55,6 +57,23 @@ export type PlatformPermissionDefinition = {
 
 export const PLATFORM_PERMISSION_REGISTRY: readonly PlatformPermissionDefinition[] =
   [
+    {
+      code: PLATFORM_PERMISSIONS.appReleasesView,
+      module: "platform.apps",
+      action: "view",
+      label: "View App Releases",
+      description:
+        "View kiosk APK drafts, published releases and release history.",
+      applicability: "PLATFORM_ONLY",
+    },
+    {
+      code: PLATFORM_PERMISSIONS.appReleasesManage,
+      module: "platform.apps",
+      action: "manage",
+      label: "Manage App Releases",
+      description: "Upload, publish, recommend and retire kiosk APK releases.",
+      applicability: "PLATFORM_ONLY",
+    },
     {
       code: PLATFORM_PERMISSIONS.organizationApplicationReview,
       module: "platform.organizations",
@@ -271,7 +290,9 @@ const STAFF_ADMIN_PERMISSIONS: readonly PlatformPermission[] =
       permission !== PLATFORM_PERMISSIONS.permissionsManage &&
       permission !== PLATFORM_PERMISSIONS.organizationSuspend &&
       permission !== PLATFORM_PERMISSIONS.pricingView &&
-      permission !== PLATFORM_PERMISSIONS.pricingManage,
+      permission !== PLATFORM_PERMISSIONS.pricingManage &&
+      permission !== PLATFORM_PERMISSIONS.appReleasesManage &&
+      permission !== PLATFORM_PERMISSIONS.appReleasesView,
   );
 
 const ROLE_PERMISSIONS = {

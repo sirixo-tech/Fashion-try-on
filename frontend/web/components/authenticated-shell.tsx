@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -7,6 +8,7 @@ import {
   BarChart3Icon,
   BlocksIcon,
   Code2Icon,
+  DownloadIcon,
   CreditCardIcon,
   FlaskConicalIcon,
   GemIcon,
@@ -56,17 +58,7 @@ import {
 
 const navItems: SelfxNavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
-  { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
-  { href: "/app/payments", label: "Payment Settings", icon: CreditCardIcon },
   { href: "/app/stores", label: "Stores", icon: StoreIcon },
-  {
-    label: "Team & locations",
-    icon: UsersIcon,
-    children: [
-      { href: "/app/locations", label: "Locations", icon: MapPinIcon },
-      { href: "/app/staff", label: "Staff", icon: UsersIcon },
-    ],
-  },
   {
     label: "Products",
     icon: PackageIcon,
@@ -83,6 +75,7 @@ const navItems: SelfxNavItem[] = [
       },
     ],
   },
+  { href: "/app/kiosks", label: "Kiosks", icon: MonitorIcon },
   {
     label: "Try-On Lab",
     icon: FlaskConicalIcon,
@@ -99,7 +92,6 @@ const navItems: SelfxNavItem[] = [
       },
     ],
   },
-  { href: "/app/platform/pricing", label: "Plans", icon: CreditCardIcon },
   {
     label: "Integrations",
     icon: BlocksIcon,
@@ -113,6 +105,15 @@ const navItems: SelfxNavItem[] = [
     ],
   },
   {
+    label: "Team & Locations",
+    icon: UsersIcon,
+    children: [
+      { href: "/app/locations", label: "Locations", icon: MapPinIcon },
+      { href: "/app/staff", label: "Staff", icon: UsersIcon },
+    ],
+  },
+  { href: "/app/platform/pricing", label: "Plans", icon: CreditCardIcon },
+  {
     label: "User Management",
     icon: LockKeyholeIcon,
     children: [
@@ -125,10 +126,26 @@ const navItems: SelfxNavItem[] = [
       { href: "/app/users", label: "Users", icon: UsersIcon },
     ],
   },
+  { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
   { href: "/app/activity", label: "Activity", icon: ActivityIcon },
   { href: "/app/developer", label: "Developer / API", icon: Code2Icon },
-  { href: "/app/analytics", label: "Analytics", icon: BarChart3Icon },
   { href: "/app/billing", label: "Usage & Billing", icon: CreditCardIcon },
+  {
+    href: "/app/apps-downloads",
+    label: "Apps & Downloads",
+    icon: DownloadIcon,
+  },
+  {
+    label: "Settings",
+    icon: SettingsIcon,
+    children: [
+      {
+        href: "/app/payments",
+        label: "Payment Settings",
+        icon: CreditCardIcon,
+      },
+    ],
+  },
   {
     label: "Platform Settings",
     icon: SettingsIcon,
@@ -332,7 +349,13 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
               <span className="font-semibold">Impersonating Store:</span>{" "}
               {impersonation.targetStoreName}
               <span className="ml-2 text-orange-800">
-                Ends {new Date(impersonation.expiresAt).toLocaleTimeString()}
+                Ends{" "}
+                {
+                  <RegionalDateTime
+                    value={impersonation.expiresAt}
+                    kind="time"
+                  />
+                }
               </span>
             </div>
             <Button

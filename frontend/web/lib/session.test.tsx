@@ -428,7 +428,17 @@ describe("SessionProvider", () => {
 
   it("keeps one provider lifecycle across login and app route content", async () => {
     useProductionApiProxy();
-    const fetchMock = vi.fn().mockResolvedValue(authResponse("root-token"));
+    const fetchMock = vi.fn((input: string | URL | Request) =>
+      Promise.resolve(
+        String(input).includes("/api/v1/account/regional-settings")
+          ? jsonResponse({
+              timezone: null,
+              dateFormat: "AUTO",
+              timeFormat: "AUTO",
+            })
+          : authResponse("root-token"),
+      ),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     render(<ProviderLifecycleProbe />);
@@ -443,7 +453,11 @@ describe("SessionProvider", () => {
 
     expect(screen.getByTestId("route").textContent).toBe("app");
     expect(screen.getByTestId("access-token").textContent).toBe("root-token");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      fetchMock.mock.calls.filter(([input]) =>
+        String(input).includes("/api/v1/auth/refresh"),
+      ),
+    ).toHaveLength(1);
   });
 
   it("shares one refresh across concurrent expired protected API requests", async () => {

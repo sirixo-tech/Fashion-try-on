@@ -1,3 +1,4 @@
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@selfx/ui";
 import type { StoreSubscriptionSummary } from "@/lib/stores";
 
@@ -11,12 +12,7 @@ export function PostpaidBillingSummary({
 }: {
   summary: NonNullable<StoreSubscriptionSummary["postpaid"]>;
 }) {
-  const date = (value: string) =>
-    new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone: "UTC",
-    }).format(new Date(value));
+  const date = (value: string) => <RegionalDateTime value={value} />;
   return (
     <Card>
       <CardHeader>

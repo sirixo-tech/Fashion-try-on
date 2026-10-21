@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -163,6 +164,12 @@ export default function KiosksPage() {
               Refresh
             </Button>
             <Button
+              variant="outline"
+              render={<Link href="/app/kiosks/downloads" />}
+            >
+              Download Kiosk APK
+            </Button>
+            <Button
               disabled={loading || busy || !can("kiosks.pair")}
               onClick={() => openPair(null)}
             >
@@ -214,9 +221,11 @@ export default function KiosksPage() {
                       {device.appVersion ? ` / ${device.appVersion}` : ""}
                     </TableCell>
                     <TableCell>
-                      {device.lastSeenAt
-                        ? new Date(device.lastSeenAt).toLocaleString()
-                        : "Never"}
+                      {device.lastSeenAt ? (
+                        <RegionalDateTime value={device.lastSeenAt} />
+                      ) : (
+                        "Never"
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">

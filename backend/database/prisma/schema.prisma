@@ -274,7 +274,45 @@ model User {
   integrationOauthStatesCreated IntegrationOauthState[]             @relation("IntegrationOauthStateCreatedByUser")
   shopifyLinkSessionsApproved   ShopifyLinkSession[]                @relation("ShopifyLinkSessionApprovedByUser")
 
+  regionalTimezone              String?                             @map("regional_timezone") @db.VarChar(64)
+  regionalDateFormat            String                              @default("AUTO") @map("regional_date_format") @db.VarChar(16)
+  regionalTimeFormat            String                              @default("AUTO") @map("regional_time_format") @db.VarChar(8)
+  appReleases                   AppRelease[]
+
   @@map("users")
+}
+
+enum AppReleaseStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+model AppRelease {
+  id           String           @id @db.Uuid
+  packageName  String           @map("package_name") @db.VarChar(160)
+  versionName  String           @map("version_name") @db.VarChar(120)
+  versionCode  Int              @map("version_code")
+  architecture String           @db.VarChar(32)
+  minSdk       Int              @map("min_sdk")
+  sizeBytes    Int              @map("size_bytes")
+  sha256       String           @unique @db.Char(64)
+  signerSha256 String           @map("signer_sha256") @db.Char(64)
+  objectKey    String           @unique @map("object_key")
+  filename     String           @db.VarChar(200)
+  releaseNotes String           @default("") @map("release_notes") @db.VarChar(4000)
+  status       AppReleaseStatus @default(DRAFT)
+  recommended  Boolean          @default(false)
+  revision     Int              @default(0)
+  uploadedById String?          @map("uploaded_by_id") @db.Uuid
+  uploadedBy   User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  publishedAt  DateTime?        @map("published_at") @db.Timestamptz(3)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([packageName, versionCode, architecture])
+  @@index([status, createdAt, id])
+  @@map("app_releases")
 }
 
 model UserExternalIdentity {

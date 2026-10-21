@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { storeResourcePermissions } from "@/lib/current-store";
 
 import Link from "next/link";
@@ -347,9 +348,15 @@ export default function StoreDashboardPage() {
               <PlanInfoTile
                 label="Current plan"
                 value={currentPricingPlan?.name ?? "Trial"}
-                caption={`Period ends ${formatDate(
-                  store?.subscription?.subscription?.currentPeriodEnd ?? null,
-                )}`}
+                caption={
+                  <>
+                    Period ends{" "}
+                    {formatDate(
+                      store?.subscription?.subscription?.currentPeriodEnd ??
+                        null,
+                    )}
+                  </>
+                }
               />
               <PlanInfoTile
                 label="Total allocation"
@@ -1105,9 +1112,9 @@ function MetricCard({
   caption,
 }: {
   label: string;
-  value: string | number;
+  value: ReactNode;
   icon: ReactNode;
-  caption: string;
+  caption: ReactNode;
 }) {
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -1132,7 +1139,7 @@ function PlanInfoTile({
 }: {
   label: string;
   value: string;
-  caption: string;
+  caption: ReactNode;
 }) {
   return (
     <div className="rounded-lg border bg-muted/25 p-4">
@@ -1738,8 +1745,8 @@ function storeLocation(store: AdminStoreDetail): string {
     .join(", ");
 }
 
-function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "-";
+function formatDate(value: string | null) {
+  return value ? <RegionalDateTime value={value} /> : "-";
 }
 
 function creditHealthFor(availableCredits: number | null): CreditHealth {

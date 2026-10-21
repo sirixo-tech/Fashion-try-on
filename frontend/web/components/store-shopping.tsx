@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -336,7 +337,7 @@ function OrderHistory({
                 <TableRow key={order.id}>
                   <TableCell>{order.reference}</TableCell>
                   <TableCell>
-                    {new Date(order.createdAt).toLocaleString()}
+                    {<RegionalDateTime value={order.createdAt} />}
                   </TableCell>
                   <TableCell>{statusLabel(order.status)}</TableCell>
                   <TableCell>
@@ -505,7 +506,7 @@ function OrderDetails({
             )}
             {order.paidAt && (
               <p>
-                Payment confirmed: {new Date(order.paidAt).toLocaleString()}
+                Payment confirmed: {<RegionalDateTime value={order.paidAt} />}
               </p>
             )}
             {order.paymentReviewReason && (

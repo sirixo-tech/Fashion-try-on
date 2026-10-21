@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -707,7 +708,7 @@ function StoreInfoLine({
 }: {
   icon: ReactNode;
   label: string;
-  value: string;
+  value: ReactNode;
 }) {
   return (
     <div className="flex min-w-0 items-start gap-2 text-sm">
@@ -945,8 +946,8 @@ function formatMoney(cents: number, currency: string): string {
   }
 }
 
-function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "-";
+function formatDate(value: string | null) {
+  return value ? <RegionalDateTime value={value} /> : "-";
 }
 
 function storeInitials(name: string): string {

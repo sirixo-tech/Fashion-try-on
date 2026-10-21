@@ -26,7 +26,7 @@ export function SummaryCard({
   children,
 }: {
   title: string;
-  description?: string;
+  description?: ReactNode;
   icon?: ReactNode;
   children?: ReactNode;
 }) {
@@ -35,7 +35,11 @@ export function SummaryCard({
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
-        {icon ? <CardAction><IconFrame>{icon}</IconFrame></CardAction> : null}
+        {icon ? (
+          <CardAction>
+            <IconFrame>{icon}</IconFrame>
+          </CardAction>
+        ) : null}
       </CardHeader>
       {children ? <CardContent>{children}</CardContent> : null}
     </Card>
@@ -62,7 +66,9 @@ export function StatCard({
           <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
             {label}
           </p>
-          <p className="text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+          <p className="text-2xl font-semibold tracking-tight text-foreground">
+            {value}
+          </p>
           {secondaryValue ? (
             <p className="text-sm text-muted-foreground">{secondaryValue}</p>
           ) : null}
@@ -81,7 +87,7 @@ export function SectionCard({
   children,
 }: {
   title?: string;
-  description?: string;
+  description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -91,8 +97,12 @@ export function SectionCard({
         <>
           <CardHeader>
             {title ? <CardTitle>{title}</CardTitle> : null}
-            {description ? <CardDescription>{description}</CardDescription> : null}
-            {actions ? <CardAction className="flex gap-2">{actions}</CardAction> : null}
+            {description ? (
+              <CardDescription>{description}</CardDescription>
+            ) : null}
+            {actions ? (
+              <CardAction className="flex gap-2">{actions}</CardAction>
+            ) : null}
           </CardHeader>
           <Separator />
         </>
@@ -110,7 +120,7 @@ export function ActionCard({
 }: {
   icon?: ReactNode;
   title: string;
-  description: string;
+  description: ReactNode;
   action?: ReactNode;
 }) {
   return (
@@ -119,7 +129,9 @@ export function ActionCard({
         {icon ? <IconFrame>{icon}</IconFrame> : null}
         <div className="space-y-1">
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
-          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
         </div>
         {action ? <div>{action}</div> : null}
       </CardContent>
@@ -135,7 +147,7 @@ export function TableContainer({
   footer,
 }: {
   title?: string;
-  description?: string;
+  description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
@@ -145,8 +157,12 @@ export function TableContainer({
       {title || description || actions ? (
         <CardHeader>
           {title ? <CardTitle>{title}</CardTitle> : null}
-          {description ? <CardDescription>{description}</CardDescription> : null}
-          {actions ? <CardAction className="flex gap-2">{actions}</CardAction> : null}
+          {description ? (
+            <CardDescription>{description}</CardDescription>
+          ) : null}
+          {actions ? (
+            <CardAction className="flex gap-2">{actions}</CardAction>
+          ) : null}
         </CardHeader>
       ) : null}
       <CardContent className="overflow-x-auto p-5 pt-0">{children}</CardContent>
@@ -170,7 +186,9 @@ export function MetricDisplay({
         {label}
       </p>
       <p className="text-xl font-semibold text-foreground">{value}</p>
-      {helper ? <p className="text-sm text-muted-foreground">{helper}</p> : null}
+      {helper ? (
+        <p className="text-sm text-muted-foreground">{helper}</p>
+      ) : null}
     </div>
   );
 }

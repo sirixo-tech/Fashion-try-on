@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { useEffect, useState } from "react";
 import {
   Button,
@@ -128,7 +129,7 @@ export function UserDeletionHistory({
                   </TableCell>
                   <TableCell>{title(event.action)}</TableCell>
                   <TableCell>
-                    {new Date(event.createdAt).toLocaleString()}
+                    {<RegionalDateTime value={event.createdAt} />}
                   </TableCell>
                 </TableRow>
               ))

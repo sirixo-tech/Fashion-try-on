@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FlaskConicalIcon, RefreshCwIcon, Settings2Icon } from "lucide-react";
@@ -509,7 +510,7 @@ function resultLabel(test: PlatformPaymentTest) {
   }[test.status];
 }
 function date(value: string) {
-  return new Date(value).toLocaleString();
+  return <RegionalDateTime value={value} />;
 }
 function message(caught: unknown) {
   return caught instanceof Error

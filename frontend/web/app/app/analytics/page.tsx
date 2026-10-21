@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import {
   useCallback,
@@ -201,9 +202,14 @@ export default function AnalyticsPage() {
             </div>
           </div>
           <div className="flex items-end text-sm text-muted-foreground">
-            {summary
-              ? `${formatDate(summary.range.from)} to ${formatDate(summary.range.to)}`
-              : "Usage is loaded from run records and event rollups."}
+            {summary ? (
+              <>
+                {formatDate(summary.range.from)} to{" "}
+                {formatDate(summary.range.to)}
+              </>
+            ) : (
+              "Usage is loaded from run records and event rollups."
+            )}
           </div>
         </div>
       </PageSection>
@@ -491,18 +497,18 @@ function displayPercent(value: number | null | undefined): string {
   }).format(value ?? 0)}%`;
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+function formatDate(value: string) {
+  return <RegionalDateTime value={value} />;
 }
 
-function shortDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(`${value}T00:00:00.000Z`));
+function shortDate(value: string) {
+  return (
+    <RegionalDateTime
+      value={`${value}T00:00:00.000Z`}
+      kind="date"
+      calendarDate
+    />
+  );
 }
 
 function messageFor(caught: unknown): string {

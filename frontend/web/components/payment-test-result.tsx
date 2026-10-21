@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { toDataURL } from "qrcode";
@@ -312,7 +313,7 @@ function guidance(test: PlatformPaymentTest) {
   return "Payment is not confirmed yet. An expired QR or a network timeout does not prove failure. Background checks continue; use Open test to resume after leaving this page.";
 }
 function date(value: string) {
-  return new Date(value).toLocaleString();
+  return <RegionalDateTime value={value} />;
 }
 function message(caught: unknown) {
   return caught instanceof Error

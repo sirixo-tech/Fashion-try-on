@@ -1,5 +1,32 @@
 ## Document Evolution
 
+### APPS-1 / REGIONAL-1 — Implementation boundaries (2026-10-21)
+
+APK administration uses central NestJS APIs, APP_RELEASES_VIEW/MANAGE permissions,
+private object storage and immutable release metadata. Validate uploads (200 MiB
+maximum) with Android aapt badging and apksigner signature verification. Require
+the configured package and pinned release-certificate SHA-256; derive version,
+minimum SDK and ABI from the APK, never client claims. Bound inspector execution,
+clean temporary files, reject split/debuggable/unsupported-ABI packages and keep
+new objects as drafts. Identical SHA-256 retries return the same release. Unique
+package/versionCode/architecture rejects conflicting bytes. Serialize lifecycle
+changes with PostgreSQL advisory locks, optimistic revisions and a unique partial
+recommended-per-architecture index. Reject publication downgrades relative to
+currently published matching builds. Audit lifecycle mutations. Lists paginate by
+UUIDv7 id. Authenticated Store download endpoints recheck membership, status,
+kiosk permission and entitlement before issuing 60-second storage read URLs for
+published releases only; signed URLs already issued may remain usable until expiry.
+Platform release history includes uploader identity; Store views omit it and object
+keys. Native tools, Java and a pinned release signer must be configured on each API
+host; fail closed if unavailable. Distribution does not implement remote updates.
+
+Regional preferences use the authenticated /api/v1/account/regional-settings GET
+and PATCH endpoints, never a client-supplied target user id. Validate supported
+date/time enums and Intl-recognized time zones. Load/reset preferences with staff
+session identity, and update reactive shared date components after Save. Persist
+timestamps in UTC. Date-only report buckets retain their original date instead of
+being shifted to the user's timezone. Public kiosk/customer clocks are independent.
+
 ### AUTH-GOOGLE-1A — Explicit callback redirects (2026-10-21)
 
 Every Google callback navigation outcome must explicitly send HTTP 302 with its

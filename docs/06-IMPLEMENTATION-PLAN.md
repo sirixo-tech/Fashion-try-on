@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### APPS-1 / REGIONAL-1 — Release distribution and account formatting (2026-10-21)
+
+Implement release registry/migration, platform permissions, binary inspection,
+private storage, draft/publish/recommend/retire lifecycle, Store download gates,
+sidebar/actions and user-owned regional settings with shared formatting. Verify
+real PostgreSQL migration/lifecycle, retries, stale revisions, permission denial,
+Fastify multipart, real local APK inspection, account persistence/isolation,
+timezone rollover/DST/date-only buckets, web regressions, types/lint/build and
+desktop/mobile UI. Deploy migration, API and web together. Provision Java/Android
+Build Tools, object storage and the production signer fingerprint before upload.
+No automatic kiosk updater or new kiosk binaries/signing keys are created here.
+
 ### AUTH-UI-2 — Login and workspace loading polish (2026-10-21)
 
 Simplify Login without changing session, Google linking, demo gating or return

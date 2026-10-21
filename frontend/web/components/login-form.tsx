@@ -189,11 +189,11 @@ export function LoginForm() {
 
   return (
     <main className="min-h-dvh bg-background text-foreground lg:grid lg:grid-cols-[minmax(26rem,0.9fr)_minmax(0,1.1fr)]">
-      <section className="flex min-h-dvh items-center justify-center px-4 py-6 sm:px-8">
+      <section className="flex min-h-dvh items-center justify-center px-4 py-6 sm:px-8 lg:py-4">
         <Card className="w-full max-w-md shadow-soft motion-safe:transform-none">
-          <CardContent className="px-5 py-2 sm:px-7 sm:py-3">
-            <SelfxBrandLogo className="mb-5 h-auto w-32" priority />
-            <div className="mb-5">
+          <CardContent className="px-5 py-2 sm:px-7 sm:py-3 lg:py-0">
+            <SelfxBrandLogo className="mb-5 h-auto w-32 lg:mb-4" priority />
+            <div className="mb-5 lg:mb-4">
               <h1 className="text-2xl font-semibold tracking-tight">
                 Welcome back
               </h1>
@@ -228,14 +228,14 @@ export function LoginForm() {
                 )}
               </Alert>
             )}
-            <form onSubmit={onSubmit} className="space-y-3">
+            <form onSubmit={onSubmit} className="space-y-3 lg:space-y-2">
               {demoLoginsEnabled ? (
                 <DemoRoleAccess
                   selectedEmail={email}
                   onSelect={selectDemoLogin}
                 />
               ) : null}
-              <div className="space-y-2">
+              <div className="space-y-2 lg:space-y-1.5">
                 <Label
                   htmlFor="selfx-login-email"
                   className="text-sm font-medium"
@@ -254,7 +254,7 @@ export function LoginForm() {
                   required
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:space-y-1.5">
                 <Label
                   htmlFor="selfx-login-password"
                   className="text-sm font-medium"
@@ -318,7 +318,7 @@ export function LoginForm() {
 
             <GoogleSignIn mode="login" disabled={submitting} />
 
-            <p className="mt-4 text-center text-sm text-muted-foreground">
+            <p className="mt-4 text-center text-sm text-muted-foreground lg:mt-3">
               New to SelfX?{" "}
               <Link
                 href={signupHref}
@@ -328,7 +328,7 @@ export function LoginForm() {
               </Link>
             </p>
 
-            <PublicLegalLinks className="mt-5 border-t pt-4 text-xs" />
+            <PublicLegalLinks className="mt-5 border-t pt-4 text-xs lg:mt-3 lg:pt-3" />
           </CardContent>
         </Card>
       </section>

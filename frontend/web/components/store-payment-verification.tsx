@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -305,7 +306,7 @@ export function StorePaymentVerification({
                   {workspace.tests.map((test) => (
                     <TableRow key={test.id}>
                       <TableCell>
-                        {new Date(test.createdAt).toLocaleString()}
+                        {<RegionalDateTime value={test.createdAt} />}
                       </TableCell>
                       <TableCell>
                         {test.connectionVersion ===

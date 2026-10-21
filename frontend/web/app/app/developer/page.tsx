@@ -1,4 +1,5 @@
 "use client";
+import { RegionalDateTime } from "@/lib/regional-settings";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -626,11 +627,14 @@ export default function DeveloperPage() {
           <TableContainer
             title="Public API Usage"
             description={
-              usage
-                ? `${formatDateTime(usage.range.from)} to ${formatDateTime(
-                    usage.range.to,
-                  )}`
-                : "Track external Try-On activity and downloads."
+              usage ? (
+                <>
+                  {formatDateTime(usage.range.from)} to{" "}
+                  {formatDateTime(usage.range.to)}
+                </>
+              ) : (
+                "Track external Try-On activity and downloads."
+              )
             }
           >
             {loadingConsole ? (
@@ -960,11 +964,14 @@ export default function DeveloperPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {endpoint.latestDelivery
-                          ? `${endpoint.latestDelivery.status.toLowerCase()} at ${formatDateTime(
-                              endpoint.latestDelivery.createdAt,
-                            )}`
-                          : "No deliveries yet"}
+                        {endpoint.latestDelivery ? (
+                          <>
+                            {endpoint.latestDelivery.status.toLowerCase()} at{" "}
+                            {formatDateTime(endpoint.latestDelivery.createdAt)}
+                          </>
+                        ) : (
+                          "No deliveries yet"
+                        )}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={endpoint.status} />
@@ -1341,14 +1348,11 @@ function formatWebhookEvent(value: string): string {
   return value;
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null) {
   if (!value) {
     return "Never";
   }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return <RegionalDateTime value={value} />;
 }
 
 function formatCatalogSource(value: DeveloperApiCatalogSource | null): string {
