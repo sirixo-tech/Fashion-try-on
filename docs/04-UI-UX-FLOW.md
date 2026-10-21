@@ -1,5 +1,33 @@
 ## Document Evolution
 
+### AUTH-UI-2 — Compact login and shared workspace loading (2026-10-21)
+
+Login uses one compact shadcn/SelfX card containing the logo, Welcome back,
+short description, optional single-line demo selector and existing authentication
+controls in AUTH-LOGIN-ORDER order. Remove redundant badges and security footer
+rows. Use the SelfX primary action token and retain recovery, account creation,
+legal/support links, password visibility, errors and Google linking notices.
+Keep configured media, headline/body and two compact feature cards on desktop;
+omit the extra bullet list and media badge. Mobile uses the login card alone.
+The document scrolls naturally on short screens instead of a separate scrolling
+login panel, and controls remain reachable with errors or enlarged text.
+
+Full-page navigation, Google completion and session restoration use the shared
+public @selfx/ui LoadingScreen, composed with the SelfX brand asset, centered card,
+spinner, Loading workspace title and contextual status. Announce status politely
+and respect reduced motion. Keep session-restoration failure recoverable through
+Return to sign in; do not mask failures with indefinite progress. In-workspace
+route loading retains the shell. Existing section skeletons, background refresh
+and action/button loading remain local instead of covering the whole page.
+
+### AUTH-LOGIN-ORDER — Email form before Google (2026-10-21)
+
+Login shows the optional demo selector first, followed by email, password,
+Forgot password and Sign in. When Google is available, place an Or divider and
+Continue with Google after the email form, followed by Create account. Hide the
+divider with Google when unavailable. Signup retains Google above its email form.
+This supersedes the earlier above-form Google placement for Login only.
+
 ### AUTH-GOOGLE-1 / DEV-PLATFORM-1 (2026-10-20)
 
 Show a shared Continue with Google button above the email form only when backend

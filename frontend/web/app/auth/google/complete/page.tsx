@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, PageContainer, PageHeader } from "@selfx/ui";
 import { useSession } from "@/lib/session";
 import { resolveLoginNextPath } from "@/lib/login-next";
+import { WorkspaceLoading } from "@/components/workspace-loading";
 
 export default function GoogleCompletePage() {
   const session = useSession();
@@ -22,6 +23,11 @@ export default function GoogleCompletePage() {
       },
     ).then((next) => router.replace(next));
   }, [session, router]);
+  if (session.status !== "unauthenticated") {
+    return (
+      <WorkspaceLoading description="Signing you in and opening your workspace…" />
+    );
+  }
   return (
     <PageContainer width="form">
       <PageHeader

@@ -5,21 +5,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRightIcon,
-  BadgeCheckIcon,
   EyeIcon,
   EyeOffIcon,
-  LockKeyholeIcon,
   MonitorIcon,
-  PlayCircleIcon,
   ShieldCheckIcon,
-  SparklesIcon,
 } from "lucide-react";
 
 import {
   Alert,
   AlertDescription,
   Button,
+  Card,
+  CardContent,
   Input,
   Label,
   SelectMenu,
@@ -29,6 +26,7 @@ import {
 import { SafeApiError, selfxApi } from "@/lib/api";
 import { GoogleSignIn } from "./google-sign-in";
 import { PublicLegalLinks } from "@/components/public-legal-links";
+import { SelfxBrandLogo } from "@/components/selfx-brand-logo";
 import { resolveLoginNextPath, safeLoginNextPath } from "@/lib/login-next";
 import {
   getPublicLoginPageSettings,
@@ -55,7 +53,7 @@ const demoLoginGroups = [
 ] as const;
 
 const demoLoginOptions: ReadonlyArray<SelectMenuOption<string>> = [
-  { value: "", label: "Select a demo account" },
+  { value: "", label: "Quick access · demo accounts" },
   ...demoLoginGroups.flatMap((group) =>
     group.accounts.map((account) => ({
       value: account.email,
@@ -190,30 +188,17 @@ export function LoginForm() {
   }
 
   return (
-    <main className="h-dvh overflow-hidden bg-[#f3f7f8] text-foreground lg:grid lg:grid-cols-[minmax(32rem,0.68fr)_minmax(0,1.32fr)]">
-      <section className="relative z-10 h-dvh min-h-0 overflow-y-auto border-r bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,250,249,0.92)),linear-gradient(#e4ecef_1px,transparent_1px),linear-gradient(90deg,#e4ecef_1px,transparent_1px)] bg-[size:auto,44px_44px,44px_44px] px-4 py-5 sm:px-6">
-        <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#12c8a4,#38bdf8,#111827)]" />
-        <div className="mx-auto w-full max-w-[32rem] pb-5">
-          <div className="mb-4 flex flex-col items-center gap-2.5">
-            <SelfxBrandLogo className="h-auto w-36 sm:w-44" priority />
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-normal text-primary">
-              <span className="size-2 rounded-full bg-primary" />
-              SelfX Dashboard
-            </span>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white/95 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.14)] backdrop-blur sm:p-5">
-            <div className="mb-4">
-              <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-normal text-slate-600">
-                <LockKeyholeIcon size={14} aria-hidden="true" />
-                Secure Dashboard
-              </span>
-              <h1 className="text-[1.65rem] font-semibold leading-tight text-slate-950">
-                Sign in to SelfX
+    <main className="min-h-dvh bg-background text-foreground lg:grid lg:grid-cols-[minmax(26rem,0.9fr)_minmax(0,1.1fr)]">
+      <section className="flex min-h-dvh items-center justify-center px-4 py-6 sm:px-8">
+        <Card className="w-full max-w-md shadow-soft motion-safe:transform-none">
+          <CardContent className="px-5 py-2 sm:px-7 sm:py-3">
+            <SelfxBrandLogo className="mb-5 h-auto w-32" priority />
+            <div className="mb-5">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                Welcome back
               </h1>
-              <p className="mt-2 max-w-[28rem] text-[0.93rem] leading-6 text-slate-600">
-                Manage Shopify Try-On, WooCommerce, kiosks, products, credits
-                and results from one secure workspace.
+              <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
+                Sign in to manage your SelfX workspace.
               </p>
             </div>
 
@@ -243,7 +228,6 @@ export function LoginForm() {
                 )}
               </Alert>
             )}
-            <GoogleSignIn mode="login" disabled={submitting} />
             <form onSubmit={onSubmit} className="space-y-3">
               {demoLoginsEnabled ? (
                 <DemoRoleAccess
@@ -254,7 +238,7 @@ export function LoginForm() {
               <div className="space-y-2">
                 <Label
                   htmlFor="selfx-login-email"
-                  className="text-xs font-semibold text-slate-700"
+                  className="text-sm font-medium"
                 >
                   Email address
                 </Label>
@@ -265,7 +249,7 @@ export function LoginForm() {
                   autoComplete="email"
                   placeholder="name@company.com"
                   value={email}
-                  className="h-10 bg-white text-sm"
+                  className="h-10 bg-card text-sm"
                   onChange={(event) => setEmail(event.currentTarget.value)}
                   required
                 />
@@ -273,7 +257,7 @@ export function LoginForm() {
               <div className="space-y-2">
                 <Label
                   htmlFor="selfx-login-password"
-                  className="text-xs font-semibold text-slate-700"
+                  className="text-sm font-medium"
                 >
                   Password
                 </Label>
@@ -284,7 +268,7 @@ export function LoginForm() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     value={password}
-                    className="h-10 bg-white pr-11 text-sm"
+                    className="h-10 bg-card pr-11 text-sm"
                     onChange={(event) => setPassword(event.currentTarget.value)}
                     required
                   />
@@ -315,19 +299,26 @@ export function LoginForm() {
                 </Alert>
               ) : null}
               <div className="text-right text-sm">
-                <Link href="/forgot-password">Forgot password?</Link>
+                <Link
+                  className="font-medium hover:text-primary"
+                  href="/forgot-password"
+                >
+                  Forgot password?
+                </Link>
               </div>
               <Button
                 type="submit"
                 disabled={submitting}
-                className="h-11 w-full justify-between bg-slate-950 px-5 text-sm font-semibold hover:bg-slate-800"
+                className="h-11 w-full text-sm font-semibold"
+                aria-busy={submitting}
               >
-                <span>{submitting ? "Signing in" : "Sign in"}</span>
-                <ArrowRightIcon size={18} aria-hidden="true" />
+                {submitting ? "Signing in…" : "Sign in"}
               </Button>
             </form>
 
-            <p className="mt-4 text-center text-sm text-slate-600">
+            <GoogleSignIn mode="login" disabled={submitting} />
+
+            <p className="mt-4 text-center text-sm text-muted-foreground">
               New to SelfX?{" "}
               <Link
                 href={signupHref}
@@ -337,42 +328,13 @@ export function LoginForm() {
               </Link>
             </p>
 
-            <div className="mt-4 grid gap-3 border-t pt-3.5 text-xs font-medium text-slate-600 sm:grid-cols-2">
-              <span className="inline-flex items-center gap-2">
-                <ShieldCheckIcon size={15} aria-hidden="true" />
-                Secure sessions
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <BadgeCheckIcon size={15} aria-hidden="true" />
-                Protected workspace
-              </span>
-            </div>
-          </div>
-          <PublicLegalLinks className="mt-4 text-xs" />
-        </div>
+            <PublicLegalLinks className="mt-5 border-t pt-4 text-xs" />
+          </CardContent>
+        </Card>
       </section>
 
       <LoginMediaPanel settings={pageSettings} />
     </main>
-  );
-}
-
-function SelfxBrandLogo({
-  className,
-  priority = false,
-}: {
-  className?: string;
-  priority?: boolean;
-}) {
-  return (
-    <Image
-      src="/brand/selfx-logo.png"
-      alt="SelfX"
-      width={278}
-      height={105}
-      priority={priority}
-      className={className}
-    />
   );
 }
 
@@ -384,68 +346,44 @@ function DemoRoleAccess({
   onSelect: (email: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50/85 p-2.5">
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800">
-          <SparklesIcon size={15} aria-hidden="true" />
-          Demo account
-        </span>
-        <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[0.65rem] font-medium text-slate-500 shadow-sm">
-          testing only
-        </span>
-      </div>
-
-      <SelectMenu
-        ariaLabel="Select demo account"
-        value={
-          demoLoginOptions.some((option) => option.value === selectedEmail)
-            ? selectedEmail
-            : ""
-        }
-        options={demoLoginOptions}
-        placeholder="Select a demo account"
-        className="h-9 bg-white text-xs"
-        contentClassName="max-h-72"
-        onChange={onSelect}
-      />
-      <p className="mt-2 text-[0.68rem] leading-5 text-slate-500">
-        Selecting a demo account fills the shared test password automatically.
-      </p>
-    </div>
+    <SelectMenu
+      ariaLabel="Select demo account"
+      value={
+        demoLoginOptions.some((option) => option.value === selectedEmail)
+          ? selectedEmail
+          : ""
+      }
+      options={demoLoginOptions}
+      placeholder="Quick access · demo accounts"
+      className="h-10 bg-card text-sm"
+      contentClassName="max-h-72"
+      onChange={onSelect}
+    />
   );
 }
 
 function LoginMediaPanel({ settings }: { settings: LoginPageSettings }) {
   return (
-    <section className="relative hidden h-dvh min-h-0 overflow-hidden bg-[#05080d] text-white lg:block">
+    <section className="sticky top-0 hidden h-dvh overflow-hidden rounded-l-3xl bg-slate-950 text-white lg:block">
       <LoginMedia settings={settings} />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,8,13,0.72),rgba(5,8,13,0.18)_46%,rgba(5,8,13,0.68)),linear-gradient(180deg,rgba(5,8,13,0.24),rgba(5,8,13,0.9))]" />
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px)] bg-[size:48px_48px]" />
-
-      <div className="absolute right-8 top-7 z-10 flex items-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-normal text-white/82 backdrop-blur">
-          <PlayCircleIcon size={15} aria-hidden="true" />
-          Managed Media
-        </span>
-      </div>
-
-      <div className="relative z-10 flex h-full min-h-0 items-center px-8 py-9 xl:px-14 xl:py-12">
-        <div className="w-full max-w-[55rem]">
-          <div className="mb-5 inline-flex rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-normal text-white/90 backdrop-blur">
+      <div className="relative z-10 flex h-full items-center px-8 py-9 xl:px-14 xl:py-12">
+        <div className="w-full max-w-2xl">
+          <p className="mb-5 text-xs font-semibold uppercase tracking-widest text-white/80">
             {settings.eyebrow}
-          </div>
-          <h2 className="max-w-[48rem] text-[2.45rem] font-semibold leading-[1.08] text-white xl:text-[2.9rem]">
+          </p>
+          <h2 className="text-4xl font-semibold leading-tight text-white xl:text-5xl">
             {settings.headline}
           </h2>
-          <p className="mt-5 max-w-[38rem] text-[1.05rem] leading-8 text-white/76">
+          <p className="mt-5 max-w-xl text-base leading-7 text-white/80">
             {settings.body}
           </p>
 
-          <div className="mt-8 grid max-w-[43rem] gap-3 lg:grid-cols-2">
+          <div className="mt-8 grid gap-4 xl:grid-cols-2">
             {settings.cards.slice(0, 2).map((card, index) => (
               <div
                 key={`${card.title}-${index}`}
-                className="rounded-lg border border-white/16 bg-white/10 p-4 backdrop-blur-md"
+                className="rounded-xl border border-white/20 bg-slate-950/80 p-4"
               >
                 <div className="flex items-start gap-3.5">
                   <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-white/15 bg-white/10 text-primary">
@@ -467,15 +405,6 @@ function LoginMediaPanel({ settings }: { settings: LoginPageSettings }) {
               </div>
             ))}
           </div>
-
-          <ul className="mt-6 max-w-[48rem] space-y-3 text-sm font-medium leading-5 text-white/82">
-            {settings.bullets.map((bullet) => (
-              <li key={bullet} className="flex min-w-0 items-start gap-3">
-                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
-                <span>{bullet}</span>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </section>

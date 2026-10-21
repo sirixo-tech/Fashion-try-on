@@ -97,6 +97,7 @@ export {
   TooltipTrigger,
 } from "./components/tooltip";
 export { SelfxLogo } from "./selfx/selfx-logo";
+export { LoadingScreen } from "./selfx/loading-screen";
 export { StatusBadge } from "./selfx/status-badge";
 export {
   FormActions,

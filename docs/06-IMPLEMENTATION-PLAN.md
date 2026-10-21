@@ -1,5 +1,15 @@
 ## Document Evolution
 
+### AUTH-UI-2 — Login and workspace loading polish (2026-10-21)
+
+Simplify Login without changing session, Google linking, demo gating or return
+destination behavior. Add a reusable branded loading view through public
+@selfx/ui exports and use it for Google completion, session restoration and Next
+route loading boundaries. Preserve failure recovery and section/action loaders.
+Verify authentication/navigation regressions, types, lint, production compilation
+and desktop/mobile layout including short viewports and reduced motion. Web-only
+deployment; no API, migration or Google Cloud configuration change is required.
+
 ### AUTH-GOOGLE-1A — Callback redirect regression (2026-10-21)
 
 Set explicit 302 status on every callback redirect. Reproduce the empty-200 bug

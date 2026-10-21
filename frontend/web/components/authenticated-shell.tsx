@@ -47,6 +47,7 @@ import {
 } from "@/lib/current-store";
 import { useSession } from "@/lib/session";
 import { safeLoginNextPath } from "@/lib/login-next";
+import { WorkspaceLoading } from "@/components/workspace-loading";
 import {
   endStoreImpersonation,
   type EffectiveStorePermissions,
@@ -286,11 +287,11 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     !merchantRoute || canSeeHref(pathname, resolvedNavigationAccess);
 
   if (session.status === "loading") {
-    return <LoadingState label="Checking session" />;
+    return <WorkspaceLoading description="Restoring your session…" />;
   }
 
   if (session.status === "unauthenticated") {
-    return <LoadingState label="Opening sign in" />;
+    return <WorkspaceLoading description="Opening sign in…" />;
   }
 
   async function endActiveImpersonation() {

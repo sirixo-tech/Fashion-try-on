@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Alert, AlertDescription, Button } from "@selfx/ui";
+import { Alert, AlertDescription, Button, Separator } from "@selfx/ui";
 import { selfxApi, SafeApiError } from "@/lib/api";
 import { safeLoginNextPath } from "@/lib/login-next";
 
@@ -57,7 +57,14 @@ export function GoogleSignIn({
   }
   if (!enabled) return null;
   return (
-    <div className="mb-4 space-y-3">
+    <div className={mode === "login" ? "mt-4 space-y-3" : "mb-4 space-y-3"}>
+      {mode === "login" && (
+        <div className="flex items-center gap-3">
+          <Separator className="h-px min-w-0 flex-1" />
+          <span className="text-xs text-muted-foreground">Or</span>
+          <Separator className="h-px min-w-0 flex-1" />
+        </div>
+      )}
       <Button
         type="button"
         variant="outline"
@@ -90,9 +97,11 @@ export function GoogleSignIn({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <p className="text-center text-xs text-muted-foreground">
-        or continue with email
-      </p>
+      {mode === "signup" && (
+        <p className="text-center text-xs text-muted-foreground">
+          or continue with email
+        </p>
+      )}
     </div>
   );
 }
