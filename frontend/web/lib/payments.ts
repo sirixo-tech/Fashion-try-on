@@ -12,12 +12,12 @@ export type Gateway = {
   setupAvailable: boolean;
   enabled: boolean;
   version: number;
-  paymentAvailable: false;
+  paymentAvailable: boolean;
 };
 export type StorePaymentSettings = {
   version: number;
   selectedProvider: PaymentProvider | null;
-  paymentAvailable: false;
+  paymentAvailable: boolean;
   gateways: Gateway[];
   connections: {
     provider: PaymentProvider;

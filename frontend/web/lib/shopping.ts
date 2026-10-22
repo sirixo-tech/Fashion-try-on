@@ -41,7 +41,7 @@ export type ShoppingOrder = {
   expiresAt: string;
   cancelledAt: string | null;
   serverTime: string;
-  paymentAvailable: false;
+  paymentAvailable?: boolean;
   items: ShoppingOrderItem[];
 };
 export type OrderPaymentSummary = {

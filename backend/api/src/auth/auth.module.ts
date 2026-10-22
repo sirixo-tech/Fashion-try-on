@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MailModule } from "../mail/mail.module.js";
+import { MailAutomationService } from "../mail/mail-automation.service.js";
 import { PasswordRecoveryService } from "./password-recovery.service.js";
 import { PasswordRecoveryController } from "./password-recovery.controller.js";
 import { JwtService } from "@nestjs/jwt";
@@ -44,8 +45,9 @@ import { RegionalSettingsController } from "../account/regional-settings.control
     },
     {
       provide: AUTH_REPOSITORY,
-      useFactory: (prisma: PrismaService) => new PrismaAuthRepository(prisma),
-      inject: [PrismaService],
+      useFactory: (prisma: PrismaService, mail: MailAutomationService) =>
+        new PrismaAuthRepository(prisma, mail),
+      inject: [PrismaService, MailAutomationService],
     },
   ],
   exports: [AuthService, PasswordService],

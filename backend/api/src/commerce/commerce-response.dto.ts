@@ -40,7 +40,7 @@ export class ShoppingOrderDto {
   @ApiProperty() expiresAt!: string;
   @ApiProperty({ nullable: true }) cancelledAt!: string | null;
   @ApiProperty() serverTime!: string;
-  @ApiProperty({ enum: [false] }) paymentAvailable!: false;
+
   @ApiProperty({ type: [ShoppingOrderItemDto] }) items!: ShoppingOrderItemDto[];
 }
 export class ShoppingCartLineDto {
@@ -77,7 +77,7 @@ export class ShoppingCartDto {
   @ApiProperty({ nullable: true }) activeOrderId!: string | null;
   @ApiProperty() quoteFingerprint!: string;
   @ApiProperty() serverTime!: string;
-  @ApiProperty({ enum: [false] }) paymentAvailable!: false;
+  @ApiProperty() paymentAvailable!: boolean;
 }
 export class ShoppingPaginationDto {
   @ApiProperty() page!: number;

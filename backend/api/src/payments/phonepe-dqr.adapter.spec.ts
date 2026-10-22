@@ -81,8 +81,22 @@ describe("PhonePe in-store DQR protocol (no network)", () => {
       const other = new PhonePeDqrAdapter({ ...credentials, environment });
       expect(() =>
         other.createRequest(expected, "https://example.test/callback", 300),
-      ).toThrow(/confirmed UAT/);
-      expect(() => other.statusRequest(expected)).toThrow(/confirmed UAT/);
+      ).toThrow(
+        expect.objectContaining({
+          code:
+            environment === "UNCONFIRMED"
+              ? "LOCAL_REQUEST_INVALID"
+              : "PRODUCTION_ENDPOINT_UNCONFIGURED",
+        }),
+      );
+      expect(() => other.statusRequest(expected)).toThrow(
+        expect.objectContaining({
+          code:
+            environment === "UNCONFIRMED"
+              ? "LOCAL_REQUEST_INVALID"
+              : "PRODUCTION_ENDPOINT_UNCONFIGURED",
+        }),
+      );
     },
   );
   it.each([0, -1, 1.5, NaN, 2_000_000_001])(
@@ -138,7 +152,6 @@ describe("PhonePe in-store DQR protocol (no network)", () => {
     ["PAYMENT_ERROR", "FAILED", false, "FAILED"],
     ["PAYMENT_CANCELLED", "CANCELLED", true, "FAILED"],
     ["PAYMENT_SUCCESS", "FAILED", true, "UNKNOWN"],
-    ["PAYMENT_SUCCESS", "COMPLETED", false, "UNKNOWN"],
     ["NEW_CODE", "COMPLETED", true, "UNKNOWN"],
   ])(
     "normalizes code=%s state=%s success=%s as %s",
@@ -151,6 +164,14 @@ describe("PhonePe in-store DQR protocol (no network)", () => {
       ).toBe(result);
     },
   );
+  it("rejects contradictory success evidence instead of confirming a payment", () => {
+    expect(() =>
+      adapter.parseStatus(
+        status("PAYMENT_SUCCESS", "COMPLETED", false),
+        expected,
+      ),
+    ).toThrow(expect.objectContaining({ code: "PROVIDER_REJECTED" }));
+  });
   it.each([
     { merchantId: "other_store" },
     { transactionId: "other_order" },

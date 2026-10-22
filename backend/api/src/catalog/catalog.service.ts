@@ -45,6 +45,8 @@ type ProductRow = {
   garment_category: string;
   garment_photo_type: string;
   price_amount_cents: number | null;
+  minimum_price_cents?: number | null;
+  maximum_price_cents?: number | null;
   price_currency: string | null;
   image_url: string | null;
   image_storage_key: string | null;
@@ -144,6 +146,8 @@ export class CatalogService {
           p.garment_photo_type,
           p.price_amount_cents,
           p.price_currency,
+          (SELECT MIN(CASE WHEN ps.pricing_mode = 'VARIANT' THEN COALESCE(pv.price_override_amount_cents, p.price_amount_cents) ELSE p.price_amount_cents END) FROM product_variants pv JOIN product_stock_settings ps ON ps.product_id = pv.product_id WHERE pv.product_id = p.id AND pv.organization_id = p.organization_id AND pv.active = true) AS minimum_price_cents,
+          (SELECT MAX(CASE WHEN ps.pricing_mode = 'VARIANT' THEN COALESCE(pv.price_override_amount_cents, p.price_amount_cents) ELSE p.price_amount_cents END) FROM product_variants pv JOIN product_stock_settings ps ON ps.product_id = pv.product_id WHERE pv.product_id = p.id AND pv.organization_id = p.organization_id AND pv.active = true) AS maximum_price_cents,
           p.image_url,
           p.image_storage_key,
           p.image_content_type,
@@ -242,6 +246,8 @@ export class CatalogService {
           p.garment_photo_type,
           p.price_amount_cents,
           p.price_currency,
+          (SELECT MIN(CASE WHEN ps.pricing_mode = 'VARIANT' THEN COALESCE(pv.price_override_amount_cents, p.price_amount_cents) ELSE p.price_amount_cents END) FROM product_variants pv JOIN product_stock_settings ps ON ps.product_id = pv.product_id WHERE pv.product_id = p.id AND pv.organization_id = p.organization_id AND pv.active = true) AS minimum_price_cents,
+          (SELECT MAX(CASE WHEN ps.pricing_mode = 'VARIANT' THEN COALESCE(pv.price_override_amount_cents, p.price_amount_cents) ELSE p.price_amount_cents END) FROM product_variants pv JOIN product_stock_settings ps ON ps.product_id = pv.product_id WHERE pv.product_id = p.id AND pv.organization_id = p.organization_id AND pv.active = true) AS maximum_price_cents,
           p.image_url,
           p.image_storage_key,
           p.image_content_type,
@@ -433,6 +439,12 @@ export class CatalogService {
       garmentCategory: row.garment_category,
       garmentPhotoType: row.garment_photo_type,
       priceAmountCents: row.price_amount_cents,
+      minimumPriceAmountCents:
+        row.minimum_price_cents ?? row.price_amount_cents,
+      hasVariablePrices:
+        row.minimum_price_cents != null &&
+        row.maximum_price_cents != null &&
+        row.minimum_price_cents !== row.maximum_price_cents,
       priceCurrency: row.price_currency,
       image: {
         url: row.image_url ?? this.catalogReadUrl(row.image_storage_key),

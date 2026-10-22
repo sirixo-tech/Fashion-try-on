@@ -54,12 +54,14 @@ export function ProductStockDialog({
   storeId,
   product,
   canEdit,
+  onPermissionDenied,
   onClose,
 }: {
   accessToken: string;
   storeId: string;
   product: { id: string; name: string };
   canEdit: boolean;
+  onPermissionDenied?: () => void;
   onClose: () => void;
 }) {
   const [stock, setStock] = useState<ProductStock | null>(null);
@@ -177,6 +179,8 @@ export function ProductStockDialog({
       setReason("");
       setSaved(true);
     } catch (caught) {
+      if (caught instanceof SafeApiError && caught.status === 403)
+        onPermissionDenied?.();
       setError(messageFor(caught));
       if (
         caught instanceof SafeApiError &&
@@ -227,10 +231,13 @@ export function ProductStockDialog({
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
-              Product price: {priceLabel}. Change the base price and currency in
-              Edit Product.{" "}
+              Product price: {priceLabel}.
+              {canEdit &&
+                " Change the base price and currency in Edit Product."}{" "}
               {!stock.configured &&
-                "Stock has not been configured yet; saving starts stock tracking."}
+                (canEdit
+                  ? "Stock has not been configured yet; saving starts stock tracking."
+                  : "Stock has not been configured yet.")}
             </p>
             {stock.basePriceAmountCents === null && (
               <p className="text-sm text-muted-foreground">
@@ -238,240 +245,248 @@ export function ProductStockDialog({
                 required before purchasing is enabled.
               </p>
             )}
-            <fieldset
-              disabled={!canEdit || saving || conflict}
-              className="min-w-0 space-y-4"
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
+            {canEdit ? (
+              <fieldset
+                disabled={saving || conflict}
+                className="min-w-0 space-y-4"
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Product options</Label>
+                    <SelectMenu
+                      ariaLabel="Product options"
+                      value={optionMode}
+                      options={[
+                        { value: "SINGLE", label: "No size or colour" },
+                        { value: "SIZE", label: "Sizes only" },
+                        { value: "COLOR", label: "Colours only" },
+                        { value: "SIZE_COLOR", label: "Sizes and colours" },
+                      ]}
+                      disabled={saving || conflict}
+                      onChange={(value) => {
+                        setOptionMode(value);
+                        setSaved(false);
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pricing</Label>
+                    <SelectMenu
+                      ariaLabel="Pricing"
+                      value={pricingMode}
+                      options={[
+                        {
+                          value: "CONSTANT",
+                          label: "Same product price for every option",
+                        },
+                        { value: "VARIANT", label: "Allow variant prices" },
+                      ]}
+                      disabled={saving || conflict}
+                      onChange={(value) => {
+                        setPricingMode(value);
+                        setSaved(false);
+                      }}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label>Product options</Label>
-                  <SelectMenu
-                    ariaLabel="Product options"
-                    value={optionMode}
-                    options={[
-                      { value: "SINGLE", label: "No size or colour" },
-                      { value: "SIZE", label: "Sizes only" },
-                      { value: "COLOR", label: "Colours only" },
-                      { value: "SIZE_COLOR", label: "Sizes and colours" },
-                    ]}
-                    disabled={!canEdit || saving || conflict}
-                    onChange={(value) => {
-                      setOptionMode(value);
+                  <Label htmlFor="product-tax-rate">
+                    Product tax rate override (%)
+                  </Label>
+                  <Input
+                    id="product-tax-rate"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="Use Store default"
+                    value={taxRate}
+                    onChange={(event) => {
+                      setTaxRate(event.target.value);
                       setSaved(false);
                     }}
                   />
+                  <p className="text-sm text-muted-foreground">
+                    Blank uses the Store default; 0 makes this product tax-free.
+                    The Store chooses whether tax is included, added or switched
+                    off.
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Pricing</Label>
-                  <SelectMenu
-                    ariaLabel="Pricing"
-                    value={pricingMode}
-                    options={[
-                      {
-                        value: "CONSTANT",
-                        label: "Same product price for every option",
-                      },
-                      { value: "VARIANT", label: "Allow variant prices" },
-                    ]}
-                    disabled={!canEdit || saving || conflict}
-                    onChange={(value) => {
-                      setPricingMode(value);
-                      setSaved(false);
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="product-tax-rate">
-                  Product tax rate override (%)
-                </Label>
-                <Input
-                  id="product-tax-rate"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  placeholder="Use Store default"
-                  value={taxRate}
-                  onChange={(event) => {
-                    setTaxRate(event.target.value);
-                    setSaved(false);
-                  }}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Blank uses the Store default; 0 makes this product tax-free.
-                  The Store chooses whether tax is included, added or switched
-                  off.
-                </p>
-              </div>
-              {stock.totalReservedStockQuantity !== undefined && (
-                <p className="text-sm">
-                  On hand: {stock.totalStockQuantity} · Reserved:{" "}
-                  {stock.totalReservedStockQuantity} · Available:{" "}
-                  {stock.totalAvailableStockQuantity}
-                </p>
-              )}
-              {pricingMode === "VARIANT" && (
-                <p className="text-sm text-muted-foreground">
-                  Leave a variant price blank to use the product price. All
-                  prices use {stock.priceCurrency ?? "the product currency"}.
-                </p>
-              )}
-              <div className="overflow-x-auto">
-                <Table
-                  className={
-                    hasSize || hasColor ? "min-w-[640px]" : "min-w-[420px]"
-                  }
-                >
-                  <TableHeader>
-                    <TableRow>
-                      {hasSize && <TableHead>Size</TableHead>}
-                      {hasColor && <TableHead>Colour</TableHead>}
-                      {!hasSize && !hasColor && <TableHead>Option</TableHead>}
-                      <TableHead>Stock quantity</TableHead>
-                      {pricingMode === "VARIANT" && (
-                        <TableHead>Variant price</TableHead>
-                      )}
-                      <TableHead>Availability</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row, index) => (
-                      <TableRow key={row.key}>
-                        {hasSize && (
-                          <TableCell>
-                            <Input
-                              aria-label={`Size ${index + 1}`}
-                              maxLength={80}
-                              value={row.size}
-                              onChange={(event) =>
-                                changeRow(row.key, { size: event.target.value })
-                              }
-                            />
-                          </TableCell>
-                        )}
-                        {hasColor && (
-                          <TableCell>
-                            <Input
-                              aria-label={`Colour ${index + 1}`}
-                              maxLength={80}
-                              value={row.color}
-                              onChange={(event) =>
-                                changeRow(row.key, {
-                                  color: event.target.value,
-                                })
-                              }
-                            />
-                          </TableCell>
-                        )}
-                        {!hasSize && !hasColor && (
-                          <TableCell>Standard</TableCell>
-                        )}
-                        <TableCell>
-                          <Input
-                            aria-label={`Stock quantity ${index + 1}`}
-                            type="number"
-                            min={0}
-                            max={1000000}
-                            step={1}
-                            value={row.quantity}
-                            onChange={(event) =>
-                              changeRow(row.key, {
-                                quantity: event.target.value,
-                              })
-                            }
-                          />
-                        </TableCell>
+                {stock.totalReservedStockQuantity !== undefined && (
+                  <p className="text-sm">
+                    On hand: {stock.totalStockQuantity} · Reserved:{" "}
+                    {stock.totalReservedStockQuantity} · Available:{" "}
+                    {stock.totalAvailableStockQuantity}
+                  </p>
+                )}
+                {pricingMode === "VARIANT" && (
+                  <p className="text-sm text-muted-foreground">
+                    Leave a variant price blank to use the product price. All
+                    prices use {stock.priceCurrency ?? "the product currency"}.
+                  </p>
+                )}
+                <div className="overflow-x-auto">
+                  <Table
+                    className={
+                      hasSize || hasColor ? "min-w-[640px]" : "min-w-[420px]"
+                    }
+                  >
+                    <TableHeader>
+                      <TableRow>
+                        {hasSize && <TableHead>Size</TableHead>}
+                        {hasColor && <TableHead>Colour</TableHead>}
+                        {!hasSize && !hasColor && <TableHead>Option</TableHead>}
+                        <TableHead>Stock quantity</TableHead>
                         {pricingMode === "VARIANT" && (
+                          <TableHead>Variant price</TableHead>
+                        )}
+                        <TableHead>Availability</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((row, index) => (
+                        <TableRow key={row.key}>
+                          {hasSize && (
+                            <TableCell>
+                              <Input
+                                aria-label={`Size ${index + 1}`}
+                                maxLength={80}
+                                value={row.size}
+                                onChange={(event) =>
+                                  changeRow(row.key, {
+                                    size: event.target.value,
+                                  })
+                                }
+                              />
+                            </TableCell>
+                          )}
+                          {hasColor && (
+                            <TableCell>
+                              <Input
+                                aria-label={`Colour ${index + 1}`}
+                                maxLength={80}
+                                value={row.color}
+                                onChange={(event) =>
+                                  changeRow(row.key, {
+                                    color: event.target.value,
+                                  })
+                                }
+                              />
+                            </TableCell>
+                          )}
+                          {!hasSize && !hasColor && (
+                            <TableCell>Standard</TableCell>
+                          )}
                           <TableCell>
                             <Input
-                              aria-label={`Variant price ${index + 1}`}
+                              aria-label={`Stock quantity ${index + 1}`}
                               type="number"
                               min={0}
                               max={1000000}
-                              step="0.01"
-                              placeholder="Product price"
-                              value={row.price}
+                              step={1}
+                              value={row.quantity}
                               onChange={(event) =>
                                 changeRow(row.key, {
-                                  price: event.target.value,
+                                  quantity: event.target.value,
                                 })
                               }
                             />
                           </TableCell>
-                        )}
-                        <TableCell>
-                          {/^\d+$/.test(row.quantity)
-                            ? Number(row.quantity) === 0
-                              ? "Out of stock"
-                              : "In stock"
-                            : "Check quantity"}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            aria-label={`Remove option ${index + 1}`}
-                            disabled={rows.length <= 1}
-                            onClick={() => {
-                              setRows((current) =>
-                                current.filter((item) => item.key !== row.key),
-                              );
-                              setSaved(false);
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {optionMode !== "SINGLE" && (
-                <Button
-                  variant="outline"
-                  disabled={rows.length >= 100}
-                  onClick={() => {
-                    setRows((current) => [
-                      ...current,
-                      emptyRow(
-                        Math.max(-1, ...current.map((row) => row.key)) + 1,
-                      ),
-                    ]);
-                    setSaved(false);
-                  }}
-                >
-                  Add option
-                </Button>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="stock-change-reason">Reason for change</Label>
-                <Input
-                  id="stock-change-reason"
-                  maxLength={300}
-                  value={reason}
-                  placeholder="For example: delivery received or stock count correction"
-                  onChange={(event) => {
-                    setReason(event.target.value);
-                    setSaved(false);
-                  }}
-                />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Saving replaces the listed quantities. Removed options are
-                archived. Switching to constant pricing clears saved variant
-                price overrides.
-              </p>
-            </fieldset>
+                          {pricingMode === "VARIANT" && (
+                            <TableCell>
+                              <Input
+                                aria-label={`Variant price ${index + 1}`}
+                                type="number"
+                                min={0}
+                                max={1000000}
+                                step="0.01"
+                                placeholder="Product price"
+                                value={row.price}
+                                onChange={(event) =>
+                                  changeRow(row.key, {
+                                    price: event.target.value,
+                                  })
+                                }
+                              />
+                            </TableCell>
+                          )}
+                          <TableCell>
+                            {/^\d+$/.test(row.quantity)
+                              ? Number(row.quantity) === 0
+                                ? "Out of stock"
+                                : "In stock"
+                              : "Check quantity"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Remove option ${index + 1}`}
+                              disabled={rows.length <= 1}
+                              onClick={() => {
+                                setRows((current) =>
+                                  current.filter(
+                                    (item) => item.key !== row.key,
+                                  ),
+                                );
+                                setSaved(false);
+                              }}
+                            >
+                              Remove
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {optionMode !== "SINGLE" && (
+                  <Button
+                    variant="outline"
+                    disabled={rows.length >= 100}
+                    onClick={() => {
+                      setRows((current) => [
+                        ...current,
+                        emptyRow(
+                          Math.max(-1, ...current.map((row) => row.key)) + 1,
+                        ),
+                      ]);
+                      setSaved(false);
+                    }}
+                  >
+                    Add option
+                  </Button>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="stock-change-reason">Reason for change</Label>
+                  <Input
+                    id="stock-change-reason"
+                    maxLength={300}
+                    value={reason}
+                    placeholder="For example: delivery received or stock count correction"
+                    onChange={(event) => {
+                      setReason(event.target.value);
+                      setSaved(false);
+                    }}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Saving replaces the listed quantities. Removed options are
+                  archived. Switching to constant pricing clears saved variant
+                  price overrides.
+                </p>
+              </fieldset>
+            ) : (
+              <StockDetails stock={stock} />
+            )}
             {saved && (
               <p role="status">
                 Stock and pricing saved. Total stock: {stock.totalStockQuantity}
                 .
               </p>
             )}
-            {conflict && (
+            {conflict && canEdit && (
               <Button
                 variant="outline"
                 onClick={() => setReload((value) => value + 1)}
@@ -496,6 +511,79 @@ export function ProductStockDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function StockDetails({ stock }: { stock: ProductStock }) {
+  const price = (cents: number | null) =>
+    cents === null
+      ? "Not set"
+      : `${stock.priceCurrency ?? ""} ${(cents / 100).toFixed(2)}`;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">View only</p>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-muted-foreground">Pricing</dt>
+          <dd>
+            {stock.pricingMode === "CONSTANT"
+              ? "Same product price for every option"
+              : "Variant prices"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Product tax rate</dt>
+          <dd>
+            {stock.taxRateBasisPoints == null
+              ? "Store default"
+              : `${stock.taxRateBasisPoints / 100}%`}
+          </dd>
+        </div>
+      </dl>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Option</TableHead>
+              <TableHead>Stock quantity</TableHead>
+              <TableHead>Reserved</TableHead>
+              <TableHead>Available</TableHead>
+              <TableHead>Price</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {stock.variants.length ? (
+              stock.variants.map((variant) => (
+                <TableRow key={variant.id}>
+                  <TableCell>
+                    {[variant.size, variant.color]
+                      .filter(Boolean)
+                      .join(" / ") || "Standard"}
+                  </TableCell>
+                  <TableCell>{variant.stockQuantity}</TableCell>
+                  <TableCell>{variant.reservedStockQuantity ?? 0}</TableCell>
+                  <TableCell>
+                    {variant.availableStockQuantity ??
+                      Math.max(
+                        0,
+                        variant.stockQuantity -
+                          (variant.reservedStockQuantity ?? 0),
+                      )}
+                  </TableCell>
+                  <TableCell>
+                    {price(variant.effectivePriceAmountCents)}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5}>No stock options configured.</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 }
 

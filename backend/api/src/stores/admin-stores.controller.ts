@@ -337,6 +337,21 @@ export class AdminStoresController {
     return this.stores.listStoreProducts(storeId, query);
   }
 
+  @Get(":storeId/products/:productId")
+  @ApiOkResponse({ type: StoreProductDto })
+  async getProduct(
+    @Req() request: FastifyRequest,
+    @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Param("productId", SelfxUuidParamPipe) productId: string,
+  ) {
+    await this.requireStoreResourcePermission(
+      request,
+      storeId,
+      STORE_PERMISSION_CODES.storesView,
+    );
+    return this.stores.getStoreProduct(storeId, productId);
+  }
+
   @Post(":storeId/products")
   @ApiOperation({ summary: "Create a Store catalog product" })
   @ApiCreatedResponse({ type: StoreProductDto })

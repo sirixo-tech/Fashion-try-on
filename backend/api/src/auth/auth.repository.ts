@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
+import { MailAutomationService } from "../mail/mail-automation.service.js";
 import {
   MembershipStatus,
   MembershipStoreScopeMode,
@@ -26,7 +27,10 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
   private readonly entitlements: EntitlementsService;
   private readonly rbac: StoreRbacService;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly mail?: MailAutomationService,
+  ) {
     this.entitlements = new EntitlementsService(prisma);
     this.rbac = new StoreRbacService(prisma);
   }
@@ -116,6 +120,13 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
         },
       });
 
+      await this.mail?.storeEvent(
+        tx,
+        "STORE_CREATED",
+        organization.id,
+        organization.id,
+        [input.email],
+      );
       return user;
     });
   }

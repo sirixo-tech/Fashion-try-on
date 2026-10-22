@@ -388,6 +388,9 @@ model PasswordResetToken {
 // Bounded, encrypted transactional email outbox. No plaintext email bodies/tokens.
 model MailJob {
   id          String   @id @db.Uuid
+  eventKey    String?  @unique @map("event_key") @db.Char(64)
+  templateCode String? @map("template_code") @db.VarChar(64)
+  recipientMask String? @map("recipient_mask") @db.VarChar(320)
   kind        String   @db.VarChar(32)
   status      String   @default("PENDING") @db.VarChar(20)
   payload     Json?
@@ -762,6 +765,7 @@ model Product {
 }
 
 model ProductStockSettings {
+  colorImages        Json             @default("[]") @map("color_images")
   productId          String           @id @map("product_id") @db.Uuid
   organizationId     String           @map("organization_id") @db.Uuid
   optionMode         String           @map("option_mode") @db.VarChar(20)

@@ -218,7 +218,7 @@ it("keeps required Store Admin permissions while clearing editable permissions",
   );
 });
 
-it("limits Staff bulk selection and supports permission search", async () => {
+it("allows all Store permissions for Staff even with an old restricted compatibility list", async () => {
   render(<RolesWorkspace />);
   fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
   fireEvent.click(screen.getByRole("button", { name: "Select all" }));
@@ -226,7 +226,7 @@ it("limits Staff bulk selection and supports permission search", async () => {
     screen
       .getByRole("checkbox", { name: "Manage Staff access" })
       .getAttribute("aria-checked"),
-  ).toBe("false");
+  ).toBe("true");
   expect(
     screen
       .getByRole("checkbox", { name: "Update kiosks" })
@@ -239,6 +239,25 @@ it("limits Staff bulk selection and supports permission search", async () => {
   expect(
     screen.getByRole("checkbox", { name: "Manage products" }),
   ).toBeTruthy();
+});
+
+it("saves a newly assigned Staff administration permission", async () => {
+  render(<RolesWorkspace />);
+  fireEvent.click(await screen.findByRole("button", { name: /^Store Staff/ }));
+  const administration = screen.getByRole("checkbox", {
+    name: "Manage Staff access",
+  });
+  expect(administration.getAttribute("aria-disabled")).not.toBe("true");
+  fireEvent.click(administration);
+  fireEvent.click(screen.getByRole("button", { name: "Save permissions" }));
+  await waitFor(() =>
+    expect(replaceGlobalStoreRolePermissions).toHaveBeenCalledWith(
+      "token",
+      "staff",
+      ["products.manage", "roles.assign"],
+      timestamp,
+    ),
+  );
 });
 
 it("shows shared Store roles read-only to merchant viewers without cross-Store user counts", async () => {

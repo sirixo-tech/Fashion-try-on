@@ -109,12 +109,7 @@ describe("Public API integration smoke flow", () => {
     expect(me.body).toMatchObject({
       authenticated: true,
       environment: "TEST",
-      scopes: [
-        "tryon:create",
-        "tryon:read",
-        "usage:read",
-        "webhooks:manage",
-      ],
+      scopes: ["tryon:create", "tryon:read", "usage:read", "webhooks:manage"],
       store: { id: "store-smoke", name: "Smoke Store" },
     });
 
@@ -224,7 +219,9 @@ describe("Public API integration smoke flow", () => {
     expect(download.body.subarray(0, 8)).toEqual(pngBuffer().subarray(0, 8));
 
     const usage = await http
-      .get("/api/v1/public/usage?range=7d&catalogSource=CUSTOM_API&productQuery=BLUE-SHIRT")
+      .get(
+        "/api/v1/public/usage?range=7d&catalogSource=CUSTOM_API&productQuery=BLUE-SHIRT",
+      )
       .set("x-selfx-api-key", apiKey)
       .expect(200);
 
@@ -306,32 +303,30 @@ class SmokeState {
   readonly webhookDeliveries: SmokeWebhookDelivery[] = [];
   private downloadCount = 0;
 
-  readonly consumeRateLimit = vi.fn(
-    async ({ bucket }: { bucket: string }) => {
-      if (this.blockNextBucket === bucket) {
-        this.blockNextBucket = null;
-        return {
-          allowed: false,
-          bucket,
-          retryAfterSeconds: 60,
-          headers: {
-            "X-RateLimit-Bucket": bucket,
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": "1788200060",
-          },
-        };
-      }
+  readonly consumeRateLimit = vi.fn(async ({ bucket }: { bucket: string }) => {
+    if (this.blockNextBucket === bucket) {
+      this.blockNextBucket = null;
       return {
-        allowed: true,
+        allowed: false,
         bucket,
+        retryAfterSeconds: 60,
         headers: {
           "X-RateLimit-Bucket": bucket,
-          "X-RateLimit-Remaining": "99",
+          "X-RateLimit-Remaining": "0",
           "X-RateLimit-Reset": "1788200060",
         },
       };
-    },
-  );
+    }
+    return {
+      allowed: true,
+      bucket,
+      headers: {
+        "X-RateLimit-Bucket": bucket,
+        "X-RateLimit-Remaining": "99",
+        "X-RateLimit-Reset": "1788200060",
+      },
+    };
+  });
 
   async verifyRequest(
     request: { headers: Record<string, string | string[] | undefined> },
@@ -378,10 +373,16 @@ class SmokeState {
     payload: {
       purpose: "PERSON" | "GARMENT";
       sessionId?: string;
-      image: { mimeType: string; sizeBytes: number; width: number; height: number };
+      image: {
+        mimeType: string;
+        sizeBytes: number;
+        width: number;
+        height: number;
+      };
     },
   ) {
-    const sessionId = payload.sessionId ?? "0198a9b3-d0bc-7000-8000-000000000101";
+    const sessionId =
+      payload.sessionId ?? "0198a9b3-d0bc-7000-8000-000000000101";
     const assetId =
       payload.purpose === "PERSON"
         ? "0198a9b3-d0bc-7000-8000-000000000201"
@@ -494,15 +495,6 @@ class SmokeState {
         generatedLooks: this.completedRuns,
         downloadsCompleted: this.downloadCount,
       },
-      providerUsage: [
-        {
-          provider: "fake-provider",
-          providerModel: "fake-model-v1",
-          runsCreated: this.runs.size,
-          completedRuns: this.completedRuns,
-          failedRuns: 0,
-        },
-      ],
       catalogSourceUsage: [
         {
           catalogSource: "CUSTOM_API",
@@ -653,9 +645,7 @@ function pngBuffer(): Buffer {
   return buffer;
 }
 
-function firstHeaderValue(
-  value: string | string[] | undefined,
-): string | null {
+function firstHeaderValue(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) {
     return value[0] ?? null;
   }

@@ -1,5 +1,55 @@
 ## Document Evolution
 
+### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
+
+WooCommerce settings offer an authorized Platform Store selector, plugin download/setup, one-time catalog-token creation and confirmed revocation; integration viewers see no credential mutation controls. Never persist the one-time secret in browser storage. Use WooCommerce labels/instructions rather than Shopify copy. WordPress uses native admin UI with blank saved-token input, verified Store identity, explicit Store-change confirmation, progress/counts/timestamps, Sync now/retry and local disconnect. New imports need explicit Try-On enablement. No customer-facing website Try-On button is claimed in WOO-1.
+
+
+### MAIL-2 — Automatic templates and controlled outgoing mail (2026-10-22)
+
+Mail Settings groups SMTP Configuration, Email Templates, Send Custom Email and Delivery History. Disable locked SMTP controls and hide Save until the user confirms Edit configuration. Preserve saved passwords without revealing them and clear newly entered passwords after save attempts. Template context lists Stores, Purchases and the reusable Custom mails draft; show supported variables, sample preview, Save and Restore default. Remove Test Email. Keep failed drafts for retry, preserve drafts during routine token refresh and use the same custom-send idempotency key on an unchanged retry. Show masked recipients and safe delivery failure codes, never message payloads or SMTP secrets.
+
+
+### ROLES-3 — Restore shared defaults and configurable Staff grants (2026-10-22)
+
+Both Store role editors offer the full Store permission registry to authorized Platform role managers. Staff checkboxes and Select all no longer use a hardcoded operational subset. Merchant viewers remain read-only; required Admin permissions stay checked. Platform-only permissions never appear for Store roles.
+
+
+### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
+
+Replace Add/Edit Product popups with responsive pages for garments/jewellery and explicit Platform Store product routes. Product management and Stock & Pricing links open the same page; authorized view-only stock browsing remains available. Group basic information, product image and pricing/variants in shared @selfx/ui cards. Include optional colour upload previews, main-image fallback guidance, validation, explicit partial-save errors, leave confirmation and sticky Save/Cancel actions. Kiosk Buy This Look shows image, option chips, quantity, availability, cart and total. Disable unavailable choices; wholly sold-out products show the Store-named toast. Payment UI distinguishes test mode, pending, failure, confirmed success, staff review and expiry. Do not display an expired QR or call a timeout a failed payment.
+
+
+### PRODUCTS-RBAC-1 — Hide unauthorized product controls (2026-10-21)
+
+When products.manage is absent, omit Add, Edit, Delete, Sync to Kiosks and imported
+eligibility actions. Render garment/jewellery type and Active/Inactive as text or
+badges instead of disabled selectors/toggles. Keep View Stock & Pricing for users
+with catalog viewing access, using values and a table instead of disabled inputs,
+option actions, reason fields or Save. Managers retain the existing editors;
+temporary saving/conflict states may disable visible controls. Dismiss editors
+when permission is lost and hide stale actions after a server 403.
+
+### BILLING-STORE-1 — Merchant usage tables (2026-10-21)
+
+At /app/billing, Store users see a full-width Your Kiosks table with Kiosk, Looks
+and Downloads columns. Hide Top Stores and the Client selector. Authorized
+Platform-wide usage retains Top Stores and Top Kiosks, including the Store column;
+a selected Store uses the single-table layout. Never render an AI provider/model
+table. Do not request global usage before the current Store is resolved.
+
+### AI-PRIVACY-1 — Remove AI vendor presentation (2026-10-21)
+
+Remove Provider Usage and Provider/Model tables from Usage & Billing and Developer
+/ API for every role. Retain existing SelfX totals and business breakdowns without
+replacement vendor labels. Lab responses omit vendor/model/cost telemetry, and
+result images do not navigate browsers to vendor CDNs. Show safe SelfX errors
+while preserving useful image instructions. Jewellery catalog copy describes
+ornament types and SelfX Try-On rather than provider routing. This supersedes
+earlier Lab diagnostics and admin usage UI permission to display AI identities.
+Payment gateway selection and Continue with Google are separate user-facing
+integrations and keep their existing labels.
+
 ### APPS-1 / REGIONAL-1 — Apps sidebar and account settings (2026-10-21)
 
 Platform Apps & Downloads is a top-level permission-filtered sidebar destination

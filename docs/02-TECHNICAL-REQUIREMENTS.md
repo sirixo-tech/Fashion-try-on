@@ -1,5 +1,60 @@
 ## Document Evolution
 
+### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
+
+Reuse integration token authentication, GET /api/v1/integrations/me, normalized catalog sync and Store-scoped kiosk queries. WordPress verifies context and website binding; keep an AES-GCM encrypted token derived from WP salts, validated HTTPS origin, no redirects, nonce/capability controls and safe errors. Action Scheduler (cron fallback) delivers bounded cursor batches with a fixed server snapshot, durable change coalescing, deletion tombstones and retries. Finalize only after a complete acknowledged scan. Serialize SelfX batches per integration using a PostgreSQL advisory transaction lock; never regress lastSeenAt or archive source changes newer than the snapshot. No customer data or AI execution is added to WordPress.
+
+
+### MAIL-2 — Automatic templates and controlled outgoing mail (2026-10-22)
+
+Extend the encrypted PostgreSQL MailJob outbox and shared MailModule. Enqueue Store/purchase messages in the domain mutation transaction, with event/recipient digest uniqueness, immutable rendered snapshots, bounded retry/expiry and stable SMTP Message-ID. Never send SMTP within business transactions. Record disabled/unavailable mail as skipped. Persist versioned template overrides in platform_settings, validate permitted variables and headers, and render plain text. Superadmin-only APIs deny active impersonation; SMTP writes require explicit confirmation. Custom sends use a per-request UUID, configuration version and rate limiting. History exposes masked recipients and safe status metadata only. SMTP acceptance is not proof of inbox delivery or an exactly-once external transport guarantee.
+
+
+### ROLES-3 — Restore shared defaults and configurable Staff grants (2026-10-22)
+
+Remove the hardcoded Staff administration grant restriction. Use the backend-owned Store permission registry for both roles and retain Superadmin/STORE_ROLES_MANAGE authority, impersonation denial, version checks, tenant membership/status, plan checks and final-Admin protection. Store Admin core administration permissions remain required. Reads and startup never reseed saved role maps.
+
+
+### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
+
+Extend the shared ProductStockService and device-authenticated SelfX commerce/payment APIs. Colour upload keys must belong to the authorized Store; image metadata is persisted once per normalized colour and signed read URLs are generated for responses. Kiosk catalog responses provide minimum effective price and a variable-price flag without duplicating product rows. Stock changes advance catalog revision. Actual production order payments require SELFX_PHONEPE_CHECKOUT_ENABLED=true independently of the optional verification switch, enabled Platform gateway policy, selected confirmed Store account, a validated production endpoint and HTTPS callback origin. Encrypt an immutable account/endpoint snapshot per attempt. Reuse backend reservations, idempotency, immutable totals and verified/late payment handling. No provider credentials or payment state authority enter the APK.
+
+
+### PRODUCTS-RBAC-1 — Product mutation permission enforcement (2026-10-21)
+
+Resolve catalog writes from effective Store resource permissions, never from role
+names or Platform bypass alone. Existing products.manage checks protect product
+create/update/delete, image upload, imported eligibility, kiosk catalog sync and
+stock/pricing changes. Preserve initial defaults and saved global revocations.
+On permission refresh, close unauthorized editing dialogs. A denied write must
+remove stale mutation controls. Stock viewers receive text/table presentation,
+with no editing inputs or save actions. No schema/default-reset migration is
+required.
+
+### BILLING-STORE-1 — Usage scope enforcement (2026-10-21)
+
+Retain permission checks before usage queries: global usage requires Platform
+USAGE_VIEW, and Store usage requires current Store analytics permission. Store
+event/run queries retain the tenant predicate even with a kiosk filter. Scope
+current kiosk metadata lookup to the requested Store and omit unmatched kiosk
+rows from Store responses, including reassigned devices referenced by historical
+activity. Preserve historical totals. No migration or new persistence is needed.
+
+### AI-PRIVACY-1 — Provider metadata stays server-side (2026-10-21)
+
+Remove AI provider/model rollups from usage response DTOs and queries, and remove
+provider identity, model and cost metadata from shared Lab response telemetry.
+Retain backend provider adapters, run attribution, prediction IDs and database
+diagnostics. Sanitize stored Try-On failures when constructing response/webhook
+payloads and direct ApiErrorException failures at the HTTP boundary, preserving
+status, stable SelfX codes and useful image validation guidance. Do not apply AI
+error sanitization to authentication or payment configuration routes. Temporary
+Lab/legacy kiosk image responses fetch remote adapter outputs server-side and
+return inline images; bound transfer time/size, validate remote bytes and reject
+insecure URLs/redirects. Production assets retain existing authenticated SelfX
+delivery, retention and tenant checks. No persistence migration is required.
+This supersedes earlier client-visible provider/model telemetry contracts.
+
 ### APPS-1 / REGIONAL-1 — Implementation boundaries (2026-10-21)
 
 APK administration uses central NestJS APIs, APP_RELEASES_VIEW/MANAGE permissions,

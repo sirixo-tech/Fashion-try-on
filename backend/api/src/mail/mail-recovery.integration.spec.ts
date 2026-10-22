@@ -68,6 +68,7 @@ describe.skipIf(!url)(
     const ids: string[] = [],
       stores: string[] = [];
     const input = {
+      editConfirmed: true,
       version: 0,
       enabled: true,
       host: "smtp.example.com",

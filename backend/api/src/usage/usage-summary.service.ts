@@ -16,7 +16,6 @@ import {
   type UsageDailyRowDto,
   type UsageKioskRowDto,
   type UsageProductRowDto,
-  type UsageProviderRowDto,
   type UsageSummaryQueryDto,
   type UsageSummaryResponseDto,
   type UsageStoreRowDto,
@@ -105,7 +104,10 @@ export class UsageSummaryService {
         select: { id: true, name: true },
       }),
       this.prisma.kioskDevice.findMany({
-        where: { id: { in: kioskIds } },
+        where: {
+          id: { in: kioskIds },
+          ...(input.storeId ? storeFilter(input.storeId) : {}),
+        },
         select: {
           id: true,
           displayName: true,
@@ -189,11 +191,13 @@ export class UsageSummaryService {
           statusCounts.runsCreated,
         ),
       },
-      providerUsage: providerUsage(runs, downloadsByRun).slice(0, limit),
       stores: [...context.stores.values()]
         .sort(byGeneratedThenRuns)
         .slice(0, limit),
       kiosks: [...context.kiosks.values()]
+        // Historical usage remains in this Store's totals after reassignment,
+        // but current kiosk metadata belongs to its currently assigned Store.
+        .filter((row) => !input.storeId || kioskById.has(row.kioskDeviceId))
         .sort(byGeneratedThenRuns)
         .slice(0, limit),
       products: [...context.products.values()]
@@ -256,8 +260,6 @@ export class UsageSummaryService {
         kioskDeviceId: true,
         productId: true,
         resultAssetId: true,
-        provider: true,
-        providerModel: true,
         garmentCategory: true,
         tryOnVertical: true,
         jewelleryType: true,
@@ -593,30 +595,6 @@ function buildRollupContext(
   }
 
   return context;
-}
-
-function providerUsage(
-  runs: AnalyticsRun[],
-  downloadsByRun: Map<string, number>,
-): UsageProviderRowDto[] {
-  const rows = new Map<string, UsageProviderRowDto>();
-  for (const run of runs) {
-    const key = `${run.provider}\u001f${run.providerModel}`;
-    const row =
-      rows.get(key) ??
-      ({
-        provider: run.provider || "Unknown provider",
-        providerModel: run.providerModel || null,
-        runsCreated: 0,
-        completedRuns: 0,
-        failedRuns: 0,
-        tryOnsGenerated: 0,
-        downloadsCompleted: 0,
-      } satisfies UsageProviderRowDto);
-    addRunToCounts(row, run, downloadsByRun.get(run.id) ?? 0);
-    rows.set(key, row);
-  }
-  return [...rows.values()].sort(byGeneratedThenRuns);
 }
 
 function getStoreRow(

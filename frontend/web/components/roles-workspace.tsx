@@ -124,9 +124,7 @@ export function RolesWorkspace() {
     ? (context?.storeRoles.permissions ?? [])
     : (context?.permissions ?? []);
   const assignable = storeScope
-    ? selected?.systemCode === "staff"
-      ? (context?.storeRoles.staffAssignableCodes ?? [])
-      : permissions.map((p) => p.code)
+    ? permissions.map((p) => p.code)
     : (context?.assignablePlatformCodes ?? []);
   const required =
     storeScope && selected?.systemCode === "store-admin"

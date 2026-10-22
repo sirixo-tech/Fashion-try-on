@@ -113,6 +113,7 @@ export default function BillingPage() {
     platformAccess?.isSuperadmin ||
     platformAccess?.permissions.includes("STORES_VIEW"),
   );
+  const showStoreComparison = hasPlatformUsageAccess && !storeId;
 
   useEffect(() => {
     if (!accessToken) {
@@ -368,41 +369,41 @@ export default function BillingPage() {
       </PageSection>
 
       <PageSection>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div
+          className={
+            showStoreComparison ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"
+          }
+        >
+          {showStoreComparison ? (
+            <UsageTable
+              title="Top Stores"
+              icon={<BarChart3Icon size={18} aria-hidden="true" />}
+              empty="No Store usage in this range."
+              loading={loading}
+              headers={["Store", "Sessions", "Looks", "Downloads"]}
+              rows={(summary?.stores ?? []).map((row) => [
+                row.storeName,
+                displayNumber(row.sessionsStarted),
+                displayNumber(row.tryOnsGenerated),
+                displayNumber(row.downloadsCompleted),
+              ])}
+            />
+          ) : null}
           <UsageTable
-            title="Provider Usage"
-            icon={<CreditCardIcon size={18} aria-hidden="true" />}
-            empty="No provider usage in this range."
-            loading={loading}
-            headers={["Provider", "Model", "Looks"]}
-            rows={(summary?.providerUsage ?? []).map((row) => [
-              row.provider,
-              row.providerModel ?? "-",
-              displayNumber(row.tryOnsGenerated),
-            ])}
-          />
-          <UsageTable
-            title="Top Stores"
-            icon={<BarChart3Icon size={18} aria-hidden="true" />}
-            empty="No Store usage in this range."
-            loading={loading}
-            headers={["Store", "Sessions", "Looks", "Downloads"]}
-            rows={(summary?.stores ?? []).map((row) => [
-              row.storeName,
-              displayNumber(row.sessionsStarted),
-              displayNumber(row.tryOnsGenerated),
-              displayNumber(row.downloadsCompleted),
-            ])}
-          />
-          <UsageTable
-            title="Top Kiosks"
+            title={hasPlatformUsageAccess ? "Top Kiosks" : "Your Kiosks"}
             icon={<MonitorIcon size={18} aria-hidden="true" />}
             empty="No kiosk usage in this range."
             loading={loading}
-            headers={["Kiosk", "Store", "Looks", "Downloads"]}
+            headers={
+              showStoreComparison
+                ? ["Kiosk", "Store", "Looks", "Downloads"]
+                : ["Kiosk", "Looks", "Downloads"]
+            }
             rows={(summary?.kiosks ?? []).map((row) => [
               row.displayName,
-              row.storeName ?? "Platform fleet",
+              ...(showStoreComparison
+                ? [row.storeName ?? "Platform fleet"]
+                : []),
               displayNumber(row.tryOnsGenerated),
               displayNumber(row.downloadsCompleted),
             ])}

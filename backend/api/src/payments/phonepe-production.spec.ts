@@ -25,6 +25,56 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("production v3 QR routing", () => {
+  it("gates checkout separately and reconciles only the encrypted snapshot's pinned endpoint", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => new Response('{"success":true}'));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("SELFX_PHONEPE_UAT_ENABLED", "false");
+    vi.stubEnv("SELFX_PHONEPE_PRODUCTION_ENABLED", "true");
+    vi.stubEnv("SELFX_PHONEPE_CHECKOUT_ENABLED", "false");
+    vi.stubEnv("SELFX_PHONEPE_PRODUCTION_BASE_URL", base);
+    const adapter = new PhonePeDqrAdapter(credentials);
+    const request = adapter.createRequest(
+      expected,
+      "https://callbacks.example.test/order",
+      300,
+    );
+    const context = {
+      purpose: "CHECKOUT" as const,
+      environment: "PRODUCTION" as const,
+      productionBase: base,
+    };
+    const transport = new PhonePeTransport();
+    await expect(transport.send(request, context)).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.stubEnv("SELFX_PHONEPE_PRODUCTION_ENABLED", "false");
+    vi.stubEnv("SELFX_PHONEPE_CHECKOUT_ENABLED", "true");
+    vi.stubEnv(
+      "SELFX_PHONEPE_PRODUCTION_BASE_URL",
+      "https://changed.phonepe.com/another",
+    );
+    await transport.send(request, context);
+    await transport.send(adapter.statusRequest(expected), context);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(transport.send(request)).rejects.toThrow();
+    for (const url of [
+      "https://evil.test/v3/qr/init",
+      "https://other.phonepe.com/v3/qr/init",
+      request.url + "?redirect=1",
+    ]) {
+      await expect(
+        transport.send({ ...request, url }, context),
+      ).rejects.toThrow();
+    }
+    await expect(
+      transport.send(request, {
+        ...context,
+        productionBase: "http://fixture.phonepe.com/merchant",
+      }),
+    ).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
   it("signs the Store's merchant request and uses its pinned production base", () => {
     const request = new PhonePeDqrAdapter(credentials).createRequest(
       expected,

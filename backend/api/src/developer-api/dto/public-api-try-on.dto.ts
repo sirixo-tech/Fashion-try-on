@@ -86,7 +86,7 @@ export class CreatePublicApiTryOnDto {
   @ApiPropertyOptional({
     enum: JEWELLERY_TYPES,
     description:
-      "Required for jewellery Try-On. This explicitly selects the jewellery provider route.",
+      "Required for jewellery Try-On. Selects the ornament type for the SelfX result.",
     example: "RING",
   })
   @IsOptional()

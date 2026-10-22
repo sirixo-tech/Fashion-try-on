@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { MailModule } from "../mail/mail.module.js";
 import { StoreKiosksController } from "./store-kiosks.controller.js";
 import {
   StorePaymentTestsController,
@@ -51,6 +52,7 @@ import {
 
 @Module({
   imports: [
+    MailModule,
     AuthModule,
     DatabaseModule,
     EntitlementsModule,

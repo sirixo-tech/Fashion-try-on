@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { MailModule } from "../mail/mail.module.js";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
@@ -16,7 +17,13 @@ import { TenantAuthorizationService } from "./tenant-authorization.service.js";
 import { TenantManagementService } from "./tenant-management.service.js";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, EntitlementsModule, RbacModule],
+  imports: [
+    AuthModule,
+    DatabaseModule,
+    EntitlementsModule,
+    RbacModule,
+    MailModule,
+  ],
   controllers: [
     OrganizationApplicationsController,
     PlatformOrganizationApplicationsController,

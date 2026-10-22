@@ -3,15 +3,6 @@ import type { PrismaService } from "../database/prisma.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
 
-export const STAFF_OPERATIONAL_PERMISSIONS = [
-  "stores.view",
-  "products.manage",
-  "kiosks.view",
-  "kiosks.configure",
-  "kiosks.update",
-  "analytics.view",
-  "tryon.garment_preview",
-];
 export const STORE_ADMIN_REQUIRED_PERMISSIONS = [
   "stores.view",
   "users.view",

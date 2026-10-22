@@ -24,7 +24,7 @@ export type MailSettingsInput = Pick<
   | "username"
   | "fromEmail"
   | "fromName"
-> & { password?: string; replyTo?: string };
+> & { password?: string; replyTo?: string; editConfirmed?: boolean };
 const path = "/api/v1/admin/platform-settings/mail";
 export function getMailSettings(accessToken: string) {
   return selfxApi<MailSettings>(path, { accessToken });
@@ -39,14 +39,61 @@ export function saveMailSettings(
     body: JSON.stringify(input),
   });
 }
-export function sendTestEmail(
+export interface MailTemplate {
+  code: string;
+  name: string;
+  group: string;
+  version: number;
+  subject: string;
+  body: string;
+  variables: string[];
+  defaultSubject: string;
+  defaultBody: string;
+  previewValues: Record<string, string>;
+  preview: { subject: string; text: string };
+}
+export interface MailDelivery {
+  id: string;
+  templateCode: string;
+  recipientMask: string | null;
+  status: string;
+  attempts: number;
+  failureCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export const getMailTemplates = (accessToken: string) =>
+  selfxApi<MailTemplate[]>(`${path}/templates`, {
+    accessToken,
+    cache: "no-store",
+  });
+export const saveMailTemplate = (
   accessToken: string,
-  recipient: string,
-  version: number,
-) {
-  return selfxApi<{ accepted: boolean; message: string }>(`${path}/test`, {
+  code: string,
+  input: { version: number; subject: string; body: string },
+) =>
+  selfxApi<MailTemplate[]>(`${path}/templates/${encodeURIComponent(code)}`, {
+    accessToken,
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+export const getMailHistory = (accessToken: string) =>
+  selfxApi<MailDelivery[]>(`${path}/history`, {
+    accessToken,
+    cache: "no-store",
+  });
+export const sendCustomEmail = (
+  accessToken: string,
+  input: {
+    version: number;
+    recipient: string;
+    subject: string;
+    body: string;
+    idempotencyKey: string;
+  },
+) =>
+  selfxApi<{ queued: boolean; id: string; message: string }>(`${path}/custom`, {
     accessToken,
     method: "POST",
-    body: JSON.stringify({ recipient, version }),
+    body: JSON.stringify(input),
   });
-}

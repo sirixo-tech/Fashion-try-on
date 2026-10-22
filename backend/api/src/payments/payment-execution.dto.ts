@@ -13,7 +13,7 @@ export class PhonePeCallbackDto {
 export class OrderPaymentSummaryDto {
   @ApiProperty() id!: string;
   @ApiProperty() provider!: string;
-  @ApiProperty({ enum: ["UAT"] }) environment!: string;
+  @ApiProperty({ enum: ["UAT", "PRODUCTION"] }) environment!: string;
   @ApiProperty({
     enum: ["PREPARING", "PENDING", "UNKNOWN", "FAILED", "SUCCEEDED"],
   })
@@ -29,6 +29,6 @@ export class OrderPaymentSummaryDto {
 }
 export class DeviceOrderPaymentDto extends OrderPaymentSummaryDto {
   @ApiProperty({ nullable: true, type: String }) qrString!: string | null;
-  @ApiProperty({ enum: [true] }) testOnly!: true;
+  @ApiProperty() testOnly!: boolean;
   @ApiProperty() serverTime!: string;
 }

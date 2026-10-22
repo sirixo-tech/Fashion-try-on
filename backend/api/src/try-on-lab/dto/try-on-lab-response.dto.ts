@@ -37,15 +37,6 @@ export class TryOnLabTelemetryDto {
   @ApiProperty({ enum: SELFX_TRY_ON_CHANNELS })
   channel!: SelfxTryOnChannel;
 
-  @ApiProperty()
-  provider!: string;
-
-  @ApiProperty()
-  providerDisplayName!: string;
-
-  @ApiProperty()
-  model!: string;
-
   @ApiProperty({ enum: SELFX_GENERATION_PROFILES })
   profile!: SelfxGenerationProfile;
 
@@ -125,15 +116,6 @@ export class TryOnLabTelemetryDto {
 
   @ApiPropertyOptional()
   garmentPreprocessingFallbackReason?: string;
-
-  @ApiPropertyOptional()
-  providerCreditUsage?: number;
-
-  @ApiPropertyOptional()
-  estimatedProviderCostCents?: number;
-
-  @ApiPropertyOptional()
-  estimatedProviderCostCurrency?: string;
 }
 
 export class TryOnLabRunResponseDto {
@@ -166,7 +148,7 @@ export class TryOnLabRunResponseDto {
 
   @ApiPropertyOptional({
     description:
-      "Ephemeral development-lab output. Base64 is returned only when the provider supplies it.",
+      "Ephemeral development-lab image returned as an inline data URI.",
   })
   resultImage?: string;
 

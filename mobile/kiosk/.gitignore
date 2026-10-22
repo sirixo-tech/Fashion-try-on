@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Production signing material stays outside source control.
+/android/key.properties
+*.jks
+*.keystore

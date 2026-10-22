@@ -32,6 +32,18 @@ export type IntegrationCatalogProductStatus =
   (typeof integrationCatalogProductStatuses)[number];
 
 export class IntegrationCatalogVariantInputDto {
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  size?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  color?: string | null;
+
   @ApiProperty()
   @IsString()
   @Length(1, 180)

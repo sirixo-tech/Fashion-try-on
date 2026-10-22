@@ -171,7 +171,10 @@ export class MailOutboxService implements OnModuleInit, OnModuleDestroy {
         }
       }
       const { account } = await this.settings.account();
-      await this.sender.send(account, message);
+      await this.sender.send(account, {
+        ...message,
+        messageId: `<selfx-${id}@mail.selfx.invalid>`,
+      });
       await this.db.mailJob.updateMany({
         where,
         data: {

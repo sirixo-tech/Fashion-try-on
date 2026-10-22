@@ -16,7 +16,10 @@ import { ProductStockService } from "../stores/product-stock.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PaymentSettingsService } from "./payment-settings.service.js";
 import { OrderPaymentsService } from "./order-payments.service.js";
-import { PhonePeTransport } from "./phonepe.transport.js";
+import {
+  PhonePeTransport,
+  type OrderTransportContext,
+} from "./phonepe.transport.js";
 import { attemptAdapter } from "./payment-snapshots.js";
 import type { ProviderRequest } from "./payment-adapter.js";
 const url = process.env.PAYMENT_TEST_DATABASE_URL;
@@ -39,10 +42,22 @@ describe.skipIf(!url)("PAYMENTS-1B real PostgreSQL, simulated PhonePe", () => {
   const commerce = new CommerceService(db),
     stock = new ProductStockService(db),
     config = new PaymentSettingsService(db);
-  const send = vi.fn<(request: ProviderRequest) => Promise<unknown>>();
-  const service = new OrderPaymentsService(db, commerce, {
-    send,
-  } as unknown as PhonePeTransport);
+  const send =
+    vi.fn<
+      (
+        request: ProviderRequest,
+        context?: OrderTransportContext,
+      ) => Promise<unknown>
+    >();
+  const mail = { purchase: vi.fn().mockResolvedValue(undefined) };
+  const service = new OrderPaymentsService(
+    db,
+    commerce,
+    {
+      send,
+    } as unknown as PhonePeTransport,
+    mail as never,
+  );
   const storeId = createSelfxId(),
     actor = createSelfxId(),
     categoryId = createSelfxId();
@@ -52,6 +67,9 @@ describe.skipIf(!url)("PAYMENTS-1B real PostgreSQL, simulated PhonePe", () => {
       SELFX_PAYMENT_ENCRYPTION_KEY: Buffer.alloc(32, 6).toString("base64"),
       SELFX_PAYMENT_ENCRYPTION_KEY_VERSION: "fixture_v1",
       SELFX_PHONEPE_UAT_ENABLED: "true",
+      SELFX_PHONEPE_CHECKOUT_ENABLED: "false",
+      SELFX_PHONEPE_PRODUCTION_BASE_URL:
+        "https://mercury.phonepe.com/apis/hermes",
       SELFX_PAYMENT_CALLBACK_BASE_URL: "https://callbacks.example.test",
     })) {
       savedEnv.set(name, process.env[name]);
@@ -117,6 +135,7 @@ describe.skipIf(!url)("PAYMENTS-1B real PostgreSQL, simulated PhonePe", () => {
     }
   });
   beforeEach(() => {
+    mail.purchase.mockClear();
     send.mockReset();
     send.mockImplementation(async (request) => {
       if (request.method === "POST") {
@@ -278,6 +297,75 @@ describe.skipIf(!url)("PAYMENTS-1B real PostgreSQL, simulated PhonePe", () => {
         .digest("hex") + "###1";
     return { encoded, signature };
   }
+  it("executes live checkout only behind its flag, pins the encrypted endpoint and confirms exactly once", async () => {
+    try {
+      let saved = await config.getStore(storeId);
+      saved = await config.savePhonePe(storeId, actor, {
+        expectedVersion: saved.version,
+        merchantId: "fixture_mid",
+        saltIndex: "1",
+        saltKey: salt,
+        environment: "PRODUCTION",
+        dqrAccessConfirmed: true,
+      });
+      await config.select(storeId, actor, {
+        expectedVersion: saved.version,
+        provider: "PHONEPE",
+      });
+      const c = await checkout();
+      await code(start(c), "PAYMENT_NOT_ENABLED");
+      expect(send).not.toHaveBeenCalled();
+      process.env.SELFX_PHONEPE_CHECKOUT_ENABLED = "true";
+      expect(
+        (await commerce.getCart(c.device, c.sessionId)).paymentAvailable,
+      ).toBe(true);
+      const attempt = await start(c);
+      expect(mail.purchase).not.toHaveBeenCalled();
+      expect(attempt).toMatchObject({
+        environment: "PRODUCTION",
+        testOnly: false,
+        status: "PENDING",
+      });
+      expect(send.mock.calls[0]![0].url).toContain(
+        "https://mercury.phonepe.com/apis/hermes/",
+      );
+      expect(send.mock.calls[0]![1]).toMatchObject({
+        purpose: "CHECKOUT",
+        environment: "PRODUCTION",
+        productionBase: "https://mercury.phonepe.com/apis/hermes",
+      });
+      const row = await db.shoppingPaymentAttempt.findUniqueOrThrow({
+        where: { id: attempt.id },
+      });
+      process.env.SELFX_PHONEPE_PRODUCTION_BASE_URL =
+        "https://new.phonepe.com/another";
+      expect(
+        attemptAdapter(row).statusRequest({
+          transactionId: row.transactionId,
+          amountMinor: row.amountMinor,
+          currency: "INR",
+        }).url,
+      ).toContain("mercury.phonepe.com/apis/hermes");
+      await reconcile(attempt.id);
+      await reconcile(attempt.id);
+      expect(
+        (await commerce.getDeviceOrder(c.device, c.sessionId, c.order.id))
+          .status,
+      ).toBe("PAID");
+      expect((await stock.get(storeId, c.item.id)).totalStockQuantity).toBe(4);
+      expect(mail.purchase).toHaveBeenCalledTimes(1);
+      expect(mail.purchase).toHaveBeenCalledWith(
+        expect.anything(),
+        c.order.id,
+        false,
+      );
+    } finally {
+      process.env.SELFX_PHONEPE_CHECKOUT_ENABLED = "false";
+      process.env.SELFX_PHONEPE_PRODUCTION_BASE_URL =
+        "https://mercury.phonepe.com/apis/hermes";
+      await configure(true);
+    }
+  });
   it("creates once under concurrent retries and blocks overlapping attempts", async () => {
     const c = await checkout(),
       key = createSelfxId();

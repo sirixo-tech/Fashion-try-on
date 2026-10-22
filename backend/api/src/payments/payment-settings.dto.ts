@@ -27,7 +27,7 @@ export class UpdateGatewayPolicyDto extends PaymentRevisionDto {
 export class PhonePeConnectionFieldsDto extends PaymentRevisionDto {
   @ApiPropertyOptional({
     description:
-      "Store administrator confirms these are UAT credentials enabled for Dynamic QR. This does not enable live payments.",
+      "Store administrator confirms Dynamic QR access for the selected environment. Checkout also requires platform policy and server enablement.",
   })
   @ValidateIf((_object, value) => value !== undefined)
   @IsBoolean()
@@ -91,7 +91,7 @@ export class PaymentGatewayDto {
   @ApiProperty() setupAvailable!: boolean;
   @ApiProperty() enabled!: boolean;
   @ApiProperty() version!: number;
-  @ApiProperty({ enum: [false] }) paymentAvailable!: false;
+  @ApiProperty() paymentAvailable!: boolean;
 }
 export class PaymentGatewayListDto {
   @ApiProperty({ type: [PaymentGatewayDto] }) data!: PaymentGatewayDto[];
@@ -109,7 +109,7 @@ export class StorePaymentSettingsDto {
   @ApiProperty() version!: number;
   @ApiProperty({ nullable: true, type: String }) selectedProvider!:
     string | null;
-  @ApiProperty({ enum: [false] }) paymentAvailable!: false;
+  @ApiProperty() paymentAvailable!: boolean;
   @ApiProperty({ type: [PaymentGatewayDto] }) gateways!: PaymentGatewayDto[];
   @ApiProperty({ type: [PaymentConnectionSummaryDto] })
   connections!: PaymentConnectionSummaryDto[];

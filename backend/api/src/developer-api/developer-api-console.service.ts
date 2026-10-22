@@ -17,10 +17,7 @@ import {
   type AdminDeveloperWebhookEndpointDto,
   type AdminDeveloperWebhookEndpointListResponseDto,
 } from "./dto/developer-api-console.dto.js";
-import {
-  type PublicApiProviderUsageRowDto,
-  type PublicApiUsageQueryDto,
-} from "./dto/public-api-usage.dto.js";
+import { type PublicApiUsageQueryDto } from "./dto/public-api-usage.dto.js";
 import {
   type PublicApiWebhookEvent,
   publicApiWebhookEventOptions,
@@ -76,7 +73,6 @@ export class DeveloperApiConsoleService {
       failedRuns,
       generatedLooks,
       downloadsCompleted,
-      providerUsage,
       scope,
       referenceRuns,
     ] = await Promise.all([
@@ -87,7 +83,6 @@ export class DeveloperApiConsoleService {
       this.countRuns({ ...baseWhere, status: "FAILED" }),
       this.countRuns({ ...baseWhere, resultAssetId: { not: null } }),
       this.countDownloads(query, range),
-      this.providerUsage(baseWhere, limit),
       this.usageScope(query),
       this.referenceRuns(baseWhere),
     ]);
@@ -122,7 +117,6 @@ export class DeveloperApiConsoleService {
         generatedLooks,
         downloadsCompleted: filteredDownloadsCompleted,
       },
-      providerUsage,
       catalogSourceUsage,
       productUsage,
     };
@@ -232,18 +226,6 @@ export class DeveloperApiConsoleService {
     where: Prisma.KioskTryOnRunWhereInput,
   ): Promise<number> {
     return this.prisma.kioskTryOnRun.count({ where });
-  }
-
-  private async providerUsage(
-    baseWhere: Prisma.KioskTryOnRunWhereInput,
-    limit: number,
-  ): Promise<PublicApiProviderUsageRowDto[]> {
-    const rows = await this.prisma.kioskTryOnRun.groupBy({
-      by: ["provider", "providerModel", "status"],
-      where: baseWhere,
-      _count: { _all: true },
-    });
-    return foldProviderUsage(rows).slice(0, limit);
   }
 
   private async referenceRuns(
@@ -441,38 +423,4 @@ function resolveRange(
     from: new Date(now.getTime() - days * 24 * 60 * 60 * 1000),
     to: now,
   };
-}
-
-function foldProviderUsage(
-  rows: Array<{
-    provider: string;
-    providerModel: string | null;
-    status: string;
-    _count: { _all: number };
-  }>,
-): PublicApiProviderUsageRowDto[] {
-  const byProvider = new Map<string, PublicApiProviderUsageRowDto>();
-  for (const row of rows) {
-    const key = `${row.provider}:${row.providerModel ?? ""}`;
-    const existing =
-      byProvider.get(key) ??
-      ({
-        provider: row.provider,
-        providerModel: row.providerModel,
-        runsCreated: 0,
-        completedRuns: 0,
-        failedRuns: 0,
-      } satisfies PublicApiProviderUsageRowDto);
-    existing.runsCreated += row._count._all;
-    if (row.status === "COMPLETED") {
-      existing.completedRuns += row._count._all;
-    }
-    if (row.status === "FAILED") {
-      existing.failedRuns += row._count._all;
-    }
-    byProvider.set(key, existing);
-  }
-  return [...byProvider.values()].sort(
-    (left, right) => right.runsCreated - left.runsCreated,
-  );
 }

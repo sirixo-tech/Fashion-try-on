@@ -917,9 +917,6 @@ export type SelfxGarmentPreprocessingProviderInputImage =
 export interface SelfxTryOnTelemetry {
   selfxRunId: string;
   channel: SelfxTryOnChannel;
-  provider: string;
-  providerDisplayName: string;
-  model: string;
   profile: SelfxGenerationProfile;
   garmentSource: SelfxGarmentSource;
   garmentIntent: SelfxGarmentIntent;
@@ -946,9 +943,6 @@ export interface SelfxTryOnTelemetry {
   garmentPreprocessingProviderInputImage?: SelfxGarmentPreprocessingProviderInputImage;
   garmentPreprocessingMaskGenerated?: boolean;
   garmentPreprocessingFallbackReason?: string;
-  providerCreditUsage?: number;
-  estimatedProviderCostCents?: number;
-  estimatedProviderCostCurrency?: string;
 }
 
 export interface TryOnLabRunResponse {
@@ -970,9 +964,6 @@ export interface TryOnLabRunResponse {
 export interface JewelleryTryOnLabTelemetry {
   selfxRunId: string;
   channel: SelfxTryOnChannel;
-  provider: string;
-  providerDisplayName: string;
-  model: string;
   jewelleryType: SelfxJewelleryType;
   productReference?: {
     productId?: string;

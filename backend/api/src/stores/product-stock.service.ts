@@ -1,4 +1,5 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Optional } from "@nestjs/common";
+import { ObjectStorageService } from "../storage/object-storage.js";
 import {
   Prisma,
   type Product,
@@ -35,13 +36,28 @@ type StockProduct = Product & {
 
 @Injectable()
 export class ProductStockService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly storage?: ObjectStorageService,
+  ) {}
+
+  private response(
+    product: StockProduct,
+    reserved = new Map<string, number>(),
+  ) {
+    return stockResponse(
+      product,
+      reserved,
+      (key) =>
+        this.storage?.createReadUrl({ key, expiresInSeconds: 900 }) ?? null,
+    );
+  }
 
   async get(storeId: string, productId: string): Promise<ProductStockDto> {
     return this.prisma.$transaction(
       async (tx) => {
         const product = await this.load(tx, storeId, productId);
-        return stockResponse(
+        return this.response(
           product,
           await reservedQuantities(
             tx,
@@ -64,14 +80,22 @@ export class ProductStockService {
         const product = await this.load(tx, storeId, productId, true);
         if (!product.active || !product.vtoEnabled || !product.category.active)
           throw notFound();
-        return stockResponse(
-          product,
-          await reservedQuantities(
-            tx,
-            storeId!,
-            product.stockSettings?.variants.map((v) => v.id) ?? [],
+        return {
+          ...this.response(
+            product,
+            await reservedQuantities(
+              tx,
+              storeId!,
+              product.stockSettings?.variants.map((v) => v.id) ?? [],
+            ),
           ),
-        );
+          storeName: (
+            await tx.organization.findUnique({
+              where: { id: storeId! },
+              select: { name: true },
+            })
+          )?.name,
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
@@ -103,7 +127,7 @@ export class ProductStockService {
           storeId,
           product.stockSettings?.variants.map((v) => v.id) ?? [],
         );
-        const before = stockResponse(product, reserved);
+        const before = this.response(product, reserved);
         if (input.expectedVersion !== before.version) {
           throw new ApiErrorException(
             HttpStatus.CONFLICT,
@@ -112,6 +136,12 @@ export class ProductStockService {
           );
         }
         const settings = {
+          colorImages: normalizeColorImages(
+            storeId,
+            input,
+            variants,
+            product.stockSettings?.colorImages,
+          ) as unknown as Prisma.InputJsonValue,
           taxRateBasisPoints:
             input.taxRateBasisPoints === undefined
               ? (product.stockSettings?.taxRateBasisPoints ?? null)
@@ -160,7 +190,8 @@ export class ProductStockService {
             update: { ...variant, active: true },
           });
         }
-        const after = stockResponse(
+        await tx.product.update({ where: { id: productId }, data: { updatedAt: new Date() } });
+        const after = this.response(
           await this.load(tx, storeId, productId),
           reserved,
         );
@@ -322,6 +353,7 @@ function normalizeLabel(value: string | null | undefined): string | null {
 function stockResponse(
   product: StockProduct,
   reserved = new Map<string, number>(),
+  imageUrl: (key: string) => string | null = () => null,
 ): ProductStockDto {
   const settings = product.stockSettings;
   const pricingMode = (settings?.pricingMode ?? "CONSTANT") as StockPricingMode;
@@ -343,6 +375,18 @@ function stockResponse(
         : product.priceAmountCents,
   }));
   return {
+    productName: product.name,
+    imageUrl: product.imageStorageKey
+      ? imageUrl(product.imageStorageKey)
+      : product.imageUrl,
+    colorImages: (Array.isArray(settings?.colorImages)
+      ? settings.colorImages
+      : []
+    ).map((value) => {
+      const image =
+        value as unknown as import("./dto/product-stock.dto.js").ProductColorImageDto;
+      return { ...image, url: imageUrl(image.storageKey) };
+    }),
     taxRateBasisPoints: settings?.taxRateBasisPoints ?? null,
     totalReservedStockQuantity: variants.reduce(
       (sum, v) => sum + v.reservedStockQuantity,
@@ -365,6 +409,57 @@ function stockResponse(
     ),
     variants,
   };
+}
+
+export function normalizeColorImages(
+  storeId: string,
+  input: UpdateProductStockDto,
+  variants: Array<{ color: string | null }>,
+  previous: unknown,
+) {
+  const colors = new Set(
+    variants.flatMap((v) => (v.color ? [v.color.toLowerCase()] : [])),
+  );
+  const images = input.colorImages ?? (Array.isArray(previous) ? previous : []);
+  if (!Array.isArray(images) || images.length > 100)
+    invalid("Provide up to 100 optional colour images.");
+  const seen = new Set<string>();
+  return images.flatMap((image) => {
+    const color = normalizeLabel(image?.color);
+    if (!color || !colors.has(color.toLowerCase())) {
+      if (input.colorImages !== undefined)
+        invalid("Colour images must match a configured colour.");
+      return [];
+    }
+    if (seen.has(color.toLowerCase()))
+      invalid("Use one image per colour, shared across sizes.");
+    seen.add(color.toLowerCase());
+    const prefix = `catalog/stores/${storeId}/`;
+    if (
+      typeof image.storageKey !== "string" ||
+      !image.storageKey.startsWith(prefix) ||
+      !/^[0-9a-f-]{36}\.(jpg|png|webp)$/.test(
+        image.storageKey.slice(prefix.length),
+      ) ||
+      !["image/jpeg", "image/png", "image/webp"].includes(image.contentType) ||
+      !Number.isInteger(image.width) ||
+      !Number.isInteger(image.height) ||
+      image.width < 1 ||
+      image.height < 1 ||
+      image.width > 10000 ||
+      image.height > 10000
+    )
+      invalid("Colour images must be valid uploads belonging to this Store.");
+    return [
+      {
+        color,
+        storageKey: image.storageKey,
+        contentType: image.contentType,
+        width: image.width,
+        height: image.height,
+      },
+    ];
+  });
 }
 
 function invalid(message: string): never {

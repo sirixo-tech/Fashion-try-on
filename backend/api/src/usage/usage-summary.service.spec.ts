@@ -122,15 +122,8 @@ describe("UsageSummaryService", () => {
         downloadsCompleted: 1,
       }),
     ]);
-    expect(summary.providerUsage).toEqual([
-      expect.objectContaining({
-        provider: "google",
-        providerModel: "virtual-try-on-001",
-        runsCreated: 3,
-        tryOnsGenerated: 2,
-        downloadsCompleted: 2,
-      }),
-    ]);
+    expect(summary).not.toHaveProperty("providerUsage");
+    expect(JSON.stringify(summary)).not.toMatch(/google|virtual-try-on-001/i);
     expect(summary.stores).toEqual([
       expect.objectContaining({
         storeId: "store-a",
@@ -181,6 +174,81 @@ describe("UsageSummaryService", () => {
       }),
     );
     expect("tryOnAsset" in prisma).toBe(false);
+    expect(JSON.stringify(summary)).not.toMatch(/Store B|kiosk-2|Lobby Kiosk/);
+  });
+
+  it("does not expose a reassigned kiosk's current Store details through historical usage", async () => {
+    const prisma = new FakePrisma({
+      runs: [
+        run({
+          id: "old-run",
+          organizationId: "store-a",
+          kioskDeviceId: "kiosk-2",
+          status: "COMPLETED",
+          resultAssetId: "old-result",
+        }),
+      ],
+      events: [
+        event({
+          organizationId: "store-a",
+          kioskDeviceId: "kiosk-2",
+          eventName: KIOSK_USAGE_EVENTS.sessionStarted,
+        }),
+      ],
+    });
+    const summary = await new UsageSummaryService(
+      prisma as never,
+      storage() as never,
+    ).summary({
+      storeId: "store-a",
+      range: "custom",
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-09-01T00:00:00Z",
+    });
+    expect(summary.totals).toMatchObject({
+      sessionsStarted: 1,
+      completedRuns: 1,
+      tryOnsGenerated: 1,
+    });
+    expect(summary.kiosks).toEqual([]);
+    expect(JSON.stringify(summary)).not.toMatch(/Store B|Lobby Kiosk|kiosk-2/);
+  });
+
+  it("cannot use a different Store's kiosk filter to retrieve its activity", async () => {
+    const prisma = new FakePrisma({
+      runs: [
+        run({
+          organizationId: "store-b",
+          kioskDeviceId: "kiosk-2",
+          status: "COMPLETED",
+          resultAssetId: "other-result",
+        }),
+      ],
+      events: [
+        event({
+          organizationId: "store-b",
+          kioskDeviceId: "kiosk-2",
+          eventName: KIOSK_USAGE_EVENTS.sessionStarted,
+        }),
+      ],
+    });
+    const summary = await new UsageSummaryService(
+      prisma as never,
+      storage() as never,
+    ).summary({
+      storeId: "store-a",
+      kioskDeviceId: "kiosk-2",
+      range: "custom",
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-09-01T00:00:00Z",
+    });
+    expect(summary.totals).toMatchObject({
+      sessionsStarted: 0,
+      completedRuns: 0,
+      tryOnsGenerated: 0,
+    });
+    expect(summary.kiosks).toEqual([]);
+    expect(JSON.stringify(summary)).not.toMatch(/Store B|Lobby Kiosk|kiosk-2/);
   });
 
   it("ranks completed runs across channels and preserves counts after result expiry", async () => {
@@ -459,7 +527,7 @@ class FakePrisma {
     ),
   };
   readonly kioskDevice = {
-    findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+    findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
       [
         {
           id: "kiosk-1",
@@ -477,7 +545,7 @@ class FakePrisma {
           organization: { name: "Store B" },
           store: null,
         },
-      ].filter((kiosk) => where.id.in.includes(kiosk.id)),
+      ].filter((kiosk) => matchesWhere(kiosk, where, "createdAt")),
     ),
   };
 
@@ -588,7 +656,7 @@ function groupBy<T extends Record<string, unknown>>(items: T[], by: string[]) {
 }
 
 function matchesWhere(
-  item: FakeUsageEvent | FakeRun,
+  item: object,
   where: Record<string, unknown>,
   dateField: "occurredAt" | "createdAt",
 ): boolean {
@@ -605,7 +673,7 @@ function matchesWhere(
           : (item as FakeRun).createdAt;
       return actual >= value.gte && actual <= value.lte;
     }
-    const actual = item[key as keyof typeof item];
+    const actual = (item as Record<string, unknown>)[key];
     if (isNotNullFilter(value)) {
       return actual !== null;
     }

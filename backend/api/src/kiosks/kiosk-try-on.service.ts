@@ -28,6 +28,8 @@ import { CatalogService } from "../catalog/catalog.service.js";
 import { normalizeSelfxGarmentCategory } from "../catalog/garment-category-normalization.js";
 import type { JewelleryType } from "../catalog/product-kind.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { publicTryOnErrorMessage } from "../common/public-try-on-errors.js";
+import { inlineTryOnResult } from "../common/inline-try-on-result.js";
 import {
   detectImageMimeType,
   validateTechnicalImageBuffer,
@@ -1028,7 +1030,10 @@ export class KioskTryOnService {
     await this.prisma.$transaction(async (tx) => {
       const run = await tx.kioskTryOnRun.update({
         where: { id: runId },
-        data: patch,
+        data: {
+          ...patch,
+          resultImage: `data:${result.contentType};base64,${result.buffer.toString("base64")}`,
+        },
       });
       await recordSuccessfulGeneration(tx, run);
     });
@@ -1149,6 +1154,8 @@ export class KioskTryOnService {
               outcome: "PROVIDER_REPORTED_FAILURE",
             });
           }
+          if (status.status === "COMPLETED" && status.resultImage)
+            phase = "RESULT_FINALIZATION";
           const patch = {
             status: status.status,
             resultImage: status.resultImage,
@@ -1442,7 +1449,7 @@ function kioskProductReferenceData(
   };
 }
 
-function toResponse(run: {
+async function toResponse(run: {
   id: string;
   status: string;
   createdAt: Date;
@@ -1457,7 +1464,7 @@ function toResponse(run: {
   garmentPreprocessingProviderInputImage?: string | null;
   garmentPreprocessingMaskGenerated?: boolean | null;
   garmentPreprocessingFallbackReason?: string | null;
-}): KioskTryOnRunResponseDto {
+}): Promise<KioskTryOnRunResponseDto> {
   return {
     id: run.id,
     status: run.status as SelfxTryOnRunStatus,
@@ -1468,12 +1475,14 @@ function toResponse(run: {
         : undefined,
     createdAt: run.createdAt.toISOString(),
     updatedAt: run.updatedAt.toISOString(),
-    resultImage: run.resultImage ?? undefined,
+    resultImage: run.resultImage
+      ? await inlineTryOnResult(run.resultImage)
+      : undefined,
     errorCode:
       run.errorCode === null
         ? undefined
         : (run.errorCode as KioskTryOnRunResponseDto["errorCode"]),
-    errorMessage: run.errorMessage ?? undefined,
+    errorMessage: publicTryOnErrorMessage(run.errorCode, run.errorMessage),
     garmentPreprocessingEnabled: run.garmentPreprocessingEnabled ?? undefined,
     garmentPreprocessingStatus:
       run.garmentPreprocessingStatus === null ||
@@ -1487,8 +1496,10 @@ function toResponse(run: {
         : (run.garmentPreprocessingProviderInputImage as SelfxGarmentPreprocessingProviderInputImage),
     garmentPreprocessingMaskGenerated:
       run.garmentPreprocessingMaskGenerated ?? undefined,
-    garmentPreprocessingFallbackReason:
-      run.garmentPreprocessingFallbackReason ?? undefined,
+    garmentPreprocessingFallbackReason: publicTryOnErrorMessage(
+      undefined,
+      run.garmentPreprocessingFallbackReason,
+    ),
   };
 }
 

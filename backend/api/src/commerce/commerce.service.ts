@@ -1,3 +1,4 @@
+import { checkoutAvailable } from "../payments/checkout-availability.js";
 import { createHash, randomBytes } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { Prisma, type KioskDevice } from "@prisma/client";
@@ -684,7 +685,7 @@ export class CommerceService {
         ]),
       ]),
       serverTime: now.toISOString(),
-      paymentAvailable: false as const,
+      paymentAvailable: await checkoutAvailable(tx, storeId),
     };
   }
 
@@ -903,6 +904,5 @@ function orderResponse(order: OrderRecord) {
     stockAllocatedAt: order.stockAllocatedAt?.toISOString() ?? null,
     paymentAttempts: order.paymentAttempts.map(paymentSummary),
     serverTime: new Date().toISOString(),
-    paymentAvailable: false as const,
   };
 }

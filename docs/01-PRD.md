@@ -1,5 +1,52 @@
 ## Document Evolution
 
+### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
+
+Authorize an installable WooCommerce plugin connecting a website to its correct SelfX Store using a scoped integration token. Synchronize simple/variable parent products, variant size/color/images/prices and availability in one direction. WooCommerce remains the source of truth; one variable parent is one kiosk item. Preserve SelfX Try-On eligibility and allow sold-out products for Try-On. Initial/manual sync, change/deletion delivery, retries and reconciliation are included. Storefront Try-On, purchase continuation, orders and inventory writeback remain the next milestone; imported references cannot use native SelfX checkout.
+
+
+### MAIL-2 — Automatic templates and controlled outgoing mail (2026-10-22)
+
+Mail Settings now has locked SMTP configuration, editable automatic templates, custom email and delivery history. Superadmin confirms before editing SMTP; Save/Cancel relocks it. Automatic Store creation, application approval/rejection, activation/suspension/archive/deletion and verified production purchase emails use saved defaults or edited templates. Store notifications go to current Store Admin/owner logins and the Store contact email, deduplicated. Anonymous kiosk purchases do not collect customer email in this slice. Remove the separate Test Email interface; custom email uses enabled saved settings. Password recovery remains supported.
+
+
+### ROLES-3 — Restore shared defaults and configurable Staff grants (2026-10-22)
+
+Store Admin starts with Store administration/operations and Store Staff starts with daily operations, including products.manage. Authorized Platform role managers may grant or revoke any Store-applicable permission for Staff; its initial defaults are not a permission ceiling. Shared edits apply to all existing and future Stores. Platform-only and Developer/API permissions remain excluded. Merchant users cannot edit global role maps.
+
+
+### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
+
+A Store product remains one kiosk catalog item even with multiple size/colour combinations. Add/Edit Product uses a dedicated page with basic information, the main Try-On image, pricing and stock. Each colour may have one optional purchase-preview image shared across sizes, falling back to the main product image. Variant prices may override the base price. Zero stock does not remove an otherwise eligible product from Try-On. Buy This Look opens product options and a shared session cart; an entirely sold-out product shows “Out of stock. Please contact {Store name}.” Customer payment success requires verified server reconciliation. This explicitly authorizes APK shopping and controlled production checkout following SHOPPING-2 and PAYMENTS-1B.
+
+
+### PRODUCTS-RBAC-1 — Permission-based product actions (2026-10-21)
+
+Initial Store Admin and Store Staff role maps include products.manage. Shared
+role revocations remain authoritative across existing and future Stores; reads
+and onboarding must not restore revoked grants. Without product management,
+hide catalog mutation actions and retain authorized catalog/stock viewing.
+Current catalog viewing uses stores.view; no new products.view permission is
+introduced. Enforce product mutations on the server for every role.
+
+### BILLING-STORE-1 — Store-only usage presentation (2026-10-21)
+
+Store Usage & Billing shows only the authorized Store's own totals and kiosks.
+Top Stores is reserved for authorized Platform-wide comparisons. Store kiosk
+tables omit the redundant Store column. Historical usage remains attributable
+to its original Store, but must not expose current metadata for kiosks reassigned
+to another Store. AI-PRIVACY-1 remains mandatory for every role.
+
+### AI-PRIVACY-1 — SelfX-only AI service presentation (2026-10-21)
+
+Do not expose AI provider identities, model identifiers, prediction IDs or provider
+cost breakdowns in application pages (including Platform/Superadmin), ordinary
+API responses, exports or client errors. Show SelfX usage, results and actionable
+SelfX errors instead. Keep execution attribution and technical diagnostics on the
+backend for operations and auditing. This supersedes earlier provider/model usage
+tables and client-visible Lab provider metadata. Payment gateway branding and
+Google authentication remain visible because users explicitly configure/use them.
+
 ### APPS-1 / REGIONAL-1 — Kiosk downloads and personal display preferences (2026-10-21)
 
 Platform Apps & Downloads distributes signed standalone SelfX kiosk APKs. Separate

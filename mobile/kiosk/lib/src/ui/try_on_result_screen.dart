@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import '../shopping/kiosk_purchase_screen.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -61,6 +62,15 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
   KioskTryOnVertical _previewVertical = KioskTryOnVertical.garment;
   KioskJewelleryType? _previewJewelleryType;
   bool _rebuildScheduled = false;
+  String? get _purchaseProductId {
+    for (final look in tryOnController.looks) {
+      if (look.runId == _preview?.run.id) return look.productId;
+    }
+    return tryOnController.run?.id == _preview?.run.id
+        ? tryOnController.garmentInput?.productId
+        : null;
+  }
+
   bool get _singleLook => tryOnController.looks.length == 1;
 
   bool get _current =>
@@ -169,6 +179,13 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                   isCurrent: () => _current,
                   downloadEnabled: tryOnController.saveMyLooksQrEnabled,
                   singleLook: _singleLook,
+                  onBuy: () => unawaited(
+                    openKioskPurchase(
+                      context,
+                      tryOnController,
+                      _purchaseProductId,
+                    ),
+                  ),
                   nextPick: tryOnController.upcomingGarmentPick,
                   onContinueNextPick: () async => _tryAnotherGarment(context),
                   onContinue: (product) =>
@@ -211,6 +228,13 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                     CustomerPersonImageSource.mobileUpload,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
+                onBuy: () => unawaited(
+                  openKioskPurchase(
+                    context,
+                    tryOnController,
+                    _purchaseProductId,
+                  ),
+                ),
                 onGetMyLooks: () => _singleLook
                     ? unawaited(_downloadMyLooks(context))
                     : unawaited(_getMyLooks(context)),
@@ -382,6 +406,7 @@ class _ResultPage extends StatelessWidget {
     this.retakeFromPhone = false,
     required this.onTryAnotherGarment,
     required this.onRetakePhoto,
+    this.onBuy,
     required this.onGetMyLooks,
     required this.onFinish,
     required this.onBack,
@@ -399,6 +424,7 @@ class _ResultPage extends StatelessWidget {
   final bool retakeFromPhone;
   final VoidCallback onTryAnotherGarment;
   final VoidCallback onRetakePhoto;
+  final VoidCallback? onBuy;
   final VoidCallback onGetMyLooks;
   final VoidCallback onFinish;
   final VoidCallback onBack;
@@ -639,7 +665,7 @@ class _ResultPage extends StatelessWidget {
                                       icon: Icons.shopping_bag_outlined,
                                       variant: SelfxKioskButtonVariant.ghost,
                                       minHeight: actionTileHeight,
-                                      onPressed: null,
+                                      onPressed: onBuy,
                                     )
                                   : SelfxKioskActionCard(
                                       key: const Key('finish-try-on'),

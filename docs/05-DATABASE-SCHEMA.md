@@ -1,5 +1,25 @@
 ## Document Evolution
 
+### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
+
+No new SelfX table/migration. Reuse Integration, hashed IntegrationCredential, one Product per parent, and ExternalProductMapping root/variation rows. Optional variant size/color values extend existing JSON metadata alongside image, price and availability; do not create native inventory variants from these commerce references. WordPress keeps encrypted connection/configuration, bounded scan cursor/status and coalesced per-parent change options with autoload disabled, plus source revision post metadata. Historical organizations rows remain the internal Store tenant boundary.
+
+
+### MAIL-2 — Automatic templates and controlled outgoing mail (2026-10-22)
+
+Migration 20261022010000_automatic_mail_templates adds nullable MailJob.eventKey (unique SHA-256 digest), templateCode and recipientMask. Existing jobs/password-reset records remain compatible. Templates use versioned platform_settings keys mail.template.<code>; built-in defaults are code-owned until overridden. Encrypt recipient/body snapshots in pending payloads, erase payload after terminal handling and retain terminal history for seven days. Jobs expire after 24 hours and have no Store/user foreign key, so a deletion notice survives the confirmed deletion. No new customer-email capture or purchase-email persistence is introduced.
+
+
+### ROLES-3 — Restore shared defaults and configurable Staff grants (2026-10-22)
+
+Migration 20261022000000_repair_store_role_defaults repairs initialization from the intersection of retired Store ceilings only when each shared role has its original created/updated timestamp and no global permission edit or previous repair audit. Add approved missing defaults (19 Admin, 7 Staff), bump the role version and audit before/after codes under a row lock. Preserve edited empty/partial maps. No new permanent tables or startup reseeding.
+
+
+### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
+
+Migration 20261021010000_product_colors_live_checkout adds product_stock_settings.color_images JSONB, default [], constrained to an array of at most 100 entries. Entries contain normalized colour, Store-owned catalog object key, MIME type and dimensions; signed URLs are derived, never stored. Existing ProductVariant identities/constraints and tenant ownership remain unchanged. Extend shopping_payment_attempts environment CHECK from UAT to UAT/PRODUCTION; retain encrypted account snapshots, existing order/payment events, reservation and stock-allocation constraints. No full inventory/POS subsystem, new customer image retention or per-variant product duplication is introduced.
+
+
 ### APPS-1 / REGIONAL-1 — Release records and account preferences (2026-10-21)
 
 Add nullable users.regional_timezone (automatic/device when null), enum-checked

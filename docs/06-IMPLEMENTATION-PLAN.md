@@ -1,5 +1,54 @@
 ## Document Evolution
 
+### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
+
+Implement the explicitly requested WooCommerce connection/catalog milestone: installable plugin, dashboard credential setup, source normalization, automatic/manual full and incremental sync, safe deletion/finalization and retry/status. Validate PHP, plugin behavior, actual PHP-to-SelfX DTO/database/kiosk contracts, Store isolation, credential denial, ordering/concurrency and web controls; build and inspect the ZIP. Keep a real WordPress/WooCommerce staging install as the remaining acceptance step. Do not claim storefront Try-On/checkout completion or deploy to production during implementation.
+
+
+### MAIL-2 — Automatic templates and controlled outgoing mail (2026-10-22)
+
+Implement MAIL-2 as explicitly requested: SMTP edit confirmation/locking; editable automatic templates; transactional Store and verified-production-purchase notifications; custom queued sending and delivery history; retirement of the Test Email UI/route. Generate Prisma, migrate a disposable PostgreSQL database, test Store lifecycle and deletion, application review, signup, encrypted snapshots/deduplication/retry, template validation/versioning, custom send limits, SMTP guards and password recovery. Validate web interactions, types, lint and production build. Apply only the additive migration locally after backup; never send real verification emails or change saved SMTP configuration during implementation. Production deployment is separate.
+
+
+### ROLES-3 — Restore shared defaults and configurable Staff grants (2026-10-22)
+
+Implement ROLES-3 as explicitly requested: repair untouched role initialization, remove the Staff grant ceiling, and preserve saved revocations. Verify migration repair/preservation/replay on disposable PostgreSQL, global grants/revocations across current/future Stores, unauthorized editing, platform permission rejection, permission-dependent product controls, types, lint and production web compilation. Back up and apply the correction to the local application database; production deployment remains separate.
+
+
+### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
+
+Implement PRODUCTS-EDITOR-1 / SHOPPING-3 as explicitly requested: dedicated product pages, optional colour images, catalog minimum price and Flutter option/cart/QR/status UI over existing SelfX services. Extend live order execution behind its own disabled-by-default server switch. Verify Store/device/session isolation, image ownership, price/stock changes, one product per catalog row, duplicate retries, out-of-stock Try-On, expiry, uncertain/late payments and bounded idle handling. Validate schema, API/web compilation, responsive editor and targeted Flutter tests. Build a development APK for review. Commercial publication requires the existing production signing identity, configured APK inspector, coordinated database/API/web deployment and certified-device/live merchant acceptance; do not create a replacement signing identity or conduct an unrequested real payment.
+
+
+### PRODUCTS-RBAC-1 — Product control visibility and role defaults (2026-10-21)
+
+Keep approved initial products.manage defaults for both Store roles and preserve
+explicit revocations. Hide unauthorized mutations, retain read-only catalog/stock
+presentation and react to refreshed permissions or denied writes. Verify both
+defaults and global revocation for current/future Stores against local PostgreSQL,
+existing server mutation guards and garment/jewellery UI regressions. Run types,
+lint and production compilation. This UI correction needs no migration; deploy
+with the pending API/privacy/Store billing changes as applicable.
+
+### BILLING-STORE-1 — Correct Store usage layout and metadata scope (2026-10-21)
+
+Separate Store and Platform-wide usage tables. Verify Store API calls use only
+the current Store, global/foreign Store access is denied, kiosk filtering retains
+tenant constraints and reassigned kiosk metadata cannot leak through history.
+Preserve historical totals. Run billing UI regressions, usage authorization and
+aggregation tests, database-backed RBAC checks, types, lint and production build.
+Deploy web/API together with AI-PRIVACY-1; no migration is required.
+
+### AI-PRIVACY-1 — Provider presentation cleanup (2026-10-21)
+
+Remove AI identity rollups from UI/API contracts, strip public Lab metadata and
+sanitize Try-On errors while preserving backend attribution and authorization.
+Keep temporary remote result fetching within SelfX. Verify scoped usage totals,
+Lab polling, kiosk/Public API/Shopify regressions, HTTP error handling, secure
+bounded image conversion and unaffected payment/authentication errors. Run web
+regressions, types, lint and production compilation. Redeploy API and web together;
+no migration, credential rotation or provider configuration changes are needed.
+
 ### APPS-1 / REGIONAL-1 — Release distribution and account formatting (2026-10-21)
 
 Implement release registry/migration, platform permissions, binary inspection,

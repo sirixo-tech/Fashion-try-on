@@ -317,6 +317,9 @@ export class IntegrationCatalogSyncService {
     const observedAt =
       input.mode === "FULL" ? new Date(input.sourceSnapshotAt!) : new Date();
     const counts = await this.prisma.$transaction(async (tx) => {
+      // Serialize batches for this integration, including a full-scan finalizer
+      // racing incremental updates. Other Stores/integrations remain independent.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.catalog.sync'), hashtext(${credential.integrationId}))`;
       const categoryId = await ensureImportedCategory(tx, credential);
       const result: SyncCounts = {
         created: 0,
@@ -411,6 +414,8 @@ async function syncProduct(
     },
   });
 
+  if (mapping && mapping.lastSeenAt > observedAt)
+    observedAt = mapping.lastSeenAt;
   if (
     mapping?.externalUpdatedAt &&
     sourceUpdatedAt <= mapping.externalUpdatedAt
@@ -651,7 +656,11 @@ async function archiveMissingProducts(
     },
   });
   for (const mapping of existing) {
-    if (mapping.lastSeenAt < sourceSnapshotAt) {
+    if (
+      mapping.lastSeenAt < sourceSnapshotAt &&
+      (!mapping.externalUpdatedAt ||
+        mapping.externalUpdatedAt <= sourceSnapshotAt)
+    ) {
       await archiveMappedProduct(
         tx,
         integrationId,
@@ -855,6 +864,12 @@ function variantMappingFields(
       priceAmountCents: variant.priceAmountCents ?? null,
       priceCurrency: nullableTrim(variant.priceCurrency),
       imageUrl: nullableTrim(variant.imageUrl),
+      ...(variant.size !== undefined
+        ? { size: nullableTrim(variant.size) }
+        : {}),
+      ...(variant.color !== undefined
+        ? { color: nullableTrim(variant.color) }
+        : {}),
     } satisfies Prisma.InputJsonObject,
     externalUpdatedAt: sourceUpdatedAt,
     lastSeenAt: observedAt,

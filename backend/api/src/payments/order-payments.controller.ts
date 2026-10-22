@@ -47,7 +47,7 @@ export class KioskOrderPaymentsController {
   @ApiOkResponse({ type: DeviceOrderPaymentDto })
   @ApiOperation({
     summary:
-      "Create or replay a UAT-only order payment; requires confirmed test access",
+      "Create or replay an order payment using the Store's selected, enabled account",
   })
   async start(
     @Req() request: FastifyRequest,

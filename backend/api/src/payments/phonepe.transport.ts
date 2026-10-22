@@ -4,11 +4,24 @@ import {
   PaymentProviderError,
   safeProviderCode,
 } from "./payment-diagnostics.js";
-import { phonePeUatBase, phonePeProductionBase } from "./phonepe-endpoints.js";
+import {
+  phonePeUatBase,
+  phonePeProductionBase,
+  validatePhonePeProductionBase,
+} from "./phonepe-endpoints.js";
+export type OrderTransportContext = {
+  purpose: "CHECKOUT";
+  environment: "UAT" | "PRODUCTION";
+  // Trusted only from the server's encrypted order-account snapshot.
+  productionBase?: string;
+};
 @Injectable()
 export class PhonePeTransport {
-  async send(request: ProviderRequest): Promise<unknown> {
-    if (!allowedRequest(request))
+  async send(
+    request: ProviderRequest,
+    context?: OrderTransportContext,
+  ): Promise<unknown> {
+    if (!allowedRequest(request, context))
       throw new PaymentProviderError("REQUEST_DISABLED");
     try {
       const response = await fetch(request.url, {
@@ -73,11 +86,29 @@ export class PhonePeTransport {
     }
   }
 }
-function allowedRequest(request: ProviderRequest) {
+function allowedRequest(
+  request: ProviderRequest,
+  context?: OrderTransportContext,
+) {
   const bases: string[] = [];
-  if (process.env.SELFX_PHONEPE_UAT_ENABLED === "true")
+  if (
+    process.env.SELFX_PHONEPE_UAT_ENABLED === "true" &&
+    (!context || context.environment === "UAT")
+  )
     bases.push(phonePeUatBase);
-  if (process.env.SELFX_PHONEPE_PRODUCTION_ENABLED === "true") {
+  if (
+    context?.environment === "PRODUCTION" &&
+    process.env.SELFX_PHONEPE_CHECKOUT_ENABLED === "true"
+  ) {
+    try {
+      bases.push(validatePhonePeProductionBase(context.productionBase));
+    } catch {
+      /* fail closed */
+    }
+  } else if (
+    !context &&
+    process.env.SELFX_PHONEPE_PRODUCTION_ENABLED === "true"
+  ) {
     try {
       bases.push(phonePeProductionBase());
     } catch {

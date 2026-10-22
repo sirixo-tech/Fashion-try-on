@@ -91,6 +91,8 @@ export class KioskCatalogProductDto {
   garmentCategory!: string;
   garmentPhotoType!: string;
   priceAmountCents!: number | null;
+  minimumPriceAmountCents!: number | null;
+  hasVariablePrices!: boolean;
   priceCurrency!: string | null;
   image!: KioskCatalogProductImageDto;
   updatedAt!: string;

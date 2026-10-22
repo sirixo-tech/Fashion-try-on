@@ -2,6 +2,14 @@ import { selfxApi } from "@/lib/api";
 
 export type StockOptionMode = "SINGLE" | "SIZE" | "COLOR" | "SIZE_COLOR";
 export type StockPricingMode = "CONSTANT" | "VARIANT";
+export type ProductColorImage = {
+  color: string;
+  storageKey: string;
+  contentType: string;
+  width: number;
+  height: number;
+  url?: string | null;
+};
 export type ProductStockVariant = {
   reservedStockQuantity?: number;
   availableStockQuantity?: number;
@@ -13,6 +21,7 @@ export type ProductStockVariant = {
   effectivePriceAmountCents: number | null;
 };
 export type ProductStock = {
+  colorImages?: ProductColorImage[];
   taxRateBasisPoints?: number | null;
   totalReservedStockQuantity?: number;
   totalAvailableStockQuantity?: number;
@@ -27,6 +36,7 @@ export type ProductStock = {
   variants: ProductStockVariant[];
 };
 export type ProductStockInput = {
+  colorImages?: ProductColorImage[];
   taxRateBasisPoints?: number | null;
   expectedVersion: number;
   optionMode: StockOptionMode;

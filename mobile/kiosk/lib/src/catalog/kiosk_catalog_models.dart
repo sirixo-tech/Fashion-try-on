@@ -205,6 +205,8 @@ class KioskCatalogProduct {
     required this.updatedAt,
     this.description,
     this.priceAmountCents,
+    this.minimumPriceAmountCents,
+    this.hasVariablePrices = false,
     this.priceCurrency,
   });
 
@@ -219,6 +221,8 @@ class KioskCatalogProduct {
   final String garmentCategory;
   final KioskGarmentPhotoType garmentPhotoType;
   final int? priceAmountCents;
+  final int? minimumPriceAmountCents;
+  final bool hasVariablePrices;
   final String? priceCurrency;
   final KioskCatalogProductImage image;
   final String updatedAt;
@@ -226,7 +230,7 @@ class KioskCatalogProduct {
   bool get hasUsableImage => image.url != null && image.url!.trim().isNotEmpty;
 
   String? get displayPrice {
-    final amount = priceAmountCents;
+    final amount = minimumPriceAmountCents ?? priceAmountCents;
     final currency = priceCurrency?.trim().toUpperCase();
     if (amount == null || currency == null || currency.isEmpty) {
       return null;
@@ -237,7 +241,7 @@ class KioskCatalogProduct {
     final value = cents == 0
         ? _groupThousands(whole)
         : '${_groupThousands(whole)}.${cents.toString().padLeft(2, '0')}';
-    return '$sign${_currencySymbol(currency)}$value';
+    return '${hasVariablePrices ? 'From ' : ''}$sign${_currencySymbol(currency)}$value';
   }
 
   KioskGarmentInput toGarmentInput() {
@@ -295,6 +299,9 @@ class KioskCatalogProduct {
       priceAmountCents: json['priceAmountCents'] is num
           ? (json['priceAmountCents'] as num).toInt()
           : null,
+      minimumPriceAmountCents: (json['minimumPriceAmountCents'] as num?)
+          ?.toInt(),
+      hasVariablePrices: json['hasVariablePrices'] == true,
       priceCurrency: json['priceCurrency'] is String
           ? json['priceCurrency'] as String
           : null,
@@ -316,6 +323,8 @@ class KioskCatalogProduct {
       garmentCategory: garmentCategory,
       garmentPhotoType: garmentPhotoType,
       priceAmountCents: priceAmountCents,
+      minimumPriceAmountCents: minimumPriceAmountCents,
+      hasVariablePrices: hasVariablePrices,
       priceCurrency: priceCurrency,
       image: image ?? this.image,
       updatedAt: updatedAt,
@@ -335,6 +344,8 @@ class KioskCatalogProduct {
       'garmentCategory': garmentCategory,
       'garmentPhotoType': garmentPhotoType.apiValue,
       'priceAmountCents': priceAmountCents,
+      'minimumPriceAmountCents': minimumPriceAmountCents,
+      'hasVariablePrices': hasVariablePrices,
       'priceCurrency': priceCurrency,
       'image': image.toJson(),
       'updatedAt': updatedAt,

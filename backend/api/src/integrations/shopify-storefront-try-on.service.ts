@@ -28,6 +28,7 @@ import {
 } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { publicTryOnErrorMessage } from "../common/public-try-on-errors.js";
 import {
   TechnicalImageValidationError,
   validateTechnicalImageBuffer,
@@ -1236,7 +1237,7 @@ export class ShopifyStorefrontTryOnService {
           }
         : undefined,
       errorCode: run.errorCode ?? undefined,
-      errorMessage: run.errorMessage ?? undefined,
+      errorMessage: publicTryOnErrorMessage(run.errorCode, run.errorMessage),
     };
   }
 

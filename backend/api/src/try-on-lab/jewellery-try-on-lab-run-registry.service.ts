@@ -8,6 +8,7 @@ import {
 } from "@selfx/shared";
 
 import type { JewelleryType } from "../catalog/product-kind.js";
+import { publicTryOnErrorMessage } from "../common/public-try-on-errors.js";
 import type { JewelleryTryOnProviderMetadata } from "../try-on/jewellery/jewellery-try-on.provider.js";
 import {
   TRY_ON_LAB_MAX_RUNS,
@@ -118,7 +119,7 @@ export class JewelleryTryOnLabRunRegistryService {
       updatedAt: run.updatedAt.toISOString(),
       resultImage: run.resultImage,
       errorCode: run.errorCode,
-      errorMessage: run.errorMessage,
+      errorMessage: publicTryOnErrorMessage(run.errorCode, run.errorMessage),
       telemetry: this.toTelemetry(run),
     };
   }
@@ -129,9 +130,6 @@ export class JewelleryTryOnLabRunRegistryService {
     return {
       selfxRunId: run.id,
       channel: "WEB_LAB",
-      provider: run.provider,
-      providerDisplayName: run.providerDisplayName,
-      model: run.providerModel,
       jewelleryType: run.jewelleryType,
       productReference: run.productReference,
       createdAt: run.createdAt.toISOString(),

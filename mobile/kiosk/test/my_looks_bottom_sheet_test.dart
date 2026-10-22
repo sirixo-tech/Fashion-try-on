@@ -174,7 +174,7 @@ void main() {
         tester
             .widget<SelfxKioskButton>(find.byKey(const Key('buy-this-look')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       final download = tester.widget<SelfxKioskButton>(
         find.byKey(const Key('download-my-looks')),
@@ -351,7 +351,7 @@ void main() {
                     find.byKey(const Key('buy-this-look')),
                   )
                   .onPressed,
-              isNull,
+              isNotNull,
             );
             expect(find.byKey(const Key('finish-try-on')), findsNothing);
           }

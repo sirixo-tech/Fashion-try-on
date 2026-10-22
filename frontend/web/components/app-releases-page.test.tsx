@@ -55,7 +55,7 @@ it("lets platform viewers download without exposing management controls", async 
   render(<AppReleasesPage platform />);
   await screen.findByText("SelfX Kiosk 1.0");
   expect(
-    screen.getByRole("button", { name: "Download", exact: true }),
+    screen.getByRole("button", { name: "Download" }),
   ).toBeTruthy();
   expect(screen.queryByLabelText("APK file")).toBeNull();
   expect(screen.queryByRole("button", { name: "Retire" })).toBeNull();

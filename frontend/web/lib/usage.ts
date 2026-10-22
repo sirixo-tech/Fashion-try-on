@@ -37,12 +37,6 @@ export type UsageSummary = {
     downloadRate: number;
     successRate: number;
   };
-  providerUsage: Array<
-    Omit<UsageCountRow, "sessionsStarted"> & {
-      provider: string;
-      providerModel: string | null;
-    }
-  >;
   stores: Array<
     UsageCountRow & {
       storeId: string | null;
@@ -70,7 +64,9 @@ export type UsageSummary = {
       sku?: string;
     }
   >;
-  categories: Array<Omit<UsageCountRow, "sessionsStarted"> & { category: string }>;
+  categories: Array<
+    Omit<UsageCountRow, "sessionsStarted"> & { category: string }
+  >;
   channels: Array<UsageCountRow & { channel: "KIOSK" | "PUBLIC_API" }>;
   daily: Array<UsageCountRow & { date: string }>;
 };

@@ -17,6 +17,7 @@ import {
 } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { publicTryOnErrorMessage } from "../common/public-try-on-errors.js";
 import { validateTechnicalImageBuffer } from "../common/image-validation.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { prepareRunBilling } from "../entitlements/postpaid-billing.js";
@@ -750,7 +751,7 @@ export class PublicApiTryOnService {
         run.errorCode === null
           ? undefined
           : (run.errorCode as PublicApiTryOnRunResponseDto["errorCode"]),
-      errorMessage: run.errorMessage ?? undefined,
+      errorMessage: publicTryOnErrorMessage(run.errorCode, run.errorMessage),
     };
   }
 

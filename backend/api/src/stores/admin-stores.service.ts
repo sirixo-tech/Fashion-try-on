@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable, Optional } from "@nestjs/common";
+import { MailAutomationService } from "../mail/mail-automation.service.js";
 import {
   CatalogProductScope,
   ExternalProductMappingStatus,
@@ -156,6 +157,7 @@ export class AdminStoresService {
     @Optional() private readonly entitlements?: EntitlementsService,
     @Optional()
     private readonly passwords: PasswordService = new PasswordService(),
+    @Optional() private readonly mail?: MailAutomationService,
   ) {}
 
   async listStores(
@@ -215,6 +217,12 @@ export class AdminStoresService {
         });
         await this.rbac.ensureStoreRbacInTransaction(tx, created.id, true);
         await this.entitlements?.ensureTrialCredits(created.id, tx);
+        await this.mail?.storeEvent(
+          tx,
+          "STORE_CREATED",
+          created.id,
+          created.id,
+        );
         return created;
       });
       return mapStore(store);
@@ -326,6 +334,9 @@ export class AdminStoresService {
             },
           },
         });
+        await this.mail?.storeEvent(tx, "STORE_CREATED", store.id, store.id, [
+          email,
+        ]);
         return mapStore(store, undefined, subscription);
       });
     } catch (error) {
@@ -486,21 +497,18 @@ export class AdminStoresService {
   ): Promise<AdminStoreResponseDto> {
     await this.findStoreOrThrow(storeId);
     try {
-      const updated = await this.prisma.organization.update({
-        where: { id: storeId },
-        data: {
-          ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-          ...(input.slug !== undefined
-            ? { slug: normalizeSlug(input.slug) }
-            : {}),
-          ...(input.status !== undefined
-            ? { status: organizationStatusFromStoreStatus(input.status) }
-            : {}),
-          ...(input.timezone !== undefined
-            ? { timezone: input.timezone.trim() || "UTC" }
-            : {}),
-          settings: await this.updatedStoreSettings(storeId, input),
-        },
+      const updated = await this.updateWithMail(storeId, {
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.slug !== undefined
+          ? { slug: normalizeSlug(input.slug) }
+          : {}),
+        ...(input.status !== undefined
+          ? { status: organizationStatusFromStoreStatus(input.status) }
+          : {}),
+        ...(input.timezone !== undefined
+          ? { timezone: input.timezone.trim() || "UTC" }
+          : {}),
+        settings: await this.updatedStoreSettings(storeId, input),
       });
       return mapStore(updated);
     } catch (error) {
@@ -517,29 +525,62 @@ export class AdminStoresService {
 
   async deactivateStore(storeId: string): Promise<AdminStoreResponseDto> {
     await this.findStoreOrThrow(storeId);
-    const store = await this.prisma.organization.update({
-      where: { id: storeId },
-      data: { status: OrganizationStatus.SUSPENDED },
+    const store = await this.updateWithMail(storeId, {
+      status: OrganizationStatus.SUSPENDED,
     });
     return mapStore(store);
   }
 
   async activateStore(storeId: string): Promise<AdminStoreResponseDto> {
     await this.findStoreOrThrow(storeId);
-    const store = await this.prisma.organization.update({
-      where: { id: storeId },
-      data: { status: OrganizationStatus.ACTIVE },
+    const store = await this.updateWithMail(storeId, {
+      status: OrganizationStatus.ACTIVE,
     });
     return mapStore(store);
   }
 
   async archiveStore(storeId: string): Promise<AdminStoreResponseDto> {
     await this.findStoreOrThrow(storeId);
-    const store = await this.prisma.organization.update({
-      where: { id: storeId },
-      data: { status: OrganizationStatus.ARCHIVED },
+    const store = await this.updateWithMail(storeId, {
+      status: OrganizationStatus.ARCHIVED,
     });
     return mapStore(store);
+  }
+
+  private async updateWithMail(
+    storeId: string,
+    data: Prisma.OrganizationUpdateInput,
+  ) {
+    if (!this.mail)
+      return this.prisma.organization.update({ where: { id: storeId }, data });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id=${storeId}::uuid FOR UPDATE`;
+      const previous = await tx.organization.findUniqueOrThrow({
+        where: { id: storeId },
+      });
+      const updated = await tx.organization.update({
+        where: { id: storeId },
+        data,
+      });
+      if (previous.status !== updated.status) {
+        const code =
+          updated.status === "SUSPENDED"
+            ? "STORE_SUSPENDED"
+            : updated.status === "ACTIVE"
+              ? "STORE_REACTIVATED"
+              : updated.status === "ARCHIVED"
+                ? "STORE_ARCHIVED"
+                : null;
+        if (code)
+          await this.mail!.storeEvent(
+            tx,
+            code,
+            storeId,
+            `${storeId}:${updated.updatedAt.toISOString()}`,
+          );
+      }
+      return updated;
+    });
   }
 
   async listStoreKiosks(storeId: string) {
@@ -1126,7 +1167,7 @@ export class AdminStoresService {
     return device;
   }
 
-  private async getStoreProduct(
+  async getStoreProduct(
     storeId: string,
     productId: string,
   ): Promise<StoreProductDto> {

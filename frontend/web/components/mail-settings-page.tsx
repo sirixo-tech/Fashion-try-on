@@ -1,10 +1,21 @@
 "use client";
-import { RegionalDateTime } from "@/lib/regional-settings";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { MailAutomationPanel } from "./mail-automation-panel";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   Alert,
   AlertDescription,
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
   Input,
   SecretInput,
   Label,
@@ -21,7 +32,6 @@ import { SafeApiError } from "@/lib/api";
 import {
   getMailSettings,
   saveMailSettings,
-  sendTestEmail,
   type MailSettings,
   type MailSettingsInput,
 } from "@/lib/mail-settings";
@@ -47,22 +57,26 @@ function messageFor(error: unknown) {
 export function MailSettingsPage() {
   const session = useSession(),
     token = session.status === "authenticated" ? session.accessToken : null;
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
   const [saved, setSaved] = useState<MailSettings | null>(null);
   const [draft, setDraft] = useState<MailSettingsInput | null>(null);
   const [password, setPassword] = useState("");
-  const [recipient, setRecipient] = useState("");
+  const [editing, setEditing] = useState(false),
+    [confirmEdit, setConfirmEdit] = useState(false);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const load = useCallback(async () => {
-    if (!token) return;
+    if (!tokenRef.current) return;
     setLoading(true);
     setError("");
     setNotice("");
     setPassword("");
+    setEditing(false);
     try {
-      const value = await getMailSettings(token);
+      const value = await getMailSettings(tokenRef.current);
       setSaved(value);
       setDraft(draftFor(value));
     } catch (e) {
@@ -72,10 +86,10 @@ export function MailSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, session.status]);
   const dirty = Boolean(
     saved &&
     draft &&
@@ -90,49 +104,25 @@ export function MailSettingsPage() {
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!draft || !token) return;
+    if (!draft || !token || !editing) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const value = await saveMailSettings(token, {
         ...draft,
+        editConfirmed: true,
         ...(password ? { password } : {}),
         ...(draft.replyTo ? {} : { replyTo: undefined }),
       });
       setSaved(value);
       setDraft(draftFor(value));
-      setNotice(
-        "Mail settings saved. Send a test email to check the configuration.",
-      );
+      setEditing(false);
+      setNotice("Mail settings saved and locked.");
     } catch (e) {
       setError(messageFor(e));
     } finally {
       setPassword("");
-      setBusy(false);
-    }
-  }
-  async function test(event: FormEvent) {
-    event.preventDefault();
-    if (!token || !saved || dirty) return;
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await sendTestEmail(
-        token,
-        recipient.trim(),
-        saved.version,
-      );
-      setNotice(result.message);
-    } catch (e) {
-      setError(messageFor(e));
-    } finally {
-      try {
-        setSaved(await getMailSettings(token));
-      } catch {
-        /* Keep current form and safe result. */
-      }
       setBusy(false);
     }
   }
@@ -141,7 +131,7 @@ export function MailSettingsPage() {
       <PageHeader
         eyebrow="Platform Settings"
         title="Mail Settings"
-        description="Configure outgoing SelfX account emails."
+        description="Manage outgoing email, automatic templates and custom messages."
         actions={
           <Button
             variant="outline"
@@ -180,18 +170,56 @@ export function MailSettingsPage() {
           <PageSection>
             <TableContainer
               title="SMTP Configuration"
-              description="Superadmin-only settings for all outgoing platform email."
+              description="Locked by default. Changes affect every outgoing SelfX email."
             >
+              {!editing && (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setConfirmEdit(true)}
+                >
+                  Edit configuration
+                </Button>
+              )}
+              <Dialog open={confirmEdit} onOpenChange={setConfirmEdit}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit SMTP configuration?</DialogTitle>
+                    <DialogDescription>
+                      Changing these settings can interrupt account emails,
+                      purchase receipts and Store notifications. Confirm the
+                      host, credentials, sender and security mode before saving.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmEdit(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setConfirmEdit(false);
+                        setEditing(true);
+                      }}
+                    >
+                      Proceed
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <form
                 onSubmit={(event) => void save(event)}
                 className="space-y-5"
               >
-                <fieldset disabled={busy} className="space-y-5">
+                <fieldset disabled={busy || !editing} className="space-y-5">
                   <div className="flex items-center justify-between gap-4">
                     <Label htmlFor="mail-enabled">Enable outgoing email</Label>
                     <Switch
                       id="mail-enabled"
                       checked={draft.enabled}
+                      disabled={busy || !editing}
                       onCheckedChange={(value) => update("enabled", value)}
                     />
                   </div>
@@ -231,7 +259,7 @@ export function MailSettingsPage() {
                       <Label htmlFor="smtp-security">Security</Label>
                       <SelectMenu
                         id="smtp-security"
-                        disabled={busy}
+                        disabled={busy || !editing}
                         ariaLabel="SMTP security mode"
                         value={draft.security}
                         options={[
@@ -317,57 +345,44 @@ export function MailSettingsPage() {
                       />
                     </div>
                   </div>
-                  <Button type="submit" disabled={!saved.keyReady || !dirty}>
-                    {busy ? "Working…" : "Save configuration"}
-                  </Button>
+                  {editing && (
+                    <Button type="submit" disabled={!saved.keyReady || !dirty}>
+                      {busy ? "Working…" : "Save configuration"}
+                    </Button>
+                  )}
                 </fieldset>
+                {editing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      setDraft(draftFor(saved));
+                      setPassword("");
+                      setEditing(false);
+                    }}
+                  >
+                    Cancel changes
+                  </Button>
+                )}
               </form>
             </TableContainer>
           </PageSection>
-          <PageSection>
-            <TableContainer
-              title="Test Email"
-              description="Test the saved account before using password recovery. A test can be sent while outgoing email is disabled."
-            >
-              <form
-                onSubmit={(event) => void test(event)}
-                className="space-y-4"
-              >
-                <Label htmlFor="test-recipient">Recipient email</Label>
-                <Input
-                  id="test-recipient"
-                  type="email"
-                  required
-                  value={recipient}
-                  disabled={busy}
-                  onChange={(e) => setRecipient(e.target.value)}
-                />
-                {dirty ? (
-                  <p className="text-sm text-muted-foreground">
-                    Save your changes before testing.
-                  </p>
-                ) : null}
-                <Button
-                  type="submit"
-                  variant="outline"
-                  disabled={
-                    busy || dirty || !saved.keyReady || !saved.configured
-                  }
-                >
-                  Send test email
-                </Button>
-                {saved.lastTest ? (
-                  <p className="text-sm text-muted-foreground">
-                    Last test:{" "}
-                    {saved.lastTest.status === "ACCEPTED"
-                      ? "Accepted by SMTP server; check inbox/spam."
-                      : `Failed (${saved.lastTest.code ?? "SMTP_DELIVERY_FAILED"}).`}{" "}
-                    {<RegionalDateTime value={saved.lastTest.at} />}
-                  </p>
-                ) : null}
-              </form>
-            </TableContainer>
-          </PageSection>
+          {token && (
+            <PageSection>
+              <MailAutomationPanel
+                token={token}
+                version={saved.version}
+                canSend={
+                  !editing &&
+                  !busy &&
+                  saved.enabled &&
+                  saved.configured &&
+                  saved.keyReady
+                }
+              />
+            </PageSection>
+          )}
         </>
       ) : null}
     </PageContainer>

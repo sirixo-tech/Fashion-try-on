@@ -7,6 +7,7 @@ import {
 } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { inlineTryOnResult } from "../common/inline-try-on-result.js";
 import { JewelleryTryOnExecutionService } from "../try-on/jewellery/jewellery-try-on-execution.service.js";
 import { JewelleryPersonImageValidatorService } from "../try-on/jewellery/jewellery-person-image-validator.service.js";
 import type { CreateJewelleryTryOnLabRunPayload } from "./jewellery-try-on-lab-multipart.js";
@@ -88,8 +89,13 @@ export class JewelleryTryOnLabService {
             providerPredictionId,
           });
         },
-        onStatus: (status) => {
-          this.registry.update(runId, status);
+        onStatus: async (status) => {
+          this.registry.update(runId, {
+            ...status,
+            ...(status.resultImage
+              ? { resultImage: await inlineTryOnResult(status.resultImage) }
+              : {}),
+          });
         },
         onTimedOut: (completedAt) => {
           this.registry.update(runId, {

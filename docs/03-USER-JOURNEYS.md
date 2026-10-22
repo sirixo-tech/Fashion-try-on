@@ -1,5 +1,51 @@
 ## Document Evolution
 
+### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
+
+An authorized user registers the website's canonical home URL under Integrations → WooCommerce, downloads the plugin and generates a catalog-only token shown once. In WordPress, upload/activate the ZIP and connect under WooCommerce → SelfX. The plugin verifies the Store then queues initial sync. The operator checks progress/retries there and enables imported products in SelfX Products for assigned kiosks. Website edits/deletions sync in the background. Token revocation/disconnection stops access; the local WordPress disconnect retains remote catalog data. Purchase and website Try-On integration are separate follow-up work.
+
+
+### MAIL-2 — Automatic templates and controlled outgoing mail (2026-10-22)
+
+Superadmin opens Mail Settings, selects Edit configuration, confirms the impact, changes SMTP fields and saves or cancels to relock them. They select an automatic template, edit subject/body using listed variables, preview sample values and Save. Restore default changes the draft for review before saving. Custom Email can load the reusable custom draft, accept recipient/subject/message and queue a one-time send. History shows pending, skipped, failed or SMTP-accepted status. Store events send after commit; only server-verified production purchases generate paid notifications, with separate staff-review wording when stock/duplicate payment review is required.
+
+
+### ROLES-3 — Restore shared defaults and configurable Staff grants (2026-10-22)
+
+An authorized Platform role manager selects Store Staff or Store Admin, changes allowed checkboxes and saves globally. Staff can receive additional Store administration/integration permissions through this controlled workflow. Store users retain only their own memberships and cannot edit shared maps. Later revocations survive onboarding and restart.
+
+
+### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
+
+Authorized product managers open a page, edit details and size/colour combinations, optionally upload one image per colour and save. Viewers see values without mutation controls. The kiosk customer sees one product, tries it on regardless of stock, then chooses Buy This Look. Available colour/size options select the preview and unit price; unavailable combinations cannot be added. The customer can add several options/products to the session cart, review tax/total, reserve stock and scan the payment QR. Uncertain outcomes retain the same order/attempt; expired QR disappears. Verified payment displays collection guidance; PAID_REVIEW directs the customer to staff with the order reference. Ending a customer session hides purchase details while durable orders remain available to authorized Store staff.
+
+
+### PRODUCTS-RBAC-1 — Product viewing after management revocation (2026-10-21)
+
+Store Admin and Staff initially manage products. When an authorized Platform role
+manager revokes products.manage from a shared role, assigned users keep their
+permitted product viewing but no longer receive Add/Edit/Delete, status/type,
+imported eligibility, sync or stock editing controls. View Stock & Pricing opens
+a text-only summary. Refresh resolves updated permissions; a denied write also
+removes stale editing actions. Restoring the shared grant restores management.
+
+### BILLING-STORE-1 — Merchant billing usage (2026-10-21)
+
+A Store user opens Usage & Billing and sees its own account, plan, credit history,
+usage totals and Your Kiosks. There is no Top Stores comparison or AI provider
+table. Global Platform usage retains Top Stores and kiosk Store ownership;
+selecting a single Store removes the redundant comparison and ownership column.
+
+### AI-PRIVACY-1 — Usage and Try-On presentation (2026-10-21)
+
+Platform and Store users review SelfX session, generation and download totals,
+with relevant Store/kiosk/product/channel breakdowns. Neither Usage & Billing
+nor Developer / API offers an AI provider/model table. Garment and Jewellery Lab
+users receive SelfX run status/results without vendor identity. Failures provide
+SelfX retry or image guidance rather than vendor setup details. Operational staff
+investigate provider attribution through backend diagnostics. This supersedes
+older user journeys that displayed AI provider/model usage.
+
 ### APPS-1 / REGIONAL-1 — Release and account journeys (2026-10-21)
 
 Authorized Platform user opens Apps & Downloads, uploads a signed APK with release

@@ -13,6 +13,27 @@ import 'package:selfx_kiosk/src/upload/kiosk_customer_upload_controller.dart';
 import 'kiosk_camera_foundation_test.dart' as fixtures;
 
 void main() {
+  testWidgets(
+    'payment display extends idle time only to the bounded reservation and clears on reset',
+    (tester) async {
+      final h = await _harness(tester);
+      h.session.holdPurchaseDisplay(
+        const Duration(minutes: 8),
+        now: tester.binding.clock.now(),
+      );
+      await tester.pump(const Duration(seconds: 269));
+      expect(h.session.customerSessionActive, isTrue);
+      expect(find.byType(KioskInactivityWarning), findsNothing);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(KioskInactivityWarning), findsOneWidget);
+      await tester.pump(const Duration(seconds: 30));
+      await _settle(tester);
+      expect(h.session.customerSessionActive, isFalse);
+      expect(h.session.purchaseDisplayUntil, isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets('default warns at 90, counts down, and finishes once at 120', (
     tester,
   ) async {

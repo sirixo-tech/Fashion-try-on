@@ -115,29 +115,6 @@ export class UsageTotalsDto {
   successRate!: number;
 }
 
-export class UsageProviderRowDto {
-  @ApiProperty()
-  provider!: string;
-
-  @ApiPropertyOptional({ nullable: true })
-  providerModel!: string | null;
-
-  @ApiProperty()
-  runsCreated!: number;
-
-  @ApiProperty()
-  completedRuns!: number;
-
-  @ApiProperty()
-  failedRuns!: number;
-
-  @ApiProperty()
-  tryOnsGenerated!: number;
-
-  @ApiProperty()
-  downloadsCompleted!: number;
-}
-
 export class UsageStoreRowDto {
   @ApiPropertyOptional({ nullable: true })
   storeId!: string | null;
@@ -315,9 +292,6 @@ export class UsageSummaryResponseDto {
 
   @ApiProperty({ type: UsageTotalsDto })
   totals!: UsageTotalsDto;
-
-  @ApiProperty({ type: [UsageProviderRowDto] })
-  providerUsage!: UsageProviderRowDto[];
 
   @ApiProperty({ type: [UsageStoreRowDto] })
   stores!: UsageStoreRowDto[];

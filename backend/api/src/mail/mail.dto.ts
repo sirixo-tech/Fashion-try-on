@@ -6,6 +6,8 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
+  MinLength,
   Matches,
   Max,
   MaxLength,
@@ -14,6 +16,7 @@ import {
 } from "class-validator";
 
 export class SaveMailSettingsDto {
+  @IsBoolean() @IsIn([true]) editConfirmed!: boolean;
   @IsInt() @Min(0) version!: number;
   @IsBoolean() enabled!: boolean;
   @IsFQDN() @MaxLength(253) host!: string;
@@ -32,6 +35,25 @@ export class SaveMailSettingsDto {
   @NotContains(String.fromCharCode(0))
   fromName!: string;
   @IsOptional() @IsEmail() @MaxLength(320) replyTo?: string;
+}
+export class SaveMailTemplateDto {
+  @IsInt() @Min(0) version!: number;
+  @IsString()
+  @MinLength(1)
+  @MaxLength(240)
+  @Matches(/^[^\r\n\0]+$/)
+  @Matches(/\S/)
+  subject!: string;
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20000)
+  @NotContains(String.fromCharCode(0))
+  @Matches(/\S/)
+  body!: string;
+}
+export class SendCustomEmailDto extends SaveMailTemplateDto {
+  @IsEmail() @MaxLength(320) recipient!: string;
+  @IsUUID() idempotencyKey!: string;
 }
 export class SendTestEmailDto {
   @IsEmail() @MaxLength(320) recipient!: string;

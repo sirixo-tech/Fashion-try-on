@@ -607,6 +607,17 @@ export function setImportedProductsVtoEnabled(
   );
 }
 
+export function getStoreProduct(
+  accessToken: string,
+  storeId: string,
+  productId: string,
+): Promise<StoreProduct> {
+  return selfxApi(`/api/v1/admin/stores/${storeId}/products/${productId}`, {
+    accessToken,
+    cache: "no-store",
+  });
+}
+
 export function deleteStoreProduct(
   accessToken: string,
   storeId: string,

@@ -98,23 +98,6 @@ export class PublicApiUsageTotalsDto {
   downloadsCompleted!: number;
 }
 
-export class PublicApiProviderUsageRowDto {
-  @ApiProperty({ example: "fashn" })
-  provider!: string;
-
-  @ApiPropertyOptional({ nullable: true, example: "tryon-v1.6" })
-  providerModel!: string | null;
-
-  @ApiProperty({ example: 42 })
-  runsCreated!: number;
-
-  @ApiProperty({ example: 37 })
-  completedRuns!: number;
-
-  @ApiProperty({ example: 2 })
-  failedRuns!: number;
-}
-
 export class PublicApiCatalogSourceUsageRowDto {
   @ApiPropertyOptional({ enum: SELFX_CATALOG_SOURCES, nullable: true })
   catalogSource!: SelfxCatalogSource | null;
@@ -188,9 +171,6 @@ export class PublicApiUsageResponseDto {
 
   @ApiProperty({ type: PublicApiUsageTotalsDto })
   totals!: PublicApiUsageTotalsDto;
-
-  @ApiProperty({ type: [PublicApiProviderUsageRowDto] })
-  providerUsage!: PublicApiProviderUsageRowDto[];
 
   @ApiProperty({ type: [PublicApiCatalogSourceUsageRowDto] })
   catalogSourceUsage!: PublicApiCatalogSourceUsageRowDto[];

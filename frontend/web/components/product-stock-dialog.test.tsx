@@ -91,6 +91,22 @@ afterEach(() => {
 });
 
 describe("Store stock panel", () => {
+  it("shows stock and prices as text with no editing controls in view-only mode", async () => {
+    open(false);
+    await screen.findByText("M / Black");
+    expect(screen.getByText("INR 125.00")).toBeTruthy();
+    expect(screen.getByText("View only")).toBeTruthy();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(
+      screen.queryByRole("button", {
+        name: /Remove option|Add option|Save stock/,
+      }),
+    ).toBeNull();
+    expect(updateProductStock).not.toHaveBeenCalled();
+  });
+
   it("shows zero-stock options without disabling Try-On and saves precise variant quantities/prices", async () => {
     open();
     await screen.findByLabelText("Stock quantity 1");
@@ -217,17 +233,24 @@ describe("Store stock panel", () => {
       ).toBe("3"),
     );
   });
-  it("allows read-only inspection without exposing a Save action", async () => {
-    open(false);
+  it("removes an open editor when management permission is revoked", async () => {
+    const view = open();
     await screen.findByLabelText("Stock quantity 1");
+    view.rerender(
+      <ProductStockDialog
+        accessToken="identity"
+        storeId="store-a"
+        product={{ id: "product-a", name: "Shirt" }}
+        canEdit={false}
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("M / Black");
     expect(
       screen.queryByRole("button", { name: "Save stock & pricing" }),
     ).toBeNull();
-    expect(
-      (screen.getByLabelText("Stock quantity 1") as HTMLInputElement).closest(
-        "fieldset",
-      )?.disabled,
-    ).toBe(true);
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
   it("shows an imported-product explanation without editing controls", async () => {
     vi.mocked(getProductStock).mockRejectedValue(

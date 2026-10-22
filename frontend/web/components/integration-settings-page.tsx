@@ -33,6 +33,7 @@ import {
   PageHeader,
   PageSection,
   StatusBadge,
+  SelectMenu,
   TableContainer,
 } from "@selfx/ui";
 
@@ -52,6 +53,7 @@ import {
   type StoreIntegration,
 } from "@/lib/integrations";
 import { useSession } from "@/lib/session";
+import { WooCommercePluginConnection } from "@/components/woocommerce-plugin-connection";
 import {
   getStoreCreditDiagnostics,
   getEffectiveStorePermissions,
@@ -123,9 +125,8 @@ export function IntegrationSettingsPage({
   const selectedStoreName =
     storeOptions.find((store) => store.id === selectedStoreId)?.name ?? "";
   const shopifyUsage =
-    creditDiagnostics?.byChannel.find(
-      (channel) => channel.channel === "SHOPIFY",
-    )?.consumedCredits ?? 0;
+    creditDiagnostics?.byChannel.find((channel) => channel.channel === type)
+      ?.consumedCredits ?? 0;
   const totalConsumed = creditDiagnostics?.totals.consumedCredits ?? 0;
   const topShopifyProduct = creditDiagnostics?.topProducts[0] ?? null;
   const showShopifyPlatformOverview =
@@ -413,6 +414,26 @@ export function IntegrationSettingsPage({
         </PageSection>
       ) : null}
 
+      {type === "WOOCOMMERCE" && hasPlatformIntegrationAccess ? (
+        <PageSection>
+          <label className="block max-w-md space-y-2 text-sm">
+            <span>Store</span>
+            <SelectMenu
+              ariaLabel="Store"
+              value={selectedStoreId}
+              onChange={(value) => {
+                setIntegration(null);
+                setSelectedStoreId(value);
+              }}
+              options={storeOptions.map((store) => ({
+                value: store.id,
+                label: store.name,
+              }))}
+            />
+          </label>
+        </PageSection>
+      ) : null}
+
       {showShopifyPlatformOverview ? (
         <ShopifyPlatformOverview
           activeCount={overviewActiveCount}
@@ -438,7 +459,10 @@ export function IntegrationSettingsPage({
                     : "Loading"
                 }
               />
-              <SummaryTile label="Shopify Used" value={String(shopifyUsage)} />
+              <SummaryTile
+                label={`${title} Used`}
+                value={String(shopifyUsage)}
+              />
               <SummaryTile label="Total Used" value={String(totalConsumed)} />
             </div>
           </PageSection>
@@ -522,7 +546,7 @@ export function IntegrationSettingsPage({
                         : "Register the commerce connection to start syncing catalog and Try-On usage."}
                     </p>
                     <div className="rounded-lg border bg-muted/25 p-3 text-sm text-muted-foreground">
-                      SelfX will use your active workspace automatically.
+                      SelfX will use the selected Store.
                       {selectedStoreName
                         ? ` Workspace: ${selectedStoreName}.`
                         : ""}
@@ -564,14 +588,43 @@ export function IntegrationSettingsPage({
                     </div>
                   </div>
                   <div className="rounded-lg border bg-muted/25 p-3 text-sm leading-6 text-muted-foreground">
-                    Product images and Try-On enablement are controlled inside
-                    Shopify. This dashboard shows connection health, credits and
-                    diagnostics.
+                    {type === "SHOPIFY"
+                      ? "Product images and Try-On enablement are controlled inside Shopify. This dashboard shows connection health, credits and diagnostics."
+                      : "WooCommerce controls source product details. SelfX Products controls Try-On eligibility for the Store's kiosks. Sync progress is shown in WooCommerce → SelfX."}
                   </div>
                 </div>
               </TableContainer>
             </div>
           </PageSection>
+          {type === "WOOCOMMERCE" &&
+          accessToken &&
+          integration &&
+          integration.storeId === selectedStoreId &&
+          !loading ? (
+            <PageSection>
+              <WooCommercePluginConnection
+                key={integration.id}
+                accessToken={accessToken}
+                integration={integration}
+                canManage={canManageSelectedIntegration}
+                onCredential={(credential) =>
+                  setIntegration((current) =>
+                    current?.id === credential.integrationId
+                      ? {
+                          ...current,
+                          credentials: [
+                            credential,
+                            ...current.credentials.filter(
+                              (item) => item.id !== credential.id,
+                            ),
+                          ],
+                        }
+                      : current,
+                  )
+                }
+              />
+            </PageSection>
+          ) : null}
         </>
       )}
 

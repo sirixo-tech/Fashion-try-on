@@ -449,6 +449,51 @@ describe("IntegrationCatalogSyncService", () => {
     expect(tx.product.update).not.toHaveBeenCalled();
   });
 
+  it("keeps the latest observation when an older full scan revisits a product", async () => {
+    const tx = createTransaction();
+    const latest = new Date("2026-09-07T11:00:00.000Z");
+    tx.externalProductMapping.findFirst.mockResolvedValue({
+      id: "mapping-1",
+      productId: "selfx-product-1",
+      externalProductId: productInput.externalProductId,
+      externalUpdatedAt: latest,
+      lastSeenAt: latest,
+    });
+    const result = await createService(tx).sync(credential, {
+      mode: "FULL",
+      sourceSnapshotAt: "2026-09-07T09:00:00.000Z",
+      finalize: false,
+      products: [productInput],
+    });
+    expect(result.ignoredAsStale).toBe(1);
+    expect(tx.externalProductMapping.update).toHaveBeenCalledWith({
+      where: { id: "mapping-1" },
+      data: { lastSeenAt: latest },
+    });
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
+  it("does not archive a product updated after a full scan started", async () => {
+    const tx = createTransaction();
+    tx.externalProductMapping.findMany.mockResolvedValue([
+      {
+        id: "mapping-1",
+        productId: "selfx-product-1",
+        externalProductId: "newer-product",
+        lastSeenAt: new Date("2026-09-07T08:00:00.000Z"),
+        externalUpdatedAt: new Date("2026-09-07T10:00:00.000Z"),
+      },
+    ]);
+    const result = await createService(tx).sync(credential, {
+      mode: "FULL",
+      sourceSnapshotAt: "2026-09-07T09:00:00.000Z",
+      finalize: true,
+      products: [],
+    });
+    expect(result.archived).toBe(0);
+    expect(tx.product.update).not.toHaveBeenCalled();
+  });
+
   it("archives every local product reference when an integration is removed", async () => {
     const tx = createTransaction();
     tx.externalProductMapping.findMany.mockResolvedValue([
@@ -869,6 +914,7 @@ function createService(tx: ReturnType<typeof createTransaction>) {
 
 function createTransaction() {
   return {
+    $executeRaw: vi.fn().mockResolvedValue(0),
     integration: {
       findFirst: vi.fn().mockResolvedValue({
         metadata: { tryOnMode: "BOTH" },

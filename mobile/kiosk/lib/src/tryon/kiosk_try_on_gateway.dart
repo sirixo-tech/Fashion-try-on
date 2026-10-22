@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../shopping/kiosk_shopping_gateway.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -58,7 +59,10 @@ class KioskTryOnApiConfig {
 }
 
 class SelfxKioskTryOnGateway
-    implements KioskTryOnGateway, KioskTryOnSessionGateway {
+    implements
+        KioskTryOnGateway,
+        KioskTryOnSessionGateway,
+        KioskShoppingGatewayOwner {
   SelfxKioskTryOnGateway({
     required this.config,
     required this.deviceController,
@@ -70,6 +74,12 @@ class SelfxKioskTryOnGateway
   final KioskDeviceSessionController deviceController;
   final http.Client client;
   final Duration timeout;
+  @override
+  KioskShoppingGateway get shopping => SelfxKioskShoppingGateway(
+    baseUrl: config.apiBaseUrl,
+    deviceController: deviceController,
+    client: client,
+  );
 
   @override
   Future<KioskTryOnSession> createTryOnSession() async {

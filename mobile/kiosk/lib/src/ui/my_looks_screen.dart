@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../shopping/kiosk_purchase_screen.dart';
 
 import 'package:flutter/material.dart';
 
@@ -293,6 +294,18 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
                     : null,
                 lookLabel: _lookLabel,
                 onSelected: (value) => setState(() => _index = value),
+                onBuy: () {
+                  final looks = widget.tryOnController.looks;
+                  if (looks.isNotEmpty) {
+                    unawaited(
+                      openKioskPurchase(
+                        context,
+                        widget.tryOnController,
+                        looks[_index.clamp(0, looks.length - 1)].productId,
+                      ),
+                    );
+                  }
+                },
                 onClose: () => Navigator.of(context).pop(),
                 onRetry: () => unawaited(_refreshLooks()),
                 onDownload: () => unawaited(_downloadLooks(context)),
@@ -500,6 +513,7 @@ class _LooksBottomSheetContent extends StatelessWidget {
     required this.fallbackImage,
     required this.lookLabel,
     required this.onSelected,
+    this.onBuy,
     required this.onClose,
     required this.onRetry,
     required this.onDownload,
@@ -514,6 +528,7 @@ class _LooksBottomSheetContent extends StatelessWidget {
   final String? fallbackImage;
   final String Function(KioskTryOnLook, int) lookLabel;
   final ValueChanged<int> onSelected;
+  final VoidCallback? onBuy;
   final VoidCallback onClose;
   final VoidCallback onRetry;
   final VoidCallback onDownload;
@@ -736,7 +751,7 @@ class _LooksBottomSheetContent extends StatelessWidget {
                   key: const Key('buy-this-look'),
                   label: 'Buy This Look',
                   icon: Icons.shopping_bag_outlined,
-                  onPressed: null,
+                  onPressed: onBuy,
                   minHeight: 54,
                   borderRadius: 12,
                   mainAxisAlignment: MainAxisAlignment.center,

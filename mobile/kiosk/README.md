@@ -515,3 +515,21 @@ approved. Limit the smoke test to one paid generation.
   background people when that phase is implemented.
 - Android box + USB webcam live-readiness behavior remains hardware verification
   pending until the certified SelfX kiosk hardware is tested.
+
+## Product options and kiosk purchases (SHOPPING-3)
+
+Buy This Look uses SelfX device-authenticated shopping routes for native Store
+products. It displays available size/colour combinations, optional colour images,
+quantity, a session cart and verified payment status. Imported shop stock remains
+externally managed. Production checkout requires the server's separate
+`SELFX_PHONEPE_CHECKOUT_ENABLED` switch, a selected confirmed Store account and
+Platform gateway availability; APK installation cannot enable it.
+
+Development builds may use `flutter build apk --debug`. Release builds require
+`android/key.properties` with the existing production signing identity; see
+`android/key.properties.example`. Signing files are ignored. Release mode no
+longer silently uses the debug key. Use a monotonically increasing build number,
+inspect split APK version codes, and complete certified-device/payment acceptance
+before publishing through Apps & Downloads. See
+`../../docs/PRODUCTS-EDITOR-1-SHOPPING-3-IMPLEMENTATION-REPORT.md` for deployment
+steps and current validation limits.

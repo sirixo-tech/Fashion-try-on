@@ -7,6 +7,7 @@ import {
 } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { inlineTryOnResult } from "../common/inline-try-on-result.js";
 import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import type { CreateTryOnLabRunPayload } from "./try-on-lab-multipart.js";
 import { TryOnLabRunRegistryService } from "./try-on-lab-run-registry.service.js";
@@ -76,8 +77,7 @@ export class TryOnLabService {
         this.registry.update(runId, {
           garmentPreprocessingEnabled: metadata.enabled,
           garmentPreprocessingStatus: metadata.status,
-          garmentPreprocessingProviderInputImage:
-            metadata.providerInputImage,
+          garmentPreprocessingProviderInputImage: metadata.providerInputImage,
           garmentPreprocessingMaskGenerated: metadata.maskGenerated,
           garmentPreprocessingFallbackReason: metadata.fallbackReason,
         });
@@ -88,8 +88,13 @@ export class TryOnLabService {
           providerPredictionId,
         });
       },
-      onStatus: (status) => {
-        this.registry.update(runId, status);
+      onStatus: async (status) => {
+        this.registry.update(runId, {
+          ...status,
+          ...(status.resultImage
+            ? { resultImage: await inlineTryOnResult(status.resultImage) }
+            : {}),
+        });
       },
       onTimedOut: (completedAt) => {
         this.registry.update(runId, {

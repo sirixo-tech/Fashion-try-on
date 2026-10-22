@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Optional } from "@nestjs/common";
+import { MailAutomationService } from "../mail/mail-automation.service.js";
 import { paymentCallbackOrigin } from "./payment-execution-utils.js";
 import { Prisma, type ShoppingPaymentAttempt } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
@@ -11,7 +12,11 @@ import {
 import { reservedQuantities } from "../commerce/stock-reservations.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { PhonePeTransport } from "./phonepe.transport.js";
-import { attemptAdapter } from "./payment-snapshots.js";
+import { attemptAdapter, decryptPaymentSnapshot } from "./payment-snapshots.js";
+import { encryptProviderSecret } from "../integrations/provider-secret-cipher.js";
+import { paymentEncryptionKey } from "./payment-settings.service.js";
+import { phonePeProductionBase } from "./phonepe-endpoints.js";
+import type { PhonePeDqrCredentials } from "./phonepe-dqr.adapter.js";
 import type { ProviderPaymentStatus } from "./payment-adapter.js";
 import { paymentSummary } from "./payment-response.js";
 const activeStatuses = ["PREPARING", "PENDING", "UNKNOWN"];
@@ -25,6 +30,19 @@ const expected = (row: ShoppingPaymentAttempt) => ({
 
 @Injectable()
 export class OrderPaymentsService {
+  private transportContext(attempt: ShoppingPaymentAttempt) {
+    return {
+      purpose: "CHECKOUT" as const,
+      environment:
+        attempt.environment === "PRODUCTION"
+          ? ("PRODUCTION" as const)
+          : ("UAT" as const),
+      productionBase:
+        attempt.environment === "PRODUCTION"
+          ? decryptPaymentSnapshot<PhonePeDqrCredentials>(attempt).apiBaseUrl
+          : undefined,
+    };
+  }
   private readonly buckets = new Map<
     string,
     { count: number; deadline: number }
@@ -33,6 +51,7 @@ export class OrderPaymentsService {
     private readonly prisma: PrismaService,
     private readonly commerce: CommerceService,
     private readonly transport: PhonePeTransport,
+    @Optional() private readonly mail?: MailAutomationService,
   ) {}
 
   async start(
@@ -87,11 +106,6 @@ export class OrderPaymentsService {
             "PAYMENT_CONFIRMATION_PENDING",
             "A success notification still needs verification. Check the existing payment instead of retrying.",
           );
-        if (process.env.SELFX_PHONEPE_UAT_ENABLED !== "true")
-          fail(
-            "PAYMENT_NOT_ENABLED",
-            "PhonePe test payments have not been enabled by SelfX.",
-          );
         paymentCallbackOrigin();
         if (
           (await tx.shoppingPaymentAttempt.count({ where: { orderId } })) >= 10
@@ -119,13 +133,39 @@ export class OrderPaymentsService {
           settings?.selectedProvider !== "PHONEPE" ||
           !policies[0]?.enabled ||
           !connection ||
-          connection.environment !== "UAT" ||
+          !["UAT", "PRODUCTION"].includes(connection.environment) ||
           !connection.dqrAccessConfirmed
         )
           fail(
             "PAYMENT_ACCOUNT_UNCONFIRMED",
-            "Confirm the Store's UAT Dynamic QR access and select PhonePe before testing payments.",
+            "Select and configure the Store's PhonePe Dynamic QR account before purchasing.",
           );
+        const production = connection.environment === "PRODUCTION";
+        if (
+          process.env[
+            production
+              ? "SELFX_PHONEPE_CHECKOUT_ENABLED"
+              : "SELFX_PHONEPE_UAT_ENABLED"
+          ] !== "true"
+        )
+          fail(
+            "PAYMENT_NOT_ENABLED",
+            "Payments are not enabled for this Store account's environment. Please contact Store staff.",
+          );
+        const snapshot = production
+          ? encryptProviderSecret(
+              {
+                ...decryptPaymentSnapshot<
+                  PhonePeDqrCredentials & {
+                    organizationId: string;
+                    provider: string;
+                  }
+                >(connection),
+                apiBaseUrl: phonePeProductionBase(),
+              },
+              paymentEncryptionKey().key,
+            )
+          : connection;
         const id = createSelfxId(),
           now = new Date();
         const attempt = await tx.shoppingPaymentAttempt.create({
@@ -134,17 +174,19 @@ export class OrderPaymentsService {
             organizationId: order.organizationId,
             orderId,
             provider: "PHONEPE",
-            environment: "UAT",
+            environment: connection.environment,
             transactionId: `PX${id.replaceAll("-", "")}`,
             keyDigest: digest(idempotencyKey),
             status: "PREPARING",
             amountMinor: current.totalCents,
             currency: current.currency,
             connectionId: connection.id,
-            encryptedPayload: connection.encryptedPayload,
-            initializationVector: connection.initializationVector,
-            authenticationTag: connection.authenticationTag,
-            keyVersion: connection.keyVersion,
+            encryptedPayload: snapshot.encryptedPayload,
+            initializationVector: snapshot.initializationVector,
+            authenticationTag: snapshot.authenticationTag,
+            keyVersion: production
+              ? paymentEncryptionKey().version
+              : connection.keyVersion,
             expiresAt: current.expiresAt,
             leaseUntil: new Date(now.getTime() + 30000),
             nextCheckAt: new Date(now.getTime() + 30000),
@@ -180,6 +222,7 @@ export class OrderPaymentsService {
             `${paymentCallbackOrigin()}/api/v1/payments/phonepe/${result.attempt.id}/callback`,
             seconds,
           ),
+          this.transportContext(result.attempt),
         );
         const qr = adapter.parseQr(response, expected(result.attempt));
         await this.prisma.shoppingPaymentAttempt.updateMany({
@@ -235,7 +278,7 @@ export class OrderPaymentsService {
         row.expiresAt > new Date()
           ? row.qrString
           : null,
-      testOnly: true as const,
+      testOnly: row.environment === "UAT",
       serverTime: new Date().toISOString(),
     };
   }
@@ -330,7 +373,10 @@ export class OrderPaymentsService {
     try {
       const adapter = attemptAdapter(row);
       status = adapter.parseStatus(
-        await this.transport.send(adapter.statusRequest(expected(row))),
+        await this.transport.send(
+          adapter.statusRequest(expected(row)),
+          this.transportContext(row),
+        ),
         expected(row),
       );
     } catch {
@@ -546,6 +592,18 @@ export class OrderPaymentsService {
               actorUserId,
             );
           }
+          if (attempt.environment === "PRODUCTION")
+            await this.mail?.purchase(
+              tx,
+              order.id,
+              !!order.paidAt ||
+                !(
+                  await tx.shoppingOrder.findUniqueOrThrow({
+                    where: { id: order.id },
+                    select: { stockAllocatedAt: true },
+                  })
+                ).stockAllocatedAt,
+            );
         } else if (!order.paidAt && order.status === "PAYMENT_PENDING") {
           const other = await tx.shoppingPaymentAttempt.count({
             where: { orderId: order.id, status: { in: activeStatuses } },

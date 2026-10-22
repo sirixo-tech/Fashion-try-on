@@ -88,7 +88,7 @@ const DEFAULT_ROLE_DEFINITIONS = [
     systemCode: "staff",
     name: "Staff",
     description:
-      "Daily products, stock, kiosk and analytics operations without user or role administration.",
+      "Store permissions configured by authorized Platform role managers.",
   },
 ] as const;
 

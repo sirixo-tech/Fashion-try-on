@@ -731,9 +731,8 @@ describe("TryOnLabClient", () => {
 
     renderWithUi(<TryOnLabClient />);
     await chooseImages("Score 100/100");
-    const garmentInput = document.querySelectorAll<HTMLInputElement>(
-      'input[type="file"]',
-    )[1]!;
+    const garmentInput =
+      document.querySelectorAll<HTMLInputElement>('input[type="file"]')[1]!;
     const filePickerClick = vi
       .spyOn(garmentInput, "click")
       .mockImplementation(() => {});
@@ -921,9 +920,6 @@ function completedResponseBase(): TryOnLabRunResponse {
     telemetry: {
       selfxRunId: "0198a9b3-d0bc-7000-8000-000000000001",
       channel: "WEB_LAB",
-      provider: "fashn",
-      providerDisplayName: "FASHN",
-      model: "tryon-v1.6",
       profile: "BALANCED",
       garmentSource: "DIRECT_UPLOAD",
       garmentIntent: "TOP",

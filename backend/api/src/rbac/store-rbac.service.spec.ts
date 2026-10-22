@@ -156,6 +156,55 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
   const request = { headers: { authorization: "Bearer test" } } as never;
   const denied = { response: { error: { code: "ROLE_MANAGEMENT_DENIED" } } };
 
+  it.each(["store-admin", "staff"])(
+    "defaults %s to product management and preserves global revocation",
+    async (roleCode) => {
+      const definition = baseline.find((role) => role.systemCode === roleCode)!;
+      expect(
+        definition.permissions.map((entry) => entry.permission.code),
+      ).toContain("products.manage");
+      const actor = await user(true),
+        a = await store(),
+        b = await store(),
+        operator = await user();
+      await member(operator, a, roleCode);
+      await member(operator, b, roleCode);
+      for (const tenant of [a, b])
+        await expect(
+          rbac.requireStoreResourcePermission(
+            operator,
+            tenant,
+            "products.manage",
+          ),
+        ).resolves.toBeUndefined();
+      await save(
+        actor,
+        roleCode,
+        definition.permissions
+          .map((entry) => entry.permission.code)
+          .filter((code) => code !== "products.manage"),
+      );
+      const future = await store();
+      await member(operator, future, roleCode);
+      const fresh = new StoreRbacService(db as PrismaService);
+      for (const tenant of [a, b, future]) {
+        await fresh.ensureStoreRbac(tenant);
+        await expect(
+          fresh.requireStoreResourcePermission(
+            operator,
+            tenant,
+            "products.manage",
+          ),
+        ).rejects.toMatchObject({
+          response: { error: { code: "STORE_PERMISSION_DENIED" } },
+        });
+        await expect(
+          fresh.requireStoreResourcePermission(operator, tenant, "stores.view"),
+        ).resolves.toBeUndefined();
+      }
+    },
+  );
+
   it("retires stored Developer API grants from Store roles, runtime permissions and permission lists", async () => {
     const actor = await user(true),
       tenant = await store(),
@@ -335,7 +384,9 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
         permissionCodes: ["STORE_ROLES_MANAGE"],
       });
       expect((await global.workspace(actor)).canEdit).toBe(true);
-      await expect(save(actor, "staff", [])).resolves.toMatchObject({
+      await expect(
+        save(actor, "staff", ["users.update", "roles.assign"]),
+      ).resolves.toMatchObject({
         canEdit: true,
       });
     } finally {
@@ -345,14 +396,42 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
     }
   }, 20000);
 
-  it("rejects platform codes, forbidden Staff administration, unknown roles, and removal of essential Admin permissions", async () => {
+  it("allows Platform-managed Staff administration grants across Stores and preserves revocation", async () => {
+    const actor = await user(true),
+      operator = await user(),
+      a = await store(),
+      b = await store();
+    await member(operator, a);
+    await member(operator, b);
+    const codes = [
+      "stores.view",
+      "users.update",
+      "roles.assign",
+      "integrations.manage",
+    ];
+    const workspace = await save(actor, "staff", codes);
+    expect(workspace.staffAssignableCodes).toEqual(
+      workspace.permissions.map((p) => p.code),
+    );
+    for (const tenant of [a, b]) {
+      expect(
+        (await rbac.effectivePermissions(operator, tenant, false)).permissions,
+      ).toEqual([...codes].sort());
+    }
+    // Store roles never gain authority to edit the shared maps themselves.
+    await expect(save(operator, "staff", codes)).rejects.toMatchObject(denied);
+    await save(actor, "staff", ["stores.view"]);
+    const future = await store();
+    await member(operator, future);
+    for (const tenant of [a, b, future]) {
+      expect(
+        (await rbac.effectivePermissions(operator, tenant, false)).permissions,
+      ).toEqual(["stores.view"]);
+    }
+  });
+
+  it("rejects platform codes, unknown roles, and removal of essential Admin permissions", async () => {
     const actor = await user(true);
-    for (const codes of [
-      ["users.update"],
-      ["roles.assign"],
-      ["integrations.manage"],
-    ])
-      await expect(save(actor, "staff", codes)).rejects.toMatchObject(denied);
     await expect(
       save(actor, "staff", ["PERMISSIONS_MANAGE"]),
     ).rejects.toMatchObject({

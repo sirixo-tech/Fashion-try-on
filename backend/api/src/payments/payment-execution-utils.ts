@@ -19,7 +19,7 @@ export function paymentCallbackOrigin() {
     throw new ApiErrorException(
       HttpStatus.CONFLICT,
       "PAYMENT_CALLBACK_UNCONFIGURED",
-      "SelfX must configure a secure payment callback address before testing.",
+      "SelfX must configure a secure payment callback address before accepting payments.",
     );
   }
 }

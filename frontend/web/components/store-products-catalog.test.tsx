@@ -11,10 +11,12 @@ import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import {
   getStore,
   getEffectiveStorePermissions,
+  requestStoreCatalogSync,
   listStoreProducts,
   type StoreProduct,
 } from "@/lib/stores";
 import { getPlatformVirtualTryOnSettings } from "@/lib/platform-settings";
+import { SafeApiError } from "@/lib/api";
 
 const state = vi.hoisted(() => ({ pathname: "/app/products/garments" }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
@@ -33,6 +35,7 @@ vi.mock("@/lib/stores", async (original) => ({
   getStore: vi.fn(),
   getEffectiveStorePermissions: vi.fn(),
   listStoreProducts: vi.fn(),
+  requestStoreCatalogSync: vi.fn(),
 }));
 const permissions = {
   storeId: "store-a",
@@ -107,9 +110,9 @@ it("shows migrated Store products and editing controls without platform settings
     expect.objectContaining({ productVertical: "GARMENT" }),
   );
   expect(
-    (screen.getByRole("button", { name: "Add Garment" }) as HTMLButtonElement)
+    (screen.getByRole("link", { name: "Add Garment" }) as HTMLButtonElement)
       .disabled,
-  ).toBe(false);
+  ).toBe(undefined);
   expect(
     screen.getByRole("link", { name: "Dashboard" }).getAttribute("href"),
   ).toBe("/app/dashboard");
@@ -130,9 +133,9 @@ it("keeps an empty catalog usable so the Store can add its first product", async
   render(<ProductsPage />);
   expect(await screen.findByText("No garments match this view.")).toBeTruthy();
   expect(
-    (screen.getByRole("button", { name: "Add Garment" }) as HTMLButtonElement)
+    (screen.getByRole("link", { name: "Add Garment" }) as HTMLButtonElement)
       .disabled,
-  ).toBe(false);
+  ).toBe(undefined);
 });
 it("opens the jewellery sidebar destination with the jewellery filter", async () => {
   state.pathname = "/app/products/jewellery";
@@ -144,9 +147,9 @@ it("opens the jewellery sidebar destination with the jewellery filter", async ()
       expect.objectContaining({ productVertical: "JEWELLERY" }),
     ),
   );
-  expect(screen.getByRole("button", { name: "Add Jewellery" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Add Jewellery" })).toBeTruthy();
 });
-it("keeps read access separate from editing permissions", async () => {
+it("hides mutation controls while retaining product viewing when management is revoked", async () => {
   vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
     ...permissions,
     permissions: ["stores.view"],
@@ -154,9 +157,81 @@ it("keeps read access separate from editing permissions", async () => {
   render(<ProductsPage />);
   expect(await screen.findByText("Migrated shirt")).toBeTruthy();
   expect(
-    (screen.getByRole("button", { name: "Add Garment" }) as HTMLButtonElement)
-      .disabled,
-  ).toBe(true);
+    screen.queryByRole("button", {
+      name: /Add Garment|^Edit$|Delete|Sync to Kiosks|Enable Imported|Disable Imported/,
+    }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("combobox", { name: /Change garment type/ }),
+  ).toBeNull();
+  expect(screen.queryByRole("switch")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "View Stock & Pricing" }),
+  ).toBeTruthy();
+  expect(screen.getByText("Tops")).toBeTruthy();
+});
+
+it("hides jewellery type editing with the same permission rule", async () => {
+  state.pathname = "/app/products/jewellery";
+  vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
+    ...permissions,
+    permissions: ["stores.view"],
+  });
+  vi.mocked(listStoreProducts).mockResolvedValue({
+    data: [{ ...product, productVertical: "JEWELLERY", jewelleryType: "RING" }],
+    defaultCurrency: "INR",
+    pagination: {
+      page: 1,
+      pageSize: 25,
+      total: 1,
+      totalPages: 1,
+      hasMore: false,
+    },
+  });
+  render(<ProductsPage />);
+  await screen.findByText("Migrated shirt");
+  expect(screen.getByText("Rings")).toBeTruthy();
+  expect(
+    screen.queryByRole("combobox", { name: /Change jewellery type/ }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: /Add Jewellery|^Edit$|Delete/ }),
+  ).toBeNull();
+});
+
+it("removes editing controls after a permission refresh and restores them only after a grant", async () => {
+  render(<ProductsPage />);
+  await screen.findByText("Migrated shirt");
+  expect(screen.getByRole("link", { name: "Edit" })).toBeTruthy();
+  vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
+    ...permissions,
+    permissions: ["stores.view"],
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("link", { name: "Edit" })).toBeNull(),
+  );
+  expect(
+    screen.getByRole("button", { name: "View Stock & Pricing" }),
+  ).toBeTruthy();
+  vi.mocked(getEffectiveStorePermissions).mockResolvedValue(permissions);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await screen.findByRole("link", { name: "Edit" });
+});
+
+it("hides stale mutation actions when the server denies a write after revocation", async () => {
+  vi.mocked(requestStoreCatalogSync).mockRejectedValue(
+    new SafeApiError("STORE_PERMISSION_DENIED", "Denied", 403),
+  );
+  render(<ProductsPage />);
+  await screen.findByText("Migrated shirt");
+  fireEvent.click(screen.getByRole("button", { name: "Sync to Kiosks" }));
+  await screen.findByText(/Product editing is no longer permitted/);
+  expect(
+    screen.queryByRole("button", {
+      name: /Add Garment|^Edit$|Delete|Sync to Kiosks/,
+    }),
+  ).toBeNull();
 });
 it("does not load any catalog when no Store is selected", async () => {
   vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({

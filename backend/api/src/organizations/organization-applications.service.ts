@@ -1,4 +1,5 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Optional } from "@nestjs/common";
+import { MailAutomationService } from "../mail/mail-automation.service.js";
 import {
   ActivationRequirementStatus,
   MembershipStatus,
@@ -48,6 +49,7 @@ export class OrganizationApplicationsService {
     private readonly prisma: PrismaService,
     private readonly platformAuthorization: PlatformAuthorizationService,
     private readonly entitlements: EntitlementsService,
+    @Optional() private readonly mail?: MailAutomationService,
   ) {}
 
   async createDraft(
@@ -105,6 +107,12 @@ export class OrganizationApplicationsService {
         metadata: { status: OrganizationApplicationStatus.DRAFT },
       });
 
+      await this.mail?.storeEvent(
+        tx,
+        "STORE_CREATED",
+        organizationId,
+        organizationId,
+      );
       return created;
     });
 
@@ -473,6 +481,12 @@ export class OrganizationApplicationsService {
         },
       });
 
+      await this.mail?.storeEvent(
+        tx,
+        "STORE_REACTIVATED",
+        organizationId,
+        `activation:${approvedApplication.id}`,
+      );
       return tx.organizationApplication.findUniqueOrThrow({
         where: { id: approvedApplication.id },
         include: applicationInclude(),
@@ -491,11 +505,30 @@ export class OrganizationApplicationsService {
       PLATFORM_PERMISSIONS.organizationSuspend,
     );
 
-    const organization = await this.prisma.organization.update({
-      where: { id: organizationId },
-      data: { status: OrganizationStatus.SUSPENDED },
-      select: { id: true, status: true },
-    });
+    const organization = this.mail
+      ? await this.prisma.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM organizations WHERE id=${organizationId}::uuid FOR UPDATE`;
+          const previous = await tx.organization.findUniqueOrThrow({
+            where: { id: organizationId },
+          });
+          const updated = await tx.organization.update({
+            where: { id: organizationId },
+            data: { status: OrganizationStatus.SUSPENDED },
+          });
+          if (previous.status !== updated.status)
+            await this.mail!.storeEvent(
+              tx,
+              "STORE_SUSPENDED",
+              organizationId,
+              `${organizationId}:${updated.updatedAt.toISOString()}`,
+            );
+          return { id: updated.id, status: updated.status };
+        })
+      : await this.prisma.organization.update({
+          where: { id: organizationId },
+          data: { status: OrganizationStatus.SUSPENDED },
+          select: { id: true, status: true },
+        });
 
     await createAudit(this.prisma, {
       action: ORGANIZATION_AUDIT_ACTIONS.organizationSuspended,
@@ -622,6 +655,18 @@ export class OrganizationApplicationsService {
         metadata: { from: application.status, to },
       });
 
+      if (
+        to === OrganizationApplicationStatus.APPROVED ||
+        to === OrganizationApplicationStatus.REJECTED
+      )
+        await this.mail?.storeEvent(
+          tx,
+          to === OrganizationApplicationStatus.APPROVED
+            ? "STORE_APPROVED"
+            : "STORE_REJECTED",
+          updated.organizationId,
+          `${applicationId}:${to}`,
+        );
       return updated;
     });
   }

@@ -13,7 +13,7 @@ describe("PublicApiUsageService", () => {
     vi.useRealTimers();
   });
 
-  it("returns current API key usage totals and provider rows", async () => {
+  it("returns scoped API key usage totals without provider details", async () => {
     const prisma = new FakePrisma(
       [
         run({ status: "QUEUED" }),
@@ -71,22 +71,6 @@ describe("PublicApiUsageService", () => {
         generatedLooks: 1,
         downloadsCompleted: 2,
       },
-      providerUsage: [
-        {
-          provider: "fashn",
-          providerModel: "tryon-v1.6",
-          runsCreated: 3,
-          completedRuns: 1,
-          failedRuns: 0,
-        },
-        {
-          provider: "google",
-          providerModel: "vto-1",
-          runsCreated: 1,
-          completedRuns: 0,
-          failedRuns: 1,
-        },
-      ],
       catalogSourceUsage: [
         {
           catalogSource: null,
@@ -122,6 +106,10 @@ describe("PublicApiUsageService", () => {
         },
       ],
     });
+    expect(response).not.toHaveProperty("providerUsage");
+    expect(JSON.stringify(response)).not.toMatch(
+      /fashn|google|tryon-v1.6|vto-1/i,
+    );
   });
 
   it("filters usage by catalog source and product text", async () => {

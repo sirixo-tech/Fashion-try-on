@@ -53,6 +53,13 @@ export class ProductStockVariantInputDto {
 }
 
 export class UpdateProductStockDto {
+  @ApiPropertyOptional({ type: () => [ProductColorImageDto], maxItems: 100 })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ProductColorImageDto)
+  colorImages?: ProductColorImageDto[];
   @ApiPropertyOptional({
     nullable: true,
     description:
@@ -94,6 +101,20 @@ export class UpdateProductStockDto {
   reason!: string;
 }
 
+export class ProductColorImageDto {
+  @ApiProperty() @IsString() @MaxLength(80) color!: string;
+  @ApiProperty() @IsString() @MaxLength(512) storageKey!: string;
+  @ApiProperty()
+  @IsIn(["image/jpeg", "image/png", "image/webp"])
+  contentType!: string;
+  @ApiProperty() @IsInt() @Min(1) @Max(10000) width!: number;
+  @ApiProperty() @IsInt() @Min(1) @Max(10000) height!: number;
+}
+
+export class ProductColorImageResponseDto extends ProductColorImageDto {
+  @ApiProperty({ nullable: true, type: String }) url!: string | null;
+}
+
 export class ProductStockVariantDto {
   @ApiProperty() reservedStockQuantity!: number;
   @ApiProperty() availableStockQuantity!: number;
@@ -106,6 +127,11 @@ export class ProductStockVariantDto {
 }
 
 export class ProductStockDto {
+  @ApiProperty() productName!: string;
+  @ApiProperty({ nullable: true }) imageUrl!: string | null;
+  @ApiPropertyOptional() storeName?: string;
+  @ApiProperty({ type: [ProductColorImageResponseDto] })
+  colorImages!: ProductColorImageResponseDto[];
   @ApiProperty({ nullable: true }) taxRateBasisPoints!: number | null;
   @ApiProperty() totalReservedStockQuantity!: number;
   @ApiProperty() totalAvailableStockQuantity!: number;

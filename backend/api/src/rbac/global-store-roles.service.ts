@@ -10,7 +10,6 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import {
   platformRoleAuthority,
   roleDenied,
-  STAFF_OPERATIONAL_PERMISSIONS,
   STORE_ADMIN_REQUIRED_PERMISSIONS,
 } from "./role-management-policy.js";
 import { STORE_ROLE_CODES } from "./role-policy.js";
@@ -166,7 +165,11 @@ export class GlobalStoreRolesService {
     return {
       canEdit: policy.canEdit,
       requiredAdminCodes: STORE_ADMIN_REQUIRED_PERMISSIONS,
-      staffAssignableCodes: STAFF_OPERATIONAL_PERMISSIONS,
+      // Compatibility field: Staff can receive the same Store permission
+      // registry as Admin. Defaults do not limit later Platform-managed grants.
+      staffAssignableCodes: permissions
+        .filter((p) => STORE_PERMISSION_SET.has(p.code))
+        .map((p) => p.code),
       permissions: permissions
         .filter((p) => STORE_PERMISSION_SET.has(p.code))
         .map((p) => ({
@@ -210,13 +213,6 @@ export class GlobalStoreRolesService {
         HttpStatus.BAD_REQUEST,
         "STORE_PERMISSION_INVALID",
         "One or more permissions are invalid.",
-      );
-    if (
-      systemCode === "staff" &&
-      codes.some((code) => !STAFF_OPERATIONAL_PERMISSIONS.includes(code))
-    )
-      roleDenied(
-        "Store Staff cannot receive account, payment, user or role administration permissions.",
       );
     if (
       systemCode === "store-admin" &&

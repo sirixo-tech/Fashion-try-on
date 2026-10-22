@@ -29,6 +29,7 @@ class GarmentResultCatalog extends StatefulWidget {
     required this.onFinish,
     required this.downloadEnabled,
     this.singleLook = false,
+    this.onBuy,
     this.nextPick,
     required this.onContinueNextPick,
   });
@@ -45,6 +46,7 @@ class GarmentResultCatalog extends StatefulWidget {
   final Future<void> Function() onFinish;
   final bool downloadEnabled;
   final bool singleLook;
+  final VoidCallback? onBuy;
   final KioskTryOnPick? nextPick;
   final Future<void> Function() onContinueNextPick;
 
@@ -311,7 +313,7 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: !_hasSelection && widget.singleLook
-                          ? const SelfxKioskButton(
+                          ? SelfxKioskButton(
                               key: Key('buy-this-look'),
                               label: 'Buy This Look',
                               icon: Icons.shopping_bag_outlined,
@@ -321,7 +323,7 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                                 horizontal: 10,
                                 vertical: 10,
                               ),
-                              onPressed: null,
+                              onPressed: disabled ? null : widget.onBuy,
                             )
                           : SelfxActionPulse(
                               enabled: _hasSelection && !disabled,

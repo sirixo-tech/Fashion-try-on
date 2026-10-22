@@ -88,6 +88,12 @@ export class MailSettingsService {
     return this.safe(await this.stored());
   }
   async save(actorId: string, input: SaveMailSettingsDto) {
+    if (input.editConfirmed !== true)
+      mailError(
+        "MAIL_EDIT_CONFIRMATION_REQUIRED",
+        "Confirm SMTP editing before saving.",
+        HttpStatus.BAD_REQUEST,
+      );
     if (!this.crypto.ready())
       mailError(
         "MAIL_KEY_UNAVAILABLE",

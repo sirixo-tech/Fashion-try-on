@@ -1,3 +1,4 @@
+import { paymentEnvironmentEnabled } from "./checkout-availability.js";
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
@@ -27,7 +28,10 @@ export class PaymentSettingsService {
           ...gateway,
           enabled: row?.enabled ?? false,
           version: row?.version ?? 0,
-          paymentAvailable: false as const,
+          paymentAvailable:
+            gateway.provider === "PHONEPE" &&
+            row?.enabled === true &&
+            paymentEnvironmentEnabled("PRODUCTION"),
         };
       }),
     };
@@ -99,7 +103,13 @@ export class PaymentSettingsService {
     return {
       version: settings?.version ?? 0,
       selectedProvider: settings?.selectedProvider ?? null,
-      paymentAvailable: false as const,
+      paymentAvailable: connections.some(
+        (c) =>
+          c.provider === settings?.selectedProvider &&
+          c.dqrAccessConfirmed &&
+          paymentEnvironmentEnabled(c.environment) &&
+          gateways.data.some((g) => g.provider === c.provider && g.enabled),
+      ),
       gateways: gateways.data.filter(
         (gateway) => gateway.setupAvailable && gateway.enabled,
       ),
@@ -201,10 +211,13 @@ export class PaymentSettingsService {
     input: SavePhonePeConnectionDto | EditPhonePeConnectionDto,
     editing: boolean,
   ) {
-    if (input.dqrAccessConfirmed && input.environment !== "UAT")
+    if (
+      input.dqrAccessConfirmed &&
+      !["UAT", "PRODUCTION"].includes(input.environment)
+    )
       fail(
         "PAYMENT_ENVIRONMENT_UNCONFIRMED",
-        "Only confirmed UAT Dynamic QR access is supported for payment testing.",
+        "Confirm a test or production Dynamic QR account before enabling it.",
       );
     await this.prisma.$transaction(async (tx) => {
       await this.requireAvailable(tx, "PHONEPE");

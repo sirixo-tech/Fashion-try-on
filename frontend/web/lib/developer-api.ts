@@ -79,13 +79,6 @@ export type DeveloperApiUsageSummary = {
     generatedLooks: number;
     downloadsCompleted: number;
   };
-  providerUsage: Array<{
-    provider: string;
-    providerModel: string | null;
-    runsCreated: number;
-    completedRuns: number;
-    failedRuns: number;
-  }>;
   catalogSourceUsage: Array<{
     catalogSource: DeveloperApiCatalogSource | null;
     runsCreated: number;

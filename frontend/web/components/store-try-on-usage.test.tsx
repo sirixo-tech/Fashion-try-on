@@ -57,7 +57,6 @@ function summary(storeId = "store-a"): UsageSummary {
       { ...counts, category: "Shirts" },
     ],
     totals: {} as UsageSummary["totals"],
-    providerUsage: [],
     stores: [],
     kiosks: [],
     channels: [],

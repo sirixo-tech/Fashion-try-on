@@ -4,7 +4,9 @@ import {
   type OnModuleInit,
   type OnModuleDestroy,
   HttpStatus,
+  Optional,
 } from "@nestjs/common";
+import { MailAutomationService } from "../mail/mail-automation.service.js";
 import { Prisma } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { PrismaService } from "../database/prisma.service.js";
@@ -109,6 +111,7 @@ export class StorePurgeService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly db: PrismaService,
     private readonly storage: ObjectStorageService,
+    @Optional() private readonly mail?: MailAutomationService,
   ) {}
   onModuleInit() {
     this.timer = setInterval(() => void this.cleanObjects(), 30000);
@@ -147,6 +150,7 @@ export class StorePurgeService implements OnModuleInit, OnModuleDestroy {
               "STORE_EDIT_CONFLICT",
               "Store changed. Refresh before deleting.",
             );
+          await this.mail?.storeEvent(tx, "STORE_DELETED", storeId, storeId);
           const members = await tx.organizationMembership.findMany({
             where: { orgId: storeId },
             select: {

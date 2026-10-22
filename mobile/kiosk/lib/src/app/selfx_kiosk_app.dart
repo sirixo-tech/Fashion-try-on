@@ -213,6 +213,7 @@ class _KioskCustomerSessionIdleGuardState
   int? _trackedSessionRevision;
   bool _endingSession = false;
   bool _trackingSession = false;
+  DateTime? _purchaseDeadline;
 
   @override
   void initState() {
@@ -247,6 +248,10 @@ class _KioskCustomerSessionIdleGuardState
       _trackedSessionRevision = null;
       return;
     }
+    if (_purchaseDeadline != widget.tryOnController.purchaseDisplayUntil) {
+      _purchaseDeadline = widget.tryOnController.purchaseDisplayUntil;
+      _restartTimer();
+    }
     if (!_trackingSession ||
         _trackedSessionRevision !=
             widget.tryOnController.customerSessionRevision) {
@@ -266,7 +271,13 @@ class _KioskCustomerSessionIdleGuardState
   void _restartTimer() {
     _cancelTimers();
     _hideWarning();
-    final timeout = _timeout;
+    final requestedHold =
+        _purchaseDeadline?.difference(widget.now?.call() ?? DateTime.now()) ??
+        Duration.zero;
+    final hold = requestedHold > const Duration(minutes: 5)
+        ? const Duration(minutes: 5)
+        : requestedHold;
+    final timeout = hold > _timeout ? hold : _timeout;
     _idleDeadline = (widget.now?.call() ?? DateTime.now()).add(timeout);
     final warningWindow = timeout < const Duration(seconds: 30)
         ? timeout

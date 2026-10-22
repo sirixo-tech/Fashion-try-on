@@ -66,9 +66,6 @@ describe("TryOnLabService", () => {
     expect(completed.telemetry).toMatchObject({
       selfxRunId: created.id,
       channel: "WEB_LAB",
-      provider: "fake-provider",
-      providerDisplayName: "Fake Provider",
-      model: "fake-model-v1",
       profile: "BALANCED",
       garmentSource: "DIRECT_UPLOAD",
       garmentIntent: "TOP",
@@ -91,6 +88,9 @@ describe("TryOnLabService", () => {
       garmentPreprocessingMaskGenerated: false,
     });
     expect(completed.telemetry.elapsedMs).toEqual(expect.any(Number));
+    expect(completed.telemetry).not.toHaveProperty("provider");
+    expect(completed.telemetry).not.toHaveProperty("providerDisplayName");
+    expect(completed.telemetry).not.toHaveProperty("model");
     restore();
   });
 
@@ -110,6 +110,7 @@ describe("TryOnLabService", () => {
     const failed = await waitForRunStatus(service, "user-1", created.id);
     expect(failed.status).toBe("FAILED");
     expect(failed.errorCode).toBe(TRY_ON_LAB_ERROR_CODES.moderationRejected);
+    expect(failed.errorMessage).not.toMatch(/provider/i);
     restore();
   });
 

@@ -110,7 +110,7 @@ function StorePaymentSettingsPanel({
       );
       setNotice(
         provider
-          ? "Gateway turned on for future checkout. Customer checkout remains unavailable."
+          ? "Gateway selected for kiosk checkout. Checkout also requires platform enablement."
           : "Gateway turned off. Your saved configuration has been kept.",
       );
     } catch (caught) {
@@ -174,10 +174,15 @@ function StorePaymentSettingsPanel({
   );
   return (
     <PageSection>
+      <p>
+        {store?.paymentAvailable
+          ? "Kiosk checkout is available."
+          : "Kiosk checkout is currently unavailable. Contact support to enable it after account setup."}
+      </p>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground">
-          Configure the payment gateways made available by SelfX. Customer
-          checkout is not enabled yet.
+          Configure the payment gateways made available by SelfX for your Store
+          kiosks.
         </p>
         <Button
           variant="outline"
@@ -205,7 +210,7 @@ function StorePaymentSettingsPanel({
           <StatCard
             label="Turned on"
             value={selectedAvailable ? "1" : "0"}
-            secondaryValue="Selected for future checkout"
+            secondaryValue="Selected for kiosk checkout"
             icon={<CreditCardIcon />}
           />
           <StatCard
@@ -286,7 +291,7 @@ function StorePaymentSettingsPanel({
                           }
                           title={
                             status === "Verified"
-                              ? "Account verification passed. Customer checkout is not enabled yet."
+                              ? "Account verification passed. Checkout availability is shown above."
                               : undefined
                           }
                         >
@@ -301,13 +306,13 @@ function StorePaymentSettingsPanel({
                     {gateway.setupAvailable && (
                       <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 p-4">
                         <div>
-                          <p className="font-medium">Use for future checkout</p>
+                          <p className="font-medium">Use for kiosk checkout</p>
                           <p className="text-sm text-muted-foreground">
                             {selected ? "On" : "Off"} · Saved automatically
                           </p>
                         </div>
                         <Switch
-                          aria-label={`Use ${gateway.name} for future checkout`}
+                          aria-label={`Use ${gateway.name} for kiosk checkout`}
                           checked={selected}
                           disabled={
                             !canEdit ||

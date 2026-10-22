@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../shopping/kiosk_shopping_gateway.dart';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -23,6 +24,10 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }) : targetPreparer = targetPreparer ?? TryOnTargetPreparer();
 
   final KioskTryOnGateway gateway;
+  KioskShoppingGateway? get shoppingGateway =>
+      gateway is KioskShoppingGatewayOwner
+      ? (gateway as KioskShoppingGatewayOwner).shopping
+      : null;
   final TryOnTargetPreparer targetPreparer;
   final Duration pollInterval;
   final Duration pollTimeout;
@@ -50,6 +55,18 @@ class KioskTryOnSessionController extends ChangeNotifier {
   String? customerTitle;
   String? customerMessage;
   String? sessionMessage;
+  DateTime? purchaseDisplayUntil;
+  void holdPurchaseDisplay(Duration? remaining, {DateTime? now}) {
+    purchaseDisplayUntil = remaining == null
+        ? null
+        : (now ?? DateTime.now()).add(
+            remaining > const Duration(minutes: 5)
+                ? const Duration(minutes: 5)
+                : remaining,
+          );
+    notifyListeners();
+  }
+
   String? activeSessionId;
   String? activeGarmentPickId;
   String? currentPersonAssetId;
@@ -913,6 +930,7 @@ class KioskTryOnSessionController extends ChangeNotifier {
   }
 
   void _clearBackendSessionState() {
+    purchaseDisplayUntil = null;
     activeSessionId = null;
     currentPersonAssetId = null;
     sessionStatus = null;

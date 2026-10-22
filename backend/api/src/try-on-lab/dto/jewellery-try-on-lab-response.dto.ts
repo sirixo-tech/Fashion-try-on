@@ -29,15 +29,6 @@ export class JewelleryTryOnLabTelemetryDto {
   @ApiProperty({ enum: SELFX_TRY_ON_CHANNELS })
   channel!: SelfxTryOnChannel;
 
-  @ApiProperty()
-  provider!: string;
-
-  @ApiProperty()
-  providerDisplayName!: string;
-
-  @ApiProperty()
-  model!: string;
-
   @ApiProperty({ enum: SELFX_JEWELLERY_TYPES })
   jewelleryType!: SelfxJewelleryType;
 
@@ -87,7 +78,7 @@ export class JewelleryTryOnLabRunResponseDto {
 
   @ApiPropertyOptional({
     description:
-      "Ephemeral development-lab output. Base64 or URL is returned only when the provider supplies it.",
+      "Ephemeral development-lab image returned as an inline data URI.",
   })
   resultImage?: string;
 

@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { APP_FILTER } from "@nestjs/core";
+import { TryOnErrorFilter } from "./common/try-on-error.filter.js";
 
 import { AuthModule } from "./auth/auth.module.js";
 import { AppsModule } from "./apps/apps.module.js";
@@ -32,5 +34,6 @@ import { UsageModule } from "./usage/usage.module.js";
     IntegrationsModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_FILTER, useClass: TryOnErrorFilter }],
 })
 export class AppModule {}

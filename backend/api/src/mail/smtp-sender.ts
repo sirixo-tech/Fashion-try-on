@@ -15,6 +15,7 @@ export interface SmtpAccount {
   replyTo?: string;
 }
 export interface EmailMessage {
+  messageId?: string;
   to: string;
   subject: string;
   text: string;
@@ -134,6 +135,7 @@ export class SmtpSender {
           },
         });
         const result = await transport.sendMail({
+          messageId: message.messageId,
           from: { name: account.fromName, address: account.fromEmail },
           replyTo: account.replyTo,
           to: { address: message.to, name: "" },

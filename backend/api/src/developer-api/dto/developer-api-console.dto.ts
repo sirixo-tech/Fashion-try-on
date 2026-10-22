@@ -19,7 +19,6 @@ import { SELFX_CATALOG_SOURCES, type SelfxCatalogSource } from "@selfx/shared";
 
 import {
   PublicApiCatalogSourceUsageRowDto,
-  PublicApiProviderUsageRowDto,
   PublicApiProductUsageRowDto,
   PublicApiUsageRangeDto,
   PublicApiUsageTotalsDto,
@@ -106,9 +105,6 @@ export class AdminDeveloperApiUsageResponseDto {
 
   @ApiProperty({ type: PublicApiUsageTotalsDto })
   totals!: PublicApiUsageTotalsDto;
-
-  @ApiProperty({ type: [PublicApiProviderUsageRowDto] })
-  providerUsage!: PublicApiProviderUsageRowDto[];
 
   @ApiProperty({ type: [PublicApiCatalogSourceUsageRowDto] })
   catalogSourceUsage!: PublicApiCatalogSourceUsageRowDto[];

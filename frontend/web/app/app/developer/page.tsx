@@ -669,42 +669,6 @@ export default function DeveloperPage() {
                     value={usage?.totals.downloadsCompleted ?? 0}
                   />
                 </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Model</TableHead>
-                      <TableHead>Runs</TableHead>
-                      <TableHead>Completed</TableHead>
-                      <TableHead>Failed</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {usage?.providerUsage.length ? (
-                      usage.providerUsage.map((row) => (
-                        <TableRow
-                          key={`${row.provider}:${row.providerModel ?? ""}`}
-                        >
-                          <TableCell className="font-medium">
-                            {row.provider}
-                          </TableCell>
-                          <TableCell>
-                            {row.providerModel ?? "Default"}
-                          </TableCell>
-                          <TableCell>{row.runsCreated}</TableCell>
-                          <TableCell>{row.completedRuns}</TableCell>
-                          <TableCell>{row.failedRuns}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5}>
-                          No provider activity for this range.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
                 <div className="grid gap-4 xl:grid-cols-2">
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold">Catalog Sources</h3>

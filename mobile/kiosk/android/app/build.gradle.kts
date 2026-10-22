@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val releaseKeys = Properties().apply {
+    val source = rootProject.file("key.properties")
+    if (source.isFile) source.inputStream().use { load(it) }
+}
+val hasReleaseKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .all { !releaseKeys.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "com.selfx.kiosk"
@@ -22,10 +31,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeys) {
+            create("selfxRelease") {
+                storeFile = rootProject.file(releaseKeys.getProperty("storeFile"))
+                storePassword = releaseKeys.getProperty("storePassword")
+                keyAlias = releaseKeys.getProperty("keyAlias")
+                keyPassword = releaseKeys.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signing with the debug keys for now, so release testing works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeys) signingConfigs.getByName("selfxRelease") else null
 
             isMinifyEnabled = true
 
@@ -33,6 +52,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.project == project && (it.name.contains("Release") || it.name.contains("release")) }) {
+        check(hasReleaseKeys) {
+            "SelfX release signing is missing. Configure android/key.properties with your existing production signing identity. Use --debug for a development APK."
         }
     }
 }

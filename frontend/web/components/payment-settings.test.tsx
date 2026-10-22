@@ -210,7 +210,7 @@ describe("payment settings", () => {
     );
     fireEvent.click(
       await screen.findByRole("switch", {
-        name: "Use PhonePe for future checkout",
+        name: "Use PhonePe for kiosk checkout",
       }),
     );
     await waitFor(() =>
@@ -222,7 +222,7 @@ describe("payment settings", () => {
       ),
     );
     expect(
-      await screen.findByText(/Gateway turned on for future checkout/),
+      await screen.findByText(/Gateway selected for kiosk checkout/),
     ).toBeTruthy();
   });
   it("does not expose configuration actions to view-only staff", async () => {
@@ -427,7 +427,7 @@ describe("payment settings", () => {
     await screen.findByRole("button", { name: "Edit" });
     expect(
       screen
-        .getByRole("switch", { name: "Use PhonePe for future checkout" })
+        .getByRole("switch", { name: "Use PhonePe for kiosk checkout" })
         .getAttribute("aria-checked"),
     ).toBe("true");
     expect(
@@ -448,7 +448,7 @@ describe("payment settings", () => {
     );
     fireEvent.click(
       await screen.findByRole("switch", {
-        name: "Use PhonePe for future checkout",
+        name: "Use PhonePe for kiosk checkout",
       }),
     );
     await waitFor(() =>

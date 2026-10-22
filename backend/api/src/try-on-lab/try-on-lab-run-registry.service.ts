@@ -19,6 +19,7 @@ import type {
 } from "@selfx/shared";
 
 import type { TryOnProviderMetadata } from "./providers/try-on-provider.js";
+import { publicTryOnErrorMessage } from "../common/public-try-on-errors.js";
 
 import {
   TRY_ON_LAB_MAX_RUNS,
@@ -174,7 +175,7 @@ export class TryOnLabRunRegistryService {
       updatedAt: run.updatedAt.toISOString(),
       resultImage: run.resultImage,
       errorCode: run.errorCode,
-      errorMessage: run.errorMessage,
+      errorMessage: publicTryOnErrorMessage(run.errorCode, run.errorMessage),
       telemetry: this.toTelemetry(run),
     };
   }
@@ -185,9 +186,6 @@ export class TryOnLabRunRegistryService {
     return {
       selfxRunId: run.id,
       channel: "WEB_LAB",
-      provider: run.provider,
-      providerDisplayName: run.providerDisplayName,
-      model: run.providerModel,
       profile: run.generationProfile,
       garmentSource: run.garmentSource,
       garmentIntent: run.garmentIntent,
@@ -205,10 +203,11 @@ export class TryOnLabRunRegistryService {
       garmentPreprocessingStatus: run.garmentPreprocessingStatus,
       garmentPreprocessingProviderInputImage:
         run.garmentPreprocessingProviderInputImage,
-      garmentPreprocessingMaskGenerated:
-        run.garmentPreprocessingMaskGenerated,
-      garmentPreprocessingFallbackReason:
+      garmentPreprocessingMaskGenerated: run.garmentPreprocessingMaskGenerated,
+      garmentPreprocessingFallbackReason: publicTryOnErrorMessage(
+        undefined,
         run.garmentPreprocessingFallbackReason,
+      ),
       createdAt: run.createdAt.toISOString(),
       startedAt: run.startedAt?.toISOString(),
       completedAt,

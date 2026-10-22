@@ -114,6 +114,107 @@ describe.skipIf(!databaseUrl)("SHOPPING-1 PostgreSQL integration", () => {
     ...overrides,
   });
 
+  it("shares optional colour images across sizes, preserves them for old clients and rejects another Store's assets", async () => {
+    const id = await product();
+    const storageKey =
+      "catalog/stores/" + storeId + "/" + createSelfxId() + ".jpg";
+    const image = {
+      color: "Black",
+      storageKey,
+      contentType: "image/jpeg",
+      width: 600,
+      height: 800,
+    };
+    const variants = [
+      { size: "M", color: "Black", stockQuantity: 2 },
+      { size: "L", color: "Black", stockQuantity: 0 },
+    ];
+    const service = new ProductStockService(prisma, {
+      createReadUrl: ({ key }: { key: string }) =>
+        "https://assets.example.test/" + key,
+    } as never);
+    const configured = await service.update(
+      storeId,
+      id,
+      actorId,
+      input({ optionMode: "SIZE_COLOR", variants, colorImages: [image] }),
+    );
+    expect(configured.colorImages).toHaveLength(1);
+    expect(configured.colorImages[0]).toMatchObject({
+      ...image,
+      url: "https://assets.example.test/" + storageKey,
+    });
+    expect((await service.getForKiosk(storeId, id)).storeName).toBe(
+      "Stock test",
+    );
+    const preserved = await stock.update(
+      storeId,
+      id,
+      actorId,
+      input({ expectedVersion: 1, optionMode: "SIZE_COLOR", variants }),
+    );
+    expect(preserved.colorImages).toHaveLength(1);
+    await expectApiCode(
+      stock.update(
+        storeId,
+        id,
+        actorId,
+        input({
+          expectedVersion: 2,
+          optionMode: "SIZE_COLOR",
+          variants,
+          colorImages: [
+            { ...image, storageKey: storageKey.replace(storeId, otherStoreId) },
+          ],
+        }),
+      ),
+      "PRODUCT_STOCK_INVALID",
+    );
+    expect((await stock.get(storeId, id)).version).toBe(2);
+    await stock.update(
+      storeId,
+      id,
+      actorId,
+      input({
+        expectedVersion: 2,
+        optionMode: "SIZE_COLOR",
+        variants,
+        colorImages: [],
+      }),
+    );
+    expect((await stock.get(storeId, id)).colorImages).toEqual([]);
+    await expectApiCode(
+      stock.getForKiosk(otherStoreId, id),
+      "PRODUCT_NOT_FOUND",
+    );
+  });
+  it("returns one catalog card with minimum variant price even when every variant is sold out", async () => {
+    const id = await product();
+    await stock.update(
+      storeId,
+      id,
+      actorId,
+      input({
+        optionMode: "COLOR",
+        pricingMode: "VARIANT",
+        variants: [
+          { color: "Red", stockQuantity: 0, priceOverrideAmountCents: 15000 },
+          { color: "Blue", stockQuantity: 0, priceOverrideAmountCents: 12000 },
+        ],
+      }),
+    );
+    const result = await new CatalogService(
+      prisma,
+      {} as never,
+      {} as never,
+    ).listKioskProducts(storeId, {});
+    const matches = result.data.filter((row) => row.id === id);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({
+      minimumPriceAmountCents: 12000,
+      hasVariablePrices: true,
+    });
+  });
   it("distinguishes unconfigured stock from zero and leaves zero-stock products in Try-On catalog", async () => {
     const id = await product();
     expect(await stock.get(storeId, id)).toMatchObject({

@@ -138,7 +138,7 @@ export function PhonePeConfigurationForm({
         merchantId: merchantId.trim(),
         saltIndex: saltIndex.trim(),
         saltKey,
-        ...(dqrAccessConfirmed && environment === "UAT"
+        ...(dqrAccessConfirmed && ["UAT", "PRODUCTION"].includes(environment)
           ? { dqrAccessConfirmed: true }
           : {}),
         ...(providerId.trim() ? { providerId: providerId.trim() } : {}),
@@ -199,19 +199,22 @@ export function PhonePeConfigurationForm({
                 }
               />
             </div>
-            {environment === "UAT" && (
+            {["UAT", "PRODUCTION"].includes(environment) && (
               <div className="min-w-0 space-y-2">
-                <Label htmlFor="phonepe-access">Dynamic QR test access</Label>
+                <Label htmlFor="phonepe-access">
+                  Dynamic QR account access
+                </Label>
                 <SelectMenu
                   id="phonepe-access"
-                  ariaLabel="Dynamic QR test access"
+                  ariaLabel="Dynamic QR account access"
                   value={dqrAccessConfirmed ? "CONFIRMED" : "UNCONFIRMED"}
                   disabled={locked}
                   options={[
                     { value: "UNCONFIRMED", label: "Not confirmed yet" },
                     {
                       value: "CONFIRMED",
-                      label: "I confirm UAT Dynamic QR access is enabled",
+                      label:
+                        "I confirm Dynamic QR access is enabled for this account",
                     },
                   ]}
                   onChange={(value) =>

@@ -16,7 +16,6 @@ import {
   SearchIcon,
   ShieldAlertIcon,
   Trash2Icon,
-  UploadIcon,
 } from "lucide-react";
 
 import {
@@ -39,33 +38,25 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Textarea,
 } from "@selfx/ui";
 
 import {
-  assertJewelleryProductImageDimensions,
-  currencySymbolFor,
   garmentCategoryForProductType,
   garmentIntentForProductType,
   jewelleryCategoryNameForType,
   normalizedJewelleryTypeFor,
   normalizedProductTypeFor,
-  productAudiences,
   productGarmentTypes,
   productJewelleryTypes,
   productVerticals,
   ProductSelectMenu,
   ProductStatusToggle,
-  ProductToggleCheckbox,
 } from "@/components/product-form-controls";
 import { SafeApiError } from "@/lib/api";
-import { readImageDimensions } from "@/lib/image-dimensions";
 import { ProductStockDialog } from "@/components/product-stock-dialog";
 import { useSession } from "@/lib/session";
 import { hasStoreResourcePermission } from "@/lib/current-store";
 import {
-  createStoreProduct,
-  createStoreProductImageUploadIntent,
   deleteStoreProduct,
   getEffectiveStorePermissions,
   getStore,
@@ -122,12 +113,9 @@ export function StoreProductsCatalog({
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [bulkVtoAction, setBulkVtoAction] = useState<boolean | null>(null);
   const [bulkVtoBusy, setBulkVtoBusy] = useState(false);
-  const [editing, setEditing] = useState<StoreProduct | null>(null);
   const [stockProduct, setStockProduct] = useState<StoreProduct | null>(null);
   const [deleting, setDeleting] = useState<StoreProduct | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [defaultCurrency, setDefaultCurrency] = useState("USD");
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(
     null,
   );
@@ -150,7 +138,6 @@ export function StoreProductsCatalog({
           productVertical,
         }),
       ]);
-      setDefaultCurrency(nextProducts.defaultCurrency ?? "USD");
       setStore(nextStore);
       setProducts(nextProducts.data);
       setPagination(nextProducts.pagination);
@@ -158,6 +145,7 @@ export function StoreProductsCatalog({
         hasStoreResourcePermission(nextPermissions, "products.manage"),
       );
     } catch (caught) {
+      setCanUpdateProducts(false);
       setError(messageFor(caught));
     } finally {
       setLoading(false);
@@ -168,6 +156,13 @@ export function StoreProductsCatalog({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!canUpdateProducts) {
+      setDeleting(null);
+      setBulkVtoAction(null);
+    }
+  }, [canUpdateProducts]);
+
   const activeCount = useMemo(
     () => products.filter((product) => product.active).length,
     [products],
@@ -176,9 +171,25 @@ export function StoreProductsCatalog({
     productVertical === "JEWELLERY" ? "Jewellery" : "Garments";
   const verticalItemLabel =
     productVertical === "JEWELLERY" ? "jewellery items" : "garments";
+  const productBase = merchantWorkspace
+    ? `/app/products/${productVertical === "JEWELLERY" ? "jewellery" : "garments"}`
+    : `/app/stores/${storeId}/products`;
+
+  function revokeProductAccess() {
+    setCanUpdateProducts(false);
+    setError(
+      "Product editing is no longer permitted. Refresh to check your access.",
+    );
+  }
+
+  function mutationFailed(caught: unknown) {
+    if (caught instanceof SafeApiError && caught.status === 403)
+      revokeProductAccess();
+    else setError(messageFor(caught));
+  }
 
   async function confirmDeleteProduct() {
-    if (!accessToken || !deleting) {
+    if (!accessToken || !canUpdateProducts || !deleting) {
       return;
     }
     setDeleteBusy(true);
@@ -188,7 +199,7 @@ export function StoreProductsCatalog({
       setDeleting(null);
       await load();
     } catch (caught) {
-      setError(messageFor(caught));
+      mutationFailed(caught);
     } finally {
       setDeleteBusy(false);
     }
@@ -214,7 +225,7 @@ export function StoreProductsCatalog({
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
     } catch (caught) {
-      setError(messageFor(caught));
+      mutationFailed(caught);
     } finally {
       setUpdatingProductId(null);
     }
@@ -235,7 +246,7 @@ export function StoreProductsCatalog({
       );
       setSyncMessage(catalogSyncMessage(result.updatedDevices));
     } catch (caught) {
-      setError(messageFor(caught));
+      mutationFailed(caught);
     } finally {
       setSyncBusy(false);
     }
@@ -262,7 +273,7 @@ export function StoreProductsCatalog({
       setBulkVtoAction(null);
       await load();
     } catch (caught) {
-      setError(messageFor(caught));
+      mutationFailed(caught);
     } finally {
       setBulkVtoBusy(false);
     }
@@ -299,37 +310,45 @@ export function StoreProductsCatalog({
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              disabled={!canUpdateProducts || syncBusy}
-              onClick={() => void syncCatalogToKiosks()}
-            >
-              <CloudDownloadIcon aria-hidden="true" />
-              {syncBusy ? "Syncing..." : "Sync to Kiosks"}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!canUpdateProducts || bulkVtoBusy}
-              onClick={() => setBulkVtoAction(true)}
-            >
-              <CheckCircleIcon aria-hidden="true" />
-              Enable Imported
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!canUpdateProducts || bulkVtoBusy}
-              onClick={() => setBulkVtoAction(false)}
-            >
-              <CircleOffIcon aria-hidden="true" />
-              Disable Imported
-            </Button>
-            <Button
-              disabled={!canUpdateProducts}
-              onClick={() => setCreating(true)}
-            >
-              <PlusIcon aria-hidden="true" />
-              Add {productVertical === "JEWELLERY" ? "Jewellery" : "Garment"}
-            </Button>
+            {canUpdateProducts && (
+              <>
+                <Button
+                  variant="outline"
+                  disabled={syncBusy}
+                  onClick={() => void syncCatalogToKiosks()}
+                >
+                  <CloudDownloadIcon aria-hidden="true" />
+                  {syncBusy ? "Syncing..." : "Sync to Kiosks"}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={bulkVtoBusy}
+                  onClick={() => setBulkVtoAction(true)}
+                >
+                  <CheckCircleIcon aria-hidden="true" />
+                  Enable Imported
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={bulkVtoBusy}
+                  onClick={() => setBulkVtoAction(false)}
+                >
+                  <CircleOffIcon aria-hidden="true" />
+                  Disable Imported
+                </Button>
+                <Button
+                  render={
+                    <Link
+                      href={`${productBase}/new?vertical=${productVertical}`}
+                    />
+                  }
+                >
+                  <PlusIcon aria-hidden="true" />
+                  Add{" "}
+                  {productVertical === "JEWELLERY" ? "Jewellery" : "Garment"}
+                </Button>
+              </>
+            )}
           </div>
         }
         status={
@@ -412,7 +431,7 @@ export function StoreProductsCatalog({
           title={`Store ${verticalLabel}`}
           description={
             productVertical === "JEWELLERY"
-              ? "Jewellery products are kept separate because their type drives ornament Try-On provider routing."
+              ? "Manage jewellery products and their ornament types for SelfX Try-On."
               : "Garments shown here are the Store catalog used by assigned kiosks."
           }
           footer={
@@ -487,17 +506,29 @@ export function StoreProductsCatalog({
                     </TableCell>
                     <TableCell>
                       <div className="min-w-40 max-w-52">
-                        {product.productVertical === "JEWELLERY" ? (
+                        {!canUpdateProducts ? (
+                          <span>
+                            {product.productVertical === "JEWELLERY"
+                              ? productJewelleryTypes.find(
+                                  (type) =>
+                                    type.value ===
+                                    normalizedJewelleryTypeFor(
+                                      product.jewelleryType,
+                                    ),
+                                )?.label
+                              : normalizedProductTypeFor(
+                                  product.categoryName,
+                                  product.garmentIntent,
+                                )}
+                          </span>
+                        ) : product.productVertical === "JEWELLERY" ? (
                           <ProductSelectMenu
                             ariaLabel={`Change jewellery type for ${product.name}`}
                             value={normalizedJewelleryTypeFor(
                               product.jewelleryType,
                             )}
                             options={productJewelleryTypes}
-                            disabled={
-                              !canUpdateProducts ||
-                              updatingProductId === product.id
-                            }
+                            disabled={updatingProductId === product.id}
                             onChange={(value) =>
                               void updateProductInline(product, {
                                 jewelleryType: value,
@@ -512,10 +543,7 @@ export function StoreProductsCatalog({
                               product.garmentIntent,
                             )}
                             options={productGarmentTypes}
-                            disabled={
-                              !canUpdateProducts ||
-                              updatingProductId === product.id
-                            }
+                            disabled={updatingProductId === product.id}
                             onChange={(value) =>
                               void updateProductInline(product, {
                                 categoryName: value,
@@ -527,15 +555,19 @@ export function StoreProductsCatalog({
                     </TableCell>
                     <TableCell>{formatPrice(product)}</TableCell>
                     <TableCell>
-                      <ProductStatusToggle
-                        active={product.active}
-                        disabled={
-                          !canUpdateProducts || updatingProductId === product.id
-                        }
-                        onChange={(active) =>
-                          void updateProductInline(product, { active })
-                        }
-                      />
+                      {canUpdateProducts ? (
+                        <ProductStatusToggle
+                          active={product.active}
+                          disabled={updatingProductId === product.id}
+                          onChange={(active) =>
+                            void updateProductInline(product, { active })
+                          }
+                        />
+                      ) : (
+                        <StatusBadge
+                          status={product.active ? "ACTIVE" : "INACTIVE"}
+                        />
+                      )}
                     </TableCell>
                     <TableCell>
                       <StatusBadge
@@ -548,30 +580,49 @@ export function StoreProductsCatalog({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setStockProduct(product)}
+                          render={
+                            canUpdateProducts ? (
+                              <Link
+                                href={`${productBase}/${product.id}/edit#pricing`}
+                              />
+                            ) : undefined
+                          }
+                          onClick={
+                            canUpdateProducts
+                              ? undefined
+                              : () => setStockProduct(product)
+                          }
                         >
                           <PackageIcon aria-hidden="true" />
-                          Stock &amp; Pricing
+                          {canUpdateProducts
+                            ? "Stock & Pricing"
+                            : "View Stock & Pricing"}
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!canUpdateProducts}
-                          onClick={() => setEditing(product)}
-                        >
-                          <Edit3Icon aria-hidden="true" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!canUpdateProducts}
-                          aria-label={`Delete ${product.name}`}
-                          onClick={() => setDeleting(product)}
-                        >
-                          <Trash2Icon aria-hidden="true" />
-                          Delete
-                        </Button>
+                        {canUpdateProducts && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              render={
+                                <Link
+                                  href={`${productBase}/${product.id}/edit`}
+                                />
+                              }
+                            >
+                              <Edit3Icon aria-hidden="true" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Delete ${product.name}`}
+                              onClick={() => setDeleting(product)}
+                            >
+                              <Trash2Icon aria-hidden="true" />
+                              Delete
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -589,46 +640,18 @@ export function StoreProductsCatalog({
           storeId={storeId}
           product={stockProduct}
           canEdit={canUpdateProducts}
+          onPermissionDenied={revokeProductAccess}
           onClose={() => setStockProduct(null)}
         />
       )}
-      <ProductDialog
-        open={creating}
-        accessToken={accessToken}
-        storeId={storeId}
-        defaultCurrency={defaultCurrency}
-        defaultVertical={productVertical}
-        onOpenChange={setCreating}
-        onSaved={async () => {
-          setCreating(false);
-          await load();
-        }}
-      />
-      <ProductDialog
-        open={editing !== null}
-        accessToken={accessToken}
-        storeId={storeId}
-        product={editing}
-        defaultCurrency={defaultCurrency}
-        defaultVertical={productVertical}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditing(null);
-          }
-        }}
-        onSaved={async () => {
-          setEditing(null);
-          await load();
-        }}
-      />
       <DeleteProductDialog
-        product={deleting}
+        product={canUpdateProducts ? deleting : null}
         deleting={deleteBusy}
         onCancel={() => setDeleting(null)}
         onConfirm={() => void confirmDeleteProduct()}
       />
       <BulkImportedVtoDialog
-        enabled={bulkVtoAction}
+        enabled={canUpdateProducts ? bulkVtoAction : null}
         busy={bulkVtoBusy}
         verticalLabel={verticalLabel}
         onCancel={() => setBulkVtoAction(null)}
@@ -731,302 +754,6 @@ function DeleteProductDialog({
   );
 }
 
-function ProductDialog({
-  open,
-  accessToken,
-  storeId,
-  defaultCurrency,
-  defaultVertical,
-  product,
-  onOpenChange,
-  onSaved,
-}: {
-  open: boolean;
-  accessToken: string | null;
-  storeId: string;
-  defaultCurrency: string;
-  defaultVertical: ProductVertical;
-  product?: StoreProduct | null;
-  onOpenChange: (open: boolean) => void;
-  onSaved: () => Promise<void>;
-}) {
-  const [form, setForm] = useState(() =>
-    formFromProduct(product ?? null, defaultVertical),
-  );
-  const [file, setFile] = useState<File | null>(null);
-  const [filePreview, setFilePreview] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const currencySymbol = currencySymbolFor(defaultCurrency);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setForm(formFromProduct(product ?? null, defaultVertical));
-    setFile(null);
-    setFilePreview(null);
-    setError(null);
-  }, [defaultVertical, open, product]);
-
-  useEffect(() => {
-    if (!file) {
-      setFilePreview(null);
-      return;
-    }
-    const nextPreview = URL.createObjectURL(file);
-    setFilePreview(nextPreview);
-    return () => URL.revokeObjectURL(nextPreview);
-  }, [file]);
-
-  async function save() {
-    if (!accessToken) {
-      return;
-    }
-    if (!form.name.trim() || !productTypeIsComplete(form)) {
-      setError("Product name and type are required.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const image = await resolveImageInput({
-        accessToken,
-        storeId,
-        file,
-        imageUrl: form.imageUrl,
-        existingProduct: product ?? null,
-        productVertical: form.productVertical,
-      });
-      const input = productInputFromForm(form, image, defaultCurrency);
-      if (product) {
-        await updateStoreProduct(accessToken, storeId, product.id, input);
-      } else {
-        await createStoreProduct(accessToken, storeId, input);
-      }
-      await onSaved();
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const previewUrl = filePreview || form.imageUrl || product?.image.url;
-  const productKindLabel =
-    form.productVertical === "JEWELLERY" ? "Jewellery" : "Garment";
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>
-            {product ? "Edit Product" : `Add ${productKindLabel}`}
-          </DialogTitle>
-          <DialogDescription>
-            Manage product details and the image used for Try-On.
-          </DialogDescription>
-        </DialogHeader>
-        {error ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-        <div className="grid max-h-[68vh] gap-5 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="space-y-4">
-            <div className="overflow-hidden rounded-xl border bg-muted/25">
-              <div className="aspect-[4/5] bg-background">
-                {previewUrl ? (
-                  <Image
-                    src={previewUrl}
-                    alt=""
-                    width={1280}
-                    height={1600}
-                    unoptimized
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center text-muted-foreground">
-                    <ImageIcon size={34} aria-hidden="true" />
-                  </div>
-                )}
-              </div>
-              <label className="flex cursor-pointer items-center justify-center gap-2 border-t border-primary bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
-                <UploadIcon size={16} aria-hidden="true" />
-                Upload Image
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
-            </div>
-            <label className="space-y-2 text-sm">
-              <span>Image URL</span>
-              <Input
-                value={form.imageUrl}
-                placeholder="https://..."
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    imageUrl: event.target.value,
-                  }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm sm:col-span-2">
-                <span>Name *</span>
-                <Input
-                  value={form.name}
-                  maxLength={180}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="space-y-2 text-sm">
-                <span>{productKindLabel} Type *</span>
-                {form.productVertical === "JEWELLERY" ? (
-                  <ProductSelectMenu
-                    ariaLabel="Select jewellery type"
-                    value={form.jewelleryType}
-                    options={productJewelleryTypes}
-                    onChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        jewelleryType: value,
-                        categoryName: jewelleryCategoryNameForType(value),
-                      }))
-                    }
-                  />
-                ) : (
-                  <ProductSelectMenu
-                    ariaLabel="Select garment type"
-                    value={form.categoryName}
-                    options={productGarmentTypes}
-                    onChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        categoryName: value,
-                      }))
-                    }
-                  />
-                )}
-              </label>
-              <label className="space-y-2 text-sm">
-                <span>Audience</span>
-                <ProductSelectMenu
-                  ariaLabel="Select product audience"
-                  value={form.audience}
-                  options={productAudiences}
-                  onChange={(value) =>
-                    setForm((current) => ({
-                      ...current,
-                      audience: value,
-                    }))
-                  }
-                />
-              </label>
-              <label className="space-y-2 text-sm">
-                <span>Price ({currencySymbol})</span>
-                <div className="relative">
-                  <Input
-                    className="pr-16"
-                    value={form.price}
-                    inputMode="decimal"
-                    placeholder="49.99"
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        price: event.target.value,
-                      }))
-                    }
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
-                    {currencySymbol}
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            <label className="space-y-2 text-sm">
-              <span>Description</span>
-              <Textarea
-                value={form.description}
-                maxLength={1000}
-                rows={4}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-              />
-            </label>
-
-            <label className="space-y-2 text-sm">
-              <span>Product URL</span>
-              <Input
-                value={form.productUrl}
-                placeholder="https://..."
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    productUrl: event.target.value,
-                  }))
-                }
-              />
-            </label>
-
-            <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2">
-              <label className="flex items-center gap-3 text-sm font-medium">
-                <ProductToggleCheckbox
-                  checked={form.active}
-                  onChange={(checked) =>
-                    setForm((current) => ({
-                      ...current,
-                      active: checked,
-                    }))
-                  }
-                />
-                Active
-              </label>
-              <label className="flex items-center gap-3 text-sm font-medium">
-                <ProductToggleCheckbox
-                  checked={form.vtoEnabled}
-                  onChange={(checked) =>
-                    setForm((current) => ({
-                      ...current,
-                      vtoEnabled: checked,
-                    }))
-                  }
-                />
-                Try-On enabled
-              </label>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={saving} onClick={() => void save()}>
-            Save Product
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function ProductThumb({ product }: { product: StoreProduct }) {
   return (
     <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg border bg-muted/30">
@@ -1044,95 +771,6 @@ function ProductThumb({ product }: { product: StoreProduct }) {
       )}
     </div>
   );
-}
-
-type ProductForm = {
-  name: string;
-  productVertical: ProductVertical;
-  categoryName: string;
-  jewelleryType: JewelleryType;
-  audience: string;
-  price: string;
-  description: string;
-  productUrl: string;
-  imageUrl: string;
-  active: boolean;
-  vtoEnabled: boolean;
-};
-
-function formFromProduct(
-  product: StoreProduct | null,
-  defaultVertical: ProductVertical,
-): ProductForm {
-  const productVertical = product?.productVertical ?? defaultVertical;
-  const jewelleryType = normalizedJewelleryTypeFor(product?.jewelleryType);
-  return {
-    name: product?.name ?? "",
-    productVertical,
-    categoryName:
-      productVertical === "JEWELLERY"
-        ? jewelleryCategoryNameForType(jewelleryType)
-        : normalizedProductTypeFor(
-            product?.categoryName,
-            product?.garmentIntent,
-          ),
-    jewelleryType,
-    audience: product?.audience ?? "UNISEX",
-    price:
-      product?.priceAmountCents !== null &&
-      product?.priceAmountCents !== undefined
-        ? (product.priceAmountCents / 100).toFixed(2)
-        : "",
-    description: product?.description ?? "",
-    productUrl: product?.productUrl ?? "",
-    imageUrl: product?.image.storageKey ? "" : (product?.image.url ?? ""),
-    active: product?.active ?? true,
-    vtoEnabled: product?.vtoEnabled ?? true,
-  };
-}
-
-function productTypeIsComplete(form: ProductForm): boolean {
-  return form.productVertical === "JEWELLERY"
-    ? Boolean(form.jewelleryType)
-    : Boolean(form.categoryName.trim());
-}
-
-function productInputFromForm(
-  form: ProductForm,
-  image: StoreProductInput["image"] | undefined,
-  defaultCurrency: string,
-): StoreProductInput {
-  const base = {
-    name: form.name.trim(),
-    description: form.description.trim() || null,
-    audience: form.audience.trim().toUpperCase() || "UNISEX",
-    priceAmountCents: priceToCents(form.price),
-    priceCurrency: form.price.trim() ? defaultCurrency : null,
-    productUrl: form.productUrl.trim() || null,
-    active: form.active,
-    vtoEnabled: form.vtoEnabled,
-    ...(image !== undefined ? { image } : {}),
-  };
-
-  if (form.productVertical === "JEWELLERY") {
-    const jewelleryType = normalizedJewelleryTypeFor(form.jewelleryType);
-    return {
-      ...base,
-      categoryName: jewelleryCategoryNameForType(jewelleryType),
-      productVertical: "JEWELLERY",
-      jewelleryType,
-    };
-  }
-
-  return {
-    ...base,
-    categoryName: form.categoryName.trim(),
-    productVertical: "GARMENT",
-    jewelleryType: null,
-    garmentIntent: garmentIntentForProductType(form.categoryName),
-    garmentCategory: garmentCategoryForProductType(form.categoryName),
-    garmentPhotoType: "AUTO",
-  };
 }
 
 type ProductInlineOverrides = Partial<Pick<StoreProductInput, "active">> & {
@@ -1179,74 +817,6 @@ function productInputFromProduct(
     garmentCategory: garmentCategoryForProductType(categoryName),
     garmentPhotoType: product.garmentPhotoType || "AUTO",
   };
-}
-
-async function resolveImageInput({
-  accessToken,
-  storeId,
-  file,
-  imageUrl,
-  existingProduct,
-  productVertical,
-}: {
-  accessToken: string;
-  storeId: string;
-  file: File | null;
-  imageUrl: string;
-  existingProduct: StoreProduct | null;
-  productVertical: ProductVertical;
-}): Promise<StoreProductInput["image"] | undefined> {
-  if (file) {
-    const dimensions = await readImageDimensions(file);
-    assertJewelleryProductImageDimensions(productVertical, dimensions);
-    const intent = await createStoreProductImageUploadIntent(
-      accessToken,
-      storeId,
-      {
-        contentType: file.type,
-        sizeBytes: file.size,
-        fileName: file.name,
-      },
-    );
-    const response = await fetch(intent.uploadUrl, {
-      method: intent.method,
-      headers: intent.headers,
-      body: file,
-    });
-    if (!response.ok) {
-      throw new Error("Product image could not be uploaded.");
-    }
-    return {
-      storageKey: intent.storageKey,
-      contentType: file.type,
-      width: dimensions.width,
-      height: dimensions.height,
-    };
-  }
-  const trimmedUrl = imageUrl.trim();
-  if (trimmedUrl) {
-    if (productVertical === "JEWELLERY") {
-      const dimensions = await readImageDimensions(trimmedUrl);
-      assertJewelleryProductImageDimensions(productVertical, dimensions);
-      return { url: trimmedUrl, ...dimensions };
-    }
-    return { url: trimmedUrl };
-  }
-  if (existingProduct) {
-    return undefined;
-  }
-  throw new Error("Product image is required.");
-}
-
-function priceToCents(value: string): number | null {
-  const normalized = value.trim();
-  if (!normalized) {
-    return null;
-  }
-  const amount = Number(normalized);
-  return Number.isFinite(amount) && amount >= 0
-    ? Math.round(amount * 100)
-    : null;
 }
 
 function formatPrice(product: StoreProduct): string {
