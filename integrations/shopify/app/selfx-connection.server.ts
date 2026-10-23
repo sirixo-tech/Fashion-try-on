@@ -36,6 +36,7 @@ export type SelfxConnectionView = {
   pendingLinkExpiresAt: string | null;
   storeId: string | null;
   storeName: string | null;
+  integrationId: string | null;
   storefrontLocale: StorefrontLocale;
   adminLocale: LanguageLocale;
   tryOnMode: ShopifyTryOnMode;
@@ -95,6 +96,7 @@ export async function getSelfxConnectionView(
       connection.pendingLinkExpiresAt?.toISOString() ?? null,
     storeId: connection.selfxStoreId ?? null,
     storeName: connection.selfxStoreName,
+    integrationId: connection.selfxIntegrationId ?? null,
     storefrontLocale: normalizeStorefrontLocale(connection.storefrontLocale),
     adminLocale: normalizeLanguageLocale(connection.adminLocale),
     tryOnMode: parseShopifyTryOnMode(connection.tryOnMode),
@@ -117,6 +119,29 @@ export async function getSelfxConnectionView(
     errorCode: connection.lastErrorCode,
     errorMessage: connection.lastErrorMessage,
   };
+}
+
+export async function clearStaleSelfxConnection(
+  shop: string,
+): Promise<SelfxConnectionView> {
+  await db.selfxConnection.updateMany({
+    where: { shop, status: "CONNECTED" },
+    data: {
+      status: "NOT_CONNECTED",
+      pendingLinkTokenCiphertext: null,
+      pendingLinkExpiresAt: null,
+      integrationTokenCiphertext: null,
+      selfxStoreId: null,
+      selfxStoreName: null,
+      selfxIntegrationId: null,
+      selfxCredentialId: null,
+      linkedAt: null,
+      syncStatus: "NOT_STARTED",
+      lastErrorCode: null,
+      lastErrorMessage: null,
+    },
+  });
+  return getSelfxConnectionView(shop);
 }
 
 export async function updateSelfxProductVisibilityRule(input: {
@@ -215,11 +240,12 @@ export async function startSelfxConnection(input: {
   shop: string;
   shopifyAccessToken: string;
   storeId?: string | null;
+  force?: boolean;
 }): Promise<SelfxConnectionView> {
   const existing = await db.selfxConnection.findUnique({
     where: { shop: input.shop },
   });
-  if (existing?.status === "CONNECTED") {
+  if (!input.force && existing?.status === "CONNECTED") {
     return getSelfxConnectionView(input.shop);
   }
 
@@ -242,7 +268,7 @@ export async function startSelfxConnection(input: {
       data: { shop: canonicalShop, shopName: identity.name },
     });
   }
-  if (accountConnection?.status === "CONNECTED") {
+  if (!input.force && accountConnection?.status === "CONNECTED") {
     return getSelfxConnectionView(canonicalShop);
   }
 
@@ -250,6 +276,7 @@ export async function startSelfxConnection(input: {
     where: { shop: canonicalShop },
   });
   if (
+    !input.force &&
     current?.status === "PENDING_APPROVAL" &&
     current.pendingLinkTokenCiphertext &&
     current.pendingLinkExpiresAt &&
@@ -258,6 +285,7 @@ export async function startSelfxConnection(input: {
     return getSelfxConnectionView(canonicalShop);
   }
   if (
+    !input.force &&
     current?.status === "PENDING_APPROVAL" &&
     current.pendingLinkExpiresAt &&
     current.pendingLinkExpiresAt <= new Date()
@@ -415,45 +443,13 @@ export async function restartSelfxConnection(input: {
   shop: string;
   shopifyAccessToken: string;
 }): Promise<SelfxConnectionView> {
-  const existing = await db.selfxConnection.findUnique({
-    where: { shop: input.shop },
-    select: { selfxStoreId: true },
-  });
-  await db.selfxConnection.updateMany({
-    where: {
-      shop: input.shop,
-      status: { in: ["PENDING_APPROVAL", "ERROR"] },
-    },
-    data: {
-      status: "NOT_CONNECTED",
-      pendingLinkTokenCiphertext: null,
-      pendingLinkExpiresAt: null,
-      lastErrorCode: null,
-      lastErrorMessage: null,
-    },
-  });
-  await db.selfxConnection.updateMany({
-    where: {
-      shop: input.shop,
-      status: "CONNECTED",
-    },
-    data: {
-      status: "NOT_CONNECTED",
-      pendingLinkTokenCiphertext: null,
-      pendingLinkExpiresAt: null,
-      integrationTokenCiphertext: null,
-      selfxIntegrationId: null,
-      selfxCredentialId: null,
-      linkedAt: null,
-      syncStatus: "NOT_STARTED",
-      lastErrorCode: null,
-      lastErrorMessage: null,
-    },
-  });
+  // A saved Store ID may belong to an archived Store. A fresh, unlocked link
+  // requires an authorized SelfX user to approve the current Store again.
   return startSelfxConnection({
     shop: input.shop,
     shopifyAccessToken: input.shopifyAccessToken,
-    storeId: existing?.selfxStoreId ?? null,
+    storeId: null,
+    force: true,
   });
 }
 
@@ -544,6 +540,7 @@ function emptyView(shop: string): SelfxConnectionView {
     pendingLinkExpiresAt: null,
     storeId: null,
     storeName: null,
+    integrationId: null,
     storefrontLocale: "auto",
     adminLocale: "en",
     tryOnMode: "BOTH",

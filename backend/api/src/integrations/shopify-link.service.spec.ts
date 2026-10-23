@@ -53,6 +53,25 @@ describe("ShopifyLinkService", () => {
     expect(details).not.toHaveProperty("externalAccountId");
   });
 
+  it("invalidates an older pending approval when reconnection starts", async () => {
+    configure();
+    const prisma = new FakePrisma();
+    const service = new ShopifyLinkService(prisma as never);
+    const oldLink = await service.create(shop());
+    const newLink = await service.create(shop());
+
+    await expect(service.describe(oldLink.linkToken)).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: SHOPIFY_LINK_ERROR_CODES.invalid,
+        }),
+      }),
+    });
+    await expect(service.describe(newLink.linkToken)).resolves.toMatchObject({
+      status: "PENDING",
+    });
+  });
+
   it("approves one Store and redeems exactly one catalog credential", async () => {
     configure();
     const prisma = new FakePrisma();
@@ -84,6 +103,7 @@ describe("ShopifyLinkService", () => {
     expect(prisma.credentials[0]?.tokenHash).toBe(
       hashIntegrationToken(redeemed.integrationToken),
     );
+    expect(prisma.integrationProviderCredential.deleteMany).toHaveBeenCalled();
     expect(JSON.stringify(prisma.auditLogs)).not.toContain(
       redeemed.integrationToken,
     );
@@ -94,6 +114,22 @@ describe("ShopifyLinkService", () => {
         }),
       }),
     });
+  });
+
+  it("keeps OAuth catalog credentials when linking the same shop to its Store", async () => {
+    configure();
+    const prisma = new FakePrisma();
+    prisma.integrations.push(integration("store-1"));
+    const service = new ShopifyLinkService(prisma as never);
+    const created = await service.create(shop());
+    await service.approve("user-1", created.linkToken, "store-1");
+
+    await service.redeem(created.linkToken);
+
+    expect(
+      prisma.integrationProviderCredential.deleteMany,
+    ).not.toHaveBeenCalled();
+    expect(prisma.credentials).toHaveLength(1);
   });
 
   it("does not let a Shopify shop cross Store boundaries", async () => {
@@ -282,12 +318,33 @@ class FakePrisma {
   };
 
   shopifyLinkSession = {
-    deleteMany: vi.fn(({ where }: { where: { expiresAt: { lt: Date } } }) => {
-      this.sessions = this.sessions.filter(
-        (session) => session.expiresAt >= where.expiresAt.lt,
-      );
-      return { count: 0 };
-    }),
+    deleteMany: vi.fn(
+      ({
+        where,
+      }: {
+        where: {
+          expiresAt?: { lt: Date };
+          redeemedAt?: null;
+          OR?: Array<{ shopDomain?: string; externalAccountId?: string }>;
+        };
+      }) => {
+        this.sessions = this.sessions.filter((session) => {
+          if (where.expiresAt) return session.expiresAt >= where.expiresAt.lt;
+          if (where.redeemedAt === null && where.OR) {
+            return (
+              session.redeemedAt !== null ||
+              !where.OR.some(
+                (clause) =>
+                  clause.shopDomain === session.shopDomain ||
+                  clause.externalAccountId === session.externalAccountId,
+              )
+            );
+          }
+          return true;
+        });
+        return { count: 0 };
+      },
+    ),
     create: vi.fn(({ data }: { data: Partial<LinkSession> }) => {
       const now = new Date();
       const session = {

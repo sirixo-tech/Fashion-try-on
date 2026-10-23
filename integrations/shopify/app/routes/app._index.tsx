@@ -24,6 +24,7 @@ import {
   updateSelfxProductVisibilityRule,
   updateSelfxStorefrontSettings,
   type SelfxConnectionView,
+  clearStaleSelfxConnection,
 } from "../selfx-connection.server";
 import {
   adminFormat,
@@ -174,29 +175,39 @@ const setupSteps = [
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const connection = await safeConnectionView(session.shop);
-  const connectionHealth = await safeConnectionHealth(
-    session.shop,
-    connection,
-  );
+  let connection = await safeConnectionView(session.shop);
+  const connectionHealth = await safeConnectionHealth(session.shop, connection);
+  if (
+    connectionHealth.state === "NOT_CONNECTED" &&
+    connection.status === "CONNECTED"
+  ) {
+    connection = await clearStaleSelfxConnection(session.shop);
+  }
+  const verifiedConnection =
+    connectionHealth.state === "CONNECTED"
+      ? connection
+      : { ...connection, status: "ERROR" as const };
   return {
     connection,
     connectionHealth,
     themeBlock: await safeThemeBlockView({
       accessToken: session.accessToken,
-      connected: connection.status === "CONNECTED",
+      connected: connectionHealth.state === "CONNECTED",
       shop: session.shop,
     }),
-    creditSummary: await safeCreditSummary(session.shop, connection),
-    availablePlans: await safeAvailablePlans(session.shop, connection),
-    usageSummary: await safeUsageSummary(session.shop, connection),
-    productControls: await safeProductControls(session.shop, connection),
+    creditSummary: await safeCreditSummary(session.shop, verifiedConnection),
+    availablePlans: await safeAvailablePlans(session.shop, verifiedConnection),
+    usageSummary: await safeUsageSummary(session.shop, verifiedConnection),
+    productControls: await safeProductControls(
+      session.shop,
+      verifiedConnection,
+    ),
     productCollections: await safeProductCollections({
       accessToken: session.accessToken,
-      connected: connection.status === "CONNECTED",
+      connected: connectionHealth.state === "CONNECTED",
       shop: session.shop,
     }),
-    selfxBillingUrl: safeSelfxBillingUrl(connection),
+    selfxBillingUrl: safeSelfxBillingUrl(verifiedConnection),
     selfxPublicUrls: safeSelfxPublicUrls(),
     themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
   };
@@ -1271,10 +1282,7 @@ function SetupPanel({
         </s-grid>
       </s-section>
 
-      <CatalogSyncPanel
-        connected={connected}
-        connection={connection}
-      />
+      <CatalogSyncPanel connected={connected} connection={connection} />
     </s-stack>
   );
 }
@@ -1381,31 +1389,37 @@ function StoreConnectionSettingsCard({
   selfxBillingUrl: string | null;
 }) {
   const storeName =
-    connectionHealth.storeName?.trim() ||
-    connection.storeName?.trim() ||
-    null;
-  const fixedStoreId = connectionHealth.storeId ?? connection.storeId;
-  const connected = connectionHealth.state === "CONNECTED" && Boolean(storeName);
+    connectionHealth.storeId && connectionHealth.storeName?.trim()
+      ? connectionHealth.storeName.trim()
+      : null;
+  const connected =
+    connectionHealth.state === "CONNECTED" && Boolean(storeName);
   const needsReconnect =
     connectionHealth.state === "NEEDS_RECONNECT" ||
     connectionHealth.state === "ERROR" ||
-    connection.status === "ERROR";
+    connection.status === "ERROR" ||
+    (connection.status === "CONNECTED" &&
+      connectionHealth.state !== "CONNECTED");
   const planName =
     creditSummary?.subscription?.pricingPlan?.name ??
     creditSummary?.subscription?.status ??
     "Unavailable";
   const credits =
-    creditSummary == null ? "Unavailable" : String(creditSummary.availableCredits);
-  const statusTone = connected ? "success" : needsReconnect ? "warning" : "info";
+    creditSummary == null
+      ? "Unavailable"
+      : String(creditSummary.availableCredits);
+  const statusTone = connected
+    ? "success"
+    : needsReconnect
+      ? "warning"
+      : "info";
   const statusLabel = connected
     ? "Connected"
     : needsReconnect
       ? "Needs reconnect"
       : "Not connected";
-  const actionHref =
-    needsReconnect && fixedStoreId ? restartActionPath : connectActionPath;
-  const actionLabel =
-    needsReconnect && fixedStoreId ? "Reconnect Store" : "Connect Store";
+  const actionHref = needsReconnect ? restartActionPath : connectActionPath;
+  const actionLabel = needsReconnect ? "Reconnect Store" : "Connect Store";
 
   return (
     <s-box
@@ -4175,6 +4189,25 @@ async function safeConnectionHealth(
     const centralStoreName = centralHealth.storeName?.trim() ?? "";
     if (
       centralHealth.state === "CONNECTED" &&
+      connection.status === "CONNECTED" &&
+      (connection.storeId !== centralHealth.storeId ||
+        connection.integrationId !== centralHealth.integrationId)
+    ) {
+      return {
+        ...centralHealth,
+        state: "NEEDS_RECONNECT",
+        reasons: [
+          ...centralHealth.reasons,
+          connection.storeId !== centralHealth.storeId
+            ? "LOCAL_STORE_ID_MISMATCH"
+            : "LOCAL_INTEGRATION_ID_MISMATCH",
+        ],
+        message:
+          "This Shopify app is linked to a different SelfX Store. Reconnect it and approve the current Store in SelfX.",
+      };
+    }
+    if (
+      centralHealth.state === "CONNECTED" &&
       connection.status !== "CONNECTED"
     ) {
       return {
@@ -4218,8 +4251,7 @@ async function safeConnectionHealth(
       integrationId: null,
       storeId: null,
       reasons: ["CENTRAL_CONNECTION_HEALTH_UNAVAILABLE"],
-      message:
-        "SelfX could not verify the central Shopify connection health.",
+      message: "SelfX could not verify the central Shopify connection health.",
     };
   }
 }

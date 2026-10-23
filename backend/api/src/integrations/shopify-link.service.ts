@@ -65,6 +65,12 @@ export class ShopifyLinkService {
       await tx.shopifyLinkSession.deleteMany({
         where: { expiresAt: { lt: new Date() } },
       });
+      await tx.shopifyLinkSession.deleteMany({
+        where: {
+          redeemedAt: null,
+          OR: [{ shopDomain }, { externalAccountId }],
+        },
+      });
       return tx.shopifyLinkSession.create({
         data: {
           id: createSelfxId(),
@@ -279,9 +285,17 @@ export class ShopifyLinkService {
             },
           });
 
-      await tx.integrationProviderCredential.deleteMany({
-        where: { integrationId: integration.id },
-      });
+      // OAuth may already have authorized this exact shop for this Store.
+      // Keep that provider token so product webhooks and read-only catalog sync
+      // continue working after the embedded app receives its own credential.
+      const sameOauthShop =
+        storeIntegration?.externalAccountId === session.externalAccountId &&
+        jsonObject(storeIntegration.metadata).shopDomain === session.shopDomain;
+      if (!sameOauthShop) {
+        await tx.integrationProviderCredential.deleteMany({
+          where: { integrationId: integration.id },
+        });
+      }
       await tx.integrationOauthState.deleteMany({
         where: {
           organizationId: store.id,

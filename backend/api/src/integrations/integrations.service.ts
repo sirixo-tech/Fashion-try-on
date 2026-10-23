@@ -186,6 +186,11 @@ export class IntegrationsService {
           consumedAt: null,
         },
       });
+      if (current.type === "SHOPIFY") {
+        await tx.shopifyLinkSession.deleteMany({
+          where: { organizationId: current.organizationId, redeemedAt: null },
+        });
+      }
       await tx.integrationCredential.updateMany({
         where: {
           integrationId,
@@ -201,6 +206,13 @@ export class IntegrationsService {
         data: {
           status: IntegrationStatus.DISCONNECTED,
           disconnectedAt: now,
+          ...(current.type === "SHOPIFY"
+            ? {
+                externalAccountId: null,
+                externalAccountName: null,
+                metadata: Prisma.DbNull,
+              }
+            : {}),
         },
         include: integrationInclude,
       });

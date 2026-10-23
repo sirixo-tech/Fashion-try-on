@@ -96,9 +96,23 @@ export class IntegrationsController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     const result = await this.shopifyOauth.complete(query);
-    void reply.redirect(
-      this.shopifyOauth.successRedirect(result.storeId, result.syncStatus),
+    const destination = this.shopifyOauth.successRedirect(
+      result.storeId,
+      result.syncStatus,
     );
+    // Show a useful result even when an embedded browser does not follow the
+    // callback's navigation. The link only targets our configured web origin.
+    const safeDestination = escapeHtmlAttribute(destination);
+    const message =
+      result.syncStatus === "COMPLETED"
+        ? "Shopify catalog access is connected. Return to SelfX to review the Store link."
+        : "Shopify catalog access is connected, but the first sync needs a retry.";
+    reply.header("Cache-Control", "no-store");
+    reply.type("text/html; charset=utf-8").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="2;url=${safeDestination}"><title>Shopify connection · SelfX</title></head>
+<body><main><h1>Shopify connection saved</h1><p>${message}</p>
+<p><a href="${safeDestination}">Continue to SelfX</a></p></main></body></html>`);
   }
 
   @Post(":integrationId/shopify/sync")
@@ -266,4 +280,12 @@ export class IntegrationsController {
 
 function featureKeyForIntegration(type: "SHOPIFY" | "WOOCOMMERCE"): string {
   return type === "SHOPIFY" ? "SHOPIFY_INTEGRATION" : "WOOCOMMERCE_INTEGRATION";
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }

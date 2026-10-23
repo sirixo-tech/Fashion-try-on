@@ -218,6 +218,12 @@ export class ShopifyWebhookService {
     triggeredAt: Date,
   ): Promise<void> {
     const now = new Date();
+    // Keep the shop identity routable until catalog cleanup succeeds, so a
+    // failed uninstall webhook can be retried safely.
+    await this.catalogSync.archiveIntegrationCatalog(
+      connection.integrationId,
+      now,
+    );
     await this.prisma.$transaction(async (tx) => {
       await tx.integrationProviderCredential.deleteMany({
         where: { integrationId: connection.integrationId },
@@ -228,6 +234,9 @@ export class ShopifyWebhookService {
           provider: "SHOPIFY",
           consumedAt: null,
         },
+      });
+      await tx.shopifyLinkSession.deleteMany({
+        where: { organizationId: connection.storeId, redeemedAt: null },
       });
       await tx.integrationCredential.updateMany({
         where: {
@@ -244,6 +253,9 @@ export class ShopifyWebhookService {
         data: {
           status: IntegrationStatus.DISCONNECTED,
           disconnectedAt: now,
+          externalAccountId: null,
+          externalAccountName: null,
+          metadata: Prisma.DbNull,
         },
       });
       await tx.auditLog.create({
@@ -260,10 +272,6 @@ export class ShopifyWebhookService {
         },
       });
     });
-    await this.catalogSync.archiveIntegrationCatalog(
-      connection.integrationId,
-      now,
-    );
   }
 
   private async claimEvent(

@@ -564,6 +564,7 @@ describe("Shopify webhook security and synchronization", () => {
     const transaction = {
       integrationProviderCredential: { deleteMany: vi.fn() },
       integrationOauthState: { deleteMany: vi.fn() },
+      shopifyLinkSession: { deleteMany: vi.fn() },
       integrationCredential: { updateMany: vi.fn() },
       integration: { update: vi.fn() },
       auditLog: { create: vi.fn() },
@@ -585,6 +586,7 @@ describe("Shopify webhook security and synchronization", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: IntegrationStatus.DISCONNECTED,
+          externalAccountId: null,
         }),
       }),
     );
@@ -592,6 +594,7 @@ describe("Shopify webhook security and synchronization", () => {
       transaction.integrationProviderCredential.deleteMany,
     ).toHaveBeenCalled();
     expect(transaction.integrationCredential.updateMany).toHaveBeenCalled();
+    expect(transaction.shopifyLinkSession.deleteMany).toHaveBeenCalled();
     expect(archiveIntegrationCatalog).toHaveBeenCalledWith(
       "integration-1",
       expect.any(Date),

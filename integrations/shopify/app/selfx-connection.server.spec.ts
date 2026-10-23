@@ -1,17 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const database = vi.hoisted(() => ({
   findUnique: vi.fn(),
   update: vi.fn(),
+  updateMany: vi.fn(),
+  upsert: vi.fn(),
 }));
 
 vi.mock("./db.server", () => ({ default: { selfxConnection: database } }));
 
 import {
   getSelfxConnectionView,
+  clearStaleSelfxConnection,
+  restartSelfxConnection,
   updateSelfxStorefrontSettings,
 } from "./selfx-connection.server";
 import { parseShopifyTryOnMode } from "./selfx-tryon-settings";
+import { ShopifyAdminClient } from "../src/shopify-admin.server";
+import { SelfxLinkClient } from "./selfx-link.server";
 
 const shop = "merchant.myshopify.com";
 const settings = {
@@ -25,6 +31,10 @@ const settings = {
 
 describe("Shopify Try-On type settings", () => {
   beforeEach(() => vi.resetAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("defaults an unconnected shop to garments and jewellery", async () => {
     database.findUnique.mockResolvedValue(null);
@@ -90,5 +100,106 @@ describe("Shopify Try-On type settings", () => {
 
   it("does not accept an absent type as an explicit choice", () => {
     expect(() => parseShopifyTryOnMode(undefined)).toThrow();
+  });
+});
+
+describe("Shopify Store reconnection", () => {
+  beforeEach(() => vi.resetAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("clears a stale connected Store and app token after central disconnect", async () => {
+    const saved = {
+      ...settings,
+      shopName: "Merchant",
+      status: "CONNECTED",
+      tryOnMode: "BOTH",
+      selfxStoreId: "archived-store",
+      selfxStoreName: "Archived Store",
+      selfxIntegrationId: "old-integration",
+      integrationTokenCiphertext: "encrypted-token",
+      syncStatus: "SUCCESS",
+    } as Record<string, unknown>;
+    database.findUnique.mockImplementation(async () => saved);
+    database.updateMany.mockImplementation(async ({ data }) => {
+      Object.assign(saved, data);
+      return { count: 1 };
+    });
+
+    const result = await clearStaleSelfxConnection(shop);
+
+    expect(database.updateMany).toHaveBeenCalledWith({
+      where: { shop, status: "CONNECTED" },
+      data: expect.objectContaining({
+        integrationTokenCiphertext: null,
+        selfxStoreId: null,
+        selfxIntegrationId: null,
+      }),
+    });
+    expect(result).toMatchObject({ status: "NOT_CONNECTED", storeId: null });
+  });
+
+  it("starts a fresh approval without the archived Store ID", async () => {
+    vi.stubEnv("SELFX_SHOPIFY_APP_SERVICE_TOKEN", "s".repeat(32));
+    vi.stubEnv("SELFX_API_BASE_URL", "https://api.selfx.test");
+    vi.stubEnv("SELFX_WEB_BASE_URL", "https://app.selfx.test");
+    vi.stubEnv(
+      "SELFX_SHOPIFY_CREDENTIAL_ENCRYPTION_KEY",
+      Buffer.alloc(32, 1).toString("base64"),
+    );
+    const saved = {
+      ...settings,
+      shopifyAccountId: "gid://shopify/Shop/1001",
+      shopName: "Merchant",
+      status: "CONNECTED",
+      tryOnMode: "BOTH",
+      selfxStoreId: "archived-store",
+      selfxStoreName: "Archived Store",
+      selfxIntegrationId: "old-integration",
+      syncStatus: "SUCCESS",
+    } as Record<string, unknown>;
+    database.findUnique.mockImplementation(async () => saved);
+    database.upsert.mockImplementation(async ({ update }) => {
+      Object.assign(saved, update);
+      return saved;
+    });
+    vi.spyOn(ShopifyAdminClient.prototype, "getShopIdentity").mockResolvedValue(
+      {
+        id: "gid://shopify/Shop/1001",
+        name: "Merchant",
+        myshopifyDomain: shop,
+      },
+    );
+    const create = vi
+      .spyOn(SelfxLinkClient.prototype, "create")
+      .mockResolvedValue({
+        linkToken: "t".repeat(43),
+        approvalUrl: "https://app.selfx.test/app/integrations/shopify/link",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+
+    const result = await restartSelfxConnection({
+      shop,
+      shopifyAccessToken: "shopify-token",
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      shopDomain: shop,
+      externalAccountId: "gid://shopify/Shop/1001",
+      externalAccountName: "Merchant",
+      storeId: null,
+    });
+    expect(database.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          selfxStoreId: null,
+          selfxIntegrationId: null,
+        }),
+      }),
+    );
+    expect(result.status).toBe("PENDING_APPROVAL");
+    expect(result.storeId).toBeNull();
   });
 });

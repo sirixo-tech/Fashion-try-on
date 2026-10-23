@@ -7,6 +7,39 @@ import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import { IntegrationsController } from "./integrations.controller.js";
 
 describe("IntegrationsController", () => {
+  it("returns a visible completion page with a SelfX link after OAuth", async () => {
+    const shopify = oauth();
+    shopify.complete.mockResolvedValue({
+      storeId: "store-1",
+      syncStatus: "COMPLETED",
+    });
+    shopify.successRedirect.mockReturnValue(
+      "https://app.selfx.test/app/integrations/shopify?storeId=store-1&oauth=success",
+    );
+    const reply = {
+      header: vi.fn().mockReturnThis(),
+      type: vi.fn().mockReturnThis(),
+      send: vi.fn(),
+    };
+    const controller = new IntegrationsController(
+      auth(),
+      platformAuthorization(false) as never,
+      rbac() as never,
+      {} as never,
+      shopify as never,
+    );
+
+    await controller.completeShopifyOauth({} as never, reply as never);
+
+    expect(reply.header).toHaveBeenCalledWith("Cache-Control", "no-store");
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.stringContaining("Shopify connection saved"),
+    );
+    expect(reply.send.mock.calls[0]?.[0]).toContain(
+      "storeId=store-1&amp;oauth=success",
+    );
+  });
+
   it.each(["start", "sync"] as const)(
     "does not let platform integration authority %s a Store catalog operation",
     async (operation) => {

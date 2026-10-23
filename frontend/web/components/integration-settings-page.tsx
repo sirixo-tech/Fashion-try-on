@@ -101,6 +101,7 @@ export function IntegrationSettingsPage({
     externalAccountName: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [oauthComplete, setOauthComplete] = useState(false);
 
   const hasPlatformIntegrationAccess = Boolean(
     platformAccess?.isSuperadmin ||
@@ -211,6 +212,8 @@ export function IntegrationSettingsPage({
       setError(
         "Shopify connected, but the first catalog sync failed. Use Sync Catalog to try again.",
       );
+    } else if (oauth === "success") {
+      setOauthComplete(true);
     }
   }, []);
 
@@ -367,6 +370,12 @@ export function IntegrationSettingsPage({
   const connected = Boolean(
     integration && integration.status !== "DISCONNECTED",
   );
+  const connectionLabel =
+    type === "SHOPIFY" && connected && integration?.health !== "CONNECTED"
+      ? "APP LINK NEEDED"
+      : connected
+        ? "CONNECTED"
+        : "NOT CONNECTED";
 
   return (
     <PageContainer width="wide">
@@ -413,6 +422,14 @@ export function IntegrationSettingsPage({
           </div>
         </PageSection>
       ) : null}
+      {type === "SHOPIFY" && oauthComplete ? (
+        <PageSection>
+          <div className="rounded-lg border bg-muted/25 p-4 text-sm">
+            Shopify catalog access was saved. If the embedded Shopify app asks
+            to reconnect, approve this Store in SelfX to finish the app link.
+          </div>
+        </PageSection>
+      ) : null}
 
       {type === "WOOCOMMERCE" && hasPlatformIntegrationAccess ? (
         <PageSection>
@@ -447,10 +464,7 @@ export function IntegrationSettingsPage({
         <>
           <PageSection>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <SummaryTile
-                label="Connection"
-                value={connected ? "CONNECTED" : "NOT CONNECTED"}
-              />
+              <SummaryTile label="Connection" value={connectionLabel} />
               <SummaryTile
                 label="Available Credits"
                 value={
@@ -465,6 +479,13 @@ export function IntegrationSettingsPage({
               />
               <SummaryTile label="Total Used" value={String(totalConsumed)} />
             </div>
+            {type === "SHOPIFY" && connectionLabel === "APP LINK NEEDED" ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Shopify catalog access is authorized for this Store. Open the
+                embedded Shopify app, choose Reconnect Store, and approve this
+                Store in SelfX to finish the app link.
+              </p>
+            ) : null}
           </PageSection>
 
           <PageSection>

@@ -176,6 +176,10 @@ describe("IntegrationsService", () => {
     expect(disconnected.status).toBe("DISCONNECTED");
     expect(disconnected.health).toBe("DISCONNECTED");
     expect(disconnected.credentials[0]?.status).toBe("REVOKED");
+    expect(disconnected.externalAccountId).toBeNull();
+    expect(prisma.shopifyLinkSession.deleteMany).toHaveBeenCalledWith({
+      where: { organizationId: "store-1", redeemedAt: null },
+    });
   });
 });
 
@@ -223,6 +227,10 @@ class FakePrisma {
   };
 
   readonly integrationOauthState = {
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  };
+
+  readonly shopifyLinkSession = {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   };
 
