@@ -40,6 +40,7 @@ export default [
       "frontend/web/next.config.{js,mjs,ts}",
       "frontend/web/eslint.config.mjs",
       "app/**/*.{js,jsx,ts,tsx}",
+      "components/**/*.{js,jsx,ts,tsx}",
       "next.config.{js,mjs,ts}",
       "eslint.config.mjs",
     ],
