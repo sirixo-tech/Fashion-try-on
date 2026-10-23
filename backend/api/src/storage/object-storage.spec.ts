@@ -10,12 +10,71 @@ describe("ObjectStorageService", () => {
     vi.stubEnv("OBJECT_STORAGE_BUCKET", "selfx-assets");
     vi.stubEnv("OBJECT_STORAGE_ACCESS_KEY_ID", "access-key");
     vi.stubEnv("OBJECT_STORAGE_SECRET_ACCESS_KEY", "secret-key");
+    vi.stubEnv("OBJECT_STORAGE_URL_STYLE", "virtual");
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+  });
+
+  it("signs virtual-host URLs by default for reads and writes", () => {
+    vi.stubEnv("OBJECT_STORAGE_URL_STYLE", "");
+    const storage = new ObjectStorageService();
+    const readUrl = new URL(
+      storage.createReadUrl({
+        key: "try-on/garment image.jpg",
+        expiresInSeconds: 60,
+      }),
+    );
+    const uploadUrl = new URL(
+      storage.createUploadUrl({
+        key: "try-on/garment image.jpg",
+        contentType: "image/jpeg",
+        expiresInSeconds: 60,
+      }),
+    );
+
+    for (const url of [readUrl, uploadUrl]) {
+      expect(url.hostname).toBe("selfx-assets.storage.selfx.test");
+      expect(url.pathname).toBe("/try-on/garment%20image.jpg");
+      expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[a-f0-9]{64}$/);
+    }
+    expect(readUrl.searchParams.get("X-Amz-Signature")).not.toBe(
+      uploadUrl.searchParams.get("X-Amz-Signature"),
+    );
+  });
+
+  it("supports explicitly configured path-style buckets", () => {
+    vi.stubEnv("OBJECT_STORAGE_URL_STYLE", "path");
+    const url = new URL(
+      new ObjectStorageService().createReadUrl({
+        key: "try-on/garment.jpg",
+        expiresInSeconds: 60,
+      }),
+    );
+    expect(url.hostname).toBe("storage.selfx.test");
+    expect(url.pathname).toBe("/selfx-assets/try-on/garment.jpg");
+    expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("rejects unsupported URL styles instead of signing a wrong host", () => {
+    vi.stubEnv("OBJECT_STORAGE_URL_STYLE", "unsupported");
+    try {
+      new ObjectStorageService().createReadUrl({
+        key: "try-on/garment.jpg",
+        expiresInSeconds: 60,
+      });
+      expect.fail("Expected invalid storage configuration to be rejected.");
+    } catch (error) {
+      expect(error).toMatchObject({
+        status: 503,
+        response: {
+          error: { code: "OBJECT_STORAGE_INVALID_CONFIGURATION" },
+        },
+      });
+    }
   });
 
   it("logs write rejection metadata without keys, signed URLs or response bodies", async () => {

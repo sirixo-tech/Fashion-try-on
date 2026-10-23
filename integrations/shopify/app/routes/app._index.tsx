@@ -2881,9 +2881,11 @@ function PrimaryActions({
     return (
       <s-stack direction="inline" gap="base">
         {approvalUrl ? (
-          <SelfxActionButton tone="primary" href={approvalUrl} target="_blank">
-            Approve in SelfX
-          </SelfxActionButton>
+          <div className="selfx-shopify-header-action">
+            <SelfxActionButton tone="primary" href={approvalUrl} target="_blank">
+              Approve in SelfX
+            </SelfxActionButton>
+          </div>
         ) : null}
         <Form method="post">
           <input type="hidden" name="intent" value="connection:complete" />

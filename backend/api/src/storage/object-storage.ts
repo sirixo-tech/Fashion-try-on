@@ -37,6 +37,7 @@ export interface ObjectStorageConfig {
   bucket?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
+  urlStyle?: string;
 }
 
 @Injectable()
@@ -204,6 +205,7 @@ export function loadObjectStorageConfig(
     bucket: env.OBJECT_STORAGE_BUCKET,
     accessKeyId: env.OBJECT_STORAGE_ACCESS_KEY_ID,
     secretAccessKey: env.OBJECT_STORAGE_SECRET_ACCESS_KEY,
+    urlStyle: env.OBJECT_STORAGE_URL_STYLE?.trim().toLowerCase() || "virtual",
   };
 }
 
@@ -213,6 +215,7 @@ const storageEnvNames: Record<keyof ObjectStorageConfig, string> = {
   bucket: "OBJECT_STORAGE_BUCKET",
   accessKeyId: "OBJECT_STORAGE_ACCESS_KEY_ID",
   secretAccessKey: "OBJECT_STORAGE_SECRET_ACCESS_KEY",
+  urlStyle: "OBJECT_STORAGE_URL_STYLE",
 };
 
 function requireConfiguredStorage(
@@ -228,6 +231,13 @@ function requireConfiguredStorage(
       "Object storage is not configured for customer uploads.",
     );
   }
+  if (config.urlStyle !== "virtual" && config.urlStyle !== "path") {
+    throw new ApiErrorException(
+      HttpStatus.SERVICE_UNAVAILABLE,
+      "OBJECT_STORAGE_INVALID_CONFIGURATION",
+      "Object storage URL style must be virtual or path.",
+    );
+  }
   return config as Required<ObjectStorageConfig>;
 }
 
@@ -237,9 +247,12 @@ function objectUrl(config: Required<ObjectStorageConfig>, key: string): URL {
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/");
-  return new URL(
-    `${endpoint}/${encodeURIComponent(config.bucket)}/${encodedKey}`,
-  );
+  if (config.urlStyle === "path") {
+    return new URL(`${endpoint}/${encodeURIComponent(config.bucket)}/${encodedKey}`);
+  }
+  const url = new URL(`${endpoint}/${encodedKey}`);
+  url.hostname = `${config.bucket}.${url.hostname}`;
+  return url;
 }
 
 function canonicalQuery(params: URLSearchParams): string {
