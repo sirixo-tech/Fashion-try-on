@@ -1,4 +1,8 @@
-import { ExternalProductMappingStatus, IntegrationType } from "@prisma/client";
+import {
+  ExternalProductMappingStatus,
+  IntegrationType,
+  OrganizationStatus,
+} from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -43,6 +47,24 @@ const productInput = {
 };
 
 describe("IntegrationCatalogSyncService", () => {
+  it("rejects a batch that reaches the Store after archiving", async () => {
+    const tx = createTransaction();
+    tx.$queryRaw.mockResolvedValue([{ status: OrganizationStatus.ARCHIVED }]);
+    await expect(
+      createService(tx).sync(credential, {
+        mode: "INCREMENTAL",
+        products: [productInput],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: INTEGRATION_CATALOG_SYNC_ERROR_CODES.integrationInactive,
+        }),
+      }),
+    });
+    expect(tx.product.create).not.toHaveBeenCalled();
+  });
+
   it("creates a Store-scoped, disabled SelfX snapshot and external mappings", async () => {
     const tx = createTransaction();
     tx.externalProductMapping.findFirst.mockResolvedValue(null);
@@ -915,6 +937,9 @@ function createService(tx: ReturnType<typeof createTransaction>) {
 function createTransaction() {
   return {
     $executeRaw: vi.fn().mockResolvedValue(0),
+    $queryRaw: vi
+      .fn()
+      .mockResolvedValue([{ status: OrganizationStatus.ACTIVE }]),
     integration: {
       findFirst: vi.fn().mockResolvedValue({
         metadata: { tryOnMode: "BOTH" },

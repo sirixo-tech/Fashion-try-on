@@ -1,5 +1,8 @@
 import { HttpStatus } from "@nestjs/common";
 import {
+  ExternalProductMappingStatus,
+  IntegrationCredentialStatus,
+  IntegrationStatus,
   KioskAssignmentScope,
   KioskDeviceStatus,
   OrganizationStatus,
@@ -164,7 +167,7 @@ describe("STORE-1 admin Stores", () => {
     expect(kiosks.pairKiosk).not.toHaveBeenCalled();
   });
 
-  it("archives Stores without hard-deleting their records", async () => {
+  it("archives Stores, revokes integrations, and releases Shopify identity", async () => {
     const prisma = createPrismaMock();
     const service = new AdminStoresService(
       prisma as never,
@@ -184,14 +187,79 @@ describe("STORE-1 admin Stores", () => {
         status: OrganizationStatus.ARCHIVED,
       }),
     );
+    prisma.integration.findMany.mockResolvedValue([
+      {
+        id: "integration-1",
+        type: "SHOPIFY",
+        status: IntegrationStatus.ACTIVE,
+      },
+    ]);
+    prisma.externalProductMapping.findMany.mockResolvedValue([
+      { productId: "imported-product" },
+    ]);
 
-    const archived = await service.archiveStore("store-active");
+    const archived = await service.archiveStore(
+      "store-active",
+      "platform-admin",
+    );
 
     expect(prisma.organization.update).toHaveBeenCalledWith({
       where: { id: "store-active" },
       data: { status: OrganizationStatus.ARCHIVED },
     });
     expect(archived.status).toBe(AdminStoreStatus.ARCHIVED);
+    expect(
+      prisma.integrationProviderCredential.deleteMany,
+    ).toHaveBeenCalledWith({
+      where: { organizationId: "store-active" },
+    });
+    expect(prisma.integrationOauthState.deleteMany).toHaveBeenCalledWith({
+      where: { organizationId: "store-active", consumedAt: null },
+    });
+    expect(prisma.shopifyLinkSession.deleteMany).toHaveBeenCalledWith({
+      where: { organizationId: "store-active", redeemedAt: null },
+    });
+    expect(prisma.integrationCredential.updateMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "store-active",
+        status: IntegrationCredentialStatus.ACTIVE,
+      },
+      data: {
+        status: IntegrationCredentialStatus.REVOKED,
+        revokedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.integration.updateMany).toHaveBeenCalledWith({
+      where: { organizationId: "store-active" },
+      data: {
+        status: IntegrationStatus.DISCONNECTED,
+        externalAccountId: null,
+        externalAccountName: null,
+        metadata: Prisma.DbNull,
+        disconnectedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.product.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["imported-product"] },
+        organizationId: "store-active",
+      },
+      data: { active: false },
+    });
+    expect(prisma.externalProductMapping.updateMany).toHaveBeenCalledWith({
+      where: { integrationId: { in: ["integration-1"] } },
+      data: {
+        status: ExternalProductMappingStatus.ARCHIVED,
+        externalUpdatedAt: null,
+      },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "STORE_ARCHIVE_INTEGRATION_DISCONNECTED",
+        actorUserId: "platform-admin",
+        organizationId: "store-active",
+      }),
+    });
   });
 
   it("excludes archived Stores from normal Store lists", async () => {
@@ -492,6 +560,48 @@ describe("STORE-1 admin Stores", () => {
     expect(stores.createStore).not.toHaveBeenCalled();
   });
 
+  it("requires platform deactivation authority when archiving through Store update", async () => {
+    const stores = { updateStore: vi.fn() };
+    const platformAuthorization = {
+      requirePermission: vi
+        .fn()
+        .mockRejectedValue(
+          new ApiErrorException(
+            HttpStatus.FORBIDDEN,
+            "PLATFORM_PERMISSION_DENIED",
+            "Platform permission denied.",
+          ),
+        ),
+      hasPermission: vi.fn().mockResolvedValue(false),
+    };
+    const rbac = createRbacMock();
+    const controller = new AdminStoresController(
+      {
+        requireAccessUser: vi.fn().mockResolvedValue({ id: "store-user" }),
+      } as never,
+      platformAuthorization as never,
+      stores as never,
+      {} as never,
+      rbac as never,
+      createImpersonationMock() as never,
+    );
+
+    await expectApiCode(
+      controller.update(
+        { headers: { authorization: "Bearer store" } } as never,
+        "store-1",
+        { status: AdminStoreStatus.ARCHIVED },
+      ),
+      "PLATFORM_PERMISSION_DENIED",
+    );
+    expect(platformAuthorization.requirePermission).toHaveBeenCalledWith(
+      "store-user",
+      PLATFORM_PERMISSIONS.storesDeactivate,
+    );
+    expect(rbac.requireStorePermission).not.toHaveBeenCalled();
+    expect(stores.updateStore).not.toHaveBeenCalled();
+  });
+
   it("checks Store-owned kiosk membership before reading nested configuration", async () => {
     const stores = {
       requireKioskInStore: vi
@@ -695,8 +805,23 @@ describe("STORE-1 admin Stores", () => {
 
 function createPrismaMock() {
   const tx = {
+    $queryRaw: vi.fn(),
     organization: {
       create: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      update: vi.fn(),
+    },
+    integration: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn(),
+    },
+    integrationProviderCredential: { deleteMany: vi.fn() },
+    integrationOauthState: { deleteMany: vi.fn() },
+    shopifyLinkSession: { deleteMany: vi.fn() },
+    integrationCredential: { updateMany: vi.fn() },
+    externalProductMapping: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn(),
     },
     kioskDevice: {
       findUnique: vi.fn(),
@@ -711,6 +836,12 @@ function createPrismaMock() {
     },
   };
   const prisma = {
+    integration: tx.integration,
+    integrationProviderCredential: tx.integrationProviderCredential,
+    integrationOauthState: tx.integrationOauthState,
+    shopifyLinkSession: tx.shopifyLinkSession,
+    integrationCredential: tx.integrationCredential,
+    externalProductMapping: tx.externalProductMapping,
     organization: {
       count: vi.fn(),
       create: vi.fn(),
@@ -738,6 +869,10 @@ function createPrismaMock() {
     ),
   };
   tx.organization.create = prisma.organization.create;
+  tx.organization.findUniqueOrThrow = prisma.organization.findUnique;
+  tx.organization.update = prisma.organization.update;
+  tx.$queryRaw = prisma.$queryRaw;
+  tx.product.updateMany = prisma.product.updateMany;
   tx.kioskDevice.findUnique = prisma.kioskDevice.findUnique;
   tx.kioskDevice.update = prisma.kioskDevice.update;
   tx.auditLog.create = prisma.auditLog.create;

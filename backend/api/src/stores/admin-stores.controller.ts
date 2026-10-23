@@ -45,6 +45,7 @@ import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { AdminStoresService } from "./admin-stores.service.js";
 import { StoreImpersonationService } from "./store-impersonation.service.js";
 import {
+  AdminStoreStatus,
   AdminStoreDetailResponseDto,
   AdminStoreListQueryDto,
   AdminStoreListResponseDto,
@@ -175,13 +176,20 @@ export class AdminStoresController {
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
     @Body() dto: UpdateAdminStoreDto,
   ): Promise<AdminStoreResponseDto> {
-    await this.requirePlatformOrStorePermission(
-      request,
-      storeId,
-      PLATFORM_PERMISSIONS.storesUpdate,
-      STORE_PERMISSION_CODES.storesUpdate,
-    );
-    return this.stores.updateStore(storeId, dto);
+    const user =
+      dto.status === AdminStoreStatus.ARCHIVED
+        ? await this.requirePlatformPermissionForStore(
+            request,
+            PLATFORM_PERMISSIONS.storesDeactivate,
+            storeId,
+          )
+        : await this.requirePlatformOrStorePermission(
+            request,
+            storeId,
+            PLATFORM_PERMISSIONS.storesUpdate,
+            STORE_PERMISSION_CODES.storesUpdate,
+          );
+    return this.stores.updateStore(storeId, dto, user.id);
   }
 
   @Put(":storeId/subscription")
@@ -313,12 +321,12 @@ export class AdminStoresController {
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
   ): Promise<AdminStoreResponseDto> {
-    await this.requirePlatformPermissionForStore(
+    const user = await this.requirePlatformPermissionForStore(
       request,
       PLATFORM_PERMISSIONS.storesDeactivate,
       storeId,
     );
-    return this.stores.archiveStore(storeId);
+    return this.stores.archiveStore(storeId, user.id);
   }
 
   @Get(":storeId/products")

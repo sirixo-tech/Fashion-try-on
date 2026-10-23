@@ -211,6 +211,9 @@ type StoredCredential = {
 };
 
 class FakePrisma {
+  $queryRaw = vi
+    .fn()
+    .mockImplementation(() => Promise.resolve([{ status: this.storeStatus }]));
   readonly integrations: StoredIntegration[] = [];
   readonly credentials: StoredCredential[] = [];
   readonly auditLogs: Array<Record<string, unknown>> = [];

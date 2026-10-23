@@ -204,6 +204,11 @@ export class ShopifyLinkService {
     const secret = createIntegrationToken();
     const tokenPrefix = secret.slice(0, INTEGRATION_TOKEN_PREFIX_LENGTH);
     const result = await this.prisma.$transaction(async (tx) => {
+      const stores = await tx.$queryRaw<Array<{ status: OrganizationStatus }>>`
+        SELECT status FROM organizations WHERE id=${store.id}::uuid FOR UPDATE
+      `;
+      if (stores[0]?.status !== OrganizationStatus.ACTIVE)
+        throw storeNotFound();
       const claimed = await tx.shopifyLinkSession.updateMany({
         where: {
           id: session.id,

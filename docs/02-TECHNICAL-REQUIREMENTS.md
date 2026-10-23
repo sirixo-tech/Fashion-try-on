@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### STORE-ARCHIVE-INTEGRATIONS — Atomic connection release (2026-10-23)
+
+Store archival atomically changes tenant status, disconnects all integrations, removes encrypted provider credentials, revokes active integration tokens, invalidates pending OAuth/link sessions, clears external account identity and Shopify shop-domain metadata, and archives imported mappings/products. Clear mapping source freshness so an unchanged product can be imported again after restore and fresh authorization. The Store status row lock serializes archival with OAuth linking and catalog sync so in-flight work cannot restore a released connection. Existing archived Stores receive the same cleanup through data migrations; audit events retain connection type and actor without secrets.
+
 ### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
 
 Use one CommerceStorefrontTryOnService behind existing Shopify and new WooCommerce controllers. Woo plugin uses server-side scoped credentials (catalog:sync + tryon:create), eligibility checks and a short-lived fragment launch. Reuse the existing capability/session/asset/credit/provider pipeline, attribute Woo runs to WOOCOMMERCE, record versioned consent before upload/generation and enforce tenant/plan/product state. Pin validated public DNS addresses for bounded catalog image fetches and redirects. A unique hashed session/request key prevents concurrent duplicate generation. Import parent references only; server-side imported-product mutations/purchases remain blocked.

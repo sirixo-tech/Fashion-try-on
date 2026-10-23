@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### STORE-ARCHIVE-INTEGRATIONS — Release commerce connections (2026-10-23)
+
+Archiving a Store disconnects its integrations, revokes integration credentials and pending connection sessions, and releases Shopify shop identity. Imported catalog references in the archived Store become inactive; native Store products and historical records are retained. Restoring the Store does not restore connections. A merchant must authorize each integration again, and a newly linked Store imports its own catalog without inheriting the archived Store's tenant data.
+
 ### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
 
 Shopify/WooCommerce are Try-On-only channels: show the product-page SelfX button and import one parent image/reference into the correct Store for kiosks. Website platforms retain all size/color selection, price, inventory, cart, checkout and orders. Imported products cannot enter native SelfX purchasing; sold-out items remain eligible for Try-On. Native SelfX products retain approved shopping functionality. This supersedes WOO-1 variant/price import and proposed cart handoff.

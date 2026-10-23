@@ -3,6 +3,8 @@ import { MailAutomationService } from "../mail/mail-automation.service.js";
 import {
   CatalogProductScope,
   ExternalProductMappingStatus,
+  IntegrationCredentialStatus,
+  IntegrationStatus,
   KioskAssignmentScope,
   KioskDeviceStatus,
   OrganizationStatus,
@@ -495,22 +497,27 @@ export class AdminStoresService {
   async updateStore(
     storeId: string,
     input: UpdateAdminStoreDto,
+    actorUserId?: string,
   ): Promise<AdminStoreResponseDto> {
     await this.findStoreOrThrow(storeId);
     try {
-      const updated = await this.updateWithMail(storeId, {
-        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-        ...(input.slug !== undefined
-          ? { slug: normalizeSlug(input.slug) }
-          : {}),
-        ...(input.status !== undefined
-          ? { status: organizationStatusFromStoreStatus(input.status) }
-          : {}),
-        ...(input.timezone !== undefined
-          ? { timezone: input.timezone.trim() || "UTC" }
-          : {}),
-        settings: await this.updatedStoreSettings(storeId, input),
-      });
+      const updated = await this.updateWithMail(
+        storeId,
+        {
+          ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+          ...(input.slug !== undefined
+            ? { slug: normalizeSlug(input.slug) }
+            : {}),
+          ...(input.status !== undefined
+            ? { status: organizationStatusFromStoreStatus(input.status) }
+            : {}),
+          ...(input.timezone !== undefined
+            ? { timezone: input.timezone.trim() || "UTC" }
+            : {}),
+          settings: await this.updatedStoreSettings(storeId, input),
+        },
+        actorUserId,
+      );
       return mapStore(updated);
     } catch (error) {
       if (isUniqueConflict(error)) {
@@ -540,20 +547,24 @@ export class AdminStoresService {
     return mapStore(store);
   }
 
-  async archiveStore(storeId: string): Promise<AdminStoreResponseDto> {
+  async archiveStore(
+    storeId: string,
+    actorUserId?: string,
+  ): Promise<AdminStoreResponseDto> {
     await this.findStoreOrThrow(storeId);
-    const store = await this.updateWithMail(storeId, {
-      status: OrganizationStatus.ARCHIVED,
-    });
+    const store = await this.updateWithMail(
+      storeId,
+      { status: OrganizationStatus.ARCHIVED },
+      actorUserId,
+    );
     return mapStore(store);
   }
 
   private async updateWithMail(
     storeId: string,
     data: Prisma.OrganizationUpdateInput,
+    actorUserId?: string,
   ) {
-    if (!this.mail)
-      return this.prisma.organization.update({ where: { id: storeId }, data });
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM organizations WHERE id=${storeId}::uuid FOR UPDATE`;
       const previous = await tx.organization.findUniqueOrThrow({
@@ -563,7 +574,14 @@ export class AdminStoresService {
         where: { id: storeId },
         data,
       });
-      if (previous.status !== updated.status) {
+      if (updated.status === OrganizationStatus.ARCHIVED) {
+        await this.disconnectArchivedStoreIntegrations(
+          tx,
+          storeId,
+          actorUserId,
+        );
+      }
+      if (this.mail && previous.status !== updated.status) {
         const code =
           updated.status === "SUSPENDED"
             ? "STORE_SUSPENDED"
@@ -582,6 +600,87 @@ export class AdminStoresService {
       }
       return updated;
     });
+  }
+
+  private async disconnectArchivedStoreIntegrations(
+    tx: Prisma.TransactionClient,
+    storeId: string,
+    actorUserId?: string,
+  ): Promise<void> {
+    const integrations = await tx.integration.findMany({
+      where: { organizationId: storeId },
+      select: { id: true, type: true, status: true },
+    });
+    const integrationIds = integrations.map(({ id }) => id);
+    const now = new Date();
+
+    await tx.integrationProviderCredential.deleteMany({
+      where: { organizationId: storeId },
+    });
+    await tx.integrationOauthState.deleteMany({
+      where: { organizationId: storeId, consumedAt: null },
+    });
+    await tx.shopifyLinkSession.deleteMany({
+      where: { organizationId: storeId, redeemedAt: null },
+    });
+    await tx.integrationCredential.updateMany({
+      where: {
+        organizationId: storeId,
+        status: IntegrationCredentialStatus.ACTIVE,
+      },
+      data: { status: IntegrationCredentialStatus.REVOKED, revokedAt: now },
+    });
+    if (integrationIds.length > 0) {
+      const mappings = await tx.externalProductMapping.findMany({
+        where: {
+          integrationId: { in: integrationIds },
+          externalVariantId: null,
+        },
+        select: { productId: true },
+      });
+      const productIds = [
+        ...new Set(mappings.map(({ productId }) => productId)),
+      ];
+      if (productIds.length > 0) {
+        await tx.product.updateMany({
+          where: { id: { in: productIds }, organizationId: storeId },
+          data: { active: false },
+        });
+      }
+      await tx.externalProductMapping.updateMany({
+        where: { integrationId: { in: integrationIds } },
+        // A restored Store must accept a fresh full snapshot even when the
+        // source product's updated timestamp has not changed since archiving.
+        data: {
+          status: ExternalProductMappingStatus.ARCHIVED,
+          externalUpdatedAt: null,
+        },
+      });
+      await tx.integration.updateMany({
+        where: { organizationId: storeId },
+        data: {
+          status: IntegrationStatus.DISCONNECTED,
+          externalAccountId: null,
+          externalAccountName: null,
+          metadata: Prisma.DbNull,
+          disconnectedAt: now,
+        },
+      });
+      for (const integration of integrations) {
+        if (integration.status === IntegrationStatus.DISCONNECTED) continue;
+        await tx.auditLog.create({
+          data: {
+            id: createSelfxId(),
+            action: "STORE_ARCHIVE_INTEGRATION_DISCONNECTED",
+            actorUserId,
+            organizationId: storeId,
+            resourceType: "integration",
+            resourceId: integration.id,
+            metadata: { type: integration.type },
+          },
+        });
+      }
+    }
   }
 
   async listStoreKiosks(storeId: string) {

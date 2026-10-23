@@ -2,7 +2,9 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import {
   CatalogProductScope,
   ExternalProductMappingStatus,
+  IntegrationStatus,
   JewelleryType,
+  OrganizationStatus,
   Prisma,
   type IntegrationType,
 } from "@prisma/client";
@@ -37,6 +39,7 @@ import {
 } from "./shopify-product-category.js";
 
 export const INTEGRATION_CATALOG_SYNC_ERROR_CODES = {
+  integrationInactive: "INTEGRATION_CATALOG_INACTIVE",
   duplicateProduct: "INTEGRATION_CATALOG_DUPLICATE_PRODUCT",
   duplicateVariant: "INTEGRATION_CATALOG_DUPLICATE_VARIANT",
   productNotFound: "INTEGRATION_PRODUCT_NOT_FOUND",
@@ -320,6 +323,26 @@ export class IntegrationCatalogSyncService {
       // Serialize batches for this integration, including a full-scan finalizer
       // racing incremental updates. Other Stores/integrations remain independent.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.catalog.sync'), hashtext(${credential.integrationId}))`;
+      // Hold a Store row lock while applying the batch so archive cannot release
+      // an integration before an already-started sync has finished writing.
+      const stores = await tx.$queryRaw<Array<{ status: OrganizationStatus }>>`
+        SELECT status FROM organizations WHERE id=${credential.storeId}::uuid FOR SHARE
+      `;
+      const integration = await tx.integration.findFirst({
+        where: {
+          id: credential.integrationId,
+          organizationId: credential.storeId,
+          status: { in: [IntegrationStatus.ACTIVE, IntegrationStatus.ERROR] },
+        },
+        select: { id: true },
+      });
+      if (stores[0]?.status !== OrganizationStatus.ACTIVE || !integration) {
+        throw new ApiErrorException(
+          HttpStatus.FORBIDDEN,
+          INTEGRATION_CATALOG_SYNC_ERROR_CODES.integrationInactive,
+          "Store integration is no longer active for catalog sync.",
+        );
+      }
       const categoryId = await ensureImportedCategory(tx, credential);
       const result: SyncCounts = {
         created: 0,

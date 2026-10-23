@@ -31,6 +31,7 @@ import {
 
 export const INTEGRATIONS_ERROR_CODES = {
   storeNotFound: "INTEGRATION_STORE_NOT_FOUND",
+  storeInactive: "INTEGRATION_STORE_INACTIVE",
   integrationNotFound: "INTEGRATION_NOT_FOUND",
   credentialNotFound: "INTEGRATION_CREDENTIAL_NOT_FOUND",
   integrationTypeInvalid: "INTEGRATION_TYPE_INVALID",
@@ -113,6 +114,16 @@ export class IntegrationsService {
     const type = cleanIntegrationType(input.type);
     const now = new Date();
     const integration = await this.prisma.$transaction(async (tx) => {
+      const stores = await tx.$queryRaw<Array<{ status: OrganizationStatus }>>`
+        SELECT status FROM organizations WHERE id=${input.storeId}::uuid FOR UPDATE
+      `;
+      if (stores[0]?.status !== OrganizationStatus.ACTIVE) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          INTEGRATIONS_ERROR_CODES.storeInactive,
+          "Store is not active for integrations.",
+        );
+      }
       const saved = await tx.integration.upsert({
         where: {
           organizationId_type: {

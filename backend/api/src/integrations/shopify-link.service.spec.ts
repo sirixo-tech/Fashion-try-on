@@ -260,6 +260,9 @@ type LinkSession = {
 };
 
 class FakePrisma {
+  $queryRaw = vi
+    .fn()
+    .mockResolvedValue([{ status: OrganizationStatus.ACTIVE }]);
   sessions: LinkSession[] = [];
   integrations: ReturnType<typeof integration>[] = [];
   credentials: Array<Record<string, unknown>> = [];

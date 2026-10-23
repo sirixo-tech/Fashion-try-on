@@ -180,6 +180,10 @@ export class ShopifyOauthService {
     }
     const encrypted = encryptProviderSecret(secrets, config.encryptionKey);
     const integration = await this.prisma.$transaction(async (tx) => {
+      const stores = await tx.$queryRaw<Array<{ status: OrganizationStatus }>>`
+        SELECT status FROM organizations WHERE id=${state.organizationId}::uuid FOR UPDATE
+      `;
+      if (stores[0]?.status !== OrganizationStatus.ACTIVE) throw invalidState();
       const saved = await tx.integration.upsert({
         where: {
           organizationId_type: {
@@ -274,6 +278,7 @@ export class ShopifyOauthService {
         status: {
           in: [IntegrationStatus.ACTIVE, IntegrationStatus.ERROR],
         },
+        organization: { status: OrganizationStatus.ACTIVE },
       },
       include: {
         organization: { select: { name: true } },
@@ -464,8 +469,12 @@ export class ShopifyOauthService {
       select: { metadata: true, organizationId: true },
     });
     const metadata = jsonObject(current.metadata);
-    await this.prisma.integration.update({
-      where: { id: integrationId },
+    await this.prisma.integration.updateMany({
+      where: {
+        id: integrationId,
+        status: { in: [IntegrationStatus.ACTIVE, IntegrationStatus.ERROR] },
+        organization: { status: OrganizationStatus.ACTIVE },
+      },
       data: {
         status: success ? IntegrationStatus.ACTIVE : IntegrationStatus.ERROR,
         metadata: {
