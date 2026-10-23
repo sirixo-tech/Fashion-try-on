@@ -165,7 +165,7 @@ export class ShopifyOauthService {
     }
 
     const token = await exchangeAuthorizationCode(shop, query.code, config);
-    const scopes = validateScopes(token.scope);
+    const scopes = validateShopifyScopes(token.scope);
     const expiresAt = expiryFromSeconds(token.expires_in);
     const refreshExpiresAt = expiryFromSeconds(token.refresh_token_expires_in);
     const secrets = requiredTokenSecrets(token);
@@ -431,7 +431,7 @@ export class ShopifyOauthService {
         secrets.refreshToken,
         config,
       );
-      const scopes = validateScopes(
+      const scopes = validateShopifyScopes(
         refreshed.scope,
         storedScopes(credential.scopes),
       );
@@ -566,21 +566,31 @@ function assertFreshTimestamp(value: string) {
       "Shopify callback timestamp is invalid.",
     );
 }
-function validateScopes(value?: string, fallback: string[] = []): string[] {
+export function validateShopifyScopes(
+  value?: string,
+  fallback: string[] = [],
+): string[] {
   const scopes = value
     ? value
         .split(",")
         .map((scope) => scope.trim())
         .filter(Boolean)
     : fallback;
+  if (!scopes.includes(requiredScope))
+    throw apiError(
+      HttpStatus.BAD_GATEWAY,
+      SHOPIFY_OAUTH_ERROR_CODES.scope,
+      "Shopify did not grant the required read_products scope.",
+    );
   if (
-    !scopes.includes(requiredScope) ||
-    scopes.some((scope) => scope.startsWith("write_"))
+    scopes.some(
+      (scope) => scope.startsWith("write_") && scope !== "write_app_proxy",
+    )
   )
     throw apiError(
       HttpStatus.BAD_GATEWAY,
       SHOPIFY_OAUTH_ERROR_CODES.scope,
-      "Shopify did not grant the required read-only product scope.",
+      "Shopify granted an unsupported write scope.",
     );
   return scopes;
 }

@@ -2,8 +2,11 @@ import { createHmac } from "node:crypto";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ApiErrorException } from "../common/api-error.exception.js";
+
 import {
   normalizeShopDomain,
+  validateShopifyScopes,
   verifyShopifyCallbackHmac,
   ShopifyOauthService,
 } from "./shopify-oauth.service.js";
@@ -92,5 +95,37 @@ describe("Shopify OAuth security helpers", () => {
     expect(() =>
       normalizeShopDomain("merchant.myshopify.com.attacker.test"),
     ).toThrow();
+  });
+
+  it("accepts the app proxy scope alongside read-only product access", () => {
+    expect(
+      validateShopifyScopes("read_products,read_themes,write_app_proxy"),
+    ).toEqual(["read_products", "read_themes", "write_app_proxy"]);
+    expect(
+      validateShopifyScopes(undefined, ["read_products", "write_app_proxy"]),
+    ).toEqual(["read_products", "write_app_proxy"]);
+  });
+
+  it("rejects missing product access and unrelated write scopes", () => {
+    for (const [scopes, message] of [
+      [
+        "read_themes,write_app_proxy",
+        "Shopify did not grant the required read_products scope.",
+      ],
+      [
+        "read_products,write_products",
+        "Shopify granted an unsupported write scope.",
+      ],
+    ]) {
+      try {
+        validateShopifyScopes(scopes);
+        throw new Error("Expected Shopify scope validation to fail.");
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiErrorException);
+        expect((error as ApiErrorException).getResponse()).toMatchObject({
+          error: { code: "SHOPIFY_OAUTH_SCOPE_INVALID", message },
+        });
+      }
+    }
   });
 });
