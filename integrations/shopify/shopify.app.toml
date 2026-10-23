@@ -10,7 +10,8 @@ scopes = "read_products,read_themes,write_app_proxy"
 
 [auth]
 redirect_urls = [
-  "https://fashion-try-on-production.up.railway.app/auth/callback"
+  "https://fashion-try-on-production.up.railway.app/auth/callback",
+  "https://selfxapi-production.up.railway.app/api/v1/admin/integrations/shopify/oauth/callback"
 ]
 
 [webhooks]
