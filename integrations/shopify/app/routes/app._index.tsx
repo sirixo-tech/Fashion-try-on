@@ -15,8 +15,12 @@ import {
 } from "react-router";
 
 import {
+  completeSelfxConnection,
   getSelfxIntegrationToken,
   getSelfxConnectionView,
+  restartSelfxConnection,
+  runSelfxCatalogSync,
+  startSelfxConnection,
   updateSelfxProductVisibilityRule,
   updateSelfxStorefrontSettings,
   type SelfxConnectionView,
@@ -44,7 +48,7 @@ import {
   type SelfxStorefrontPricingPlan,
   type SelfxStorefrontUsageSummary,
 } from "../selfx-storefront-tryon.server";
-import { loadSelfxLinkConfig } from "../selfx-link.server";
+import { loadSelfxLinkConfig, SelfxLinkApiError } from "../selfx-link.server";
 import { authenticate } from "../shopify.server";
 import { ShopifyAdminClient } from "../../src/shopify-admin.server";
 import {
@@ -100,6 +104,7 @@ type ProductActionData =
   | {
       productActionError: string | null;
       productActionSuccess: string | null;
+      connectionActionError?: string | null;
       settingsActionError?: string | null;
       settingsActionSuccess?: string | null;
       settingsStorefrontLocale?: string | null;
@@ -218,6 +223,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       message:
         "Shopify could not verify this admin session. Refresh the app and try again.",
     });
+  }
+
+  if (
+    intent === "connection:connect" ||
+    intent === "connection:complete" ||
+    intent === "connection:restart" ||
+    intent === "connection:sync"
+  ) {
+    try {
+      const accessToken = session.accessToken?.trim();
+      if (!accessToken) {
+        throw new Error("Shopify authentication must be refreshed.");
+      }
+      const input = {
+        shop: session.shop,
+        shopifyAccessToken: accessToken,
+      };
+      if (intent === "connection:connect") {
+        await startSelfxConnection(input);
+      } else if (intent === "connection:complete") {
+        await completeSelfxConnection(input);
+      } else if (intent === "connection:restart") {
+        await restartSelfxConnection(input);
+      } else {
+        await runSelfxCatalogSync(input);
+      }
+      return {
+        productActionError: null,
+        productActionSuccess: null,
+        connectionActionError: null,
+      };
+    } catch (error) {
+      console.error("SelfX Shopify connection action failed", {
+        intent,
+        name: error instanceof Error ? error.name : "UnknownError",
+      });
+      return {
+        productActionError: null,
+        productActionSuccess: null,
+        connectionActionError:
+          error instanceof SelfxLinkApiError
+            ? error.message
+            : "The SelfX connection could not be completed. Try again.",
+      };
+    }
   }
 
   if (intent === "setStorefrontSettings") {
@@ -394,6 +444,13 @@ function shopifyActionFailure({
       settingsMonthlyStoreTryOnLimit: null,
     };
   }
+  if (typeof intent === "string" && intent.startsWith("connection:")) {
+    return {
+      productActionError: null,
+      productActionSuccess: null,
+      connectionActionError: message,
+    };
+  }
   return {
     productActionError: message,
     productActionSuccess: null,
@@ -431,6 +488,7 @@ export const shouldRevalidate = ({
 export default function Index() {
   const loaded = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const connectionFetcher = useFetcher<ProductActionData>();
   const location = useLocation();
   const [actionError, setActionError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<ShopifyAdminPanelKey>("setup");
@@ -446,9 +504,7 @@ export default function Index() {
   const selfxPublicUrls = loaded.selfxPublicUrls;
   const themeEditorUrl = loaded.themeEditorUrl;
   const connectActionPath = selfxActionPath(location.search, "connect");
-  const completeActionPath = selfxActionPath(location.search, "complete");
   const restartActionPath = selfxActionPath(location.search, "restart");
-  const syncActionPath = selfxActionPath(location.search, "sync");
 
   useEffect(() => {
     const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -463,10 +519,20 @@ export default function Index() {
       return;
     }
     const interval = window.setInterval(() => {
-      window.location.assign(completeActionPath);
+      if (connectionFetcher.state === "idle") {
+        connectionFetcher.submit(
+          { intent: "connection:complete" },
+          { method: "post" },
+        );
+      }
     }, 4_000);
     return () => window.clearInterval(interval);
-  }, [completeActionPath, connection.pendingLinkExpiresAt, connection.status]);
+  }, [
+    connection.pendingLinkExpiresAt,
+    connection.status,
+    connectionFetcher.state,
+    connectionFetcher.submit,
+  ]);
 
   const pending = connection.status === "PENDING_APPROVAL";
   const connected = connection.status === "CONNECTED";
@@ -502,6 +568,7 @@ export default function Index() {
       <StatusAlerts
         actionError={actionError}
         actionData={actionData}
+        connectionActionError={connectionFetcher.data?.connectionActionError}
         connection={connection}
         pending={pending}
       />
@@ -513,11 +580,9 @@ export default function Index() {
         pending={pending}
         storefrontLocale={connection.storefrontLocale}
         adminLocale={adminLocale}
-        completeActionPath={completeActionPath}
         connectActionPath={connectActionPath}
         onAdminLocaleChange={setAdminLocale}
         restartActionPath={restartActionPath}
-        syncActionPath={syncActionPath}
       />
 
       <s-grid
@@ -588,7 +653,6 @@ export default function Index() {
             selfxBillingUrl={selfxBillingUrl}
             restartActionPath={restartActionPath}
             storefrontReady={storefrontReady}
-            syncActionPath={syncActionPath}
             synced={synced}
             themeBlock={themeBlock}
             themeBlockInstalled={themeBlockInstalled}
@@ -631,11 +695,13 @@ function SelfxShopifyFooterLinks({
 function StatusAlerts({
   actionData,
   actionError,
+  connectionActionError,
   connection,
   pending,
 }: {
   actionData: ProductActionData;
   actionError: string | null;
+  connectionActionError?: string | null;
   connection: SelfxConnectionView;
   pending: boolean;
 }) {
@@ -644,6 +710,11 @@ function StatusAlerts({
       {actionError ? (
         <s-banner heading="Connection could not be completed" tone="critical">
           {actionError}
+        </s-banner>
+      ) : null}
+      {actionData?.connectionActionError || connectionActionError ? (
+        <s-banner heading="Connection could not be completed" tone="critical">
+          {actionData?.connectionActionError || connectionActionError}
         </s-banner>
       ) : null}
       {connection.errorMessage ? (
@@ -690,7 +761,6 @@ function StatusAlerts({
 
 function MerchantAppHeader({
   adminLocale,
-  completeActionPath,
   connectActionPath,
   connected,
   connection,
@@ -699,10 +769,8 @@ function MerchantAppHeader({
   storefrontLocale,
   pending,
   restartActionPath,
-  syncActionPath,
 }: {
   adminLocale: string;
-  completeActionPath: string;
   connectActionPath: string;
   connected: boolean;
   connection: SelfxConnectionView;
@@ -711,7 +779,6 @@ function MerchantAppHeader({
   storefrontLocale: string;
   pending: boolean;
   restartActionPath: string;
-  syncActionPath: string;
 }) {
   const fetcher = useFetcher<ProductActionData>();
   const saving = fetcher.state !== "idle";
@@ -789,17 +856,20 @@ function MerchantAppHeader({
                 ))}
               </s-select>
             </div>
-            <a
-              className="selfx-shopify-header-refresh"
-              href={syncActionPath}
-              aria-label={t("refresh")}
-              title={t("refresh")}
-            >
-              <s-icon type="reset" />
-            </a>
+            <Form method="post">
+              <input type="hidden" name="intent" value="connection:sync" />
+              <button
+                className="selfx-shopify-header-refresh"
+                type="submit"
+                aria-label={t("refresh")}
+                title={t("refresh")}
+                disabled={!connected}
+              >
+                <s-icon type="reset" />
+              </button>
+            </Form>
             <PrimaryActions
               approvalUrl={connection.approvalUrl}
-              completeActionPath={completeActionPath}
               connectActionPath={connectActionPath}
               connected={headerConnected}
               connectionHealth={connectionHealth}
@@ -1001,7 +1071,6 @@ function ShopifyPanelContent({
   restartActionPath,
   selfxBillingUrl,
   storefrontReady,
-  syncActionPath,
   synced,
   themeBlock,
   themeBlockInstalled,
@@ -1026,7 +1095,6 @@ function ShopifyPanelContent({
   restartActionPath: string;
   selfxBillingUrl: string | null;
   storefrontReady: boolean;
-  syncActionPath: string;
   synced: boolean;
   themeBlock: ThemeBlockView;
   themeBlockInstalled: boolean;
@@ -1040,7 +1108,6 @@ function ShopifyPanelContent({
           <ProductControlsSection
             productCollections={productCollections}
             productControls={productControls}
-            syncActionPath={syncActionPath}
             tryOnMode={connection.tryOnMode}
             visibilityRules={connection.productVisibilityRules}
           />
@@ -1096,7 +1163,6 @@ function ShopifyPanelContent({
       connection={connection}
       pending={pending}
       storefrontReady={storefrontReady}
-      syncActionPath={syncActionPath}
       synced={synced}
       themeBlock={themeBlock}
       themeBlockInstalled={themeBlockInstalled}
@@ -1110,7 +1176,6 @@ function SetupPanel({
   connection,
   pending,
   storefrontReady,
-  syncActionPath,
   synced,
   themeBlock,
   themeBlockInstalled,
@@ -1120,7 +1185,6 @@ function SetupPanel({
   connection: SelfxConnectionView;
   pending: boolean;
   storefrontReady: boolean;
-  syncActionPath: string;
   synced: boolean;
   themeBlock: ThemeBlockView;
   themeBlockInstalled: boolean;
@@ -1210,7 +1274,6 @@ function SetupPanel({
       <CatalogSyncPanel
         connected={connected}
         connection={connection}
-        syncActionPath={syncActionPath}
       />
     </s-stack>
   );
@@ -1251,11 +1314,9 @@ function SetupInstruction({
 function CatalogSyncPanel({
   connected,
   connection,
-  syncActionPath,
 }: {
   connected: boolean;
   connection: SelfxConnectionView;
-  syncActionPath: string;
 }) {
   return (
     <s-section heading="Catalog sync">
@@ -1282,14 +1343,17 @@ function CatalogSyncPanel({
             </s-stack>
           </s-grid-item>
           <s-grid-item>
-            <s-button
-              href={syncActionPath}
-              variant="secondary"
-              icon="refresh"
-              disabled={!connected}
-            >
-              Sync catalog
-            </s-button>
+            <Form method="post">
+              <input type="hidden" name="intent" value="connection:sync" />
+              <s-button
+                type="submit"
+                variant="secondary"
+                icon="refresh"
+                disabled={!connected}
+              >
+                Sync catalog
+              </s-button>
+            </Form>
           </s-grid-item>
         </s-grid>
         <s-text color="subdued">
@@ -2070,6 +2134,21 @@ function SelfxActionButton({
   type?: "button" | "submit";
 }) {
   const className = `selfx-shopify-button selfx-shopify-button--${tone}`;
+  const connectionIntent = href ? selfxConnectionIntent(href) : null;
+  if (connectionIntent && !disabled) {
+    return (
+      <Form method="post" className="selfx-shopify-action-form">
+        <input
+          type="hidden"
+          name="intent"
+          value={`connection:${connectionIntent}`}
+        />
+        <button className={className} type="submit">
+          {children}
+        </button>
+      </Form>
+    );
+  }
   if (href && !disabled) {
     return (
       <a
@@ -2143,6 +2222,18 @@ function SelfxShopifyStyles() {
         .selfx-shopify-button {
           gap: 0.5rem;
           padding: 0.625rem 1rem;
+        }
+
+        .selfx-shopify-action-form {
+          display: inline-flex;
+          margin: 0;
+        }
+
+        .selfx-shopify-header-action .selfx-shopify-button {
+          box-sizing: border-box;
+          block-size: 2.5rem;
+          inline-size: 12rem;
+          padding: 0 0.875rem;
         }
 
         .selfx-shopify-button--primary {
@@ -2754,7 +2845,6 @@ function SelfxShopifyStyles() {
 
 function PrimaryActions({
   approvalUrl,
-  completeActionPath,
   connectActionPath,
   connected,
   connectionHealth,
@@ -2763,7 +2853,6 @@ function PrimaryActions({
   restartActionPath,
 }: {
   approvalUrl: string | null;
-  completeActionPath: string;
   connectActionPath: string;
   connected: boolean;
   connectionHealth: SelfxStorefrontConnectionHealth;
@@ -2782,12 +2871,18 @@ function PrimaryActions({
             Approve in SelfX
           </SelfxActionButton>
         ) : null}
-        <s-button href={completeActionPath} variant="secondary">
-          Check approval
-        </s-button>
-        <s-button href={restartActionPath} variant="secondary">
-          Restart connection
-        </s-button>
+        <Form method="post">
+          <input type="hidden" name="intent" value="connection:complete" />
+          <s-button type="submit" variant="secondary">
+            Check approval
+          </s-button>
+        </Form>
+        <Form method="post">
+          <input type="hidden" name="intent" value="connection:restart" />
+          <s-button type="submit" variant="secondary">
+            Restart connection
+          </s-button>
+        </Form>
       </s-stack>
     );
   }
@@ -2798,15 +2893,19 @@ function PrimaryActions({
     connectionHealth.state === "ERROR"
   ) {
     return (
-      <SelfxActionButton href={restartActionPath} tone="primary">
-        Reconnect Store
-      </SelfxActionButton>
+      <div className="selfx-shopify-header-action">
+        <SelfxActionButton href={restartActionPath} tone="primary">
+          Reconnect Store
+        </SelfxActionButton>
+      </div>
     );
   }
   return (
-    <SelfxActionButton href={connectActionPath} tone="primary">
-      Connect Store
-    </SelfxActionButton>
+    <div className="selfx-shopify-header-action">
+      <SelfxActionButton href={connectActionPath} tone="primary">
+        Connect Store
+      </SelfxActionButton>
+    </div>
   );
 }
 
@@ -2875,13 +2974,11 @@ function CreditBadge({
 function ProductControlsSection({
   productCollections,
   productControls,
-  syncActionPath,
   tryOnMode,
   visibilityRules,
 }: {
   productCollections: ProductCollectionsView;
   productControls: ProductControlsView | null;
-  syncActionPath: string;
   tryOnMode: ShopifyTryOnMode;
   visibilityRules: ShopifyProductVisibilityRules;
 }) {
@@ -3293,13 +3390,12 @@ function ProductControlsSection({
                 Sync the Shopify catalog to import products, then enable Try-On
                 for eligible garments here.
               </s-text>
-              <s-button
-                href={syncActionPath}
-                variant="secondary"
-                icon="refresh"
-              >
-                Sync catalog
-              </s-button>
+              <Form method="post">
+                <input type="hidden" name="intent" value="connection:sync" />
+                <s-button type="submit" variant="secondary" icon="refresh">
+                  Sync catalog
+                </s-button>
+              </Form>
             </s-stack>
           </s-box>
         ) : null}
@@ -4253,6 +4349,20 @@ function selfxActionPath(
 ): string {
   const signedSuffix = signedSearch ? `&${signedSearch.slice(1)}` : "";
   return `/selfx-action?selfxIntent=${intent}${signedSuffix}`;
+}
+
+function selfxConnectionIntent(
+  href: string,
+): "connect" | "complete" | "restart" | "sync" | null {
+  const url = new URL(href, "https://selfx.invalid");
+  if (url.pathname !== "/selfx-action") return null;
+  const intent = url.searchParams.get("selfxIntent");
+  return intent === "connect" ||
+    intent === "complete" ||
+    intent === "restart" ||
+    intent === "sync"
+    ? intent
+    : null;
 }
 
 function buildTryOnBlockThemeEditorUrl(shop: string): string | null {
