@@ -161,6 +161,9 @@ export class IntegrationDto {
   externalAccountId!: string | null;
 
   @ApiPropertyOptional({ nullable: true })
+  shopDomain!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
   externalAccountName!: string | null;
 
   @ApiPropertyOptional({ nullable: true })

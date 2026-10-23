@@ -285,7 +285,10 @@ export function IntegrationSettingsPage({
       const current = response.data[0] ?? null;
       setIntegration(current);
       setConnectionDraft({
-        externalAccountId: current?.externalAccountId ?? "",
+        externalAccountId:
+          (type === "SHOPIFY"
+            ? current?.shopDomain
+            : current?.externalAccountId) ?? "",
         externalAccountName: current?.externalAccountName ?? "",
       });
     } catch (caught) {
@@ -540,7 +543,11 @@ export function IntegrationSettingsPage({
                     />
                     <Detail
                       label={type === "SHOPIFY" ? "Shop domain" : "External ID"}
-                      value={integration.externalAccountId || "Not connected"}
+                      value={
+                        (type === "SHOPIFY"
+                          ? integration.shopDomain
+                          : integration.externalAccountId) || "Not connected"
+                      }
                     />
                     <Detail
                       label={type === "SHOPIFY" ? "Shop name" : "External name"}
@@ -810,7 +817,7 @@ function ShopifyPlatformOverview({
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-medium">
-                            {integration.externalAccountId || "Not available"}
+                            {integration.shopDomain || "Not available"}
                           </div>
                           {integration.externalAccountName ? (
                             <div className="text-xs text-muted-foreground">

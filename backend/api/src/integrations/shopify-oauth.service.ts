@@ -5,7 +5,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { IntegrationStatus, OrganizationStatus, Prisma } from "@prisma/client";
 import {
   ShopifyAdminClient,
@@ -78,6 +78,8 @@ export const SHOPIFY_OAUTH_ERROR_CODES = {
 
 @Injectable()
 export class ShopifyOauthService {
+  private readonly logger = new Logger(ShopifyOauthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly catalogSync: IntegrationCatalogSyncService,
@@ -435,6 +437,9 @@ export class ShopifyOauthService {
         metadata,
         secrets.refreshToken,
         config,
+        integrationId,
+        secrets.accessToken,
+        this.logger,
       );
       const scopes = validateShopifyScopes(
         refreshed.scope,
@@ -648,6 +653,9 @@ async function refreshToken(
   metadata: Prisma.JsonValue | null,
   refreshTokenValue: string,
   config: ShopifyOauthConfig,
+  integrationId: string,
+  accessToken: string,
+  logger: Logger,
 ) {
   return tokenRequest(
     shopDomainFromMetadata(metadata),
@@ -657,11 +665,26 @@ async function refreshToken(
       grant_type: "refresh_token",
       refresh_token: refreshTokenValue,
     }),
+    {
+      integrationId,
+      logger,
+      sensitiveValues: [
+        accessToken,
+        refreshTokenValue,
+        config.clientId,
+        config.clientSecret,
+      ],
+    },
   );
 }
 async function tokenRequest(
   shop: string,
   body: URLSearchParams,
+  renewal?: {
+    integrationId: string;
+    logger: Logger;
+    sensitiveValues: string[];
+  },
 ): Promise<ShopifyTokenResponse> {
   const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
@@ -672,13 +695,101 @@ async function tokenRequest(
     body,
     signal: AbortSignal.timeout(30_000),
   });
-  if (!response.ok)
+  if (!response.ok) {
+    if (renewal) {
+      const rejection = await readShopifyTokenRejection(
+        response,
+        renewal.sensitiveValues,
+      );
+      renewal.logger.warn({
+        httpStatus: response.status,
+        shopifyErrorCode: rejection.code,
+        shopifyErrorMessage: rejection.message,
+        timestamp: new Date().toISOString(),
+        shopDomain: shop,
+        integrationId: renewal.integrationId,
+      });
+    }
     throw apiError(
       HttpStatus.BAD_GATEWAY,
       SHOPIFY_OAUTH_ERROR_CODES.tokenExchange,
       "Shopify rejected the access-token request.",
     );
+  }
   return (await response.json()) as ShopifyTokenResponse;
+}
+async function readShopifyTokenRejection(
+  response: Response,
+  sensitiveValues: string[],
+): Promise<{ code: string | null; message: string | null }> {
+  const payload: unknown = await response.json().catch(() => null);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { code: null, message: null };
+  }
+  const fields = payload as Record<string, unknown>;
+  const nested =
+    fields.error &&
+    typeof fields.error === "object" &&
+    !Array.isArray(fields.error)
+      ? (fields.error as Record<string, unknown>)
+      : null;
+  const rawCode =
+    typeof fields.error === "string"
+      ? fields.error
+      : (nested?.code ?? nested?.type ?? fields.code);
+  const code = safeShopifyErrorCode(rawCode, sensitiveValues);
+  const rawMessage =
+    fields.error_description ?? fields.message ?? nested?.message;
+  return {
+    code,
+    message: safeShopifyErrorMessage(rawMessage, sensitiveValues),
+  };
+}
+function safeShopifyErrorCode(
+  value: unknown,
+  sensitiveValues: string[],
+): string | null {
+  if (
+    typeof value !== "string" ||
+    !/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/.test(value)
+  ) {
+    return null;
+  }
+  if (
+    sensitiveValues.some((secret) => secret && value.includes(secret)) ||
+    /^shp(?:at|ca|ss|rt|ua)_/i.test(value)
+  ) {
+    return null;
+  }
+  return value;
+}
+function safeShopifyErrorMessage(
+  value: unknown,
+  sensitiveValues: string[],
+): string | null {
+  if (typeof value !== "string") return null;
+  let message = Array.from(value, (character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127 ? " " : character;
+  }).join("");
+  for (const secret of sensitiveValues) {
+    if (secret) {
+      message = message.replaceAll(secret, "[redacted]");
+      message = message.replaceAll(encodeURIComponent(secret), "[redacted]");
+    }
+  }
+  message = message
+    .replace(/https?:\/\/\S+/gi, "[redacted-url]")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(
+      /\b(access_token|refresh_token|client_secret|client_id|authorization)\s*[:=]\s*["']?[^\s"',;]+/gi,
+      "$1=[redacted]",
+    )
+    .replace(/\bshp(?:at|ca|ss|rt|ua)_[a-zA-Z0-9_-]+\b/g, "[redacted]")
+    .replace(/\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9._-]+\b/g, "[redacted]")
+    .replace(/\b[a-zA-Z0-9_+/=-]{32,}\b/g, "[redacted]")
+    .trim();
+  return message ? message.slice(0, 300) : null;
 }
 function shopifyClient(
   shop: string,

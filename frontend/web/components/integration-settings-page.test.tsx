@@ -1,7 +1,9 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { IntegrationSettingsPage } from "./integration-settings-page";
-import { getEffectiveStorePermissions } from "@/lib/stores";
+import { getCurrentPlatformAccess } from "@/lib/access-control";
+import { listIntegrations } from "@/lib/integrations";
+import { getEffectiveStorePermissions, listStores } from "@/lib/stores";
 vi.mock("@/lib/session", () => ({
   useSession: () => ({ status: "authenticated", accessToken: "staff" }),
 }));
@@ -48,7 +50,11 @@ vi.mock("@/lib/integrations", () => ({
         status: "ACTIVE",
         health: "CONNECTED",
         credentials: [],
-        externalAccountId: "https://website.example",
+        externalAccountId:
+          query.type === "SHOPIFY"
+            ? "gid://shopify/Shop/123"
+            : "https://website.example",
+        shopDomain: query.type === "SHOPIFY" ? "merchant.myshopify.com" : null,
       },
     ],
   })),
@@ -83,9 +89,33 @@ it("hides token mutations from Store integration viewers", async () => {
 });
 it("keeps the Shopify page on its existing OAuth workflow", async () => {
   render(<IntegrationSettingsPage type="SHOPIFY" title="Shopify" />);
-  await screen.findByRole("button", { name: "Reconnect Shopify" });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Reconnect Shopify" }),
+  );
+  expect(screen.getByText("merchant.myshopify.com")).toBeTruthy();
+  expect(screen.queryByText("gid://shopify/Shop/123")).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Shop domain" })).toHaveProperty(
+    "value",
+    "merchant.myshopify.com",
+  );
   expect(
     screen.queryByRole("link", { name: "Download WooCommerce plugin" }),
   ).toBeNull();
   expect(screen.getByText("Shopify Used")).toBeTruthy();
+});
+
+it("shows the domain rather than Shop GID in the platform overview", async () => {
+  vi.mocked(getCurrentPlatformAccess).mockResolvedValueOnce({
+    isSuperadmin: true,
+    permissions: [],
+  } as never);
+  vi.mocked(listStores).mockResolvedValueOnce({ data: [] } as never);
+  render(<IntegrationSettingsPage type="SHOPIFY" title="Shopify" />);
+
+  await screen.findByText("merchant.myshopify.com");
+  expect(screen.queryByText("gid://shopify/Shop/123")).toBeNull();
+  expect(listIntegrations).toHaveBeenCalledWith("staff", {
+    type: "SHOPIFY",
+    pageSize: 100,
+  });
 });

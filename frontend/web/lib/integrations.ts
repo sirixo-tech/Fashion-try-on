@@ -3,9 +3,7 @@ import { selfxApi } from "@/lib/api";
 export type IntegrationType = "SHOPIFY" | "WOOCOMMERCE";
 export type IntegrationStatus = "ACTIVE" | "DISCONNECTED" | "ERROR";
 export type IntegrationHealth =
-  | "CONNECTED"
-  | "NEEDS_ATTENTION"
-  | "DISCONNECTED";
+  "CONNECTED" | "NEEDS_ATTENTION" | "DISCONNECTED";
 
 export type IntegrationCredentialScope =
   | "catalog:sync"
@@ -37,6 +35,7 @@ export type StoreIntegration = {
   health: IntegrationHealth;
   healthReasons: string[];
   externalAccountId: string | null;
+  shopDomain: string | null;
   externalAccountName: string | null;
   connectedAt: string | null;
   disconnectedAt: string | null;

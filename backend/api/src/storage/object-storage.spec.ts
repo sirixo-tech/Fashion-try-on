@@ -19,6 +19,7 @@ describe("ObjectStorageService", () => {
     vi.unstubAllEnvs();
   });
 
+
   it("signs virtual-host URLs by default for reads and writes", () => {
     vi.stubEnv("OBJECT_STORAGE_URL_STYLE", "");
     const storage = new ObjectStorageService();

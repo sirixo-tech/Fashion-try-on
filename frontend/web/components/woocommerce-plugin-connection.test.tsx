@@ -42,6 +42,7 @@ const integration: StoreIntegration = {
   health: "CONNECTED",
   healthReasons: [],
   externalAccountId: "https://website.example",
+  shopDomain: null,
   externalAccountName: "Website",
   connectedAt: null,
   disconnectedAt: null,

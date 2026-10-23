@@ -30,7 +30,8 @@ describe("IntegrationsService", () => {
       storeName: "Store One",
       type: "SHOPIFY",
       status: "ACTIVE",
-      externalAccountId: "demo.myshopify.com",
+      externalAccountId: null,
+      shopDomain: "demo.myshopify.com",
       externalAccountName: "Demo Shop",
     });
     expect(prisma.auditLogs[0]).toMatchObject({
@@ -38,6 +39,27 @@ describe("IntegrationsService", () => {
       organizationId: "store-1",
       resourceType: "integration",
     });
+  });
+
+  it("returns the Shopify domain while keeping the Shop GID out of the admin response", async () => {
+    const prisma = new FakePrisma();
+    const service = new IntegrationsService(prisma as never);
+    await service.upsertIntegration("user-1", {
+      storeId: "store-1",
+      type: "SHOPIFY",
+    });
+    prisma.integrations[0]!.externalAccountId = "gid://shopify/Shop/123";
+    prisma.integrations[0]!.metadata = {
+      shopDomain: "Merchant.MyShopify.com",
+    };
+
+    const response = await service.listIntegrations({ type: "SHOPIFY" });
+
+    expect(response.data[0]).toMatchObject({
+      shopDomain: "merchant.myshopify.com",
+      externalAccountId: null,
+    });
+    expect(JSON.stringify(response)).not.toContain("gid://shopify/Shop/123");
   });
 
   it("rejects integration registration for inactive stores", async () => {

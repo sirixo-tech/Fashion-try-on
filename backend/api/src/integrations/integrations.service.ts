@@ -457,6 +457,11 @@ function cleanExpiresAt(value: string | null | undefined): Date | null {
 
 function mapIntegration(integration: IntegrationWithRelations): IntegrationDto {
   const health = resolveIntegrationHealth(integration);
+  const shopDomain =
+    integration.type === "SHOPIFY"
+      ? (readableShopDomain(integration.metadata) ??
+        readableShopDomain(integration.externalAccountId))
+      : null;
   return {
     id: integration.id,
     storeId: integration.organization.id,
@@ -465,7 +470,9 @@ function mapIntegration(integration: IntegrationWithRelations): IntegrationDto {
     status: integration.status,
     health: health.state,
     healthReasons: health.reasons,
-    externalAccountId: integration.externalAccountId,
+    externalAccountId:
+      integration.type === "SHOPIFY" ? null : integration.externalAccountId,
+    shopDomain,
     externalAccountName: integration.externalAccountName,
     connectedAt: integration.connectedAt?.toISOString() ?? null,
     disconnectedAt: integration.disconnectedAt?.toISOString() ?? null,
@@ -473,6 +480,18 @@ function mapIntegration(integration: IntegrationWithRelations): IntegrationDto {
     createdAt: integration.createdAt.toISOString(),
     updatedAt: integration.updatedAt.toISOString(),
   };
+}
+
+function readableShopDomain(value: unknown): string | null {
+  const domain =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>).shopDomain
+      : value;
+  if (typeof domain !== "string") return null;
+  const normalized = domain.trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(normalized)
+    ? normalized
+    : null;
 }
 
 function resolveIntegrationHealth(integration: IntegrationWithRelations): {

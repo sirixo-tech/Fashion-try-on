@@ -1,8 +1,10 @@
 import { createHmac } from "node:crypto";
 
+import { Logger } from "@nestjs/common";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { encryptProviderSecret } from "./provider-secret-cipher.js";
 
 import {
   normalizeShopDomain,
@@ -12,7 +14,11 @@ import {
 } from "./shopify-oauth.service.js";
 
 describe("Shopify OAuth security helpers", () => {
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it("creates a short-lived server-side state and requests only read_products", async () => {
     vi.stubEnv("SHOPIFY_CLIENT_ID", "client-id");
@@ -128,4 +134,130 @@ describe("Shopify OAuth security helpers", () => {
       }
     }
   });
+
+  it("logs only safe Shopify renewal rejection fields and preserves the 502", async () => {
+    const { service, fetchMock } = renewalService();
+    const warn = vi
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => {});
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "invalid_grant",
+          error_description: "The refresh token is invalid or expired.",
+        }),
+        { status: 400 },
+      ),
+    );
+
+    await expect(service.sync("user-1", "integration-1")).rejects.toMatchObject(
+      {
+        status: 502,
+        response: {
+          error: {
+            code: "SHOPIFY_OAUTH_TOKEN_EXCHANGE_FAILED",
+            message: "Shopify rejected the access-token request.",
+          },
+        },
+      },
+    );
+    expect(warn).toHaveBeenCalledWith({
+      httpStatus: 400,
+      shopifyErrorCode: "invalid_grant",
+      shopifyErrorMessage: "The refresh token is invalid or expired.",
+      timestamp: expect.any(String),
+      shopDomain: "merchant.myshopify.com",
+      integrationId: "integration-1",
+    });
+    expect(Number.isFinite(Date.parse(warn.mock.calls[0]?.[0].timestamp))).toBe(
+      true,
+    );
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(
+      /access-secret|refresh-secret|client-secret|client-id/,
+    );
+  });
+
+  it("redacts reflected credentials and ignores unstructured renewal errors", async () => {
+    const { service, fetchMock } = renewalService();
+    const warn = vi
+      .spyOn(Logger.prototype, "warn")
+      .mockImplementation(() => {});
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: "invalid_client",
+            error_description:
+              "client_secret=client-secret refresh_token=refresh-secret Authorization: Bearer access-secret https://shopify.test?access_token=access-secret",
+          }),
+          { status: 401 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response("not JSON", { status: 403 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "client-secret" }), {
+          status: 401,
+        }),
+      );
+
+    await expect(
+      service.sync("user-1", "integration-1"),
+    ).rejects.toBeInstanceOf(ApiErrorException);
+    await expect(
+      service.sync("user-1", "integration-1"),
+    ).rejects.toBeInstanceOf(ApiErrorException);
+    await expect(
+      service.sync("user-1", "integration-1"),
+    ).rejects.toBeInstanceOf(ApiErrorException);
+
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({
+      httpStatus: 401,
+      shopifyErrorCode: "invalid_client",
+    });
+    expect(warn.mock.calls[1]?.[0]).toMatchObject({
+      httpStatus: 403,
+      shopifyErrorCode: null,
+      shopifyErrorMessage: null,
+    });
+    expect(warn.mock.calls[2]?.[0]).toMatchObject({
+      httpStatus: 401,
+      shopifyErrorCode: null,
+      shopifyErrorMessage: null,
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(
+      /access-secret|refresh-secret|client-secret|client-id|shopify\.test/,
+    );
+  });
 });
+
+function renewalService() {
+  vi.stubEnv("SHOPIFY_CLIENT_ID", "client-id");
+  vi.stubEnv("SHOPIFY_CLIENT_SECRET", "client-secret");
+  const key = Buffer.alloc(32, 9);
+  vi.stubEnv("SELFX_INTEGRATION_ENCRYPTION_KEY", key.toString("base64"));
+  vi.stubEnv("SELFX_API_BASE_URL", "https://api.selfx.test");
+  vi.stubEnv("SELFX_WEB_BASE_URL", "https://app.selfx.test");
+  const prisma = {
+    integration: {
+      findFirst: vi.fn().mockResolvedValue({
+        id: "integration-1",
+        metadata: { shopDomain: "merchant.myshopify.com" },
+        organization: { name: "Test Store" },
+        providerCredential: {
+          ...encryptProviderSecret(
+            { accessToken: "access-secret", refreshToken: "refresh-secret" },
+            key,
+          ),
+          accessTokenExpiresAt: new Date(Date.now() - 1_000),
+          scopes: ["read_products"],
+        },
+      }),
+    },
+  };
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  return {
+    service: new ShopifyOauthService(prisma as never, {} as never),
+    fetchMock,
+  };
+}
