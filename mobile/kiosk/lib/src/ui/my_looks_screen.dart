@@ -294,18 +294,29 @@ class _MyLooksScreenState extends State<MyLooksScreen> {
                     : null,
                 lookLabel: _lookLabel,
                 onSelected: (value) => setState(() => _index = value),
-                onBuy: () {
-                  final looks = widget.tryOnController.looks;
-                  if (looks.isNotEmpty) {
-                    unawaited(
-                      openKioskPurchase(
-                        context,
-                        widget.tryOnController,
-                        looks[_index.clamp(0, looks.length - 1)].productId,
-                      ),
-                    );
-                  }
-                },
+                onBuy:
+                    widget.tryOnController.looks.isNotEmpty &&
+                        widget
+                            .tryOnController
+                            .looks[_index.clamp(
+                              0,
+                              widget.tryOnController.looks.length - 1,
+                            )]
+                            .nativePurchasingAllowed
+                    ? () {
+                        final looks = widget.tryOnController.looks;
+                        if (looks.isNotEmpty) {
+                          unawaited(
+                            openKioskPurchase(
+                              context,
+                              widget.tryOnController,
+                              looks[_index.clamp(0, looks.length - 1)]
+                                  .productId,
+                            ),
+                          );
+                        }
+                      }
+                    : null,
                 onClose: () => Navigator.of(context).pop(),
                 onRetry: () => unawaited(_refreshLooks()),
                 onDownload: () => unawaited(_downloadLooks(context)),
@@ -774,6 +785,7 @@ class _LooksBottomSheetContent extends StatelessWidget {
                   borderRadius: 12,
                   mainAxisAlignment: MainAxisAlignment.center,
                 );
+                if (onBuy == null) return download;
                 if (constraints.maxWidth < 380) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

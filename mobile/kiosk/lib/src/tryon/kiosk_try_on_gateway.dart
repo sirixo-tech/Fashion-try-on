@@ -459,6 +459,7 @@ class SelfxKioskTryOnGateway
             );
           }
           return KioskTryOnLook(
+            nativePurchasingAllowed: item['nativePurchasingAllowed'] != false,
             lookId: lookId,
             runId: runId,
             personAssetId: personAssetId,

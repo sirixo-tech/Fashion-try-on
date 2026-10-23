@@ -188,6 +188,7 @@ export type StoreVirtualTryOnSettings = {
 };
 
 export type StoreProduct = {
+  catalogSource?: "SELFX" | "SHOPIFY" | "WOOCOMMERCE";
   id: string;
   name: string;
   slug: string;
@@ -580,7 +581,7 @@ export function updateStoreProduct(
   accessToken: string,
   storeId: string,
   productId: string,
-  input: StoreProductInput,
+  input: Partial<StoreProductInput>,
 ): Promise<StoreProduct> {
   return selfxApi<StoreProduct>(
     `/api/v1/admin/stores/${storeId}/products/${productId}`,

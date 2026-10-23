@@ -2,6 +2,7 @@ import { selfxApi } from "@/lib/api";
 
 export interface ShopifyTryOnProduct {
   id: string;
+  returnUrl?: string;
   name: string;
   tryOnVertical: "GARMENT" | "JEWELLERY";
   jewelleryType?: "RING" | "EARRING" | "NECKLACE" | "BRACELET" | null;
@@ -46,21 +47,31 @@ export function getShopifyTryOnSession(
   session: string,
 ): Promise<ShopifyTryOnSession> {
   return selfxApi(
-    `/api/v1/public/integrations/shopify/try-on-sessions/${encodeURIComponent(
+    `/api/v1/public/integrations/commerce/try-on-sessions/${encodeURIComponent(
       session,
     )}`,
   );
 }
 
-export function uploadShopifyTryOnPersonImage(
+export async function uploadShopifyTryOnPersonImage(
   session: string,
   file: File,
 ): Promise<ShopifyTryOnPersonUpload> {
+  await selfxApi(
+    `/api/v1/public/integrations/commerce/try-on-sessions/${encodeURIComponent(session)}/consent`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        accepted: true,
+        policyVersion: "selfx-photo-2026-10-23",
+      }),
+    },
+  );
   const formData = new FormData();
   formData.append("purpose", "PERSON");
   formData.append("image", file);
   return selfxApi(
-    `/api/v1/public/integrations/shopify/try-on-sessions/${encodeURIComponent(
+    `/api/v1/public/integrations/commerce/try-on-sessions/${encodeURIComponent(
       session,
     )}/person-image`,
     {
@@ -72,15 +83,16 @@ export function uploadShopifyTryOnPersonImage(
 
 export function createShopifyTryOnRun(
   session: string,
+  clientRequestId: string = crypto.randomUUID(),
 ): Promise<ShopifyTryOnRun> {
   return selfxApi(
-    `/api/v1/public/integrations/shopify/try-on-sessions/${encodeURIComponent(
+    `/api/v1/public/integrations/commerce/try-on-sessions/${encodeURIComponent(
       session,
     )}/runs`,
     {
       method: "POST",
       body: JSON.stringify({
-        clientRequestId: crypto.randomUUID(),
+        clientRequestId,
       }),
     },
   );
@@ -91,7 +103,7 @@ export function getShopifyTryOnRun(
   runId: string,
 ): Promise<ShopifyTryOnRun> {
   return selfxApi(
-    `/api/v1/public/integrations/shopify/try-on-sessions/${encodeURIComponent(
+    `/api/v1/public/integrations/commerce/try-on-sessions/${encodeURIComponent(
       session,
     )}/runs/${encodeURIComponent(runId)}`,
   );

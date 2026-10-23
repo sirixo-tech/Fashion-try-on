@@ -20,8 +20,7 @@ final class SelfX_WC_Plugin {
         add_action('selfx_wc_reconcile', array($this, 'reconcile'));
         add_action('selfx_wc_dispatch', array($this, 'dispatch'));
         add_action('woocommerce_scheduled_sales', array($this, 'reconcile'));
-        foreach (array('woocommerce_new_product', 'woocommerce_update_product', 'woocommerce_new_product_variation', 'woocommerce_update_product_variation',
-            'woocommerce_product_set_stock', 'woocommerce_variation_set_stock', 'woocommerce_product_set_stock_status', 'woocommerce_variation_set_stock_status') as $hook) {
+        foreach (array('woocommerce_new_product', 'woocommerce_update_product') as $hook) {
             add_action($hook, array($this, 'changed'), 10, 1);
         }
         foreach (array('before_delete_post', 'wp_trash_post', 'untrashed_post') as $hook) {
@@ -232,7 +231,7 @@ final class SelfX_WC_Plugin {
             $state['attempts'] = ($state['attempts'] ?? 0) + 1;
             $code = $this->safe_error($error);
             $blocked = in_array($code, array('API_HTTP_401', 'API_HTTP_403', 'CONNECTION_CONTEXT_CHANGED', 'CONNECTION_CONTEXT_INVALID', 'WEBSITE_MISMATCH', 'CREDENTIALS_UNAVAILABLE'), true);
-            $permanent = $blocked || in_array($code, array('API_HTTP_400', 'API_HTTP_413', 'API_ORIGIN_INVALID', 'PRODUCT_PRICE_INVALID', 'PRODUCT_PRICE_TOO_LARGE', 'PRODUCT_VARIANT_LIMIT_EXCEEDED', 'CURRENCY_DECIMALS_UNSUPPORTED', 'CURRENCY_INVALID', 'CATALOG_BATCH_TOO_LARGE'), true);
+            $permanent = $blocked || in_array($code, array('API_HTTP_400', 'API_HTTP_413', 'API_ORIGIN_INVALID', 'AUTH_VALIDATION_FAILED', 'COMMERCE_PUBLIC_URL_REQUIRED', 'PUBLIC_CATALOG_URL_REQUIRED', 'CATALOG_BATCH_TOO_LARGE'), true);
             $retry = !$permanent && $state['attempts'] < 8;
             $state['status'] = $blocked ? 'BLOCKED' : ($retry ? 'RETRYING' : 'FAILED');
             $state['error'] = $code; $state['message'] = $retry ? 'Sync will retry automatically.' : 'Sync stopped. Correct the issue and reconnect or select Sync now.';
@@ -323,6 +322,6 @@ final class SelfX_WC_Plugin {
                 wp_nonce_field('selfx_wc_' . $action); submit_button($label, $action === 'sync' ? 'primary' : 'secondary', 'submit', false); echo '</form>';
             }
         }
-        echo '<hr><p>This release provides catalog-to-Store/kiosk sync. It does not add a website Try-On button or alter WooCommerce checkout.</p></div>';
+        echo '<hr><p>Try-On-only integration: product pages show Try it on when enabled in SelfX. For block themes, add the SelfX Try-On block or a Shortcode block containing [selfx_try_on] to the Single Product template. Products, sizes, colors, prices, stock and purchases stay in WooCommerce. Replace catalog-only tokens with a new plugin token including tryon:create to enable the storefront button. Public website and image URLs are required; localhost URLs cannot be fetched by SelfX.</p></div>';
     }
 }

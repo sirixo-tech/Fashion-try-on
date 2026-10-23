@@ -72,6 +72,12 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
   }
 
   bool get _singleLook => tryOnController.looks.length == 1;
+  bool get _purchaseAllowed {
+    for (final look in tryOnController.looks) {
+      if (look.runId == _preview?.run.id) return look.nativePurchasingAllowed;
+    }
+    return tryOnController.garmentInput?.nativePurchasingAllowed ?? false;
+  }
 
   bool get _current =>
       mounted &&
@@ -179,13 +185,15 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                   isCurrent: () => _current,
                   downloadEnabled: tryOnController.saveMyLooksQrEnabled,
                   singleLook: _singleLook,
-                  onBuy: () => unawaited(
-                    openKioskPurchase(
-                      context,
-                      tryOnController,
-                      _purchaseProductId,
-                    ),
-                  ),
+                  onBuy: _purchaseAllowed
+                      ? () => unawaited(
+                          openKioskPurchase(
+                            context,
+                            tryOnController,
+                            _purchaseProductId,
+                          ),
+                        )
+                      : null,
                   nextPick: tryOnController.upcomingGarmentPick,
                   onContinueNextPick: () async => _tryAnotherGarment(context),
                   onContinue: (product) =>
@@ -228,13 +236,15 @@ class _TryOnResultScreenState extends State<TryOnResultScreen> {
                     CustomerPersonImageSource.mobileUpload,
                 onTryAnotherGarment: () => _tryAnotherGarment(context),
                 onRetakePhoto: () => _retakePhoto(context),
-                onBuy: () => unawaited(
-                  openKioskPurchase(
-                    context,
-                    tryOnController,
-                    _purchaseProductId,
-                  ),
-                ),
+                onBuy: _purchaseAllowed
+                    ? () => unawaited(
+                        openKioskPurchase(
+                          context,
+                          tryOnController,
+                          _purchaseProductId,
+                        ),
+                      )
+                    : null,
                 onGetMyLooks: () => _singleLook
                     ? unawaited(_downloadMyLooks(context))
                     : unawaited(_getMyLooks(context)),
@@ -658,7 +668,7 @@ class _ResultPage extends StatelessWidget {
                                 minHeight: actionTileHeight,
                                 onPressed: onRetakePhoto,
                               ),
-                              bottomRight: singleLook
+                              bottomRight: singleLook && onBuy != null
                                   ? SelfxKioskButton(
                                       key: const Key('buy-this-look'),
                                       label: 'Buy This Look',

@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
+
+Shopify/WooCommerce are Try-On-only channels: show the product-page SelfX button and import one parent image/reference into the correct Store for kiosks. Website platforms retain all size/color selection, price, inventory, cart, checkout and orders. Imported products cannot enter native SelfX purchasing; sold-out items remain eligible for Try-On. Native SelfX products retain approved shopping functionality. This supersedes WOO-1 variant/price import and proposed cart handoff.
+
 ### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
 
 Authorize an installable WooCommerce plugin connecting a website to its correct SelfX Store using a scoped integration token. Synchronize simple/variable parent products, variant size/color/images/prices and availability in one direction. WooCommerce remains the source of truth; one variable parent is one kiosk item. Preserve SelfX Try-On eligibility and allow sold-out products for Try-On. Initial/manual sync, change/deletion delivery, retries and reconciliation are included. Storefront Try-On, purchase continuation, orders and inventory writeback remain the next milestone; imported references cannot use native SelfX checkout.

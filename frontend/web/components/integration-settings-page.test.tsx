@@ -61,7 +61,7 @@ beforeEach(() => {
 afterEach(cleanup);
 it("offers WooCommerce setup to the authorized Store without Shopify instructions", async () => {
   render(<IntegrationSettingsPage type="WOOCOMMERCE" title="WooCommerce" />);
-  await screen.findByRole("button", { name: "Generate catalog token" });
+  await screen.findByRole("button", { name: "Generate plugin token" });
   expect(
     screen.getByRole("link", { name: "Download WooCommerce plugin" }),
   ).toBeTruthy();
@@ -78,7 +78,7 @@ it("hides token mutations from Store integration viewers", async () => {
   render(<IntegrationSettingsPage type="WOOCOMMERCE" title="WooCommerce" />);
   await screen.findByRole("link", { name: "Download WooCommerce plugin" });
   expect(
-    screen.queryByRole("button", { name: "Generate catalog token" }),
+    screen.queryByRole("button", { name: "Generate plugin token" }),
   ).toBeNull();
 });
 it("keeps the Shopify page on its existing OAuth workflow", async () => {

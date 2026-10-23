@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Prisma } from "@prisma/client";
 
 import {
   SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES,
@@ -13,6 +14,137 @@ const png1x1 = Buffer.from(
 );
 
 describe("ShopifyStorefrontTryOnService", () => {
+  const wooCredential = {
+    credentialId: "credential-1",
+    integrationId: "integration-1",
+    integrationType: "WOOCOMMERCE" as const,
+    tokenPrefix: "selfx_woocommerce_test",
+    storeId: "store-1",
+    storeName: "Store",
+    externalAccountId: "https://website.example",
+    externalAccountName: "Website",
+    scopes: ["catalog:sync", "tryon:create"] as (
+      "catalog:sync" | "tryon:create"
+    )[],
+  };
+  it("launches WooCommerce through shared sessions with Store-bound product lookup and original website return", async () => {
+    const prisma = new FakePrisma();
+    prisma.integrationType = "WOOCOMMERCE";
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+    const result = await service.createWooCommerceSession(wooCredential, {
+      externalProductId: "10",
+      visitorToken: "v".repeat(43),
+    });
+    expect(result.product.returnUrl).toBe("https://website.example/product/10");
+    expect(prisma.externalProductMapping.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          integrationId: "integration-1",
+          organizationId: "store-1",
+          externalProductId: "10",
+          externalVariantId: null,
+        }),
+      }),
+    );
+    expect(prisma.createdCapability?.shopDomain).toBe(
+      "https://website.example/",
+    );
+    expect((await service.getSession(result.session)).product.returnUrl).toBe(
+      "https://website.example/product/10",
+    );
+    await expect(
+      service.requirePhotoConsent(result.session),
+    ).rejects.toMatchObject({
+      response: { error: { code: "STOREFRONT_CONSENT_REQUIRED" } },
+    });
+    await service.acceptPhotoConsent(result.session);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          resourceType: "try_on_session",
+          resourceId: "tryon-session-1",
+          metadata: expect.objectContaining({
+            policyVersion: "selfx-photo-2026-10-23",
+            source: "WOOCOMMERCE",
+          }),
+        }),
+      }),
+    );
+    const queued = await service.createRun(result.session, {
+      clientRequestId: "request-1",
+    });
+    expect(queued.status).toBe("QUEUED");
+    expect(prisma.kioskTryOnRun.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          billingChannel: "WOOCOMMERCE",
+          catalogSource: "WOOCOMMERCE",
+          garmentSource: "WOOCOMMERCE",
+          storefrontRequestKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
+      }),
+    );
+  });
+  it("rejects wrong integration types, disabled products and cross-site return URLs", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+    await expect(
+      service.createWooCommerceSession(
+        { ...wooCredential, integrationType: "SHOPIFY" },
+        { externalProductId: "10", visitorToken: "v".repeat(43) },
+      ),
+    ).rejects.toThrow();
+    prisma.product.vtoEnabled = false;
+    expect(await service.wooAvailability(wooCredential, "10")).toEqual({
+      available: false,
+    });
+    prisma.product.vtoEnabled = true;
+    prisma.product.productUrl = "https://other.example/product/10";
+    await expect(
+      service.createWooCommerceSession(wooCredential, {
+        externalProductId: "10",
+        visitorToken: "v".repeat(43),
+      }),
+    ).rejects.toThrow();
+  });
+  it("returns an existing request before consuming credits or generating again", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+    const session = await service.createSession({
+      source: "shopify",
+      shop: "merchant.myshopify.com",
+      externalProductId: "10",
+    });
+    await service.acceptPhotoConsent(session.session);
+    const run = await service.createRun(session.session, {
+      clientRequestId: "same-request",
+    });
+    const stored = {
+      ...prisma.kioskTryOnRun.create.mock.calls[0]![0].data,
+      resultAsset: null,
+    };
+    prisma.kioskTryOnRun.findFirst.mockReturnValue(stored as never);
+    expect(
+      (
+        await service.createRun(session.session, {
+          clientRequestId: "same-request",
+        })
+      ).id,
+    ).toBe(run.id);
+    expect(prisma.kioskTryOnRun.create).toHaveBeenCalledTimes(1);
+  });
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -56,14 +188,14 @@ describe("ShopifyStorefrontTryOnService", () => {
     expect(created.locale).toBe("es");
     expect(created.product).toMatchObject({
       name: "Linen Shirt",
-      priceAmountCents: 12900,
-      priceCurrency: "USD",
+      priceAmountCents: null,
+      priceCurrency: null,
     });
     expect(JSON.stringify(prisma.createdCapability)).not.toContain(
       created.session,
     );
     expect(
-      prisma.createdCapability!.expiresAt.getTime() -
+      new Date(prisma.createdCapability!.expiresAt).getTime() -
         new Date("2026-09-11T00:00:00.000Z").getTime(),
     ).toBe(SHOPIFY_STOREFRONT_TRY_ON_SESSION_LIFETIME_MS);
     expect(sessions.createdSession?.expiresAt.toISOString()).toBe(
@@ -315,6 +447,7 @@ describe("ShopifyStorefrontTryOnService", () => {
       shop: "merchant.myshopify.com",
       externalProductId: "gid://shopify/Product/1001",
     });
+    await service.acceptPhotoConsent(created.session);
     await service.createRun(created.session, {});
     expect(prisma.kioskTryOnRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -472,7 +605,11 @@ function serviceFor(
     sessions as never,
     storage as never,
     {
-      metadata: vi.fn(),
+      metadata: vi.fn(() => ({
+        provider: "FASHN",
+        providerDisplayName: "Internal",
+        model: "test",
+      })),
       assertConfigured: vi.fn(),
       process: vi.fn(),
     } as never,
@@ -496,6 +633,15 @@ function serviceFor(
 }
 
 class FakePrisma {
+  integrationType: "SHOPIFY" | "WOOCOMMERCE" = "SHOPIFY";
+  consent = false;
+  auditLog = {
+    create: vi.fn(() => {
+      this.consent = true;
+      return {};
+    }),
+    findFirst: vi.fn(() => (this.consent ? { id: "consent-1" } : null)),
+  };
   integrationConnected = true;
   tryOnMode: "GARMENT" | "JEWELLERY" | "BOTH" = "BOTH";
   monthlyShopifyRuns = 0;
@@ -508,6 +654,7 @@ class FakePrisma {
     imageUrl: null,
     imageStorageKey: "catalog/product-1.png",
     imageContentType: "image/png",
+    productUrl: "https://website.example/product/10",
     priceAmountCents: 12900,
     priceCurrency: "USD",
     productVertical: "GARMENT",
@@ -524,7 +671,8 @@ class FakePrisma {
       },
     ]),
   };
-  createdCapability: Record<string, any> | null = null;
+  createdCapability: Prisma.ShopifyStorefrontTryOnSessionUncheckedCreateInput | null =
+    null;
 
   integration = {
     findFirst: vi.fn(() =>
@@ -532,6 +680,7 @@ class FakePrisma {
         ? {
             id: "integration-1",
             organizationId: "store-1",
+            externalAccountId: "https://website.example",
             metadata: { tryOnMode: this.tryOnMode },
           }
         : null,
@@ -548,17 +697,24 @@ class FakePrisma {
   };
 
   shopifyStorefrontTryOnSession = {
-    create: vi.fn(({ data }: { data: Record<string, any> }) => {
-      this.createdCapability = data;
-      return data;
-    }),
+    count: vi.fn(() => 0),
+    create: vi.fn(
+      ({
+        data,
+      }: {
+        data: Prisma.ShopifyStorefrontTryOnSessionUncheckedCreateInput;
+      }) => {
+        this.createdCapability = data;
+        return data;
+      },
+    ),
     findUnique: vi.fn(
       () =>
         this.createdCapability && {
           ...this.createdCapability,
           product: this.product,
           integration: {
-            type: "SHOPIFY",
+            type: this.integrationType,
             status: "ACTIVE",
             metadata: { tryOnMode: this.tryOnMode },
             organization: { status: "ACTIVE" },
@@ -573,23 +729,42 @@ class FakePrisma {
   };
 
   kioskTryOnRun = {
-    create: vi.fn(({ data }: { data: Record<string, any> }) => ({
-      ...data,
-      status: "QUEUED",
-      resultAsset: null,
-    })),
+    findFirst: vi.fn(() => null),
+    create: vi.fn(
+      ({ data }: { data: Prisma.KioskTryOnRunUncheckedCreateInput }) => ({
+        ...data,
+        status: "QUEUED",
+        resultAsset: null,
+      }),
+    ),
     update: vi.fn(),
-    count: vi.fn(({ where }: { where: Record<string, any> }) => {
-      const shopifyCapability =
-        where.tryOnSession?.shopifyStorefrontTryOnSession;
-      if (shopifyCapability?.visitorTokenHash) return this.visitorShopifyRuns;
-      if (shopifyCapability?.shopDomain) return this.monthlyShopifyRuns;
-      if (!where.createdAt) return 12;
-      if (where.status === "COMPLETED") return 4;
-      if (where.status === "FAILED") return 1;
-      if (where.resultAssetId) return 4;
-      return 5;
-    }),
+    count: vi.fn(
+      ({
+        where,
+      }: {
+        where: {
+          tryOnSession?: {
+            shopifyStorefrontTryOnSession?: {
+              visitorTokenHash?: unknown;
+              shopDomain?: unknown;
+            };
+          };
+          createdAt?: unknown;
+          status?: string;
+          resultAssetId?: unknown;
+        };
+      }) => {
+        const shopifyCapability =
+          where.tryOnSession?.shopifyStorefrontTryOnSession;
+        if (shopifyCapability?.visitorTokenHash) return this.visitorShopifyRuns;
+        if (shopifyCapability?.shopDomain) return this.monthlyShopifyRuns;
+        if (!where.createdAt) return 12;
+        if (where.status === "COMPLETED") return 4;
+        if (where.status === "FAILED") return 1;
+        if (where.resultAssetId) return 4;
+        return 5;
+      },
+    ),
     groupBy: vi.fn(() => [
       {
         productId: "product-1",
@@ -605,42 +780,45 @@ class FakePrisma {
   };
 
   pricingPlan = {
-    findMany: vi.fn((_query?: unknown) => [
-      {
-        id: "plan-shopify-growth",
-        code: "shopify-growth",
-        name: "Shopify Growth",
-        status: "ACTIVE",
-        channels: ["SHOPIFY"],
-        currency: "INR",
-        monthlyPriceCents: 4999,
-        includedCredits: 200,
-        trialCredits: 10,
-        extraCreditPriceCents: 49,
-        kioskMonthlyRentCents: null,
-        kioskDeviceLimit: null,
-        metadata: null,
-        createdAt: new Date("2026-09-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-09-01T00:00:00.000Z"),
-      },
-      {
-        id: "plan-kiosk-pro",
-        code: "kiosk-pro",
-        name: "Kiosk Pro",
-        status: "ACTIVE",
-        channels: ["KIOSK"],
-        currency: "INR",
-        monthlyPriceCents: 12999,
-        includedCredits: 500,
-        trialCredits: 10,
-        extraCreditPriceCents: 29,
-        kioskMonthlyRentCents: 300000,
-        kioskDeviceLimit: 1,
-        metadata: null,
-        createdAt: new Date("2026-09-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-09-01T00:00:00.000Z"),
-      },
-    ]),
+    findMany: vi.fn((query?: unknown) => {
+      void query;
+      return [
+        {
+          id: "plan-shopify-growth",
+          code: "shopify-growth",
+          name: "Shopify Growth",
+          status: "ACTIVE",
+          channels: ["SHOPIFY"],
+          currency: "INR",
+          monthlyPriceCents: 4999,
+          includedCredits: 200,
+          trialCredits: 10,
+          extraCreditPriceCents: 49,
+          kioskMonthlyRentCents: null,
+          kioskDeviceLimit: null,
+          metadata: null,
+          createdAt: new Date("2026-09-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+        },
+        {
+          id: "plan-kiosk-pro",
+          code: "kiosk-pro",
+          name: "Kiosk Pro",
+          status: "ACTIVE",
+          channels: ["KIOSK"],
+          currency: "INR",
+          monthlyPriceCents: 12999,
+          includedCredits: 500,
+          trialCredits: 10,
+          extraCreditPriceCents: 29,
+          kioskMonthlyRentCents: 300000,
+          kioskDeviceLimit: 1,
+          metadata: null,
+          createdAt: new Date("2026-09-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+        },
+      ];
+    }),
   };
 }
 

@@ -207,6 +207,7 @@ class KioskCatalogProduct {
     this.priceAmountCents,
     this.minimumPriceAmountCents,
     this.hasVariablePrices = false,
+    this.nativePurchasingAllowed = true,
     this.priceCurrency,
   });
 
@@ -223,6 +224,7 @@ class KioskCatalogProduct {
   final int? priceAmountCents;
   final int? minimumPriceAmountCents;
   final bool hasVariablePrices;
+  final bool nativePurchasingAllowed;
   final String? priceCurrency;
   final KioskCatalogProductImage image;
   final String updatedAt;
@@ -230,6 +232,7 @@ class KioskCatalogProduct {
   bool get hasUsableImage => image.url != null && image.url!.trim().isNotEmpty;
 
   String? get displayPrice {
+    if (!nativePurchasingAllowed) return null;
     final amount = minimumPriceAmountCents ?? priceAmountCents;
     final currency = priceCurrency?.trim().toUpperCase();
     if (amount == null || currency == null || currency.isEmpty) {
@@ -247,6 +250,7 @@ class KioskCatalogProduct {
   KioskGarmentInput toGarmentInput() {
     if (productVertical == KioskProductVertical.jewellery) {
       return KioskGarmentInput.jewelleryCatalogProduct(
+        nativePurchasingAllowed: nativePurchasingAllowed,
         productId: id,
         name: name,
         imageUrl: image.localPath ?? image.url ?? '',
@@ -255,6 +259,7 @@ class KioskCatalogProduct {
       );
     }
     return KioskGarmentInput.catalogProduct(
+      nativePurchasingAllowed: nativePurchasingAllowed,
       productId: id,
       name: name,
       imageUrl: image.localPath ?? image.url ?? '',
@@ -274,6 +279,7 @@ class KioskCatalogProduct {
       );
     }
     return KioskCatalogProduct(
+      nativePurchasingAllowed: json["nativePurchasingAllowed"] != false,
       id: _string(json, 'id'),
       name: _string(json, 'name'),
       description: json['description'] is String
@@ -312,6 +318,7 @@ class KioskCatalogProduct {
 
   KioskCatalogProduct copyWith({KioskCatalogProductImage? image}) {
     return KioskCatalogProduct(
+      nativePurchasingAllowed: nativePurchasingAllowed,
       id: id,
       name: name,
       description: description,
@@ -333,6 +340,7 @@ class KioskCatalogProduct {
 
   Map<String, dynamic> toJson() {
     return {
+      'nativePurchasingAllowed': nativePurchasingAllowed,
       'id': id,
       'name': name,
       'description': description,

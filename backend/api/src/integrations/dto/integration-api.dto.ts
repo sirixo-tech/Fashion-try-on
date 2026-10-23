@@ -16,6 +16,8 @@ export class IntegrationApiStoreContextDto {
 }
 
 export class IntegrationApiMeResponseDto {
+  @ApiPropertyOptional({ nullable: true })
+  storefrontWebOrigin?: string | null;
   @ApiProperty({ example: true })
   authenticated!: true;
 

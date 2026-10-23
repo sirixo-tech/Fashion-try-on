@@ -1,68 +1,48 @@
-# SelfX for WooCommerce — WOO-1
+# SelfX for WooCommerce — 0.2.0
 
-Installable WordPress plugin for **one-way website catalog → SelfX Store → assigned kiosks** sync. WooCommerce remains the source of truth. This milestone does not add the storefront Try-On button, customer-photo processing, cart handoff, order sync or stock writeback.
+One-way website catalog → SelfX Store → assigned kiosks, plus a storefront **Try it on** button. WooCommerce owns products, size/color choices, prices, inventory, cart, checkout and orders. SelfX imports one parent product reference with its image and runs Virtual Try-On through the central backend. There is no stock/order writeback or SelfX checkout for imported products.
 
-## Install and connect
+## Deploy and connect
 
-1. Deploy the current SelfX API and web changes together. No WOO-1 database migration is required.
-2. In SelfX **Integrations → WooCommerce**, select the correct Store (Platform users), register the connection and enter the website's canonical home URL, including any WordPress subdirectory. This is the external Store ID, not a WooCommerce API key.
-3. Download the plugin from that page, or use `dist/selfx-woocommerce-0.1.0.zip` after building locally.
-4. In WordPress **Plugins → Add New → Upload Plugin**, upload the ZIP and activate it with WooCommerce active. Requirements: WordPress 6.5+, WooCommerce 8.0+, PHP 8.1+, OpenSSL AES-GCM and a two-decimal currency such as INR. These are minimum declared requirements, not a certified compatibility matrix. This release targets single-site installations.
-5. In SelfX, generate a catalog token. The secret is shown once; copy it directly into **WooCommerce → SelfX** in WordPress. It receives only `catalog:sync`, never Developer/API or AI-provider credentials.
-6. Keep the default SelfX API address for production, or enter the public HTTPS origin of your own SelfX API. Choose **Connect and sync**. The plugin verifies the token's integration type, scope, Store identity and configured website binding before saving an encrypted credential. A different Store requires explicit confirmation. Changing API origin requires a freshly supplied token.
-7. Allow WooCommerce Scheduled Actions to run. Check **WooCommerce → SelfX** for progress, last successful batch, completed full sync, counts and safe failure codes. **Sync now / retry** reconciles the catalog or resumes an incomplete scan.
-8. In SelfX **Products**, enable eligible imported products for Try-On. Imports start disabled; subsequent source updates preserve SelfX eligibility/classification. Eligible products appear through the existing catalog for kiosks assigned to that Store. Refresh the kiosk catalog if already open.
+1. Deploy API and web together after applying migration `20261023000000_storefront_request_idempotency`. Configure API `SELFX_WEB_BASE_URL` to the public HTTPS SelfX web origin. Keep normal storage, provider, entitlement and credit configuration working.
+2. Under SelfX **Integrations → WooCommerce**, register the website's canonical public home URL against the correct Store. A platform operator must select that Store. Use the same canonical URL as WordPress, including a subdirectory if applicable.
+3. Download `selfx-woocommerce-0.2.0.zip`. In WordPress **Plugins → Add New → Upload Plugin**, install/update and activate with WooCommerce active. Minimum declared requirements: WordPress 6.5+, WooCommerce 8.0+, PHP 8.1+, OpenSSL AES-GCM. Single-site support; minimum versions are not a certified compatibility matrix.
+4. Generate a **new plugin token** with `catalog:sync` and `tryon:create`. Replace older catalog-only tokens under **WooCommerce → SelfX**, then **Connect and sync**. Secrets are shown once in SelfX and stored encrypted in WordPress. Never put them in browser code/storage.
+5. Let Scheduled Actions/WordPress cron deliver initial sync. **Sync now / retry** recovers interrupted work. In SelfX Products, classify eligible imports and enable Try-On. New imports start disabled; website updates preserve SelfX eligibility.
+6. Classic templates show the button automatically after the purchase area. For a block theme, add **SelfX Try-On** to the Single Product template, or a Shortcode block containing `[selfx_try_on]`. Place outside the cart form and choose one placement to avoid duplicates.
+7. Visit an enabled product page, click **Try it on**, accept consent on SelfX, upload/take a photo, generate and view/download the result, then **Return to product**. Purchase normally through WooCommerce.
 
-SelfX requires the normal active account/Store, integration permissions and plan entitlement. WordPress connection changes require `manage_woocommerce` and a nonce. Token creation/revocation is hidden from integration viewers and enforced by authorized backend endpoints.
+Eligibility is cached for at most 60 seconds. SelfX rechecks Store, integration, mapping, plan and product at launch/during sessions. Sold-out products can still be tried on. Disabled, hidden, archived or unsupported products have no button. Temporary API failure hides the button until eligibility can be checked.
 
-## What synchronizes
+## Public URLs and local testing
 
-| WooCommerce                                               | SelfX reference                                                       |
-| --------------------------------------------------------- | --------------------------------------------------------------------- |
-| Simple product / variable parent                          | One Store-owned product, never one kiosk card per variation           |
-| Product ID, variation ID, SKU                             | Integration-scoped external mappings                                  |
-| Name, description, permalink, main image                  | Catalog reference fields                                              |
-| Variation size and color/colour                           | Optional normalized mapping metadata                                  |
-| Variation image                                           | Optional image URL; falls back to parent image                        |
-| Current simple/variation price                            | Integer minor units and currency; parent uses minimum variation price |
-| Variation stock/purchasability                            | Availability reference; no quantities or SelfX inventory mutation     |
-| Draft/private/password-protected/catalog-hidden           | Inactive reference                                                    |
-| Trash/permanent deletion/missing after complete full scan | Archived reference                                                    |
+The production API cannot fetch `localhost:8881` on your computer. Use public HTTPS staging or a controlled tunnel with WordPress home/permalinks/media configured to that public address; update the SelfX website binding and reconnect. Private/loopback/metadata addresses, unsafe redirects and oversized images are rejected. Do not disable these checks.
 
-Out-of-stock products remain eligible for Try-On. Imported commerce references remain excluded from native SelfX purchase/stock checkout: purchases stay on the WooCommerce website. Variation metadata is retained for the next storefront milestone, not presented as native kiosk inventory. Attribute recognition uses `size`, `color`, `colour`, and corresponding `pa_` taxonomies; other attributes remain in the variation label. Products without a usable main/gallery image are skipped or archived. Grouped, external/affiliate and custom product types are inactive until separately supported. The variation limit is 2,048 per product; oversized payloads stop sync visibly rather than sending an incomplete destructive snapshot.
+For a local SelfX API only, `SELFX_WC_ALLOW_LOCAL_API=true` in `wp-config.php` permits localhost API origins. It does not permit private product/image URLs on a hosted API. Storefront redirect requires a public HTTPS SelfX web origin.
 
-Prices are WooCommerce's saved current prices, not customer-specific taxes, coupons, currency-switcher prices or checkout totals. WooCommerce computes the final payable amount.
+## Ownership and delivery
 
-## Delivery and recovery
-
-- Initial and daily reconciliation scan parent IDs in bounded batches, using a persisted cursor, upper ID bound and fixed SelfX-server snapshot time. Only an acknowledged terminal empty batch finalizes the snapshot.
-- Product/variation edits, stock changes, trash/restore/deletion queue their parent. Scheduled sales request reconciliation. Changes coalesce; an edit received during upload is preserved using compare-and-delete acknowledgements.
-- WooCommerce Action Scheduler is preferred; WordPress cron is the fallback. A five-minute dispatch recovers queued work; fallback dispatch is hourly. Run a host cron/queue runner on low-traffic sites. No browser tab needs to stay open.
-- Temporary HTTP/network/database failures retry with exponential backoff, up to eight attempts per cycle. Manual retry and daily reconciliation recover failed work. Authentication/context failures block until corrected. Status displays codes, never remote error payloads or secrets.
-- A WordPress worker lease and PostgreSQL transaction lock per integration serialize competing batches. Earlier snapshots cannot decrease last-seen times or archive a source update newer than that snapshot.
-- Disconnecting **in WordPress** clears the local encrypted token and queue while retaining WooCommerce products and SelfX's imported catalog. Revoke the token or disconnect in SelfX to disable server access. Revoking a token does not delete catalog references. Disable a reference's Try-On eligibility in SelfX to hide it from kiosks.
-- Deactivation unschedules jobs but retains configuration. Uninstall removes local options and revision metadata. It does not delete WooCommerce products or remotely revoke credentials; revoke unwanted credentials in SelfX.
+- Sync sends parent ID, name, description, slug, original URL, main/gallery fallback image, publication state and revision. It does not import size/color inventory, variant prices or quantities. Shopify normalization uses the same boundary.
+- Existing bounded full scans, deletion tombstones, stale-update protection, retries and reconciliation remain. Historic variant metadata may remain unchanged in the database; imported price displays and purchasing ignore it. Native SelfX products are preserved.
+- Products without usable images are skipped/archived. SelfX controls Try-On eligibility/classification. Edit source details on the website; native SelfX product management and purchasing remain available for native products.
+- WordPress disconnect clears local token/queue and retains remote references. Revoke credentials to stop new launches. Disable the integration/product in SelfX to deny existing session eligibility. Deactivation unschedules jobs; uninstall removes local configuration, not WooCommerce products or remote data.
 
 ## Security and privacy
 
-Only catalog data and website identity are sent from WordPress to SelfX. No customer photos, orders, customer contacts, provider keys or raw credentials are exposed to storefront JavaScript. Tokens are encrypted with AES-256-GCM using a key derived from the WordPress authentication salt. Protect backups and salts; this does not defend against administrator/server compromise. Rotating salts or cloning the site requires reconnecting. Saved tokens are never returned to HTML inputs or logs.
+Plugin tokens remain server-side, encrypted with AES-GCM using WP salts. Salt rotation/cloning requires reconnecting. Management requires capability/nonces. Launches use a nonce, anonymous HTTP-only visitor cookie and burst checks. SelfX resolves Store ownership from credentials, never browser input.
 
-HTTP uses validated public HTTPS origins, TLS verification, no redirects, fixed API paths and bounded sizes. Credentials travel in `x-selfx-integration-token`, never query strings. Keep the configured API origin trusted. Store ownership is resolved from the credential on the server, without a client-supplied Store ID. Always configure website binding, though existing unbound credentials remain compatible.
+Customer sessions last 15 minutes. Capability tokens use a URL fragment removed after reading. Photos travel directly to SelfX after durable consent, using private assets and existing seven-day maximum retention. Durable request idempotency prevents concurrent retries from executing twice. Shared credits/channel attribution apply. No provider details or integration secrets appear in customer UI. Visitor-cookie and burst checks deter abuse; they are not strong identity or distributed edge rate limiting.
 
-For local development only, define `SELFX_WC_ALLOW_LOCAL_API` as `true` in `wp-config.php` to permit localhost/127.0.0.1 API origins. This bypass is not editable from the plugin UI; do not enable it on hosted sites.
-
-## Build and checks
-
-From the repository root:
+## Build and verify
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File integrations/woocommerce/scripts/build.ps1
 php integrations/woocommerce/tests/plugin-test.php
 ```
 
-The builder creates a ZIP and SHA-256 file in `integrations/woocommerce/dist/` and copies the ZIP to `frontend/web/public/downloads/` for the dashboard link. Only the plugin folder, PHP and readme are packaged, never tests or credentials.
+Builder inspects the ZIP, writes SHA-256 in `integrations/woocommerce/dist`, and copies the ZIP to `frontend/web/public/downloads`. Only six PHP files, editor JavaScript and readme are packaged.
 
-Backend contract test: migrate a disposable localhost database named exactly `woocommerce_catalog_test` first. Never use the application database.
+The guarded backend suite requires a migrated disposable localhost database named exactly `woocommerce_catalog_test`:
 
 ```powershell
 $env:WOOCOMMERCE_TEST_DATABASE_URL='postgresql://postgres@127.0.0.1:55441/woocommerce_catalog_test'
@@ -71,8 +51,4 @@ Set-Location backend/api
 npx vitest run src/integrations/woocommerce-catalog.integration.spec.ts
 ```
 
-The PHP harness executes real plugin classes with deterministic WordPress/Woo adapters. PostgreSQL tests send its normalized JSON through Nest validation, integration authentication, sync and kiosk catalog queries. These do not replace testing an actual WordPress installation.
-
-## Live-site acceptance before rollout
-
-Use staging WordPress and a dedicated SelfX Store. Verify installation, initial sync, simple/variable products, image fallback, sold-out Try-On, edit/price/stock changes, scheduled sales, trash/restore/permanent deletion, offline retry, token rotation/revocation, deactivation/reactivation and Store isolation. Check the actual Action Scheduler/host cron. Confirm no duplicate cards or customer/provider data in network payloads. The next milestone is storefront Try-On using SelfX's shared backend, then WooCommerce-native purchase continuation.
+Before rollout test real public WordPress staging: classic/block templates, enabled/disabled/sold-out products, consent/photo/generation/result/return, token revocation, suspended Store, no-credit/plan failures and kiosk refresh. Automated tests mock provider execution; they do not certify live merchant sites or hardware. Rebuild/update the kiosk app to receive imported-product purchase controls.

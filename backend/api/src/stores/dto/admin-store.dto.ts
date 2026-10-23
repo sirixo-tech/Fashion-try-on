@@ -642,6 +642,8 @@ export class StoreProductImageDto {
 }
 
 export class StoreProductDto {
+  @ApiProperty({ enum: ["SELFX", "SHOPIFY", "WOOCOMMERCE"] })
+  catalogSource!: string;
   @ApiProperty()
   id!: string;
 

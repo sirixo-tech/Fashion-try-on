@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
+
+Use one CommerceStorefrontTryOnService behind existing Shopify and new WooCommerce controllers. Woo plugin uses server-side scoped credentials (catalog:sync + tryon:create), eligibility checks and a short-lived fragment launch. Reuse the existing capability/session/asset/credit/provider pipeline, attribute Woo runs to WOOCOMMERCE, record versioned consent before upload/generation and enforce tenant/plan/product state. Pin validated public DNS addresses for bounded catalog image fetches and redirects. A unique hashed session/request key prevents concurrent duplicate generation. Import parent references only; server-side imported-product mutations/purchases remain blocked.
+
 ### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
 
 Reuse integration token authentication, GET /api/v1/integrations/me, normalized catalog sync and Store-scoped kiosk queries. WordPress verifies context and website binding; keep an AES-GCM encrypted token derived from WP salts, validated HTTPS origin, no redirects, nonce/capability controls and safe errors. Action Scheduler (cron fallback) delivers bounded cursor batches with a fixed server snapshot, durable change coalescing, deletion tombstones and retries. Finalize only after a complete acknowledged scan. Serialize SelfX batches per integration using a PostgreSQL advisory transaction lock; never regress lastSeenAt or archive source changes newer than the snapshot. No customer data or AI execution is added to WordPress.

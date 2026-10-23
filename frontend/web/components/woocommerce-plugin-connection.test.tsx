@@ -66,7 +66,7 @@ it("generates a catalog-only credential, shows it once and clears it when dismis
     />,
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Generate catalog token" }),
+    screen.getByRole("button", { name: "Generate plugin token" }),
   );
   const token = (await screen.findByLabelText(
     "New WooCommerce token",
@@ -75,7 +75,10 @@ it("generates a catalog-only credential, shows it once and clears it when dismis
   expect(createIntegrationCredential).toHaveBeenCalledWith(
     "staff",
     "integration-a",
-    { name: "WordPress catalog sync", scopes: ["catalog:sync"] },
+    {
+      name: "WordPress catalog sync",
+      scopes: ["catalog:sync", "tryon:create"],
+    },
   );
   expect(update).toHaveBeenCalledWith(credential);
   fireEvent.click(screen.getByRole("button", { name: "Hide token" }));
@@ -91,14 +94,14 @@ it("keeps viewers read-only and offers the installable plugin", () => {
     />,
   );
   expect(
-    screen.queryByRole("button", { name: "Generate catalog token" }),
+    screen.queryByRole("button", { name: "Generate plugin token" }),
   ).toBeNull();
   expect(screen.queryByRole("button", { name: /Revoke/ })).toBeNull();
   expect(
     screen
       .getByRole("link", { name: "Download WooCommerce plugin" })
       .getAttribute("href"),
-  ).toBe("/downloads/selfx-woocommerce-0.1.0.zip");
+  ).toBe("/downloads/selfx-woocommerce-0.2.0.zip");
 });
 it("clears a shown secret when management permission is revoked", async () => {
   vi.mocked(createIntegrationCredential).mockResolvedValue({
@@ -108,7 +111,7 @@ it("clears a shown secret when management permission is revoked", async () => {
   const props = { accessToken: "staff", integration, onCredential: vi.fn() };
   const view = render(<WooCommercePluginConnection {...props} canManage />);
   fireEvent.click(
-    screen.getByRole("button", { name: "Generate catalog token" }),
+    screen.getByRole("button", { name: "Generate plugin token" }),
   );
   await screen.findByLabelText("New WooCommerce token");
   view.rerender(<WooCommercePluginConnection {...props} canManage={false} />);
@@ -166,7 +169,7 @@ it("discards an in-flight credential result when switching away from the connect
     />,
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Generate catalog token" }),
+    screen.getByRole("button", { name: "Generate plugin token" }),
   );
   view.unmount();
   finish({ credential, secret: "secret" });

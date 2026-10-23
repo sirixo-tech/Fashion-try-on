@@ -9,6 +9,35 @@ import 'package:selfx_kiosk/src/ui/selfx_logo.dart';
 import 'kiosk_camera_foundation_test.dart' as fixtures;
 
 void main() {
+  testWidgets('website-owned looks keep download and hide native buying', (
+    tester,
+  ) async {
+    _viewport(tester, const Size(630, 1365));
+    final capture = fixtures.testController();
+    final session = KioskTryOnSessionController(
+      gateway: _LooksGateway(count: 1, nativePurchasingAllowed: false),
+    );
+    final uploads = fixtures.testUploadController(capture.captureStore);
+    addTearDown(capture.dispose);
+    addTearDown(session.dispose);
+    addTearDown(uploads.dispose);
+    await session.beginCustomerSession();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildSelfxKioskTheme(),
+        home: MyLooksScreen(
+          captureController: capture,
+          tryOnController: session,
+          uploadController: uploads,
+        ),
+      ),
+    );
+    await _frames(tester);
+    expect(find.byKey(const Key('buy-this-look')), findsNothing);
+    expect(find.byKey(const Key('download-my-looks')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   for (final size in [
     const Size(320, 568),
     const Size(630, 1365),
@@ -171,8 +200,9 @@ void main() {
 }
 
 class _LooksGateway extends fixtures.FakeKioskTryOnGateway {
-  _LooksGateway({required this.count});
+  _LooksGateway({required this.count, this.nativePurchasingAllowed = true});
   final int count;
+  final bool nativePurchasingAllowed;
   int loads = 0;
   int shares = 0;
 
@@ -183,6 +213,7 @@ class _LooksGateway extends fixtures.FakeKioskTryOnGateway {
     return [
       for (var i = 0; i < count; i++)
         KioskTryOnLook(
+          nativePurchasingAllowed: nativePurchasingAllowed,
           lookId: 'look-$i',
           runId: 'run-$i',
           personAssetId: 'person',

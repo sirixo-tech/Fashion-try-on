@@ -86,6 +86,8 @@ export class CreateShopifyStorefrontTryOnRunDto {
 }
 
 export class ShopifyStorefrontTryOnProductDto {
+  @ApiPropertyOptional()
+  returnUrl?: string;
   @ApiProperty()
   id!: string;
 

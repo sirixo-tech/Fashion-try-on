@@ -150,8 +150,10 @@ export function StoreProductEditor({
           listStoreProducts(accessToken, id, { pageSize: 1 }),
         ]);
         let currentStock: ProductStock | null = null,
-          managedExternally = false;
-        if (productId) {
+          managedExternally =
+            item?.catalogSource === "SHOPIFY" ||
+            item?.catalogSource === "WOOCOMMERCE";
+        if (productId && !managedExternally) {
           try {
             currentStock = await getProductStock(accessToken, id, productId);
           } catch (caught) {
@@ -409,6 +411,40 @@ export function StoreProductEditor({
     }
   }
   if (loading) return <LoadingState label="Loading product" />;
+  if (external && product)
+    return (
+      <PageContainer>
+        <PageHeader
+          title={product.name}
+          description="This product is managed on its original commerce website."
+          actions={
+            <Button variant="outline" onClick={() => router.push(back)}>
+              Products
+            </Button>
+          }
+        />
+        <Card>
+          <CardContent className="space-y-4 p-6">
+            <p>{product.description}</p>
+            <p>
+              Use the Products list to manage SelfX Try-On availability. Product
+              details, options, pricing and purchases stay on the original
+              website.
+            </p>
+            {product.productUrl && /^https?:\/\//i.test(product.productUrl) ? (
+              <a
+                href={product.productUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                Original product page
+              </a>
+            ) : null}
+          </CardContent>
+        </Card>
+      </PageContainer>
+    );
   if (!storeId)
     return <ErrorState title="Product unavailable" description={error} />;
   return (

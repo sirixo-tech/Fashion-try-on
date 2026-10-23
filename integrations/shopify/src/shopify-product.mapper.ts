@@ -6,22 +6,13 @@ import {
 
 export function mapShopifyProduct(
   product: ShopifyProduct,
-  currencyCode: string,
+  _currencyCode: string,
 ): SelfxCatalogProduct {
+  void _currencyCode; // Preserve the connector signature; prices stay on Shopify.
   const featuredImageUrl =
     product.featuredMedia?.preview?.image?.url ??
     product.variants.find((variant) => variant.image?.url)?.image?.url ??
     null;
-  const variants = product.variants.map((variant) => ({
-    externalVariantId: variant.id,
-    sku: nullableTrim(variant.sku),
-    title: nullableTrim(variant.title),
-    priceAmountCents: moneyToCents(variant.price),
-    priceCurrency: currencyCode,
-    imageUrl: variant.image?.url ?? featuredImageUrl,
-    available: variant.availableForSale,
-  }));
-  const firstVariant = variants[0];
   return {
     externalProductId: product.id,
     title: product.title.trim(),
@@ -33,10 +24,12 @@ export function mapShopifyProduct(
     suggestedJewelleryType: jewelleryTypeFromShopifyCategory(product.category),
     productUrl: product.onlineStoreUrl,
     featuredImageUrl,
-    priceAmountCents: firstVariant?.priceAmountCents ?? null,
-    priceCurrency: firstVariant ? currencyCode : null,
+    // Compatibility fields deliberately carry no commerce state. Shopify owns
+    // variants, price, inventory and checkout; SelfX imports one Try-On reference.
+    priceAmountCents: null,
+    priceCurrency: null,
     sourceUpdatedAt: new Date(product.updatedAt).toISOString(),
-    variants,
+    variants: [],
   };
 }
 

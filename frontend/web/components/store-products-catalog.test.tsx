@@ -13,6 +13,7 @@ import {
   getEffectiveStorePermissions,
   requestStoreCatalogSync,
   listStoreProducts,
+  updateStoreProduct,
   type StoreProduct,
 } from "@/lib/stores";
 import { getPlatformVirtualTryOnSettings } from "@/lib/platform-settings";
@@ -36,6 +37,7 @@ vi.mock("@/lib/stores", async (original) => ({
   getEffectiveStorePermissions: vi.fn(),
   listStoreProducts: vi.fn(),
   requestStoreCatalogSync: vi.fn(),
+  updateStoreProduct: vi.fn(),
 }));
 const permissions = {
   storeId: "store-a",
@@ -259,6 +261,45 @@ it("reloads the target Store on impersonation changes", async () => {
       "identity",
       "store-b",
       expect.anything(),
+    ),
+  );
+});
+it("shows imported source and Try-On controls without native stock, edit or delete", async () => {
+  const imported = {
+    ...product,
+    catalogSource: "WOOCOMMERCE" as const,
+    productUrl: "https://website.example/product/10",
+  };
+  const initial = await vi.mocked(listStoreProducts).getMockImplementation()!(
+    "",
+    "",
+    {},
+  );
+  vi.mocked(listStoreProducts).mockResolvedValue({
+    ...initial,
+    data: [imported],
+  });
+  vi.mocked(updateStoreProduct).mockResolvedValue({
+    ...imported,
+    vtoEnabled: false,
+  });
+  render(<ProductsPage />);
+  await screen.findByText("WooCommerce");
+  expect(screen.queryByRole("link", { name: "Stock & Pricing" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Edit" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Delete Migrated shirt" }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("link", { name: "Original product" }).getAttribute("href"),
+  ).toBe(imported.productUrl);
+  fireEvent.click(screen.getByRole("button", { name: "Disable Try-On" }));
+  await waitFor(() =>
+    expect(updateStoreProduct).toHaveBeenCalledWith(
+      "identity",
+      "store-a",
+      "migrated",
+      { vtoEnabled: false },
     ),
   );
 });

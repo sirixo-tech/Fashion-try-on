@@ -58,7 +58,7 @@ export function WooCommercePluginConnection({
         integration.id,
         {
           name: name.trim(),
-          scopes: ["catalog:sync"],
+          scopes: ["catalog:sync", "tryon:create"],
         },
       );
       if (active.current && permitted.current) {
@@ -109,7 +109,7 @@ export function WooCommercePluginConnection({
           Upload Plugin.
         </li>
         <li>
-          Generate a catalog token below, then open WooCommerce → SelfX in
+          Generate a plugin token below, then open WooCommerce → SelfX in
           WordPress and connect.
         </li>
         <li>
@@ -120,7 +120,7 @@ export function WooCommercePluginConnection({
       <p className="my-4">
         <a
           className={buttonVariants({ variant: "outline", size: "sm" })}
-          href="/downloads/selfx-woocommerce-0.1.0.zip"
+          href="/downloads/selfx-woocommerce-0.2.0.zip"
           download
         >
           Download WooCommerce plugin
@@ -128,8 +128,10 @@ export function WooCommercePluginConnection({
       </p>
       <p className="text-sm text-muted-foreground">
         Product updates and deletions sync automatically. Use Sync now in
-        WordPress to reconcile the catalog. WooCommerce controls stock, prices
-        and checkout. Website Try-On is a separate upcoming feature.
+        WordPress to reconcile the catalog. Eligible product pages show Try it
+        on; shoppers return to WooCommerce to choose options and purchase.
+        Replace older catalog-only tokens with a new plugin token to enable
+        website Try-On.
       </p>
       {error ? (
         <p role="alert" className="mt-4 text-sm text-destructive">
@@ -151,7 +153,7 @@ export function WooCommercePluginConnection({
             onClick={() => void generate()}
             disabled={busy || !name.trim()}
           >
-            Generate catalog token
+            Generate plugin token
           </Button>
         </div>
       ) : null}

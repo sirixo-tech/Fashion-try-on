@@ -1,4 +1,8 @@
 import { Module } from "@nestjs/common";
+import {
+  CommerceStorefrontController,
+  WooCommerceStorefrontController,
+} from "./commerce-storefront.controller.js";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { DatabaseModule } from "../database/database.module.js";
@@ -28,6 +32,8 @@ import { ShopifyShopRedactionService } from "./shopify-shop-redaction.service.js
 @Module({
   imports: [AuthModule, DatabaseModule, EntitlementsModule, TryOnModule],
   controllers: [
+    CommerceStorefrontController,
+    WooCommerceStorefrontController,
     IntegrationsController,
     IntegrationApiController,
     ShopifyWebhookController,

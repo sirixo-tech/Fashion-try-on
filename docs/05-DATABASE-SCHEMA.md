@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
+
+Reuse historic ShopifyStorefrontTryOnSession as the internal commerce capability table; integration type is authoritative and Woo shopDomain holds its canonical website URL. No new tenant, inventory or order model. Add nullable unique char(64) storefront_request_key to kiosk_try_on_runs through migration 20261023000000_storefront_request_idempotency; hash session/request IDs, never capability tokens. Durable AuditLog consent records retain policy version/text, session, Store and channel independently of expiring sensitive images. Historic imported variant metadata is retained for compatibility but ignored by the Try-On-only UI/purchasing boundary.
+
 ### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
 
 No new SelfX table/migration. Reuse Integration, hashed IntegrationCredential, one Product per parent, and ExternalProductMapping root/variation rows. Optional variant size/color values extend existing JSON metadata alongside image, price and availability; do not create native inventory variants from these commerce references. WordPress keeps encrypted connection/configuration, bounded scan cursor/status and coalesced per-parent change options with autoload disabled, plus source revision post metadata. Historical organizations rows remain the internal Store tenant boundary.

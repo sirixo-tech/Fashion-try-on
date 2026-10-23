@@ -142,6 +142,7 @@ export class ShopifyStorefrontTryOnController {
     @Param() params: ShopifyStorefrontTryOnSessionParamDto,
     @Req() request: FastifyRequest,
   ): Promise<ShopifyStorefrontTryOnPersonUploadDto> {
+    await this.tryOns.requirePhotoConsent(params.session);
     const payload = await parsePublicApiUploadMultipartRequest(request);
     return this.tryOns.uploadPersonImage(params.session, payload);
   }

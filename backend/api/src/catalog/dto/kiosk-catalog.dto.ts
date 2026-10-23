@@ -80,6 +80,7 @@ export class KioskCatalogProductImageDto {
 }
 
 export class KioskCatalogProductDto {
+  nativePurchasingAllowed!: boolean;
   id!: string;
   name!: string;
   description!: string | null;

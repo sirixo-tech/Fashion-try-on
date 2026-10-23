@@ -104,6 +104,9 @@ export class KioskTryOnAssetResponseDto {
 }
 
 export class KioskTryOnLookResponseDto {
+  @ApiProperty({ description: "False for website-owned Try-On references." })
+  nativePurchasingAllowed!: boolean;
+
   @ApiProperty()
   lookId!: string;
 

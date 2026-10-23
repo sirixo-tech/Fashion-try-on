@@ -106,6 +106,7 @@ type StoreStats = {
 };
 
 type StoreProductRow = {
+  catalog_source?: string;
   id: string;
   name: string;
   slug: string;
@@ -824,6 +825,28 @@ export class AdminStoresService {
   ): Promise<StoreProductDto> {
     await this.findStoreOrThrow(storeId);
     const existing = await this.requireStoreProductRow(storeId, productId);
+    if (existing.catalog_source && existing.catalog_source !== "SELFX") {
+      const allowed = new Set([
+        "vtoEnabled",
+        "productVertical",
+        "jewelleryType",
+        "categoryName",
+        "garmentIntent",
+        "garmentCategory",
+        "garmentPhotoType",
+      ]);
+      if (
+        Object.entries(input).some(
+          ([key, value]) => value !== undefined && !allowed.has(key),
+        )
+      ) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          "PRODUCT_EXTERNALLY_MANAGED",
+          "Edit product details, images, pricing and stock on the original commerce website.",
+        );
+      }
+    }
     const productKind = resolveUpdateProductKind(
       existing,
       input,
@@ -1047,6 +1070,12 @@ export class AdminStoresService {
     productId: string,
   ): Promise<StoreProductDto> {
     const existing = await this.requireStoreProductRow(storeId, productId);
+    if (existing.catalog_source && existing.catalog_source !== "SELFX")
+      throw new ApiErrorException(
+        HttpStatus.CONFLICT,
+        "PRODUCT_EXTERNALLY_MANAGED",
+        "Delete the product on its original website, or disable Try-On in SelfX.",
+      );
     const deleted = this.mapStoreProduct(existing);
     try {
       await this.prisma.$executeRaw`
@@ -1237,6 +1266,7 @@ export class AdminStoresService {
 
   private mapStoreProduct(row: StoreProductRow): StoreProductDto {
     return {
+      catalogSource: row.catalog_source ?? "SELFX",
       id: row.id,
       name: row.name,
       slug: row.slug,
@@ -1428,6 +1458,7 @@ function storeProductWhere(
 function storeProductSelect(): Prisma.Sql {
   return Prisma.sql`
     SELECT
+      COALESCE((SELECT i.type::text FROM external_product_mappings m JOIN integrations i ON i.id = m.integration_id WHERE m.product_id = p.id AND m.organization_id = p.organization_id AND m.external_variant_id IS NULL ORDER BY m.created_at LIMIT 1), 'SELFX') AS catalog_source,
       p.id,
       p.name,
       p.slug,

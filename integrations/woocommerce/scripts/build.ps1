@@ -16,9 +16,9 @@ $zip = [IO.Compression.ZipFile]::OpenRead($archive)
 try {
     foreach ($entry in $zip.Entries) {
         $name = $entry.FullName.Replace('\', '/')
-        if (!$name.StartsWith('selfx-woocommerce/') -or $name.Contains('..') -or $name -notmatch '\.(php|txt)$') { throw "Unexpected package entry: $name" }
+        if (!$name.StartsWith('selfx-woocommerce/') -or $name.Contains('..') -or $name -notmatch '\.(php|txt|js)$') { throw "Unexpected package entry: $name" }
     }
-    if ($zip.Entries.Count -ne 6) { throw 'Expected five PHP files and readme.txt.' }
+    if ($zip.Entries.Count -ne 8) { throw 'Expected six PHP files, editor JavaScript and readme.txt.' }
 } finally { $zip.Dispose() }
 Copy-Item -LiteralPath $archive -Destination (Join-Path $publicRoot $filename) -Force
 $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()

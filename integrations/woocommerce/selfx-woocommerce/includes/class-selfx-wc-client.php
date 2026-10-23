@@ -26,7 +26,8 @@ final class SelfX_WC_Client {
         $this->token = $token;
     }
     public function request(string $method, string $path, ?array $body = null): array {
-        if (!in_array($path, array('/api/v1/integrations/me', '/api/v1/integrations/catalog/sync'), true)) {
+        $route = explode('?', $path, 2)[0];
+        if (!in_array($route, array('/api/v1/integrations/me', '/api/v1/integrations/catalog/sync', '/api/v1/integrations/storefront/availability', '/api/v1/integrations/storefront/try-on-sessions'), true)) {
             throw new SelfX_WC_Error('API_PATH_INVALID');
         }
         $args = array('method' => $method, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true,
@@ -43,7 +44,13 @@ final class SelfX_WC_Client {
         $response = $local ? wp_remote_request($this->origin . $path, $args) : wp_safe_remote_request($this->origin . $path, $args);
         if (is_wp_error($response)) { throw new SelfX_WC_Error('API_UNAVAILABLE'); }
         $status = wp_remote_retrieve_response_code($response);
-        if ($status < 200 || $status >= 300) { throw new SelfX_WC_Error('API_HTTP_' . (int) $status); }
+        if ($status < 200 || $status >= 300) {
+            $error = json_decode(wp_remote_retrieve_body($response), true);
+            $code = $error['error']['code'] ?? '';
+            // Expose only explicitly supported actionable codes, never response payloads.
+            if (in_array($code, array('AUTH_VALIDATION_FAILED', 'COMMERCE_PUBLIC_URL_REQUIRED', 'STOREFRONT_RATE_LIMITED'), true)) { throw new SelfX_WC_Error($code); }
+            throw new SelfX_WC_Error('API_HTTP_' . (int) $status);
+        }
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if (!is_array($data)) { throw new SelfX_WC_Error('API_RESPONSE_INVALID'); }
         return $data;

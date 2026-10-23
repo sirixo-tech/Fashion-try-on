@@ -420,6 +420,15 @@ type SessionScope = Prisma.TryOnSessionGetPayload<{
 }>;
 
 const lookIncludes = {
+  product: {
+    select: {
+      externalMappings: {
+        where: { externalVariantId: null },
+        take: 1,
+        select: { id: true },
+      },
+    },
+  },
   personAsset: true,
   garmentAsset: true,
   resultAsset: true,

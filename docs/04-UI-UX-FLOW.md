@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
+
+Woo product-page button supports automatic classic placement and an explicit block/shortcode for block templates. Customer SelfX page shares Shopify consent, photo, progress, result, download and return-link UI without provider diagnostics or commerce selectors. Imported Store product rows show source and website management, allow SelfX eligibility/classification, hide native stock/edit/delete controls, and direct source edits back to the website. Kiosk result/My Looks hide native buying for imported references. Setup explains public URLs and plugin token rotation.
+
 ### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
 
 WooCommerce settings offer an authorized Platform Store selector, plugin download/setup, one-time catalog-token creation and confirmed revocation; integration viewers see no credential mutation controls. Never persist the one-time secret in browser storage. Use WooCommerce labels/instructions rather than Shopify copy. WordPress uses native admin UI with blank saved-token input, verified Store identity, explicit Store-change confirmation, progress/counts/timestamps, Sync now/retry and local disconnect. New imports need explicit Try-On enablement. No customer-facing website Try-On button is claimed in WOO-1.

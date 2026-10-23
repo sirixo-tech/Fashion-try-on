@@ -170,9 +170,11 @@ class KioskTryOnLook {
     required this.expiresAt,
     this.garmentAssetId,
     this.productId,
+    this.nativePurchasingAllowed = true,
   });
 
   final String lookId;
+  final bool nativePurchasingAllowed;
   final String runId;
   final String personAssetId;
   final String? garmentAssetId;

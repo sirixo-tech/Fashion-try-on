@@ -20,11 +20,18 @@ function wp_safe_remote_request($url, $args) {
     $requests[] = array($url, $args);
     if ($response_hook) { $response = $response_hook($url, $args); if ($response !== null) { return $response; } }
     if (str_ends_with($url, '/me')) { return array('code' => 200, 'body' => json_encode($context)); }
+    if (str_contains($url, '/storefront/availability?')) { return array('code' => 200, 'body' => '{"available":true}'); }
     $body = json_decode($args['body'], true);
     return array('code' => 200, 'body' => json_encode(array('direction' => 'COMMERCE_TO_SELFX', 'sourceOfTruth' => 'COMMERCE_PLATFORM',
         'finalized' => $body['finalize'] ?? false, 'created' => count($body['products']), 'updated' => 0, 'archived' => 0, 'ignoredAsStale' => 0, 'skippedWithoutImage' => 0)));
 }
 function wp_generate_uuid4() { static $i = 1; return sprintf('00000000-0000-4000-8000-%012d', $i++); }
+function absint($value) { return abs((int) $value); }
+function get_queried_object_id() { return 10; }
+function get_transient($key) { return get_option('transient_' . $key); }
+function set_transient($key, $value, $expires) { update_option('transient_' . $key, $value); }
+function wp_create_nonce($action) { return 'nonce:' . $action; }
+function wp_verify_nonce($nonce, $action) { return $nonce === wp_create_nonce($action); }
 function get_option($key, $default = false) { global $options; return $options[$key] ?? $default; }
 function update_option($key, $value, $autoload = null) { global $options; $options[$key] = $value; return true; }
 function add_option($key, $value, $deprecated = '', $autoload = null) { global $options; if (array_key_exists($key, $options)) { return false; } $options[$key] = $value; return true; }
@@ -112,6 +119,7 @@ final class FakeProduct {
 require __DIR__ . '/../selfx-woocommerce/includes/class-selfx-wc-client.php';
 require __DIR__ . '/../selfx-woocommerce/includes/class-selfx-wc-product.php';
 require __DIR__ . '/../selfx-woocommerce/includes/class-selfx-wc-plugin.php';
+require __DIR__ . '/../selfx-woocommerce/includes/class-selfx-wc-storefront.php';
 function equal($actual, $expected) { if ($actual !== $expected) { throw new Exception('Expected ' . var_export($expected, true) . ', got ' . var_export($actual, true)); } }
 function rejects(callable $fn, string $message) { try { $fn(); } catch (Throwable $e) { equal($e->getMessage(), $message); return; } throw new Exception('Expected failure ' . $message); }
 $passed = 0;
@@ -161,21 +169,40 @@ test('verifies WooCommerce type, catalog scope and website binding', function ()
     $context['integrationType'] = 'SHOPIFY'; rejects(fn() => $client->context(), 'CONNECTION_CONTEXT_INVALID');
     $context['integrationType'] = 'WOOCOMMERCE'; $context['externalAccountId'] = 'https://another.example'; rejects(fn() => $client->context(), 'WEBSITE_MISMATCH');
 });
-test('normalizes simple products and fixed precision prices without a Store id or VTO override', function () {
-    setup(); $product = SelfX_WC_Product::normalize(add_product(10));
-    equal($product['priceAmountCents'], 1995); equal($product['externalProductId'], '10'); equal(count($product['variants']), 1);
-    equal(isset($product['storeId']), false); equal(isset($product['vtoEnabled']), false); equal($product['description'], 'Product description');
-    equal(SelfX_WC_Product::money('1.005'), 101); equal(SelfX_WC_Product::money(''), null);
-    rejects(fn() => SelfX_WC_Product::money('-1'), 'PRODUCT_PRICE_INVALID');
-    rejects(fn() => SelfX_WC_Product::money('1000001'), 'PRODUCT_PRICE_TOO_LARGE');
+test('normalizes parent Try-On references without prices, variants, stock or Store overrides', function () {
+    setup(); $p = SelfX_WC_Product::normalize(add_product(10));
+    equal($p['externalProductId'], '10'); equal($p['description'], 'Product description');
+    foreach (array('variants', 'priceAmountCents', 'priceCurrency', 'available', 'storeId', 'vtoEnabled') as $key) { equal(array_key_exists($key, $p), false); }
 });
-test('keeps one parent product with variation sizes, colors, images and prices', function () {
-    setup(); $parent = add_product(10, 'variable', array('children' => array(11, 12)));
-    add_product(11, 'variation', array('parent' => 10, 'attributes' => array('pa_color' => 'blue', 'size' => 'M'), 'price' => '20.00'));
-    add_product(12, 'variation', array('parent' => 10, 'attributes' => array('pa_color' => 'red', 'size' => 'L'), 'price' => '25.00', 'stock' => false));
-    $p = SelfX_WC_Product::normalize($parent); equal($p['externalProductId'], '10'); equal(count($p['variants']), 2);
-    equal($p['variants'][0]['color'], 'Blue'); equal($p['variants'][0]['size'], 'M'); equal($p['variants'][1]['available'], false);
-    equal($p['priceAmountCents'], 2000); equal($p['variants'][1]['imageUrl'], 'https://website.example/images/12.jpg');
+test('a variable product is one reference even when it has thousands of variations', function () {
+    setup(); $parent = add_product(10, 'variable', array('children' => range(11, 5000)));
+    $p = SelfX_WC_Product::normalize($parent); equal($p['externalProductId'], '10'); equal(isset($p['variants']), false);
+    equal($p['featuredImageUrl'], 'https://website.example/images/10.jpg');
+});
+test('local product and image URLs fail early with an actionable code', function () {
+    foreach (array('http://localhost:8881/product/10', 'http://127.0.0.1/a.jpg', 'http://10.0.0.1/a.jpg') as $url) { rejects(fn() => SelfX_WC_Product::public_url($url), 'PUBLIC_CATALOG_URL_REQUIRED'); }
+});
+test('launch redirects require the trusted SelfX origin, fixed path and a fragment capability', function () {
+    $good = 'https://app.selfx.example/try-on/commerce#session=' . str_repeat('a', 43);
+    equal(SelfX_WC_Storefront::validated_launch($good, 'https://app.selfx.example'), $good);
+    foreach (array(str_replace('app.selfx.example', 'evil.example', $good), str_replace('/try-on/commerce', '/login', $good), str_replace('#session=', '?session=', $good)) as $url) { rejects(fn() => SelfX_WC_Storefront::validated_launch($url, 'https://app.selfx.example'), 'LAUNCH_RESPONSE_INVALID'); }
+});
+test('eligible sold-out products show only Try it on and keep credentials off the storefront', function () {
+    setup(); add_product(10, 'simple', array('stock' => false));
+    $front = new SelfX_WC_Storefront(); $html = $front->button();
+    equal(str_contains($html, 'Try it on'), true); equal(str_contains($html, 'selfx_woocommerce_'), false);
+    equal(str_contains($html, 'add-to-cart'), false); equal(str_contains($html, 'size'), false);
+    global $requests; $count = count($requests); $front->button(); equal(count($requests), $count);
+});
+test('ineligible and unpublished products hide the storefront button', function () {
+    setup(); add_product(10, 'simple', array('status' => 'draft')); $front = new SelfX_WC_Storefront(); equal($front->button(), '');
+    setup(); add_product(10); global $response_hook;
+    $response_hook = fn() => array('code' => 200, 'body' => '{"available":false}'); equal($front->button(), '');
+});
+test('a public launch validates its nonce before using the server credential', function () {
+    setup(); add_product(10); $_POST = array('product_id' => 10, '_wpnonce' => 'wrong');
+    rejects(fn() => (new SelfX_WC_Storefront())->launch(), 'PERMISSION_DENIED');
+    global $requests; equal($requests, array()); $_POST = array();
 });
 test('out of stock stays active, hidden/private/protected products stay unavailable', function () {
     setup(); equal(SelfX_WC_Product::normalize(add_product(10, 'simple', array('stock' => false)))['status'], 'ACTIVE');

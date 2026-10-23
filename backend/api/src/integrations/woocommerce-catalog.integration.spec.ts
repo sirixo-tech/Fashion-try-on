@@ -1,11 +1,15 @@
 import "reflect-metadata";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 import { ValidationPipe } from "@nestjs/common";
 import { createSelfxId } from "@selfx/database";
 import { PrismaService } from "../database/prisma.service.js";
 import { CatalogService } from "../catalog/catalog.service.js";
+import { AdminStoresService } from "../stores/admin-stores.service.js";
+import { UpdateStoreProductDto } from "../stores/dto/admin-store.dto.js";
+import { CommerceStorefrontTryOnService } from "./commerce-storefront-try-on.service.js";
+import { TryOnSessionService } from "../try-on/try-on-session.service.js";
 import { IntegrationCatalogSyncService } from "./integration-catalog-sync.service.js";
 import {
   IntegrationTokenAuthService,
@@ -80,28 +84,18 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
     });
   });
   afterAll(async () => {
+    await db.auditLog.deleteMany({ where: { organizationId: store } });
+    await db.kioskTryOnRun.deleteMany({ where: { organizationId: store } });
+    await db.tryOnSession.deleteMany({ where: { organizationId: store } });
     await db.integration.deleteMany({ where: { id: integrationId } });
     await db.product.deleteMany({ where: { organizationId: store } });
     await db.productCategory.deleteMany({ where: { organizationId: store } });
     await db.organization.deleteMany({ where: { id: { in: [store, other] } } });
     await db.$disconnect();
   });
-  it("accepts real PHP normalization with optional size/color fields and rejects client Store overrides", async () => {
-    expect(input.products[0]?.variants).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          externalVariantId: "11",
-          size: "M",
-          color: "Blue",
-          priceAmountCents: 2000,
-        }),
-        expect.objectContaining({
-          externalVariantId: "12",
-          available: false,
-          priceAmountCents: 2500,
-        }),
-      ]),
-    );
+  it("accepts real PHP Try-On-only references and rejects client Store overrides", async () => {
+    expect(input.products[0]?.variants).toBeUndefined();
+    expect(input.products[0]?.priceAmountCents).toBeUndefined();
     await expect(
       pipe.transform(
         { ...input, storeId: other },
@@ -123,24 +117,14 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
       ),
     ).rejects.toThrow();
   });
-  it("imports one Store product with variation reference metadata and no duplicate kiosk cards", async () => {
+  it("imports one Store product without variation or inventory records", async () => {
     expect((await sync.sync(credential, input)).created).toBe(1);
     expect(await db.product.count({ where: { organizationId: store } })).toBe(
       1,
     );
     expect(
       await db.externalProductMapping.count({ where: { integrationId } }),
-    ).toBe(3);
-    const variant = await db.externalProductMapping.findFirstOrThrow({
-      where: { integrationId, externalVariantId: "12" },
-    });
-    expect(variant.metadata).toMatchObject({
-      color: "Red",
-      size: "L",
-      available: false,
-      priceAmountCents: 2500,
-      imageUrl: "https://website.example/images/12.jpg",
-    });
+    ).toBe(1);
     expect((await catalog.listKioskProducts(store, {})).data).toHaveLength(0);
     await sync.updateProductVto(credential, {
       externalProductId: "10",
@@ -148,15 +132,137 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
     });
     const visible = await catalog.listKioskProducts(store, {});
     expect(visible.data).toHaveLength(1);
+    expect(visible.data[0]).toMatchObject({
+      nativePurchasingAllowed: false,
+      priceAmountCents: null,
+    });
     expect((await catalog.listKioskProducts(other, {})).data).toHaveLength(0);
     expect((await catalog.listKioskProducts(null, {})).data).toHaveLength(0);
+  });
+  it("exposes imported source and prevents source-field edits/deletion while allowing Try-On settings", async () => {
+    const stores = new AdminStoresService(
+      db,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const product = await db.product.findFirstOrThrow({
+      where: { organizationId: store },
+    });
+    expect(
+      (await stores.getStoreProduct(store, product.id)).catalogSource,
+    ).toBe("WOOCOMMERCE");
+    for (const change of [
+      { name: "local overwrite" },
+      { priceAmountCents: 1 },
+      { active: false },
+      { image: null },
+    ])
+      await expect(
+        stores.updateStoreProduct(store, product.id, change),
+      ).rejects.toMatchObject({
+        response: { error: { code: "PRODUCT_EXTERNALLY_MANAGED" } },
+      });
+    await expect(
+      stores.deleteStoreProduct(store, product.id),
+    ).rejects.toThrow();
+    await expect(stores.getStoreProduct(other, product.id)).rejects.toThrow();
+    const toggle = await pipe.transform(
+      { vtoEnabled: true },
+      { type: "body", metatype: UpdateStoreProductDto },
+    );
+    expect(
+      (await stores.updateStoreProduct(store, product.id, toggle)).vtoEnabled,
+    ).toBe(true);
+  });
+  it("records consent and deduplicates concurrent generation against real PostgreSQL", async () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const product = await db.product.findFirstOrThrow({
+      where: { organizationId: store },
+    });
+    await db.product.update({
+      where: { id: product.id },
+      data: {
+        imageStorageKey: "catalog/fixture.png",
+        imageContentType: "image/png",
+      },
+    });
+    const storage = {
+      putObject: vi.fn(),
+      readObject: vi.fn(async () => png),
+      deleteObject: vi.fn(),
+    };
+    const process = vi.fn(async () => undefined);
+    const storefront = new CommerceStorefrontTryOnService(
+      db,
+      new TryOnSessionService(db),
+      storage as never,
+      {
+        assertConfigured: vi.fn(),
+        metadata: () => ({
+          provider: "GOOGLE",
+          providerDisplayName: "Internal",
+          model: "test",
+        }),
+        process,
+      } as never,
+      { assertStoreHasFeature: vi.fn(), consumeTryOnCredit: vi.fn() } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const launch = await storefront.createWooCommerceSession(credential, {
+      externalProductId: "10",
+      visitorToken: "v".repeat(43),
+    });
+    await expect(
+      storefront.requirePhotoConsent(launch.session),
+    ).rejects.toThrow();
+    await storefront.acceptPhotoConsent(launch.session);
+    await storefront.uploadPersonImage(launch.session, {
+      purpose: "PERSON",
+      image: {
+        fieldName: "image",
+        filename: "person.png",
+        mimeType: "image/png",
+        buffer: png,
+        sizeBytes: png.length,
+        width: 1,
+        height: 1,
+      },
+    } as never);
+    const [one, two] = await Promise.all([
+      storefront.createRun(launch.session, { clientRequestId: "same-request" }),
+      storefront.createRun(launch.session, { clientRequestId: "same-request" }),
+    ]);
+    expect(one.id).toBe(two.id);
+    expect(
+      await db.kioskTryOnRun.count({ where: { organizationId: store } }),
+    ).toBe(1);
+    expect(
+      await db.auditLog.count({
+        where: {
+          organizationId: store,
+          action: "try_on.photo_consent_accepted",
+        },
+      }),
+    ).toBe(1);
+    expect(
+      (await db.kioskTryOnRun.findUniqueOrThrow({ where: { id: one.id } }))
+        .billingChannel,
+    ).toBe("WOOCOMMERCE");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(process).toHaveBeenCalledTimes(1);
   });
   it("preserves manual eligibility and keeps sold-out products available for Try-On", async () => {
     const update = {
       ...input.products[0]!,
       title: "Updated shirt",
       sourceUpdatedAt: "2026-10-22T01:00:00.000Z",
-      variants: input.products[0]!.variants!.map((variant) => ({
+      variants: (input.products[0]!.variants ?? []).map((variant) => ({
         ...variant,
         available: false,
       })),
@@ -213,7 +319,7 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
       await db.externalProductMapping.count({
         where: { integrationId, externalProductId: "concurrent-product" },
       }),
-    ).toBe(3);
+    ).toBe(1);
   });
   it("preserves a newer observation across a retried old full scan and finalization", async () => {
     const product = {

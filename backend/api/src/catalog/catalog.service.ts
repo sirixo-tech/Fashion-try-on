@@ -7,6 +7,7 @@ import {
 } from "@selfx/shared";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { fetchPublicCatalogImage } from "./catalog-url-policy.js";
 import {
   type SupportedImageMimeType,
   validateTechnicalImageBuffer,
@@ -35,6 +36,7 @@ const catalogReadUrlTtlSeconds = 900;
 type CatalogScope = "PLATFORM_DEFAULT" | "STORE";
 
 type ProductRow = {
+  externally_managed?: boolean;
   id: string;
   name: string;
   description: string | null;
@@ -135,7 +137,8 @@ export class CatalogService {
       `,
       this.prisma.$queryRaw<ProductRow[]>`
         SELECT
-          p.id,
+          EXISTS (SELECT 1 FROM external_product_mappings xm WHERE xm.product_id = p.id AND xm.organization_id = p.organization_id AND xm.external_variant_id IS NULL) AS externally_managed,
+        p.id,
           p.name,
           p.description,
           p.product_vertical,
@@ -235,7 +238,8 @@ export class CatalogService {
       `,
       this.prisma.$queryRaw<ProductRow[]>`
         SELECT
-          p.id,
+          EXISTS (SELECT 1 FROM external_product_mappings xm WHERE xm.product_id = p.id AND xm.organization_id = p.organization_id AND xm.external_variant_id IS NULL) AS externally_managed,
+        p.id,
           p.name,
           p.description,
           p.product_vertical,
@@ -285,6 +289,7 @@ export class CatalogService {
     );
     const rows = await this.prisma.$queryRaw<ProductRow[]>`
       SELECT
+        EXISTS (SELECT 1 FROM external_product_mappings xm WHERE xm.product_id = p.id AND xm.organization_id = p.organization_id AND xm.external_variant_id IS NULL) AS externally_managed,
         p.id,
         p.name,
         p.description,
@@ -349,6 +354,7 @@ export class CatalogService {
       >
     >`
       SELECT
+        EXISTS (SELECT 1 FROM external_product_mappings xm WHERE xm.product_id = p.id AND xm.organization_id = p.organization_id AND xm.external_variant_id IS NULL) AS externally_managed,
         p.id,
         p.image_url,
         p.image_storage_key,
@@ -423,6 +429,7 @@ export class CatalogService {
 
   private mapProduct(row: ProductRow): KioskCatalogProductDto {
     return {
+      nativePurchasingAllowed: !row.externally_managed,
       id: row.id,
       name: row.name,
       description: row.description,
@@ -438,9 +445,10 @@ export class CatalogService {
       garmentIntent: row.garment_intent,
       garmentCategory: row.garment_category,
       garmentPhotoType: row.garment_photo_type,
-      priceAmountCents: row.price_amount_cents,
-      minimumPriceAmountCents:
-        row.minimum_price_cents ?? row.price_amount_cents,
+      priceAmountCents: row.externally_managed ? null : row.price_amount_cents,
+      minimumPriceAmountCents: row.externally_managed
+        ? null
+        : (row.minimum_price_cents ?? row.price_amount_cents),
       hasVariablePrices:
         row.minimum_price_cents != null &&
         row.maximum_price_cents != null &&
@@ -547,18 +555,19 @@ export class CatalogService {
     if (url.protocol !== "https:" && url.protocol !== "http:") {
       throwInvalidCatalogImage();
     }
-    const response = await fetch(url);
-    if (!response.ok) {
+    const image = await fetchPublicCatalogImage(
+      url.href,
+      TRY_ON_LAB_MAX_IMAGE_BYTES,
+    ).catch(() => {
       throwInvalidCatalogImage();
-    }
-    const buffer = Buffer.from(await response.arrayBuffer());
+    });
+    const buffer = image.buffer;
     if (buffer.length > TRY_ON_LAB_MAX_IMAGE_BYTES) {
       throwInvalidCatalogImage();
     }
     return {
       buffer,
-      contentType:
-        response.headers.get("content-type")?.split(";")[0]?.trim() ?? null,
+      contentType: image.contentType?.split(";")[0]?.trim() ?? null,
     };
   }
 }
@@ -640,6 +649,7 @@ function mapRevision(
   const updatedAt = stats.updated_at?.toISOString() ?? null;
   return {
     revision: [
+      "commerce-tryon-2",
       context.scope,
       context.storeTenantId ?? "unassigned",
       productCount,

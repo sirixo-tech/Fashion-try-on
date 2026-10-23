@@ -1342,6 +1342,7 @@ model KioskCustomerUploadSession {
 }
 
 model KioskTryOnRun {
+  storefrontRequestKey String? @unique @map("storefront_request_key") @db.Char(64)
   id                                     String               @id @db.Uuid
   kioskDeviceId                          String?              @map("kiosk_device_id") @db.Uuid
   apiKeyId                               String?              @map("api_key_id") @db.Uuid

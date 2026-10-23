@@ -1549,12 +1549,14 @@ function toAssetResponse(
 
 function toLookResponse(
   look: TryOnLook & {
+    product?: { externalMappings: { id: string }[] } | null;
     resultAsset: Pick<TryOnAsset, "storageKey">;
   },
   storage: ObjectStorageService,
 ) {
   return {
     lookId: look.id,
+    nativePurchasingAllowed: !look.product?.externalMappings.length,
     runId: look.kioskTryOnRunId,
     personAssetId: look.personAssetId,
     garmentAssetId: look.garmentAssetId ?? undefined,

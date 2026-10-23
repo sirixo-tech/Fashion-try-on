@@ -29,9 +29,11 @@ class KioskGarmentInput {
     this.name,
     this.displayPrice,
     this.extractedPreviewPath,
+    this.nativePurchasingAllowed = true,
   });
 
   const KioskGarmentInput.catalogProduct({
+    bool nativePurchasingAllowed = true,
     required String productId,
     required String name,
     required String imageUrl,
@@ -40,6 +42,7 @@ class KioskGarmentInput {
     String? displayPrice,
   }) : this(
          source: KioskGarmentInputSource.catalogProduct,
+         nativePurchasingAllowed: nativePurchasingAllowed,
          localPath: '',
          productId: productId,
          name: name,
@@ -50,6 +53,7 @@ class KioskGarmentInput {
        );
 
   const KioskGarmentInput.jewelleryCatalogProduct({
+    bool nativePurchasingAllowed = true,
     required String productId,
     required String name,
     required String imageUrl,
@@ -59,6 +63,7 @@ class KioskGarmentInput {
          source: KioskGarmentInputSource.catalogProduct,
          localPath: '',
          tryOnVertical: KioskTryOnVertical.jewellery,
+         nativePurchasingAllowed: nativePurchasingAllowed,
          productId: productId,
          jewelleryType: jewelleryType,
          name: name,
@@ -77,6 +82,7 @@ class KioskGarmentInput {
   final String? name;
   final String? displayPrice;
   final String? extractedPreviewPath;
+  final bool nativePurchasingAllowed;
 
   String get previewPath => extractedPreviewPath ?? localPath;
 
@@ -108,6 +114,7 @@ class KioskGarmentInput {
       name: name ?? this.name,
       displayPrice: displayPrice ?? this.displayPrice,
       extractedPreviewPath: extractedPreviewPath ?? this.extractedPreviewPath,
+      nativePurchasingAllowed: nativePurchasingAllowed,
     );
   }
 
@@ -123,6 +130,7 @@ class KioskGarmentInput {
       remoteImageUrl: remoteImageUrl,
       name: name,
       displayPrice: displayPrice,
+      nativePurchasingAllowed: nativePurchasingAllowed,
     );
   }
 

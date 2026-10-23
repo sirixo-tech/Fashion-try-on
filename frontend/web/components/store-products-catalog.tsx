@@ -219,7 +219,9 @@ export function StoreProductsCatalog({
         accessToken,
         storeId,
         product.id,
-        productInputFromProduct(product, overrides),
+        isImported(product)
+          ? importedProductInput(product, overrides)
+          : productInputFromProduct(product, overrides),
       );
       setProducts((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
@@ -498,6 +500,13 @@ export function StoreProductsCatalog({
                         <ProductThumb product={product} />
                         <div className="min-w-0">
                           <div className="font-semibold">{product.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {product.catalogSource === "SHOPIFY"
+                              ? "Shopify"
+                              : product.catalogSource === "WOOCOMMERCE"
+                                ? "WooCommerce"
+                                : "SelfX"}
+                          </div>
                           <div className="truncate text-xs text-muted-foreground">
                             {product.description || product.slug}
                           </div>
@@ -553,9 +562,13 @@ export function StoreProductsCatalog({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>{formatPrice(product)}</TableCell>
                     <TableCell>
-                      {canUpdateProducts ? (
+                      {isImported(product)
+                        ? "Managed on website"
+                        : formatPrice(product)}
+                    </TableCell>
+                    <TableCell>
+                      {canUpdateProducts && !isImported(product) ? (
                         <ProductStatusToggle
                           active={product.active}
                           disabled={updatingProductId === product.id}
@@ -577,50 +590,84 @@ export function StoreProductsCatalog({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          render={
-                            canUpdateProducts ? (
-                              <Link
-                                href={`${productBase}/${product.id}/edit#pricing`}
-                              />
-                            ) : undefined
-                          }
-                          onClick={
-                            canUpdateProducts
-                              ? undefined
-                              : () => setStockProduct(product)
-                          }
-                        >
-                          <PackageIcon aria-hidden="true" />
-                          {canUpdateProducts
-                            ? "Stock & Pricing"
-                            : "View Stock & Pricing"}
-                        </Button>
-                        {canUpdateProducts && (
+                        {isImported(product) ? (
+                          <>
+                            {canUpdateProducts ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={updatingProductId === product.id}
+                                onClick={() =>
+                                  void updateProductInline(product, {
+                                    vtoEnabled: !product.vtoEnabled,
+                                  })
+                                }
+                              >
+                                {product.vtoEnabled
+                                  ? "Disable Try-On"
+                                  : "Enable Try-On"}
+                              </Button>
+                            ) : null}
+                            {product.productUrl &&
+                            /^https?:\/\//i.test(product.productUrl) ? (
+                              <a
+                                className="self-center text-sm underline"
+                                href={product.productUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Original product
+                              </a>
+                            ) : null}
+                          </>
+                        ) : (
                           <>
                             <Button
                               variant="outline"
                               size="sm"
                               render={
-                                <Link
-                                  href={`${productBase}/${product.id}/edit`}
-                                />
+                                canUpdateProducts ? (
+                                  <Link
+                                    href={`${productBase}/${product.id}/edit#pricing`}
+                                  />
+                                ) : undefined
+                              }
+                              onClick={
+                                canUpdateProducts
+                                  ? undefined
+                                  : () => setStockProduct(product)
                               }
                             >
-                              <Edit3Icon aria-hidden="true" />
-                              Edit
+                              <PackageIcon aria-hidden="true" />
+                              {canUpdateProducts
+                                ? "Stock & Pricing"
+                                : "View Stock & Pricing"}
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              aria-label={`Delete ${product.name}`}
-                              onClick={() => setDeleting(product)}
-                            >
-                              <Trash2Icon aria-hidden="true" />
-                              Delete
-                            </Button>
+                            {canUpdateProducts && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  render={
+                                    <Link
+                                      href={`${productBase}/${product.id}/edit`}
+                                    />
+                                  }
+                                >
+                                  <Edit3Icon aria-hidden="true" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label={`Delete ${product.name}`}
+                                  onClick={() => setDeleting(product)}
+                                >
+                                  <Trash2Icon aria-hidden="true" />
+                                  Delete
+                                </Button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
@@ -773,7 +820,9 @@ function ProductThumb({ product }: { product: StoreProduct }) {
   );
 }
 
-type ProductInlineOverrides = Partial<Pick<StoreProductInput, "active">> & {
+type ProductInlineOverrides = Partial<
+  Pick<StoreProductInput, "active" | "vtoEnabled">
+> & {
   categoryName?: string;
   jewelleryType?: JewelleryType | null;
 };
@@ -790,7 +839,7 @@ function productInputFromProduct(
     priceCurrency: product.priceCurrency,
     productUrl: product.productUrl,
     active: overrides.active ?? product.active,
-    vtoEnabled: product.vtoEnabled,
+    vtoEnabled: overrides.vtoEnabled ?? product.vtoEnabled,
   };
 
   if (product.productVertical === "JEWELLERY") {
@@ -836,6 +885,28 @@ function catalogSyncMessage(updatedDevices: number): string {
   return `Sync requested for ${updatedDevices} active kiosk${updatedDevices === 1 ? "" : "s"}. Online kiosks update on their next heartbeat; offline kiosks update after reconnecting.`;
 }
 
+function importedProductInput(
+  product: StoreProduct,
+  overrides: ProductInlineOverrides,
+): Partial<StoreProductInput> {
+  if (overrides.vtoEnabled !== undefined)
+    return { vtoEnabled: overrides.vtoEnabled };
+  const input = productInputFromProduct(product, overrides);
+  return {
+    categoryName: input.categoryName,
+    productVertical: input.productVertical,
+    jewelleryType: input.jewelleryType,
+    garmentIntent: input.garmentIntent,
+    garmentCategory: input.garmentCategory,
+    garmentPhotoType: input.garmentPhotoType,
+  };
+}
+function isImported(product: StoreProduct): boolean {
+  return (
+    product.catalogSource === "SHOPIFY" ||
+    product.catalogSource === "WOOCOMMERCE"
+  );
+}
 function importedVtoMessage(result: BulkImportedProductVtoResponse): string {
   const action = result.enabled ? "enabled" : "disabled";
   const messages = [

@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
+
+Implement the explicitly approved Try-On-only scope: Woo plugin launch/button/block, shared customer flow, consent/idempotency and source-owned catalog/kiosk controls; align Shopify normalization. Verify PHP package/harness, frontend controls, backend service and disposable PostgreSQL integration, URL-fetch security, kiosk model/cache/UI regression, types/lint and production compilation. Build ZIP/checksum and document deploy/migration/token/public-site steps. Live WordPress/Shopify acceptance and actual authorized AI generation remain deployment acceptance; do not deploy, send real messages or execute production payments during implementation.
+
 ### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
 
 Implement the explicitly requested WooCommerce connection/catalog milestone: installable plugin, dashboard credential setup, source normalization, automatic/manual full and incremental sync, safe deletion/finalization and retry/status. Validate PHP, plugin behavior, actual PHP-to-SelfX DTO/database/kiosk contracts, Store isolation, credential denial, ordering/concurrency and web controls; build and inspect the ZIP. Keep a real WordPress/WooCommerce staging install as the remaining acceptance step. Do not claim storefront Try-On/checkout completion or deploy to production during implementation.

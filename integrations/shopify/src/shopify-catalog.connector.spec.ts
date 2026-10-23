@@ -78,7 +78,7 @@ describe("ShopifyCatalogConnector", () => {
       source: "SHOPIFY",
       direction: "SHOPIFY_TO_SELFX",
       productsRead: 3,
-      variantsRead: 1,
+      variantsRead: 0,
       submittedBatches: 2,
       created: 3,
       archived: 4,

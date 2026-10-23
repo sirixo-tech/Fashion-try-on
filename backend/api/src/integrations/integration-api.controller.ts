@@ -68,6 +68,7 @@ export class IntegrationApiController {
   ): IntegrationApiMeResponseDto {
     return {
       authenticated: true,
+      storefrontWebOrigin: storefrontWebOrigin(),
       tokenPrefix: credential.tokenPrefix,
       integrationId: credential.integrationId,
       integrationType: credential.integrationType,
@@ -166,5 +167,16 @@ export class IntegrationApiController {
     @Body() input: UpdateIntegrationShopifySettingsDto,
   ): Promise<IntegrationShopifySettingsDto> {
     return this.settings.updateShopifySettings(credential, input);
+  }
+}
+
+function storefrontWebOrigin(): string | null {
+  try {
+    const url = new URL(process.env.SELFX_WEB_BASE_URL ?? "");
+    return url.protocol === "https:" && !url.username && !url.password
+      ? url.origin
+      : null;
+  } catch {
+    return null;
   }
 }

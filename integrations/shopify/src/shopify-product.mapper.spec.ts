@@ -4,7 +4,7 @@ import { mapShopifyProduct, moneyToCents } from "./shopify-product.mapper.js";
 import { shopifyProduct } from "./test-fixtures.js";
 
 describe("Shopify product normalization", () => {
-  it("maps Shopify-owned product and variant data into the SelfX contract", () => {
+  it("imports one parent reference without Shopify price, stock or variants", () => {
     const result = mapShopifyProduct(
       shopifyProduct({
         status: "UNLISTED",
@@ -19,19 +19,10 @@ describe("Shopify product normalization", () => {
       externalProductId: "gid://shopify/Product/1",
       title: "Black Tee",
       status: "DRAFT",
-      priceAmountCents: 2999,
-      priceCurrency: "USD",
+      priceAmountCents: null,
+      priceCurrency: null,
       featuredImageUrl: "https://cdn.shopify.test/tee.jpg",
-      variants: [
-        {
-          externalVariantId: "gid://shopify/ProductVariant/1",
-          sku: "TEE-BLK-M",
-          priceAmountCents: 2999,
-          priceCurrency: "USD",
-          imageUrl: "https://cdn.shopify.test/tee.jpg",
-          available: true,
-        },
-      ],
+      variants: [],
     });
   });
 
@@ -61,9 +52,7 @@ describe("Shopify product normalization", () => {
     expect(result.featuredImageUrl).toBe(
       "https://cdn.shopify.test/variant.jpg",
     );
-    expect(result.variants[0]?.imageUrl).toBe(
-      "https://cdn.shopify.test/variant.jpg",
-    );
+    expect(result.variants).toEqual([]);
   });
 
   it("leaves VTO eligibility controlled by SelfX product controls", () => {

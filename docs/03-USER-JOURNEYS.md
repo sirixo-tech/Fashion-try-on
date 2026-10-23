@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
+
+Merchant connects Woo plugin with a new two-scope token, syncs public product/image URLs, classifies and enables imports in SelfX. Customer selects Try it on on the original product page, accepts consent on SelfX, uploads/takes a photo, generates and views/downloads the result, then returns to that product page. Website size/color/purchase flows remain on the website. Assigned kiosks show one imported product with Try-On, no native buy action or website price. Native products retain their purchase experience.
+
 ### WOO-1 — Website catalog to Store/kiosk sync (2026-10-22)
 
 An authorized user registers the website's canonical home URL under Integrations → WooCommerce, downloads the plugin and generates a catalog-only token shown once. In WordPress, upload/activate the ZIP and connect under WooCommerce → SelfX. The plugin verifies the Store then queues initial sync. The operator checks progress/retries there and enables imported products in SelfX Products for assigned kiosks. Website edits/deletions sync in the background. Token revocation/disconnection stops access; the local WordPress disconnect retains remote catalog data. Purchase and website Try-On integration are separate follow-up work.

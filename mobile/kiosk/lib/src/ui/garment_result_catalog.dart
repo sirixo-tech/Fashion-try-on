@@ -313,18 +313,20 @@ class _GarmentResultCatalogState extends State<GarmentResultCatalog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: !_hasSelection && widget.singleLook
-                          ? SelfxKioskButton(
-                              key: Key('buy-this-look'),
-                              label: 'Buy This Look',
-                              icon: Icons.shopping_bag_outlined,
-                              variant: SelfxKioskButtonVariant.ghost,
-                              minHeight: 56,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
-                              ),
-                              onPressed: disabled ? null : widget.onBuy,
-                            )
+                          ? widget.onBuy == null
+                                ? const SizedBox.shrink()
+                                : SelfxKioskButton(
+                                    key: Key('buy-this-look'),
+                                    label: 'Buy This Look',
+                                    icon: Icons.shopping_bag_outlined,
+                                    variant: SelfxKioskButtonVariant.ghost,
+                                    minHeight: 56,
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 10,
+                                    ),
+                                    onPressed: disabled ? null : widget.onBuy,
+                                  )
                           : SelfxActionPulse(
                               enabled: _hasSelection && !disabled,
                               child: SelfxKioskButton(
