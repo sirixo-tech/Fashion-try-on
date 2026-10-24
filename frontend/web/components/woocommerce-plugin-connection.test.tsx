@@ -102,7 +102,7 @@ it("keeps viewers read-only and offers the installable plugin", () => {
     screen
       .getByRole("link", { name: "Download WooCommerce plugin" })
       .getAttribute("href"),
-  ).toBe("/downloads/selfx-woocommerce-0.3.0.zip");
+  ).toBe("/downloads/selfx-woocommerce.zip");
 });
 it("clears a shown secret when management permission is revoked", async () => {
   vi.mocked(createIntegrationCredential).mockResolvedValue({

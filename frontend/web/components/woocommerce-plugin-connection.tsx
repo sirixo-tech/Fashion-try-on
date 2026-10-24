@@ -120,7 +120,7 @@ export function WooCommercePluginConnection({
       <p className="my-4">
         <a
           className={buttonVariants({ variant: "outline", size: "sm" })}
-          href="/downloads/selfx-woocommerce-0.3.0.zip"
+          href="/downloads/selfx-woocommerce.zip"
           download
         >
           Download WooCommerce plugin
