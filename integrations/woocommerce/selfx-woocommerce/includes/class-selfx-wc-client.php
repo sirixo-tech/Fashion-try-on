@@ -74,9 +74,12 @@ final class SelfX_WC_Client {
         }
         $client = new self($origin, 'selfx_woocommerce_' . str_repeat('a', 43));
         $args = array('method' => $method, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true,
-            'limit_response_size' => 4096, 'headers' => array('Accept' => 'application/json', 'Content-Type' => 'application/json'));
+            'limit_response_size' => 4096, 'headers' => array('Accept' => 'application/json'));
         if ($redeem_secret !== '') { $args['headers']['x-selfx-woocommerce-redeem-secret'] = $redeem_secret; }
-        if ($body !== null) { $args['body'] = wp_json_encode($body); }
+        if ($body !== null) {
+            $args['headers']['Content-Type'] = 'application/json';
+            $args['body'] = wp_json_encode($body);
+        }
         $local = defined('SELFX_WC_ALLOW_LOCAL_API') && SELFX_WC_ALLOW_LOCAL_API === true
             && in_array(wp_parse_url($client->origin, PHP_URL_HOST), array('localhost', '127.0.0.1'), true);
         $response = $local ? wp_remote_request($client->origin . $path, $args) : wp_safe_remote_request($client->origin . $path, $args);

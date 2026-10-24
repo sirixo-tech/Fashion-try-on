@@ -3,7 +3,7 @@ Contributors: selfx
 Tags: woocommerce, catalog, virtual-try-on, kiosk
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.3.0
+Stable tag: 0.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,10 @@ Tokens are encrypted using WP salts, never shown in storefront HTML. Reconnect a
 6. Use automatic classic placement or block/shortcode for block themes.
 
 == Changelog ==
+
+= 0.3.1 =
+* Fix the empty JSON POST that prevented completing a SelfX connection.
+* Use a stable plugin ZIP name and installation directory.
 
 = 0.3.0 =
 * Plugin-first SelfX Store approval and server-to-server credential exchange.

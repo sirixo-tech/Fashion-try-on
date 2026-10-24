@@ -321,10 +321,13 @@ test('plugin-first linking keeps the secret server-side and receives the selecte
     global $response_hook, $requests;
     $response_hook = function ($url, $args) {
         if (str_ends_with($url, '/link-sessions')) {
+            equal($args['headers']['Content-Type'] ?? null, 'application/json');
             $body = json_decode($args['body'], true);
             return array('code' => 201, 'body' => json_encode(array('approvalUrl' => 'https://selfx.example/app/integrations/woocommerce/link?token=' . $body['linkToken'], 'expiresAt' => gmdate('c', time() + 600))));
         }
         if (str_ends_with($url, '/redeem')) {
+            equal(isset($args['headers']['Content-Type']), false);
+            equal(isset($args['body']), false);
             return array('code' => 200, 'body' => json_encode(array('status' => 'LINKED', 'siteUrl' => 'https://website.example',
                 'storeId' => 'new-store', 'storeName' => 'New Store', 'integrationId' => 'new-integration',
                 'integrationToken' => 'selfx_woocommerce_' . str_repeat('z', 43))));

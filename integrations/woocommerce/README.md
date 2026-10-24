@@ -1,4 +1,4 @@
-# SelfX for WooCommerce — 0.3.0
+# SelfX for WooCommerce — 0.3.1
 
 One-way website catalog → SelfX Store → assigned kiosks, plus a storefront **Try it on** button. WooCommerce owns products, size/color choices, prices, inventory, cart, checkout and orders. SelfX imports one parent product reference with its image and runs Virtual Try-On through the central backend. There is no stock/order writeback or SelfX checkout for imported products.
 
