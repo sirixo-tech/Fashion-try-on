@@ -6,6 +6,23 @@ import { INTEGRATION_SCOPES_METADATA } from "./integration-token.constants.js";
 import { IntegrationTokenGuard } from "./integration-token.guard.js";
 
 describe("IntegrationApiController", () => {
+  it("reads the shared Store entitlement for the credential's Store", async () => {
+    const getStoreCreditSummary = vi.fn().mockResolvedValue({
+      availableCredits: 0,
+      postpaid: { billingMode: "POSTPAID_PAYG", billableCredits: 3 },
+    });
+    const controller = new IntegrationApiController(
+      { sync: vi.fn() } as never,
+      { updateShopifySettings: vi.fn() } as never,
+      { getStoreCreditSummary } as never,
+    );
+    expect(Reflect.getMetadata("__guards__", IntegrationApiController.prototype.creditSummary))
+      .toContain(IntegrationTokenGuard);
+    expect(await controller.creditSummary({ storeId: "store-1" } as never)).toMatchObject({
+      postpaid: { billableCredits: 3 },
+    });
+    expect(getStoreCreditSummary).toHaveBeenCalledExactlyOnceWith("store-1");
+  });
   it("protects product classification with integration scope and authentication", () => {
     const handler = IntegrationApiController.prototype.updateProductKind;
     expect(Reflect.getMetadata(INTEGRATION_SCOPES_METADATA, handler)).toEqual([
@@ -19,6 +36,7 @@ describe("IntegrationApiController", () => {
     const controller = new IntegrationApiController(
       { sync: vi.fn() } as never,
       { updateShopifySettings: vi.fn() } as never,
+      { getStoreCreditSummary: vi.fn() } as never,
     );
 
     const response = controller.me({
@@ -64,6 +82,7 @@ describe("IntegrationApiController", () => {
     const controller = new IntegrationApiController(
       { sync } as never,
       { updateShopifySettings: vi.fn() } as never,
+      { getStoreCreditSummary: vi.fn() } as never,
     );
     const credential = {
       credentialId: "credential-1",

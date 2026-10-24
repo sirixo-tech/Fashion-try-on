@@ -191,6 +191,11 @@ export class IntegrationsService {
           where: { organizationId: current.organizationId, redeemedAt: null },
         });
       }
+      if (current.type === "WOOCOMMERCE") {
+        await tx.wooCommerceLinkSession.deleteMany({
+          where: { organizationId: current.organizationId, redeemedAt: null },
+        });
+      }
       await tx.integrationCredential.updateMany({
         where: {
           integrationId,
@@ -206,7 +211,7 @@ export class IntegrationsService {
         data: {
           status: IntegrationStatus.DISCONNECTED,
           disconnectedAt: now,
-          ...(current.type === "SHOPIFY"
+          ...(["SHOPIFY", "WOOCOMMERCE"].includes(current.type)
             ? {
                 externalAccountId: null,
                 externalAccountName: null,

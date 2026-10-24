@@ -2788,34 +2788,31 @@ A Shopify merchant can install SelfX and enable Try-On on selected products.
 
 # 23. Phase 19 — WooCommerce Integration
 
-**Status:** FOUNDATION PARTIAL
+**Status:** CORE IMPLEMENTED; PUBLIC PLUGIN DISTRIBUTION AND LIVE MERCHANT VERIFICATION PENDING
 
 ### Goal
 
 Integrate SelfX with WooCommerce using a dedicated plugin.
 
 WooCommerce uses the same INTEGRATIONS-1 foundation as Shopify. The dedicated
-WordPress plugin can use SelfX plugin credentials to authenticate with
-`x-selfx-integration-token` or `Authorization: Bearer` and inspect its safe
-Store/integration context at `GET /api/v1/integrations/me`. WooCommerce can
-send normalized incremental or full snapshots to the shared one-way
-`POST /api/v1/integrations/catalog/sync` endpoint. WooCommerce remains the
-commerce source of truth, and the endpoint has no WooCommerce write-back
-capability. Plugin packaging, signed webhooks, scheduled reconciliation and
-storefront Try-On UI remain planned.
+WordPress plugin uses a short-lived website proof and signed-in Store approval
+to receive a Store-bound credential server-to-server. Existing manual plugin
+tokens remain supported. It inspects safe Store context and the shared
+plan/credit summary, then sends incremental or full snapshots to the one-way
+catalog endpoint. WordPress hooks and scheduled reconciliation deliver updates.
+The plugin package and storefront Try-On button are implemented. WooCommerce
+remains the commerce source of truth and owns cart/checkout. Public plugin
+directory distribution and live merchant verification remain separate rollout
+tasks; signed external webhooks are not required for the current local hooks.
 
 ### Implement
 
-- WordPress/WooCommerce plugin
-- SelfX connection flow (foundation implemented in SelfX dashboard/API)
-- plugin token authentication (foundation implemented)
-- product synchronization (shared ingestion endpoint implemented)
-- external mappings (shared one-way mapping implemented)
-- signed webhook handling
-- reconciliation
-- VTO eligibility (shared Store-scoped bulk imported-product action
-  implemented)
-- storefront Try-On UI
+- WordPress/WooCommerce plugin and installable ZIP (implemented)
+- plugin-first sign-in/signup, Store approval and credential exchange (implemented)
+- shared Store plan/credit or pay-as-you-go status (implemented)
+- one-way product sync, external mappings and reconciliation (implemented)
+- Store-scoped VTO eligibility and storefront Try-On UI (implemented)
+- public plugin distribution and live merchant validation (rollout work)
 
 ### Tests
 

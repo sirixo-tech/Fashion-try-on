@@ -109,8 +109,8 @@ export function WooCommercePluginConnection({
           Upload Plugin.
         </li>
         <li>
-          Generate a plugin token below, then open WooCommerce → SelfX in
-          WordPress and connect.
+          Open WooCommerce → SelfX and choose Connect to SelfX. Sign in, choose
+          this Store, approve the website and return to WordPress.
         </li>
         <li>
           After sync completes, enable eligible imported products for Try-On in
@@ -120,7 +120,7 @@ export function WooCommercePluginConnection({
       <p className="my-4">
         <a
           className={buttonVariants({ variant: "outline", size: "sm" })}
-          href="/downloads/selfx-woocommerce-0.2.0.zip"
+          href="/downloads/selfx-woocommerce-0.3.0.zip"
           download
         >
           Download WooCommerce plugin
@@ -130,8 +130,7 @@ export function WooCommercePluginConnection({
         Product updates and deletions sync automatically. Use Sync now in
         WordPress to reconcile the catalog. Eligible product pages show Try it
         on; shoppers return to WooCommerce to choose options and purchase.
-        Replace older catalog-only tokens with a new plugin token to enable
-        website Try-On.
+        Existing token-based connections can be managed below.
       </p>
       {error ? (
         <p role="alert" className="mt-4 text-sm text-destructive">

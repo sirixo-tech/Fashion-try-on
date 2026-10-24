@@ -29,6 +29,8 @@ import {
   UpdateIntegrationProductKindDto,
 } from "./dto/integration-product-controls.dto.js";
 import { IntegrationCatalogSyncService } from "./integration-catalog-sync.service.js";
+import { EntitlementsService } from "../entitlements/entitlements.service.js";
+import { ShopifyStorefrontCreditSummaryDto } from "./dto/shopify-storefront-try-on.dto.js";
 import {
   IntegrationShopifySettingsDto,
   UpdateIntegrationShopifySettingsDto,
@@ -47,7 +49,16 @@ export class IntegrationApiController {
   constructor(
     private readonly catalogSync: IntegrationCatalogSyncService,
     private readonly settings: IntegrationSettingsService,
+    private readonly entitlements: EntitlementsService,
   ) {}
+
+  @Get("me/credit-summary")
+  @RequireIntegrationScopes()
+  @ApiOperation({ summary: "Read this integration's SelfX Store plan and shared credit balance" })
+  @ApiOkResponse({ type: ShopifyStorefrontCreditSummaryDto })
+  creditSummary(@IntegrationCredential() credential: IntegrationCredentialContext) {
+    return this.entitlements.getStoreCreditSummary(credential.storeId);
+  }
 
   @Get("me")
   @RequireIntegrationScopes()

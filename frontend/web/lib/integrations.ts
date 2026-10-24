@@ -86,6 +86,36 @@ export type ShopifyLinkApproval = {
   expiresAt: string;
 };
 
+export type WooCommerceLinkDetails = {
+  status: "PENDING" | "APPROVED" | "REDEEMED";
+  siteUrl: string;
+  adminUrl: string;
+  storeId: string | null;
+  storeName: string | null;
+  expiresAt: string;
+};
+
+export function getWooCommerceLinkDetails(
+  accessToken: string,
+  linkToken: string,
+): Promise<WooCommerceLinkDetails> {
+  return selfxApi(
+    `/api/v1/admin/integrations/woocommerce/link-sessions/${encodeURIComponent(linkToken)}`,
+    { accessToken },
+  );
+}
+
+export function approveWooCommerceLink(
+  accessToken: string,
+  linkToken: string,
+  storeId: string,
+): Promise<WooCommerceLinkDetails> {
+  return selfxApi(
+    `/api/v1/admin/integrations/woocommerce/link-sessions/${encodeURIComponent(linkToken)}/approve`,
+    { method: "POST", accessToken, body: JSON.stringify({ storeId }) },
+  );
+}
+
 export function listIntegrations(
   accessToken: string,
   input: {

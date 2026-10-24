@@ -3,7 +3,7 @@ Contributors: selfx
 Tags: woocommerce, catalog, virtual-try-on, kiosk
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,21 +19,24 @@ Requires WooCommerce 8.0+, OpenSSL AES-GCM, active SelfX Store/integration and p
 
 == External service and privacy ==
 
-Connects to your SelfX API (default https://selfxapi-production.up.railway.app). Requires plugin token with catalog:sync and tryon:create. Sends website identity, parent IDs, names, descriptions, URLs, images, publication state and revisions. No order/inventory writeback. Launch uses an anonymous HTTP-only visitor cookie. Photo processing happens directly on SelfX after consent under your SelfX service agreement/privacy policy. Sensitive assets expire within at most seven days.
+Connects to your SelfX API (default https://selfxapi-production.up.railway.app). The plugin pairs with a SelfX Store through a short-lived approval link and receives its credential server-to-server. Sends website identity, parent IDs, names, descriptions, URLs, images, publication state and revisions. No order/inventory writeback. Launch uses an anonymous HTTP-only visitor cookie. Photo processing happens directly on SelfX after consent under your SelfX service agreement/privacy policy. Sensitive assets expire within at most seven days.
 
 Tokens are encrypted using WP salts, never shown in storefront HTML. Reconnect after salt changes/site migration. Uninstall clears local data but retains products and remote catalog. Revoke tokens in SelfX to stop new launches; disable integration/product for existing session eligibility denial. Short-lived sessions expire separately.
 
 == Installation ==
 
-1. Deploy current SelfX API/web with storefront migration and HTTPS SELFX_WEB_BASE_URL.
-2. Register WooCommerce in SelfX using canonical public website URL.
-3. Upload this ZIP in Plugins > Add New > Upload Plugin and activate.
-4. Generate a new plugin token (catalog:sync and tryon:create) in SelfX.
-5. Paste under WooCommerce > SelfX and Connect and sync.
-6. Check sync status; classify and enable imports in SelfX Products.
-7. Use automatic classic placement or block/shortcode for block themes.
+1. Deploy current SelfX API/web with WooCommerce linking migration and HTTPS SELFX_WEB_BASE_URL.
+2. Upload this ZIP in Plugins > Add New > Upload Plugin and activate on a public HTTPS website.
+3. Open WooCommerce > SelfX and choose Connect to SelfX.
+4. Sign in or create a SelfX account, choose the active Store and approve the website. Return to WooCommerce to finish and start sync.
+5. Check sync status; classify and enable imports in SelfX Products.
+6. Use automatic classic placement or block/shortcode for block themes.
 
 == Changelog ==
+
+= 0.3.0 =
+* Plugin-first SelfX Store approval and server-to-server credential exchange.
+* Live Store plan, credit balance or pay-as-you-go usage in WooCommerce settings.
 
 = 0.2.0 =
 * Product-page Try-On button, block/shortcode and server-side launch.

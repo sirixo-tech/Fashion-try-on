@@ -78,7 +78,7 @@ type ThemeBlockView = {
   errorMessage: string | null;
 };
 
-type CreditHealth = "UNKNOWN" | "HEALTHY" | "LOW" | "EMPTY";
+type CreditHealth = "UNKNOWN" | "HEALTHY" | "LOW" | "EMPTY" | "PAYG" | "INACTIVE";
 
 type ProductControlsView = SelfxProductControlsResponse & {
   errorMessage: string | null;
@@ -556,6 +556,7 @@ export default function Index() {
     creditSummary?.subscription?.includedCredits ??
     0;
   const availableCredits = creditSummary?.availableCredits ?? 0;
+  const payg = creditSummary?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG";
   const creditAllowance = Math.max(
     includedCredits + (creditSummary?.subscription?.trialCredits ?? 0),
     availableCredits,
@@ -571,7 +572,7 @@ export default function Index() {
   const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
   const localizedPlanName =
     creditSummary?.subscription?.pricingPlan?.name ??
-    (connected ? t("trial") : t("notConnected"));
+    (connected ? "Plan unavailable" : t("notConnected"));
 
   return (
     <s-page heading={t("appHeading")} inlineSize="large">
@@ -617,8 +618,8 @@ export default function Index() {
           }
         />
         <DashboardMetric
-          label={t("availableCredits")}
-          value={connected ? String(availableCredits) : "-"}
+          label={payg ? "Billable Try-Ons this period" : t("availableCredits")}
+          value={connected ? String(payg ? creditSummary?.postpaid?.billableCredits ?? 0 : availableCredits) : "-"}
           meta={localizedPlanName}
           badge={
             <CreditBadge adminLocale={adminLocale} health={creditHealth} />
@@ -634,6 +635,7 @@ export default function Index() {
         creditHealth={creditHealth}
         totalCredits={creditAllowance}
         planName={localizedPlanName}
+        paygUsage={creditHealth === "PAYG" ? creditSummary?.postpaid?.billableCredits ?? 0 : null}
       />
 
       <div className="selfx-shopify-panel-layout">
@@ -936,6 +938,7 @@ function CreditUsagePanel({
   creditHealth,
   totalCredits,
   planName,
+  paygUsage,
 }: {
   adminLocale: string;
   availableCredits: number;
@@ -944,11 +947,32 @@ function CreditUsagePanel({
   creditHealth: CreditHealth;
   totalCredits: number;
   planName: string;
+  paygUsage: number | null;
 }) {
   if (!connected) {
     return null;
   }
   const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
+  if (creditHealth === "INACTIVE") {
+    return <s-section><s-box padding="base" background="base" borderWidth="small" borderColor="base" borderRadius="base"><s-stack gap="small-200"><CreditBadge adminLocale={adminLocale} health={creditHealth} /><s-text>{planName}: Try-On is unavailable while this Store plan is inactive. Review billing in SelfX.</s-text>{billingUrl ? <s-button href={billingUrl} target="_blank" variant="secondary">{t("viewPlans")}</s-button> : null}</s-stack></s-box></s-section>;
+  }
+  if (paygUsage !== null) {
+    return (
+      <s-section>
+        <s-box padding="base" background="base" borderWidth="small" borderColor="base" borderRadius="base">
+          <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
+            <s-grid-item>
+              <s-stack gap="small-200">
+                <s-badge tone="info">Pay as you go</s-badge>
+                <s-text>{planName} · {paygUsage} billable Try-Ons this period</s-text>
+              </s-stack>
+            </s-grid-item>
+            <s-grid-item>{billingUrl ? <s-button href={billingUrl} target="_blank" variant="secondary">{t("viewPlans")}</s-button> : null}</s-grid-item>
+          </s-grid>
+        </s-box>
+      </s-section>
+    );
+  }
   const empty = creditHealth === "EMPTY";
   const remainingPercent =
     totalCredits > 0
@@ -1407,7 +1431,9 @@ function StoreConnectionSettingsCard({
   const credits =
     creditSummary == null
       ? "Unavailable"
-      : String(creditSummary.availableCredits);
+      : creditSummary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG"
+        ? `${creditSummary.postpaid?.billableCredits ?? 0} billable Try-Ons this period`
+        : String(creditSummary.availableCredits);
   const statusTone = connected
     ? "success"
     : needsReconnect
@@ -1455,7 +1481,7 @@ function StoreConnectionSettingsCard({
           />
           <ConnectionInfoBlock label="Shopify shop" value={connection.shop} />
           <ConnectionInfoBlock label="Plan" value={planName} />
-          <ConnectionInfoBlock label="Credits" value={credits} />
+          <ConnectionInfoBlock label={creditSummary?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG" ? "Usage" : "Credits"} value={credits} />
         </s-grid>
 
         {connected ? (
@@ -1860,7 +1886,8 @@ function PlansPanel({
       (currentPlanId && plan.id === currentPlanId) ||
       (currentPlanCode && plan.code === currentPlanCode),
   );
-  const currentPlanLabel = currentPlan?.name ?? "Trial";
+  const currentPlanLabel = currentPlan?.name ?? "Plan unavailable";
+  const payg = currentPlan?.billingMode === "POSTPAID_PAYG";
 
   return (
     <s-section heading="Plans">
@@ -1869,8 +1896,14 @@ function PlansPanel({
           gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
           gap="base"
         >
-          <Metric label="Available credits" value={availableCredits} />
-          <Metric label="Plan credits" value={includedCredits} />
+          {payg ? (
+            <Metric label="Billable Try-Ons this period" value={creditSummary?.postpaid?.billableCredits ?? 0} />
+          ) : (
+            <>
+              <Metric label="Available credits" value={availableCredits} />
+              <Metric label="Plan credits" value={includedCredits} />
+            </>
+          )}
         </s-grid>
         <s-box
           padding="base"
@@ -1891,27 +1924,6 @@ function PlansPanel({
         </s-box>
         {availablePlans.length > 0 ? (
           <div className="selfx-shopify-plan-grid">
-            {!currentPlan ? (
-              <PlanCard
-                active
-                billingUrl={billingUrl}
-                plan={{
-                  id: "trial",
-                  code: "trial",
-                  name: "Trial",
-                  currency: "USD",
-                  monthlyPriceCents: 0,
-                  includedCredits,
-                  trialCredits: creditSummary?.subscription?.trialCredits ?? 10,
-                  storeLocationLimit: null,
-                  extraCreditPriceCents: null,
-                  kioskMonthlyRentCents: null,
-                  kioskDeviceLimit: null,
-                  channels: ["SHOPIFY"],
-                  featureKeys: [],
-                }}
-              />
-            ) : null}
             {currentPlan && !hasCurrentPlanInCatalog ? (
               <PlanCard
                 active
@@ -2975,6 +2987,8 @@ function CreditBadge({
   health: CreditHealth;
 }) {
   const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
+  if (health === "INACTIVE") return <s-badge tone="critical">Plan inactive</s-badge>;
+  if (health === "PAYG") return <s-badge tone="info">Pay as you go</s-badge>;
   if (health === "EMPTY") {
     return <s-badge tone="critical">{t("noCredits")}</s-badge>;
   }
@@ -4360,6 +4374,12 @@ function creditHealthFor(
 ): CreditHealth {
   if (!creditSummary) {
     return "UNKNOWN";
+  }
+  if (!creditSummary.subscription || !["ACTIVE", "TRIALING"].includes(creditSummary.subscription.status)) {
+    return "INACTIVE";
+  }
+  if (creditSummary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+    return "PAYG";
   }
   if (creditSummary.availableCredits <= 0) {
     return "EMPTY";

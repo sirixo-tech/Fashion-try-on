@@ -485,12 +485,16 @@ export class EntitlementsService {
       where: { organizationId },
       include: { pricingPlan: true },
     });
-    if (current?.pricingPlan?.billingMode === "POSTPAID_PAYG") return;
+    // Reading a Store balance from another channel must not add Starter
+    // credits after the Store has moved to a paid plan.
+    if (current && current.status !== StoreSubscriptionStatus.TRIALING) return;
     const now = new Date();
     const defaultPlan = await ensureDefaultStarterPricingPlan(
       tx,
       await this.platformDefaultCurrency(),
     );
+    if (current?.pricingPlanId && current.pricingPlanId !== defaultPlan.id)
+      return;
     const subscription = await tx.storeSubscription.upsert({
       where: { organizationId },
       create: {

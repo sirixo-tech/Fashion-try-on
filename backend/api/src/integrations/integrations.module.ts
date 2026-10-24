@@ -28,6 +28,8 @@ import { ShopifyStorefrontTryOnService } from "./shopify-storefront-try-on.servi
 import { ShopifyWebhookController } from "./shopify-webhook.controller.js";
 import { ShopifyWebhookService } from "./shopify-webhook.service.js";
 import { ShopifyShopRedactionService } from "./shopify-shop-redaction.service.js";
+import { AdminWooCommerceLinkController, WooCommerceLinkController } from "./woocommerce-link.controller.js";
+import { WooCommerceLinkService } from "./woocommerce-link.service.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule, EntitlementsModule, TryOnModule],
@@ -40,6 +42,8 @@ import { ShopifyShopRedactionService } from "./shopify-shop-redaction.service.js
     ShopifyLinkController,
     AdminShopifyLinkController,
     ShopifyStorefrontTryOnController,
+    WooCommerceLinkController,
+    AdminWooCommerceLinkController,
   ],
   providers: [
     IntegrationsService,
@@ -55,6 +59,7 @@ import { ShopifyShopRedactionService } from "./shopify-shop-redaction.service.js
     ShopifyAppServiceAuthService,
     ShopifyLinkService,
     ShopifyStorefrontTryOnService,
+    WooCommerceLinkService,
     ObjectStorageService,
   ],
   exports: [

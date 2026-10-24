@@ -27,7 +27,7 @@ final class SelfX_WC_Client {
     }
     public function request(string $method, string $path, ?array $body = null): array {
         $route = explode('?', $path, 2)[0];
-        if (!in_array($route, array('/api/v1/integrations/me', '/api/v1/integrations/catalog/sync', '/api/v1/integrations/storefront/availability', '/api/v1/integrations/storefront/try-on-sessions'), true)) {
+        if (!in_array($route, array('/api/v1/integrations/me', '/api/v1/integrations/me/credit-summary', '/api/v1/integrations/catalog/sync', '/api/v1/integrations/storefront/availability', '/api/v1/integrations/storefront/try-on-sessions'), true)) {
             throw new SelfX_WC_Error('API_PATH_INVALID');
         }
         $args = array('method' => $method, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true,
@@ -65,6 +65,32 @@ final class SelfX_WC_Client {
         if ($bound !== '' && $bound !== null && self::site($bound) !== self::site(home_url('/'))) {
             throw new SelfX_WC_Error('WEBSITE_MISMATCH');
         }
+        return $data;
+    }
+    /** One-time plugin pairing uses its own secret, never a catalog credential. */
+    public static function link_request(string $origin, string $method, string $path, ?array $body = null, string $redeem_secret = ''): array {
+        if (!preg_match('#^/api/v1/public/integrations/woocommerce/link-sessions(?:/[A-Za-z0-9_-]{43}/redeem)?$#D', $path)) {
+            throw new SelfX_WC_Error('API_PATH_INVALID');
+        }
+        $client = new self($origin, 'selfx_woocommerce_' . str_repeat('a', 43));
+        $args = array('method' => $method, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true,
+            'limit_response_size' => 4096, 'headers' => array('Accept' => 'application/json', 'Content-Type' => 'application/json'));
+        if ($redeem_secret !== '') { $args['headers']['x-selfx-woocommerce-redeem-secret'] = $redeem_secret; }
+        if ($body !== null) { $args['body'] = wp_json_encode($body); }
+        $local = defined('SELFX_WC_ALLOW_LOCAL_API') && SELFX_WC_ALLOW_LOCAL_API === true
+            && in_array(wp_parse_url($client->origin, PHP_URL_HOST), array('localhost', '127.0.0.1'), true);
+        $response = $local ? wp_remote_request($client->origin . $path, $args) : wp_safe_remote_request($client->origin . $path, $args);
+        if (is_wp_error($response)) { throw new SelfX_WC_Error('API_UNAVAILABLE'); }
+        $status = wp_remote_retrieve_response_code($response);
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+        if ($status < 200 || $status >= 300) {
+            $code = $data['error']['code'] ?? '';
+            if (in_array($code, array('WOOCOMMERCE_LINK_PENDING', 'WOOCOMMERCE_SITE_UNVERIFIED', 'WOOCOMMERCE_SITE_ALREADY_LINKED', 'WOOCOMMERCE_STORE_ALREADY_LINKED', 'WOOCOMMERCE_LINK_INVALID'), true)) {
+                throw new SelfX_WC_Error($code);
+            }
+            throw new SelfX_WC_Error('API_HTTP_' . (int) $status);
+        }
+        if (!is_array($data)) { throw new SelfX_WC_Error('API_RESPONSE_INVALID'); }
         return $data;
     }
     private static function site(string $url): string {

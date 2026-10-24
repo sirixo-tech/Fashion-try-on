@@ -623,6 +623,9 @@ export class AdminStoresService {
     await tx.shopifyLinkSession.deleteMany({
       where: { organizationId: storeId, redeemedAt: null },
     });
+    await tx.wooCommerceLinkSession.deleteMany({
+      where: { organizationId: storeId, redeemedAt: null },
+    });
     await tx.integrationCredential.updateMany({
       where: {
         organizationId: storeId,

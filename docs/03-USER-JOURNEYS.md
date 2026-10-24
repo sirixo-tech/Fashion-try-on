@@ -2128,11 +2128,11 @@ WooCommerce Merchant
 ### Main Flow
 
 1. Merchant installs the SelfX WooCommerce plugin.
-2. Merchant connects/authenticates the plugin with SelfX.
-3. Integration is associated with the correct SelfX organization.
-4. Product synchronization begins.
-5. Merchant configures VTO-enabled products.
-6. Try-On option is added to eligible product pages.
+2. In WooCommerce settings, merchant starts a short-lived SelfX connection request.
+3. Merchant signs in or creates a SelfX account and selects an active Store they may manage. A newly created eligible Store receives its one-time Starter trial.
+4. Merchant approves the website in SelfX and returns to WooCommerce. The plugin receives its Store-bound credential server-to-server; reconnecting does not grant another trial.
+5. Product synchronization begins. The plugin and Shopify app display the linked Store's current plan and shared credit balance or pay-as-you-go usage.
+6. Merchant configures VTO-enabled products; Try-On appears on eligible product pages.
 
 ---
 

@@ -20,6 +20,8 @@ function wp_safe_remote_request($url, $args) {
     $requests[] = array($url, $args);
     if ($response_hook) { $response = $response_hook($url, $args); if ($response !== null) { return $response; } }
     if (str_ends_with($url, '/me')) { return array('code' => 200, 'body' => json_encode($context)); }
+    if (str_ends_with($url, '/me/credit-summary')) { return array('code' => 200, 'body' => json_encode(array('availableCredits' => 10,
+        'subscription' => array('status' => 'TRIALING', 'pricingPlan' => array('name' => 'Starter', 'billingMode' => 'CREDIT_LIMITED'))))); }
     if (str_contains($url, '/storefront/availability?')) { return array('code' => 200, 'body' => '{"available":true}'); }
     $body = json_decode($args['body'], true);
     return array('code' => 200, 'body' => json_encode(array('direction' => 'COMMERCE_TO_SELFX', 'sourceOfTruth' => 'COMMERCE_PLATFORM',
@@ -313,5 +315,52 @@ test('settings HTML escapes Store names, never reveals the token and schedules b
     ob_start(); $plugin->page(); $html = ob_get_clean(); equal(str_contains($html, '<script>'), false); equal(str_contains($html, 'selfx_woocommerce_' . str_repeat('a', 43)), false);
     $plugin->initialize(); global $scheduled; equal(count(array_filter($scheduled, fn($s) => $s['hook'] === 'selfx_wc_reconcile')), 1);
     $plugin->initialize(); equal(count(array_filter($scheduled, fn($s) => $s['hook'] === 'selfx_wc_reconcile')), 1);
+});
+test('plugin-first linking keeps the secret server-side and receives the selected Store', function () {
+    $plugin = setup(); delete_option(SelfX_WC_Plugin::CONFIG);
+    global $response_hook, $requests;
+    $response_hook = function ($url, $args) {
+        if (str_ends_with($url, '/link-sessions')) {
+            $body = json_decode($args['body'], true);
+            return array('code' => 201, 'body' => json_encode(array('approvalUrl' => 'https://selfx.example/app/integrations/woocommerce/link?token=' . $body['linkToken'], 'expiresAt' => gmdate('c', time() + 600))));
+        }
+        if (str_ends_with($url, '/redeem')) {
+            return array('code' => 200, 'body' => json_encode(array('status' => 'LINKED', 'siteUrl' => 'https://website.example',
+                'storeId' => 'new-store', 'storeName' => 'New Store', 'integrationId' => 'new-integration',
+                'integrationToken' => 'selfx_woocommerce_' . str_repeat('z', 43))));
+        }
+        return null;
+    };
+    rejects(fn() => $plugin->begin(), 'REDIRECT');
+    $pending = get_option(SelfX_WC_Plugin::PENDING);
+    equal(isset($pending['approvalUrl']), true);
+    equal(str_contains(json_encode($pending), 'selfx_woocommerce_'), false);
+    ob_start(); $plugin->page(); $html = ob_get_clean();
+    equal(str_contains($html, $pending['token']), true);
+    equal(str_contains($html, SelfX_WC_Client::decrypt($pending['redeem'])), false);
+    rejects(fn() => $plugin->finish(), 'REDIRECT');
+    $config = get_option(SelfX_WC_Plugin::CONFIG);
+    equal($config['storeId'], 'new-store');
+    equal(SelfX_WC_Client::decrypt($config['credential']), 'selfx_woocommerce_' . str_repeat('z', 43));
+    equal(get_option(SelfX_WC_Plugin::PENDING), false);
+    equal(get_option(SelfX_WC_Plugin::STATE)['status'], 'QUEUED');
+    $redeem = array_values(array_filter($requests, fn($request) => str_ends_with($request[0], '/redeem')))[0];
+    equal($redeem[1]['headers']['x-selfx-woocommerce-redeem-secret'] !== '', true);
+});
+test('settings show the live Store billing mode and inactive plan state', function () {
+    $plugin = setup(); global $response_hook;
+    $response_hook = fn($url) => str_ends_with($url, '/me/credit-summary')
+        ? array('code' => 200, 'body' => json_encode(array('availableCredits' => 0,
+            'subscription' => array('status' => 'ACTIVE', 'pricingPlan' => array('name' => 'Flex', 'billingMode' => 'POSTPAID_PAYG')),
+            'postpaid' => array('billableCredits' => 7)))) : null;
+    ob_start(); $plugin->page(); $html = ob_get_clean();
+    equal(str_contains($html, 'Pay as you go · 7 billable Try-Ons'), true);
+    equal(str_contains($html, 'Try-On is unavailable until the Store has credits'), false);
+    $response_hook = fn($url) => str_ends_with($url, '/me/credit-summary')
+        ? array('code' => 200, 'body' => json_encode(array('availableCredits' => 5,
+            'subscription' => array('status' => 'PAST_DUE', 'pricingPlan' => array('name' => 'Growth', 'billingMode' => 'CREDIT_LIMITED'))))) : null;
+    ob_start(); $plugin->page(); $html = ob_get_clean();
+    equal(str_contains($html, 'Growth</strong> · PAST_DUE'), true);
+    equal(str_contains($html, 'Try-On is unavailable while this Store plan is inactive'), true);
 });
 echo "$passed plugin checks passed.\n";

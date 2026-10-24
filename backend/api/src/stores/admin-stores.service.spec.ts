@@ -219,6 +219,9 @@ describe("STORE-1 admin Stores", () => {
     expect(prisma.shopifyLinkSession.deleteMany).toHaveBeenCalledWith({
       where: { organizationId: "store-active", redeemedAt: null },
     });
+    expect(prisma.wooCommerceLinkSession.deleteMany).toHaveBeenCalledWith({
+      where: { organizationId: "store-active", redeemedAt: null },
+    });
     expect(prisma.integrationCredential.updateMany).toHaveBeenCalledWith({
       where: {
         organizationId: "store-active",
@@ -818,6 +821,7 @@ function createPrismaMock() {
     integrationProviderCredential: { deleteMany: vi.fn() },
     integrationOauthState: { deleteMany: vi.fn() },
     shopifyLinkSession: { deleteMany: vi.fn() },
+    wooCommerceLinkSession: { deleteMany: vi.fn() },
     integrationCredential: { updateMany: vi.fn() },
     externalProductMapping: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -840,6 +844,7 @@ function createPrismaMock() {
     integrationProviderCredential: tx.integrationProviderCredential,
     integrationOauthState: tx.integrationOauthState,
     shopifyLinkSession: tx.shopifyLinkSession,
+    wooCommerceLinkSession: tx.wooCommerceLinkSession,
     integrationCredential: tx.integrationCredential,
     externalProductMapping: tx.externalProductMapping,
     organization: {

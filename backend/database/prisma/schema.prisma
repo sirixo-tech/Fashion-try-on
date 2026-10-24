@@ -273,6 +273,7 @@ model User {
   integrationCredentialsCreated IntegrationCredential[]             @relation("IntegrationCredentialCreatedByUser")
   integrationOauthStatesCreated IntegrationOauthState[]             @relation("IntegrationOauthStateCreatedByUser")
   shopifyLinkSessionsApproved   ShopifyLinkSession[]                @relation("ShopifyLinkSessionApprovedByUser")
+  wooCommerceLinksApproved      WooCommerceLinkSession[]            @relation("WooCommerceLinkSessionApprovedByUser")
 
   regionalTimezone              String?                             @map("regional_timezone") @db.VarChar(64)
   regionalDateFormat            String                              @default("AUTO") @map("regional_date_format") @db.VarChar(16)
@@ -462,6 +463,7 @@ model Organization {
   externalProductMappings        ExternalProductMapping[]
   integrationOauthStates         IntegrationOauthState[]
   shopifyLinkSessions            ShopifyLinkSession[]
+  wooCommerceLinkSessions         WooCommerceLinkSession[]
   shopifyStorefrontTryOnSessions ShopifyStorefrontTryOnSession[]
   providerCredentials            IntegrationProviderCredential[]
   storeSubscription              StoreSubscription?
@@ -1552,6 +1554,7 @@ model Integration {
   externalMappings               ExternalProductMapping[]
   providerCredential             IntegrationProviderCredential?
   shopifyLinkSessions            ShopifyLinkSession[]
+  wooCommerceLinkSessions        WooCommerceLinkSession[]
   shopifyStorefrontTryOnSessions ShopifyStorefrontTryOnSession[]
 
   @@unique([organizationId, type])
@@ -1624,6 +1627,29 @@ model ShopifyLinkSession {
   @@index([expiresAt, redeemedAt])
   @@index([organizationId, createdAt])
   @@map("shopify_link_sessions")
+}
+
+model WooCommerceLinkSession {
+  id               String        @id @db.Uuid
+  tokenHash        String        @unique @map("token_hash") @db.Char(64)
+  redeemSecretHash String        @map("redeem_secret_hash") @db.Char(64)
+  siteUrl          String        @map("site_url") @db.VarChar(500)
+  adminUrl         String        @map("admin_url") @db.VarChar(500)
+  organizationId   String?       @map("organization_id") @db.Uuid
+  approvedByUserId String?       @map("approved_by_user_id") @db.Uuid
+  integrationId    String?       @map("integration_id") @db.Uuid
+  expiresAt        DateTime      @map("expires_at") @db.Timestamptz(3)
+  approvedAt       DateTime?     @map("approved_at") @db.Timestamptz(3)
+  redeemedAt       DateTime?     @map("redeemed_at") @db.Timestamptz(3)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  approvedByUser   User?         @relation("WooCommerceLinkSessionApprovedByUser", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  integration      Integration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@index([siteUrl, expiresAt])
+  @@index([expiresAt, redeemedAt])
+  @@index([organizationId, createdAt])
+  @@map("woocommerce_link_sessions")
 }
 
 model ShopifyStorefrontTryOnSession {

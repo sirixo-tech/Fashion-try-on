@@ -74,6 +74,11 @@ describe("safeLoginNextPath", () => {
 });
 
 describe("resolveLoginNextPath", () => {
+  it("continues WooCommerce approval after a new account signs in", async () => {
+    const path = `/app/integrations/woocommerce/link?token=${"a".repeat(43)}`;
+    expect(await resolveLoginNextPath(path, login)).toBe(path);
+    expect(getCurrentMerchantStoreAccess).not.toHaveBeenCalled();
+  });
   it.each([
     "/app/payments",
     "/app/products/garments?sort=name#top",

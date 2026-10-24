@@ -28,7 +28,11 @@ export async function resolveLoginNextPath(
 
   // Installation approval is an authenticated continuation with its own
   // server-side Store/permission checks, including new-Store onboarding.
-  if (pathname === "/app/integrations/shopify/link") return next;
+  if (
+    pathname === "/app/integrations/shopify/link" ||
+    pathname === "/app/integrations/woocommerce/link"
+  )
+    return next;
 
   try {
     const [platform, merchant] = await Promise.all([

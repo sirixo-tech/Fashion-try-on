@@ -1,16 +1,15 @@
-# SelfX for WooCommerce — 0.2.0
+# SelfX for WooCommerce — 0.3.0
 
 One-way website catalog → SelfX Store → assigned kiosks, plus a storefront **Try it on** button. WooCommerce owns products, size/color choices, prices, inventory, cart, checkout and orders. SelfX imports one parent product reference with its image and runs Virtual Try-On through the central backend. There is no stock/order writeback or SelfX checkout for imported products.
 
 ## Deploy and connect
 
-1. Deploy API and web together after applying migration `20261023000000_storefront_request_idempotency`. Configure API `SELFX_WEB_BASE_URL` to the public HTTPS SelfX web origin. Keep normal storage, provider, entitlement and credit configuration working.
-2. Under SelfX **Integrations → WooCommerce**, register the website's canonical public home URL against the correct Store. A platform operator must select that Store. Use the same canonical URL as WordPress, including a subdirectory if applicable.
-3. Download `selfx-woocommerce-0.2.0.zip`. In WordPress **Plugins → Add New → Upload Plugin**, install/update and activate with WooCommerce active. Minimum declared requirements: WordPress 6.5+, WooCommerce 8.0+, PHP 8.1+, OpenSSL AES-GCM. Single-site support; minimum versions are not a certified compatibility matrix.
-4. Generate a **new plugin token** with `catalog:sync` and `tryon:create`. Replace older catalog-only tokens under **WooCommerce → SelfX**, then **Connect and sync**. Secrets are shown once in SelfX and stored encrypted in WordPress. Never put them in browser code/storage.
-5. Let Scheduled Actions/WordPress cron deliver initial sync. **Sync now / retry** recovers interrupted work. In SelfX Products, classify eligible imports and enable Try-On. New imports start disabled; website updates preserve SelfX eligibility.
-6. Classic templates show the button automatically after the purchase area. For a block theme, add **SelfX Try-On** to the Single Product template, or a Shortcode block containing `[selfx_try_on]`. Place outside the cart form and choose one placement to avoid duplicates.
-7. Visit an enabled product page, click **Try it on**, accept consent on SelfX, upload/take a photo, generate and view/download the result, then **Return to product**. Purchase normally through WooCommerce.
+1. Deploy API and web together after applying migration `20261024000000_woocommerce_plugin_link_sessions` and the earlier storefront migrations. Configure API `SELFX_WEB_BASE_URL` to the public HTTPS SelfX web origin. Keep normal storage, provider, entitlement and credit configuration working.
+2. Download `selfx-woocommerce-0.3.0.zip`. In WordPress **Plugins → Add New → Upload Plugin**, install/update and activate with WooCommerce active. The WordPress home URL must be public HTTPS, including any subdirectory. Minimum declared requirements: WordPress 6.5+, WooCommerce 8.0+, PHP 8.1+, OpenSSL AES-GCM. Single-site support; minimum versions are not a certified compatibility matrix.
+3. Open **WooCommerce → SelfX → Connect to SelfX**. Sign in or create an account, select an active SelfX Store and approve the website. Return to WooCommerce; the plugin completes the link server-to-server and queues catalog sync. A newly created eligible Store gets its one-time Starter trial; reconnecting does not add credits. Existing token-based connections remain supported under the advanced option.
+4. Let Scheduled Actions/WordPress cron deliver initial sync. **Sync now / retry** recovers interrupted work. In SelfX Products, classify eligible imports and enable Try-On. New imports start disabled; website updates preserve SelfX eligibility.
+5. Classic templates show the button automatically after the purchase area. For a block theme, add **SelfX Try-On** to the Single Product template, or a Shortcode block containing `[selfx_try_on]`. Place outside the cart form and choose one placement to avoid duplicates.
+6. Visit an enabled product page, click **Try it on**, accept consent on SelfX, upload/take a photo, generate and view/download the result, then **Return to product**. Purchase normally through WooCommerce.
 
 Eligibility is cached for at most 60 seconds. SelfX rechecks Store, integration, mapping, plan and product at launch/during sessions. Sold-out products can still be tried on. Disabled, hidden, archived or unsupported products have no button. Temporary API failure hides the button until eligibility can be checked.
 
@@ -18,7 +17,7 @@ Eligibility is cached for at most 60 seconds. SelfX rechecks Store, integration,
 
 The production API cannot fetch `localhost:8881` on your computer. Use public HTTPS staging or a controlled tunnel with WordPress home/permalinks/media configured to that public address; update the SelfX website binding and reconnect. Private/loopback/metadata addresses, unsafe redirects and oversized images are rejected. Do not disable these checks.
 
-For a local SelfX API only, `SELFX_WC_ALLOW_LOCAL_API=true` in `wp-config.php` permits localhost API origins. It does not permit private product/image URLs on a hosted API. Storefront redirect requires a public HTTPS SelfX web origin.
+For a local SelfX API only, `SELFX_WC_ALLOW_LOCAL_API=true` in `wp-config.php` permits localhost API origins. It does not permit private product/image URLs on a hosted API. Plugin-first linking requires a public HTTPS WordPress home URL and SelfX web origin.
 
 ## Ownership and delivery
 

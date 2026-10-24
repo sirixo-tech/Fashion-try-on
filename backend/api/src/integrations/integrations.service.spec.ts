@@ -203,6 +203,20 @@ describe("IntegrationsService", () => {
       where: { organizationId: "store-1", redeemedAt: null },
     });
   });
+
+  it("releases a WooCommerce website identity and pending approvals on disconnect", async () => {
+    const prisma = new FakePrisma();
+    const service = new IntegrationsService(prisma as never);
+    const integration = await service.upsertIntegration("user-1", {
+      storeId: "store-1", type: "WOOCOMMERCE",
+      externalAccountId: "https://shop.example",
+    });
+    const disconnected = await service.disconnectIntegration("user-1", integration.id);
+    expect(disconnected.externalAccountId).toBeNull();
+    expect(prisma.wooCommerceLinkSession.deleteMany).toHaveBeenCalledWith({
+      where: { organizationId: "store-1", redeemedAt: null },
+    });
+  });
 });
 
 type StoredIntegration = {
@@ -253,6 +267,9 @@ class FakePrisma {
   };
 
   readonly shopifyLinkSession = {
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  };
+  readonly wooCommerceLinkSession = {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   };
 

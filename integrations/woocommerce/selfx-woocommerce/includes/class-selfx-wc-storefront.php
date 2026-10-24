@@ -11,7 +11,7 @@ final class SelfX_WC_Storefront {
         add_action('admin_post_nopriv_selfx_wc_try_on', array($this, 'launch'));
     }
     public function block(): void {
-        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element'), '0.2.0', true);
+        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element'), '0.3.0', true);
         register_block_type('selfx/try-on', array('api_version' => 3, 'editor_script' => 'selfx-try-on-editor', 'uses_context' => array('postId'),
             'render_callback' => function ($attributes, $content, $block) { return $this->button(array('product_id' => $block->context['postId'] ?? 0)); }));
     }

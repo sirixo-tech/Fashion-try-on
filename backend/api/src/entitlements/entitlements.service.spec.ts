@@ -47,6 +47,17 @@ describe("EntitlementsService", () => {
     });
   });
 
+  it("does not grant Starter credits when another channel reads a paid Store", async () => {
+    const prisma = new FakeEntitlementsPrisma();
+    prisma.subscriptions.set("paid-store", {
+      id: "subscription-1", organizationId: "paid-store", pricingPlanId: "payg-plan", status: "ACTIVE",
+    });
+    const service = new EntitlementsService(prisma as never);
+    await service.ensureTrialCredits("paid-store");
+    expect(prisma.ledger).toHaveLength(0);
+    expect(prisma.storeSubscription.upsert).not.toHaveBeenCalled();
+  });
+
   it("includes default Store features during the initial trial", async () => {
     const prisma = new FakeEntitlementsPrisma();
     const service = new EntitlementsService(prisma as never);

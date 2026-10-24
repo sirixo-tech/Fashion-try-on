@@ -4,6 +4,7 @@ defined('ABSPATH') || exit;
 final class SelfX_WC_Plugin {
     public const CONFIG = 'selfx_wc_connection';
     public const STATE = 'selfx_wc_sync_state';
+    public const PENDING = 'selfx_wc_pending_link';
     public const DIRTY = 'selfx_wc_dirty_';
     public const RUN = 'selfx_wc_run';
     public const GROUP = 'selfx-woocommerce';
@@ -11,6 +12,9 @@ final class SelfX_WC_Plugin {
     public function register(): void {
         add_action('admin_menu', array($this, 'menu'));
         add_action('admin_post_selfx_wc_connect', array($this, 'connect'));
+        add_action('admin_post_selfx_wc_begin', array($this, 'begin'));
+        add_action('admin_post_selfx_wc_finish', array($this, 'finish'));
+        add_action('rest_api_init', array($this, 'register_link_proof'));
         add_action('admin_post_selfx_wc_disconnect', array($this, 'disconnect'));
         add_action('admin_post_selfx_wc_sync', array($this, 'manual'));
         // WooCommerce's bundled Action Scheduler initializes at init priority 1.
@@ -36,6 +40,83 @@ final class SelfX_WC_Plugin {
     private function redirect(): void { wp_safe_redirect(admin_url('admin.php?page=selfx-woocommerce')); exit; }
     public function menu(): void {
         add_submenu_page('woocommerce', 'SelfX', 'SelfX', 'manage_woocommerce', 'selfx-woocommerce', array($this, 'page'));
+    }
+    public function register_link_proof(): void {
+        register_rest_route('selfx/v1', '/link-proof', array(
+            'methods' => 'GET', 'callback' => array($this, 'link_proof'),
+            'permission_callback' => '__return_true',
+        ));
+    }
+    public function link_proof($request): array {
+        $pending = get_option(self::PENDING, array());
+        $challenge = (string) $request->get_param('challenge');
+        if (!is_array($pending) || empty($pending['tokenHash']) || empty($pending['expiresAt'])
+            || time() >= (int) $pending['expiresAt'] || !preg_match('/^[a-f0-9]{64}$/D', $challenge)
+            || !hash_equals($pending['tokenHash'], $challenge)) { return array(); }
+        return array('siteUrl' => rtrim(home_url('/'), '/'),
+            'adminUrl' => admin_url('admin.php?page=selfx-woocommerce&selfx_return=1'), 'challenge' => $challenge);
+    }
+    public function begin(): void {
+        $this->authorize('begin');
+        try {
+            if ($this->config()) { throw new SelfX_WC_Error('DISCONNECT_BEFORE_CHANGING_STORE'); }
+            if (!function_exists('openssl_encrypt')) { throw new SelfX_WC_Error('ENCRYPTION_UNAVAILABLE'); }
+            $site = rtrim(home_url('/'), '/');
+            $admin = admin_url('admin.php?page=selfx-woocommerce&selfx_return=1');
+            $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+            $redeem = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+            $origin = defined('SELFX_WC_API_ORIGIN') ? SELFX_WC_API_ORIGIN : SelfX_WC_Client::DEFAULT_ORIGIN;
+            $pending = array('token' => $token, 'tokenHash' => hash('sha256', $token),
+                'redeem' => SelfX_WC_Client::encrypt($redeem), 'siteUrl' => $site,
+                'origin' => $origin, 'expiresAt' => time() + 600);
+            update_option(self::PENDING, $pending, false);
+            $created = SelfX_WC_Client::link_request($origin, 'POST', '/api/v1/public/integrations/woocommerce/link-sessions',
+                array('siteUrl' => $site, 'adminUrl' => $admin, 'linkToken' => $token, 'redeemSecret' => $redeem));
+            $approval = $created['approvalUrl'] ?? '';
+            $url = wp_parse_url($approval);
+            if (!$url || ($url['scheme'] ?? '') !== 'https' || ($url['path'] ?? '') !== '/app/integrations/woocommerce/link'
+                || ($url['query'] ?? '') !== 'token=' . $token) { throw new SelfX_WC_Error('LINK_RESPONSE_INVALID'); }
+            $pending['approvalUrl'] = $approval;
+            update_option(self::PENDING, $pending, false);
+            update_option(self::STATE, array('status' => 'PENDING_APPROVAL', 'message' => 'Sign in to SelfX and approve this website, then return here.'), false);
+        } catch (Throwable $error) {
+            delete_option(self::PENDING);
+            update_option(self::STATE, array('status' => 'DISCONNECTED', 'message' => $this->safe_error($error)), false);
+        }
+        $this->redirect();
+    }
+    public function finish(): void {
+        $this->authorize('finish');
+        $pending = get_option(self::PENDING, array());
+        try {
+            if ($this->config()) { throw new SelfX_WC_Error('DISCONNECT_BEFORE_CHANGING_STORE'); }
+            if (!is_array($pending) || empty($pending['token']) || empty($pending['redeem'])
+                || empty($pending['origin']) || empty($pending['siteUrl']) || time() >= (int) ($pending['expiresAt'] ?? 0)) {
+                throw new SelfX_WC_Error('LINK_EXPIRED');
+            }
+            $lock = $this->lock();
+            if (!$lock) { throw new SelfX_WC_Error('SYNC_IN_PROGRESS_TRY_AGAIN'); }
+            try {
+                $result = SelfX_WC_Client::link_request($pending['origin'], 'POST',
+                    '/api/v1/public/integrations/woocommerce/link-sessions/' . $pending['token'] . '/redeem', null,
+                    SelfX_WC_Client::decrypt($pending['redeem']));
+                if (($result['status'] ?? '') !== 'LINKED' || ($result['siteUrl'] ?? '') !== $pending['siteUrl']
+                    || empty($result['storeId']) || empty($result['storeName']) || empty($result['integrationId'])
+                    || empty($result['integrationToken'])) { throw new SelfX_WC_Error('LINK_RESPONSE_INVALID'); }
+                $encrypted = SelfX_WC_Client::encrypt($result['integrationToken']);
+                self::unschedule(); self::clear_dirty();
+                update_option(self::CONFIG, array('origin' => $pending['origin'], 'credential' => $encrypted,
+                    'connectionId' => wp_generate_uuid4(), 'storeId' => $result['storeId'],
+                    'storeName' => $result['storeName'], 'integrationId' => $result['integrationId']), false);
+                update_option(self::STATE, array('status' => 'QUEUED', 'message' => 'Connection verified. Initial catalog sync queued.'), false);
+                update_option('selfx_wc_reconcile_needed', true, false);
+                delete_option(self::PENDING);
+            } finally { self::compare_delete(self::LOCK, $lock); }
+        } catch (Throwable $error) {
+            $state = $this->state(); $state['message'] = $this->safe_error($error);
+            update_option(self::STATE, $state, false);
+        }
+        $this->redirect();
     }
     public function connect(): void {
         $this->authorize('connect');
@@ -73,7 +154,7 @@ final class SelfX_WC_Plugin {
         $lock = $this->lock();
         if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try disconnecting again shortly.', 'selfx-woocommerce'), '', array('response' => 409)); }
         self::unschedule(); self::clear_dirty();
-        delete_option(self::CONFIG); delete_option('selfx_wc_reconcile_needed');
+        delete_option(self::CONFIG); delete_option(self::PENDING); delete_option('selfx_wc_reconcile_needed');
         update_option(self::STATE, array('status' => 'DISCONNECTED', 'message' => 'Disconnected on this website. The SelfX catalog is retained; revoke the credential or disconnect the integration in SelfX to disable its access.'), false);
         self::compare_delete(self::LOCK, $lock);
         $this->redirect();
@@ -301,14 +382,51 @@ final class SelfX_WC_Plugin {
         echo '<div class="wrap"><h1>SelfX for WooCommerce</h1><p>Sync your website catalog into its connected SelfX Store. WooCommerce keeps control of products, stock, prices and checkout.</p>';
         if (!empty($state['message'])) { echo '<div class="notice notice-info"><p>' . esc_html($state['message']) . '</p></div>'; }
         if (!empty($state['error'])) { echo '<p><strong>Last issue:</strong> ' . esc_html($state['error']) . '</p>'; }
-        echo '<h2>Connection</h2><p>In SelfX → Integrations → WooCommerce, create the connection for this website, generate a credential with catalog:sync, then paste it here.</p>';
+        echo '<h2>Connection</h2>';
+        $pending = get_option(self::PENDING, array());
+        if (!$config && is_array($pending) && !empty($pending['approvalUrl']) && time() < (int) ($pending['expiresAt'] ?? 0)) {
+            echo '<p>Approve <strong>' . esc_html($pending['siteUrl']) . '</strong> in SelfX, then return here. The connection will finish automatically.</p>';
+            echo '<p><a class="button button-primary" target="_blank" rel="noopener noreferrer" href="' . esc_url($pending['approvalUrl']) . '">Sign in and approve in SelfX</a></p>';
+            echo '<form id="selfx-wc-finish" method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="selfx_wc_finish">';
+            wp_nonce_field('selfx_wc_finish'); submit_button('Finish connection'); echo '</form>';
+            if (isset($_GET['selfx_return']) && (string) wp_unslash($_GET['selfx_return']) === '1') {
+                echo '<script>document.getElementById("selfx-wc-finish").submit();</script>';
+            }
+        } elseif (!$config) {
+            echo '<p>New to SelfX? Connect this website, then sign in or create a SelfX account. A new Store gets the standard one-time Starter trial.</p>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="selfx_wc_begin">';
+            wp_nonce_field('selfx_wc_begin'); submit_button('Connect to SelfX'); echo '</form>';
+        }
+        echo '<details><summary>Connect with an existing plugin token</summary><p>In SelfX → Integrations → WooCommerce, create the connection for this website and generate a plugin token, then paste it here.</p>';
         if ($config) { echo '<p><strong>Connected Store:</strong> ' . esc_html($config['storeName']) . ' <code>' . esc_html($config['storeId']) . '</code></p>'; }
+        if ($config) {
+            try {
+                $client = new SelfX_WC_Client($config['origin'], SelfX_WC_Client::decrypt($config['credential']));
+                $summary = $client->request('GET', '/api/v1/integrations/me/credit-summary');
+                $plan = $summary['subscription']['pricingPlan'] ?? array();
+                $name = $plan['name'] ?? 'Current SelfX plan';
+                $mode = $plan['billingMode'] ?? 'CREDIT_LIMITED';
+                $status = $summary['subscription']['status'] ?? 'UNAVAILABLE';
+                echo '<h3>SelfX plan and usage</h3><p><strong>' . esc_html($name) . '</strong> · ' . esc_html($status) . '</p>';
+                if (!in_array($status, array('ACTIVE', 'TRIALING'), true)) {
+                    echo '<p>Try-On is unavailable while this Store plan is inactive. Review billing in SelfX.</p>';
+                } elseif ($mode === 'POSTPAID_PAYG') {
+                    echo '<p>Pay as you go · ' . esc_html((string) ($summary['postpaid']['billableCredits'] ?? 0)) . ' billable Try-Ons this period.</p>';
+                } else {
+                    $available = (int) ($summary['availableCredits'] ?? 0);
+                    echo '<p>' . esc_html((string) $available) . ' Try-On credits available across SelfX channels.</p>';
+                    if ($available <= 0) { echo '<p>Try-On is unavailable until the Store has credits.</p>'; }
+                }
+            } catch (Throwable $error) {
+                echo '<p>SelfX plan and usage are temporarily unavailable. The Store connection is unchanged.</p>';
+            }
+        }
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="selfx_wc_connect">';
         wp_nonce_field('selfx_wc_connect');
         echo '<table class="form-table"><tr><th><label for="selfx-origin">SelfX API address</label></th><td><input class="regular-text" type="url" required id="selfx-origin" name="api_origin" value="' . esc_attr($config['origin'] ?? SelfX_WC_Client::DEFAULT_ORIGIN) . '"></td></tr>';
         echo '<tr><th><label for="selfx-token">Integration token</label></th><td><input class="regular-text" type="password" autocomplete="new-password" id="selfx-token" name="integration_token" value="" placeholder="' . esc_attr($config ? 'Saved token retained if blank' : 'Paste your WooCommerce integration token') . '"></td></tr></table>';
         if ($config) { echo '<p><label><input type="checkbox" name="confirm_store_change" value="1"> Confirm if the new token belongs to a different SelfX Store</label></p>'; }
-        submit_button($config ? 'Verify / reconnect' : 'Connect and sync'); echo '</form>';
+        submit_button($config ? 'Verify / reconnect' : 'Connect and sync'); echo '</form></details>';
         if ($config) {
             echo '<h2>Catalog sync</h2><p><strong>Status:</strong> ' . esc_html($state['status'] ?? 'QUEUED') . '</p>';
             foreach (array('lastSuccessAt' => 'Last successful batch', 'lastFullSyncAt' => 'Last completed full sync', 'nextRetryAt' => 'Next retry') as $key => $label) {
