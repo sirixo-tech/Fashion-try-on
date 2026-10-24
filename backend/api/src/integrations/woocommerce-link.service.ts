@@ -42,11 +42,14 @@ function requireSite(value: string): string {
 }
 function requireAdminUrl(value: string, siteUrl: string): string {
   const url = publicCommerceUrl(value);
+  const queryKeys = [...url.searchParams.keys()];
+  const validReturn = queryKeys.length === 2 ||
+    (queryKeys.length === 3 && tokenPattern.test(url.searchParams.get("selfx_state") ?? ""));
   if (url.protocol !== "https:" || url.origin !== new URL(siteUrl).origin ||
       !url.pathname.endsWith("/wp-admin/admin.php") ||
       url.searchParams.get("page") !== "selfx-woocommerce" ||
       url.searchParams.get("selfx_return") !== "1" ||
-      [...url.searchParams.keys()].length !== 2 || url.hash)
+      !validReturn || url.hash)
     throw failure(HttpStatus.BAD_REQUEST, "WOOCOMMERCE_SITE_INVALID", "Use the public HTTPS WordPress admin address.");
   return url.toString();
 }

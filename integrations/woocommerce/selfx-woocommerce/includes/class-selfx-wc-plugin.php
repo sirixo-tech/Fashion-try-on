@@ -14,6 +14,7 @@ final class SelfX_WC_Plugin {
         add_action('admin_post_selfx_wc_connect', array($this, 'connect'));
         add_action('admin_post_selfx_wc_begin', array($this, 'begin'));
         add_action('admin_post_selfx_wc_finish', array($this, 'finish'));
+        add_action('admin_init', array($this, 'complete_return'));
         add_action('rest_api_init', array($this, 'register_link_proof'));
         add_action('admin_post_selfx_wc_disconnect', array($this, 'disconnect'));
         add_action('admin_post_selfx_wc_sync', array($this, 'manual'));
@@ -54,7 +55,7 @@ final class SelfX_WC_Plugin {
             || time() >= (int) $pending['expiresAt'] || !preg_match('/^[a-f0-9]{64}$/D', $challenge)
             || !hash_equals($pending['tokenHash'], $challenge)) { return array(); }
         return array('siteUrl' => rtrim(home_url('/'), '/'),
-            'adminUrl' => admin_url('admin.php?page=selfx-woocommerce&selfx_return=1'), 'challenge' => $challenge);
+            'adminUrl' => $pending['adminUrl'] ?? '', 'challenge' => $challenge);
     }
     public function begin(): void {
         $this->authorize('begin');
@@ -62,12 +63,14 @@ final class SelfX_WC_Plugin {
             if ($this->config()) { throw new SelfX_WC_Error('DISCONNECT_BEFORE_CHANGING_STORE'); }
             if (!function_exists('openssl_encrypt')) { throw new SelfX_WC_Error('ENCRYPTION_UNAVAILABLE'); }
             $site = rtrim(home_url('/'), '/');
-            $admin = admin_url('admin.php?page=selfx-woocommerce&selfx_return=1');
+            $return_state = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+            $admin = admin_url('admin.php?page=selfx-woocommerce&selfx_return=1&selfx_state=' . rawurlencode($return_state));
             $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
             $redeem = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
             $origin = defined('SELFX_WC_API_ORIGIN') ? SELFX_WC_API_ORIGIN : SelfX_WC_Client::DEFAULT_ORIGIN;
             $pending = array('token' => $token, 'tokenHash' => hash('sha256', $token),
                 'redeem' => SelfX_WC_Client::encrypt($redeem), 'siteUrl' => $site,
+                'adminUrl' => $admin, 'returnStateHash' => hash('sha256', $return_state),
                 'origin' => $origin, 'expiresAt' => time() + 600);
             update_option(self::PENDING, $pending, false);
             $created = SelfX_WC_Client::link_request($origin, 'POST', '/api/v1/public/integrations/woocommerce/link-sessions',
@@ -87,6 +90,29 @@ final class SelfX_WC_Plugin {
     }
     public function finish(): void {
         $this->authorize('finish');
+        $this->complete_pending_link();
+        $this->redirect();
+    }
+    public function complete_return(): void {
+        if (($_GET['page'] ?? '') !== 'selfx-woocommerce' || ($_GET['selfx_return'] ?? '') !== '1') { return; }
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die(esc_html__('You cannot manage this connection.', 'selfx-woocommerce'), '', array('response' => 403));
+        }
+        if ($this->config()) { $this->redirect(); }
+        $pending = get_option(self::PENDING, array());
+        $raw_state = $_GET['selfx_state'] ?? '';
+        $return_state = is_string($raw_state) ? wp_unslash($raw_state) : '';
+        if (!is_array($pending) || empty($pending['returnStateHash'])
+            || !preg_match('/^[A-Za-z0-9_-]{43}$/D', $return_state)
+            || !hash_equals($pending['returnStateHash'], hash('sha256', $return_state))) {
+            $state = $this->state(); $state['message'] = 'LINK_RETURN_INVALID';
+            update_option(self::STATE, $state, false);
+        } else {
+            $this->complete_pending_link();
+        }
+        $this->redirect();
+    }
+    private function complete_pending_link(): void {
         $pending = get_option(self::PENDING, array());
         try {
             if ($this->config()) { throw new SelfX_WC_Error('DISCONNECT_BEFORE_CHANGING_STORE'); }
@@ -116,7 +142,6 @@ final class SelfX_WC_Plugin {
             $state = $this->state(); $state['message'] = $this->safe_error($error);
             update_option(self::STATE, $state, false);
         }
-        $this->redirect();
     }
     public function connect(): void {
         $this->authorize('connect');
@@ -385,13 +410,10 @@ final class SelfX_WC_Plugin {
         echo '<h2>Connection</h2>';
         $pending = get_option(self::PENDING, array());
         if (!$config && is_array($pending) && !empty($pending['approvalUrl']) && time() < (int) ($pending['expiresAt'] ?? 0)) {
-            echo '<p>Approve <strong>' . esc_html($pending['siteUrl']) . '</strong> in SelfX, then return here. The connection will finish automatically.</p>';
+            echo '<p>Approve <strong>' . esc_html($pending['siteUrl']) . '</strong> in SelfX. You will return here when the connection completes.</p>';
             echo '<p><a class="button button-primary" target="_blank" rel="noopener noreferrer" href="' . esc_url($pending['approvalUrl']) . '">Sign in and approve in SelfX</a></p>';
             echo '<form id="selfx-wc-finish" method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="selfx_wc_finish">';
-            wp_nonce_field('selfx_wc_finish'); submit_button('Finish connection'); echo '</form>';
-            if (isset($_GET['selfx_return']) && (string) wp_unslash($_GET['selfx_return']) === '1') {
-                echo '<script>document.getElementById("selfx-wc-finish").submit();</script>';
-            }
+            wp_nonce_field('selfx_wc_finish'); submit_button('Retry connection'); echo '</form>';
         } elseif (!$config) {
             echo '<p>New to SelfX? Connect this website, then sign in or create a SelfX account. A new Store gets the standard one-time Starter trial.</p>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="selfx_wc_begin">';

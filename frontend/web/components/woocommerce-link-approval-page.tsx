@@ -75,7 +75,9 @@ export function WooCommerceLinkApprovalPage({ linkToken }: { linkToken: string }
     setApproving(true);
     setError(null);
     try {
-      setDetails(await approveWooCommerceLink(session.accessToken, linkToken, storeId));
+      const approved = await approveWooCommerceLink(session.accessToken, linkToken, storeId);
+      setDetails(approved);
+      window.location.assign(approved.adminUrl);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Connection could not be approved.");
     } finally {
@@ -89,7 +91,7 @@ export function WooCommerceLinkApprovalPage({ linkToken }: { linkToken: string }
   return (
     <PageContainer width="form">
       <PageHeader eyebrow="WooCommerce connection" title={completed ? "Website approved" : "Connect WooCommerce to SelfX"}
-        description={completed ? "Return to WooCommerce to complete the connection and start catalog sync." : "Approve this website for the SelfX Store that should receive its products."} />
+        description={completed ? "WooCommerce completes the connection and starts catalog sync when you return." : "Approve this website for the SelfX Store that should receive its products."} />
       {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
       <SectionCard>
         <div className="space-y-5">
@@ -102,7 +104,7 @@ export function WooCommerceLinkApprovalPage({ linkToken }: { linkToken: string }
                 <SelectMenu ariaLabel="SelfX Store" value={storeId} options={stores.map((store) => ({ value: store.id, label: store.name }))} onChange={setStoreId} />
               </label>
               <p className="text-sm text-muted-foreground">WooCommerce keeps control of products, prices, inventory, cart and checkout. SelfX imports products for Try-On.</p>
-              <Button disabled={!storeId || approving} onClick={() => void approve()}>{approving ? "Approving..." : "Approve connection"}</Button>
+              <Button disabled={!storeId || approving} onClick={() => void approve()}>{approving ? "Connecting..." : "Approve connection"}</Button>
             </>
           ) : (
             <Alert><AlertDescription>An active SelfX Store with integration management permission is required. Create a SelfX account or ask your Store administrator for access.</AlertDescription></Alert>

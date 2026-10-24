@@ -11,6 +11,8 @@ vi.mock("../catalog/catalog-url-policy.js", async (original) => ({
 
 const linkToken = "a".repeat(43);
 const redeemSecret = "b".repeat(43);
+const returnState = "c".repeat(43);
+const adminUrl = `https://shop.example/wp-admin/admin.php?page=selfx-woocommerce&selfx_return=1&selfx_state=${returnState}`;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
 describe("WooCommerceLinkService", () => {
@@ -18,7 +20,7 @@ describe("WooCommerceLinkService", () => {
     vi.clearAllMocks();
     process.env.SELFX_WEB_BASE_URL = "https://selfx.example";
     vi.mocked(fetchPublicCatalogImage).mockResolvedValue({
-      buffer: Buffer.from(JSON.stringify({ siteUrl: "https://shop.example", adminUrl: "https://shop.example/wp-admin/admin.php?page=selfx-woocommerce&selfx_return=1", challenge: hash(linkToken) })),
+      buffer: Buffer.from(JSON.stringify({ siteUrl: "https://shop.example", adminUrl, challenge: hash(linkToken) })),
       contentType: "application/json",
     });
   });
@@ -53,7 +55,7 @@ describe("WooCommerceLinkService", () => {
       $transaction: vi.fn(async (work: (tx: any) => Promise<unknown>) => work(prisma)),
     };
     const service = new WooCommerceLinkService(prisma as never);
-    const created = await service.create({ siteUrl: "https://shop.example", adminUrl: "https://shop.example/wp-admin/admin.php?page=selfx-woocommerce&selfx_return=1", linkToken, redeemSecret });
+    const created = await service.create({ siteUrl: "https://shop.example", adminUrl, linkToken, redeemSecret });
     expect(created.approvalUrl).toContain(`/woocommerce/link?token=${linkToken}`);
     expect(session).toMatchObject({ tokenHash: hash(linkToken), redeemSecretHash: hash(redeemSecret) });
     expect(JSON.stringify(session)).not.toContain(redeemSecret);
@@ -72,10 +74,37 @@ describe("WooCommerceLinkService", () => {
     const service = new WooCommerceLinkService(prisma as never);
     await expect(service.create({
       siteUrl: "https://shop.example",
-      adminUrl: "https://elsewhere.example/wp-admin/admin.php?page=selfx-woocommerce&selfx_return=1",
+      adminUrl: `https://elsewhere.example/wp-admin/admin.php?page=selfx-woocommerce&selfx_return=1&selfx_state=${returnState}`,
       linkToken, redeemSecret,
     })).rejects.toMatchObject({ response: { error: { code: "WOOCOMMERCE_SITE_INVALID" } } });
     expect(prisma.wooCommerceLinkSession.create).not.toHaveBeenCalled();
     expect(fetchPublicCatalogImage).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed return state", async () => {
+    const prisma = { wooCommerceLinkSession: { create: vi.fn() } };
+    const service = new WooCommerceLinkService(prisma as never);
+    await expect(service.create({
+      siteUrl: "https://shop.example",
+      adminUrl: "https://shop.example/wp-admin/admin.php?page=selfx-woocommerce&selfx_return=1&selfx_state=short",
+      linkToken, redeemSecret,
+    })).rejects.toMatchObject({ response: { error: { code: "WOOCOMMERCE_SITE_INVALID" } } });
+    expect(prisma.wooCommerceLinkSession.create).not.toHaveBeenCalled();
+    expect(fetchPublicCatalogImage).not.toHaveBeenCalled();
+  });
+
+  it("accepts the previous plugin's verified return URL during rollout", async () => {
+    const previousAdminUrl = "https://shop.example/wp-admin/admin.php?page=selfx-woocommerce&selfx_return=1";
+    vi.mocked(fetchPublicCatalogImage).mockResolvedValue({
+      buffer: Buffer.from(JSON.stringify({ siteUrl: "https://shop.example", adminUrl: previousAdminUrl, challenge: hash(linkToken) })),
+      contentType: "application/json",
+    });
+    const prisma = {
+      wooCommerceLinkSession: { findUnique: vi.fn(async () => null), create: vi.fn(async () => ({})) },
+    };
+    const service = new WooCommerceLinkService(prisma as never);
+    await expect(service.create({ siteUrl: "https://shop.example", adminUrl: previousAdminUrl, linkToken, redeemSecret }))
+      .resolves.toMatchObject({ approvalUrl: expect.stringContaining(linkToken) });
+    expect(prisma.wooCommerceLinkSession.create).toHaveBeenCalledOnce();
   });
 });

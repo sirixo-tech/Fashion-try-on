@@ -350,6 +350,58 @@ test('plugin-first linking keeps the secret server-side and receives the selecte
     $redeem = array_values(array_filter($requests, fn($request) => str_ends_with($request[0], '/redeem')))[0];
     equal($redeem[1]['headers']['x-selfx-woocommerce-redeem-secret'] !== '', true);
 });
+
+test('approved return completes server-side and rejects unauthorized or invalid returns', function () {
+    $plugin = setup(); delete_option(SelfX_WC_Plugin::CONFIG);
+    global $response_hook, $requests, $can_manage;
+    $response_hook = function ($url, $args) {
+        if (str_ends_with($url, '/link-sessions')) {
+            $body = json_decode($args['body'], true);
+            return array('code' => 201, 'body' => json_encode(array(
+                'approvalUrl' => 'https://selfx.example/app/integrations/woocommerce/link?token=' . $body['linkToken'],
+                'expiresAt' => gmdate('c', time() + 600),
+            )));
+        }
+        if (str_ends_with($url, '/redeem')) {
+            return array('code' => 200, 'body' => json_encode(array(
+                'status' => 'LINKED', 'siteUrl' => 'https://website.example',
+                'storeId' => 'new-store', 'storeName' => 'New Store',
+                'integrationId' => 'new-integration',
+                'integrationToken' => 'selfx_woocommerce_' . str_repeat('z', 43),
+            )));
+        }
+        return null;
+    };
+    rejects(fn() => $plugin->begin(), 'REDIRECT');
+    $pending = get_option(SelfX_WC_Plugin::PENDING);
+    $return_state = wp_parse_url($pending['adminUrl'], PHP_URL_QUERY);
+    parse_str($return_state, $query);
+    equal($query['selfx_return'], '1');
+    equal(hash('sha256', $query['selfx_state']), $pending['returnStateHash']);
+    $proof = $plugin->link_proof(new class($pending) {
+        function __construct(private array $pending) {}
+        function get_param($key) { return $key === 'challenge' ? $this->pending['tokenHash'] : null; }
+    });
+    equal($proof['adminUrl'], $pending['adminUrl']);
+    $requests = array();
+    $_GET = array('page' => 'selfx-woocommerce', 'selfx_return' => '1', 'selfx_state' => str_repeat('x', 43));
+    rejects(fn() => $plugin->complete_return(), 'REDIRECT');
+    equal(get_option(SelfX_WC_Plugin::STATE)['message'], 'LINK_RETURN_INVALID');
+    equal($requests, array());
+    $_GET['selfx_state'] = $query['selfx_state'];
+    $can_manage = false;
+    rejects(fn() => $plugin->complete_return(), 'PERMISSION_DENIED');
+    equal($requests, array());
+    $can_manage = true;
+    rejects(fn() => $plugin->complete_return(), 'REDIRECT');
+    equal(get_option(SelfX_WC_Plugin::CONFIG)['storeId'], 'new-store');
+    equal(get_option(SelfX_WC_Plugin::STATE)['status'], 'QUEUED');
+    equal(get_option(SelfX_WC_Plugin::PENDING), false);
+    equal(count(array_filter($requests, fn($request) => str_ends_with($request[0], '/redeem'))), 1);
+    rejects(fn() => $plugin->complete_return(), 'REDIRECT');
+    equal(count(array_filter($requests, fn($request) => str_ends_with($request[0], '/redeem'))), 1);
+    $_GET = array();
+});
 test('settings show the live Store billing mode and inactive plan state', function () {
     $plugin = setup(); global $response_hook;
     $response_hook = fn($url) => str_ends_with($url, '/me/credit-summary')
