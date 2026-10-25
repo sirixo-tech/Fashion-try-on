@@ -332,6 +332,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   return (
     <AppShell
+      appearance={pathname === "/app/dashboard" ? "capitalio" : "default"}
       navItems={filteredNavItems}
       activePath={activePathFor(pathname)}
       organizations={currentStore ? [currentStore] : []}

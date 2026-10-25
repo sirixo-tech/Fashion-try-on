@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### WooCommerce monitoring and layout refinement (2026-10-25)
+
+Implement the user's approved Platform overview and redesigned WooCommerce details/setup page. Verify Platform and Store read authorization, cross-Store denial, durable usage counts across billing modes, parent-product counts, pagination/filtering, successful-full-sync receipts, view-only controls, one-time secrets and stale response handling. Run relevant API/web tests, disposable PostgreSQL catalog/overview checks, types, changed-source lint and a production web build. Review the actual built page at desktop/mobile sizes with synthetic intercepted API responses. Deployment is separate.
+
+### Capitalio dashboard implementation (2026-10-25)
+
+Implement the user's approved template adaptation while retaining all Overview visual sections and connecting real SelfX metrics. Maintain the shared UI boundary, authenticated Platform/Store scope, permissions, existing navigation and theme/account controls. Verify metric/CSV mapping, denied requests, scope races, failure/empty states, date filters and analysis interactions. Run shared-UI/web types, changed-source lint and the web production build. Check desktop/mobile/light/dark rendering and real built-page controls with synthetic intercepted API responses; do not modify production authentication or call production APIs for visual QA. No migration or deployment is included.
+
 ### Approved commerce follow-ups (2026-10-25)
 
 Implement the user's explicitly authorized Shopify recovery/eligibility/same-Store connection controls, WooCommerce centrally enforced limits and actionable errors, existing-plan native Shopify billing, and WooCommerce 0.4.0 distribution preparation. Paid plan changes start at renewal as explicitly chosen by the user. Verify resumable scans, worker contention, service authentication/Store scoping, frozen financial terms, deferred activation, cap reservations and idempotent receipts with unit and disposable-PostgreSQL tests; run PHP checks, types/lint, production builds, Shopify config validation and GraphQL schema validation. Build an inspected ZIP/checksum. Production migrations, native test-charge acceptance, real Shopify/WooCommerce site checks, WordPress Plugin Check and directory review remain rollout acceptance, not implementation-time deployment/publication. See COMMERCE-FOLLOWUPS-IMPLEMENTATION-REPORT.md for evidence and rollout steps.

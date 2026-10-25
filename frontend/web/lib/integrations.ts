@@ -55,6 +55,51 @@ export type IntegrationListResponse = {
   };
 };
 
+export type WooCommerceOverviewRow = {
+  id: string;
+  storeId: string;
+  storeName: string;
+  website: string | null;
+  externalAccountName: string | null;
+  health: IntegrationHealth;
+  healthReasons: string[];
+  productCount: number;
+  successfulTryOns: number;
+  lastCatalogSyncAt: string | null;
+};
+
+export type WooCommerceOverviewResponse = {
+  data: WooCommerceOverviewRow[];
+  summary: {
+    total: number;
+    connected: number;
+    needsAttention: number;
+    disconnected: number;
+    successfulTryOns: number;
+  };
+  period: { from: string; to: string; days: 30 };
+  pagination: IntegrationListResponse["pagination"];
+};
+
+export function getWooCommerceOverview(
+  accessToken: string,
+  input: {
+    storeId?: string;
+    search?: string;
+    health?: IntegrationHealth;
+    page?: number;
+    pageSize?: number;
+  } = {},
+): Promise<WooCommerceOverviewResponse> {
+  const params = new URLSearchParams();
+  Object.entries(input).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  });
+  return selfxApi(`/api/v1/admin/integrations/woocommerce/overview?${params}`, {
+    accessToken,
+  });
+}
+
 export type CreateIntegrationCredentialInput = {
   name: string;
   scopes: IntegrationCredentialScope[];

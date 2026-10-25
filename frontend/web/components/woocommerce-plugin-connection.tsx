@@ -2,10 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowRightIcon,
+  ChevronDownIcon,
+  DownloadIcon,
+  KeyRoundIcon,
+} from "lucide-react";
+import {
+  Badge,
   Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   ConfirmDialog,
   Input,
-  TableContainer,
   Textarea,
   buttonVariants,
 } from "@selfx/ui";
@@ -17,6 +30,77 @@ import {
   type StoreIntegration,
 } from "@/lib/integrations";
 import { RegionalDateTime } from "@/lib/regional-settings";
+
+export function WooCommercePluginSetup() {
+  return (
+    <Card>
+      <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle>WordPress plugin</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Install once. Products stay in sync automatically.
+          </p>
+        </div>
+        <a
+          className={buttonVariants({
+            variant: "outline",
+            size: "sm",
+            className: "w-fit shrink-0",
+          })}
+          href="/downloads/selfx-woocommerce.zip"
+          download
+        >
+          <DownloadIcon aria-hidden="true" />
+          Download WooCommerce plugin
+        </a>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <ol className="grid gap-5 md:grid-cols-3">
+          {[
+            {
+              title: "Install the plugin",
+              description:
+                "In WordPress, go to Plugins → Add New → Upload Plugin. Upload the ZIP and activate it.",
+            },
+            {
+              title: "Connect your Store",
+              description:
+                "Open WooCommerce → SelfX, choose Connect to SelfX and approve this Store. The connection finishes automatically.",
+            },
+            {
+              title: "Enable Try-On",
+              description:
+                "After sync completes, enable eligible imported products in SelfX Products. Shoppers can then try them on.",
+            },
+          ].map((step, index) => (
+            <li key={step.title} className="flex gap-3">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                {index + 1}
+              </span>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold">{step.title}</h3>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {step.description}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="flex items-start gap-2 border-t pt-4 text-xs leading-5 text-muted-foreground">
+          <ArrowRightIcon
+            className="mt-0.5 size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          <p>
+            WooCommerce manages product details, options, cart and checkout.
+            SelfX manages Try-On. Sync progress is shown in WooCommerce → SelfX;
+            use Sync now there to reconcile the catalog.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function WooCommercePluginConnection({
   accessToken,
@@ -99,123 +183,142 @@ export function WooCommercePluginConnection({
     }
   }
   return (
-    <TableContainer
-      title="WordPress plugin"
-      description="One-way catalog sync from WooCommerce to this Store and its assigned kiosks."
-    >
-      <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-        <li>
-          Download the plugin and install it in WordPress → Plugins → Add New →
-          Upload Plugin.
-        </li>
-        <li>
-          Open WooCommerce → SelfX and choose Connect to SelfX. Sign in, choose
-          this Store, approve the website and return to WordPress.
-        </li>
-        <li>
-          After sync completes, enable eligible imported products for Try-On in
-          SelfX Products.
-        </li>
-      </ol>
-      <p className="my-4">
-        <a
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-          href="/downloads/selfx-woocommerce.zip"
-          download
+    <div className="space-y-6">
+      <WooCommercePluginSetup />
+      <Card className="gap-0 py-0">
+        <Collapsible
+          onOpenChange={(open) => {
+            if (!open) setSecret(null);
+          }}
         >
-          Download WooCommerce plugin
-        </a>
-      </p>
-      <p className="text-sm text-muted-foreground">
-        Product updates and deletions sync automatically. Use Sync now in
-        WordPress to reconcile the catalog. Eligible product pages show Try it
-        on; shoppers return to WooCommerce to choose options and purchase.
-        Existing token-based connections can be managed below.
-      </p>
-      {error ? (
-        <p role="alert" className="mt-4 text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-      {canManage && integration.status === "ACTIVE" ? (
-        <div className="my-4 flex flex-wrap items-end gap-3">
-          <label className="space-y-2 text-sm">
-            <span>Token name</span>
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={120}
-              disabled={busy}
-            />
-          </label>
-          <Button
-            onClick={() => void generate()}
-            disabled={busy || !name.trim()}
-          >
-            Generate plugin token
-          </Button>
-        </div>
-      ) : null}
-      {canManage && secret ? (
-        <div className="my-4 space-y-2 rounded-lg border p-4">
-          <p className="text-sm">
-            Copy this token into WordPress now. It is shown only once; after
-            closing it, generate a replacement if needed.
-          </p>
-          <label className="block space-y-2 text-sm">
-            <span>New WooCommerce token</span>
-            <Textarea
-              readOnly
-              value={secret}
-              onFocus={(event) => event.target.select()}
-              spellCheck={false}
-            />
-          </label>
-          <Button size="sm" variant="outline" onClick={() => setSecret(null)}>
-            Hide token
-          </Button>
-        </div>
-      ) : null}
-      <ul className="mt-4 divide-y" aria-label="Plugin tokens">
-        {integration.credentials.map((credential) => (
-          <li
-            key={credential.id}
-            className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
-          >
-            <div>
-              <p className="font-medium">{credential.name}</p>
-              <p className="text-muted-foreground">
-                {credential.status === "REVOKED" ? "Revoked" : "Active"} · Last
-                used:{" "}
-                {credential.lastUsedAt ? (
-                  <RegionalDateTime value={credential.lastUsedAt} />
-                ) : (
-                  "Never"
-                )}
-              </p>
-            </div>
-            {canManage && credential.status === "ACTIVE" ? (
-              <ConfirmDialog
-                title="Revoke plugin token?"
-                description="The WordPress connection using this token will stop syncing. Connect it with a new token to resume."
-                confirmLabel="Revoke token"
-                destructive
-                onConfirm={() => void revoke(credential.id)}
-                trigger={
-                  <Button variant="outline" size="sm" disabled={busy}>
-                    Revoke {credential.name}
-                  </Button>
-                }
+          <CollapsibleTrigger className="rounded-xl px-5 py-4 sm:px-6">
+            <span className="flex items-center gap-3">
+              <KeyRoundIcon
+                className="size-4 text-muted-foreground"
+                aria-hidden="true"
               />
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {!integration.credentials.length ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          No plugin tokens created.
-        </p>
-      ) : null}
-    </TableContainer>
+              <span>
+                Advanced connection / API tokens
+                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                  For manual setup and connection troubleshooting
+                </span>
+              </span>
+            </span>
+            <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t px-5 pb-5 pt-4 sm:px-6">
+              <p className="text-sm leading-6 text-muted-foreground">
+                The plugin creates its token automatically when you connect.
+                Generate a manual token only when configuring an existing
+                token-based installation.
+              </p>
+              {error ? (
+                <p role="alert" className="mt-4 text-sm text-destructive">
+                  {error}
+                </p>
+              ) : null}
+              {canManage && integration.status === "ACTIVE" ? (
+                <div className="my-4 flex flex-wrap items-end gap-3">
+                  <label className="space-y-2 text-sm">
+                    <span>Token name</span>
+                    <Input
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      maxLength={120}
+                      disabled={busy}
+                    />
+                  </label>
+                  <Button
+                    onClick={() => void generate()}
+                    disabled={busy || !name.trim()}
+                  >
+                    Generate plugin token
+                  </Button>
+                </div>
+              ) : null}
+              {canManage && secret ? (
+                <div className="my-4 space-y-2 rounded-lg border p-4">
+                  <p className="text-sm">
+                    Copy this token into WordPress now. It is shown only once;
+                    after closing it, generate a replacement if needed.
+                  </p>
+                  <label className="block space-y-2 text-sm">
+                    <span>New WooCommerce token</span>
+                    <Textarea
+                      readOnly
+                      value={secret}
+                      onFocus={(event) => event.target.select()}
+                      spellCheck={false}
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSecret(null)}
+                  >
+                    Hide token
+                  </Button>
+                </div>
+              ) : null}
+              <ul className="mt-4 divide-y" aria-label="Plugin tokens">
+                {integration.credentials.map((credential) => (
+                  <li
+                    key={credential.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
+                  >
+                    <div>
+                      <p className="flex flex-wrap items-center gap-2 font-medium">
+                        {credential.name}
+                        <Badge variant="secondary">
+                          {credential.status === "REVOKED"
+                            ? "Revoked"
+                            : credential.expiresAt &&
+                                Date.parse(credential.expiresAt) <= Date.now()
+                              ? "Expired"
+                              : "Active"}
+                        </Badge>
+                      </p>
+                      <p className="text-muted-foreground">
+                        Last used:{" "}
+                        {credential.lastUsedAt ? (
+                          <RegionalDateTime value={credential.lastUsedAt} />
+                        ) : (
+                          "Never"
+                        )}
+                      </p>
+                    </div>
+                    {canManage && credential.status === "ACTIVE" ? (
+                      <ConfirmDialog
+                        title="Revoke plugin token?"
+                        description="The WordPress connection using this token will stop syncing. Connect it with a new token to resume."
+                        confirmLabel="Revoke token"
+                        destructive
+                        onConfirm={() => void revoke(credential.id)}
+                        trigger={
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            aria-label={`Revoke ${credential.name}`}
+                          >
+                            Revoke
+                          </Button>
+                        }
+                      />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              {!integration.credentials.length ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  No plugin tokens created.
+                </p>
+              ) : null}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+    </div>
   );
 }

@@ -54,6 +54,7 @@ import {
 } from "@/lib/integrations";
 import { useSession } from "@/lib/session";
 import { WooCommercePluginConnection } from "@/components/woocommerce-plugin-connection";
+import { WooCommerceSettingsPage } from "@/components/woocommerce-settings-page";
 import {
   getStoreCreditDiagnostics,
   getStore,
@@ -72,7 +73,18 @@ type ConnectionDraft = {
   externalAccountName: string;
 };
 
-export function IntegrationSettingsPage({
+export function IntegrationSettingsPage(props: {
+  type: IntegrationType;
+  title: string;
+}) {
+  return props.type === "WOOCOMMERCE" ? (
+    <WooCommerceSettingsPage />
+  ) : (
+    <StoreIntegrationSettingsPage {...props} />
+  );
+}
+
+function StoreIntegrationSettingsPage({
   type,
   title,
 }: {
@@ -133,8 +145,13 @@ export function IntegrationSettingsPage({
     creditDiagnostics?.byChannel.find((channel) => channel.channel === type)
       ?.consumedCredits ?? 0;
   const totalConsumed = creditDiagnostics?.totals.consumedCredits ?? 0;
-  const selectedSubscription = storeSubscription ?? stores.find((store) => store.id === selectedStoreId)?.subscription ?? null;
-  const payg = selectedSubscription?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG";
+  const selectedSubscription =
+    storeSubscription ??
+    stores.find((store) => store.id === selectedStoreId)?.subscription ??
+    null;
+  const payg =
+    selectedSubscription?.subscription?.pricingPlan?.billingMode ===
+    "POSTPAID_PAYG";
   const topShopifyProduct = creditDiagnostics?.topProducts[0] ?? null;
   const showShopifyPlatformOverview =
     type === "SHOPIFY" && hasPlatformIntegrationAccess;
@@ -147,9 +164,13 @@ export function IntegrationSettingsPage({
         return {
           integration: currentIntegration,
           store,
-          usage: store?.subscription?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG"
-            ? `${store.subscription.postpaid?.billableCredits ?? 0} billable this period`
-            : formatNullableNumber(store?.subscription?.availableCredits ?? null),
+          usage:
+            store?.subscription?.subscription?.pricingPlan?.billingMode ===
+            "POSTPAID_PAYG"
+              ? `${store.subscription.postpaid?.billableCredits ?? 0} billable this period`
+              : formatNullableNumber(
+                  store?.subscription?.availableCredits ?? null,
+                ),
           planName:
             store?.subscription?.subscription?.pricingPlan?.name ??
             store?.subscription?.subscription?.pricingPlan?.code ??
@@ -292,7 +313,10 @@ export function IntegrationSettingsPage({
           () => null,
         ),
       );
-      setStoreSubscription((await getStore(accessToken, selectedStoreId).catch(() => null))?.subscription ?? null);
+      setStoreSubscription(
+        (await getStore(accessToken, selectedStoreId).catch(() => null))
+          ?.subscription ?? null,
+      );
       const current = response.data[0] ?? null;
       setIntegration(current);
       setConnectionDraft({
@@ -481,15 +505,27 @@ export function IntegrationSettingsPage({
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <SummaryTile label="Connection" value={connectionLabel} />
               <SummaryTile
-                label={payg ? "Billable Try-Ons this period" : "Available Credits"}
+                label={
+                  payg ? "Billable Try-Ons this period" : "Available Credits"
+                }
                 value={
-                  payg ? String(selectedSubscription?.postpaid?.billableCredits ?? 0)
-                    : creditDiagnostics ? String(creditDiagnostics.availableCredits) : "Loading"
+                  payg
+                    ? String(
+                        selectedSubscription?.postpaid?.billableCredits ?? 0,
+                      )
+                    : creditDiagnostics
+                      ? String(creditDiagnostics.availableCredits)
+                      : "Loading"
                 }
               />
-              <SummaryTile label="SelfX Plan" value={selectedSubscription?.subscription
-                ? `${selectedSubscription.subscription.pricingPlan?.name ?? "Plan"} · ${selectedSubscription.subscription.status}`
-                : "Unavailable"} />
+              <SummaryTile
+                label="SelfX Plan"
+                value={
+                  selectedSubscription?.subscription
+                    ? `${selectedSubscription.subscription.pricingPlan?.name ?? "Plan"} · ${selectedSubscription.subscription.status}`
+                    : "Unavailable"
+                }
+              />
               <SummaryTile
                 label={`${title} Used`}
                 value={String(shopifyUsage)}
@@ -857,10 +893,14 @@ function ShopifyPlatformOverview({
                             </div>
                           ) : null}
                         </td>
-                        <td className="px-4 py-3">{planName}{planStatus && !["ACTIVE", "TRIALING"].includes(planStatus) ? ` · ${planStatus}` : ""}</td>
                         <td className="px-4 py-3">
-                          {usage}
+                          {planName}
+                          {planStatus &&
+                          !["ACTIVE", "TRIALING"].includes(planStatus)
+                            ? ` · ${planStatus}`
+                            : ""}
                         </td>
+                        <td className="px-4 py-3">{usage}</td>
                         <td className="px-4 py-3">
                           {store?.contactEmail ?? "Not set"}
                         </td>

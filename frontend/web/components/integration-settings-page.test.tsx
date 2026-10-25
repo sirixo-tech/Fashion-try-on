@@ -21,6 +21,7 @@ vi.mock("@/lib/current-store", () => ({
     .mockResolvedValue({ id: "store-a", name: "Store A" }),
 }));
 vi.mock("@/lib/stores", () => ({
+  getStore: vi.fn().mockResolvedValue(null),
   getEffectiveStorePermissions: vi.fn(),
   listStores: vi.fn(),
   getStoreCreditDiagnostics: vi.fn().mockResolvedValue({
@@ -34,6 +35,9 @@ vi.mock("@/lib/stores", () => ({
   }),
 }));
 vi.mock("@/lib/integrations", () => ({
+  getWooCommerceOverview: vi
+    .fn()
+    .mockResolvedValue({ data: [], summary: {}, pagination: {} }),
   connectIntegration: vi.fn(),
   disconnectIntegration: vi.fn(),
   startShopifyOauth: vi.fn(),
@@ -67,12 +71,15 @@ beforeEach(() => {
 afterEach(cleanup);
 it("offers WooCommerce setup to the authorized Store without Shopify instructions", async () => {
   render(<IntegrationSettingsPage type="WOOCOMMERCE" title="WooCommerce" />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Advanced connection/ }),
+  );
   await screen.findByRole("button", { name: "Generate plugin token" });
   expect(
     screen.getByRole("link", { name: "Download WooCommerce plugin" }),
   ).toBeTruthy();
   expect(screen.queryByText("Shopify Used")).toBeNull();
-  expect(screen.getByText("WooCommerce Used")).toBeTruthy();
+  expect(screen.getByText("Successful Try-Ons")).toBeTruthy();
   expect(
     screen.getByText(/Sync progress is shown in WooCommerce/),
   ).toBeTruthy();

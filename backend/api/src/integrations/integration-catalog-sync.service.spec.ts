@@ -47,6 +47,50 @@ const productInput = {
 };
 
 describe("IntegrationCatalogSyncService", () => {
+  it("records a WooCommerce full-sync receipt only after finalization and preserves metadata", async () => {
+    const tx = createTransaction();
+    const service = createService(tx);
+    const woo = { ...credential, integrationType: IntegrationType.WOOCOMMERCE };
+    const snapshot = new Date().toISOString();
+    await service.sync(woo, { mode: "INCREMENTAL", products: [] });
+    await service.sync(woo, {
+      mode: "FULL",
+      sourceSnapshotAt: snapshot,
+      finalize: false,
+      products: [],
+    });
+    expect(tx.integration.update).not.toHaveBeenCalled();
+    await service.sync(woo, {
+      mode: "FULL",
+      sourceSnapshotAt: snapshot,
+      finalize: true,
+      products: [],
+    });
+    expect(tx.integration.update).toHaveBeenCalledWith({
+      where: { id: credential.integrationId },
+      data: {
+        metadata: { tryOnMode: "BOTH", lastCatalogSyncAt: expect.any(String) },
+      },
+    });
+  });
+
+  it("does not record a completed sync for an inactive Store", async () => {
+    const tx = createTransaction();
+    tx.$queryRaw.mockResolvedValue([{ status: OrganizationStatus.SUSPENDED }]);
+    await expect(
+      createService(tx).sync(
+        { ...credential, integrationType: IntegrationType.WOOCOMMERCE },
+        {
+          mode: "FULL",
+          sourceSnapshotAt: new Date().toISOString(),
+          finalize: true,
+          products: [],
+        },
+      ),
+    ).rejects.toThrow();
+    expect(tx.integration.update).not.toHaveBeenCalled();
+  });
+
   it("rejects a batch that reaches the Store after archiving", async () => {
     const tx = createTransaction();
     tx.$queryRaw.mockResolvedValue([{ status: OrganizationStatus.ARCHIVED }]);
@@ -941,6 +985,7 @@ function createTransaction() {
       .fn()
       .mockResolvedValue([{ status: OrganizationStatus.ACTIVE }]),
     integration: {
+      update: vi.fn().mockResolvedValue({}),
       findFirst: vi.fn().mockResolvedValue({
         metadata: { tryOnMode: "BOTH" },
       }),

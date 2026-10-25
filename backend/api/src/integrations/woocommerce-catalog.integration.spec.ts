@@ -17,6 +17,7 @@ import {
 } from "./integration-token-auth.service.js";
 import { hashIntegrationToken } from "./integrations.service.js";
 import { IntegrationCatalogSyncInputDto } from "./dto/integration-catalog-sync.dto.js";
+import { wooCommerceOverview } from "./woocommerce-overview.js";
 
 const url = process.env.WOOCOMMERCE_TEST_DATABASE_URL;
 if (
@@ -84,6 +85,9 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
     });
   });
   afterAll(async () => {
+    await db.billableGeneration.deleteMany({
+      where: { organizationId: { in: [store, other] } },
+    });
     await db.auditLog.deleteMany({ where: { organizationId: store } });
     await db.kioskTryOnRun.deleteMany({ where: { organizationId: store } });
     await db.tryOnSession.deleteMany({ where: { organizationId: store } });
@@ -309,6 +313,101 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
         .vtoEnabled,
     ).toBe(false);
   });
+  it("reports Store-scoped WooCommerce products, durable usage and completed full syncs", async () => {
+    const before = await db.integration.findUniqueOrThrow({
+      where: { id: integrationId },
+    });
+    await sync.sync(credential, {
+      mode: "FULL",
+      sourceSnapshotAt: new Date().toISOString(),
+      finalize: true,
+      products: input.products,
+    });
+    const now = new Date();
+    await db.billableGeneration.createMany({
+      data: [
+        {
+          id: createSelfxId(),
+          runId: createSelfxId(),
+          organizationId: store,
+          channel: "WOOCOMMERCE",
+          completedAt: now,
+        },
+        {
+          id: createSelfxId(),
+          runId: createSelfxId(),
+          organizationId: store,
+          channel: "WOOCOMMERCE",
+          completedAt: new Date(now.getTime() - 31 * 86400000),
+        },
+        {
+          id: createSelfxId(),
+          runId: createSelfxId(),
+          organizationId: store,
+          channel: "KIOSK",
+          completedAt: now,
+        },
+        {
+          id: createSelfxId(),
+          runId: createSelfxId(),
+          organizationId: other,
+          channel: "WOOCOMMERCE",
+          completedAt: now,
+        },
+      ],
+    });
+    const result = await wooCommerceOverview(db, { storeId: store });
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({
+      storeId: store,
+      health: "CONNECTED",
+      productCount: 1,
+      successfulTryOns: 1,
+      lastCatalogSyncAt: expect.any(String),
+    });
+    expect(result.summary).toEqual({
+      total: 1,
+      connected: 1,
+      needsAttention: 0,
+      disconnected: 0,
+      successfulTryOns: 1,
+    });
+    expect((await wooCommerceOverview(db, { storeId: other })).data).toEqual(
+      [],
+    );
+    expect(
+      (
+        await wooCommerceOverview(db, {
+          storeId: store,
+          health: "DISCONNECTED",
+        })
+      ).data,
+    ).toEqual([]);
+    await db.integrationCredential.update({
+      where: { id: credentialId },
+      data: { expiresAt: new Date(now.getTime() - 1000) },
+    });
+    expect(
+      (
+        await wooCommerceOverview(db, {
+          storeId: store,
+          health: "NEEDS_ATTENTION",
+        })
+      ).summary.needsAttention,
+    ).toBe(1);
+    await db.integrationCredential.update({
+      where: { id: credentialId },
+      data: { expiresAt: null },
+    });
+    const after = await db.integration.findUniqueOrThrow({
+      where: { id: integrationId },
+    });
+    expect(after.metadata).toMatchObject({
+      ...(before.metadata as Record<string, unknown>),
+      lastCatalogSyncAt: expect.any(String),
+    });
+  });
+
   it("archives a deleted product and its variants without affecting another Store", async () => {
     await sync.sync(credential, {
       mode: "INCREMENTAL",

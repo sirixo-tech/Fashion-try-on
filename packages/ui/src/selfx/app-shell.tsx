@@ -16,6 +16,7 @@ export function AppShell({
   children,
   navItems,
   activePath,
+  appearance = "default",
   user,
   onLogout,
   onNavigateTo,
@@ -23,6 +24,7 @@ export function AppShell({
   children: ReactNode;
   navItems: SelfxNavItem[];
   activePath?: string;
+  appearance?: "default" | "capitalio";
   organizations: SelfxOrganizationOption[];
   activeOrganizationId?: string | null;
   onSelectOrganization?: (organizationId: string) => void;
@@ -56,7 +58,12 @@ export function AppShell({
   );
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div
+      className={cn(
+        "min-h-dvh bg-background",
+        appearance === "capitalio" && "selfx-capitalio-shell",
+      )}
+    >
       <AppHeader
         mobileOpened={mobileOpened}
         onToggleMobile={() => setMobileOpened((opened) => !opened)}

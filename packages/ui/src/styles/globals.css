@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./capitalio.css";
 
 @source "../../../../frontend/web/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";

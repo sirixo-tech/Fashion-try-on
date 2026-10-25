@@ -14,6 +14,8 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { wooCommerceOverview } from "./woocommerce-overview.js";
+import { type WooCommerceOverviewQueryDto } from "./dto/woocommerce-overview.dto.js";
 import {
   type CreateIntegrationCredentialDto,
   type CreateIntegrationCredentialResponseDto,
@@ -76,6 +78,10 @@ type IntegrationWithRelations = Prisma.IntegrationGetPayload<{
 @Injectable()
 export class IntegrationsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  wooCommerceOverview(query: WooCommerceOverviewQueryDto) {
+    return wooCommerceOverview(this.prisma, query);
+  }
 
   async listIntegrations(
     query: IntegrationListQueryDto,

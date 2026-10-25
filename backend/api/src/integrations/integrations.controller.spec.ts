@@ -7,6 +7,58 @@ import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import { IntegrationsController } from "./integrations.controller.js";
 
 describe("IntegrationsController", () => {
+  it("allows platform integration viewers to read the WooCommerce overview without Store management", async () => {
+    const integrations = {
+      wooCommerceOverview: vi.fn().mockResolvedValue({ data: [] }),
+    };
+    const storeRbac = rbac();
+    const controller = new IntegrationsController(
+      auth(),
+      platformAuthorization(true) as never,
+      storeRbac as never,
+      integrations as never,
+      oauth() as never,
+    );
+    await controller.wooCommerceOverview(request(), { page: 2 });
+    expect(integrations.wooCommerceOverview).toHaveBeenCalledWith({ page: 2 });
+    expect(storeRbac.requireStorePermission).not.toHaveBeenCalled();
+  });
+
+  it("rejects a merchant's unscoped WooCommerce overview before reading any data", async () => {
+    const integrations = { wooCommerceOverview: vi.fn() };
+    const controller = new IntegrationsController(
+      auth(),
+      platformAuthorization(false) as never,
+      rbac() as never,
+      integrations as never,
+      oauth() as never,
+    );
+    await expect(
+      controller.wooCommerceOverview(request(), {}),
+    ).rejects.toThrow();
+    expect(integrations.wooCommerceOverview).not.toHaveBeenCalled();
+  });
+
+  it("checks the requested Store before returning WooCommerce statistics", async () => {
+    const integrations = { wooCommerceOverview: vi.fn() };
+    const storeRbac = rbacReject();
+    const controller = new IntegrationsController(
+      auth(),
+      platformAuthorization(false) as never,
+      storeRbac as never,
+      integrations as never,
+      oauth() as never,
+    );
+    await expect(
+      controller.wooCommerceOverview(request(), { storeId: "other-store" }),
+    ).rejects.toThrow();
+    expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
+      "user-1",
+      "other-store",
+      STORE_PERMISSION_CODES.integrationsView,
+    );
+    expect(integrations.wooCommerceOverview).not.toHaveBeenCalled();
+  });
   it("returns a visible completion page with a SelfX link after OAuth", async () => {
     const shopify = oauth();
     shopify.complete.mockResolvedValue({

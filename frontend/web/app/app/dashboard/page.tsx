@@ -1,641 +1,338 @@
 "use client";
-import { RegionalDateTime } from "@/lib/regional-settings";
-import { hasStoreResourcePermission } from "@/lib/current-store";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import {
-  ActivityIcon,
-  BarChart3Icon,
+  CalendarDaysIcon,
   DownloadIcon,
+  RefreshCwIcon,
   MonitorIcon,
   PackageIcon,
-  RefreshCwIcon,
-  ShieldAlertIcon,
-  SparklesIcon,
   StoreIcon,
   UsersIcon,
 } from "lucide-react";
-
 import {
+  Alert,
+  AlertDescription,
   Button,
-  PageContainer,
-  PageHeader,
-  PageSection,
+  CapitalioDashboard,
+  Card,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   SelectMenu,
-  StatCard,
-  StatGrid,
+  Skeleton,
   StatusBadge,
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
   TableHeader,
   TableRow,
 } from "@selfx/ui";
-
-import {
-  getCurrentPlatformAccess,
-  type CurrentPlatformAccess,
-} from "@/lib/access-control";
-import { SafeApiError } from "@/lib/api";
-import { getCurrentMerchantStore } from "@/lib/current-store";
-import { type KioskDevice } from "@/lib/kiosks";
 import { useSession } from "@/lib/session";
-import {
-  getEffectiveStorePermissions,
-  listStoreKiosks,
-  listStoreProducts,
-  listStoreUsers,
-  listStores,
-  type AdminStore,
-  type EffectiveStorePermissions,
-  type StoreProduct,
-  type StoreUser,
-} from "@/lib/stores";
-import {
-  getUsageSummary,
-  type UsageRangePreset,
-  type UsageSummary,
-} from "@/lib/usage";
+import { RegionalDateTime } from "@/lib/regional-settings";
+import { useDashboard } from "@/lib/use-dashboard";
+import { dashboardCsv } from "@/lib/dashboard-metrics";
+import type { UsageRangePreset } from "@/lib/usage";
 
-const ranges: Array<{ value: UsageRangePreset; label: string }> = [
+const ranges: { value: UsageRangePreset; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "7d", label: "Last 7 days" },
   { value: "30d", label: "Last 30 days" },
   { value: "90d", label: "Last 90 days" },
 ];
-
-type StoreOption = { id: string; name: string };
-
 export default function DashboardPage() {
   const session = useSession();
-  const accessToken =
-    session.status === "authenticated" ? session.accessToken : null;
-  const [range, setRange] = useState<UsageRangePreset>("7d");
-  const [storeId, setStoreId] = useState("");
-  const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
-  const [platformAccess, setPlatformAccess] =
-    useState<CurrentPlatformAccess | null>(null);
-  const [storeAccess, setStoreAccess] =
-    useState<EffectiveStorePermissions | null>(null);
-  const [summary, setSummary] = useState<UsageSummary | null>(null);
-  const [stores, setStores] = useState<AdminStore[]>([]);
-  const [kiosks, setKiosks] = useState<KioskDevice[]>([]);
-  const [products, setProducts] = useState<StoreProduct[]>([]);
-  const [staff, setStaff] = useState<StoreUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const platformPermissions = platformAccess?.permissions ?? [];
-  const hasPlatformUsageAccess = Boolean(
-    platformAccess?.isSuperadmin || platformPermissions.includes("USAGE_VIEW"),
-  );
-  const canChooseStoreScope = Boolean(
-    platformAccess?.isSuperadmin || platformPermissions.includes("STORES_VIEW"),
-  );
-  const hasStoreBypass = storeAccess?.platformBypass ?? false;
-  const storePermissions = storeAccess?.permissions ?? [];
-  const storeFeatureKeys = storeAccess?.featureKeys ?? [];
-  const hasStoreFeature = useCallback(
-    (featureKeys: string[]) =>
-      featureKeys.some((featureKey) => storeFeatureKeys.includes(featureKey)),
-    [storeFeatureKeys],
-  );
-  const canViewStoreUsage = Boolean(
-    (hasStoreBypass || storePermissions.includes("analytics.view")) &&
-    hasStoreFeature(["ANALYTICS"]),
-  );
-  const canViewStoreDetails = Boolean(
-    hasStoreResourcePermission(storeAccess, "stores.view"),
-  );
-  const canViewStoreKiosks = Boolean(
-    hasStoreResourcePermission(storeAccess, "kiosks.view") &&
-    hasStoreFeature(["KIOSK_MANAGEMENT", "KIOSK_RENTAL"]),
-  );
-  const canViewStoreStaff = Boolean(
-    hasStoreBypass || storePermissions.includes("users.view"),
-  );
-  const selectedStoreName = useMemo(
-    () =>
-      storeOptions.find((store) => store.id === storeId)?.name ??
-      "Selected Store",
-    [storeId, storeOptions],
-  );
-  const isStoreScope = Boolean(storeId);
-
-  useEffect(() => {
-    if (!accessToken) {
-      setPlatformAccess(null);
-      setStoreOptions([]);
-      setStoreId("");
-      return;
-    }
-
-    const token = accessToken;
-    let cancelled = false;
-
-    async function loadContext() {
-      setError(null);
-      try {
-        const nextAccess = await getCurrentPlatformAccess(token);
-        if (cancelled) {
-          return;
-        }
-        setPlatformAccess(nextAccess);
-
-        if (
-          nextAccess.isSuperadmin ||
-          nextAccess.permissions.includes("STORES_VIEW")
-        ) {
-          const nextStores = await listStores(token, { pageSize: 100 });
-          if (!cancelled) {
-            const options = nextStores.data.map(storeOptionFromAdminStore);
-            setStores(nextStores.data);
-            setStoreOptions(options);
-          }
-          return;
-        }
-
-        const currentStore = await getCurrentMerchantStore(token);
-        if (!cancelled) {
-          const options = currentStore
-            ? [{ id: currentStore.id, name: currentStore.name }]
-            : [];
-          setStoreOptions(options);
-          setStoreId((current) => current || options[0]?.id || "");
-        }
-      } catch (caught) {
-        if (!cancelled) {
-          setError(messageFor(caught));
-          setPlatformAccess({ isSuperadmin: false, permissions: [] });
-        }
-      }
-    }
-
-    void loadContext();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken]);
-
-  useEffect(() => {
-    if (!accessToken || !storeId) {
-      setStoreAccess(null);
-      return;
-    }
-
-    const token = accessToken;
-    const selectedStoreId = storeId;
-    let cancelled = false;
-
-    getEffectiveStorePermissions(token, selectedStoreId)
-      .then((nextAccess) => {
-        if (!cancelled) {
-          setStoreAccess(nextAccess);
-        }
-      })
-      .catch((caught) => {
-        if (!cancelled) {
-          setStoreAccess(null);
-          setError(messageFor(caught));
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [accessToken, storeId]);
-
-  const loadDashboard = useCallback(async () => {
-    if (!accessToken) {
-      return;
-    }
-
-    const mayLoadUsage = storeId ? canViewStoreUsage : hasPlatformUsageAccess;
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextSummary, nextKiosks, nextProducts, nextStaff] =
-        await Promise.all([
-          mayLoadUsage
-            ? getUsageSummary(accessToken, {
-                range,
-                storeId: storeId || undefined,
-                limit: 8,
-              })
-            : Promise.resolve(null),
-          storeId
-            ? canViewStoreKiosks
-              ? listStoreKiosks(accessToken, storeId)
-              : Promise.resolve([])
-            : Promise.resolve([]),
-          storeId && canViewStoreDetails
-            ? listStoreProducts(accessToken, storeId, { pageSize: 8 })
-            : Promise.resolve(null),
-          storeId && canViewStoreStaff
-            ? listStoreUsers(accessToken, storeId, { pageSize: 8 })
-            : Promise.resolve(null),
-        ]);
-      setSummary(nextSummary);
-      setKiosks(nextKiosks);
-      setProducts(nextProducts?.data ?? []);
-      setStaff(nextStaff?.data ?? []);
-    } catch (caught) {
-      setError(messageFor(caught));
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    accessToken,
-    canViewStoreDetails,
-    canViewStoreKiosks,
-    canViewStoreStaff,
-    canViewStoreUsage,
-    hasPlatformUsageAccess,
-    range,
+  const router = useRouter();
+  const [range, setRange] = useState<UsageRangePreset>("30d");
+  const [storeId, setStoreId] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const dashboard = useDashboard(
+    session.status === "authenticated" ? session.accessToken : null,
     storeId,
-  ]);
-
-  useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
-
-  const activeStores = stores.filter((store) => store.status === "ACTIVE");
-  const activeKiosks = kiosks.filter((kiosk) => kiosk.status === "ACTIVE");
-  const activeProducts = products.filter((product) => product.active);
-  const activeStaff = staff.filter((user) => user.status === "ACTIVE");
-  const scopeLabel = isStoreScope ? selectedStoreName : "All Stores";
-
+    range,
+    refresh,
+  );
+  const { data, context, loading, metrics } = dashboard;
+  const scope = !context
+    ? "Loading scope…"
+    : dashboard.storeId
+      ? (context?.options.find((store) => store.id === dashboard.storeId)
+          ?.name ?? "Selected Store")
+      : dashboard.canViewAll
+        ? "All Stores"
+        : "No active Store";
+  const unavailable = dashboard.error
+    ? "This metric could not be loaded. Try Refresh."
+    : "Usage is not available with your current permissions or plan.";
+  function exportCsv() {
+    if (!data?.summary) return;
+    const url = URL.createObjectURL(
+      new Blob([dashboardCsv(data.summary)], {
+        type: "text/csv;charset=utf-8",
+      }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `selfx-dashboard-${dashboard.storeId ? "store" : "platform"}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+  const analysisAction = data?.summary
+    ? { label: "Full analysis", onClick: () => setAnalysisOpen(true) }
+    : undefined;
   return (
-    <PageContainer width="wide">
-      <PageHeader
-        eyebrow="Workspace"
-        title="Dashboard"
-        description="Role-aware operational overview for the current SelfX scope."
-        status={<StatusBadge status="ACTIVE" label={scopeLabel} />}
-        actions={
-          <Button variant="outline" onClick={() => void loadDashboard()}>
-            <RefreshCwIcon aria-hidden="true" />
-            Refresh
-          </Button>
-        }
-      />
-
-      <PageSection>
-        <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-[12rem_minmax(0,22rem)_1fr]">
-          <label className="grid gap-2 text-sm font-medium">
-            Date range
+    <main className="mx-auto min-w-0 max-w-[112rem] space-y-6 px-4 py-6 md:px-8 lg:py-8">
+      <header className="flex flex-wrap items-start justify-between gap-5">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span>
+              Last updated{" "}
+              {data ? <RegionalDateTime value={data.updatedAt} /> : "—"}
+            </span>
+            <span aria-hidden="true">•</span>
+            <span>{scope}</span>
+          </div>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="flex max-w-full items-center rounded-md border bg-card">
+            <CalendarDaysIcon
+              className="ml-3 size-4 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
             <SelectMenu
               ariaLabel="Date range"
               value={range}
               options={ranges}
-              className="h-11"
               onChange={setRange}
+              className="min-w-40 border-0 bg-transparent"
             />
-          </label>
-          {canChooseStoreScope ? (
-            <label className="grid gap-2 text-sm font-medium">
-              Store scope
-              <SelectMenu
-                ariaLabel="Store scope"
-                value={storeId}
-                disabled={storeOptions.length === 0}
-                options={[
-                  ...(hasPlatformUsageAccess
-                    ? [{ value: "", label: "All Stores" }]
-                    : []),
-                  ...storeOptions.map((store) => ({
-                    value: store.id,
-                    label: store.name,
-                  })),
-                ]}
-                className="h-11"
-                onChange={setStoreId}
-              />
-            </label>
-          ) : (
-            <div className="grid gap-2 text-sm font-medium">
-              SelfX account
-              <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
-                {selectedStoreName}
-              </div>
+          </div>
+          {dashboard.canChooseStore ? (
+            <SelectMenu
+              ariaLabel="Store scope"
+              value={dashboard.storeId}
+              options={[
+                ...(dashboard.canViewAll
+                  ? [{ value: "", label: "All Stores" }]
+                  : []),
+                ...(context?.options ?? []).map((store) => ({
+                  value: store.id,
+                  label: store.name,
+                })),
+              ]}
+              onChange={setStoreId}
+              disabled={!context?.options.length && !dashboard.canViewAll}
+              className="max-w-full sm:w-48"
+            />
+          ) : null}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Refresh dashboard"
+            title="Refresh dashboard"
+            disabled={loading}
+            onClick={() => setRefresh((value) => value + 1)}
+          >
+            <RefreshCwIcon
+              className={loading ? "animate-spin" : undefined}
+              aria-hidden="true"
+            />
+          </Button>
+          <Button onClick={exportCsv} disabled={!data?.summary || loading}>
+            <span>Export</span>
+            <DownloadIcon aria-hidden="true" />
+          </Button>
+        </div>
+      </header>
+      {data?.summary ? (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          <RegionalDateTime value={data.summary.range.from} /> –{" "}
+          <RegionalDateTime value={data.summary.range.to} /> · Daily chart dates
+          use UTC
+        </p>
+      ) : null}
+      {dashboard.error ? (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{dashboard.error}</AlertDescription>
+        </Alert>
+      ) : null}
+      <CapitalioDashboard
+        metrics={metrics}
+        loading={loading}
+        unavailableMessage={unavailable}
+        analysisAction={analysisAction}
+        productsAction={
+          data?.canProducts
+            ? {
+                label: "View products",
+                onClick: () => router.push("/app/products"),
+              }
+            : analysisAction
+              ? { label: "View usage", onClick: analysisAction.onClick }
+              : undefined
+        }
+        activityAction={
+          data?.canActivity
+            ? {
+                label: "View activity",
+                onClick: () => router.push("/app/try-on-activity"),
+              }
+            : analysisAction
+        }
+      />
+      <section
+        aria-label="Workspace resources"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {[
+          {
+            title: "Stores",
+            value: context?.totalStores,
+            icon: StoreIcon,
+            note: "Across your platform access",
+          },
+          {
+            title: "Store kiosks",
+            value: data?.kiosks?.length,
+            icon: MonitorIcon,
+            note: data?.kiosks
+              ? `${data.kiosks.filter((kiosk) => kiosk.status === "ACTIVE").length} active`
+              : "Select an authorized Store",
+          },
+          {
+            title: "Store products",
+            value: data?.products,
+            icon: PackageIcon,
+            note: "Complete catalog count",
+          },
+          {
+            title: "Store team",
+            value: data?.staff,
+            icon: UsersIcon,
+            note: "Complete team count",
+          },
+        ].map((item) => (
+          <Card
+            key={item.title}
+            className="gap-3 rounded-lg border p-5 shadow-none ring-0"
+          >
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <h2>{item.title}</h2>
+              <item.icon className="size-4" aria-hidden="true" />
             </div>
-          )}
-          <div className="flex items-end text-sm text-muted-foreground">
-            {summary ? (
-              <>
-                {formatDate(summary.range.from)} to{" "}
-                {formatDate(summary.range.to)}
-              </>
+            {loading ? (
+              <Skeleton className="h-8 w-16" />
             ) : (
-              "Dashboard data follows the permissions on this account."
+              <div className="text-2xl font-semibold">
+                {item.value == null
+                  ? "—"
+                  : new Intl.NumberFormat().format(item.value)}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {item.value == null && !loading
+                ? "Available for permitted scopes"
+                : item.note}
+            </p>
+          </Card>
+        ))}
+      </section>
+      {data?.kiosks ? (
+        <section aria-label="Kiosk fleet">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-medium">Kiosk fleet</h2>
+            <span className="text-xs text-muted-foreground">{scope}</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {data.kiosks.length ? (
+              data.kiosks.slice(0, 6).map((kiosk) => (
+                <Card
+                  key={kiosk.id}
+                  className="flex-row items-center justify-between gap-4 rounded-lg border p-4 shadow-none ring-0"
+                >
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-medium">
+                      {kiosk.displayName}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Last seen{" "}
+                      {kiosk.lastSeenAt ? (
+                        <RegionalDateTime value={kiosk.lastSeenAt} />
+                      ) : (
+                        "Never"
+                      )}
+                    </p>
+                  </div>
+                  <StatusBadge status={kiosk.status} />
+                </Card>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No kiosks assigned to this Store.
+              </p>
             )}
           </div>
-        </div>
-      </PageSection>
-
-      {error ? <AccessError message={error} /> : null}
-
-      <PageSection>
-        <StatGrid>
-          {isStoreScope ? (
+        </section>
+      ) : null}
+      <Dialog open={analysisOpen} onOpenChange={setAnalysisOpen}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Try-On analysis · {scope}</DialogTitle>
+            <DialogDescription>
+              Daily counts for the current dashboard scope and date range. Dates
+              are UTC.
+            </DialogDescription>
+          </DialogHeader>
+          {data?.summary ? (
             <>
-              <StatCard
-                label="Generated Looks"
-                value={displayNumber(summary?.totals.tryOnsGenerated)}
-                secondaryValue={`${displayPercent(summary?.totals.successRate)} success rate`}
-                icon={<SparklesIcon size={18} aria-hidden="true" />}
-              />
-              {canViewStoreKiosks ? (
-                <StatCard
-                  label="Store Kiosks"
-                  value={displayNumber(kiosks.length)}
-                  secondaryValue={`${displayNumber(activeKiosks.length)} active`}
-                  icon={<MonitorIcon size={18} aria-hidden="true" />}
-                />
-              ) : null}
-              {canViewStoreDetails ? (
-                <StatCard
-                  label="Products"
-                  value={displayNumber(products.length)}
-                  secondaryValue={`${displayNumber(activeProducts.length)} active`}
-                  icon={<PackageIcon size={18} aria-hidden="true" />}
-                />
-              ) : null}
-              <StatCard
-                label="Staff"
-                value={displayNumber(staff.length)}
-                secondaryValue={`${displayNumber(activeStaff.length)} active`}
-                icon={<UsersIcon size={18} aria-hidden="true" />}
-              />
+              <Button variant="outline" onClick={exportCsv}>
+                Export this range
+                <DownloadIcon aria-hidden="true" />
+              </Button>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {[
+                        "Date (UTC)",
+                        "Sessions",
+                        "Attempts",
+                        "Generated",
+                        "Failed",
+                        "Downloads",
+                      ].map((label) => (
+                        <TableHead key={label}>{label}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.summary.daily.map((row) => (
+                      <TableRow key={row.date}>
+                        <TableCell>{row.date.slice(0, 10)}</TableCell>
+                        <TableCell>{row.sessionsStarted}</TableCell>
+                        <TableCell>{row.runsCreated}</TableCell>
+                        <TableCell>{row.tryOnsGenerated}</TableCell>
+                        <TableCell>{row.failedRuns}</TableCell>
+                        <TableCell>{row.downloadsCompleted}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </>
           ) : (
-            <>
-              <StatCard
-                label="Stores"
-                value={displayNumber(stores.length)}
-                secondaryValue={`${displayNumber(activeStores.length)} active`}
-                icon={<StoreIcon size={18} aria-hidden="true" />}
-              />
-              <StatCard
-                label="Generated Looks"
-                value={displayNumber(summary?.totals.tryOnsGenerated)}
-                secondaryValue={`${displayNumber(summary?.totals.sessionsStarted)} sessions`}
-                icon={<SparklesIcon size={18} aria-hidden="true" />}
-              />
-              <StatCard
-                label="Downloads"
-                value={displayNumber(summary?.totals.downloadsCompleted)}
-                secondaryValue={`${displayPercent(summary?.totals.downloadRate)} download rate`}
-                icon={<DownloadIcon size={18} aria-hidden="true" />}
-              />
-            </>
+            <p className="text-sm text-muted-foreground">
+              {loading ? "Loading selected scope…" : unavailable}
+            </p>
           )}
-        </StatGrid>
-      </PageSection>
-
-      <PageSection>
-        <div className="grid gap-4 xl:grid-cols-2">
-          <DashboardTable
-            title={isStoreScope ? "Store Activity" : "Store Usage"}
-            icon={<BarChart3Icon size={18} aria-hidden="true" />}
-            loading={loading}
-            empty="No usage in this range."
-            headers={
-              isStoreScope
-                ? ["Metric", "Count"]
-                : ["Store", "Sessions", "Looks", "Downloads"]
-            }
-            rows={
-              isStoreScope
-                ? [
-                    [
-                      "Sessions",
-                      displayNumber(summary?.totals.sessionsStarted),
-                    ],
-                    [
-                      "Completed runs",
-                      displayNumber(summary?.totals.completedRuns),
-                    ],
-                    ["Failed runs", displayNumber(summary?.totals.failedRuns)],
-                    [
-                      "Downloads",
-                      displayNumber(summary?.totals.downloadsCompleted),
-                    ],
-                  ]
-                : (summary?.stores ?? []).map((row) => [
-                    row.storeName,
-                    displayNumber(row.sessionsStarted),
-                    displayNumber(row.tryOnsGenerated),
-                    displayNumber(row.downloadsCompleted),
-                  ])
-            }
-          />
-          {isStoreScope && canViewStoreKiosks ? (
-            <DashboardTable
-              title="Kiosks"
-              icon={<MonitorIcon size={18} aria-hidden="true" />}
-              loading={loading}
-              empty="No kiosks visible for this scope."
-              headers={["Kiosk", "Scope", "Status", "Last Seen"]}
-              rows={kiosks
-                .slice(0, 8)
-                .map((kiosk) => [
-                  kiosk.displayName,
-                  kiosk.assignment.organizationName ??
-                    kiosk.assignment.storeName ??
-                    "Platform fleet",
-                  kiosk.status,
-                  formatOptionalDate(kiosk.lastSeenAt),
-                ])}
-            />
-          ) : null}
-          {isStoreScope && canViewStoreDetails ? (
-            <DashboardTable
-              title={isStoreScope ? "Products" : "Product Usage"}
-              icon={<PackageIcon size={18} aria-hidden="true" />}
-              loading={loading}
-              empty="No product data visible for this scope."
-              headers={
-                isStoreScope
-                  ? ["Product", "Category", "Status", "Try-On"]
-                  : ["Product", "Category", "Looks", "Downloads"]
-              }
-              rows={
-                isStoreScope
-                  ? products
-                      .slice(0, 8)
-                      .map((product) => [
-                        product.name,
-                        product.categoryName,
-                        product.active ? "Active" : "Inactive",
-                        product.vtoEnabled ? "Enabled" : "Disabled",
-                      ])
-                  : (summary?.products ?? []).map((row) => [
-                      row.name,
-                      row.category ?? "-",
-                      displayNumber(row.tryOnsGenerated),
-                      displayNumber(row.downloadsCompleted),
-                    ])
-              }
-            />
-          ) : null}
-          <DashboardTable
-            title={isStoreScope ? "Staff" : "Channels"}
-            icon={
-              isStoreScope ? (
-                <UsersIcon size={18} aria-hidden="true" />
-              ) : (
-                <ActivityIcon size={18} aria-hidden="true" />
-              )
-            }
-            loading={loading}
-            empty="No staff or channel data visible for this scope."
-            headers={
-              isStoreScope
-                ? ["User", "Status", "Roles", "Joined"]
-                : ["Channel", "Runs", "Looks", "Downloads"]
-            }
-            rows={
-              isStoreScope
-                ? staff
-                    .slice(0, 8)
-                    .map((user) => [
-                      user.displayName ?? user.email,
-                      user.status,
-                      roleNames(user.roles),
-                      formatOptionalDate(user.joinedAt),
-                    ])
-                : (summary?.channels ?? []).map((row) => [
-                    channelName(row.channel),
-                    displayNumber(row.runsCreated),
-                    displayNumber(row.tryOnsGenerated),
-                    displayNumber(row.downloadsCompleted),
-                  ])
-            }
-          />
-        </div>
-      </PageSection>
-    </PageContainer>
+        </DialogContent>
+      </Dialog>
+    </main>
   );
-}
-
-function DashboardTable({
-  title,
-  icon,
-  headers,
-  rows,
-  empty,
-  loading,
-}: {
-  title: string;
-  icon: ReactNode;
-  headers: string[];
-  rows: ReactNode[][];
-  empty: string;
-  loading: boolean;
-}) {
-  return (
-    <TableContainer
-      title={title}
-      actions={<div className="text-primary">{icon}</div>}
-    >
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {headers.map((header) => (
-              <TableHead key={header}>{header}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading ? (
-            <TableRow>
-              <TableCell colSpan={headers.length}>
-                Loading dashboard...
-              </TableCell>
-            </TableRow>
-          ) : rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={headers.length}>{empty}</TableCell>
-            </TableRow>
-          ) : (
-            rows.map((row, rowIndex) => (
-              <TableRow key={`${title}-${rowIndex}`}>
-                {row.map((cell, cellIndex) => (
-                  <TableCell
-                    key={`${title}-${rowIndex}-${cellIndex}`}
-                    className={cellIndex === 0 ? "font-medium" : undefined}
-                  >
-                    {cell}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-}
-
-function AccessError({ message }: { message: string }) {
-  return (
-    <PageSection>
-      <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-        <ShieldAlertIcon size={18} aria-hidden="true" />
-        {message}
-      </div>
-    </PageSection>
-  );
-}
-
-function storeOptionFromAdminStore(store: AdminStore): StoreOption {
-  return { id: store.id, name: store.name };
-}
-
-function roleNames(roles: Array<{ name: string }>): string {
-  return roles.length > 0 ? roles.map((role) => role.name).join(", ") : "-";
-}
-
-function channelName(value: string): string {
-  return value === "PUBLIC_API" ? "Public API" : "Kiosk";
-}
-
-function displayNumber(value: number | null | undefined): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
-    value ?? 0,
-  );
-}
-
-function displayPercent(value: number | null | undefined): string {
-  return `${new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 1,
-  }).format(value ?? 0)}%`;
-}
-
-function formatDate(value: string) {
-  return <RegionalDateTime value={value} />;
-}
-
-function formatOptionalDate(value: string | null) {
-  return value ? <RegionalDateTime value={value} /> : "-";
-}
-
-function messageFor(caught: unknown): string {
-  if (caught instanceof SafeApiError) {
-    return caught.message;
-  }
-  if (caught instanceof Error) {
-    return caught.message;
-  }
-  return "Dashboard data could not be loaded.";
 }

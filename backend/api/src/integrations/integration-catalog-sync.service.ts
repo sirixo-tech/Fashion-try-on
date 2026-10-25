@@ -334,7 +334,7 @@ export class IntegrationCatalogSyncService {
           organizationId: credential.storeId,
           status: { in: [IntegrationStatus.ACTIVE, IntegrationStatus.ERROR] },
         },
-        select: { id: true },
+        select: { id: true, metadata: true },
       });
       if (stores[0]?.status !== OrganizationStatus.ACTIVE || !integration) {
         throw new ApiErrorException(
@@ -369,6 +369,27 @@ export class IntegrationCatalogSyncService {
           observedAt,
           result,
         );
+      }
+      if (
+        credential.integrationType === "WOOCOMMERCE" &&
+        input.mode === "FULL" &&
+        input.finalize
+      ) {
+        const metadata =
+          integration.metadata &&
+          typeof integration.metadata === "object" &&
+          !Array.isArray(integration.metadata)
+            ? integration.metadata
+            : {};
+        await tx.integration.update({
+          where: { id: credential.integrationId },
+          data: {
+            metadata: {
+              ...metadata,
+              lastCatalogSyncAt: new Date().toISOString(),
+            },
+          },
+        });
       }
       return result;
     });

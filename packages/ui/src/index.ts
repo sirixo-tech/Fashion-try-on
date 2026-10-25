@@ -123,6 +123,13 @@ export { UserMenu } from "./selfx/user-menu";
 export { AppSidebar } from "./selfx/app-sidebar";
 export { AppHeader } from "./selfx/app-header";
 export { AppShell } from "./selfx/app-shell";
+export { CapitalioDashboard } from "./selfx/capitalio/dashboard";
+export type {
+  CapitalioDashboardMetrics,
+  CapitalioDashboardProps,
+  DashboardPoint,
+  DashboardProduct,
+} from "./selfx/capitalio/types";
 export { ConfirmDialog } from "./selfx/confirm-dialog";
 export { FilterBar } from "./selfx/filter-bar";
 export {

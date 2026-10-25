@@ -1,0 +1,95 @@
+/* Capitalio layout adaptation, MIT © Watermelon Contributors; see ../selfx/capitalio/LICENSE. */
+.selfx-capitalio-shell,
+.capitalio-dashboard-content {
+  --dashboard-green: #00bf87;
+  --dashboard-blue: #0084ff;
+  --dashboard-orange: #ff7a00;
+  --dashboard-purple: #7466f6;
+}
+.selfx-capitalio-shell {
+  --background: #ffffff;
+  --card: #ffffff;
+  --border: #e7e7e7;
+  --muted: #f4f4f4;
+  --muted-foreground: #7b7b82;
+  --sidebar-border: #ededed;
+  --sidebar-accent: #f7f7f7;
+  --sidebar-accent-foreground: #17171b;
+}
+.dark .selfx-capitalio-shell {
+  --background: #151517;
+  --card: #1a1a1d;
+  --border: #2c2c30;
+  --muted: #232326;
+  --muted-foreground: #a4a4ac;
+  --sidebar-accent: #252528;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #2c2c30;
+}
+.selfx-capitalio-shell > div > aside {
+  border-right-color: transparent;
+}
+.selfx-capitalio-shell nav[aria-label="Primary"] {
+  padding-inline: 1rem;
+}
+.selfx-capitalio-shell nav[aria-label="Primary"] > * + * {
+  margin-top: 0.4rem;
+}
+.selfx-capitalio-shell nav[aria-label="Primary"] a,
+.selfx-capitalio-shell nav[aria-label="Primary"] button {
+  min-height: 2.9rem;
+  font-weight: 400;
+}
+.selfx-capitalio-shell nav[aria-label="Primary"] a[aria-current="page"] {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 0 5px rgb(0 0 0 / 9%);
+}
+.selfx-capitalio-shell
+  nav[aria-label="Primary"]
+  a[aria-current="page"]::before {
+  display: none;
+}
+.capitalio-panel {
+  box-shadow: inset 4px 0 4px rgb(0 0 0 / 1%);
+}
+.capitalio-panel.selfx-card-motion {
+  transform: none;
+}
+.capitalio-icon {
+  background: conic-gradient(
+    from 90deg,
+    #5e5959,
+    #242424 12.5%,
+    #1d1b1b 28%,
+    #585656 39%,
+    #242222 55%,
+    #464242 71%,
+    #242424 82%,
+    #5e5959
+  );
+  box-shadow: 1px 1px 0 rgb(0 0 0 / 25%);
+}
+.capitalio-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.capitalio-dot-grid {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--foreground), transparent 88%) 1px,
+    transparent 1px
+  );
+  background-size: 1.5rem 1.5rem;
+}
+.capitalio-dashboard-content [data-slot="table-head"] {
+  font-size: 0.75rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .capitalio-dashboard-content *,
+  .selfx-capitalio-shell aside {
+    transition: none !important;
+    animation: none !important;
+  }
+}

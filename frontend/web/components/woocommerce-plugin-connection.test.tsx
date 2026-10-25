@@ -66,6 +66,7 @@ it("generates a catalog-only credential, shows it once and clears it when dismis
       onCredential={update}
     />,
   );
+  fireEvent.click(screen.getByRole("button", { name: /Advanced connection/ }));
   fireEvent.click(
     screen.getByRole("button", { name: "Generate plugin token" }),
   );
@@ -111,6 +112,7 @@ it("clears a shown secret when management permission is revoked", async () => {
   });
   const props = { accessToken: "staff", integration, onCredential: vi.fn() };
   const view = render(<WooCommercePluginConnection {...props} canManage />);
+  fireEvent.click(screen.getByRole("button", { name: /Advanced connection/ }));
   fireEvent.click(
     screen.getByRole("button", { name: "Generate plugin token" }),
   );
@@ -132,6 +134,7 @@ it("requires confirmation to revoke and applies the returned status", async () =
       onCredential={update}
     />,
   );
+  fireEvent.click(screen.getByRole("button", { name: /Advanced connection/ }));
   fireEvent.click(
     screen.getByRole("button", { name: "Revoke WordPress catalog sync" }),
   );
@@ -169,6 +172,7 @@ it("discards an in-flight credential result when switching away from the connect
       onCredential={update}
     />,
   );
+  fireEvent.click(screen.getByRole("button", { name: /Advanced connection/ }));
   fireEvent.click(
     screen.getByRole("button", { name: "Generate plugin token" }),
   );

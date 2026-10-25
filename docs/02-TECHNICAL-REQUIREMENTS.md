@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### WooCommerce platform monitoring (2026-10-25)
+
+Provide a paginated, searchable WooCommerce operations overview through `GET /api/v1/admin/integrations/woocommerce/overview`. Unscoped queries require Platform INTEGRATIONS_VIEW or INTEGRATIONS_MANAGE; Store queries require the existing server-side Store integration permission. Do not require unrelated STORES_VIEW authority or return credentials, token hashes, link state or arbitrary integration metadata in the overview. Count active parent product mappings, excluding variants, and successful WooCommerce generations from durable BillableGeneration records over the last 30 days, independently of credits consumed or billing mode. Summary counts cover all matching Stores rather than the current page. Connection health reflects Store status, integration status and an unexpired credential, not proof that WordPress is reachable.
+
+After a WooCommerce full scan finalizes successfully, save `lastCatalogSyncAt` in existing integration metadata inside the catalog transaction, preserving other metadata. Incremental batches, partial scans and rolled-back syncs do not advance this receipt. Existing connections without a receipt remain unknown until a completed full sync; never substitute connection updates or source snapshot dates. WordPress retains local retry/progress reporting. No migration is needed.
+
+### Capitalio dashboard adapter (2026-10-25)
+
+Keep reusable Capitalio-derived visualization components, chart types, icon artwork, scoped styling and MIT attribution inside `packages/ui`, exported through public `@selfx/ui` APIs. Use the existing SelfX Card, Button, Table, Progress, Badge and dialog primitives. The web app owns authenticated scope resolution, API requests, comparison-window mapping and CSV export. Recharts 3 supplies visual charts; no parallel component framework, new persistence, provider calls or external analytics service is introduced.
+
+Resolve platform/Store access before data requests, preserve server-side tenant checks and gate usage by analytics permission/entitlement. Gate catalog, staff and kiosk requests independently; pagination totals supply full catalog/team counts. Render only the snapshot matching the current token, scope, range, refresh and access version. Discard late responses and invalidate context on permission/impersonation events. Growth compares equal adjacent time windows; absent or zero prior volume yields an unavailable comparison. Export only the currently authorized aggregate data; quote CSV fields and neutralize spreadsheet formulas in external names.
+
 ### Commerce recovery and Shopify billing (2026-10-25)
 
 Shopify full scans persist cursors and snapshot timestamps, acknowledge each page before checkpointing, and finalize only after a complete scan. Bounded server schedulers run without an open merchant browser; OAuth and embedded connections have distinct recovery owners. Database leases fence competing workers and retries back off to six hours. Signed proxy availability checks fail closed without creating sessions. WooCommerce limit settings are credential-scoped and centrally enforced, including existing sessions. Reconnect retains the approved Store identity.
