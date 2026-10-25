@@ -44,6 +44,63 @@ export const SHOPIFY_LINK_ERROR_CODES = {
 @Injectable()
 export class ShopifyLinkService {
   constructor(private readonly prisma: PrismaService) {}
+  async disconnect(input: CreateShopifyLinkSessionDto) {
+    if (!input.storeId) throw storeNotFound();
+    const shop = normalizeShopDomain(input.shopDomain);
+    const account = normalizeShopId(input.externalAccountId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${input.storeId!}::uuid FOR UPDATE`;
+      const integration = await tx.integration.findFirst({
+        where: {
+          organizationId: input.storeId!,
+          type: "SHOPIFY",
+          externalAccountId: account,
+          metadata: { path: ["shopDomain"], equals: shop },
+        },
+      });
+      if (!integration) throw storeNotFound();
+      if (
+        await tx.shopifyBillingAgreement.count({
+          where: {
+            integrationId: integration.id,
+            externalSubscriptionId: { not: null },
+            status: { in: ["ACTIVE", "FROZEN", "PENDING"] },
+          },
+        })
+      )
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          "SHOPIFY_BILLING_CANCEL_REQUIRED",
+          "Cancel current or pending Shopify approvals before disconnecting this Store.",
+        );
+      await tx.$executeRaw`SELECT id FROM integrations WHERE id = ${integration.id}::uuid FOR UPDATE`;
+      await tx.integrationCredential.updateMany({
+        where: { integrationId: integration.id, status: "ACTIVE" },
+        data: { status: "REVOKED", revokedAt: new Date() },
+      });
+      await tx.integrationProviderCredential.deleteMany({
+        where: { integrationId: integration.id },
+      });
+      await tx.shopifyLinkSession.deleteMany({
+        where: { organizationId: input.storeId!, redeemedAt: null },
+      });
+      await tx.integration.update({
+        where: { id: integration.id },
+        data: { status: "DISCONNECTED", disconnectedAt: new Date(), catalogSyncCheckpoint: Prisma.DbNull, catalogSyncLeaseToken: null, catalogSyncLeaseUntil: null, catalogSyncAttempts: 0 },
+      });
+      await tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          organizationId: input.storeId!,
+          action: "integration.disconnected",
+          resourceType: "integration",
+          resourceId: integration.id,
+          metadata: { source: "SHOPIFY_EMBEDDED_APP", shopDomain: shop },
+        },
+      });
+    });
+    return { disconnected: true };
+  }
 
   async create(
     input: CreateShopifyLinkSessionDto,

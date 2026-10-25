@@ -297,6 +297,7 @@ export class KioskTryOnService {
       organizationId: device.organizationId,
       assignmentScope: device.assignmentScope,
       channel: "KIOSK",
+      requestKey: `kiosk:${device.id}:${clientRequestId}`,
     });
     try {
       const run = await this.prisma.kioskTryOnRun.create({
@@ -549,6 +550,7 @@ export class KioskTryOnService {
       organizationId: device.organizationId,
       assignmentScope: device.assignmentScope,
       channel: "KIOSK",
+      requestKey: `kiosk:${device.id}:${clientRequestId}`,
     });
     try {
       const run = await this.prisma.kioskTryOnRun.create({

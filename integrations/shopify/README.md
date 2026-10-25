@@ -136,11 +136,47 @@ Shopify webhook payload limits as a complete variant snapshot. Webhook-triggered
 reads have a strict timeout so SelfX can return an error within Shopify's
 delivery window and let Shopify retry. The endpoint never writes to Shopify.
 
-## Still Planned
+## Anonymous visitor limits
 
-Scheduled reconciliation, disconnection/relink UI and the complete storefront
-Try-On runtime are not implemented yet. The Theme App Extension block now uses
-the Shopify App Proxy launch bridge, but the customer-facing Try-On destination
-is still owned by `SELFX_STOREFRONT_TRYON_URL`. The standalone CLI environment
-token remains an operator/development path independent of the managed-app
-connection.
+Shopify's app proxy strips cookies and follows server redirects. The launch
+route therefore returns a no-store browser-navigation page (with a fallback
+link) that opens SelfX directly. SelfX establishes an anonymous HttpOnly cookie
+on its own web origin through `/try-on/commerce/visitor`, then binds that
+capability once. Shopify launch visitor tokens are ignored. Returning to another
+product in the same Store retains the limit; another Store has independent
+usage. No login is required. Clearing cookies, private browsing and other
+devices can reset anonymous identity.
+
+Quota admission rechecks limits and request idempotency under a Store-scoped
+PostgreSQL lock. Credit debit and run insertion commit together; duplicate
+requests execute once. Button clicks/session creation do not consume a slot.
+
+Deploy the API, SelfX web and Shopify app server together, applying migration
+`20261025000000_storefront_first_party_visitor` before the new API. The web
+server needs its existing `SELFX_API_UPSTREAM_URL` or explicit public API URL
+to reach the API. Keep web/API production runtime modes consistent. Previously
+issued Shopify sessions with runs require a fresh launch for further generation.
+Verify repeat launches, independent Stores and limits through a real Shopify
+proxy before rollout. No app scopes or theme extension configuration changed.
+
+## Catalog recovery and connection controls
+
+Server schedulers check bounded batches every minute and reconcile approximately every six hours, without an open merchant browser. Failed full scans resume their acknowledged cursor/snapshot and back off. Database leases protect competing workers; incomplete scans never finalize. OAuth connections recover in the SelfX API, embedded-app connections through offline Shopify sessions. Set `SHOPIFY_RECONCILIATION_ENABLED=false` to stop the corresponding scheduler.
+
+The theme button begins hidden and checks the signed app proxy for product, mapping, Store, plan and available-credit eligibility. Temporary failures keep it hidden. Generation still validates current limits and credits. The embedded app supports confirmed disconnect and reconnect to the same approved SelfX Store. Native paid approvals must be cancelled before disconnect. There is no Change Store control. The standalone CLI token remains an operator/development path.
+
+## Existing SelfX plans and Shopify approval
+
+The embedded Plans panel offers active Shopify-compatible plans from the central SelfX catalog. It creates native Shopify 30-day subscriptions; usage plans also require a merchant-selected spending cap and show the successful-generation rate. Free Starter onboarding remains automatic. WooCommerce retains the existing SelfX payment flow.
+
+Paid plan changes use `APPLY_ON_NEXT_BILLING_CYCLE`: the current plan and allowance continue until renewal, and a scheduled banner shows the next plan/date. Currency changes while an agreement is active are rejected because Shopify cannot defer them. Approved prices and entitlements are snapshotted; editing a central plan does not silently change an existing approval. Native API verification controls activation, renewals, cancellation, frozen states and deferred acceptance. Neither callback parameters nor webhook bodies grant entitlement.
+
+For usage pricing, SelfX reserves the shared cap before admitting generation across included Store channels. Only a successful durable result creates a Shopify charge. Failed attempts release reservations; unique generation records and native idempotency keys make retries safe. No pre-approval history is charged to Shopify. Existing manual SelfX plan activation cannot replace a live Shopify subscription. Archiving/permanently deleting a Store also requires cancellation first. Uninstall/redaction stop paid access; privacy redaction erases Shopify identifiers while retaining Store-scoped financial amounts.
+
+Configure **both** API and Shopify server with `SHOPIFY_BILLING_ENABLED=true` and matching `SHOPIFY_BILLING_TEST_MODE=true` for native test-store acceptance. The defaults keep billing disabled until deployment acceptance. After test approval, cancellation, renewal and usage checks, a separately authorized production rollout can use matching `SHOPIFY_BILLING_TEST_MODE=false`. Register the `app_subscriptions/update` subscription at `/webhooks/app_subscriptions_update` from the checked-in TOML. This integration uses Manual Pricing because the approved design includes merchant spending caps and existing plan currencies; [Shopify App Pricing currently lacks usage caps and sets plan prices in USD](https://shopify.dev/docs/apps/launch/billing/shopify-app-pricing#limitations). Verify the app's distribution/pricing configuration before launch and do not enable a conflicting pricing system.
+
+## Deployment of these changes
+
+Apply backend migrations `20261025000000_storefront_first_party_visitor`, `20261025010000_commerce_reconciliation` and `20261025020000_shopify_billing`, plus the app's `20261025010000_catalog_reconciliation` migration in its separate database/schema. Build API/web/app and deploy the theme extension together. `npm run build` and startup setup generate an isolated Shopify Prisma client at `node_modules/@selfx/shopify-prisma-client`, leaving the API's generated client intact. If deployment prunes generated modules, startup setup must regenerate it before loading the server bundle.
+
+Native test charges, a real signed app-proxy browser flow, expired offline-token recovery and live renewal/webhook acceptance remain rollout checks. Local GraphQL/config validation and mocked provider tests do not certify a deployed Shopify installation. See `docs/COMMERCE-FOLLOWUPS-IMPLEMENTATION-REPORT.md` for implementation evidence.

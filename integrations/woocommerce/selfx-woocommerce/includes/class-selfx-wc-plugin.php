@@ -3,6 +3,7 @@ defined('ABSPATH') || exit;
 
 final class SelfX_WC_Plugin {
     public const CONFIG = 'selfx_wc_connection';
+    public const BOUND_STORE = 'selfx_wc_bound_store';
     public const STATE = 'selfx_wc_sync_state';
     public const PENDING = 'selfx_wc_pending_link';
     public const DIRTY = 'selfx_wc_dirty_';
@@ -18,6 +19,7 @@ final class SelfX_WC_Plugin {
         add_action('rest_api_init', array($this, 'register_link_proof'));
         add_action('admin_post_selfx_wc_disconnect', array($this, 'disconnect'));
         add_action('admin_post_selfx_wc_sync', array($this, 'manual'));
+        add_action('admin_post_selfx_wc_limits', array($this, 'save_limits'));
         // WooCommerce's bundled Action Scheduler initializes at init priority 1.
         add_action('action_scheduler_init', array($this, 'initialize'));
         add_action('init', array($this, 'initialize'), 20);
@@ -130,6 +132,9 @@ final class SelfX_WC_Plugin {
                     || empty($result['storeId']) || empty($result['storeName']) || empty($result['integrationId'])
                     || empty($result['integrationToken'])) { throw new SelfX_WC_Error('LINK_RESPONSE_INVALID'); }
                 $encrypted = SelfX_WC_Client::encrypt($result['integrationToken']);
+                $bound = get_option(self::BOUND_STORE, '');
+                if ($bound && $bound !== $result['storeId']) { throw new SelfX_WC_Error('STORE_BINDING_LOCKED'); }
+                update_option(self::BOUND_STORE, $result['storeId'], false);
                 self::unschedule(); self::clear_dirty();
                 update_option(self::CONFIG, array('origin' => $pending['origin'], 'credential' => $encrypted,
                     'connectionId' => wp_generate_uuid4(), 'storeId' => $result['storeId'],
@@ -158,9 +163,11 @@ final class SelfX_WC_Plugin {
             if ($token === '' && !empty($current['credential'])) { $token = SelfX_WC_Client::decrypt($current['credential']); }
             $client = new SelfX_WC_Client($origin, $token);
             $context = $client->context();
-            if (!empty($current['storeId']) && $current['storeId'] !== $context['store']['id'] && empty($_POST['confirm_store_change'])) {
-                throw new SelfX_WC_Error('STORE_CHANGE_CONFIRMATION_REQUIRED');
+            $bound = $current['storeId'] ?? get_option(self::BOUND_STORE, '');
+            if ($bound && $bound !== $context['store']['id']) {
+                throw new SelfX_WC_Error('STORE_BINDING_LOCKED');
             }
+            update_option(self::BOUND_STORE, $context['store']['id'], false);
             $encrypted = SelfX_WC_Client::encrypt($token);
             self::unschedule(); self::clear_dirty();
             update_option(self::CONFIG, array('origin' => rtrim($origin, '/'), 'credential' => $encrypted,
@@ -176,6 +183,7 @@ final class SelfX_WC_Plugin {
     }
     public function disconnect(): void {
         $this->authorize('disconnect');
+        if (!empty($this->config()['storeId'])) { update_option(self::BOUND_STORE, $this->config()['storeId'], false); }
         $lock = $this->lock();
         if (!$lock) { wp_die(esc_html__('A catalog batch is running. Try disconnecting again shortly.', 'selfx-woocommerce'), '', array('response' => 409)); }
         self::unschedule(); self::clear_dirty();
@@ -398,6 +406,26 @@ final class SelfX_WC_Plugin {
             if (!isset($response[$key]) || !is_int($response[$key]) || $response[$key] < 0) { throw new SelfX_WC_Error('API_RESPONSE_INVALID'); }
         }
     }
+    public function save_limits(): void {
+        $this->authorize('limits');
+        try {
+            $limits = array();
+            foreach (array('visitorTryOnLimit', 'monthlyStoreTryOnLimit') as $key) {
+                $raw = (string) wp_unslash($_POST[$key] ?? '');
+                if (!preg_match('/^\d{1,7}$/D', $raw) || (int) $raw > 1000000) { throw new SelfX_WC_Error('LIMIT_SETTINGS_INVALID'); }
+                $limits[$key] = (int) $raw;
+            }
+            $period = (string) wp_unslash($_POST['visitorTryOnLimitPeriod'] ?? '');
+            if (!in_array($period, array('DAY', 'WEEK', 'MONTH'), true)) { throw new SelfX_WC_Error('LIMIT_SETTINGS_INVALID'); }
+            $limits['visitorTryOnLimitPeriod'] = $period;
+            $config = $this->config();
+            $this->client($config)->request('PATCH', '/api/v1/integrations/storefront/settings', $limits);
+            $state = $this->state(); $state['message'] = 'Try-On limits saved in SelfX.'; update_option(self::STATE, $state, false);
+        } catch (Throwable $error) {
+            $state = $this->state(); $state['message'] = SelfX_WC_Client::friendly_error($this->safe_error($error), false); update_option(self::STATE, $state, false);
+        }
+        $this->redirect();
+    }
     private function safe_error(Throwable $error): string {
         return $error instanceof SelfX_WC_Error && preg_match('/^[A-Z0-9_]{1,80}$/D', $error->getMessage()) ? $error->getMessage() : 'SYNC_UNAVAILABLE';
     }
@@ -405,8 +433,8 @@ final class SelfX_WC_Plugin {
         if (!current_user_can('manage_woocommerce')) { return; }
         $config = $this->config(); $state = $this->state();
         echo '<div class="wrap"><h1>SelfX for WooCommerce</h1><p>Sync your website catalog into its connected SelfX Store. WooCommerce keeps control of products, stock, prices and checkout.</p>';
-        if (!empty($state['message'])) { echo '<div class="notice notice-info"><p>' . esc_html($state['message']) . '</p></div>'; }
-        if (!empty($state['error'])) { echo '<p><strong>Last issue:</strong> ' . esc_html($state['error']) . '</p>'; }
+        if (!empty($state['message'])) { echo '<div class="notice notice-info"><p>' . esc_html(preg_match('/^[A-Z0-9_]{1,80}$/D', $state['message']) ? SelfX_WC_Client::friendly_error($state['message'], false) : $state['message']) . '</p></div>'; }
+        if (!empty($state['error'])) { echo '<p><strong>Last issue:</strong> ' . esc_html(SelfX_WC_Client::friendly_error($state['error'], false)) . '</p>'; }
         echo '<h2>Connection</h2>';
         $pending = get_option(self::PENDING, array());
         if (!$config && is_array($pending) && !empty($pending['approvalUrl']) && time() < (int) ($pending['expiresAt'] ?? 0)) {
@@ -447,10 +475,21 @@ final class SelfX_WC_Plugin {
         wp_nonce_field('selfx_wc_connect');
         echo '<table class="form-table"><tr><th><label for="selfx-origin">SelfX API address</label></th><td><input class="regular-text" type="url" required id="selfx-origin" name="api_origin" value="' . esc_attr($config['origin'] ?? SelfX_WC_Client::DEFAULT_ORIGIN) . '"></td></tr>';
         echo '<tr><th><label for="selfx-token">Integration token</label></th><td><input class="regular-text" type="password" autocomplete="new-password" id="selfx-token" name="integration_token" value="" placeholder="' . esc_attr($config ? 'Saved token retained if blank' : 'Paste your WooCommerce integration token') . '"></td></tr></table>';
-        if ($config) { echo '<p><label><input type="checkbox" name="confirm_store_change" value="1"> Confirm if the new token belongs to a different SelfX Store</label></p>'; }
+        if ($config) { echo '<p>This website stays linked to its approved SelfX Store. Reconnect restores the same Store.</p>'; }
         submit_button($config ? 'Verify / reconnect' : 'Connect and sync'); echo '</form></details>';
         if ($config) {
             echo '<h2>Catalog sync</h2><p><strong>Status:</strong> ' . esc_html($state['status'] ?? 'QUEUED') . '</p>';
+            try {
+                $limits = $this->client($config)->request('GET', '/api/v1/integrations/storefront/settings');
+                echo '<h2>Try-On limits</h2><p>Set 0 for no custom limit. Store plan and credits still apply. Anonymous limits apply per browser.</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="selfx_wc_limits">';
+                wp_nonce_field('selfx_wc_limits');
+                foreach (array('visitorTryOnLimit' => 'Try-Ons per visitor', 'monthlyStoreTryOnLimit' => 'Try-Ons per Store per month') as $key => $label) {
+                    echo '<p><label>' . esc_html($label) . ' <input type="number" min="0" max="1000000" required name="' . esc_attr($key) . '" value="' . esc_attr((string) ($limits[$key] ?? 0)) . '"></label></p>';
+                }
+                echo '<p><label>Visitor allowance period <select name="visitorTryOnLimitPeriod">';
+                foreach (array('DAY' => 'Day', 'WEEK' => 'Week', 'MONTH' => 'Month') as $key => $label) { echo '<option value="' . esc_attr($key) . '"' . (($limits['visitorTryOnLimitPeriod'] ?? 'DAY') === $key ? ' selected' : '') . '>' . esc_html($label) . '</option>'; }
+                echo '</select></label></p>'; submit_button('Save Try-On limits'); echo '</form>';
+            } catch (Throwable $error) { echo '<p>' . esc_html(SelfX_WC_Client::friendly_error($this->safe_error($error), false)) . '</p>'; }
             foreach (array('lastSuccessAt' => 'Last successful batch', 'lastFullSyncAt' => 'Last completed full sync', 'nextRetryAt' => 'Next retry') as $key => $label) {
                 if (!empty($state[$key])) { echo '<p>' . esc_html($label) . ': ' . esc_html($state[$key]) . ' (UTC)</p>'; }
             }

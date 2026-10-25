@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "npm run build:integration && react-router build",
+    "build": "prisma generate && npm run build:integration && react-router build",
     "build:integration": "tsc -p tsconfig.integration.json",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",

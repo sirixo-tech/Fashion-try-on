@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/@selfx/shopify-prisma-client"
 }
 
 // Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
@@ -56,6 +57,12 @@ model SelfxConnection {
   linkedAt                   DateTime?
   syncStatus                 String    @default("NOT_STARTED")
   lastSyncAt                 DateTime?
+  syncCheckpoint             Json?
+  syncLeaseToken             String?
+  syncLeaseUntil             DateTime?
+  nextSyncAt                 DateTime  @default(now())
+  nextBillingCheckAt         DateTime  @default(now())
+  syncAttempts               Int       @default(0)
   lastSyncProducts           Int       @default(0)
   lastSyncVariants           Int       @default(0)
   lastSyncCreated            Int       @default(0)
@@ -67,4 +74,6 @@ model SelfxConnection {
   updatedAt                  DateTime  @updatedAt
 
   @@index([status, updatedAt])
+  @@index([status, nextSyncAt])
+  @@index([nextBillingCheckAt, shop])
 }

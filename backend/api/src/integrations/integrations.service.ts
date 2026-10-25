@@ -176,6 +176,22 @@ export class IntegrationsService {
     const current = await this.requireIntegration(integrationId);
     const now = new Date();
     const disconnected = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${current.organizationId}::uuid FOR UPDATE`;
+      if (
+        current.type === "SHOPIFY" &&
+        (await tx.shopifyBillingAgreement.count({
+          where: {
+            integrationId,
+            externalSubscriptionId: { not: null },
+            status: { in: ["ACTIVE", "FROZEN", "PENDING"] },
+          },
+        }))
+      )
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          "SHOPIFY_BILLING_CANCEL_REQUIRED",
+          "Cancel current or pending Shopify approvals before disconnecting.",
+        );
       await tx.integrationProviderCredential.deleteMany({
         where: { integrationId },
       });

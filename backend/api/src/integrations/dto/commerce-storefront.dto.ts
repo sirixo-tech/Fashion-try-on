@@ -6,6 +6,10 @@ import {
   Length,
   Matches,
   MaxLength,
+  IsInt,
+  IsIn,
+  Min,
+  Max,
 } from "class-validator";
 import { STOREFRONT_CONSENT_VERSION } from "../commerce-storefront-try-on.service.js";
 export class WooCommerceLaunchDto {
@@ -19,4 +23,10 @@ export class WooCommerceAvailabilityDto {
 export class StorefrontConsentDto {
   @IsBoolean() @Equals(true) accepted!: boolean;
   @IsString() @Equals(STOREFRONT_CONSENT_VERSION) policyVersion!: string;
+}
+export class StorefrontLimitsDto {
+  @IsInt() @Min(0) @Max(1_000_000) visitorTryOnLimit!: number;
+  @IsIn(["DAY", "WEEK", "MONTH"]) visitorTryOnLimitPeriod!:
+    "DAY" | "WEEK" | "MONTH";
+  @IsInt() @Min(0) @Max(1_000_000) monthlyStoreTryOnLimit!: number;
 }

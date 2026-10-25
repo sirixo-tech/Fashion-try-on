@@ -24,6 +24,14 @@ export class ShopifyLinkController {
     private readonly serviceAuth: ShopifyAppServiceAuthService,
     private readonly links: ShopifyLinkService,
   ) {}
+  @Post("connection/disconnect")
+  disconnect(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) serviceToken: string | undefined,
+    @Body() body: CreateShopifyLinkSessionDto,
+  ) {
+    this.serviceAuth.requireServiceToken(serviceToken);
+    return this.links.disconnect(body);
+  }
 
   @Post()
   @ApiOperation({

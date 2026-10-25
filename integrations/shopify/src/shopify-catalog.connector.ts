@@ -23,6 +23,21 @@ export type ShopifyCatalogSyncReport = {
 type ShopifyReader = {
   listProductsPage(after: string | null): Promise<ShopifyProductPage>;
 };
+export type ShopifyCatalogSyncCheckpoint = {
+  sourceSnapshotAt: string;
+  cursor: string | null;
+  scanComplete: boolean;
+  totals: {
+    productsRead: number;
+    variantsRead: number;
+    submittedBatches: number;
+    created: number;
+    updated: number;
+    archived: number;
+    ignoredAsStale: number;
+    skippedWithoutImage: number;
+  };
+};
 
 type SelfxWriter = {
   sync(input: {
@@ -41,8 +56,12 @@ export class ShopifyCatalogConnector {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  async runFullSync(): Promise<ShopifyCatalogSyncReport> {
-    const sourceSnapshotAt = this.now().toISOString();
+  async runFullSync(
+    checkpoint?: ShopifyCatalogSyncCheckpoint,
+    save?: (state: ShopifyCatalogSyncCheckpoint) => Promise<void>,
+  ): Promise<ShopifyCatalogSyncReport> {
+    const sourceSnapshotAt =
+      checkpoint?.sourceSnapshotAt ?? this.now().toISOString();
     const totals = {
       productsRead: 0,
       variantsRead: 0,
@@ -53,17 +72,42 @@ export class ShopifyCatalogConnector {
       ignoredAsStale: 0,
       skippedWithoutImage: 0,
     };
-    let cursor: string | null = null;
+    if (checkpoint) Object.assign(totals, checkpoint.totals);
+    let cursor: string | null = checkpoint?.cursor ?? null;
     let pending: SelfxCatalogProduct[] = [];
-
-    do {
-      const page = await this.shopify.listProductsPage(cursor);
-      for (const product of page.products) {
-        const normalized = mapShopifyProduct(product, page.currencyCode);
-        pending.push(normalized);
-        totals.productsRead += 1;
-        totals.variantsRead += normalized.variants.length;
-        if (pending.length >= this.batchSize) {
+    if (save)
+      await save({
+        sourceSnapshotAt,
+        cursor,
+        scanComplete: checkpoint?.scanComplete ?? false,
+        totals: { ...totals },
+      });
+    if (!checkpoint?.scanComplete) {
+      do {
+        const page = await this.shopify.listProductsPage(cursor);
+        for (const product of page.products) {
+          const normalized = mapShopifyProduct(product, page.currencyCode);
+          pending.push(normalized);
+          totals.productsRead += 1;
+          totals.variantsRead += normalized.variants.length;
+          if (pending.length >= this.batchSize) {
+            addResponse(
+              totals,
+              await this.selfx.sync({
+                mode: "FULL",
+                sourceSnapshotAt,
+                finalize: false,
+                products: pending,
+              }),
+            );
+            totals.submittedBatches += 1;
+            pending = [];
+          }
+        }
+        cursor = page.hasNextPage ? requiredCursor(page.endCursor) : null;
+        // Persist only after every item on this page has reached SelfX. Retrying
+        // an unacknowledged page is safe under the same source snapshot.
+        if (pending.length > 0) {
           addResponse(
             totals,
             await this.selfx.sync({
@@ -76,9 +120,15 @@ export class ShopifyCatalogConnector {
           totals.submittedBatches += 1;
           pending = [];
         }
-      }
-      cursor = page.hasNextPage ? requiredCursor(page.endCursor) : null;
-    } while (cursor);
+        if (save)
+          await save({
+            sourceSnapshotAt,
+            cursor,
+            scanComplete: !page.hasNextPage,
+            totals: { ...totals },
+          });
+      } while (cursor);
+    }
 
     if (pending.length > 0) {
       addResponse(

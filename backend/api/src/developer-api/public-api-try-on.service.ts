@@ -228,6 +228,7 @@ export class PublicApiTryOnService {
       organizationId: credential.storeId,
       assignmentScope: "ORGANIZATION",
       channel: "PUBLIC_API",
+      requestKey: `api:${credential.apiKeyId}:${clientRequestId}`,
     });
     try {
       const run = await this.prisma.kioskTryOnRun.create({

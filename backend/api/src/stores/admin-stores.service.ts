@@ -575,6 +575,20 @@ export class AdminStoresService {
         data,
       });
       if (updated.status === OrganizationStatus.ARCHIVED) {
+        if (
+          await tx.shopifyBillingAgreement.count({
+            where: {
+              organizationId: storeId,
+              externalSubscriptionId: { not: null },
+              status: { in: ["ACTIVE", "FROZEN", "PENDING"] },
+            },
+          })
+        )
+          throw new ApiErrorException(
+            HttpStatus.CONFLICT,
+            "SHOPIFY_BILLING_CANCEL_REQUIRED",
+            "Cancel this Store's Shopify subscription and pending approvals before archiving it.",
+          );
         await this.disconnectArchivedStoreIntegrations(
           tx,
           storeId,

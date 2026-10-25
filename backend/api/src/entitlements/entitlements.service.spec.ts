@@ -50,7 +50,10 @@ describe("EntitlementsService", () => {
   it("does not grant Starter credits when another channel reads a paid Store", async () => {
     const prisma = new FakeEntitlementsPrisma();
     prisma.subscriptions.set("paid-store", {
-      id: "subscription-1", organizationId: "paid-store", pricingPlanId: "payg-plan", status: "ACTIVE",
+      id: "subscription-1",
+      organizationId: "paid-store",
+      pricingPlanId: "payg-plan",
+      status: "ACTIVE",
     });
     const service = new EntitlementsService(prisma as never);
     await service.ensureTrialCredits("paid-store");
@@ -329,6 +332,20 @@ class FakeEntitlementsPrisma {
   };
 
   creditLedgerEntry = {
+    createMany: vi.fn(({ data }: { data: FakeLedgerEntry[] }) => {
+      let count = 0;
+      for (const entry of data) {
+        if (
+          !this.ledger.some(
+            (stored) => stored.idempotencyKey === entry.idempotencyKey,
+          )
+        ) {
+          this.ledger.push({ ...entry });
+          count++;
+        }
+      }
+      return { count };
+    }),
     aggregate: vi.fn(({ where }: { where: { organizationId: string } }) => ({
       _sum: {
         quantity: this.ledger

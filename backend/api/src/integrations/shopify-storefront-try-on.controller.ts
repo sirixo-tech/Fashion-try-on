@@ -75,6 +75,14 @@ export class ShopifyStorefrontTryOnController {
     this.serviceAuth.requireServiceToken(serviceToken);
     return this.tryOns.getCreditSummaryForShop(shop);
   }
+  @Post("availability")
+  availability(
+    @Headers(SHOPIFY_APP_SERVICE_TOKEN_HEADER) serviceToken: string | undefined,
+    @Body() body: CreateShopifyStorefrontTryOnSessionDto,
+  ) {
+    this.serviceAuth.requireServiceToken(serviceToken);
+    return this.tryOns.shopifyAvailability(body);
+  }
 
   @Get("usage-summary")
   @ApiOperation({

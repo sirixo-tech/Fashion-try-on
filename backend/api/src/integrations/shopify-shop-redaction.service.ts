@@ -1,5 +1,9 @@
 import { Injectable } from "@nestjs/common";
-import { IntegrationEventStatus, IntegrationStatus } from "@prisma/client";
+import {
+  IntegrationEventStatus,
+  IntegrationStatus,
+  Prisma,
+} from "@prisma/client";
 
 import { createSelfxId } from "@selfx/database";
 
@@ -71,6 +75,36 @@ export class ShopifyShopRedactionService {
 
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM organizations WHERE id = ${connection.storeId}::uuid FOR UPDATE`;
+      // Retain Store financial amounts, while erasing Shopify identifiers.
+      await tx.shopifyUsageCharge.updateMany({
+        where: { agreement: { integrationId: connection.integrationId } },
+        data: { externalUsageRecordId: null, status: "REDACTED" },
+      });
+      await tx.shopifyUsageReservation.updateMany({
+        where: {
+          agreement: { integrationId: connection.integrationId },
+          state: "RESERVED",
+        },
+        data: { state: "RELEASED" },
+      });
+      await tx.shopifyBillingAgreement.updateMany({
+        where: { integrationId: connection.integrationId },
+        data: {
+          status: "CANCELLED",
+          shopDomain: `redacted:${connection.integrationId}`,
+          externalSubscriptionId: null,
+          usageLineItemId: null,
+          checkedAt: now,
+        },
+      });
+      await tx.storeSubscription.updateMany({
+        where: {
+          organizationId: connection.storeId,
+          metadata: { path: ["billingProvider"], equals: "SHOPIFY" },
+        },
+        data: { status: "CANCELLED", cancelledAt: now },
+      });
       await tx.kioskTryOnRun.updateMany({
         where: {
           organizationId: connection.storeId,
@@ -215,6 +249,9 @@ export class ShopifyShopRedactionService {
           externalAccountId: null,
           externalAccountName: null,
           metadata: { privacyStatus: "REDACTED" },
+          catalogSyncCheckpoint: Prisma.DbNull,
+          catalogSyncLeaseToken: null,
+          catalogSyncLeaseUntil: null,
           disconnectedAt: now,
         },
       });

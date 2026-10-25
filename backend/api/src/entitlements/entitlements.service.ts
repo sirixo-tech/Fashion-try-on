@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import {
+  reserveShopifyUsage,
+  assertShopifyBillingActive,
+  effectiveShopifyPlan,
+} from "./shopify-usage-billing.js";
 
 import { HttpStatus, Injectable, Optional } from "@nestjs/common";
 import {
@@ -85,6 +90,7 @@ export interface ConsumeTryOnCreditInput {
 }
 
 export interface ConsumeTryOnCreditResult {
+  shopifyReservationId?: string;
   billingCycleId?: string;
   entry: CreditLedgerEntry | null;
   balanceBefore: number;
@@ -159,6 +165,11 @@ export class EntitlementsService {
 
   async getStoreFeatureKeys(organizationId: string): Promise<string[]> {
     const summary = await this.getStoreCreditSummary(organizationId);
+    if (
+      !summary.subscription ||
+      !["ACTIVE", "TRIALING"].includes(summary.subscription.status)
+    )
+      return [];
     return summary.subscription?.featureKeys ?? [];
   }
 
@@ -181,17 +192,25 @@ export class EntitlementsService {
       organizationId: string;
       pricingPlanId: string;
       actorUserId?: string;
+      externalPeriod?: { start: Date; end: Date };
+      billingProvider?: "SHOPIFY";
+      shopifyAgreementId?: string;
+      approvedPlanSnapshot?: import("@prisma/client").PricingPlan;
     },
     transaction?: Prisma.TransactionClient,
   ): Promise<StoreCreditSummary> {
     const activate = async (tx: Prisma.TransactionClient) => {
       const now = new Date();
-      const plan = await tx.pricingPlan.findFirst({
-        where: {
-          id: input.pricingPlanId,
-          status: PricingPlanStatus.ACTIVE,
-        },
-      });
+      const plan =
+        input.billingProvider === "SHOPIFY" &&
+        input.approvedPlanSnapshot?.id === input.pricingPlanId
+          ? input.approvedPlanSnapshot
+          : await tx.pricingPlan.findFirst({
+              where: {
+                id: input.pricingPlanId,
+                status: PricingPlanStatus.ACTIVE,
+              },
+            });
       if (!plan) {
         throw pricingPlanUnavailable();
       }
@@ -220,7 +239,28 @@ export class EntitlementsService {
         where: { organizationId: input.organizationId },
         include: { pricingPlan: true },
       });
+      if (
+        !input.billingProvider &&
+        current?.metadata &&
+        typeof current.metadata === "object" &&
+        !Array.isArray(current.metadata) &&
+        current.metadata.billingProvider === "SHOPIFY" &&
+        (await tx.shopifyBillingAgreement.count({
+          where: {
+            organizationId: input.organizationId,
+            status: { in: ["ACTIVE", "FROZEN", "PENDING"] },
+            externalSubscriptionId: { not: null },
+          },
+        }))
+      ) {
+        throw new ApiErrorException(
+          HttpStatus.CONFLICT,
+          "SHOPIFY_BILLING_MANAGED",
+          "Change this Store's plan in Shopify, or cancel its Shopify subscription first.",
+        );
+      }
       const billingAnchorAt =
+        input.externalPeriod?.start ??
         current?.billingAnchorAt ??
         current?.currentPeriodStart ??
         current?.trialStartedAt ??
@@ -230,13 +270,16 @@ export class EntitlementsService {
         current?.pricingPlanId === plan.id &&
         current.status === StoreSubscriptionStatus.ACTIVE &&
         current.currentPeriodEnd != null &&
-        current.currentPeriodEnd > now;
+        current.currentPeriodEnd > now &&
+        (!input.externalPeriod ||
+          current.currentPeriodStart?.getTime() ===
+            input.externalPeriod.start.getTime());
       const currentPeriodStart = sameActivePeriod
         ? current.currentPeriodStart
-        : now;
+        : (input.externalPeriod?.start ?? now);
       const currentPeriodEnd = sameActivePeriod
         ? current.currentPeriodEnd
-        : addMonths(now, 1);
+        : (input.externalPeriod?.end ?? addMonths(now, 1));
 
       const subscription = await tx.storeSubscription.upsert({
         where: { organizationId: input.organizationId },
@@ -250,7 +293,15 @@ export class EntitlementsService {
           trialCredits: plan.trialCredits,
           currentPeriodStart,
           currentPeriodEnd,
-          metadata: subscriptionMetadataForPlan(plan),
+          metadata: {
+            ...subscriptionMetadataForPlan(plan),
+            ...(input.billingProvider
+              ? {
+                  billingProvider: input.billingProvider,
+                  shopifyAgreementId: input.shopifyAgreementId,
+                }
+              : {}),
+          },
         },
         update: {
           ...(plan.billingMode === "POSTPAID_PAYG" ? { billingAnchorAt } : {}),
@@ -261,7 +312,15 @@ export class EntitlementsService {
           trialCredits: plan.trialCredits,
           currentPeriodStart,
           currentPeriodEnd,
-          metadata: subscriptionMetadataForPlan(plan),
+          metadata: {
+            ...subscriptionMetadataForPlan(plan),
+            ...(input.billingProvider
+              ? {
+                  billingProvider: input.billingProvider,
+                  shopifyAgreementId: input.shopifyAgreementId,
+                }
+              : {}),
+          },
         },
         select: { id: true },
       });
@@ -279,7 +338,8 @@ export class EntitlementsService {
             ? undefined
             : plan,
         );
-        if (!sameActivePeriod) await importCurrentCycleHistory(tx, cycle, now);
+        if (!sameActivePeriod && input.billingProvider !== "SHOPIFY")
+          await importCurrentCycleHistory(tx, cycle, now);
       }
 
       if (!sameActivePeriod && plan.includedCredits > 0) {
@@ -569,9 +629,10 @@ export class EntitlementsService {
 
   async consumeTryOnCredit(
     input: ConsumeTryOnCreditInput,
+    transaction?: Prisma.TransactionClient,
   ): Promise<ConsumeTryOnCreditResult> {
     const quantity = cleanQuantity(input.quantity);
-    return this.prisma.$transaction(async (tx) => {
+    const consume = async (tx: Prisma.TransactionClient) => {
       await this.ensureTrialCredits(input.organizationId, tx);
 
       await lockBillingSubscription(tx, input.organizationId);
@@ -579,6 +640,17 @@ export class EntitlementsService {
         where: { organizationId: input.organizationId },
         include: { pricingPlan: true },
       });
+      if (subscription)
+        subscription.pricingPlan = await effectiveShopifyPlan(
+          tx,
+          subscription.metadata,
+          subscription.pricingPlan,
+        );
+      await assertShopifyBillingActive(
+        tx,
+        input.organizationId,
+        subscription?.metadata ?? null,
+      );
       if (subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
         assertPostpaidActive(subscription.status);
         if (
@@ -591,6 +663,12 @@ export class EntitlementsService {
           );
         }
         const cycle = await ensurePostpaidCycle(tx, subscription);
+        const shopifyReservationId = await reserveShopifyUsage(
+          tx,
+          input.organizationId,
+          input.idempotencyKey,
+          subscription.metadata,
+        );
         const balance = await this.getCreditBalanceWithClient(
           input.organizationId,
           tx,
@@ -598,6 +676,7 @@ export class EntitlementsService {
         return {
           entry: null,
           billingCycleId: cycle.id,
+          shopifyReservationId,
           balanceBefore: balance.availableCredits,
           balanceAfter: balance.availableCredits,
         };
@@ -649,7 +728,10 @@ export class EntitlementsService {
         balanceBefore: balance.availableCredits,
         balanceAfter,
       };
-    });
+    };
+    return transaction
+      ? consume(transaction)
+      : this.prisma.$transaction(consume);
   }
 
   private async getCreditBalanceWithClient(
@@ -677,6 +759,24 @@ export class EntitlementsService {
       }),
     ]);
 
+    if (subscription) {
+      subscription.pricingPlan = await effectiveShopifyPlan(
+        tx,
+        subscription.metadata,
+        subscription.pricingPlan,
+      );
+      try {
+        await assertShopifyBillingActive(
+          tx,
+          organizationId,
+          subscription.metadata,
+        );
+      } catch (error) {
+        if (error instanceof ApiErrorException)
+          subscription.status = StoreSubscriptionStatus.CANCELLED;
+        else throw error;
+      }
+    }
     const postpaid = subscription
       ? await getPostpaidSummary(tx, subscription)
       : null;
@@ -737,13 +837,12 @@ export class EntitlementsService {
     tx: Pick<PrismaService, "creditLedgerEntry">,
     data: Prisma.CreditLedgerEntryUncheckedCreateInput,
   ): Promise<void> {
-    try {
-      await tx.creditLedgerEntry.create({ data });
-    } catch (error) {
-      if (!isUniqueConflict(error)) {
-        throw error;
-      }
-    }
+    // ON CONFLICT DO NOTHING keeps PostgreSQL transactions usable on retries.
+    // Catching a duplicate INSERT would leave an interactive transaction aborted.
+    await tx.creditLedgerEntry.createMany({
+      data: [data],
+      skipDuplicates: true,
+    });
   }
 
   private async platformDefaultCurrency(): Promise<string> {
@@ -896,12 +995,5 @@ function pricingPlanUnavailable(): ApiErrorException {
     HttpStatus.NOT_FOUND,
     ENTITLEMENT_ERROR_CODES.pricingPlanUnavailable,
     "Pricing plan is not active or was not found.",
-  );
-}
-
-function isUniqueConflict(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
   );
 }

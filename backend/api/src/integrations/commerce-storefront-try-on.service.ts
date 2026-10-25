@@ -30,6 +30,7 @@ import {
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { publicTryOnErrorMessage } from "../common/public-try-on-errors.js";
+import type { StorefrontLimitsDto } from "./dto/commerce-storefront.dto.js";
 import {
   TechnicalImageValidationError,
   validateTechnicalImageBuffer,
@@ -84,6 +85,28 @@ export const STOREFRONT_CONSENT_TEXT =
   "I consent to SelfX processing my photo to generate this virtual try-on.";
 
 const storefrontProductImageMaxBytes = PUBLIC_API_UPLOAD_MAX_IMAGE_BYTES;
+function wooLimits(metadata: Prisma.JsonValue | null): StorefrontLimitsDto {
+  const root =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? metadata
+      : {};
+  const raw = root.storefrontLimits;
+  const value =
+    raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const number = (v: unknown, fallback: number) =>
+    typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 1_000_000
+      ? v
+      : fallback;
+  return {
+    visitorTryOnLimit: number(value.visitorTryOnLimit, 5),
+    visitorTryOnLimitPeriod:
+      value.visitorTryOnLimitPeriod === "WEEK" ||
+      value.visitorTryOnLimitPeriod === "MONTH"
+        ? value.visitorTryOnLimitPeriod
+        : "DAY",
+    monthlyStoreTryOnLimit: number(value.monthlyStoreTryOnLimit, 0),
+  };
+}
 export const SHOPIFY_STOREFRONT_TRY_ON_SESSION_LIFETIME_MS = 15 * 60 * 1000;
 
 export const SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES = {
@@ -97,7 +120,17 @@ export const SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES = {
   runNotFound: "SHOPIFY_STOREFRONT_TRYON_RUN_NOT_FOUND",
   visitorLimitReached: "SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED",
   monthlyLimitReached: "SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED",
+  visitorRequired: "STOREFRONT_VISITOR_REQUIRED",
+  visitorMismatch: "STOREFRONT_VISITOR_MISMATCH",
 } as const;
+
+function visitorError(kind: "visitorRequired" | "visitorMismatch") {
+  return new ApiErrorException(
+    HttpStatus.CONFLICT,
+    SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES[kind],
+    "Return to the product page and start Try-On again in this browser.",
+  );
+}
 
 type ShopifyProductContext = {
   source?: "SHOPIFY" | "WOOCOMMERCE";
@@ -245,11 +278,62 @@ export class CommerceStorefrontTryOnService {
     }
   }
 
+  async wooSettings(credential: IntegrationCredentialContext) {
+    if (credential.integrationType !== "WOOCOMMERCE")
+      throw productUnavailable();
+    const integration = await this.prisma.integration.findFirst({
+      where: {
+        id: credential.integrationId,
+        organizationId: credential.storeId,
+        type: "WOOCOMMERCE",
+        status: "ACTIVE",
+        organization: { status: "ACTIVE" },
+      },
+      select: { metadata: true },
+    });
+    if (!integration) throw productUnavailable();
+    return wooLimits(integration.metadata);
+  }
+
+  async saveWooSettings(
+    credential: IntegrationCredentialContext,
+    input: StorefrontLimitsDto,
+  ) {
+    await this.wooSettings(credential);
+    await this.entitlements.assertStoreHasFeature(
+      credential.storeId,
+      "CUSTOM_LIMITS",
+    );
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM integrations WHERE id = ${credential.integrationId}::uuid FOR UPDATE`;
+      const current = await tx.integration.findFirstOrThrow({
+        where: {
+          id: credential.integrationId,
+          organizationId: credential.storeId,
+          status: "ACTIVE",
+          organization: { status: "ACTIVE" },
+        },
+      });
+      const metadata =
+        current.metadata &&
+        typeof current.metadata === "object" &&
+        !Array.isArray(current.metadata)
+          ? current.metadata
+          : {};
+      await tx.integration.update({
+        where: { id: current.id },
+        data: { metadata: { ...metadata, storefrontLimits: { ...input } } },
+      });
+    });
+    return input;
+  }
+
   async createWooCommerceSession(
     credential: IntegrationCredentialContext,
     input: { externalProductId: string; visitorToken: string; locale?: string },
   ) {
     const context = await this.wooContext(credential, input.externalProductId);
+    const limits = await this.wooSettings(credential);
     const count = await this.prisma.shopifyStorefrontTryOnSession.count({
       where: {
         integrationId: credential.integrationId,
@@ -267,8 +351,7 @@ export class CommerceStorefrontTryOnService {
         externalProductId: input.externalProductId,
         visitorToken: input.visitorToken,
         locale: input.locale,
-        visitorTryOnLimit: 5,
-        visitorTryOnLimitPeriod: "DAY",
+        ...limits,
       },
       context,
     );
@@ -276,6 +359,7 @@ export class CommerceStorefrontTryOnService {
 
   async acceptPhotoConsent(sessionToken: string) {
     const capability = await this.requireActiveCapability(sessionToken);
+    this.assertVisitorBound(capability);
     await this.prisma.auditLog.create({
       data: {
         id: createSelfxId(),
@@ -297,6 +381,7 @@ export class CommerceStorefrontTryOnService {
 
   async requirePhotoConsent(sessionToken: string) {
     const capability = await this.requireActiveCapability(sessionToken);
+    this.assertVisitorBound(capability);
     const consent = await this.prisma.auditLog.findFirst({
       where: {
         organizationId: capability.organizationId,
@@ -323,9 +408,31 @@ export class CommerceStorefrontTryOnService {
     input: CreateShopifyStorefrontTryOnSessionDto,
   ): Promise<ShopifyStorefrontTryOnSessionDto> {
     return this.createContextSession(
-      input,
+      // Shopify's proxy cannot carry browser cookies. Bind only on SelfX.
+      { ...input, visitorToken: undefined },
       await this.requireEligibleProduct(input),
     );
+  }
+  async shopifyAvailability(input: CreateShopifyStorefrontTryOnSessionDto) {
+    try {
+      const context = await this.requireEligibleProduct(input);
+      await this.entitlements.assertStoreHasFeature(
+        context.storeId,
+        "SHOPIFY_INTEGRATION",
+      );
+      const summary = await this.entitlements.getStoreCreditSummary(
+        context.storeId,
+      );
+      return {
+        available:
+          ["ACTIVE", "TRIALING"].includes(summary.subscription?.status ?? "") &&
+          (summary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG" ||
+            summary.availableCredits > 0),
+      };
+    } catch (error) {
+      if (error instanceof ApiErrorException) return { available: false };
+      throw error;
+    }
   }
 
   private async createContextSession(
@@ -352,6 +459,8 @@ export class CommerceStorefrontTryOnService {
       shopDomain,
       source: context.source,
       ...limits,
+      visitorTryOnLimit:
+        context.source === "WOOCOMMERCE" ? limits.visitorTryOnLimit : 0,
     });
     const expiresAt = new Date(
       Date.now() + SHOPIFY_STOREFRONT_TRY_ON_SESSION_LIFETIME_MS,
@@ -439,6 +548,50 @@ export class CommerceStorefrontTryOnService {
       locale: capability.storefrontLocale,
       product: toCapabilityProductDto(capability),
     };
+  }
+
+  async bindFirstPartyVisitor(sessionToken: string, visitorToken: string) {
+    const capability = await this.requireActiveCapability(sessionToken);
+    // WooCommerce retains its existing WordPress-side visitor binding.
+    if (capability.integration.type !== "SHOPIFY")
+      return { bound: true, cookieRequired: false };
+    if (!validSessionToken(visitorToken)) throw visitorError("visitorRequired");
+    const visitorTokenHash = createHash("sha256")
+      .update(`selfx-web-visitor:${capability.organizationId}:${visitorToken}`)
+      .digest("hex");
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`storefront:${capability.organizationId}`}, 0))`;
+      const current = await tx.shopifyStorefrontTryOnSession.findUniqueOrThrow({
+        where: { id: capability.id },
+      });
+      if (current.visitorBoundAt) {
+        if (current.visitorTokenHash !== visitorTokenHash)
+          throw visitorError("visitorMismatch");
+        return;
+      }
+      // Never rewrite usage attribution on a pre-upgrade session with runs.
+      if (
+        await tx.kioskTryOnRun.count({
+          where: { tryOnSessionId: capability.tryOnSessionId },
+        })
+      ) {
+        throw visitorError("visitorRequired");
+      }
+      await tx.shopifyStorefrontTryOnSession.update({
+        where: { id: capability.id },
+        data: { visitorTokenHash, visitorBoundAt: new Date() },
+      });
+    });
+    return { bound: true, cookieRequired: true };
+  }
+
+  private assertVisitorBound(capability: StorefrontCapability): void {
+    if (
+      capability.integration.type === "SHOPIFY" &&
+      (!capability.visitorBoundAt || !capability.visitorTokenHash)
+    ) {
+      throw visitorError("visitorRequired");
+    }
   }
 
   async getCreditSummaryForShop(
@@ -577,6 +730,7 @@ export class CommerceStorefrontTryOnService {
         status: true,
         externalAccountId: true,
         externalAccountName: true,
+        metadata: true,
         organization: { select: { name: true, status: true } },
         credentials: {
           where: {
@@ -626,6 +780,13 @@ export class CommerceStorefrontTryOnService {
 
     return {
       state: connected ? "CONNECTED" : "NEEDS_RECONNECT",
+      reconciliationOwner:
+        integration.metadata &&
+        typeof integration.metadata === "object" &&
+        !Array.isArray(integration.metadata) &&
+        integration.metadata.connectionMode === "SHOPIFY_APP"
+          ? "SHOPIFY_APP"
+          : "SELFX_API",
       shopDomain,
       storeName: integration.organization.name,
       integrationId: integration.id,
@@ -734,15 +895,6 @@ export class CommerceStorefrontTryOnService {
     const capability = await this.requirePhotoConsent(sessionToken);
     const source =
       capability.integration.type === "WOOCOMMERCE" ? "WOOCOMMERCE" : "SHOPIFY";
-    await this.assertStorefrontLimits({
-      source,
-      organizationId: capability.organizationId,
-      shopDomain: capability.shopDomain,
-      visitorTokenHash: capability.visitorTokenHash,
-      visitorTryOnLimit: capability.visitorTryOnLimit,
-      visitorLimitPeriod: normalizeLimitPeriod(capability.visitorLimitPeriod),
-      monthlyStoreTryOnLimit: capability.monthlyStoreTryOnLimit,
-    });
     const mapping = await this.requireActiveMapping(capability);
     const personAsset = await this.sessions
       .getCurrentPersonAsset({
@@ -791,69 +943,122 @@ export class CommerceStorefrontTryOnService {
     if (!isJewellery) this.execution.assertConfigured();
     const provider = jewelleryFoundation?.provider ?? this.execution.metadata();
     const clientRequestId = input.clientRequestId?.trim() || randomUUID();
-    const admission = await this.entitlements.consumeTryOnCredit({
-      organizationId: capability.organizationId,
-      channel: CreditLedgerChannel[source],
-      idempotencyKey: [
-        "tryon",
-        source.toLowerCase(),
-        capability.tryOnSessionId,
-        clientRequestId,
-      ].join(":"),
-      reason: `${source} storefront Try-On generation`,
-      tryOnSessionId: capability.tryOnSessionId,
-      productId: capability.product.id,
-      integrationId: capability.integrationId,
-      metadata: {
-        externalProductId: capability.externalProductId,
-        productHandle: capability.productHandle,
+    const { run, created } = await this.prisma.$transaction(
+      async (tx) => {
+        // Serialize quota admission across products, sessions and API instances.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`storefront:${capability.organizationId}`}, 0))`;
+        const existing = await tx.kioskTryOnRun.findFirst({
+          where: {
+            tryOnSessionId: capability.tryOnSessionId,
+            organizationId: capability.organizationId,
+            clientRequestId,
+          },
+          include: runInclude,
+        });
+        if (existing) return { run: existing, created: false };
+        await this.assertStorefrontLimits(
+          {
+            source,
+            organizationId: capability.organizationId,
+            shopDomain: capability.shopDomain,
+            visitorTokenHash: capability.visitorTokenHash,
+            visitorTryOnLimit: capability.visitorTryOnLimit,
+            visitorLimitPeriod: normalizeLimitPeriod(
+              capability.visitorLimitPeriod,
+            ),
+            monthlyStoreTryOnLimit: capability.monthlyStoreTryOnLimit,
+            ...(source === "WOOCOMMERCE"
+              ? (() => {
+                  const limits = wooLimits(capability.integration.metadata);
+                  return {
+                    visitorTryOnLimit: limits.visitorTryOnLimit,
+                    visitorLimitPeriod: limits.visitorTryOnLimitPeriod,
+                    monthlyStoreTryOnLimit: limits.monthlyStoreTryOnLimit,
+                  };
+                })()
+              : {}),
+          },
+          tx,
+        );
+        const admission = await this.entitlements.consumeTryOnCredit(
+          {
+            organizationId: capability.organizationId,
+            channel: CreditLedgerChannel[source],
+            idempotencyKey: [
+              "tryon",
+              source.toLowerCase(),
+              capability.tryOnSessionId,
+              clientRequestId,
+            ].join(":"),
+            reason: `${source} storefront Try-On generation`,
+            tryOnSessionId: capability.tryOnSessionId,
+            productId: capability.product.id,
+            integrationId: capability.integrationId,
+            metadata: {
+              externalProductId: capability.externalProductId,
+              productHandle: capability.productHandle,
+            },
+          },
+          tx,
+        );
+        const now = new Date();
+        const run = await tx.kioskTryOnRun.create({
+          data: {
+            id: createSelfxId(),
+            billingChannel: CreditLedgerChannel[source],
+            storefrontRequestKey: createHash("sha256")
+              .update(`${capability.tryOnSessionId}:${clientRequestId}`)
+              .digest("hex"),
+            billingCycleId: admission?.billingCycleId,
+            shopifyReservationId: admission?.shopifyReservationId,
+            kioskDeviceId: null,
+            apiKeyId: null,
+            tryOnSessionId: capability.tryOnSessionId,
+            clientRequestId,
+            status: "QUEUED",
+            assignmentScope: KioskAssignmentScope.ORGANIZATION,
+            organizationId: capability.organizationId,
+            storeId: null,
+            personAssetId: personAsset.id,
+            garmentAssetId: garmentAsset.id,
+            productId: capability.product.id,
+            catalogSource: source,
+            externalProductId: capability.externalProductId,
+            externalVariantId: null,
+            externalSku: mapping.externalSku,
+            externalProductName: capability.product.name,
+            externalProductPrice: null,
+            externalCurrency: null,
+            provider: provider.provider,
+            providerDisplayName: provider.providerDisplayName,
+            providerModel: provider.model,
+            tryOnVertical: isJewellery ? "JEWELLERY" : "GARMENT",
+            jewelleryType: jewelleryFoundation?.jewelleryType ?? null,
+            garmentSource: source,
+            garmentIntent: normalizeGarmentIntent(
+              capability.product.garmentIntent,
+            ),
+            garmentCategory: normalizeGarmentCategory(
+              capability.product.garmentCategory,
+            ),
+            garmentPhotoType: normalizeGarmentPhotoType(
+              capability.product.garmentPhotoType,
+            ),
+            generationProfile: DEFAULT_TRY_ON_GENERATION_PROFILE,
+            expiresAt: new Date(now.getTime() + TRY_ON_RESULT_RETENTION_MS),
+          },
+          include: runInclude,
+        });
+        return { run, created: true };
       },
-    });
-    const now = new Date();
-    const run = await this.prisma.kioskTryOnRun.create({
-      data: {
-        id: createSelfxId(),
-        billingChannel: CreditLedgerChannel[source],
-        storefrontRequestKey: createHash("sha256")
-          .update(`${capability.tryOnSessionId}:${clientRequestId}`)
-          .digest("hex"),
-        billingCycleId: admission?.billingCycleId,
-        kioskDeviceId: null,
-        apiKeyId: null,
-        tryOnSessionId: capability.tryOnSessionId,
-        clientRequestId,
-        status: "QUEUED",
-        assignmentScope: KioskAssignmentScope.ORGANIZATION,
-        organizationId: capability.organizationId,
-        storeId: null,
-        personAssetId: personAsset.id,
-        garmentAssetId: garmentAsset.id,
-        productId: capability.product.id,
-        catalogSource: source,
-        externalProductId: capability.externalProductId,
-        externalVariantId: null,
-        externalSku: mapping.externalSku,
-        externalProductName: capability.product.name,
-        externalProductPrice: null,
-        externalCurrency: null,
-        provider: provider.provider,
-        providerDisplayName: provider.providerDisplayName,
-        providerModel: provider.model,
-        tryOnVertical: isJewellery ? "JEWELLERY" : "GARMENT",
-        jewelleryType: jewelleryFoundation?.jewelleryType ?? null,
-        garmentSource: source,
-        garmentIntent: normalizeGarmentIntent(capability.product.garmentIntent),
-        garmentCategory: normalizeGarmentCategory(
-          capability.product.garmentCategory,
-        ),
-        garmentPhotoType: normalizeGarmentPhotoType(
-          capability.product.garmentPhotoType,
-        ),
-        generationProfile: DEFAULT_TRY_ON_GENERATION_PROFILE,
-        expiresAt: new Date(now.getTime() + TRY_ON_RESULT_RETENTION_MS),
-      },
-      include: runInclude,
-    });
+      { timeout: 15_000 },
+    );
+    if (!created)
+      return this.toRunDto(
+        run,
+        sessionToken,
+        toCapabilityProductDto(capability),
+      );
 
     void this.processRun(run.id, {
       sessionId: capability.tryOnSessionId,
@@ -1180,10 +1385,11 @@ export class CommerceStorefrontTryOnService {
       shopDomain: string;
       source?: "SHOPIFY" | "WOOCOMMERCE";
     } & StorefrontLimits,
+    client: Pick<Prisma.TransactionClient, "kioskTryOnRun"> = this.prisma,
   ): Promise<void> {
     const now = new Date();
     if (input.monthlyStoreTryOnLimit > 0) {
-      const monthlyRuns = await this.prisma.kioskTryOnRun.count({
+      const monthlyRuns = await client.kioskTryOnRun.count({
         where: {
           organizationId: input.organizationId,
           catalogSource: input.source ?? "SHOPIFY",
@@ -1212,7 +1418,7 @@ export class CommerceStorefrontTryOnService {
           "This Try-On visitor session could not be verified.",
         );
       }
-      const visitorRuns = await this.prisma.kioskTryOnRun.count({
+      const visitorRuns = await client.kioskTryOnRun.count({
         where: {
           organizationId: input.organizationId,
           catalogSource: input.source ?? "SHOPIFY",

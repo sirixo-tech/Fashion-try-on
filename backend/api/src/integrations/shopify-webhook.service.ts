@@ -228,6 +228,20 @@ export class ShopifyWebhookService {
       await tx.integrationProviderCredential.deleteMany({
         where: { integrationId: connection.integrationId },
       });
+      await tx.shopifyBillingAgreement.updateMany({
+        where: {
+          integrationId: connection.integrationId,
+          status: { in: ["ACTIVE", "PENDING", "FROZEN"] },
+        },
+        data: { status: "CANCELLED", checkedAt: now },
+      });
+      await tx.storeSubscription.updateMany({
+        where: {
+          organizationId: connection.storeId,
+          metadata: { path: ["billingProvider"], equals: "SHOPIFY" },
+        },
+        data: { status: "CANCELLED", cancelledAt: now },
+      });
       await tx.integrationOauthState.deleteMany({
         where: {
           organizationId: connection.storeId,

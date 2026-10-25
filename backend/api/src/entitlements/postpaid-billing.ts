@@ -12,6 +12,13 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { monthlyBillingPeriod } from "./billing-period.js";
+import {
+  reserveShopifyUsage,
+  settleShopifyUsage,
+  assertShopifyBillingActive,
+  shopifyManaged,
+  effectiveShopifyPlan,
+} from "./shopify-usage-billing.js";
 
 type BillingTx = Prisma.TransactionClient;
 type SubscriptionWithPlan = StoreSubscription & {
@@ -44,8 +51,13 @@ export async function prepareRunBilling(
     organizationId: string | null;
     assignmentScope: string;
     channel: CreditLedgerChannel;
+    requestKey?: string;
   },
-): Promise<{ billingChannel: CreditLedgerChannel; billingCycleId?: string }> {
+): Promise<{
+  billingChannel: CreditLedgerChannel;
+  billingCycleId?: string;
+  shopifyReservationId?: string;
+}> {
   const data = { billingChannel: input.channel };
   if (!input.organizationId || input.assignmentScope === "PLATFORM")
     return data;
@@ -54,13 +66,23 @@ export async function prepareRunBilling(
     where: { organizationId },
     include: { pricingPlan: true },
   });
-  if (initial?.pricingPlan?.billingMode !== "POSTPAID_PAYG") return data;
+  if (
+    initial?.pricingPlan?.billingMode !== "POSTPAID_PAYG" &&
+    !shopifyManaged(initial?.metadata ?? null)
+  )
+    return data;
   return db.$transaction(async (tx) => {
     await lockBillingSubscription(tx, organizationId);
     const subscription = await tx.storeSubscription.findUniqueOrThrow({
       where: { organizationId },
       include: { pricingPlan: true },
     });
+    subscription.pricingPlan = await effectiveShopifyPlan(
+      tx,
+      subscription.metadata,
+      subscription.pricingPlan,
+    );
+    await assertShopifyBillingActive(tx, organizationId, subscription.metadata);
     if (subscription.pricingPlan?.billingMode !== "POSTPAID_PAYG") return data;
     if (
       subscription.status !== "ACTIVE" ||
@@ -74,7 +96,13 @@ export async function prepareRunBilling(
       );
     }
     const cycle = await ensurePostpaidCycle(tx, subscription);
-    return { ...data, billingCycleId: cycle.id };
+    const shopifyReservationId = await reserveShopifyUsage(
+      tx,
+      organizationId,
+      input.requestKey ?? createSelfxId(),
+      subscription.metadata,
+    );
+    return { ...data, billingCycleId: cycle.id, shopifyReservationId };
   });
 }
 
@@ -84,7 +112,11 @@ export async function ensurePostpaidCycle(
   at = new Date(),
   firstRate?: PricingPlan,
 ): Promise<StoreBillingCycle> {
-  const plan = firstRate ?? subscription.pricingPlan;
+  const plan = await effectiveShopifyPlan(
+    tx,
+    subscription.metadata,
+    firstRate ?? subscription.pricingPlan,
+  );
   if (
     !plan ||
     plan.billingMode !== "POSTPAID_PAYG" ||
@@ -96,7 +128,24 @@ export async function ensurePostpaidCycle(
     subscription.billingAnchorAt ??
     subscription.trialStartedAt ??
     subscription.createdAt;
-  const { start, end } = monthlyBillingPeriod(anchor, at);
+  let { start, end } = monthlyBillingPeriod(anchor, at);
+  if (shopifyManaged(subscription.metadata)) {
+    const id = (subscription.metadata as { shopifyAgreementId?: string })
+      .shopifyAgreementId;
+    const agreement = id
+      ? await tx.shopifyBillingAgreement.findFirst({
+          where: {
+            id,
+            organizationId: subscription.organizationId,
+            status: "ACTIVE",
+          },
+        })
+      : null;
+    if (agreement?.periodStart && agreement.periodEnd) {
+      start = agreement.periodStart;
+      end = agreement.periodEnd;
+    }
+  }
   const existing = await tx.storeBillingCycle.findUnique({
     where: {
       subscriptionId_periodStart: {
@@ -117,14 +166,16 @@ export async function ensurePostpaidCycle(
     return existing;
   }
   // Historical entry uses the switch-date price. Subsequent cycles use the version in effect at their start.
-  const rate = firstRate
-    ? null
-    : await tx.pricingPlanRate.findFirst({
-        where: { pricingPlanId: plan.id, effectiveAt: { lte: start } },
-        orderBy: [{ effectiveAt: "desc" }, { id: "desc" }],
-      });
+  const frozenShopifyTerms = shopifyManaged(subscription.metadata);
+  const rate =
+    firstRate || frozenShopifyTerms
+      ? null
+      : await tx.pricingPlanRate.findFirst({
+          where: { pricingPlanId: plan.id, effectiveAt: { lte: start } },
+          orderBy: [{ effectiveAt: "desc" }, { id: "desc" }],
+        });
   const earliest =
-    rate || firstRate
+    rate || firstRate || frozenShopifyTerms
       ? null
       : await tx.pricingPlanRate.findFirst({
           where: { pricingPlanId: plan.id },
@@ -206,6 +257,7 @@ export async function recordSuccessfulGeneration(
     ],
     skipDuplicates: true,
   });
+  await settleShopifyUsage(tx, run);
 }
 
 export async function getPostpaidSummary(

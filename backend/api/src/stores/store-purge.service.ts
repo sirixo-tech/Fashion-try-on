@@ -65,6 +65,9 @@ const tables = [
   "integration_provider_credentials",
   "integration_oauth_states",
   "shopify_link_sessions",
+  "shopify_billing_agreements",
+  "shopify_usage_charges",
+  "shopify_usage_reservations",
   "shopify_storefront_try_on_sessions",
   "integration_credentials",
   "integration_events",
@@ -129,6 +132,19 @@ export class StorePurgeService implements OnModuleInit, OnModuleDestroy {
           // Prevent new links while selecting user identities and Store resources.
           await lockStore(tx, storeId);
           await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${storeId}::uuid FOR UPDATE`;
+          if (
+            await tx.shopifyBillingAgreement.count({
+              where: {
+                organizationId: storeId,
+                externalSubscriptionId: { not: null },
+                status: { in: ["ACTIVE", "FROZEN", "PENDING"] },
+              },
+            })
+          )
+            deletionError(
+              "SHOPIFY_BILLING_CANCEL_REQUIRED",
+              "Cancel this Store's Shopify subscription and pending approvals before permanently deleting it.",
+            );
           const store = await tx.organization.findUnique({
             where: { id: storeId },
             select: { id: true, name: true, slug: true, updatedAt: true },

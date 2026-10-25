@@ -65,6 +65,17 @@ export class SelfxLinkClient {
     );
   }
 
+  disconnect(input: {
+    shopDomain: string;
+    externalAccountId: string;
+    storeId: string;
+  }): Promise<{ disconnected: boolean }> {
+    return this.request("/connection/disconnect", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   approvalUrl(linkToken: string): string {
     const url = new URL(
       "/app/integrations/shopify/link",

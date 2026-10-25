@@ -256,6 +256,32 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
     ).toBe("WOOCOMMERCE");
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(process).toHaveBeenCalledTimes(1);
+    await storefront.saveWooSettings(credential, {
+      visitorTryOnLimit: 1,
+      visitorTryOnLimitPeriod: "DAY",
+      monthlyStoreTryOnLimit: 100,
+    });
+    expect(await storefront.wooSettings(credential)).toMatchObject({
+      visitorTryOnLimit: 1,
+      monthlyStoreTryOnLimit: 100,
+    });
+    await expect(
+      storefront.createRun(launch.session, {
+        clientRequestId: "over-new-limit",
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        error: { code: "SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED" },
+      },
+    });
+    await expect(
+      storefront.wooSettings({ ...credential, storeId: other }),
+    ).rejects.toThrow();
+    await storefront.saveWooSettings(credential, {
+      visitorTryOnLimit: 5,
+      visitorTryOnLimitPeriod: "DAY",
+      monthlyStoreTryOnLimit: 0,
+    });
   });
   it("preserves manual eligibility and keeps sold-out products available for Try-On", async () => {
     const update = {

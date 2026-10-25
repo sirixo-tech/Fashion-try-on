@@ -11,7 +11,7 @@ final class SelfX_WC_Storefront {
         add_action('admin_post_nopriv_selfx_wc_try_on', array($this, 'launch'));
     }
     public function block(): void {
-        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element'), '0.3.2', true);
+        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element'), defined('SELFX_WC_VERSION') ? SELFX_WC_VERSION : '0.4.0', true);
         register_block_type('selfx/try-on', array('api_version' => 3, 'editor_script' => 'selfx-try-on-editor', 'uses_context' => array('postId'),
             'render_callback' => function ($attributes, $content, $block) { return $this->button(array('product_id' => $block->context['postId'] ?? 0)); }));
     }
@@ -64,7 +64,8 @@ final class SelfX_WC_Storefront {
             add_filter('allowed_redirect_hosts', static function ($hosts) use ($launch) { $hosts[] = wp_parse_url($launch, PHP_URL_HOST); return $hosts; });
             wp_safe_redirect($launch, 303); exit;
         } catch (Throwable $error) {
-            wp_die(esc_html__('Try-On is temporarily unavailable. Return to the product page and try again shortly.', 'selfx-woocommerce'), '', array('response' => 503, 'back_link' => true));
+            $code = $error instanceof SelfX_WC_Error ? $error->getMessage() : 'API_UNAVAILABLE';
+            wp_die(esc_html(SelfX_WC_Client::friendly_error($code)), '', array('response' => in_array($code, array('STOREFRONT_RATE_LIMITED', 'SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED', 'SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED'), true) ? 429 : 503, 'back_link' => true));
         }
     }
     public static function validated_launch(string $url, string $origin): string {

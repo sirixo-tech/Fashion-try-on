@@ -4,6 +4,81 @@ import { ShopifyCatalogConnector } from "./shopify-catalog.connector.js";
 import { shopifyProduct } from "./test-fixtures.js";
 
 describe("ShopifyCatalogConnector", () => {
+  it("resumes from the last acknowledged page and retains the source snapshot", async () => {
+    let saved:
+      | import("./shopify-catalog.connector.js").ShopifyCatalogSyncCheckpoint
+      | undefined;
+    const writer = {
+      sync: vi.fn().mockResolvedValue(response({ created: 1 })),
+    };
+    const reader = {
+      listProductsPage: vi
+        .fn()
+        .mockResolvedValueOnce({
+          currencyCode: "USD",
+          products: [shopifyProduct()],
+          endCursor: "acknowledged",
+          hasNextPage: true,
+        })
+        .mockRejectedValueOnce(new Error("offline")),
+    };
+    await expect(
+      new ShopifyCatalogConnector(reader, writer, 25).runFullSync(
+        undefined,
+        async (state) => {
+          saved = state;
+        },
+      ),
+    ).rejects.toThrow("offline");
+    expect(saved?.cursor).toBe("acknowledged");
+    expect(writer.sync.mock.calls.some((call) => call[0]?.finalize)).toBe(
+      false,
+    );
+    const retry = {
+      listProductsPage: vi
+        .fn()
+        .mockResolvedValue({
+          currencyCode: "USD",
+          products: [],
+          endCursor: null,
+          hasNextPage: false,
+        }),
+    };
+    const result = await new ShopifyCatalogConnector(
+      retry,
+      writer,
+      25,
+    ).runFullSync(saved);
+    expect(retry.listProductsPage).toHaveBeenCalledWith("acknowledged");
+    expect(result.sourceSnapshotAt).toBe(saved?.sourceSnapshotAt);
+    expect(result.productsRead).toBe(1);
+  });
+  it("retries terminal finalization without rescanning a completed scan", async () => {
+    const reader = { listProductsPage: vi.fn() };
+    const writer = {
+      sync: vi.fn().mockResolvedValue(response({ finalized: true })),
+    };
+    await new ShopifyCatalogConnector(reader, writer, 25).runFullSync({
+      sourceSnapshotAt: "2026-10-25T00:00:00.000Z",
+      cursor: null,
+      scanComplete: true,
+      totals: {
+        productsRead: 10,
+        variantsRead: 0,
+        submittedBatches: 1,
+        created: 10,
+        updated: 0,
+        archived: 0,
+        ignoredAsStale: 0,
+        skippedWithoutImage: 0,
+      },
+    });
+    expect(reader.listProductsPage).not.toHaveBeenCalled();
+    expect(writer.sync).toHaveBeenCalledOnce();
+    expect(writer.sync).toHaveBeenCalledWith(
+      expect.objectContaining({ finalize: true, products: [] }),
+    );
+  });
   it("reads every Shopify page, submits bounded batches, then finalizes", async () => {
     const shopify = {
       listProductsPage: vi

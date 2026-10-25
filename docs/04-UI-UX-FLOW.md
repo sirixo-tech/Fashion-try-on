@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### Commerce controls and native Shopify approval (2026-10-25)
+
+Shopify Plans cards use the existing catalog and native approval action. Usage cards require a currency-labelled 30-day spending cap and show the successful-generation rate. Scheduled changes show the new plan and renewal date while the current approved plan remains displayed. Cancellation and embedded disconnection require explicit confirmation; reconnect retains Store identity. The theme block starts hidden and appears only after authenticated product/plan availability succeeds; failures keep it hidden. WooCommerce settings add bounded integer visitor/monthly fields, day/week/month selection, last-sync status, retry actions and safe recovery guidance. Zero disables a custom allowance cap, while plan/credit enforcement remains active. Existing source-platform shopping and purchasing stay unchanged.
+
+### Shopify visitor initialization (2026-10-25)
+
+Reuse the existing Preparing Try-On state while first-party visitor binding completes. Do not render a ready photo flow on initialization failure. Shopify's brief opening page includes a Continue to SelfX fallback. No visitor identifiers or technical identity controls appear in customer UI. Visitor-limit failures retain a friendly explanation. Browser initialization deduplicates concurrent mounts and serializes across tabs through Web Locks where available.
+
 ### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
 
 Woo product-page button supports automatic classic placement and an explicit block/shortcode for block templates. Customer SelfX page shares Shopify consent, photo, progress, result, download and return-link UI without provider diagnostics or commerce selectors. Imported Store product rows show source and website management, allow SelfX eligibility/classification, hide native stock/edit/delete controls, and direct source edits back to the website. Kiosk result/My Looks hide native buying for imported references. Setup explains public URLs and plugin token rotation.

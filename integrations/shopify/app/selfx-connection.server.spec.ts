@@ -134,14 +134,16 @@ describe("Shopify Store reconnection", () => {
       where: { shop, status: "CONNECTED" },
       data: expect.objectContaining({
         integrationTokenCiphertext: null,
-        selfxStoreId: null,
         selfxIntegrationId: null,
       }),
     });
-    expect(result).toMatchObject({ status: "NOT_CONNECTED", storeId: null });
+    expect(result).toMatchObject({
+      status: "NOT_CONNECTED",
+      storeId: "archived-store",
+    });
   });
 
-  it("starts a fresh approval without the archived Store ID", async () => {
+  it("retains the approved Store when requesting reconnection", async () => {
     vi.stubEnv("SELFX_SHOPIFY_APP_SERVICE_TOKEN", "s".repeat(32));
     vi.stubEnv("SELFX_API_BASE_URL", "https://api.selfx.test");
     vi.stubEnv("SELFX_WEB_BASE_URL", "https://app.selfx.test");
@@ -189,17 +191,17 @@ describe("Shopify Store reconnection", () => {
       shopDomain: shop,
       externalAccountId: "gid://shopify/Shop/1001",
       externalAccountName: "Merchant",
-      storeId: null,
+      storeId: "archived-store",
     });
     expect(database.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({
-          selfxStoreId: null,
+          selfxStoreId: "archived-store",
           selfxIntegrationId: null,
         }),
       }),
     );
     expect(result.status).toBe("PENDING_APPROVAL");
-    expect(result.storeId).toBeNull();
+    expect(result.storeId).toBe("archived-store");
   });
 });

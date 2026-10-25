@@ -14,6 +14,134 @@ const png1x1 = Buffer.from(
 );
 
 describe("ShopifyStorefrontTryOnService", () => {
+  it("shows the button only for an eligible product with an active usable allowance", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+    const credits = vi
+      .fn()
+      .mockResolvedValue({
+        subscription: {
+          status: "ACTIVE",
+          pricingPlan: { billingMode: "CREDIT_LIMITED" },
+        },
+        availableCredits: 0,
+      });
+    Object.assign(
+      (service as unknown as { entitlements: object }).entitlements,
+      { getStoreCreditSummary: credits },
+    );
+    const input = {
+      source: "shopify" as const,
+      shop: "merchant.myshopify.com",
+      externalProductId: "10",
+    };
+    expect(await service.shopifyAvailability(input)).toEqual({
+      available: false,
+    });
+    credits.mockResolvedValue({
+      subscription: {
+        status: "ACTIVE",
+        pricingPlan: { billingMode: "CREDIT_LIMITED" },
+      },
+      availableCredits: 1,
+    });
+    expect(await service.shopifyAvailability(input)).toEqual({
+      available: true,
+    });
+    prisma.product.vtoEnabled = false;
+    expect(await service.shopifyAvailability(input)).toEqual({
+      available: false,
+    });
+    prisma.product.vtoEnabled = true;
+    prisma.integrationConnected = false;
+    expect(await service.shopifyAvailability(input)).toEqual({
+      available: false,
+    });
+    expect(prisma.shopifyStorefrontTryOnSession.create).not.toHaveBeenCalled();
+  });
+  it("requires first-party binding even with visitor limits disabled and refuses rebinding", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+    const session = await service.createSession({
+      source: "shopify",
+      shop: "merchant.myshopify.com",
+      externalProductId: "10",
+      visitorToken: "forged".repeat(8),
+    });
+    expect(prisma.createdCapability?.visitorTokenHash).toBeNull();
+    await expect(
+      service.acceptPhotoConsent(session.session),
+    ).rejects.toMatchObject({
+      response: { error: { code: "STOREFRONT_VISITOR_REQUIRED" } },
+    });
+    await expect(service.createRun(session.session, {})).rejects.toMatchObject({
+      response: { error: { code: "STOREFRONT_VISITOR_REQUIRED" } },
+    });
+    await service.bindFirstPartyVisitor(session.session, "v".repeat(43));
+    const hash = prisma.createdCapability?.visitorTokenHash;
+    await service.bindFirstPartyVisitor(session.session, "v".repeat(43));
+    expect(prisma.createdCapability?.visitorTokenHash).toBe(hash);
+    expect(prisma.shopifyStorefrontTryOnSession.update).toHaveBeenCalledTimes(
+      1,
+    );
+    await expect(
+      service.bindFirstPartyVisitor(session.session, "w".repeat(43)),
+    ).rejects.toMatchObject({
+      response: { error: { code: "STOREFRONT_VISITOR_MISMATCH" } },
+    });
+    expect(prisma.createdCapability?.visitorTokenHash).toBe(hash);
+    expect(prisma.kioskTryOnRun.create).not.toHaveBeenCalled();
+  });
+  it("reuses the visitor digest across product launches and isolates it by Store", async () => {
+    const bind = async (organizationId: string) => {
+      const prisma = new FakePrisma();
+      const service = serviceFor(
+        prisma,
+        new FakeTryOnSessions(),
+        new FakeStorage(),
+      );
+      const session = await service.createSession({
+        source: "shopify",
+        shop: "merchant.myshopify.com",
+        externalProductId: "10",
+      });
+      prisma.createdCapability!.organizationId = organizationId;
+      await service.bindFirstPartyVisitor(session.session, "v".repeat(43));
+      return prisma.createdCapability?.visitorTokenHash;
+    };
+    const first = await bind("store-1");
+    expect(await bind("store-1")).toBe(first);
+    expect(await bind("store-2")).not.toBe(first);
+    expect(first).not.toContain("v".repeat(43));
+  });
+  it("never reattributes runs on a pre-upgrade session", async () => {
+    const prisma = new FakePrisma();
+    const service = serviceFor(
+      prisma,
+      new FakeTryOnSessions(),
+      new FakeStorage(),
+    );
+    const session = await service.createSession({
+      source: "shopify",
+      shop: "merchant.myshopify.com",
+      externalProductId: "10",
+    });
+    prisma.kioskTryOnRun.count.mockReturnValue(1);
+    await expect(
+      service.bindFirstPartyVisitor(session.session, "v".repeat(43)),
+    ).rejects.toMatchObject({
+      response: { error: { code: "STOREFRONT_VISITOR_REQUIRED" } },
+    });
+    expect(prisma.shopifyStorefrontTryOnSession.update).not.toHaveBeenCalled();
+  });
   const wooCredential = {
     credentialId: "credential-1",
     integrationId: "integration-1",
@@ -127,6 +255,7 @@ describe("ShopifyStorefrontTryOnService", () => {
       shop: "merchant.myshopify.com",
       externalProductId: "10",
     });
+    await service.bindFirstPartyVisitor(session.session, "v".repeat(43));
     await service.acceptPhotoConsent(session.session);
     const run = await service.createRun(session.session, {
       clientRequestId: "same-request",
@@ -182,9 +311,7 @@ describe("ShopifyStorefrontTryOnService", () => {
       visitorLimitPeriod: "DAY",
       monthlyStoreTryOnLimit: 20,
     });
-    expect(prisma.createdCapability?.visitorTokenHash).toMatch(
-      /^[a-f0-9]{64}$/,
-    );
+    expect(prisma.createdCapability?.visitorTokenHash).toBeNull();
     expect(created.locale).toBe("es");
     expect(created.product).toMatchObject({
       name: "Linen Shirt",
@@ -447,6 +574,7 @@ describe("ShopifyStorefrontTryOnService", () => {
       shop: "merchant.myshopify.com",
       externalProductId: "gid://shopify/Product/1001",
     });
+    await service.bindFirstPartyVisitor(created.session, "v".repeat(43));
     await service.acceptPhotoConsent(created.session);
     await service.createRun(created.session, {});
     expect(prisma.kioskTryOnRun.create).toHaveBeenCalledWith(
@@ -493,23 +621,24 @@ describe("ShopifyStorefrontTryOnService", () => {
     const storage = new FakeStorage();
     const service = serviceFor(prisma, new FakeTryOnSessions(), storage);
 
-    await expect(
-      service.createSession({
-        source: "shopify",
-        shop: "merchant.myshopify.com",
-        externalProductId: "gid://shopify/Product/1001",
-        visitorToken: "v".repeat(43),
-        visitorTryOnLimit: 5,
-        visitorTryOnLimitPeriod: "DAY",
-      }),
-    ).rejects.toMatchObject({
+    const created = await service.createSession({
+      source: "shopify",
+      shop: "merchant.myshopify.com",
+      externalProductId: "gid://shopify/Product/1001",
+      visitorToken: "v".repeat(43),
+      visitorTryOnLimit: 5,
+      visitorTryOnLimitPeriod: "DAY",
+    });
+    await service.bindFirstPartyVisitor(created.session, "v".repeat(43));
+    await service.acceptPhotoConsent(created.session);
+    await expect(service.createRun(created.session, {})).rejects.toMatchObject({
       response: expect.objectContaining({
         error: expect.objectContaining({
           code: SHOPIFY_STOREFRONT_TRY_ON_ERROR_CODES.visitorLimitReached,
         }),
       }),
     });
-    expect(storage.putObject).not.toHaveBeenCalled();
+    expect(prisma.kioskTryOnRun.create).not.toHaveBeenCalled();
   });
 
   it("returns privacy-safe Shopify storefront usage summary", async () => {
@@ -633,6 +762,10 @@ function serviceFor(
 }
 
 class FakePrisma {
+  $executeRaw = vi.fn();
+  $transaction = vi.fn(async <T>(operation: (tx: FakePrisma) => Promise<T>) =>
+    operation(this),
+  );
   integrationType: "SHOPIFY" | "WOOCOMMERCE" = "SHOPIFY";
   consent = false;
   auditLog = {
@@ -698,6 +831,10 @@ class FakePrisma {
 
   shopifyStorefrontTryOnSession = {
     count: vi.fn(() => 0),
+    findUniqueOrThrow: vi.fn(() => this.createdCapability),
+    update: vi.fn(({ data }: { data: object }) =>
+      Object.assign(this.createdCapability!, data),
+    ),
     create: vi.fn(
       ({
         data,
@@ -752,8 +889,10 @@ class FakePrisma {
           createdAt?: unknown;
           status?: string;
           resultAssetId?: unknown;
+          tryOnSessionId?: string;
         };
       }) => {
+        if (where.tryOnSessionId) return 0;
         const shopifyCapability =
           where.tryOnSession?.shopifyStorefrontTryOnSession;
         if (shopifyCapability?.visitorTokenHash) return this.visitorShopifyRuns;

@@ -200,7 +200,11 @@ export class ShopifyOauthService {
           status: IntegrationStatus.ACTIVE,
           externalAccountId: identity.id,
           externalAccountName: identity.name,
-          metadata: { shopDomain: shop, providerScopes: scopes },
+          metadata: {
+            shopDomain: shop,
+            providerScopes: scopes,
+            connectionMode: "SHOPIFY_OAUTH",
+          },
           connectedAt: now,
           createdByUserId: state.createdByUserId,
         },
@@ -208,7 +212,11 @@ export class ShopifyOauthService {
           status: IntegrationStatus.ACTIVE,
           externalAccountId: identity.id,
           externalAccountName: identity.name,
-          metadata: { shopDomain: shop, providerScopes: scopes },
+          metadata: {
+            shopDomain: shop,
+            providerScopes: scopes,
+            connectionMode: "SHOPIFY_OAUTH",
+          },
           connectedAt: now,
           disconnectedAt: null,
         },
@@ -246,20 +254,18 @@ export class ShopifyOauthService {
     });
 
     try {
-      const report = await this.runSync(
+      await this.runSync(
         integration.id,
         secrets.accessToken,
         shop,
         state.organization.name,
       );
-      await this.recordSyncResult(integration.id, true, report);
       return {
         storeId: state.organizationId,
         integrationId: integration.id,
         syncStatus: "COMPLETED" as const,
       };
     } catch {
-      await this.recordSyncResult(integration.id, false, null);
       return {
         storeId: state.organizationId,
         integrationId: integration.id,
@@ -269,7 +275,7 @@ export class ShopifyOauthService {
   }
 
   async sync(
-    actorUserId: string,
+    actorUserId: string | undefined,
     integrationId: string,
   ): Promise<ShopifyCatalogSyncReport> {
     const config = requireConfig();
@@ -294,24 +300,36 @@ export class ShopifyOauthService {
         "Shopify must be connected before catalog sync.",
       );
     }
-    const accessToken = await this.currentAccessToken(
-      record.id,
-      record.metadata,
-      record.providerCredential,
-      config,
-    );
     const shop = shopDomainFromMetadata(record.metadata);
     try {
       const report = await this.runSync(
         integrationId,
-        accessToken,
+        async () => {
+          const latest = await this.prisma.integration.findUniqueOrThrow({
+            where: { id: record.id },
+            include: { providerCredential: true },
+          });
+          if (!latest.providerCredential)
+            throw new Error("Shopify authorization is unavailable.");
+          return this.currentAccessToken(
+            record.id,
+            latest.metadata,
+            latest.providerCredential,
+            config,
+          );
+        },
         shop,
         record.organization.name,
+        actorUserId,
       );
-      await this.recordSyncResult(integrationId, true, report, actorUserId);
       return report;
     } catch (error) {
-      await this.recordSyncResult(integrationId, false, null, actorUserId);
+      if (
+        error instanceof ApiErrorException &&
+        (error.getResponse() as { error?: { code?: string } }).error?.code ===
+          "CATALOG_SYNC_BUSY"
+      )
+        throw error;
       throw error;
     }
   }
@@ -385,37 +403,139 @@ export class ShopifyOauthService {
 
   private async runSync(
     integrationId: string,
-    accessToken: string,
+    accessToken: string | (() => Promise<string>),
     shop: string,
     storeName: string,
+    actorUserId?: string,
   ) {
     const config = requireConfig();
-    const { organizationId } = await this.prisma.integration.findUniqueOrThrow({
+    const record = await this.prisma.integration.findUniqueOrThrow({
       where: { id: integrationId },
-      select: { organizationId: true },
     });
-    const connector = new ShopifyCatalogConnector(
-      shopifyClient(shop, accessToken, config),
-      {
-        sync: (input: SelfxCatalogSyncRequest) =>
-          this.catalogSync.sync(
-            {
-              credentialId: `shopify-oauth:${integrationId}`,
-              integrationId,
-              integrationType: "SHOPIFY",
-              tokenPrefix: "shopify-oauth",
-              storeId: organizationId,
-              storeName,
-              externalAccountId: null,
-              externalAccountName: shop,
-              scopes: ["catalog:sync"],
-            },
-            input,
-          ),
+    const { organizationId } = record;
+    const lease = randomBytes(32).toString("base64url");
+    const claimed = await this.prisma.integration.updateMany({
+      where: {
+        id: integrationId,
+        status: { in: ["ACTIVE", "ERROR"] },
+        organization: { status: "ACTIVE" },
+        OR: [
+          { catalogSyncLeaseUntil: null },
+          { catalogSyncLeaseUntil: { lt: new Date() } },
+        ],
       },
-      25,
-    );
-    return connector.runFullSync();
+      data: {
+        catalogSyncLeaseToken: lease,
+        catalogSyncLeaseUntil: new Date(Date.now() + 300_000),
+      },
+    });
+    if (claimed.count !== 1)
+      throw apiError(
+        HttpStatus.CONFLICT,
+        "CATALOG_SYNC_BUSY",
+        "Catalog sync is already running or the Store is inactive.",
+      );
+    const owned = {
+      id: integrationId,
+      catalogSyncLeaseToken: lease,
+      status: { in: [IntegrationStatus.ACTIVE, IntegrationStatus.ERROR] },
+      organization: { status: OrganizationStatus.ACTIVE },
+    };
+    const renew = async () => {
+      if (
+        (
+          await this.prisma.integration.updateMany({
+            where: { ...owned, catalogSyncLeaseUntil: { gt: new Date() } },
+            data: { catalogSyncLeaseUntil: new Date(Date.now() + 300_000) },
+          })
+        ).count !== 1
+      )
+        throw new Error("CATALOG_SYNC_LEASE_LOST");
+    };
+    try {
+      const token =
+        typeof accessToken === "string" ? accessToken : await accessToken();
+      const connector = new ShopifyCatalogConnector(
+        shopifyClient(shop, token, config),
+        {
+          sync: async (input: SelfxCatalogSyncRequest) => {
+            await renew();
+            return this.catalogSync.sync(
+              {
+                credentialId: `shopify-oauth:${integrationId}`,
+                integrationId,
+                integrationType: "SHOPIFY",
+                tokenPrefix: "shopify-oauth",
+                storeId: organizationId,
+                storeName,
+                externalAccountId: null,
+                externalAccountName: shop,
+                scopes: ["catalog:sync"],
+              },
+              input,
+            );
+          },
+        },
+        25,
+      );
+      const claimedRecord = await this.prisma.integration.findUniqueOrThrow({
+        where: { id: integrationId },
+      });
+      const report = await connector.runFullSync(
+        claimedRecord.catalogSyncCheckpoint as unknown as
+          | import("@selfx/shopify-integration").ShopifyCatalogSyncCheckpoint
+          | undefined,
+        async (state) => {
+          await renew();
+          await this.prisma.integration.updateMany({
+            where: owned,
+            data: { catalogSyncCheckpoint: JSON.parse(JSON.stringify(state)) },
+          });
+        },
+      );
+      await this.recordSyncResult(
+        integrationId,
+        true,
+        report,
+        actorUserId,
+        lease,
+      );
+      await this.prisma.integration.updateMany({
+        where: owned,
+        data: {
+          catalogSyncCheckpoint: Prisma.DbNull,
+          catalogSyncLeaseToken: null,
+          catalogSyncLeaseUntil: null,
+          catalogSyncAttempts: 0,
+          catalogNextSyncAt: new Date(Date.now() + 6 * 3600_000),
+        },
+      });
+      return report;
+    } catch (error) {
+      await this.recordSyncResult(
+        integrationId,
+        false,
+        null,
+        actorUserId,
+        lease,
+      );
+      await this.prisma.integration.updateMany({
+        where: owned,
+        data: {
+          catalogSyncLeaseToken: null,
+          catalogSyncLeaseUntil: null,
+          catalogSyncAttempts: { increment: 1 },
+          catalogNextSyncAt: new Date(
+            Date.now() +
+              Math.min(
+                6 * 3600_000,
+                60_000 * 2 ** Math.min(record.catalogSyncAttempts, 8),
+              ),
+          ),
+        },
+      });
+      throw error;
+    }
   }
 
   private async currentAccessToken(
@@ -468,15 +588,17 @@ export class ShopifyOauthService {
     success: boolean,
     report: ShopifyCatalogSyncReport | null,
     actorUserId?: string,
+    leaseToken?: string,
   ) {
     const current = await this.prisma.integration.findUniqueOrThrow({
       where: { id: integrationId },
       select: { metadata: true, organizationId: true },
     });
     const metadata = jsonObject(current.metadata);
-    await this.prisma.integration.updateMany({
+    const written = await this.prisma.integration.updateMany({
       where: {
         id: integrationId,
+        ...(leaseToken ? { catalogSyncLeaseToken: leaseToken } : {}),
         status: { in: [IntegrationStatus.ACTIVE, IntegrationStatus.ERROR] },
         organization: { status: OrganizationStatus.ACTIVE },
       },
@@ -490,7 +612,7 @@ export class ShopifyOauthService {
         },
       },
     });
-    if (actorUserId) {
+    if (actorUserId && written.count === 1) {
       await this.prisma.auditLog.create({
         data: {
           id: createSelfxId(),

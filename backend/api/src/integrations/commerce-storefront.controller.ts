@@ -1,5 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
-import type { FastifyRequest } from "fastify";
+import { randomBytes } from "node:crypto";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  Patch,
+} from "@nestjs/common";
+import type { FastifyRequest, FastifyReply } from "fastify";
 import { ApiTags } from "@nestjs/swagger";
 import { parsePublicApiUploadMultipartRequest } from "../developer-api/public-api-upload.multipart.js";
 import { CommerceStorefrontTryOnService } from "./commerce-storefront-try-on.service.js";
@@ -12,6 +23,7 @@ import {
   WooCommerceLaunchDto,
   WooCommerceAvailabilityDto,
   StorefrontConsentDto,
+  StorefrontLimitsDto,
 } from "./dto/commerce-storefront.dto.js";
 import {
   CreateShopifyStorefrontTryOnRunDto,
@@ -23,6 +35,19 @@ import {
 @Controller("api/v1/integrations/storefront")
 export class WooCommerceStorefrontController {
   constructor(private readonly storefront: CommerceStorefrontTryOnService) {}
+  @Get("settings")
+  @RequireIntegrationScopes("tryon:create")
+  settings(@IntegrationCredential() credential: IntegrationCredentialContext) {
+    return this.storefront.wooSettings(credential);
+  }
+  @Patch("settings")
+  @RequireIntegrationScopes("tryon:create")
+  saveSettings(
+    @IntegrationCredential() credential: IntegrationCredentialContext,
+    @Body() input: StorefrontLimitsDto,
+  ) {
+    return this.storefront.saveWooSettings(credential, input);
+  }
   @Get("availability")
   @RequireIntegrationScopes("tryon:create")
   availability(
@@ -62,6 +87,36 @@ export class WooCommerceStorefrontController {
 @Controller("api/v1/public/integrations/commerce/try-on-sessions")
 export class CommerceStorefrontController {
   constructor(private readonly storefront: CommerceStorefrontTryOnService) {}
+  @Post(":session/visitor")
+  async visitor(
+    @Param() input: ShopifyStorefrontTryOnSessionParamDto,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const secure = process.env.NODE_ENV === "production";
+    const name = secure
+      ? "__Host-selfx_storefront_visitor"
+      : "selfx_storefront_visitor";
+    const existing = request.cookies[name];
+    const token =
+      existing && /^[A-Za-z0-9_-]{43}$/.test(existing)
+        ? existing
+        : randomBytes(32).toString("base64url");
+    const result = await this.storefront.bindFirstPartyVisitor(
+      input.session,
+      token,
+    );
+    reply.header("Cache-Control", "no-store");
+    if (result.cookieRequired && token !== existing)
+      reply.setCookie(name, token, {
+        httpOnly: true,
+        secure,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 365 * 24 * 60 * 60,
+      });
+    return { bound: true };
+  }
   @Get(":session")
   session(@Param() input: ShopifyStorefrontTryOnSessionParamDto) {
     return this.storefront.getSession(input.session);

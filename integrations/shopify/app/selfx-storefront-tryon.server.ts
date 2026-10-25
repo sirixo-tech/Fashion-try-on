@@ -55,6 +55,7 @@ export type SelfxStorefrontCreditSummary = {
 };
 
 export type SelfxStorefrontConnectionHealth = {
+  reconciliationOwner?: "SELFX_API" | "SHOPIFY_APP";
   state: "CONNECTED" | "NEEDS_RECONNECT" | "NOT_CONNECTED" | "ERROR";
   shopDomain: string;
   storeName: string | null;
@@ -65,6 +66,8 @@ export type SelfxStorefrontConnectionHealth = {
 };
 
 export type SelfxStorefrontPricingPlan = {
+  billingMode?: "POSTPAID_PAYG" | "CREDIT_LIMITED";
+  creditUnitPriceCents?: number | null;
   id: string;
   code: string;
   name: string;
@@ -115,6 +118,17 @@ export class SelfxStorefrontTryOnClient {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
+  async availability(input: {
+    source: "shopify";
+    shop: string;
+    externalProductId?: string;
+    productHandle?: string;
+  }): Promise<{ available: boolean }> {
+    return this.request("/availability", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
   async createSession(input: {
     source: "shopify";
     shop: string;
@@ -130,7 +144,10 @@ export class SelfxStorefrontTryOnClient {
       method: "POST",
       body: JSON.stringify(input),
     });
-    if (!/^[A-Za-z0-9_-]{43}$/.test(result.session) || !validDate(result.expiresAt)) {
+    if (
+      !/^[A-Za-z0-9_-]{43}$/.test(result.session) ||
+      !validDate(result.expiresAt)
+    ) {
       throw invalidResponse();
     }
     return result;
@@ -251,6 +268,25 @@ export function buildStorefrontTryOnSessionUrl(input: {
   setOptionalSearchParam(url, "productHandle", input.productHandle);
   setOptionalSearchParam(url, "locale", input.locale);
   return url.toString();
+}
+
+export function storefrontNavigationResponse(targetUrl: string): Response {
+  const scriptUrl = JSON.stringify(targetUrl).replace(/</g, "\\u003c");
+  const linkUrl = targetUrl
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return new Response(
+    `<!doctype html><html><head><meta name="referrer" content="no-referrer"><title>SelfX Try-On</title></head><body><p>Opening SelfX Try-On… <a href="${linkUrl}" rel="noreferrer">Continue to SelfX</a></p><script>window.location.replace(${scriptUrl});</script></body></html>`,
+    {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+      },
+    },
+  );
 }
 
 function setOptionalSearchParam(

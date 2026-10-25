@@ -5,6 +5,7 @@ import {
   buildStorefrontTryOnSessionUrl,
   normalizeShopifyProductId,
   productReference,
+  storefrontNavigationResponse,
 } from "./selfx-storefront-tryon.server";
 
 const config = {
@@ -14,6 +15,20 @@ const config = {
 };
 
 describe("SelfxStorefrontTryOnClient", () => {
+  it("navigates the browser out of Shopify's cookie-stripping proxy with an escaped fallback", async () => {
+    const target =
+      'https://app.selfx.test/try-on/shopify?session=token&x=</script>"';
+    const response = storefrontNavigationResponse(target);
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(html).toContain("window.location.replace(");
+    expect(html).toContain('rel="noreferrer"');
+    expect(html).toContain("\\u003c/script>");
+    expect(html).toContain("&amp;x=&lt;/script&gt;&quot;");
+  });
   it("creates a storefront session with server authentication", async () => {
     const session = "a".repeat(43);
     const fetchImpl = vi.fn().mockResolvedValue(

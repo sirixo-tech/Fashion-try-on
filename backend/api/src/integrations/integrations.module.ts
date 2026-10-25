@@ -20,6 +20,9 @@ import { IntegrationSettingsService } from "./integration-settings.service.js";
 import { IntegrationsController } from "./integrations.controller.js";
 import { IntegrationsService } from "./integrations.service.js";
 import { ShopifyOauthService } from "./shopify-oauth.service.js";
+import { ShopifyBillingController } from "./shopify-billing.controller.js";
+import { ShopifyBillingService } from "./shopify-billing.service.js";
+import { ShopifyReconciliationService } from "./shopify-reconciliation.service.js";
 import { ShopifyAppServiceAuthService } from "./shopify-app-service-auth.service.js";
 import { ShopifyLinkController } from "./shopify-link.controller.js";
 import { ShopifyLinkService } from "./shopify-link.service.js";
@@ -28,12 +31,16 @@ import { ShopifyStorefrontTryOnService } from "./shopify-storefront-try-on.servi
 import { ShopifyWebhookController } from "./shopify-webhook.controller.js";
 import { ShopifyWebhookService } from "./shopify-webhook.service.js";
 import { ShopifyShopRedactionService } from "./shopify-shop-redaction.service.js";
-import { AdminWooCommerceLinkController, WooCommerceLinkController } from "./woocommerce-link.controller.js";
+import {
+  AdminWooCommerceLinkController,
+  WooCommerceLinkController,
+} from "./woocommerce-link.controller.js";
 import { WooCommerceLinkService } from "./woocommerce-link.service.js";
 
 @Module({
   imports: [AuthModule, DatabaseModule, EntitlementsModule, TryOnModule],
   controllers: [
+    ShopifyBillingController,
     CommerceStorefrontController,
     WooCommerceStorefrontController,
     IntegrationsController,
@@ -46,6 +53,7 @@ import { WooCommerceLinkService } from "./woocommerce-link.service.js";
     AdminWooCommerceLinkController,
   ],
   providers: [
+    ShopifyBillingService,
     IntegrationsService,
     IntegrationCatalogSyncService,
     IntegrationTokenAuthService,
@@ -54,6 +62,7 @@ import { WooCommerceLinkService } from "./woocommerce-link.service.js";
     PlatformAuthorizationService,
     StoreRbacService,
     ShopifyOauthService,
+    ShopifyReconciliationService,
     ShopifyWebhookService,
     ShopifyShopRedactionService,
     ShopifyAppServiceAuthService,

@@ -1,7 +1,4 @@
-import { randomBytes } from "node:crypto";
-
 import type { LoaderFunctionArgs } from "react-router";
-import { redirect } from "react-router";
 
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -13,13 +10,12 @@ import {
 import { loadSelfxLinkConfig, SelfxLinkApiError } from "../selfx-link.server";
 import {
   buildStorefrontTryOnSessionUrl,
+  storefrontNavigationResponse,
   productReference,
   SelfxStorefrontTryOnClient,
 } from "../selfx-storefront-tryon.server";
 
 type AppProxyContext = Awaited<ReturnType<typeof authenticate.public.appProxy>>;
-
-const visitorCookieName = "selfx_tryon_visitor";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let context: AppProxyContext | null = null;
@@ -72,6 +68,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const launchBaseUrl = storefrontTryOnBaseUrl();
+    if (url.searchParams.get("availability") === "1") {
+      const result = await new SelfxStorefrontTryOnClient(
+        loadSelfxLinkConfig(),
+      ).availability({
+        source: "shopify",
+        shop,
+        ...(product.externalProductId
+          ? { externalProductId: product.externalProductId }
+          : {}),
+        ...(product.productHandle
+          ? { productHandle: product.productHandle }
+          : {}),
+      });
+      return Response.json(result, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     if (!launchBaseUrl) {
       return launchError(context, {
         message: "SelfX Try-On launch is not configured yet.",
@@ -88,12 +101,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
     const locale =
       configuredLocale === "auto" ? requestedLocale : configuredLocale;
-    const visitor = visitorToken(request);
     const session = await client.createSession({
       source: "shopify",
       shop,
       locale,
-      visitorToken: visitor.value,
       visitorTryOnLimit: normalizeLimit(connection.visitorTryOnLimit),
       visitorTryOnLimitPeriod: normalizeLimitPeriod(
         connection.visitorTryOnLimitPeriod,
@@ -114,9 +125,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       productHandle: product.productHandle,
       locale,
     });
-    const headers = new Headers();
-    if (visitor.setCookie) headers.append("Set-Cookie", visitor.setCookie);
-    return redirect(targetUrl, { headers });
+    // Shopify follows proxy redirects itself. Navigate in the browser so the
+    // destination is genuinely first-party and can establish its own cookie.
+    return storefrontNavigationResponse(targetUrl);
   } catch (error) {
     console.error(
       "SelfX storefront Try-On launch failed",
@@ -142,40 +153,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function SelfxTryOnLaunchRoute(): null {
   return null;
-}
-
-function visitorToken(request: Request): {
-  value: string;
-  setCookie: string | null;
-} {
-  const existing = parseCookie(request.headers.get("cookie"))[
-    visitorCookieName
-  ];
-  if (existing && /^[A-Za-z0-9_-]{43}$/.test(existing)) {
-    return { value: existing, setCookie: null };
-  }
-  const value = randomBytes(32).toString("base64url");
-  return {
-    value,
-    setCookie: [
-      `${visitorCookieName}=${value}`,
-      "Path=/apps/selfx-tryon",
-      "Max-Age=31536000",
-      "HttpOnly",
-      "Secure",
-      "SameSite=Lax",
-    ].join("; "),
-  };
-}
-
-function parseCookie(header: string | null): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const part of header?.split(";") ?? []) {
-    const [name, ...valueParts] = part.trim().split("=");
-    if (!name || valueParts.length === 0) continue;
-    result[name] = decodeURIComponent(valueParts.join("="));
-  }
-  return result;
 }
 
 function normalizeLimit(value: unknown): number {

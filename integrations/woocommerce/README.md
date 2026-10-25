@@ -1,10 +1,10 @@
-# SelfX for WooCommerce — 0.3.2
+# SelfX for WooCommerce — 0.4.0
 
 One-way website catalog → SelfX Store → assigned kiosks, plus a storefront **Try it on** button. WooCommerce owns products, size/color choices, prices, inventory, cart, checkout and orders. SelfX imports one parent product reference with its image and runs Virtual Try-On through the central backend. There is no stock/order writeback or SelfX checkout for imported products.
 
 ## Deploy and connect
 
-1. Deploy API and web together after applying migration `20261024000000_woocommerce_plugin_link_sessions` and the earlier storefront migrations. Configure API `SELFX_WEB_BASE_URL` to the public HTTPS SelfX web origin. Keep normal storage, provider, entitlement and credit configuration working.
+1. Deploy the current API and web together after applying pending backend migrations, including `20261024000000_woocommerce_plugin_link_sessions`, `20261025000000_storefront_first_party_visitor`, `20261025010000_commerce_reconciliation` and `20261025020000_shopify_billing`. Configure API `SELFX_WEB_BASE_URL` to the public HTTPS SelfX web origin. Keep normal storage, provider, entitlement and credit configuration working.
 2. Download `selfx-woocommerce.zip`. In WordPress **Plugins → Add New → Upload Plugin**, install/update and activate with WooCommerce active. The WordPress home URL must be public HTTPS, including any subdirectory. Minimum declared requirements: WordPress 6.5+, WooCommerce 8.0+, PHP 8.1+, OpenSSL AES-GCM. Single-site support; minimum versions are not a certified compatibility matrix.
 3. Open **WooCommerce → SelfX → Connect to SelfX**. Sign in or create an account, select an active SelfX Store and approve the website. SelfX returns to WordPress, where the plugin verifies the one-time return state, completes the link server-to-server and queues catalog sync. **Retry connection** is available if completion fails. A newly created eligible Store gets its one-time Starter trial; reconnecting does not add credits. Existing token-based connections remain supported under the advanced option.
 4. Let Scheduled Actions/WordPress cron deliver initial sync. **Sync now / retry** recovers interrupted work. In SelfX Products, classify eligible imports and enable Try-On. New imports start disabled; website updates preserve SelfX eligibility.
@@ -12,6 +12,12 @@ One-way website catalog → SelfX Store → assigned kiosks, plus a storefront *
 6. Visit an enabled product page, click **Try it on**, accept consent on SelfX, upload/take a photo, generate and view/download the result, then **Return to product**. Purchase normally through WooCommerce.
 
 Eligibility is cached for at most 60 seconds. SelfX rechecks Store, integration, mapping, plan and product at launch/during sessions. Sold-out products can still be tried on. Disabled, hidden, archived or unsupported products have no button. Temporary API failure hides the button until eligibility can be checked.
+
+## Limits and recovery
+
+In **WooCommerce → SelfX**, choose a per-browser allowance and Day, Week or Month reset, plus a monthly WooCommerce storefront allowance. Zero disables that custom cap. Settings require the Store's custom-limit entitlement and are saved on SelfX with the plugin credential; browser input cannot choose a Store. Generation rechecks the current policy even for an already-open session. Plan credits and paid usage caps remain authoritative. Cookie removal/private browsing can reset anonymous visitor identity.
+
+Errors explain whether to wait for an allowance reset, review plan/credits, reconnect the same Store or retry Scheduled Actions. Diagnostics retain safe error codes and last-sync times. Disconnect keeps the approved Store binding; reconnect cannot select another Store. There is no Change Store control.
 
 ## Public URLs and local testing
 
@@ -35,11 +41,12 @@ Customer sessions last 15 minutes. Capability tokens use a URL fragment removed 
 ## Build and verify
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File integrations/woocommerce/scripts/build.ps1
-php integrations/woocommerce/tests/plugin-test.php
+powershell -NoProfile -ExecutionPolicy Bypass -File integrations/woocommerce/scripts/release-check.ps1 -PhpPath 'C:\Program Files\php\php.exe'
 ```
 
 Builder inspects the ZIP, writes SHA-256 in `integrations/woocommerce/dist`, and copies the ZIP to `frontend/web/public/downloads`. Only six PHP files, editor JavaScript and readme are packaged.
+
+See [RELEASE.md](RELEASE.md) for distribution acceptance. Public directory publication is a separate step; the local checker does not claim WordPress.org approval.
 
 The guarded backend suite requires a migrated disposable localhost database named exactly `woocommerce_catalog_test`:
 

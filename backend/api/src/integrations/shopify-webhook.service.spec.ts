@@ -562,6 +562,8 @@ describe("Shopify webhook security and synchronization", () => {
 
   it("disconnects and archives the integration after app uninstall", async () => {
     const transaction = {
+      shopifyBillingAgreement: { updateMany: vi.fn() },
+      storeSubscription: { updateMany: vi.fn() },
       integrationProviderCredential: { deleteMany: vi.fn() },
       integrationOauthState: { deleteMany: vi.fn() },
       shopifyLinkSession: { deleteMany: vi.fn() },

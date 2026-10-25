@@ -27,7 +27,7 @@ final class SelfX_WC_Client {
     }
     public function request(string $method, string $path, ?array $body = null): array {
         $route = explode('?', $path, 2)[0];
-        if (!in_array($route, array('/api/v1/integrations/me', '/api/v1/integrations/me/credit-summary', '/api/v1/integrations/catalog/sync', '/api/v1/integrations/storefront/availability', '/api/v1/integrations/storefront/try-on-sessions'), true)) {
+        if (!in_array($route, array('/api/v1/integrations/me', '/api/v1/integrations/me/credit-summary', '/api/v1/integrations/catalog/sync', '/api/v1/integrations/storefront/settings', '/api/v1/integrations/storefront/availability', '/api/v1/integrations/storefront/try-on-sessions'), true)) {
             throw new SelfX_WC_Error('API_PATH_INVALID');
         }
         $args = array('method' => $method, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true,
@@ -48,12 +48,33 @@ final class SelfX_WC_Client {
             $error = json_decode(wp_remote_retrieve_body($response), true);
             $code = $error['error']['code'] ?? '';
             // Expose only explicitly supported actionable codes, never response payloads.
-            if (in_array($code, array('AUTH_VALIDATION_FAILED', 'COMMERCE_PUBLIC_URL_REQUIRED', 'STOREFRONT_RATE_LIMITED'), true)) { throw new SelfX_WC_Error($code); }
+            if (in_array($code, array('AUTH_VALIDATION_FAILED', 'COMMERCE_PUBLIC_URL_REQUIRED', 'STOREFRONT_RATE_LIMITED', 'SELFX_CREDITS_EXHAUSTED', 'SELFX_SUBSCRIPTION_UNAVAILABLE', 'SELFX_FEATURE_UNAVAILABLE', 'SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED', 'SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED', 'SHOPIFY_STOREFRONT_TRYON_PRODUCT_NOT_ENABLED', 'SHOPIFY_STOREFRONT_TRYON_PRODUCT_UNAVAILABLE', 'INTEGRATION_CREDENTIAL_REVOKED', 'INTEGRATION_DISCONNECTED', 'ORGANIZATION_SUSPENDED'), true)) { throw new SelfX_WC_Error($code); }
             throw new SelfX_WC_Error('API_HTTP_' . (int) $status);
         }
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if (!is_array($data)) { throw new SelfX_WC_Error('API_RESPONSE_INVALID'); }
         return $data;
+    }
+    public static function friendly_error(string $code, bool $customer = true): string {
+        $messages = array(
+            'STORE_BINDING_LOCKED' => 'This website is linked to its approved SelfX Store. Reconnect to that Store or contact SelfX support about ownership.',
+            'SHOPIFY_USAGE_CAP_REACHED' => 'This Store has reached its approved Shopify usage spending cap.',
+            'SELFX_CREDITS_EXHAUSTED' => 'This Store has no Try-On credits available. Please try again later.',
+            'SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED' => 'You have reached this Store\'s Try-On allowance for now. Please return after the allowance resets.',
+            'SHOPIFY_STOREFRONT_TRYON_MONTHLY_LIMIT_REACHED' => 'This Store has reached its monthly Try-On allowance. Please try again later.',
+            'STOREFRONT_RATE_LIMITED' => 'Try-On is busy. Please wait a minute and try again.',
+            'SHOPIFY_STOREFRONT_TRYON_PRODUCT_NOT_ENABLED' => 'Try-On is not enabled for this product.',
+            'SHOPIFY_STOREFRONT_TRYON_PRODUCT_UNAVAILABLE' => 'This product is currently unavailable for Try-On.',
+            'LIMIT_SETTINGS_INVALID' => 'Enter whole-number limits from 0 to 1000000 and select Day, Week or Month.',
+        );
+        if (isset($messages[$code])) { return $messages[$code]; }
+        if (in_array($code, array('API_HTTP_401', 'API_HTTP_403', 'INTEGRATION_CREDENTIAL_REVOKED', 'INTEGRATION_DISCONNECTED', 'CONNECTION_REQUIRED', 'CREDENTIALS_UNAVAILABLE', 'STOREFRONT_TOKEN_REQUIRED', 'WEBSITE_MISMATCH'), true)) {
+            return $customer ? 'This Store\'s Try-On connection is unavailable. Please try again later.' : 'The SelfX connection needs attention. Verify the website binding and reconnect to the same Store.';
+        }
+        if (in_array($code, array('SELFX_SUBSCRIPTION_UNAVAILABLE', 'SELFX_FEATURE_UNAVAILABLE', 'ORGANIZATION_SUSPENDED'), true)) {
+            return $customer ? 'Try-On is currently unavailable for this Store.' : 'Review the Store status and plan in SelfX. This action cannot reactivate a suspended Store.';
+        }
+        return $customer ? 'Try-On is temporarily unavailable. Please try again shortly.' : 'SelfX could not complete this action. Check the connection and Scheduled Actions, then retry.';
     }
     public function context(): array {
         $data = $this->request('GET', '/api/v1/integrations/me');

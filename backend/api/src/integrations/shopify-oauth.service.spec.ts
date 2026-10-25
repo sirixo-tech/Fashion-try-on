@@ -239,6 +239,16 @@ function renewalService() {
   vi.stubEnv("SELFX_WEB_BASE_URL", "https://app.selfx.test");
   const prisma = {
     integration: {
+      findUniqueOrThrow: vi
+        .fn()
+        .mockResolvedValue({
+          id: "integration-1",
+          organizationId: "store-1",
+          metadata: { shopDomain: "merchant.myshopify.com" },
+          catalogSyncAttempts: 0,
+          catalogSyncCheckpoint: null,
+        }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       findFirst: vi.fn().mockResolvedValue({
         id: "integration-1",
         metadata: { shopDomain: "merchant.myshopify.com" },
@@ -255,6 +265,13 @@ function renewalService() {
     },
   };
   const fetchMock = vi.fn();
+  prisma.integration.findUniqueOrThrow.mockImplementation(async () => ({
+    ...(await prisma.integration.findFirst()),
+    organizationId: "store-1",
+    catalogSyncAttempts: 0,
+    catalogSyncCheckpoint: null,
+  }));
+  Object.assign(prisma, { auditLog: { create: vi.fn() } });
   vi.stubGlobal("fetch", fetchMock);
   return {
     service: new ShopifyOauthService(prisma as never, {} as never),

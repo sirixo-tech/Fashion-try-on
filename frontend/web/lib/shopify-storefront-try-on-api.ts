@@ -1,4 +1,4 @@
-import { selfxApi } from "@/lib/api";
+import { selfxApi, SafeApiError } from "@/lib/api";
 
 export interface ShopifyTryOnProduct {
   id: string;
@@ -43,9 +43,46 @@ export interface ShopifyTryOnRun {
   errorMessage?: string;
 }
 
-export function getShopifyTryOnSession(
+const pendingVisitorBindings = new Map<string, Promise<void>>();
+
+function bindVisitor(session: string): Promise<void> {
+  const pending = pendingVisitorBindings.get(session);
+  if (pending) return pending;
+  const establish = async () => {
+    const response = await fetch("/try-on/commerce/visitor", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new SafeApiError(
+        body?.error?.code ?? "STOREFRONT_VISITOR_UNAVAILABLE",
+        body?.error?.message ?? "Try-On is temporarily unavailable.",
+        response.status,
+      );
+    }
+  };
+  // Also serialize first-time cookie establishment across tabs where supported.
+  const promise = (
+    typeof navigator !== "undefined" && navigator.locks
+      ? navigator.locks
+          .request("selfx-storefront-visitor", establish)
+          .then(() => undefined)
+      : establish()
+  ).finally(() => {
+    pendingVisitorBindings.delete(session);
+  });
+  pendingVisitorBindings.set(session, promise);
+  return promise;
+}
+
+export async function getShopifyTryOnSession(
   session: string,
 ): Promise<ShopifyTryOnSession> {
+  await bindVisitor(session);
   return selfxApi(
     `/api/v1/public/integrations/commerce/try-on-sessions/${encodeURIComponent(
       session,

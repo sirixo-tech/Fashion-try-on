@@ -208,10 +208,14 @@ describe("IntegrationsService", () => {
     const prisma = new FakePrisma();
     const service = new IntegrationsService(prisma as never);
     const integration = await service.upsertIntegration("user-1", {
-      storeId: "store-1", type: "WOOCOMMERCE",
+      storeId: "store-1",
+      type: "WOOCOMMERCE",
       externalAccountId: "https://shop.example",
     });
-    const disconnected = await service.disconnectIntegration("user-1", integration.id);
+    const disconnected = await service.disconnectIntegration(
+      "user-1",
+      integration.id,
+    );
     expect(disconnected.externalAccountId).toBeNull();
     expect(prisma.wooCommerceLinkSession.deleteMany).toHaveBeenCalledWith({
       where: { organizationId: "store-1", redeemedAt: null },
@@ -251,6 +255,7 @@ type StoredCredential = {
 };
 
 class FakePrisma {
+  readonly shopifyBillingAgreement = { count: vi.fn().mockResolvedValue(0) };
   $queryRaw = vi
     .fn()
     .mockImplementation(() => Promise.resolve([{ status: this.storeStatus }]));

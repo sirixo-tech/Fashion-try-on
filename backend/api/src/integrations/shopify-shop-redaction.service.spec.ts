@@ -96,6 +96,9 @@ describe("Shopify shop redaction", () => {
         externalAccountId: null,
         externalAccountName: null,
         metadata: { privacyStatus: "REDACTED" },
+        catalogSyncCheckpoint: expect.anything(),
+        catalogSyncLeaseToken: null,
+        catalogSyncLeaseUntil: null,
         disconnectedAt: expect.any(Date),
       },
     });
@@ -121,7 +124,23 @@ describe("Shopify shop redaction", () => {
     );
 
     expect("organization" in tx).toBe(false);
-    expect("storeSubscription" in tx).toBe(false);
+    expect(tx.storeSubscription.deleteMany).not.toHaveBeenCalled();
+    expect(tx.storeSubscription.updateMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: "store-1",
+        metadata: { path: ["billingProvider"], equals: "SHOPIFY" },
+      },
+      data: { status: "CANCELLED", cancelledAt: expect.any(Date) },
+    });
+    expect(tx.shopifyBillingAgreement.updateMany).toHaveBeenCalledWith({
+      where: { integrationId: "integration-1" },
+      data: expect.objectContaining({
+        shopDomain: "redacted:integration-1",
+        externalSubscriptionId: null,
+        usageLineItemId: null,
+        status: "CANCELLED",
+      }),
+    });
     expect("organizationMembership" in tx).toBe(false);
     expect("kioskDevice" in tx).toBe(false);
   });
@@ -180,6 +199,11 @@ function transactionMock() {
     create: vi.fn().mockResolvedValue({}),
   });
   return {
+    $executeRaw: vi.fn(),
+    shopifyUsageCharge: mutation(),
+    shopifyUsageReservation: mutation(),
+    shopifyBillingAgreement: mutation(),
+    storeSubscription: mutation(),
     kioskTryOnRun: mutation(),
     usageEvent: mutation(),
     creditLedgerEntry: mutation(),

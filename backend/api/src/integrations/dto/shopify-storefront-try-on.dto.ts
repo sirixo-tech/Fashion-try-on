@@ -41,7 +41,7 @@ export class CreateShopifyStorefrontTryOnSessionDto {
 
   @ApiPropertyOptional({
     description:
-      "Anonymous visitor token generated after Shopify app proxy verification.",
+      "Legacy field; ignored for Shopify. SelfX binds the browser visitor on its own web origin.",
   })
   @IsOptional()
   @IsString()
@@ -278,6 +278,7 @@ export class ShopifyStorefrontPricingPlansDto {
 }
 
 export class ShopifyStorefrontConnectionHealthDto {
+  @ApiPropertyOptional() reconciliationOwner?: "SELFX_API" | "SHOPIFY_APP";
   @ApiProperty({
     enum: ["CONNECTED", "NEEDS_RECONNECT", "NOT_CONNECTED", "ERROR"],
   })

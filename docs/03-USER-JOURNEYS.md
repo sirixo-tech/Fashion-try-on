@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### Commerce merchant recovery and payment journey (2026-10-25)
+
+Shopify merchants can leave the app while catalog reconciliation continues, inspect sync results, retry, disconnect and reconnect the same SelfX Store. Eligible products reveal Try it on after a successful availability check. In Plans, choose an existing SelfX plan, specify a spending cap for usage pricing, and approve Shopify's native charge screen. SelfX verifies approval server-side. Subsequent paid plan changes remain scheduled until renewal; the current allowance continues until then. Cancellation stops paid access, and paid approvals must be cancelled before disconnect/archive/permanent deletion. WooCommerce merchants set per-browser day/week/month allowances and a monthly website allowance in WooCommerce > SelfX; safe error text explains recovery. No Change Store journey is added.
+
+### Shopify returning anonymous visitors (2026-10-25)
+
+A customer launches Try-On from Shopify and their browser opens SelfX directly. SelfX establishes or reuses its anonymous browser marker before accepting photos. Returning through another product in the same Store retains usage; another Store has independent usage. Customers keep the existing consent/photo/result/return journey without mandatory login. A mismatched or incompatible old launch asks the customer to return to the product page and launch again.
+
 ### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
 
 Merchant connects Woo plugin with a new two-scope token, syncs public product/image URLs, classifies and enables imports in SelfX. Customer selects Try it on on the original product page, accepts consent on SelfX, uploads/takes a photo, generates and views/downloads the result, then returns to that product page. Website size/color/purchase flows remain on the website. Assigned kiosks show one imported product with Try-On, no native buy action or website price. Native products retain their purchase experience.

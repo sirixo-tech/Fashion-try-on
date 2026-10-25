@@ -42,7 +42,7 @@
 {% assign selfx_button_label = block.settings.button_label | default: selfx_default_button_label %}
 {% assign selfx_helper_text = block.settings.helper_text | default: selfx_default_helper_text %}
 
-<div class="selfx-tryon-block">
+<div class="selfx-tryon-block" hidden>
   <button
     type="button"
     class="selfx-tryon-button"
@@ -64,6 +64,7 @@
 </div>
 
 <style>
+  .selfx-tryon-block[hidden] { display: none !important; }
   .selfx-tryon-block {
     margin: 16px 0;
   }
@@ -92,9 +93,25 @@
 </style>
 
 <script>
+  document.querySelectorAll('.selfx-tryon-block button:not([data-selfx-checked])').forEach(function (button) {
+    button.dataset.selfxChecked = 'true';
+    var check = new URL(button.dataset.selfxLaunchUrl, window.location.origin);
+    if (check.origin !== window.location.origin) return;
+    check.searchParams.set('productId', button.dataset.selfxProductId);
+    check.searchParams.set('productHandle', button.dataset.selfxProductHandle);
+    check.searchParams.set('availability', '1');
+    fetch(check.toString(), { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
+      if (!response.ok) throw new Error('Unavailable');
+      return response.json();
+    }).then(function (result) {
+      if (result.available === true) { button.dataset.selfxReady = 'true'; button.closest('.selfx-tryon-block').hidden = false; }
+    }).catch(function () { /* Remain hidden until eligibility can be verified. */ });
+  });
+  if (!window.selfxTryOnClickHandlerInstalled) {
+  window.selfxTryOnClickHandlerInstalled = true;
   document.addEventListener("click", function (event) {
     var button = event.target.closest(".selfx-tryon-button");
-    if (!button) return;
+    if (!button || button.dataset.selfxReady !== 'true') return;
 
     var launchUrl = button.dataset.selfxLaunchUrl;
     if (!launchUrl) {
@@ -110,6 +127,7 @@
 
     window.open(url.toString(), "_blank", "noopener,noreferrer");
   });
+  }
 </script>
 
 {% schema %}

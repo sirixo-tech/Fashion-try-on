@@ -3,7 +3,7 @@ Contributors: selfx
 Tags: woocommerce, catalog, virtual-try-on, kiosk
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.3.2
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,6 +19,19 @@ Requires WooCommerce 8.0+, OpenSSL AES-GCM, active SelfX Store/integration and p
 
 == External service and privacy ==
 
+Service: https://selfxweb-production.up.railway.app/
+Privacy policy: https://selfxweb-production.up.railway.app/privacy
+Support: https://selfxweb-production.up.railway.app/support
+
+An account and an active SelfX Store are required. Paid plans and usage are
+provided by the SelfX service; the WordPress plugin code is GPLv2 or later.
+The plugin sends catalog and website context only after a merchant connects.
+It does not send WordPress customer accounts, orders, payment details or photos.
+Customer photo consent and processing occur on the separate SelfX service.
+Choose visitor day/week/month and monthly Store limits in WooCommerce > SelfX.
+The Store plan and shared credits remain authoritative. Limits are per browser,
+not proof of a person's identity. There is no Change Store control.
+
 Connects to your SelfX API (default https://selfxapi-production.up.railway.app). The plugin pairs with a SelfX Store through a short-lived approval link and receives its credential server-to-server. Sends website identity, parent IDs, names, descriptions, URLs, images, publication state and revisions. No order/inventory writeback. Launch uses an anonymous HTTP-only visitor cookie. Photo processing happens directly on SelfX after consent under your SelfX service agreement/privacy policy. Sensitive assets expire within at most seven days.
 
 Tokens are encrypted using WP salts, never shown in storefront HTML. Reconnect after salt changes/site migration. Uninstall clears local data but retains products and remote catalog. Revoke tokens in SelfX to stop new launches; disable integration/product for existing session eligibility denial. Short-lived sessions expire separately.
@@ -33,6 +46,12 @@ Tokens are encrypted using WP salts, never shown in storefront HTML. Reconnect a
 6. Use automatic classic placement or block/shortcode for block themes.
 
 == Changelog ==
+
+= 0.4.0 =
+* Central Store-owned visitor and monthly allowances with WordPress management controls.
+* Clear credit, connection, product and allowance errors with safe recovery guidance.
+* Keep reconnections bound to the approved SelfX Store.
+* Expanded service/privacy disclosures and release checks.
 
 = 0.3.2 =
 * Complete approved connections on a verified WordPress admin return, without an extra click.

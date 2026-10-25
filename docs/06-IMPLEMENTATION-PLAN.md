@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### Approved commerce follow-ups (2026-10-25)
+
+Implement the user's explicitly authorized Shopify recovery/eligibility/same-Store connection controls, WooCommerce centrally enforced limits and actionable errors, existing-plan native Shopify billing, and WooCommerce 0.4.0 distribution preparation. Paid plan changes start at renewal as explicitly chosen by the user. Verify resumable scans, worker contention, service authentication/Store scoping, frozen financial terms, deferred activation, cap reservations and idempotent receipts with unit and disposable-PostgreSQL tests; run PHP checks, types/lint, production builds, Shopify config validation and GraphQL schema validation. Build an inspected ZIP/checksum. Production migrations, native test-charge acceptance, real Shopify/WooCommerce site checks, WordPress Plugin Check and directory review remain rollout acceptance, not implementation-time deployment/publication. See COMMERCE-FOLLOWUPS-IMPLEMENTATION-REPORT.md for evidence and rollout steps.
+
+### Shopify visitor-limit correction (2026-10-25)
+
+Implement the approved SelfX first-party anonymous marker, verified Shopify browser handoff, one-time capability binding and atomic quota/credit/run admission. Validate cookie security, origin checks, repeat visits, independent Store digests, rejected rebinding/unbound generation, idempotent retries and simultaneous visitor/monthly-cap admission against disposable PostgreSQL. Validate schema/migration, API/web/Shopify types, relevant regressions and changed-file lint. Coordinate API/web/Shopify server deployment with the additive migration; live Shopify browser acceptance remains a rollout check. Do not deploy or perform paid AI execution as part of this change.
+
 ### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
 
 Implement the explicitly approved Try-On-only scope: Woo plugin launch/button/block, shared customer flow, consent/idempotency and source-owned catalog/kiosk controls; align Shopify normalization. Verify PHP package/harness, frontend controls, backend service and disposable PostgreSQL integration, URL-fetch security, kiosk model/cache/UI regression, types/lint and production compilation. Build ZIP/checksum and document deploy/migration/token/public-site steps. Live WordPress/Shopify acceptance and actual authorized AI generation remain deployment acceptance; do not deploy, send real messages or execute production payments during implementation.

@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### Commerce reliability, controls and Shopify billing (2026-10-25)
+
+Approved follow-up scope: recover Shopify catalog sync automatically, show its storefront button only after eligibility checks, support disconnect/reconnect to the same approved Store, and expose WooCommerce visitor/monthly limits with actionable errors. Do not add Change Store. Merchants buy existing active Shopify-compatible SelfX plans through Shopify payment approval; WooCommerce retains SelfX billing. Paid Shopify plan changes start at the next renewal, preserving the current price and allowance until then. Approved terms remain fixed until new approval. Usage plans require an explicit merchant spending cap and charge only successful generations across the Store's included channels. Public WooCommerce distribution preparation does not authorize directory publication.
+
+### Shopify anonymous visitor limits (2026-10-25)
+
+Anonymous Shopify Try-On remains available without login. SelfX remembers a browser with its own secure, HttpOnly first-party cookie, with independent usage limits per Store. Opening a product or launching a session does not consume an allowance; admitted generation attempts retain the existing counting policy. Clearing cookies, private browsing or switching devices can reset anonymous identity. Store credits and monthly caps remain separate protections.
+
 ### STORE-ARCHIVE-INTEGRATIONS — Release commerce connections (2026-10-23)
 
 Archiving a Store disconnects its integrations, revokes integration credentials and pending connection sessions, and releases Shopify shop identity. Imported catalog references in the archived Store become inactive; native Store products and historical records are retained. Restoring the Store does not restore connections. A merchant must authorize each integration again, and a newly linked Store imports its own catalog without inheriting the archived Store's tenant data.

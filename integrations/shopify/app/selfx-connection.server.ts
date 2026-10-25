@@ -2,6 +2,8 @@ import { SelfxCatalogClient } from "../src/selfx-catalog.server.js";
 import { ShopifyAdminClient } from "../src/shopify-admin.server.js";
 import { ShopifyCatalogConnector } from "../src/shopify-catalog.connector.js";
 import db from "./db.server";
+import { randomBytes } from "node:crypto";
+import { Prisma } from "@selfx/shopify-prisma-client";
 import {
   parseShopifyProductVisibilityRules,
   parseShopifyTryOnMode,
@@ -131,14 +133,17 @@ export async function clearStaleSelfxConnection(
       pendingLinkTokenCiphertext: null,
       pendingLinkExpiresAt: null,
       integrationTokenCiphertext: null,
-      selfxStoreId: null,
-      selfxStoreName: null,
+      // Retain the approved binding; reconnect cannot select another Store.
       selfxIntegrationId: null,
       selfxCredentialId: null,
       linkedAt: null,
       syncStatus: "NOT_STARTED",
       lastErrorCode: null,
       lastErrorMessage: null,
+      syncCheckpoint: Prisma.DbNull,
+      syncLeaseToken: null,
+      syncLeaseUntil: null,
+      syncAttempts: 0,
     },
   });
   return getSelfxConnectionView(shop);
@@ -245,6 +250,14 @@ export async function startSelfxConnection(input: {
   const existing = await db.selfxConnection.findUnique({
     where: { shop: input.shop },
   });
+  if (
+    existing?.selfxStoreId &&
+    input.storeId &&
+    input.storeId !== existing.selfxStoreId
+  )
+    throw new Error(
+      "This website is bound to its approved SelfX Store. Contact support to change ownership.",
+    );
   if (!input.force && existing?.status === "CONNECTED") {
     return getSelfxConnectionView(input.shop);
   }
@@ -307,7 +320,7 @@ export async function startSelfxConnection(input: {
     shopDomain: canonicalShop,
     externalAccountId: identity.id,
     externalAccountName: identity.name,
-    storeId: input.storeId ?? null,
+    storeId: existing?.selfxStoreId ?? input.storeId ?? null,
   });
   const cipherConfig = loadSelfxSecretCipherConfig();
   const cipher = new SelfxSecretCipher(cipherConfig);
@@ -324,7 +337,7 @@ export async function startSelfxConnection(input: {
       ),
       pendingLinkExpiresAt: new Date(link.expiresAt),
       encryptionKeyVersion: cipherConfig.keyVersion,
-      selfxStoreId: input.storeId ?? null,
+      selfxStoreId: existing?.selfxStoreId ?? input.storeId ?? null,
     },
     update: {
       shopifyAccountId: identity.id,
@@ -337,7 +350,7 @@ export async function startSelfxConnection(input: {
       pendingLinkExpiresAt: new Date(link.expiresAt),
       integrationTokenCiphertext: null,
       encryptionKeyVersion: cipherConfig.keyVersion,
-      selfxStoreId: input.storeId ?? null,
+      selfxStoreId: existing?.selfxStoreId ?? input.storeId ?? null,
       selfxStoreName: input.storeId ? (current?.selfxStoreName ?? null) : null,
       selfxIntegrationId: null,
       selfxCredentialId: null,
@@ -443,14 +456,45 @@ export async function restartSelfxConnection(input: {
   shop: string;
   shopifyAccessToken: string;
 }): Promise<SelfxConnectionView> {
-  // A saved Store ID may belong to an archived Store. A fresh, unlocked link
-  // requires an authorized SelfX user to approve the current Store again.
+  const current = await db.selfxConnection.findUnique({
+    where: { shop: input.shop },
+  });
   return startSelfxConnection({
     shop: input.shop,
     shopifyAccessToken: input.shopifyAccessToken,
-    storeId: null,
+    storeId: current?.selfxStoreId ?? null,
     force: true,
   });
+}
+
+export async function disconnectSelfxConnection(
+  shop: string,
+): Promise<SelfxConnectionView> {
+  const current = await db.selfxConnection.findUnique({ where: { shop } });
+  if (!current?.selfxStoreId)
+    throw new Error("There is no connected SelfX Store.");
+  await new SelfxLinkClient(loadSelfxLinkConfig()).disconnect({
+    shopDomain: shop,
+    externalAccountId: current.shopifyAccountId,
+    storeId: current.selfxStoreId,
+  });
+  await db.selfxConnection.update({
+    where: { shop },
+    data: {
+      status: "DISCONNECTED",
+      syncCheckpoint: Prisma.DbNull,
+      syncLeaseToken: null,
+      syncLeaseUntil: null,
+      syncAttempts: 0,
+      integrationTokenCiphertext: null,
+      pendingLinkTokenCiphertext: null,
+      pendingLinkExpiresAt: null,
+      syncStatus: "NOT_STARTED",
+      lastErrorCode: null,
+      lastErrorMessage: null,
+    },
+  });
+  return getSelfxConnectionView(shop);
 }
 
 export async function runSelfxCatalogSync(input: {
@@ -472,28 +516,78 @@ export async function runSelfxCatalogSync(input: {
     connection.integrationTokenCiphertext,
     integrationTokenContext(connection.shopifyAccountId),
   );
-  await db.selfxConnection.update({
-    where: { shop: input.shop },
+  const lease = randomBytes(32).toString("base64url");
+  const claimed = await db.selfxConnection.updateMany({
+    where: {
+      shop: input.shop,
+      status: "CONNECTED",
+      OR: [{ syncLeaseUntil: null }, { syncLeaseUntil: { lt: new Date() } }],
+    },
     data: {
+      syncLeaseToken: lease,
+      syncLeaseUntil: new Date(Date.now() + 300_000),
       syncStatus: "SYNCING",
       lastErrorCode: null,
       lastErrorMessage: null,
     },
   });
+  if (claimed.count !== 1) return getSelfxConnectionView(input.shop);
+  const owned = {
+    shop: input.shop,
+    status: "CONNECTED",
+    syncLeaseToken: lease,
+  };
+  const renew = async () => {
+    if (
+      (
+        await db.selfxConnection.updateMany({
+          where: { ...owned, syncLeaseUntil: { gt: new Date() } },
+          data: { syncLeaseUntil: new Date(Date.now() + 300_000) },
+        })
+      ).count !== 1
+    )
+      throw new Error("CATALOG_SYNC_LEASE_LOST");
+  };
 
   try {
+    const writer = new SelfxCatalogClient({
+      apiBaseUrl: loadSelfxLinkConfig().apiBaseUrl,
+      integrationToken,
+    });
     const connector = new ShopifyCatalogConnector(
       shopifyClient(input),
-      new SelfxCatalogClient({
-        apiBaseUrl: loadSelfxLinkConfig().apiBaseUrl,
-        integrationToken,
-      }),
+      {
+        sync: async (batch) => {
+          await renew();
+          return writer.sync(batch);
+        },
+      },
       boundedInteger(process.env.SELFX_CATALOG_BATCH_SIZE, 25),
     );
-    const report = await connector.runFullSync();
-    await db.selfxConnection.update({
+    const ownedConnection = await db.selfxConnection.findUnique({
       where: { shop: input.shop },
+    });
+    if (!ownedConnection) throw new Error("The Store connection was removed.");
+    const report = await connector.runFullSync(
+      ownedConnection.syncCheckpoint as unknown as
+        | import("../src/shopify-catalog.connector").ShopifyCatalogSyncCheckpoint
+        | undefined,
+      async (state) => {
+        await renew();
+        await db.selfxConnection.updateMany({
+          where: owned,
+          data: { syncCheckpoint: JSON.parse(JSON.stringify(state)) },
+        });
+      },
+    );
+    await db.selfxConnection.updateMany({
+      where: owned,
       data: {
+        syncCheckpoint: Prisma.DbNull,
+        syncLeaseToken: null,
+        syncLeaseUntil: null,
+        syncAttempts: 0,
+        nextSyncAt: new Date(Date.now() + 6 * 3600_000),
         syncStatus: "SUCCESS",
         lastSyncAt: new Date(report.completedAt),
         lastSyncProducts: report.productsRead,
@@ -506,9 +600,19 @@ export async function runSelfxCatalogSync(input: {
       },
     });
   } catch {
-    await db.selfxConnection.update({
-      where: { shop: input.shop },
+    await db.selfxConnection.updateMany({
+      where: owned,
       data: {
+        syncLeaseToken: null,
+        syncLeaseUntil: null,
+        syncAttempts: { increment: 1 },
+        nextSyncAt: new Date(
+          Date.now() +
+            Math.min(
+              6 * 3600_000,
+              60_000 * 2 ** Math.min(connection.syncAttempts, 8),
+            ),
+        ),
         syncStatus: "ERROR",
         lastErrorCode: "CATALOG_SYNC_FAILED",
         lastErrorMessage:

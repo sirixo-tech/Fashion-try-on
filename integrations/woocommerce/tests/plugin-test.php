@@ -23,6 +23,7 @@ function wp_safe_remote_request($url, $args) {
     if (str_ends_with($url, '/me/credit-summary')) { return array('code' => 200, 'body' => json_encode(array('availableCredits' => 10,
         'subscription' => array('status' => 'TRIALING', 'pricingPlan' => array('name' => 'Starter', 'billingMode' => 'CREDIT_LIMITED'))))); }
     if (str_contains($url, '/storefront/availability?')) { return array('code' => 200, 'body' => '{"available":true}'); }
+    if (str_ends_with($url, '/storefront/settings')) { return array('code' => 200, 'body' => $args['method'] === 'PATCH' ? $args['body'] : '{"visitorTryOnLimit":5,"visitorTryOnLimitPeriod":"DAY","monthlyStoreTryOnLimit":0}'); }
     $body = json_decode($args['body'], true);
     return array('code' => 200, 'body' => json_encode(array('direction' => 'COMMERCE_TO_SELFX', 'sourceOfTruth' => 'COMMERCE_PLATFORM',
         'finalized' => $body['finalize'] ?? false, 'created' => count($body['products']), 'updated' => 0, 'archived' => 0, 'ignoredAsStale' => 0, 'skippedWithoutImage' => 0)));
@@ -276,7 +277,7 @@ test('a worker that loses its lease cannot clear pending changes or overwrite an
     equal(is_array(get_option(SelfX_WC_Plugin::DIRTY . '10')), true);
     equal(get_option('selfx_wc_worker_lock')['owner'], 'replacement');
 });
-test('connection verifies context, encrypts credentials and requires confirmation before changing Store', function () {
+test('connection verifies context, encrypts credentials and refuses changing Store', function () {
     $plugin = setup(); global $context; $token = 'selfx_woocommerce_' . str_repeat('b', 43);
     $_POST = array('api_origin' => 'https://api.example', 'integration_token' => $token);
     rejects(fn() => $plugin->connect(), 'REDIRECT');
@@ -287,9 +288,9 @@ test('connection verifies context, encrypts credentials and requires confirmatio
     $context['store']['id'] = 'store-b';
     rejects(fn() => $plugin->connect(), 'REDIRECT');
     equal(get_option(SelfX_WC_Plugin::CONFIG)['storeId'], 'store-a');
-    equal(get_option(SelfX_WC_Plugin::STATE)['message'], 'STORE_CHANGE_CONFIRMATION_REQUIRED');
+    equal(get_option(SelfX_WC_Plugin::STATE)['message'], 'STORE_BINDING_LOCKED');
     $_POST['confirm_store_change'] = '1'; rejects(fn() => $plugin->connect(), 'REDIRECT');
-    equal(get_option(SelfX_WC_Plugin::CONFIG)['storeId'], 'store-b');
+    equal(get_option(SelfX_WC_Plugin::CONFIG)['storeId'], 'store-a');
     $context['store']['id'] = 'store-a'; $_POST = array();
 });
 test('changing API origin never forwards the saved credential without a freshly supplied token', function () {
@@ -417,5 +418,42 @@ test('settings show the live Store billing mode and inactive plan state', functi
     ob_start(); $plugin->page(); $html = ob_get_clean();
     equal(str_contains($html, 'Growth</strong> · PAST_DUE'), true);
     equal(str_contains($html, 'Try-On is unavailable while this Store plan is inactive'), true);
+});
+test('saves bounded visitor and monthly allowances to SelfX without client Store overrides', function () {
+    $plugin = setup(); global $requests;
+    $_POST = array('visitorTryOnLimit' => '12', 'visitorTryOnLimitPeriod' => 'WEEK', 'monthlyStoreTryOnLimit' => '200');
+    rejects(fn() => $plugin->save_limits(), 'REDIRECT');
+    equal(count($requests), 1); equal($requests[0][1]['method'], 'PATCH');
+    equal(json_decode($requests[0][1]['body'], true), array('visitorTryOnLimit' => 12, 'monthlyStoreTryOnLimit' => 200, 'visitorTryOnLimitPeriod' => 'WEEK'));
+    equal(str_ends_with($requests[0][0], '/storefront/settings'), true);
+});
+test('invalid limits and unauthorized operators never write settings', function () {
+    global $requests, $can_manage, $nonce_valid;
+    foreach (array(array('visitorTryOnLimit' => '-1'), array('visitorTryOnLimit' => '1.5'), array('monthlyStoreTryOnLimit' => '1000001'), array('visitorTryOnLimitPeriod' => 'YEAR')) as $invalid) {
+        $plugin = setup(); $_POST = array_merge(array('visitorTryOnLimit' => '5', 'visitorTryOnLimitPeriod' => 'DAY', 'monthlyStoreTryOnLimit' => '0'), $invalid);
+        rejects(fn() => $plugin->save_limits(), 'REDIRECT'); equal(count($requests), 0);
+    }
+    $plugin = setup(); $can_manage = false; rejects(fn() => $plugin->save_limits(), 'PERMISSION_DENIED'); equal(count($requests), 0);
+    $can_manage = true; $nonce_valid = false; rejects(fn() => $plugin->save_limits(), 'NONCE_DENIED'); equal(count($requests), 0); $nonce_valid = true;
+});
+test('actionable errors preserve only safe codes and customer guidance', function () {
+    setup(); global $response_hook;
+    $response_hook = fn() => array('code' => 402, 'body' => '{"error":{"code":"SELFX_CREDITS_EXHAUSTED","message":"private provider information"}}');
+    $client = new SelfX_WC_Client('https://api.example', 'selfx_woocommerce_' . str_repeat('a', 43));
+    rejects(fn() => $client->request('GET', '/api/v1/integrations/storefront/settings'), 'SELFX_CREDITS_EXHAUSTED');
+    equal(str_contains(SelfX_WC_Client::friendly_error('SELFX_CREDITS_EXHAUSTED'), 'no Try-On credits'), true);
+    equal(str_contains(SelfX_WC_Client::friendly_error('API_HTTP_401', false), 'reconnect'), true);
+    equal(str_contains(SelfX_WC_Client::friendly_error('SHOPIFY_STOREFRONT_TRYON_VISITOR_LIMIT_REACHED'), 'allowance'), true);
+    equal(str_contains(SelfX_WC_Client::friendly_error('SECRET_PROVIDER_DETAIL'), 'SECRET'), false);
+});
+test('disconnect retains the approved Store binding and rejects a different Store even with the old confirmation flag', function () {
+    $plugin = setup(); global $context;
+    rejects(fn() => $plugin->disconnect(), 'REDIRECT');
+    $context['store']['id'] = 'store-b';
+    $_POST = array('api_origin' => 'https://api.example', 'integration_token' => 'selfx_woocommerce_' . str_repeat('a', 43), 'confirm_store_change' => '1');
+    rejects(fn() => $plugin->connect(), 'REDIRECT');
+    equal(get_option(SelfX_WC_Plugin::CONFIG, array()), array());
+    equal(get_option(SelfX_WC_Plugin::STATE)['message'], 'STORE_BINDING_LOCKED');
+    $context['store']['id'] = 'store-a'; $_POST = array();
 });
 echo "$passed plugin checks passed.\n";

@@ -821,6 +821,7 @@ function createPrismaMock() {
     integrationProviderCredential: { deleteMany: vi.fn() },
     integrationOauthState: { deleteMany: vi.fn() },
     shopifyLinkSession: { deleteMany: vi.fn() },
+    shopifyBillingAgreement: { count: vi.fn().mockResolvedValue(0) },
     wooCommerceLinkSession: { deleteMany: vi.fn() },
     integrationCredential: { updateMany: vi.fn() },
     externalProductMapping: {

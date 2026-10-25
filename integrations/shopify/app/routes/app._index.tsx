@@ -1,4 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
+import {
+  beginShopifyBilling,
+  billingEnabled,
+  cancelShopifyBilling,
+  syncShopifyBilling,
+  scheduledShopifyPlan,
+} from "../selfx-billing.server";
 import type {
   ActionFunctionArgs,
   LoaderFunctionArgs,
@@ -16,6 +23,7 @@ import {
 
 import {
   completeSelfxConnection,
+  disconnectSelfxConnection,
   getSelfxIntegrationToken,
   getSelfxConnectionView,
   restartSelfxConnection,
@@ -78,7 +86,8 @@ type ThemeBlockView = {
   errorMessage: string | null;
 };
 
-type CreditHealth = "UNKNOWN" | "HEALTHY" | "LOW" | "EMPTY" | "PAYG" | "INACTIVE";
+type CreditHealth =
+  "UNKNOWN" | "HEALTHY" | "LOW" | "EMPTY" | "PAYG" | "INACTIVE";
 
 type ProductControlsView = SelfxProductControlsResponse & {
   errorMessage: string | null;
@@ -175,6 +184,14 @@ const setupSteps = [
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  if (billingEnabled()) {
+    try {
+      const { admin } = await authenticate.admin(request);
+      await syncShopifyBilling(session.shop, admin);
+    } catch {
+      /* Preserve read-only access while billing recovery retries. */
+    }
+  }
   let connection = await safeConnectionView(session.shop);
   const connectionHealth = await safeConnectionHealth(session.shop, connection);
   if (
@@ -189,6 +206,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : { ...connection, status: "ERROR" as const };
   return {
     connection,
+    scheduledBilling: await scheduledShopifyPlan(session.shop).catch(
+      () => null,
+    ),
     connectionHealth,
     themeBlock: await safeThemeBlockView({
       accessToken: session.accessToken,
@@ -207,7 +227,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       connected: connectionHealth.state === "CONNECTED",
       shop: session.shop,
     }),
-    selfxBillingUrl: safeSelfxBillingUrl(verifiedConnection),
+    selfxBillingUrl: "/app?panel=plans",
     selfxPublicUrls: safeSelfxPublicUrls(),
     themeEditorUrl: buildTryOnBlockThemeEditorUrl(session.shop),
   };
@@ -224,6 +244,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
   const intent = formData.get("intent");
+  if (intent === "billing:choose" || intent === "billing:cancel") {
+    try {
+      const {
+        session: billingSession,
+        admin,
+        redirect,
+      } = await authenticate.admin(request);
+      if (intent === "billing:cancel") {
+        if (formData.get("confirmCancel") !== "yes")
+          throw new Error("Confirm cancellation before continuing.");
+        await cancelShopifyBilling(billingSession.shop, admin);
+        return redirect("/app?panel=plans");
+      }
+      const approval = await beginShopifyBilling(
+        billingSession.shop,
+        admin,
+        String(formData.get("planId") ?? ""),
+        String(formData.get("usageCap") ?? ""),
+      );
+      return redirect(approval, { target: "_top" });
+    } catch (error) {
+      return {
+        connectionActionError:
+          error instanceof Error
+            ? error.message
+            : "Shopify billing is unavailable.",
+        productActionError: null,
+        productActionSuccess: null,
+      };
+    }
+  }
   let session: Awaited<ReturnType<typeof authenticate.admin>>["session"];
   try {
     ({ session } = await authenticate.admin(request));
@@ -240,7 +291,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     intent === "connection:connect" ||
     intent === "connection:complete" ||
     intent === "connection:restart" ||
-    intent === "connection:sync"
+    intent === "connection:sync" ||
+    intent === "connection:disconnect"
   ) {
     try {
       const accessToken = session.accessToken?.trim();
@@ -251,7 +303,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         shop: session.shop,
         shopifyAccessToken: accessToken,
       };
-      if (intent === "connection:connect") {
+      if (intent === "connection:disconnect") {
+        const { admin } = await authenticate.admin(request);
+        await cancelShopifyBilling(session.shop, admin);
+        await disconnectSelfxConnection(session.shop);
+      } else if (intent === "connection:connect") {
         await startSelfxConnection(input);
       } else if (intent === "connection:complete") {
         await completeSelfxConnection(input);
@@ -541,6 +597,7 @@ export default function Index() {
   }, [
     connection.pendingLinkExpiresAt,
     connection.status,
+    connectionFetcher,
     connectionFetcher.state,
     connectionFetcher.submit,
   ]);
@@ -556,7 +613,8 @@ export default function Index() {
     creditSummary?.subscription?.includedCredits ??
     0;
   const availableCredits = creditSummary?.availableCredits ?? 0;
-  const payg = creditSummary?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG";
+  const payg =
+    creditSummary?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG";
   const creditAllowance = Math.max(
     includedCredits + (creditSummary?.subscription?.trialCredits ?? 0),
     availableCredits,
@@ -619,7 +677,15 @@ export default function Index() {
         />
         <DashboardMetric
           label={payg ? "Billable Try-Ons this period" : t("availableCredits")}
-          value={connected ? String(payg ? creditSummary?.postpaid?.billableCredits ?? 0 : availableCredits) : "-"}
+          value={
+            connected
+              ? String(
+                  payg
+                    ? (creditSummary?.postpaid?.billableCredits ?? 0)
+                    : availableCredits,
+                )
+              : "-"
+          }
           meta={localizedPlanName}
           badge={
             <CreditBadge adminLocale={adminLocale} health={creditHealth} />
@@ -627,6 +693,13 @@ export default function Index() {
         />
       </s-grid>
 
+      {loaded.scheduledBilling ? (
+        <s-banner tone="info">
+          Your change to {loaded.scheduledBilling.name} starts at your next
+          renewal ({formatDate(loaded.scheduledBilling.effectiveAfter)}). Your
+          current allowance remains until then.
+        </s-banner>
+      ) : null}
       <CreditUsagePanel
         adminLocale={adminLocale}
         availableCredits={availableCredits}
@@ -635,7 +708,11 @@ export default function Index() {
         creditHealth={creditHealth}
         totalCredits={creditAllowance}
         planName={localizedPlanName}
-        paygUsage={creditHealth === "PAYG" ? creditSummary?.postpaid?.billableCredits ?? 0 : null}
+        paygUsage={
+          creditHealth === "PAYG"
+            ? (creditSummary?.postpaid?.billableCredits ?? 0)
+            : null
+        }
       />
 
       <div className="selfx-shopify-panel-layout">
@@ -930,6 +1007,29 @@ function DashboardMetric({
   );
 }
 
+function ConnectionDisconnectControl() {
+  const [confirm, setConfirm] = useState(false);
+  return confirm ? (
+    <Form method="post">
+      <input type="hidden" name="intent" value="connection:disconnect" />
+      <s-text>
+        Disconnect SelfX? Try-On and synchronization will stop. Reconnecting
+        requires approval for the same SelfX Store.
+      </s-text>
+      <s-button type="submit" tone="critical">
+        Confirm disconnect
+      </s-button>
+      <s-button type="button" onClick={() => setConfirm(false)}>
+        Cancel
+      </s-button>
+    </Form>
+  ) : (
+    <s-button variant="secondary" onClick={() => setConfirm(true)}>
+      Disconnect SelfX
+    </s-button>
+  );
+}
+
 function CreditUsagePanel({
   adminLocale,
   availableCredits,
@@ -954,20 +1054,57 @@ function CreditUsagePanel({
   }
   const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
   if (creditHealth === "INACTIVE") {
-    return <s-section><s-box padding="base" background="base" borderWidth="small" borderColor="base" borderRadius="base"><s-stack gap="small-200"><CreditBadge adminLocale={adminLocale} health={creditHealth} /><s-text>{planName}: Try-On is unavailable while this Store plan is inactive. Review billing in SelfX.</s-text>{billingUrl ? <s-button href={billingUrl} target="_blank" variant="secondary">{t("viewPlans")}</s-button> : null}</s-stack></s-box></s-section>;
+    return (
+      <s-section>
+        <s-box
+          padding="base"
+          background="base"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-stack gap="small-200">
+            <CreditBadge adminLocale={adminLocale} health={creditHealth} />
+            <s-text>
+              {planName}: Try-On is unavailable while this Store plan is
+              inactive. Review billing in SelfX.
+            </s-text>
+            {billingUrl ? (
+              <s-button href={billingUrl} target="_blank" variant="secondary">
+                {t("viewPlans")}
+              </s-button>
+            ) : null}
+          </s-stack>
+        </s-box>
+      </s-section>
+    );
   }
   if (paygUsage !== null) {
     return (
       <s-section>
-        <s-box padding="base" background="base" borderWidth="small" borderColor="base" borderRadius="base">
+        <s-box
+          padding="base"
+          background="base"
+          borderWidth="small"
+          borderColor="base"
+          borderRadius="base"
+        >
           <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="center">
             <s-grid-item>
               <s-stack gap="small-200">
                 <s-badge tone="info">Pay as you go</s-badge>
-                <s-text>{planName} · {paygUsage} billable Try-Ons this period</s-text>
+                <s-text>
+                  {planName} · {paygUsage} billable Try-Ons this period
+                </s-text>
               </s-stack>
             </s-grid-item>
-            <s-grid-item>{billingUrl ? <s-button href={billingUrl} target="_blank" variant="secondary">{t("viewPlans")}</s-button> : null}</s-grid-item>
+            <s-grid-item>
+              {billingUrl ? (
+                <s-button href={billingUrl} target="_blank" variant="secondary">
+                  {t("viewPlans")}
+                </s-button>
+              ) : null}
+            </s-grid-item>
           </s-grid>
         </s-box>
       </s-section>
@@ -1392,6 +1529,7 @@ function CatalogSyncPanel({
           Sync is read-only. Shopify remains the source of truth for products,
           prices, inventory, orders and store settings.
         </s-text>
+        {connected ? <ConnectionDisconnectControl /> : null}
       </s-stack>
     </s-section>
   );
@@ -1481,7 +1619,15 @@ function StoreConnectionSettingsCard({
           />
           <ConnectionInfoBlock label="Shopify shop" value={connection.shop} />
           <ConnectionInfoBlock label="Plan" value={planName} />
-          <ConnectionInfoBlock label={creditSummary?.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG" ? "Usage" : "Credits"} value={credits} />
+          <ConnectionInfoBlock
+            label={
+              creditSummary?.subscription?.pricingPlan?.billingMode ===
+              "POSTPAID_PAYG"
+                ? "Usage"
+                : "Credits"
+            }
+            value={credits}
+          />
         </s-grid>
 
         {connected ? (
@@ -1892,12 +2038,26 @@ function PlansPanel({
   return (
     <s-section heading="Plans">
       <s-stack gap="base">
+        <Form method="post">
+          <input type="hidden" name="intent" value="billing:cancel" />
+          <label>
+            <input type="checkbox" name="confirmCancel" value="yes" required />{" "}
+            I understand that cancelling the Shopify plan stops paid Try-On
+            access.
+          </label>
+          <s-button type="submit" variant="secondary">
+            Cancel Shopify plan
+          </s-button>
+        </Form>
         <s-grid
           gridTemplateColumns="repeat(auto-fit, minmax(12rem, 1fr))"
           gap="base"
         >
           {payg ? (
-            <Metric label="Billable Try-Ons this period" value={creditSummary?.postpaid?.billableCredits ?? 0} />
+            <Metric
+              label="Billable Try-Ons this period"
+              value={creditSummary?.postpaid?.billableCredits ?? 0}
+            />
           ) : (
             <>
               <Metric label="Available credits" value={availableCredits} />
@@ -1917,7 +2077,8 @@ function PlansPanel({
             <s-stack gap="small-200">
               <s-heading>{currentPlanLabel}</s-heading>
               <s-text color="subdued">
-                Manage upgrades and billing in your SelfX dashboard.
+                Choose a SelfX plan below. Shopify handles approval and app
+                charges.
               </s-text>
             </s-stack>
           </s-stack>
@@ -1954,7 +2115,17 @@ function PlansPanel({
                   key={plan.id}
                   active={active}
                   billingUrl={billingUrl}
-                  plan={plan}
+                  plan={
+                    active && currentPlan
+                      ? {
+                          ...plan,
+                          ...currentPlan,
+                          trialCredits:
+                            creditSummary?.subscription?.trialCredits ??
+                            plan.trialCredits,
+                        }
+                      : plan
+                  }
                 />
               );
             })}
@@ -1990,7 +2161,6 @@ function PlansPanel({
 
 function PlanCard({
   active,
-  billingUrl,
   plan,
 }: {
   active: boolean;
@@ -2063,14 +2233,38 @@ function PlanCard({
           This is your current plan.
         </div>
       ) : (
-        <SelfxActionButton
-          disabled={!billingUrl}
-          href={billingUrl ?? undefined}
-          target="_blank"
-          tone="primary"
-        >
-          Upgrade
-        </SelfxActionButton>
+        <Form method="post">
+          <input type="hidden" name="intent" value="billing:choose" />
+          <input type="hidden" name="planId" value={plan.id} />
+          {plan.billingMode === "POSTPAID_PAYG" ? (
+            <label>
+              Usage spending cap per 30-day period ({plan.currency})
+              <input
+                name="usageCap"
+                type="number"
+                min="0.01"
+                max="1000000"
+                step="0.01"
+                required
+              />
+              <s-text>
+                {formatMoney(plan.creditUnitPriceCents ?? 0, plan.currency)} per
+                successful Try-On. Your approved cap applies across this
+                Store&apos;s channels.
+              </s-text>
+            </label>
+          ) : null}
+          <s-button
+            type="submit"
+            variant="primary"
+            disabled={
+              plan.monthlyPriceCents === 0 &&
+              plan.billingMode !== "POSTPAID_PAYG"
+            }
+          >
+            Choose plan in Shopify
+          </s-button>
+        </Form>
       )}
     </div>
   );
@@ -2894,7 +3088,11 @@ function PrimaryActions({
       <s-stack direction="inline" gap="base">
         {approvalUrl ? (
           <div className="selfx-shopify-header-action">
-            <SelfxActionButton tone="primary" href={approvalUrl} target="_blank">
+            <SelfxActionButton
+              tone="primary"
+              href={approvalUrl}
+              target="_blank"
+            >
               Approve in SelfX
             </SelfxActionButton>
           </div>
@@ -2987,7 +3185,8 @@ function CreditBadge({
   health: CreditHealth;
 }) {
   const t = (key: Parameters<typeof adminT>[1]) => adminT(adminLocale, key);
-  if (health === "INACTIVE") return <s-badge tone="critical">Plan inactive</s-badge>;
+  if (health === "INACTIVE")
+    return <s-badge tone="critical">Plan inactive</s-badge>;
   if (health === "PAYG") return <s-badge tone="info">Pay as you go</s-badge>;
   if (health === "EMPTY") {
     return <s-badge tone="critical">{t("noCredits")}</s-badge>;
@@ -4343,17 +4542,6 @@ async function productControlsClient(
   );
 }
 
-function safeSelfxBillingUrl(connection: SelfxConnectionView): string | null {
-  if (connection.status !== "CONNECTED") {
-    return null;
-  }
-  try {
-    return new URL("/app/billing", loadSelfxLinkConfig().webBaseUrl).toString();
-  } catch {
-    return null;
-  }
-}
-
 function safeSelfxPublicUrls(): { privacyUrl: string; supportUrl: string } {
   try {
     const webBaseUrl = loadSelfxLinkConfig().webBaseUrl;
@@ -4375,10 +4563,15 @@ function creditHealthFor(
   if (!creditSummary) {
     return "UNKNOWN";
   }
-  if (!creditSummary.subscription || !["ACTIVE", "TRIALING"].includes(creditSummary.subscription.status)) {
+  if (
+    !creditSummary.subscription ||
+    !["ACTIVE", "TRIALING"].includes(creditSummary.subscription.status)
+  ) {
     return "INACTIVE";
   }
-  if (creditSummary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG") {
+  if (
+    creditSummary.subscription?.pricingPlan?.billingMode === "POSTPAID_PAYG"
+  ) {
     return "PAYG";
   }
   if (creditSummary.availableCredits <= 0) {

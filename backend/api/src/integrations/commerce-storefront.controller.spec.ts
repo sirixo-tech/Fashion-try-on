@@ -12,6 +12,77 @@ import {
   StorefrontConsentDto,
 } from "./dto/commerce-storefront.dto.js";
 describe("Commerce storefront boundary", () => {
+  it("issues a secure HttpOnly first-party marker and reuses it on another launch", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      const bindFirstPartyVisitor = vi
+        .fn()
+        .mockResolvedValue({ bound: true, cookieRequired: true });
+      const controller = new CommerceStorefrontController({
+        bindFirstPartyVisitor,
+      } as never);
+      const reply = { header: vi.fn(), setCookie: vi.fn() };
+      await controller.visitor(
+        { session: "s".repeat(43) },
+        { cookies: {} } as never,
+        reply as never,
+      );
+      const [name, token, options] = reply.setCookie.mock.calls[0]!;
+      expect(name).toBe("__Host-selfx_storefront_visitor");
+      expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(options).toMatchObject({
+        secure: true,
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+      });
+      reply.setCookie.mockClear();
+      await controller.visitor(
+        { session: "t".repeat(43) },
+        { cookies: { [name]: token } } as never,
+        reply as never,
+      );
+      expect(bindFirstPartyVisitor).toHaveBeenLastCalledWith(
+        "t".repeat(43),
+        token,
+      );
+      expect(reply.setCookie).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+  it("does not replace the visitor cookie if binding fails", async () => {
+    const reply = { header: vi.fn(), setCookie: vi.fn() };
+    const controller = new CommerceStorefrontController({
+      bindFirstPartyVisitor: vi
+        .fn()
+        .mockRejectedValue(new Error("invalid launch")),
+    } as never);
+    await expect(
+      controller.visitor(
+        { session: "s".repeat(43) },
+        { cookies: {} } as never,
+        reply as never,
+      ),
+    ).rejects.toThrow();
+    expect(reply.setCookie).not.toHaveBeenCalled();
+  });
+  it("keeps WooCommerce's existing visitor identity without adding a SelfX cookie", async () => {
+    const reply = { header: vi.fn(), setCookie: vi.fn() };
+    const controller = new CommerceStorefrontController({
+      bindFirstPartyVisitor: vi
+        .fn()
+        .mockResolvedValue({ bound: true, cookieRequired: false }),
+    } as never);
+    await expect(
+      controller.visitor(
+        { session: "s".repeat(43) },
+        { cookies: {} } as never,
+        reply as never,
+      ),
+    ).resolves.toEqual({ bound: true });
+    expect(reply.setCookie).not.toHaveBeenCalled();
+  });
   it("requires integration Try-On scope for launch and eligibility", () => {
     for (const method of ["launch", "availability"] as const) {
       const handler = WooCommerceStorefrontController.prototype[method];

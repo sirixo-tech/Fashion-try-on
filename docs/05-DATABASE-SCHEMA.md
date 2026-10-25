@@ -1,5 +1,15 @@
 ## Document Evolution
 
+### Commerce recovery and Shopify financial records (2026-10-25)
+
+Migration 20261025010000_commerce_reconciliation adds Integration checkpoint/lease, retry and due-time fields. The Shopify app's separate 20261025010000_catalog_reconciliation migration adds corresponding SelfxConnection fields and billing verification due time. WooCommerce limits use validated integration metadata rather than a parallel tenant/settings entity.
+
+Migration 20261025020000_shopify_billing introduces Store/integration/plan-scoped ShopifyBillingAgreement records with frozen approved terms, native identity, period and deferred effective time; ShopifyUsageReservation rows with unique request digests and per-period cap accounting; and ShopifyUsageCharge rows unique per durable BillableGeneration with native idempotency keys/receipts. An optional unique KioskTryOnRun reservation reference and insertion trigger prevent use of expired/released allowances. Successful financial records follow existing retention rules; sensitive images retain their seven-day maximum. Shop redaction erases Shopify identifiers and retains Store-scoped financial amounts; permanent Store purge includes the new FK dependencies and preserves other Stores.
+
+### Shopify first-party visitor marker (2026-10-25)
+
+Migration 20261025000000_storefront_first_party_visitor adds nullable timestamptz(3) visitor_bound_at to shopify_storefront_try_on_sessions. Existing visitor_token_hash stores a Store-specific digest of the SelfX cookie for newly bound Shopify sessions, never the raw marker. Bound attribution is immutable. Existing WooCommerce hashes and session contracts remain unchanged. No visitor/customer account table or image-retention extension is introduced. Quota checks, credit admission and run insertion share a Store-serialized transaction.
+
 ### COMMERCE-TRYON-2 — Try-On-only website integrations (2026-10-23)
 
 Reuse historic ShopifyStorefrontTryOnSession as the internal commerce capability table; integration type is authoritative and Woo shopDomain holds its canonical website URL. No new tenant, inventory or order model. Add nullable unique char(64) storefront_request_key to kiosk_try_on_runs through migration 20261023000000_storefront_request_idempotency; hash session/request IDs, never capability tokens. Durable AuditLog consent records retain policy version/text, session, Store and channel independently of expiring sensitive images. Historic imported variant metadata is retained for compatibility but ignored by the Try-On-only UI/purchasing boundary.
