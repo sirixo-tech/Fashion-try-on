@@ -20,9 +20,12 @@ vi.mock("@/lib/current-store", () => ({
     access: { permissions?: string[] } | null,
     code: string,
   ) => access?.permissions?.includes(code) ?? false,
-  getCurrentMerchantStore: vi
+  getCurrentMerchantStoreAccess: vi
     .fn()
-    .mockResolvedValue({ id: "store-a", name: "Store A" }),
+    .mockResolvedValue({
+      store: { id: "store-a", name: "Store A" },
+      permissions: null,
+    }),
 }));
 vi.mock("@/lib/stores", () => ({
   getStore: vi.fn().mockResolvedValue(null),
@@ -39,32 +42,30 @@ vi.mock("@/lib/stores", () => ({
   }),
 }));
 vi.mock("@/lib/integrations", () => ({
-  getShopifyOverview: vi
-    .fn()
-    .mockResolvedValue({
-      data: [
-        {
-          id: "integration-a",
-          storeId: "store-a",
-          storeName: "Store A",
-          website: "https://merchant.myshopify.com",
-          externalAccountName: "Shop",
-          health: "CONNECTED",
-          healthReasons: [],
-          productCount: 3,
-          successfulTryOns: 2,
-          lastCatalogSyncAt: null,
-        },
-      ],
-      summary: {
-        total: 1,
-        connected: 1,
-        needsAttention: 0,
-        disconnected: 0,
+  getShopifyOverview: vi.fn().mockResolvedValue({
+    data: [
+      {
+        id: "integration-a",
+        storeId: "store-a",
+        storeName: "Store A",
+        website: "https://merchant.myshopify.com",
+        externalAccountName: "Shop",
+        health: "CONNECTED",
+        healthReasons: [],
+        productCount: 3,
         successfulTryOns: 2,
+        lastCatalogSyncAt: null,
       },
-      pagination: { page: 1, total: 1, totalPages: 1, hasMore: false },
-    }),
+    ],
+    summary: {
+      total: 1,
+      connected: 1,
+      needsAttention: 0,
+      disconnected: 0,
+      successfulTryOns: 2,
+    },
+    pagination: { page: 1, total: 1, totalPages: 1, hasMore: false },
+  }),
   getWooCommerceOverview: vi
     .fn()
     .mockResolvedValue({ data: [], summary: {}, pagination: {} }),

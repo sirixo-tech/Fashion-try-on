@@ -28,6 +28,7 @@ import {
 
 import {
   buttonVariants,
+  ControlTooltip,
   Button,
   Card,
   CardAction,
@@ -546,14 +547,18 @@ function StoreDirectoryCard({
             <CreditCardIcon aria-hidden="true" />
           </Button>
 
-          <Link
-            href={`/app/stores/${store.id}`}
-            aria-label={`View ${store.name}`}
-            title="View Store"
-            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
-          >
-            <EyeIcon aria-hidden="true" />
-          </Link>
+          <ControlTooltip content="View Store">
+            <Link
+              href={`/app/stores/${store.id}`}
+              aria-label={`View ${store.name}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "icon-sm",
+              })}
+            >
+              <EyeIcon aria-hidden="true" />
+            </Link>
+          </ControlTooltip>
 
           <ConfirmDialog
             title={active ? "Suspend Store?" : "Reactivate Store?"}

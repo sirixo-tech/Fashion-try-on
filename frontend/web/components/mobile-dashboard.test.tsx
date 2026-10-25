@@ -58,7 +58,9 @@ it("shows real account metrics separately from future Try-On, revenue and QR ser
   const registered = screen.getByRole("heading", {
     name: "Registered customers",
   }).parentElement!.parentElement!;
-  expect(within(registered).getByText("0")).toBeTruthy();
+  expect(within(registered).getAllByText("0").length).toBeGreaterThan(0);
+  expect(registered.className).toContain("capitalio-panel");
+  expect(registered.querySelector(".capitalio-icon")).toBeTruthy();
   expect(screen.getAllByText("Not connected")).toHaveLength(3);
   expect(
     screen.getByRole("button", { name: "Export" }).hasAttribute("disabled"),

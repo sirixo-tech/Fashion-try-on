@@ -17,7 +17,7 @@ import { PrismaService } from "../database/prisma.service.js";
 import { MailCrypto } from "../mail/mail-crypto.js";
 import { MailOutboxService } from "../mail/mail-outbox.service.js";
 import { MailSettingsService } from "../mail/mail-settings.service.js";
-import { SmtpSender } from "../mail/smtp-sender.js";
+import { MailDeliveryError, SmtpSender } from "../mail/smtp-sender.js";
 import { CustomerAuthService } from "./customer-auth.service.js";
 import { CustomerIdentityClient } from "./customer-identity.client.js";
 import { CUSTOMER_TERMS_VERSION } from "./customer.config.js";
@@ -252,6 +252,82 @@ describe.skipIf(!url)(
       expect(
         await auth.login(email, "a-new-long-passphrase", ip),
       ).toHaveProperty("accessToken");
+      const notifications = await deliver();
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0]).toMatchObject({
+        to: email,
+        subject: "Your SelfX password was changed",
+      });
+      expect(notifications[0]!.text).toContain(
+        "If you did not make this change",
+      );
+      for (const secret of [value, password, "a-new-long-passphrase"])
+        expect(notifications[0]!.text).not.toContain(secret);
+      expect(await deliver()).toHaveLength(0);
+    });
+    it("does not queue a notification for invalid codes or rolled-back password changes", async () => {
+      const session = await register();
+      await auth.requestCode(email, "RESET_PASSWORD", ip);
+      const value = await code();
+      await expect(
+        auth.resetPassword(email, "invalid-code", "a-new-long-passphrase", ip),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(await deliver()).toHaveLength(0);
+
+      const enqueue = vi
+        .spyOn(outbox, "enqueue")
+        .mockRejectedValueOnce(new Error("Simulated queue failure"));
+      try {
+        await expect(
+          auth.resetPassword(email, value, "a-new-long-passphrase", ip),
+        ).rejects.toThrow("Simulated queue failure");
+      } finally {
+        enqueue.mockRestore();
+      }
+      expect(await deliver()).toHaveLength(0);
+      await expect(auth.me(bearer(session))).resolves.toBeDefined();
+      await expect(auth.login(email, password, ip)).resolves.toHaveProperty(
+        "accessToken",
+      );
+      await auth.resetPassword(email, value, "a-new-long-passphrase", ip);
+      expect(await deliver()).toHaveLength(1);
+    });
+    it("retries notification delivery without undoing a completed password reset", async () => {
+      await register();
+      await auth.requestCode(email, "RESET_PASSWORD", ip);
+      const value = await code();
+      await auth.resetPassword(email, value, "a-new-long-passphrase", ip);
+      const job = await db.mailJob.findFirstOrThrow({
+        where: { status: "PENDING", kind: "MESSAGE" },
+      });
+      const stored = JSON.stringify(job.payload);
+      for (const secret of [email, value, "a-new-long-passphrase"])
+        expect(stored).not.toContain(secret);
+      sender.send.mockRejectedValueOnce(
+        new MailDeliveryError("MAIL_DELIVERY_UNAVAILABLE"),
+      );
+      await outbox.processNext();
+      expect(
+        await db.mailJob.findUnique({ where: { id: job.id } }),
+      ).toMatchObject({
+        status: "PENDING",
+        attempts: 1,
+      });
+      await expect(
+        auth.login(email, "a-new-long-passphrase", ip),
+      ).resolves.toHaveProperty("accessToken");
+      await db.mailJob.update({
+        where: { id: job.id },
+        data: { availableAt: new Date(Date.now() - 1) },
+      });
+      expect(await deliver()).toHaveLength(1);
+      expect(
+        await db.mailJob.findUnique({ where: { id: job.id } }),
+      ).toMatchObject({
+        status: "SENT",
+        attempts: 2,
+        payload: null,
+      });
     });
     it("rejects expired codes and durably limits guesses even across service instances", async () => {
       const response = await auth.signup(signup(), ip);

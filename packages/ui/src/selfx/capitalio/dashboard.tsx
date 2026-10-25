@@ -1,4 +1,5 @@
 "use client";
+import { MetricValue } from "../metric-value";
 
 // Adapted from Capitalio Dashboard, MIT © Watermelon Contributors.
 // See capitalio/LICENSE. Layout retained; all metrics are supplied by SelfX.
@@ -161,7 +162,7 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-md">
+    <div className="selfx-tooltip-surface rounded-lg p-3 text-xs">
       <div className="mb-2 font-medium">
         {payload[0]?.payload?.date ? dateLabel(payload[0].payload.date) : label}
       </div>
@@ -294,7 +295,7 @@ function Metric({
           <Skeleton className="h-9 w-28" />
         ) : (
           <strong className="text-3xl font-semibold leading-none tracking-tight">
-            {value}
+            <MetricValue value={value} />
           </strong>
         )}
         <span className="text-xs text-muted-foreground">{note}</span>
@@ -307,6 +308,7 @@ function Metric({
 export function CapitalioDashboard({
   metrics: m,
   loading = false,
+  comparisonLoading = false,
   unavailableMessage = "Usage is unavailable for this scope.",
   analysisAction,
   productsAction,
@@ -361,7 +363,11 @@ export function CapitalioDashboard({
           note={
             m ? (
               growth == null ? (
-                "No prior usage to compare"
+                comparisonLoading ? (
+                  "Loading comparison…"
+                ) : (
+                  "No prior usage to compare"
+                )
               ) : (
                 <span
                   className={
@@ -934,3 +940,11 @@ export function CapitalioDashboard({
     </div>
   );
 }
+
+// Shared Capitalio presentation: both dashboard types use these same primitives.
+export {
+  Panel as CapitalioPanel,
+  Metric as CapitalioMetric,
+  Header as CapitalioPanelHeader,
+  ChartTooltip as CapitalioChartTooltip,
+};

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { MetricValue } from "./metric-value";
 
 import {
   Card,
@@ -67,7 +68,7 @@ export function StatCard({
             {label}
           </p>
           <p className="text-2xl font-semibold tracking-tight text-foreground">
-            {value}
+            <MetricValue value={value} />
           </p>
           {secondaryValue ? (
             <p className="text-sm text-muted-foreground">{secondaryValue}</p>

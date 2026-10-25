@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { TooltipProvider } from "../components/tooltip";
 
 export type SelfxTheme = "light" | "dark";
 
@@ -37,11 +38,7 @@ function preferredTheme(): SelfxTheme {
   return "light";
 }
 
-export function SelfxUiProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function SelfxUiProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<SelfxTheme>("light");
   const [initialized, setInitialized] = useState(false);
 
@@ -75,7 +72,7 @@ export function SelfxUiProvider({
 
   return (
     <SelfxThemeContext.Provider value={value}>
-      {children}
+      <TooltipProvider>{children}</TooltipProvider>
     </SelfxThemeContext.Provider>
   );
 }

@@ -1,7 +1,9 @@
+"use client";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@selfx/ui/lib/utils";
+import { ControlTooltip } from "./tooltip";
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-semibold whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/35 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -45,14 +47,37 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  title,
+  tooltip,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & { tooltip?: string | false }) {
+  const description =
+    tooltip === false
+      ? undefined
+      : (tooltip ??
+        title ??
+        (size?.startsWith("icon") ? props["aria-label"] : undefined));
+  // Only explanatory disabled hints add a focus stop. Keep ordinary disabled
+  // icon controls (for example an empty password reveal) natively disabled.
+  const explainDisabled = Boolean(
+    description &&
+    props.disabled &&
+    (tooltip || title) &&
+    description !== props["aria-label"],
+  );
   return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
+    <ControlTooltip content={description}>
+      <ButtonPrimitive
+        data-slot="button"
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          explainDisabled && "disabled:pointer-events-auto",
+        )}
+        focusableWhenDisabled={explainDisabled}
+        {...props}
+      />
+    </ControlTooltip>
   );
 }
 

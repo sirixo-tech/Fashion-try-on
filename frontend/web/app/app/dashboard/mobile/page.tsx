@@ -1,20 +1,13 @@
 "use client";
 import { useState } from "react";
-import {
-  CalendarDaysIcon,
-  DownloadIcon,
-  RefreshCwIcon,
-  SmartphoneIcon,
-  UsersIcon,
-  UserPlusIcon,
-  ActivityIcon,
-  ShieldCheckIcon,
-} from "lucide-react";
+import { CalendarDaysIcon, DownloadIcon, RefreshCwIcon } from "lucide-react";
 import {
   Alert,
   AlertDescription,
   Button,
-  Card,
+  CapitalioPanel,
+  CapitalioPanelHeader,
+  MobileDashboardMetrics,
   DashboardTypeName,
   MobileDashboardCharts,
   SelectMenu,
@@ -44,32 +37,6 @@ export default function MobileDashboardPage() {
   const totals = data?.totals;
   const format = (value: number | undefined) =>
     value == null ? "—" : new Intl.NumberFormat().format(value);
-  const stats = [
-    {
-      title: "Registered customers",
-      value: totals?.total,
-      description: "Current accounts · excludes deleted accounts",
-      icon: UsersIcon,
-    },
-    {
-      title: "New accounts",
-      value: totals?.newAccounts,
-      description: "Created in the selected period",
-      icon: UserPlusIcon,
-    },
-    {
-      title: "Recently active",
-      value: totals?.recentlyActive,
-      description: "Latest sign-in or session refresh in this period",
-      icon: ActivityIcon,
-    },
-    {
-      title: "Verified customers",
-      value: totals?.verified,
-      description: "Current active, verified accounts",
-      icon: ShieldCheckIcon,
-    },
-  ];
   function exportCsv() {
     if (!data) return;
     const csv = mobileDashboardCsv(data);
@@ -84,19 +51,16 @@ export default function MobileDashboardPage() {
     URL.revokeObjectURL(url);
   }
   return (
-    <main className="mx-auto min-w-0 max-w-[112rem] space-y-6 px-4 py-6 md:px-8 lg:py-8">
+    <main className="capitalio-dashboard-content mx-auto min-w-0 max-w-[112rem] space-y-6 px-4 py-6 md:px-8 lg:py-8">
       <header className="flex flex-wrap items-start justify-between gap-5">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">
             <DashboardTypeName type="mobile" />
           </h1>
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <SmartphoneIcon className="size-4" aria-hidden="true" />
-            Customer app · platform overview
-          </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             Last updated{" "}
             {data ? <RegionalDateTime value={data.updatedAt} /> : "—"}
+            <span aria-hidden="true">•</span> Customer app
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -156,32 +120,11 @@ export default function MobileDashboardPage() {
           </AlertDescription>
         </Alert>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <Card
-            key={stat.title}
-            className="min-w-0 gap-4 rounded-lg p-5 shadow-none ring-0"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-medium">{stat.title}</h2>
-              <stat.icon
-                className="size-5 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </div>
-            {loading ? (
-              <Skeleton className="h-10 w-24" />
-            ) : (
-              <p className="text-3xl font-semibold tracking-tight">
-                {format(stat.value)}
-              </p>
-            )}
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {stat.description}
-            </p>
-          </Card>
-        ))}
-      </div>
+      <MobileDashboardMetrics
+        totals={totals ?? null}
+        daily={data?.daily ?? null}
+        loading={loading}
+      />
       {(data?.available || loading) && !error ? (
         <MobileDashboardCharts
           daily={data?.daily ?? null}
@@ -189,8 +132,8 @@ export default function MobileDashboardPage() {
           loading={loading}
         />
       ) : null}
-      <Card className="gap-4 rounded-lg p-5 shadow-none ring-0">
-        <h2 className="text-lg font-medium">Account overview</h2>
+      <CapitalioPanel title="Account overview">
+        <CapitalioPanelHeader title="Account overview" />
         <div className="grid gap-5 sm:grid-cols-3">
           {[
             ["Verified", totals?.verified],
@@ -214,7 +157,7 @@ export default function MobileDashboardPage() {
           Recently active uses the latest known sign-in/refresh timestamp, not a
           historical daily-active-user count.
         </p>
-      </Card>
+      </CapitalioPanel>
       <div className="grid gap-4 lg:grid-cols-3">
         {[
           [
@@ -230,7 +173,7 @@ export default function MobileDashboardPage() {
             "Sponsored sessions and Store totals will appear after QR sponsorship is connected. Charges will belong to the Store.",
           ],
         ].map(([title, description]) => (
-          <Card key={title} className="gap-3 rounded-lg p-5 shadow-none ring-0">
+          <CapitalioPanel key={title} title={title}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-medium">{title}</h2>
               <StatusBadge status="PENDING" label="Not connected" />
@@ -238,7 +181,7 @@ export default function MobileDashboardPage() {
             <p className="text-sm leading-relaxed text-muted-foreground">
               {description}
             </p>
-          </Card>
+          </CapitalioPanel>
         ))}
       </div>
     </main>

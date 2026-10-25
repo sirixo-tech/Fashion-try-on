@@ -151,4 +151,45 @@ describe("Dashboard scope and loading", () => {
     expect(result.current.data?.staff).toBeNull();
     expect(result.current.error).toBe("Team unavailable");
   });
+  it("publishes current metrics before slow resources and comparison complete", async () => {
+    let finishPrevious!: (value: ReturnType<typeof dashboardFixture>) => void;
+    let finishProducts!: (value: { pagination: { total: number } }) => void;
+    mocks.usage.mockImplementation(async (_token, query) =>
+      query.range === "custom"
+        ? new Promise((resolve) => {
+            finishPrevious = resolve;
+          })
+        : dashboardFixture(18),
+    );
+    mocks.products.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishProducts = resolve;
+        }),
+    );
+    const { result } = renderHook(() =>
+      useDashboard("merchant", null, "30d", 0),
+    );
+    await waitFor(() => expect(result.current.metrics?.generated).toBe(18));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.data?.comparisonPending).toBe(true);
+    expect(result.current.data?.products).toBeNull();
+    await act(async () => finishProducts({ pagination: { total: 147 } }));
+    expect(result.current.data?.products).toBe(147);
+    await act(async () => finishPrevious(dashboardFixture(12)));
+    expect(result.current.metrics?.growthPercent).toBe(50);
+    expect(result.current.data?.comparisonPending).toBe(false);
+    expect(mocks.usage).toHaveBeenCalledTimes(2);
+  });
+  it("reuses permissions already returned with the merchant context", async () => {
+    mocks.merchant.mockResolvedValue({
+      store: { id: "store-a", name: "A" },
+      permissions,
+    });
+    const { result } = renderHook(() =>
+      useDashboard("merchant", null, "30d", 0),
+    );
+    await waitFor(() => expect(result.current.metrics?.generated).toBe(18));
+    expect(mocks.permissions).not.toHaveBeenCalled();
+  });
 });

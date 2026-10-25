@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ShopifySettingsPage } from "./shopify-settings-page";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
-import { getCurrentMerchantStore } from "@/lib/current-store";
+import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import {
   disconnectIntegration,
   getShopifyOverview,
@@ -33,7 +33,7 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/access-control", () => ({ getCurrentPlatformAccess: vi.fn() }));
 vi.mock("@/lib/current-store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/current-store")>()),
-  getCurrentMerchantStore: vi.fn(),
+  getCurrentMerchantStoreAccess: vi.fn(),
 }));
 vi.mock("@/lib/regional-settings", () => ({
   RegionalDateTime: ({ value }: { value: string }) => <span>{value}</span>,
@@ -112,9 +112,9 @@ beforeEach(() => {
     isSuperadmin: true,
     permissions: [],
   } as never);
-  vi.mocked(getCurrentMerchantStore).mockResolvedValue({
-    id: "store-a",
-    name: "Store A",
+  vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({
+    store: { id: "store-a", name: "Store A" },
+    permissions: null,
   } as never);
   vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
     storeId: "store-a",
@@ -142,6 +142,22 @@ function detail() {
   );
   render(<ShopifySettingsPage />);
 }
+
+it("shows connection content before slow credit diagnostics finish", async () => {
+  let finish!: () => void;
+  vi.mocked(getStoreCreditDiagnostics).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = () => resolve(null as never);
+      }),
+  );
+  detail();
+  await screen.findByText("Shopify setup");
+  expect(screen.getByText("6")).toBeTruthy();
+  expect(screen.queryByText("Loading Store connection…")).toBeNull();
+  expect(getStoreCreditDiagnostics).toHaveBeenCalledTimes(1);
+  await act(async () => finish());
+});
 
 it("opens the platform overview without Store enumeration or credential requests", async () => {
   render(<ShopifySettingsPage />);

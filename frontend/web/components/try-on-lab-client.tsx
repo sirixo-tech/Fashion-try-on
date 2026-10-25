@@ -45,6 +45,7 @@ import {
   PageHeader,
   PageSection,
   cn,
+  ControlTooltip,
 } from "@selfx/ui";
 import {
   type GarmentInputAnalysisResult,
@@ -891,16 +892,24 @@ function ImageInputCard({
               </div>
             </div>
           </div>
-          <label
-            htmlFor={inputId}
-            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-md text-primary transition-colors hover:bg-primary/10"
-            title={slot.file ? "Change image" : "Choose image"}
-          >
-            <UploadIcon className="size-5" aria-hidden="true" />
-            <span className="sr-only">
-              {slot.file ? `Change ${title}` : `Choose ${title}`}
-            </span>
-          </label>
+          <ControlTooltip content={slot.file ? "Change image" : "Choose image"}>
+            <label
+              htmlFor={inputId}
+              className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-md text-primary transition-colors hover:bg-primary/10"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  document.getElementById(inputId)?.click();
+                }
+              }}
+            >
+              <UploadIcon className="size-5" aria-hidden="true" />
+              <span className="sr-only">
+                {slot.file ? `Change ${title}` : `Choose ${title}`}
+              </span>
+            </label>
+          </ControlTooltip>
         </div>
 
         {slot.previewUrl ? (

@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  MetricValue,
 } from "@selfx/ui";
 import { hasStoreResourcePermission } from "@/lib/current-store";
 import {
@@ -73,6 +74,7 @@ function ShopifyStoreDetail({
   storeId,
   storeName,
   canManage,
+  permissions: initialPermissions,
 }: CommerceDetailProps) {
   const [integration, setIntegration] = useState<StoreIntegration | null>(null);
   const [row, setRow] = useState<CommerceOverviewRow | null>(null);
@@ -111,22 +113,28 @@ function ShopifyStoreDetail({
     const version = requestVersion.current;
     void (async () => {
       try {
-        await refreshConnection();
-        if (cancelled || !mounted.current) return;
-        const [access, store, credits] = await Promise.all([
-          getEffectiveStorePermissions(accessToken, storeId).catch(() => null),
+        const connection = refreshConnection().finally(() => {
+          if (!cancelled && mounted.current) setLoading(false);
+        });
+        const secondary = Promise.all([
+          (initialPermissions
+            ? Promise.resolve(initialPermissions)
+            : getEffectiveStorePermissions(accessToken, storeId)
+          ).catch(() => null),
           getStore(accessToken, storeId).catch(() => null),
           getStoreCreditDiagnostics(accessToken, storeId).catch(() => null),
-        ]);
-        if (
-          !cancelled &&
-          mounted.current &&
-          requestVersion.current === version + 1
-        ) {
-          setPermissions(access);
-          setSubscription(store?.subscription ?? null);
-          setDiagnostics(credits);
-        }
+        ]).then(([access, store, credits]) => {
+          if (
+            !cancelled &&
+            mounted.current &&
+            requestVersion.current === version + 1
+          ) {
+            setPermissions(access);
+            setSubscription(store?.subscription ?? null);
+            setDiagnostics(credits);
+          }
+        });
+        await Promise.all([connection, secondary]);
       } catch (caught) {
         if (!cancelled && mounted.current) setError(messageFor(caught));
       } finally {
@@ -149,7 +157,7 @@ function ShopifyStoreDetail({
       mounted.current = false;
       requestVersion.current += 1;
     };
-  }, [accessToken, storeId, refreshConnection]);
+  }, [accessToken, storeId, refreshConnection, initialPermissions]);
 
   const canManageCatalog =
     canManage && hasStoreResourcePermission(permissions, "products.manage");
@@ -445,11 +453,15 @@ function ShopifyStoreDetail({
                   {payg ? "Billable Try-Ons this period" : "Available credits"}
                 </dt>
                 <dd className="mt-2 text-xl font-semibold tabular-nums">
-                  {payg
-                    ? subscription.postpaid
-                      ? String(subscription.postpaid.billableCredits)
-                      : "—"
-                    : subscription.availableCredits}
+                  <MetricValue
+                    value={
+                      payg
+                        ? subscription.postpaid
+                          ? String(subscription.postpaid.billableCredits)
+                          : "—"
+                        : subscription.availableCredits
+                    }
+                  />
                 </dd>
                 <p className="mt-1 text-xs text-muted-foreground">
                   All SelfX channels

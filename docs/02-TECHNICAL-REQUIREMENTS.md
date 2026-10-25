@@ -1,5 +1,19 @@
 ## Document Evolution
 
+### Shared web reads and progressive metrics (2026-10-25)
+
+Web access context uses a bounded browser-memory cache scoped to the API origin, access token and exact resource route. Current Store/platform/effective permissions expire after 15 seconds; matching Store, usage and commerce overview reads share only in-flight requests. Never persist this cache or enable shared/server HTTP caching for private responses. Clear it on session/token changes, writes, access denial, permissions/impersonation/Store events, focus and explicit Refresh. Invalidated in-flight reads must not repopulate the cache. Backend authorization and billing admission remain authoritative.
+
+Reuse permissions supplied by the current-Store contract. Dashboard current usage publishes before comparison/resource responses, retaining scope/request fencing and independent failure states. Shopify connection content publishes before secondary billing data. Product search debounces 300 ms, reloads only its product list for filter/page changes and fences older responses; unchanged Store details/permissions load independently, with explicit refresh and access invalidation. No backend schema, quota, payment or retention behavior changes in this slice.
+
+### Customer password-change security notification (2026-10-25)
+
+Successful customer password resets atomically queue a separate "Your SelfX password was changed" message to the account's registered email alongside the credential update and session revocation. Invalid, expired or replayed codes and rolled-back transactions must not queue this notification. Use the existing encrypted MailJob outbox with a 24-hour expiry and bounded background retries; never send SMTP inside the password transaction or include passwords, codes or reset tokens in the message. This security notice is independent of optional notification preferences and remains deliverable after the reset code is consumed.
+
+### Shared web tooltip and dashboard presentation boundary (2026-10-25)
+
+Centralize tooltip contrast tokens, surfaces and collision-aware shadcn/Base UI primitives inside `packages/ui`. `ControlTooltip` composes the existing element through render props, preserving refs/events and avoiding nested buttons or extra layout wrappers. Tooltips use accessible descriptions without replacing control names; action handlers remain disabled when a tooltip explains a disabled action. Shared Buttons convert native titles and icon action labels into styled tooltips, with an explicit opt-out for composed cases. Shared UI/theme providers supply the delay context. Normal and Mobile dashboards share Capitalio panel/metric components instead of separate lookalike implementations. This presentation-only update does not change backend metrics, permissions or billing.
+
 ### Dashboard sidebar switch and mobile metrics (2026-10-25)
 
 Reuse the shared @selfx/ui shadcn Switch and sidebar shell with optional typed dashboard-switch props. Business remains /app/dashboard; /app/dashboard/mobile is the separate mobile view. The route determines the current type without local-storage persistence. Keep links and switch separate interactive siblings and respect reduced motion. GET /api/v1/admin/mobile-dashboard/summary requires a staff JWT and platform USAGE_VIEW on the server. Merchant analytics and customer JWTs never grant access. Return only global customer aggregates from a repeatable-read transaction; expose no names, emails, photos, sessions or secrets. Disabled customer auth returns available=false/null counts before touching customer tables. Customer sign-in and successful refresh update the existing lastActiveAt field; recently active is a latest-activity snapshot, not historical DAU. No new persistence, personal billing, generation or sponsorship is introduced.

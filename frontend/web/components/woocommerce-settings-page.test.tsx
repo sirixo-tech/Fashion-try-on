@@ -9,7 +9,7 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { WooCommerceSettingsPage } from "./woocommerce-settings-page";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
-import { getCurrentMerchantStore } from "@/lib/current-store";
+import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import { getEffectiveStorePermissions, listStores } from "@/lib/stores";
 import {
   createIntegrationCredential,
@@ -22,7 +22,9 @@ vi.mock("@/lib/session", () => ({
   useSession: () => ({ status: "authenticated", accessToken: "staff" }),
 }));
 vi.mock("@/lib/access-control", () => ({ getCurrentPlatformAccess: vi.fn() }));
-vi.mock("@/lib/current-store", () => ({ getCurrentMerchantStore: vi.fn() }));
+vi.mock("@/lib/current-store", () => ({
+  getCurrentMerchantStoreAccess: vi.fn(),
+}));
 vi.mock("@/lib/stores", () => ({
   getEffectiveStorePermissions: vi.fn(),
   listStores: vi.fn(),
@@ -80,9 +82,9 @@ beforeEach(() => {
     isSuperadmin: true,
     permissions: [],
   } as never);
-  vi.mocked(getCurrentMerchantStore).mockResolvedValue({
-    id: "store-a",
-    name: "Store A",
+  vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({
+    store: { id: "store-a", name: "Store A" },
+    permissions: null,
   } as never);
   vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
     permissions: ["integrations.view"],
@@ -110,6 +112,20 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("uses the merchant permissions supplied by shared Store context", async () => {
+  vi.mocked(getCurrentPlatformAccess).mockResolvedValue({
+    isSuperadmin: false,
+    permissions: [],
+  });
+  vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({
+    store: { id: "store-a", name: "Store A", status: "ACTIVE" },
+    permissions: { permissions: ["integrations.view"], platformBypass: false },
+  } as never);
+  render(<WooCommerceSettingsPage />);
+  await screen.findByText("Imported products");
+  expect(getEffectiveStorePermissions).not.toHaveBeenCalled();
+});
+
 it("opens Superadmin on a platform overview without choosing a Store or requesting credential details", async () => {
   render(<WooCommerceSettingsPage />);
   await screen.findByRole("button", { name: "View Store A details" });
@@ -119,7 +135,7 @@ it("opens Superadmin on a platform overview without choosing a Store or requesti
   ).toBeNull();
   expect(listIntegrations).not.toHaveBeenCalled();
   expect(listStores).not.toHaveBeenCalled();
-  expect(getCurrentMerchantStore).not.toHaveBeenCalled();
+  expect(getCurrentMerchantStoreAccess).not.toHaveBeenCalled();
 });
 
 it("lets a platform viewer inspect one Store while keeping management read-only", async () => {

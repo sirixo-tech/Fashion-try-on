@@ -27,6 +27,7 @@ import {
 } from "@selfx/ui/components/dropdown-menu";
 import { SelfxLogo } from "./selfx-logo";
 import { Switch } from "../components/switch";
+import { ControlTooltip } from "../components/tooltip";
 import { DashboardTypeName, type DashboardSwitch } from "./dashboard-type-name";
 import { cn } from "@selfx/ui/lib/utils";
 import { useSelfxTheme } from "../theme/selfx-ui-provider";
@@ -125,51 +126,57 @@ export function AppSidebar({
             return (
               <div
                 key={item.href}
+                data-collapsed={collapsed}
                 className={cn(
-                  "flex items-center gap-1 rounded-lg",
+                  "selfx-dashboard-nav-row min-w-0 flex items-center rounded-lg",
                   active && "bg-sidebar-accent/40",
                   collapsed && "flex-col gap-0 pb-2",
                 )}
               >
-                <a
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  title="Open Business Dashboard"
-                  className={cn(
-                    navItemClass(active, collapsed),
-                    "min-w-0 flex-1 gap-2 text-[13px] tracking-tight",
-                    !collapsed && "pr-0",
-                  )}
-                  onClick={(event) => {
-                    if (isPlainLeftClick(event) && onNavigateTo) {
-                      event.preventDefault();
-                      onNavigateTo(item.href!);
-                      onNavigate?.();
-                    }
-                  }}
-                >
-                  {item.icon ? (
-                    <NavIcon icon={item.icon} active={active} />
-                  ) : null}
-                  <DashboardTypeName
-                    type={dashboardSwitch.type}
-                    className={cn(collapsed && "sr-only")}
-                  />
-                </a>
-                <Switch
-                  aria-label="Mobile dashboard"
-                  title={
+                <ControlTooltip content="Open Dashboard" side="right">
+                  <a
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      navItemClass(active, collapsed),
+                      "min-w-0 flex-1 gap-2 text-[14px] tracking-tight",
+                      !collapsed && "pr-0",
+                    )}
+                    onClick={(event) => {
+                      if (isPlainLeftClick(event) && onNavigateTo) {
+                        event.preventDefault();
+                        onNavigateTo(item.href!);
+                        onNavigate?.();
+                      }
+                    }}
+                  >
+                    {item.icon ? (
+                      <NavIcon icon={item.icon} active={active} />
+                    ) : null}
+                    <DashboardTypeName
+                      type={dashboardSwitch.type}
+                      className={cn(collapsed && "sr-only")}
+                    />
+                  </a>
+                </ControlTooltip>
+                <ControlTooltip
+                  content={
                     dashboardSwitch.type === "mobile"
-                      ? "Switch to Business Dashboard"
+                      ? "Switch to Dashboard"
                       : "Switch to Mobile Dashboard"
                   }
-                  checked={dashboardSwitch.type === "mobile"}
-                  onCheckedChange={(checked) => {
-                    dashboardSwitch.onChange(checked ? "mobile" : "business");
-                    onNavigate?.();
-                  }}
-                  className={cn("selfx-dashboard-switch", !collapsed && "mr-2")}
-                />
+                  side="right"
+                >
+                  <Switch
+                    aria-label="Mobile dashboard"
+                    checked={dashboardSwitch.type === "mobile"}
+                    onCheckedChange={(checked) => {
+                      dashboardSwitch.onChange(checked ? "mobile" : "business");
+                      onNavigate?.();
+                    }}
+                    className="selfx-dashboard-switch"
+                  />
+                </ControlTooltip>
               </div>
             );
           }
@@ -247,29 +254,37 @@ function NavButton({
 }) {
   const Icon = item.icon;
   return (
-    <button
-      type="button"
-      title={collapsed ? item.label : undefined}
-      aria-expanded={expanded}
-      onClick={onClick}
-      className={navItemClass(active, collapsed)}
+    <ControlTooltip
+      content={
+        collapsed
+          ? item.label
+          : `${expanded ? "Collapse" : "Expand"} ${item.label}`
+      }
+      side="right"
     >
-      {Icon ? <NavIcon icon={Icon} active={active} /> : null}
-      <span className={cn("truncate", collapsed && "sr-only")}>
-        {item.label}
-      </span>
-      {!collapsed ? (
-        <ChevronRightIcon
-          size={16}
-          strokeWidth={1.9}
-          aria-hidden="true"
-          className={cn(
-            "ml-auto text-sidebar-muted transition-transform",
-            expanded && "rotate-90 text-primary",
-          )}
-        />
-      ) : null}
-    </button>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={onClick}
+        className={navItemClass(active, collapsed)}
+      >
+        {Icon ? <NavIcon icon={Icon} active={active} /> : null}
+        <span className={cn("truncate", collapsed && "sr-only")}>
+          {item.label}
+        </span>
+        {!collapsed ? (
+          <ChevronRightIcon
+            size={16}
+            strokeWidth={1.9}
+            aria-hidden="true"
+            className={cn(
+              "ml-auto text-sidebar-muted transition-transform",
+              expanded && "rotate-90 text-primary",
+            )}
+          />
+        ) : null}
+      </button>
+    </ControlTooltip>
   );
 }
 
@@ -300,19 +315,23 @@ function NavLink({
   };
 
   return (
-    <a
-      href={item.disabled || !item.href ? undefined : item.href}
-      aria-current={active ? "page" : undefined}
-      aria-disabled={item.disabled ? true : undefined}
-      onClick={handleClick}
-      title={collapsed ? item.label : undefined}
-      className={navItemClass(active, collapsed)}
+    <ControlTooltip
+      content={collapsed || item.label.length > 13 ? item.label : undefined}
+      side="right"
     >
-      {Icon ? <NavIcon icon={Icon} active={active} /> : null}
-      <span className={cn("truncate", collapsed && "sr-only")}>
-        {item.label}
-      </span>
-    </a>
+      <a
+        href={item.disabled || !item.href ? undefined : item.href}
+        aria-current={active ? "page" : undefined}
+        aria-disabled={item.disabled ? true : undefined}
+        onClick={handleClick}
+        className={navItemClass(active, collapsed)}
+      >
+        {Icon ? <NavIcon icon={Icon} active={active} /> : null}
+        <span className={cn("truncate", collapsed && "sr-only")}>
+          {item.label}
+        </span>
+      </a>
+    </ControlTooltip>
   );
 }
 
@@ -384,45 +403,41 @@ function SidebarAccount({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn(
-          "flex w-full min-w-0 items-center rounded-xl border border-sidebar-border bg-background text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-[3px] focus-visible:ring-ring/35",
-          collapsed ? "justify-center p-2" : "gap-3 p-3",
-        )}
-        title={
-          collapsed
-            ? [user?.displayName, user?.email].filter(Boolean).join(" - ") ||
-              "SelfX user"
-            : undefined
-        }
-        aria-label="Open account menu"
-      >
-        <Avatar>
-          <AvatarFallback className="bg-muted font-sans text-sm font-semibold text-foreground">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-        {!collapsed ? (
-          <>
-            <div className="min-w-0 flex-1">
-              <span className="block truncate font-sans text-[15px] font-medium leading-5 text-sidebar-foreground">
-                {user?.displayName ?? "SelfX user"}
-              </span>
-              {user?.email ? (
-                <span className="block truncate font-sans text-[13px] font-normal leading-4 text-sidebar-muted">
-                  {user.email}
+      <ControlTooltip content="Open account menu" side="right">
+        <DropdownMenuTrigger
+          className={cn(
+            "flex w-full min-w-0 items-center rounded-xl border border-sidebar-border bg-background text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-[3px] focus-visible:ring-ring/35",
+            collapsed ? "justify-center p-2" : "gap-3 p-3",
+          )}
+          aria-label="Open account menu"
+        >
+          <Avatar>
+            <AvatarFallback className="bg-muted font-sans text-sm font-semibold text-foreground">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          {!collapsed ? (
+            <>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate font-sans text-[15px] font-medium leading-5 text-sidebar-foreground">
+                  {user?.displayName ?? "SelfX user"}
                 </span>
-              ) : null}
-            </div>
-            <ChevronRightIcon
-              size={16}
-              strokeWidth={1.9}
-              aria-hidden="true"
-              className="rotate-90 text-sidebar-muted"
-            />
-          </>
-        ) : null}
-      </DropdownMenuTrigger>
+                {user?.email ? (
+                  <span className="block truncate font-sans text-[13px] font-normal leading-4 text-sidebar-muted">
+                    {user.email}
+                  </span>
+                ) : null}
+              </div>
+              <ChevronRightIcon
+                size={16}
+                strokeWidth={1.9}
+                aria-hidden="true"
+                className="rotate-90 text-sidebar-muted"
+              />
+            </>
+          ) : null}
+        </DropdownMenuTrigger>
+      </ControlTooltip>
       <DropdownMenuContent
         side="right"
         align="end"

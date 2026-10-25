@@ -47,6 +47,7 @@ export type DashboardAction = { label: string; onClick: () => void };
 export type CapitalioDashboardProps = {
   metrics: CapitalioDashboardMetrics | null;
   loading?: boolean;
+  comparisonLoading?: boolean;
   unavailableMessage?: string;
   analysisAction?: DashboardAction;
   productsAction?: DashboardAction;

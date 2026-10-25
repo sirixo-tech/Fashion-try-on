@@ -1,6 +1,39 @@
 @import "tailwindcss";
 @import "./capitalio.css";
 
+/* Stable tooltip contrast in light/dark mode, including portalled content. */
+.selfx-tooltip-surface {
+  color: var(--selfx-tooltip-foreground);
+  background: var(--selfx-tooltip-background);
+  border: 1px solid rgb(255 255 255 / 10%);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 18%);
+}
+.selfx-tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--selfx-tooltip-background);
+  rotate: 45deg;
+}
+.selfx-tooltip-arrow[data-side="top"] {
+  bottom: -4px;
+}
+.selfx-tooltip-arrow[data-side="bottom"] {
+  top: -4px;
+}
+.selfx-tooltip-arrow[data-side="left"] {
+  right: -4px;
+}
+.selfx-tooltip-arrow[data-side="right"] {
+  left: -4px;
+}
+.selfx-dashboard-nav-row[data-collapsed="false"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.25rem;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
+}
+
 .selfx-dashboard-name {
   display: inline-block;
   min-width: 0;
@@ -69,6 +102,8 @@
 }
 
 :root {
+  --selfx-tooltip-background: #242424;
+  --selfx-tooltip-foreground: #ffffff;
   color-scheme: light;
   --background: oklch(0.985 0.008 240);
   --foreground: oklch(0.18 0.035 255);

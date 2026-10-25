@@ -425,6 +425,16 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           where: { customerId: customer.id, usedAt: null },
           data: { usedAt: new Date() },
         });
+        await this.outbox.enqueue(
+          "MESSAGE",
+          {
+            to: customer.email!,
+            subject: "Your SelfX password was changed",
+            text: "Your SelfX password was changed successfully. All existing customer sessions have been signed out.\n\nIf you did not make this change, use Forgot password in the SelfX customer app to secure your account and contact SelfX support.\n\nNever share your password or verification codes.",
+          },
+          new Date(Date.now() + 24 * 60 * 60_000),
+          tx,
+        );
       },
     );
     return { message: "Password updated. Sign in with your new password." };

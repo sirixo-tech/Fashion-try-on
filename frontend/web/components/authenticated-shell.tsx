@@ -407,7 +407,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
           title="Mobile Dashboard access required"
           description="Platform usage permission is required to view mobile customer metrics."
           action={{
-            label: "Open Business Dashboard",
+            label: "Open Dashboard",
             onClick: () => router.push("/app/dashboard"),
           }}
         />

@@ -26,6 +26,7 @@ import {
   PageHeader,
   SelectMenu,
   StatCard,
+  MetricValue,
   Table,
   TableBody,
   TableCell,
@@ -35,7 +36,8 @@ import {
 } from "@selfx/ui";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
 import { SafeApiError } from "@/lib/api";
-import { getCurrentMerchantStore } from "@/lib/current-store";
+import { clearApiReadCache } from "@/lib/api-read-cache";
+import { getCurrentMerchantStoreAccess } from "@/lib/current-store";
 import {
   getWooCommerceOverview,
   getShopifyOverview,
@@ -45,13 +47,17 @@ import {
 } from "@/lib/integrations";
 import { RegionalDateTime } from "@/lib/regional-settings";
 import { useSession } from "@/lib/session";
-import { getEffectiveStorePermissions } from "@/lib/stores";
+import {
+  getEffectiveStorePermissions,
+  type EffectiveStorePermissions,
+} from "@/lib/stores";
 
 export type CommerceDetailProps = {
   accessToken: string;
   storeId: string;
   storeName: string | null;
   canManage: boolean;
+  permissions?: EffectiveStorePermissions;
 };
 type PageProps = {
   type: IntegrationType;
@@ -63,6 +69,7 @@ type Access = {
   canManage: boolean;
   storeId: string | null;
   storeName: string | null;
+  permissions?: EffectiveStorePermissions;
 };
 const healthLabels: Record<IntegrationHealth, string> = {
   CONNECTED: "Connected",
@@ -130,13 +137,13 @@ function AuthorizedCommercePage({
             });
           return;
         }
-        const store = await getCurrentMerchantStore(accessToken);
+        const merchant = await getCurrentMerchantStoreAccess(accessToken);
+        const store = merchant.store;
         if (!store)
           throw new Error(`Select a Store to view its ${title} connection.`);
-        const permissions = await getEffectiveStorePermissions(
-          accessToken,
-          store.id,
-        );
+        const permissions =
+          merchant.permissions ??
+          (await getEffectiveStorePermissions(accessToken, store.id));
         const manage =
           permissions.platformBypass ||
           permissions.permissions.includes("integrations.manage");
@@ -150,6 +157,7 @@ function AuthorizedCommercePage({
             canManage: manage,
             storeId: store.id,
             storeName: store.name,
+            permissions,
           });
       } catch (caught) {
         if (!cancelled) setError(messageFor(caught));
@@ -167,7 +175,10 @@ function AuthorizedCommercePage({
     window.history.pushState(null, "", url.pathname + url.search);
     setSelection(storeId);
   }
-  const refresh = () => setVersion((value) => value + 1);
+  const refresh = () => {
+    clearApiReadCache();
+    setVersion((value) => value + 1);
+  };
   if (!access)
     return (
       <PageContainer>
@@ -218,6 +229,7 @@ function AuthorizedCommercePage({
             storeId,
             storeName: access.storeName,
             canManage: access.canManage,
+            permissions: access.permissions,
           })}
         </div>
       ) : (
@@ -566,7 +578,7 @@ export function Metric({
         {label}
       </p>
       <p className="text-2xl font-semibold tracking-tight tabular-nums">
-        {value}
+        <MetricValue value={value} />
       </p>
       <p className="text-xs text-muted-foreground">{note}</p>
     </div>

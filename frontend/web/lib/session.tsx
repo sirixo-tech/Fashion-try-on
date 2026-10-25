@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { SafeApiError, selfxApi, setAuthSessionHooks } from "@/lib/api";
+import { clearApiReadCache } from "./api-read-cache";
 
 export type StaffUser = {
   id: string;
@@ -71,6 +72,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
 
   const setSessionState = useCallback((nextSession: SessionState) => {
+    if (sessionRef.current.accessToken !== nextSession.accessToken)
+      clearApiReadCache();
     sessionRef.current = nextSession;
     setSession(nextSession);
   }, []);

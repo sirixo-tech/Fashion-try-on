@@ -42,6 +42,7 @@ import {
   PageSection,
   buttonVariants,
   useToast,
+  ControlTooltip,
 } from "@selfx/ui";
 
 import { SafeApiError } from "@/lib/api";
@@ -381,28 +382,33 @@ function PricingPlanCard({
         </CardContent>
 
         <CardFooter className="justify-between gap-3">
-          <div
-            className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"
-            title={`Updated ${formatRegionalDate(plan.updatedAt, regionalSettings)}`}
+          <ControlTooltip
+            content={`Updated ${formatRegionalDate(plan.updatedAt, regionalSettings)}`}
           >
-            <StoreIcon size={15} aria-hidden="true" className="shrink-0" />
-            <span className="truncate">
-              {number(plan.assignedStoreCount)}{" "}
-              {plan.assignedStoreCount === 1 ? "store" : "stores"}
-            </span>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href={`/app/platform/pricing/${plan.id}/edit`}
-              aria-label={`Edit ${plan.name}`}
-              title="Edit plan"
-              className={buttonVariants({
-                variant: "outline",
-                size: "icon-sm",
-              })}
+            <div
+              className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground"
+              tabIndex={0}
             >
-              <PencilIcon aria-hidden="true" />
-            </Link>
+              <StoreIcon size={15} aria-hidden="true" className="shrink-0" />
+              <span className="truncate">
+                {number(plan.assignedStoreCount)}{" "}
+                {plan.assignedStoreCount === 1 ? "store" : "stores"}
+              </span>
+            </div>
+          </ControlTooltip>
+          <div className="flex shrink-0 items-center gap-2">
+            <ControlTooltip content="Edit plan">
+              <Link
+                href={`/app/platform/pricing/${plan.id}/edit`}
+                aria-label={`Edit ${plan.name}`}
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "icon-sm",
+                })}
+              >
+                <PencilIcon aria-hidden="true" />
+              </Link>
+            </ControlTooltip>
             <ConfirmDialog
               title="Archive plan?"
               description={`${plan.name} will be hidden from available plan lists, but kept for reporting and historical subscriptions.`}

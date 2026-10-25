@@ -4,6 +4,8 @@ Implemented the approved compact toggle in the existing Dashboard sidebar row. N
 
 ## Navigation
 
+Latest presentation update: the normal view now displays **Dashboard**, while the other view displays **Mobile Dashboard**. The switch and link have styled, directional action tooltips ("Open Dashboard", "Switch to Mobile Dashboard", "Switch to Dashboard"). These supersede the earlier visible Business Dashboard name; the internal business route/type and default behavior are unchanged.
+
 - Business is the default at `/app/dashboard`; its Store scope, charts, metrics and export behavior remain intact.
 - Toggle ON opens `/app/dashboard/mobile`; OFF returns to Business.
 - Clicking the displayed dashboard name/icon always opens Business and resets the toggle, even while the label says Mobile.
@@ -30,6 +32,10 @@ Customer auth disabled on the backend returns `available=false`, null totals and
 Mobile Try-On generation, personal plans/revenue and Store-QR sponsorship are not yet connected. Their sections explicitly say **Not connected**; they do not invent balances, revenue or zero usage. Future Store-sponsored activity will belong to the Mobile activity view while its financial charge remains attributed to the Store, avoiding duplicate revenue totals. Existing Business calculations are not changed by this implementation.
 
 ## Verification and limits
+
+The presentation follow-up reuses the exact Capitalio metric/panel components and shaded icons for mobile accounts, plus the same chart tooltip surface. New account bars and verified/activity ratios use existing real aggregates; unavailable generation, revenue and QR data remain explicitly unavailable. The shared web tooltip system uses centralized dark/white tokens in both themes, keyboard descriptions, hover/focus, screen-edge collision handling and no native-title duplicates. Shared icon Buttons, navigation/account controls, Store/plan actions and image-upload actions use it. Disabled tooltipped actions remain non-executable. No extra business logic or APK build is introduced.
+
+Presentation verification on 25 October 2026: all **453 web tests across 63 files** passed, including tooltip hover/focus/Escape, existing accessible descriptions, directional switch labels, dialog composition, disabled-action guards, password controls, dashboard parity and existing application regressions. Web/shared-UI type checks, scoped lint, formatting, whitespace checks and the production web build passed. The existing Try-On Lab image-optimization warning remains; no new lint error was introduced. No real-browser visual check was performed, and the existing customer APK was unchanged.
 
 Focused React tests cover independent switch/link behavior, default and current labels, collapsed navigation, platform/merchant/impersonation access, range races, permission invalidation, unavailable/empty/error states, export separation and existing Business regression behavior. Backend HTTP and disposable PostgreSQL checks cover staff/platform access, rejected filters, disabled deployments, date/status aggregates, privacy and empty datasets. API/shared UI/web types, scoped lint and the production web build are checked.
 

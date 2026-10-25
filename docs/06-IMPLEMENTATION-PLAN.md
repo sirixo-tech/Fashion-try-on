@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### Web count-up and shared loading optimization (2026-10-25)
+
+Implement the approved shared metric animation, bounded session-scoped access caching/in-flight deduplication, progressive dashboard/Shopify loading and isolated debounced product queries. Verify animation completion/formatting, accessibility, reduced motion and cleanup; verify expiry, identity/Store isolation, writes/access-event invalidation, late responses, access denial, progressive results and preserved navigation/mutations. Run focused and full web regression tests, UI/web type checks, scoped lint and the production web build. No real mail, live financial actions, migrations, deployment or APK builds are included. Production speed improvements require before/after field timings; browser visual acceptance requires enabled browser access.
+
+### Customer password-change notification (2026-10-25)
+
+Queue the separate customer security email within the successful reset transaction using the existing encrypted outbox. Verify one queued notice for a successful single-use reset, none for invalid/replayed codes or rollback, and asynchronous SMTP retry without undoing the completed reset. Use the disposable customer-auth database and simulated sender; no real email, migration or APK build is needed.
+
+### Dashboard names, shared Capitalio styling and tooltips (2026-10-25)
+
+Implement the approved normal **Dashboard** / **Mobile Dashboard** labels and directional styled tooltips. Fix sidebar spacing and use existing Capitalio panels/icons/charts for mobile-specific metrics. Replace native action tips through shared UI components and key raw navigation/action triggers. Verify hover/focus/descriptions, Escape, disabled actions, dialogs, secret visibility, navigation and both dashboards; run the web regression suite, UI/web types, scoped lint and web production build. No APK builds, migrations, backend logic changes or deployment are included. Real-browser visual acceptance remains dependent on enabled local browser access.
+
 ### Dashboard sidebar switch and mobile metrics (2026-10-25)
 
 Implement the requested existing-sidebar toggle with Business default, independent row navigation, synchronized animated type label and separate platform-only Mobile dashboard. Preserve Business data scope and behavior. Verify switch isolation, collapsed/drawer behavior, route/access gating, impersonation exclusion, range/stale-request handling, unavailable-versus-zero states, CSV separation and aggregate SQL without PII. Run focused web/API tests, real disposable PostgreSQL aggregation checks, types/lint and the web production build. No APK builds, migrations, deployment, real customer emails or payment/provider calls are included. Browser visual acceptance depends on enabled local browser access.

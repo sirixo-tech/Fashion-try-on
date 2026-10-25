@@ -1,4 +1,5 @@
 export { cn } from "./lib/utils";
+export { MetricValue } from "./selfx/metric-value";
 export { SelfxUiProvider, useSelfxTheme } from "./theme/selfx-ui-provider";
 export type { SelfxTheme } from "./theme/selfx-ui-provider";
 export { selfxDesignTokens } from "./theme/selfx-design-tokens";
@@ -94,11 +95,17 @@ export {
   Tooltip,
   TooltipContent,
   TooltipProvider,
+  ControlTooltip,
   TooltipTrigger,
 } from "./components/tooltip";
 export { SelfxLogo } from "./selfx/selfx-logo";
 export { DashboardTypeName } from "./selfx/dashboard-type-name";
 export { MobileDashboardCharts } from "./selfx/mobile-dashboard-charts";
+export { MobileDashboardMetrics } from "./selfx/mobile-dashboard-charts";
+export {
+  CapitalioPanel,
+  CapitalioPanelHeader,
+} from "./selfx/capitalio/dashboard";
 export type {
   DashboardType,
   DashboardSwitch,

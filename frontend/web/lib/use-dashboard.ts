@@ -14,7 +14,9 @@ import {
   listStoreKiosks,
   listStoreProducts,
   listStoreUsers,
+  type EffectiveStorePermissions,
 } from "./stores";
+import { clearApiReadCache } from "./api-read-cache";
 import type { KioskDevice } from "./kiosks";
 import {
   getUsageSummary,
@@ -26,6 +28,8 @@ import { navigationAccess, canSeeHref } from "./navigation-access";
 
 type Context = {
   token: string;
+  refreshKey: number;
+  storePermissions?: EffectiveStorePermissions | null;
   platform: CurrentPlatformAccess;
   options: { id: string; name: string }[];
   defaultStoreId: string;
@@ -34,6 +38,8 @@ type Context = {
 };
 type Snapshot = {
   key: string;
+  pending: boolean;
+  comparisonPending: boolean;
   summary: UsageSummary | null;
   previous: UsageSummary | null;
   kiosks: KioskDevice[] | null;
@@ -73,7 +79,10 @@ export function useDashboard(
       window.removeEventListener("selfx:impersonation-changed", invalidate);
     };
   }, []);
-  const current = context?.token === token ? context : null;
+  const current =
+    context?.token === token && context.refreshKey === refreshKey
+      ? context
+      : null;
   const mayChoose = Boolean(
     current &&
     (current.platform.isSuperadmin ||
@@ -99,6 +108,7 @@ export function useDashboard(
     let cancelled = false;
     async function load() {
       try {
+        if (refreshKey) clearApiReadCache();
         const platform = await getCurrentPlatformAccess(token!);
         const choose =
           platform.isSuperadmin || platform.permissions.includes("STORES_VIEW");
@@ -107,6 +117,7 @@ export function useDashboard(
         let options: Context["options"] = [],
           totalStores: number | null = null,
           defaultStoreId = "";
+        let storePermissions: EffectiveStorePermissions | null | undefined;
         if (choose) {
           const stores = await listStores(token!, { pageSize: 100 });
           options = stores.data.map((store) => ({
@@ -117,6 +128,7 @@ export function useDashboard(
           defaultStoreId = allUsage ? "" : (options[0]?.id ?? "");
         } else if (!allUsage) {
           const merchant = await getCurrentMerchantStoreAccess(token!);
+          storePermissions = merchant.permissions;
           options = merchant.store
             ? [{ id: merchant.store.id, name: merchant.store.name }]
             : [];
@@ -125,6 +137,8 @@ export function useDashboard(
         if (!cancelled)
           setContext({
             token: token!,
+            refreshKey,
+            storePermissions,
             platform,
             options,
             totalStores,
@@ -135,6 +149,7 @@ export function useDashboard(
         if (!cancelled)
           setContext({
             token: token!,
+            refreshKey,
             platform: { isSuperadmin: false, permissions: [] },
             options: [],
             defaultStoreId: "",
@@ -155,7 +170,9 @@ export function useDashboard(
       try {
         const platform = current!.platform;
         const storeAccess = storeId
-          ? await getEffectiveStorePermissions(token!, storeId)
+          ? storeId === current!.defaultStoreId && current!.storePermissions
+            ? current!.storePermissions
+            : await getEffectiveStorePermissions(token!, storeId)
           : null;
         const allUsage =
           platform.isSuperadmin || platform.permissions.includes("USAGE_VIEW");
@@ -183,50 +200,16 @@ export function useDashboard(
             ["KIOSK_MANAGEMENT", "KIOSK_RENTAL"].includes(feature),
           ),
         );
-        const [usage, kiosks, products, staff] = await Promise.allSettled([
-          canUsage
-            ? getUsageSummary(token!, {
-                range,
-                ...(storeId ? { storeId } : {}),
-                limit: 10,
-              })
-            : Promise.resolve(null),
-          canKiosks ? listStoreKiosks(token!, storeId) : Promise.resolve(null),
-          storeId && resource("stores.view")
-            ? listStoreProducts(token!, storeId, { pageSize: 8 })
-            : Promise.resolve(null),
-          storeId &&
-          (storeAccess?.platformBypass ||
-            storeAccess?.permissions.includes("users.view"))
-            ? listStoreUsers(token!, storeId, { pageSize: 8 })
-            : Promise.resolve(null),
-        ]);
-        if (cancelled) return;
-        const summary = usage.status === "fulfilled" ? usage.value : null;
-        let previous: UsageSummary | null = null;
-        if (summary)
-          previous = await getUsageSummary(token!, {
-            ...previousDashboardRange(summary),
-            ...(storeId ? { storeId } : {}),
-            limit: 1,
-          }).catch(() => null);
-        const failures = [usage, kiosks, products, staff].filter(
-          (result) => result.status === "rejected",
-        );
         if (!cancelled)
           setSnapshot({
             key,
-            summary,
-            previous,
-            kiosks: kiosks.status === "fulfilled" ? kiosks.value : null,
-            products:
-              products.status === "fulfilled"
-                ? (products.value?.pagination.total ?? null)
-                : null,
-            staff:
-              staff.status === "fulfilled"
-                ? (staff.value?.pagination.total ?? null)
-                : null,
+            pending: canUsage,
+            comparisonPending: canUsage,
+            summary: null,
+            previous: null,
+            kiosks: null,
+            products: null,
+            staff: null,
             canUsage,
             canAnalysis: canSeeHref(
               storeId ? "/app/analytics" : "/app/billing",
@@ -237,16 +220,78 @@ export function useDashboard(
                 ? resource("stores.view") && canSeeHref("/app/stores", access)
                 : canSeeHref("/app/products", access),
             canActivity: canSeeHref("/app/try-on-activity", access),
-            error:
-              failures
-                .map((failure) => errorMessage(failure.reason))
-                .join(" ") || null,
+            error: null,
             updatedAt: new Date().toISOString(),
           });
+        const publish = (patch: Partial<Snapshot>) => {
+          if (!cancelled)
+            setSnapshot((latest) =>
+              latest?.key === key ? { ...latest, ...patch } : latest,
+            );
+        };
+        const failed = (error: unknown) => {
+          if (!cancelled)
+            setSnapshot((latest) =>
+              latest?.key === key
+                ? {
+                    ...latest,
+                    error: [latest.error, errorMessage(error)]
+                      .filter(Boolean)
+                      .join(" "),
+                  }
+                : latest,
+            );
+        };
+        // Each panel publishes independently. Comparisons never block current usage.
+        const usage = async () => {
+          if (!canUsage) return;
+          try {
+            const summary = await getUsageSummary(token!, {
+              range,
+              ...(storeId ? { storeId } : {}),
+              limit: 10,
+            });
+            publish({ summary, pending: false });
+            if (cancelled) return;
+            const previous = await getUsageSummary(token!, {
+              ...previousDashboardRange(summary),
+              ...(storeId ? { storeId } : {}),
+              limit: 1,
+            }).catch(() => null);
+            publish({ previous, comparisonPending: false });
+          } catch (error) {
+            publish({ pending: false, comparisonPending: false });
+            failed(error);
+          }
+        };
+        await Promise.all([
+          usage(),
+          canKiosks
+            ? listStoreKiosks(token!, storeId)
+                .then((kiosks) => publish({ kiosks }))
+                .catch(failed)
+            : Promise.resolve(),
+          storeId && resource("stores.view")
+            ? listStoreProducts(token!, storeId, { pageSize: 8 })
+                .then((result) =>
+                  publish({ products: result.pagination.total }),
+                )
+                .catch(failed)
+            : Promise.resolve(),
+          storeId &&
+          (storeAccess?.platformBypass ||
+            storeAccess?.permissions.includes("users.view"))
+            ? listStoreUsers(token!, storeId, { pageSize: 8 })
+                .then((result) => publish({ staff: result.pagination.total }))
+                .catch(failed)
+            : Promise.resolve(),
+        ]);
       } catch (error) {
         if (!cancelled)
           setSnapshot({
             key,
+            pending: false,
+            comparisonPending: false,
             summary: null,
             previous: null,
             kiosks: null,
@@ -273,7 +318,9 @@ export function useDashboard(
     metrics: data?.summary
       ? dashboardMetrics(data.summary, data.previous)
       : null,
-    loading: Boolean(token) && (!current || (!current.error && !data)),
+    loading:
+      Boolean(token) &&
+      (!current || (!current.error && (!data || data.pending))),
     error: current?.error ?? data?.error ?? null,
     canChooseStore: Boolean(
       current &&

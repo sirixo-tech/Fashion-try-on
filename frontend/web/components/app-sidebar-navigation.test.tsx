@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 
 import { AppSidebar, SelfxUiProvider, type DashboardType } from "@selfx/ui";
@@ -39,6 +39,36 @@ function renderSidebar(props: {
 }
 
 describe("AppSidebar navigation", () => {
+  it("describes the toggle's next destination with styled tooltips", async () => {
+    function Fixture() {
+      const [type, setType] = useState<DashboardType>("business");
+      return (
+        <SelfxUiProvider>
+          <AppSidebar
+            items={items}
+            dashboardSwitch={{ type, onChange: setType }}
+          />
+        </SelfxUiProvider>
+      );
+    }
+    render(<Fixture />);
+    const toggle = screen.getByRole("switch", { name: "Mobile dashboard" });
+    expect(toggle.getAttribute("title")).toBeNull();
+    act(() => {
+      toggle.focus();
+    });
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "Switch to Mobile Dashboard",
+    );
+    fireEvent.click(toggle);
+    act(() => {
+      toggle.blur();
+      toggle.focus();
+    });
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "Switch to Dashboard",
+    );
+  });
   it("keeps the toggle separate from the Business link and slides its current name", () => {
     const navigate = vi.fn();
     function Fixture() {
@@ -58,9 +88,7 @@ describe("AppSidebar navigation", () => {
     const toggle = screen.getByRole("switch", { name: "Mobile dashboard" });
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     expect(
-      screen
-        .getByRole("link", { name: "Business Dashboard" })
-        .getAttribute("href"),
+      screen.getByRole("link", { name: "Dashboard" }).getAttribute("href"),
     ).toBe("/app/dashboard");
     expect(toggle.closest("a")).toBeNull();
     fireEvent.click(toggle);
@@ -71,9 +99,7 @@ describe("AppSidebar navigation", () => {
     fireEvent.click(mobileLink);
     expect(navigate).toHaveBeenCalledWith("/app/dashboard");
     fireEvent.click(toggle);
-    expect(
-      screen.getByRole("link", { name: "Business Dashboard" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeTruthy();
   });
   it("keeps the toggle available when navigation is collapsed", () => {
     const change = vi.fn();

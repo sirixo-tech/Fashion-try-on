@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
@@ -53,6 +53,7 @@ import {
   ProductStatusToggle,
 } from "@/components/product-form-controls";
 import { SafeApiError } from "@/lib/api";
+import { clearApiReadCache } from "@/lib/api-read-cache";
 import { ProductStockDialog } from "@/components/product-stock-dialog";
 import { useSession } from "@/lib/session";
 import { hasStoreResourcePermission } from "@/lib/current-store";
@@ -95,6 +96,10 @@ export function StoreProductsCatalog({
   const [store, setStore] = useState<AdminStoreDetail | null>(null);
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [search, setSearch] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [accessVersion, setAccessVersion] = useState(0);
+  const requestVersion = useRef(0);
+  const metadataVersion = useRef(0);
   const [status, setStatus] = useState<ProductStatus>("ALL");
   const [productVertical, setProductVertical] =
     useState<ProductVertical>(defaultVertical);
@@ -120,40 +125,99 @@ export function StoreProductsCatalog({
     null,
   );
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setSearch(searchDraft);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchDraft]);
+  useEffect(() => {
+    const invalidate = () => {
+      requestVersion.current++;
+      metadataVersion.current++;
+      setProducts([]);
+      setStore(null);
+      setCanUpdateProducts(false);
+      setAccessVersion((value) => value + 1);
+    };
+    window.addEventListener("selfx:permissions-changed", invalidate);
+    window.addEventListener("selfx:impersonation-changed", invalidate);
+    return () => {
+      window.removeEventListener("selfx:permissions-changed", invalidate);
+      window.removeEventListener("selfx:impersonation-changed", invalidate);
+    };
+  }, []);
+  useEffect(() => {
+    if (!accessToken) return;
+    let active = true;
+    const version = ++metadataVersion.current;
+    setStore(null);
+    setCanUpdateProducts(false);
+    void Promise.all([
+      getStore(accessToken, storeId),
+      getEffectiveStorePermissions(accessToken, storeId),
+    ])
+      .then(([nextStore, nextPermissions]) => {
+        if (!active || version !== metadataVersion.current) return;
+        setStore(nextStore);
+        setCanUpdateProducts(
+          hasStoreResourcePermission(nextPermissions, "products.manage"),
+        );
+      })
+      .catch((caught) => {
+        if (active && version === metadataVersion.current) {
+          setCanUpdateProducts(false);
+          setError(messageFor(caught));
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [accessToken, storeId, accessVersion]);
+
   const load = useCallback(async () => {
     if (!accessToken) {
       return;
     }
     setLoading(true);
     setError(null);
+    const version = ++requestVersion.current;
     try {
-      const [nextStore, nextPermissions, nextProducts] = await Promise.all([
-        getStore(accessToken, storeId),
-        getEffectiveStorePermissions(accessToken, storeId),
-        listStoreProducts(accessToken, storeId, {
-          page,
-          pageSize: 25,
-          search,
-          status,
-          productVertical,
-        }),
-      ]);
-      setStore(nextStore);
+      const nextProducts = await listStoreProducts(accessToken, storeId, {
+        page,
+        pageSize: 25,
+        search,
+        status,
+        productVertical,
+      });
+      if (version !== requestVersion.current) return;
       setProducts(nextProducts.data);
       setPagination(nextProducts.pagination);
-      setCanUpdateProducts(
-        hasStoreResourcePermission(nextPermissions, "products.manage"),
-      );
     } catch (caught) {
+      if (version !== requestVersion.current) return;
+      if (caught instanceof SafeApiError && caught.status === 403)
+        metadataVersion.current++;
       setCanUpdateProducts(false);
       setError(messageFor(caught));
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  }, [accessToken, page, productVertical, search, status, storeId]);
+  }, [
+    accessToken,
+    page,
+    productVertical,
+    search,
+    status,
+    storeId,
+    accessVersion,
+  ]);
 
   useEffect(() => {
     void load();
+    return () => {
+      requestVersion.current++;
+    };
   }, [load]);
 
   useEffect(() => {
@@ -176,6 +240,7 @@ export function StoreProductsCatalog({
     : `/app/stores/${storeId}/products`;
 
   function revokeProductAccess() {
+    metadataVersion.current++;
     setCanUpdateProducts(false);
     setError(
       "Product editing is no longer permitted. Refresh to check your access.",
@@ -308,7 +373,13 @@ export function StoreProductsCatalog({
               <ArrowLeftIcon aria-hidden="true" />
               {merchantWorkspace ? "Dashboard" : "Store"}
             </Button>
-            <Button variant="outline" onClick={() => void load()}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                clearApiReadCache();
+                setAccessVersion((value) => value + 1);
+              }}
+            >
               <RefreshCwIcon aria-hidden="true" />
               Refresh
             </Button>
@@ -408,11 +479,10 @@ export function StoreProductsCatalog({
             />
             <Input
               className="pl-9"
-              value={search}
+              value={searchDraft}
               placeholder={`Search ${verticalItemLabel}...`}
               onChange={(event) => {
-                setPage(1);
-                setSearch(event.target.value);
+                setSearchDraft(event.target.value);
               }}
             />
           </label>

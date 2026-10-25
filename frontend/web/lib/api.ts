@@ -1,3 +1,6 @@
+import { cachedApiRead, clearApiReadCache } from "./api-read-cache";
+export { clearApiReadCache } from "./api-read-cache";
+
 export type ApiErrorCode =
   | "AUTH_INVALID_CREDENTIALS"
   | "AUTH_UNAUTHORIZED"
@@ -77,6 +80,38 @@ export function selfxApiUrl(path: string): string {
 export async function selfxApi<T>(
   path: string,
   init: RequestInit & { accessToken?: string | null } = {},
+): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  if (method !== "GET") clearApiReadCache();
+  const load = () => executeSelfxApi<T>(path, init);
+  try {
+    const result =
+      method === "GET" &&
+      init.accessToken &&
+      !init.signal &&
+      !init.headers &&
+      !init.cache
+        ? await cachedApiRead(
+            `${selfxApiBaseUrl()}:${init.accessToken}:${path}`,
+            path,
+            load,
+          )
+        : await load();
+    if (method !== "GET") clearApiReadCache();
+    return result;
+  } catch (error) {
+    if (
+      method !== "GET" ||
+      (error instanceof SafeApiError && [401, 403].includes(error.status ?? 0))
+    )
+      clearApiReadCache();
+    throw error;
+  }
+}
+
+async function executeSelfxApi<T>(
+  path: string,
+  init: RequestInit & { accessToken?: string | null },
 ): Promise<T> {
   const isAuthEndpoint = isAuthenticationEndpoint(path);
   const initialAccessToken = init.accessToken ?? null;

@@ -1,5 +1,19 @@
 ## Document Evolution
 
+### Count-up metrics and progressive page loading (2026-10-25)
+
+Suitable numeric KPI cards on Business/Mobile dashboards, shared statistics cards, workspace resources and commerce details count from zero to their real value over about 850 ms when entering view. Preserve final number, currency/grouping/decimal/percentage formatting. Status text, dates, ratios, zero, unavailable values, chart ticks and product tables remain literal. Reduced motion bypasses animation and stops active animations; screen readers receive the actual final value throughout. Unrelated renders must not restart counting. Animation is presentation only and never changes exports or business calculations.
+
+Show current dashboard metrics while previous-period comparisons and resource cards load independently; identify pending comparisons rather than claiming there is no prior usage. Show Shopify connection details before slower secondary metrics. Product search waits briefly after typing stops and ignores obsolete responses. Preserve skeleton, failure, unavailable and empty states and server-enforced permissions across all changes.
+
+### Styled tooltips and matching dashboard presentation (2026-10-25)
+
+The Business view is labelled **Dashboard** in its sidebar row and page heading; only the mobile view says **Mobile Dashboard**. Keep the vertical sliding name change and reduced-motion behavior. Row-label clicks still open the normal Dashboard. Tooltips read "Open Dashboard", "Switch to Mobile Dashboard" or "Switch to Dashboard" according to the action. The sidebar row reserves space for the compact switch so its label is not clipped.
+
+Web controls use centralized shadcn/Base UI tooltips with a dark background, white text, rounded corners, a subtle shadow, hover delay, keyboard-focus support and Escape dismissal. Portals avoid card clipping and collision handling keeps content inside screen edges. Icon-only shared Buttons use their existing accessible action labels; explicit Button titles become styled tooltip descriptions. Visible-text buttons do not need redundant tooltips. Disabled actions with explanations remain focusable for the tooltip while action execution stays blocked. Collapsed/truncated navigation, account/collapse controls, Store/plan actions and image-upload controls use the same style. Essential instructions, visible labels and accessible names remain available independently of hover, including touch devices.
+
+Mobile uses the actual shared Capitalio metric panels, shaded icon badges, spacing, typography and chart-tooltip presentation used by the normal Dashboard. It retains customer-specific counts, signup charts and meaningful proportions; do not invent historical trends or generation/billing/QR data to fill the layout. Current status, empty, unavailable, error and loading semantics remain unchanged.
+
 ### Dashboard sidebar switch and mobile metrics (2026-10-25)
 
 Place a compact shadcn toggle at the right of the existing Dashboard sidebar row. OFF is Business Dashboard; ON is Mobile Dashboard. The visible label moves vertically in a fixed-height clipped track (260ms); reduced motion removes the transition. Row-label clicks always navigate to Business independently of the switch. Keep the switch keyboard-accessible and available in collapsed navigation and the mobile drawer. On Mobile, show its name, date filter, refresh/export, account KPI cards, UTC signup growth and sign-in-method charts, current status overview and explicit future-feature states. Business charts, Store filters and resource metrics retain their current behavior. Mobile contains no Store-scope filter or customer PII.

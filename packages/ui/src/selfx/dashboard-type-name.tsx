@@ -16,14 +16,14 @@ export function DashboardTypeName({
   return (
     <span className={cn("selfx-dashboard-name", className)}>
       <span className="sr-only">
-        {type === "mobile" ? "Mobile Dashboard" : "Business Dashboard"}
+        {type === "mobile" ? "Mobile Dashboard" : "Dashboard"}
       </span>
       <span
         aria-hidden="true"
         className="selfx-dashboard-name-track"
         data-mobile={type === "mobile"}
       >
-        <span>Business Dashboard</span>
+        <span>Dashboard</span>
         <span>Mobile Dashboard</span>
       </span>
     </span>

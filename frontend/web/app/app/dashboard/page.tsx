@@ -16,6 +16,7 @@ import {
   AlertDescription,
   Button,
   CapitalioDashboard,
+  MetricValue,
   DashboardTypeName,
   Card,
   Dialog,
@@ -166,6 +167,7 @@ export default function DashboardPage() {
         </Alert>
       ) : null}
       <CapitalioDashboard
+        comparisonLoading={data?.comparisonPending}
         metrics={metrics}
         loading={loading}
         unavailableMessage={unavailable}
@@ -248,9 +250,13 @@ export default function DashboardPage() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="text-2xl font-semibold">
-                {item.value == null
-                  ? "—"
-                  : new Intl.NumberFormat().format(item.value)}
+                <MetricValue
+                  value={
+                    item.value == null
+                      ? "—"
+                      : new Intl.NumberFormat().format(item.value)
+                  }
+                />
               </div>
             )}
             <p className="text-xs text-muted-foreground">

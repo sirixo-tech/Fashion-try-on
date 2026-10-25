@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -102,6 +103,38 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+
+it("debounces search and reuses Store details and permissions while ignoring older results", async () => {
+  render(<ProductsPage />);
+  await screen.findByText("Migrated shirt");
+  const original = vi.mocked(listStoreProducts).mock.results[0]!;
+  const response = await original.value;
+  let finishOld!: (value: typeof response) => void;
+  vi.mocked(listStoreProducts).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+  );
+  const input = screen.getByPlaceholderText("Search garments...");
+  fireEvent.change(input, { target: { value: "o" } });
+  fireEvent.change(input, { target: { value: "old" } });
+  expect(listStoreProducts).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(listStoreProducts).toHaveBeenCalledTimes(2));
+  expect(getStore).toHaveBeenCalledTimes(1);
+  expect(getEffectiveStorePermissions).toHaveBeenCalledTimes(1);
+  vi.mocked(listStoreProducts).mockResolvedValue({
+    ...response,
+    data: [{ ...product, name: "New search result" }],
+  });
+  fireEvent.change(input, { target: { value: "new" } });
+  await screen.findByText("New search result");
+  await act(async () => finishOld(response));
+  expect(screen.queryByText("Migrated shirt")).toBeNull();
+  expect(screen.getByText("New search result")).toBeTruthy();
+  expect(getStore).toHaveBeenCalledTimes(1);
+  expect(getEffectiveStorePermissions).toHaveBeenCalledTimes(1);
+});
 
 it("shows migrated Store products and editing controls without platform settings access", async () => {
   render(<ProductsPage />);
@@ -234,6 +267,25 @@ it("hides stale mutation actions when the server denies a write after revocation
       name: /Add Garment|^Edit$|Delete|Sync to Kiosks/,
     }),
   ).toBeNull();
+});
+it("does not restore editing from a late permission read after the product endpoint denies access", async () => {
+  let finish!: (
+    value: Awaited<ReturnType<typeof getEffectiveStorePermissions>>,
+  ) => void;
+  vi.mocked(getEffectiveStorePermissions).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  vi.mocked(listStoreProducts).mockRejectedValueOnce(
+    new SafeApiError("STORE_PERMISSION_DENIED", "Catalog access denied", 403),
+  );
+  render(<ProductsPage />);
+  await screen.findByText("Catalog access denied");
+  await act(async () => finish(permissions));
+  expect(screen.queryByRole("link", { name: "Add Garment" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Edit" })).toBeNull();
 });
 it("does not load any catalog when no Store is selected", async () => {
   vi.mocked(getCurrentMerchantStoreAccess).mockResolvedValue({

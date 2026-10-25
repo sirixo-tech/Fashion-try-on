@@ -11,8 +11,199 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card } from "../components/card";
+import {
+  CapitalioPanel,
+  CapitalioPanelHeader,
+  CapitalioMetric,
+  CapitalioChartTooltip,
+} from "./capitalio/dashboard";
 import { Skeleton } from "../components/skeleton";
+import { Progress } from "../components/progress";
+import {
+  DashboardMoneyBagIcon,
+  DashboardAnalyticsUpIcon,
+  DashboardPieChartIcon,
+  DashboardShieldIcon,
+} from "./capitalio/icons";
+
+type MobileTotals = {
+  total: number;
+  newAccounts: number;
+  recentlyActive: number;
+  verified: number;
+  pending: number;
+  suspended: number;
+};
+export function MobileDashboardMetrics({
+  totals,
+  daily,
+  loading,
+}: {
+  totals: MobileTotals | null;
+  daily: Array<{ date: string; accounts: number }> | null;
+  loading: boolean;
+}) {
+  const number = (value?: number) =>
+    value == null ? "—" : new Intl.NumberFormat().format(value);
+  const shortDate = (value?: string) =>
+    value
+      ? new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          timeZone: "UTC",
+        }).format(new Date(value))
+      : "";
+  const rate = (value?: number, total?: number) =>
+    total ? Math.round(((value ?? 0) / total) * 1000) / 10 : null;
+  const activeRate = rate(totals?.recentlyActive, totals?.verified),
+    verifiedRate = rate(totals?.verified, totals?.total);
+  return (
+    <div
+      className="capitalio-dashboard-content grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      aria-busy={loading}
+    >
+      <CapitalioMetric
+        title="Registered customers"
+        value={number(totals?.total)}
+        icon={<DashboardMoneyBagIcon />}
+        loading={loading}
+        note="Current accounts"
+      >
+        <div className="mt-auto space-y-3 text-sm">
+          {[
+            {
+              name: "Verified",
+              value: totals?.verified,
+              color: "var(--dashboard-green)",
+            },
+            {
+              name: "Awaiting verification",
+              value: totals?.pending,
+              color: "var(--dashboard-blue)",
+            },
+            {
+              name: "Suspended",
+              value: totals?.suspended,
+              color: "var(--dashboard-orange)",
+            },
+          ].map((row) => (
+            <div
+              key={row.name}
+              className="flex items-center justify-between gap-3"
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className="size-2.5 shrink-0 rounded-xs"
+                  style={{ background: row.color }}
+                  aria-hidden="true"
+                />
+                {row.name}
+              </span>
+              <strong className="font-medium">{number(row.value)}</strong>
+            </div>
+          ))}
+        </div>
+      </CapitalioMetric>
+      <CapitalioMetric
+        title="New accounts"
+        value={number(totals?.newAccounts)}
+        icon={<DashboardAnalyticsUpIcon />}
+        loading={loading}
+        note="Selected period"
+      >
+        {daily?.some((row) => row.accounts) ? (
+          <div className="mt-auto space-y-2">
+            <div
+              className="h-16"
+              role="img"
+              aria-label="New customer accounts trend"
+            >
+              <ResponsiveContainer width="100%" height={64} minWidth={1}>
+                <BarChart data={daily}>
+                  <XAxis dataKey="date" hide />
+                  <YAxis hide allowDecimals={false} />
+                  <Tooltip content={<CapitalioChartTooltip />} />
+                  <Bar
+                    name="New accounts"
+                    dataKey="accounts"
+                    fill="var(--dashboard-blue)"
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{shortDate(daily[0]?.date)}</span>
+              <span>{shortDate(daily.at(-1)?.date)}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-auto text-sm text-muted-foreground">
+            {totals
+              ? "No new accounts in this period."
+              : "Account metrics are unavailable."}
+          </p>
+        )}
+      </CapitalioMetric>
+      <CapitalioMetric
+        title="Recently active"
+        value={number(totals?.recentlyActive)}
+        icon={<DashboardPieChartIcon />}
+        loading={loading}
+        note="Selected period"
+      >
+        <div className="mt-auto space-y-3">
+          {activeRate != null ? (
+            <>
+              <Progress
+                value={activeRate}
+                aria-label="Recently active share of verified accounts"
+              />
+              <p className="text-sm">
+                <strong className="font-medium">{activeRate}%</strong>{" "}
+                <span className="text-muted-foreground">
+                  of verified customers
+                </span>
+              </p>
+            </>
+          ) : null}
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Latest sign-in or session refresh in this period. This is a current
+            activity snapshot.
+          </p>
+        </div>
+      </CapitalioMetric>
+      <CapitalioMetric
+        title="Verified customers"
+        value={number(totals?.verified)}
+        icon={<DashboardShieldIcon />}
+        loading={loading}
+        note="Current active accounts"
+      >
+        <div className="mt-auto space-y-3">
+          {verifiedRate != null ? (
+            <>
+              <Progress
+                value={verifiedRate}
+                aria-label="Verified share of registered accounts"
+              />
+              <p className="text-sm">
+                <strong className="font-medium">{verifiedRate}%</strong>{" "}
+                <span className="text-muted-foreground">
+                  of registered customers
+                </span>
+              </p>
+            </>
+          ) : null}
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Verified, active customer accounts. Deleted accounts are excluded.
+          </p>
+        </div>
+      </CapitalioMetric>
+    </div>
+  );
+}
 
 export function MobileDashboardCharts({
   daily,
@@ -31,8 +222,8 @@ export function MobileDashboardCharts({
   };
   return (
     <div className="grid min-w-0 gap-5 xl:grid-cols-[2fr_1fr]">
-      <Card className="min-w-0 gap-3 rounded-lg p-5 shadow-none ring-0">
-        <h2 className="text-lg font-medium">Customer growth</h2>
+      <CapitalioPanel title="Customer growth">
+        <CapitalioPanelHeader title="Customer growth" />
         <p className="text-sm text-muted-foreground">
           New accounts in the selected period · UTC dates
         </p>
@@ -57,12 +248,12 @@ export function MobileDashboardCharts({
                   <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
                     <stop
                       offset="0%"
-                      stopColor="var(--selfx-primary)"
+                      stopColor="var(--dashboard-green)"
                       stopOpacity={0.25}
                     />
                     <stop
                       offset="100%"
-                      stopColor="var(--selfx-primary)"
+                      stopColor="var(--dashboard-green)"
                       stopOpacity={0}
                     />
                   </linearGradient>
@@ -85,18 +276,12 @@ export function MobileDashboardCharts({
                   axisLine={false}
                   width={35}
                 />
-                <Tooltip
-                  formatter={(value) => [value, "New accounts"]}
-                  contentStyle={{
-                    background: "var(--card)",
-                    borderColor: "var(--border)",
-                    borderRadius: 8,
-                  }}
-                />
+                <Tooltip content={<CapitalioChartTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="accounts"
-                  stroke="var(--selfx-primary)"
+                  name="New accounts"
+                  stroke="var(--dashboard-green)"
                   fill={`url(#${gradient})`}
                   strokeWidth={2}
                   isAnimationActive={false}
@@ -105,9 +290,9 @@ export function MobileDashboardCharts({
             </ResponsiveContainer>
           </div>
         )}
-      </Card>
-      <Card className="min-w-0 gap-3 rounded-lg p-5 shadow-none ring-0">
-        <h2 className="text-lg font-medium">Sign-in methods</h2>
+      </CapitalioPanel>
+      <CapitalioPanel title="Sign-in methods">
+        <CapitalioPanelHeader title="Sign-in methods" />
         <p className="text-sm text-muted-foreground">
           Current verified accounts · accounts may have multiple methods
         </p>
@@ -148,16 +333,10 @@ export function MobileDashboardCharts({
                   axisLine={false}
                   width={35}
                 />
-                <Tooltip
-                  formatter={(value) => [value, "Accounts"]}
-                  contentStyle={{
-                    background: "var(--card)",
-                    borderColor: "var(--border)",
-                    borderRadius: 8,
-                  }}
-                />
+                <Tooltip content={<CapitalioChartTooltip />} />
                 <Bar
                   dataKey="accounts"
+                  name="Accounts"
                   fill="var(--dashboard-blue, #0085ff)"
                   radius={[5, 5, 0, 0]}
                   maxBarSize={46}
@@ -167,7 +346,7 @@ export function MobileDashboardCharts({
             </ResponsiveContainer>
           </div>
         )}
-      </Card>
+      </CapitalioPanel>
     </div>
   );
 }
