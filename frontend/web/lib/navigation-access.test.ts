@@ -64,6 +64,26 @@ const baseAccess: NavigationAccess = {
   storeFeatureKeys: [],
   hasActiveStore: false,
 };
+it("keeps Mobile Dashboard platform-usage-only without adding a sidebar item", () => {
+  expect(canSeeHref("/app/dashboard/mobile", baseAccess)).toBe(false);
+  expect(
+    canSeeHref("/app/dashboard/mobile", {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["analytics.view", "USAGE_VIEW"],
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref("/app/dashboard/mobile", {
+      ...baseAccess,
+      hasPlatformAccess: true,
+      platformPermissions: ["USAGE_VIEW"],
+    }),
+  ).toBe(true);
+  expect(
+    canSeeHref("/app/dashboard/mobile", { ...baseAccess, isSuperadmin: true }),
+  ).toBe(true);
+});
 it("keeps Apps & Downloads platform-only and Account available to every signed-in user", () => {
   expect(canSeeHref("/app/account", baseAccess)).toBe(true);
   expect(

@@ -302,6 +302,14 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     merchantRoute && (!storeContextLoaded || !platformAccess);
   const merchantRouteAllowed =
     !merchantRoute || canSeeHref(pathname, resolvedNavigationAccess);
+  const mobileDashboard = pathname === "/app/dashboard/mobile";
+  const canSwitchDashboard =
+    storeContextLoaded &&
+    !organizationError &&
+    !impersonation &&
+    !!platformAccess &&
+    (platformAccess.isSuperadmin ||
+      platformAccess.permissions.includes("USAGE_VIEW"));
 
   if (session.status === "loading") {
     return <WorkspaceLoading description="Restoring your session…" />;
@@ -332,7 +340,22 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   return (
     <AppShell
-      appearance={pathname === "/app/dashboard" ? "capitalio" : "default"}
+      appearance={
+        pathname.startsWith("/app/dashboard") ? "capitalio" : "default"
+      }
+      dashboardSwitch={
+        canSwitchDashboard
+          ? {
+              type: mobileDashboard ? "mobile" : "business",
+              onChange: (type) =>
+                router.push(
+                  type === "mobile"
+                    ? "/app/dashboard/mobile"
+                    : "/app/dashboard",
+                ),
+            }
+          : undefined
+      }
       navItems={filteredNavItems}
       activePath={activePathFor(pathname)}
       organizations={currentStore ? [currentStore] : []}
@@ -379,6 +402,15 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
             action={{ label: "Retry", onClick: () => void session.refresh() }}
           />
         </div>
+      ) : mobileDashboard && !canSwitchDashboard ? (
+        <ErrorState
+          title="Mobile Dashboard access required"
+          description="Platform usage permission is required to view mobile customer metrics."
+          action={{
+            label: "Open Business Dashboard",
+            onClick: () => router.push("/app/dashboard"),
+          }}
+        />
       ) : merchantContextPending ? (
         <LoadingState label="Checking Store access" />
       ) : !merchantRouteAllowed ? (
@@ -398,6 +430,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 }
 
 function activePathFor(pathname: string): string {
+  if (pathname === "/app/dashboard/mobile") return "/app/dashboard";
   if (pathname === "/app/try-on-lab") {
     return "/app/try-on-lab/garments";
   }

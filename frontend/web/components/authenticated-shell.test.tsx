@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,7 +33,28 @@ vi.mock("@/lib/access-control", () => ({
   getCurrentPlatformAccess: mocks.getPlatformAccess,
 }));
 vi.mock("@selfx/ui", () => ({
-  AppShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
+  AppShell: ({
+    children,
+    dashboardSwitch,
+  }: {
+    children: ReactNode;
+    dashboardSwitch?: { type: string; onChange: (type: string) => void };
+  }) => (
+    <main>
+      {dashboardSwitch ? (
+        <button
+          onClick={() =>
+            dashboardSwitch.onChange(
+              dashboardSwitch.type === "business" ? "mobile" : "business",
+            )
+          }
+        >
+          Toggle {dashboardSwitch.type}
+        </button>
+      ) : null}
+      {children}
+    </main>
+  ),
   Button: ({ children }: { children: ReactNode }) => (
     <button>{children}</button>
   ),
@@ -58,6 +79,63 @@ function MerchantPage() {
 }
 
 describe("merchant-only shell routes", () => {
+  it("only offers mobile switching to a platform usage viewer and resets through the Business route", async () => {
+    mocks.pathname = "/app/dashboard";
+    mocks.getPlatformAccess.mockResolvedValue({
+      isSuperadmin: false,
+      permissions: ["USAGE_VIEW"],
+    });
+    const result = render(
+      <AuthenticatedShell>
+        <MerchantPage />
+      </AuthenticatedShell>,
+    );
+    fireEvent.click(await screen.findByText("Toggle business"));
+    expect(mocks.router.push).toHaveBeenCalledWith("/app/dashboard/mobile");
+    mocks.pathname = "/app/dashboard/mobile";
+    result.rerender(
+      <AuthenticatedShell>
+        <MerchantPage />
+      </AuthenticatedShell>,
+    );
+    fireEvent.click(await screen.findByText("Toggle mobile"));
+    expect(mocks.router.push).toHaveBeenCalledWith("/app/dashboard");
+  });
+  it("blocks direct mobile access for Store users", async () => {
+    mocks.pathname = "/app/dashboard/mobile";
+    render(
+      <AuthenticatedShell>
+        <MerchantPage />
+      </AuthenticatedShell>,
+    );
+    expect(
+      await screen.findByText("Mobile Dashboard access required"),
+    ).toBeTruthy();
+    expect(mocks.pageMounted).not.toHaveBeenCalled();
+  });
+  it("hides platform mobile analytics during Store impersonation", async () => {
+    mocks.pathname = "/app/dashboard/mobile";
+    mocks.getPlatformAccess.mockResolvedValue({
+      isSuperadmin: true,
+      permissions: [],
+    });
+    mocks.getStoreAccess.mockResolvedValue({
+      ...storeContext,
+      impersonation: {
+        id: "impersonation",
+        targetStoreName: "Store",
+        expiresAt: "2026-10-25T18:00:00Z",
+      },
+    });
+    render(
+      <AuthenticatedShell>
+        <MerchantPage />
+      </AuthenticatedShell>,
+    );
+    expect(await screen.findByText("Impersonating Store:")).toBeTruthy();
+    expect(screen.queryByText("Toggle mobile")).toBeNull();
+    expect(mocks.pageMounted).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.pathname = "/app/analytics";

@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### Dashboard sidebar switch and mobile metrics (2026-10-25)
+
+No migration or table is added for the dashboard switch. Mobile account aggregates use existing customers and customer_identities; customer status/deletion and date constraints are applied server-side. Latest successful customer sign-in/refresh updates customers.last_active_at. Current account-status/provider counts are snapshots; new accounts use created_at within the selected interval and UTC daily buckets, excluding deleted accounts. Provider counts may overlap when one customer has multiple methods. Sensitive identity fields are never selected into the response. Future mobile Try-On, customer billing and Store-QR metrics remain unavailable because their approved durable structures are not yet implemented.
+
+### CUSTOMER-MOBILE-1 — Global customer account tables (2026-10-25)
+
+Migration '20261025030000_customer_mobile_accounts' adds 'customers', 'customer_identities', 'customer_sessions' and 'customer_action_tokens'. They have no Store/membership ownership FK: the customer is global. Customers have a nullable unique normalized email, display name, pending/active/suspended/deleted status, security version, latest registration proof hash, accepted terms version/time, language and notification preference. Identities have unique (provider, provider_subject), unique (customer_id, provider), optional Argon2 password and verified time. Do not auto-merge by email or create staff/merchant records.
+
+Sessions retain hashed opaque refresh secrets, family id, fixed expiry, revocation and optional device label; rotation creates a successor and revokes the predecessor. Action tokens retain hashed purpose-bound codes or Apple nonces, account/security version where applicable, expiry and used time. Customer FKs cascade. Expired account tokens/sessions are cleaned after a short diagnostic grace period. Durable rate buckets reuse the existing HMAC-keyed recovery rate table; encrypted customer mail requests reuse the existing mail outbox. Account deletion revokes sessions, deletes identities/action tokens and anonymizes the customer row.
+
+This migration does not add image assets, personal billing or Store-QR tables. The approved future mobile generated-result purpose is 30 days, with explicit customer ownership and expiry; original photos/customer garment captures/derived inputs remain at most seven days. Other channel results remain seven days. Image ownership, consent and purpose-specific retention must be implemented together before enabling generation, including Store-sponsored saved results.
+
 ### Commerce recovery and Shopify financial records (2026-10-25)
 
 Migration 20261025010000_commerce_reconciliation adds Integration checkpoint/lease, retry and due-time fields. The Shopify app's separate 20261025010000_catalog_reconciliation migration adds corresponding SelfxConnection fields and billing verification due time. WooCommerce limits use validated integration metadata rather than a parallel tenant/settings entity.

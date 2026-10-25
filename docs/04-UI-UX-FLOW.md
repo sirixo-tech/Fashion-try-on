@@ -1,5 +1,31 @@
 ## Document Evolution
 
+### Dashboard sidebar switch and mobile metrics (2026-10-25)
+
+Place a compact shadcn toggle at the right of the existing Dashboard sidebar row. OFF is Business Dashboard; ON is Mobile Dashboard. The visible label moves vertically in a fixed-height clipped track (260ms); reduced motion removes the transition. Row-label clicks always navigate to Business independently of the switch. Keep the switch keyboard-accessible and available in collapsed navigation and the mobile drawer. On Mobile, show its name, date filter, refresh/export, account KPI cards, UTC signup growth and sign-in-method charts, current status overview and explicit future-feature states. Business charts, Store filters and resource metrics retain their current behavior. Mobile contains no Store-scope filter or customer PII.
+
+### Supplied SelfX X logo for installed apps and PWAs (2026-10-25)
+
+Use the exact user-supplied `Selfx Logo.png` X artwork for customer Android/iOS launchers, Android/Windows kiosk launchers and the existing web PWA/browser/Apple touch icons. Store the original unchanged as `frontend/web/public/brand/selfx-mark.png`; do not derive a replacement by cropping the wordmark. Use correctly sized square PNGs, opaque iOS artwork and dedicated maskable PWA variants with safe padding. Full wordmark headers and the customer skeleton UI remain unchanged. Preserve the legacy PWA icon URL with the supplied artwork. This request is source-asset preparation only; do not build APKs.
+
+### CUSTOMER-MOBILE-1.1 — Official logo and genuine loading states (2026-10-25)
+
+Use the existing official SelfX logo asset for onboarding, authentication, header, retry/configuration and native launch screens. Derive launcher/system splash X artwork from that same approved source. This explicitly adds logo reuse to the earlier color-only direction; all mobile presentation and widgets remain independent from web/kiosk layouts. Replace the temporary sparkles/typed-wordmark branding. Sparkles may still identify Try-On actions and credits.
+
+Use skeletons shaped like the pending content during sign-in capability loading, session restoration and account profile requests. They disappear on completion/failure without a forced minimum duration. Expose one accessible loading status, hide placeholder details/actions and stop animation for reduced-motion users. Keep form-button indicators for submissions. Static onboarding, Saved empty states and unavailable Plans/QR features must not pretend to fetch content. Add those content skeletons only with their real services.
+
+### CUSTOMER-MOBILE-1 — Independent mobile presentation (2026-10-25)
+
+The customer app shares the approved SelfX logo and brand colors; do not inherit the dashboard/kiosk shell, components or layouts. Use Flutter-native controls, warm surfaces, editorial headings, compact pill actions, a distinct launcher mark and accessible scrollable forms. Four introduction pages include Skip, page indicators and Continue/Get started. Separate screens/states cover sign-in, signup, verification, forgot/reset password, network retry and unavailable accounts. Include input validation, password visibility, loading/disabled actions and useful inline errors. Require explicit terms acceptance for signup and provider creation.
+
+Home/Saved/Me use persistent bottom navigation. The top-right order is Store QR scanner, Plans, personal credits. Until implemented, scanner/Plans open honest explanatory states and balance displays an unavailable dash rather than invented credits. Home does not collect photos or trigger generation yet. Saved is an empty state explaining future generated-result expiry after 30 days. Me includes profile/security, subscriptions, English language, notification preference, app updates, Privacy, Terms, contact, intro replay, sign-out and confirmed account deletion. Referrals/coupons, actual pushes and extra translations remain deferred.
+
+Show expiry and charging context when generation is introduced. Original photos retain the shorter seven-day policy. Account routes disappear after sign-out/revocation. Support narrow phones, keyboard scrolling, safe areas and larger text without overflow.
+
+### WooCommerce Try-On block editor controls (2026-10-25)
+
+In the WordPress Single Product template editor, selecting SelfX Try-On exposes Button text in Settings and native colors/gradients, typography, padding/margins and borders/corner radius in Styles, subject to the theme's available design settings. Preview changes on an inert button and save the template to publish. The preview is illustrative, while the live button still requires an eligible connected product. Styles apply to each block individually; automatic classic placement and shortcodes keep theme styling. Use one product-template placement to avoid duplicates.
+
 ### Platform Store performance / Store product performance (2026-10-25)
 
 On the all-Stores dashboard, replace Product performance with Store performance: Store name, generated Try-Ons, success rate, downloads, failed attempts and View Store. Rank by generated Try-Ons, then attempts. View Store switches the dashboard to that authorized Store's product metrics and keeps the current date range. Offer navigation only for Stores already selectable under the user's Store access; unassigned Platform fleet and unselectable Stores have no action. Platform usage viewers can read Store aggregates without receiving Store-management rights.

@@ -16,6 +16,7 @@ import {
 
 export interface QueuedMessage extends EmailMessage {
   resetTokenId?: string;
+  customerTokenId?: string;
 }
 @Injectable()
 export class MailOutboxService implements OnModuleInit, OnModuleDestroy {
@@ -23,6 +24,7 @@ export class MailOutboxService implements OnModuleInit, OnModuleDestroy {
   private running = false;
   private stopped = false;
   prepareReset?: (job: MailJob) => Promise<MailJob | null>;
+  prepareCustomerAuth?: (job: MailJob) => Promise<MailJob | null>;
   constructor(
     private readonly db: PrismaService,
     private readonly crypto: MailCrypto,
@@ -40,7 +42,7 @@ export class MailOutboxService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
   async enqueue(
-    kind: "RESET_REQUEST" | "MESSAGE",
+    kind: "RESET_REQUEST" | "MESSAGE" | "CUSTOMER_AUTH_REQUEST",
     payload: unknown,
     expiresAt: Date,
     tx: Prisma.TransactionClient = this.db,
@@ -124,10 +126,16 @@ export class MailOutboxService implements OnModuleInit, OnModuleDestroy {
     const id = job.id;
     const where = { id, status: "PROCESSING", leaseUntil: lease };
     try {
-      if (job.kind === "RESET_REQUEST") {
-        if (!this.prepareReset)
-          throw new MailDeliveryError("MAIL_RECOVERY_NOT_READY");
-        job = (await this.prepareReset(job)) ?? undefined;
+      if (
+        job.kind === "RESET_REQUEST" ||
+        job.kind === "CUSTOMER_AUTH_REQUEST"
+      ) {
+        const prepare =
+          job.kind === "RESET_REQUEST"
+            ? this.prepareReset
+            : this.prepareCustomerAuth;
+        if (!prepare) throw new MailDeliveryError("MAIL_RECOVERY_NOT_READY");
+        job = (await prepare(job)) ?? undefined;
         if (!job) {
           await this.db.mailJob.updateMany({
             where,
@@ -158,6 +166,30 @@ export class MailOutboxService implements OnModuleInit, OnModuleDestroy {
           token.expiresAt <= new Date() ||
           token.user.status !== "ACTIVE" ||
           token.credentialsVersion !== token.user.credentialsVersion
+        ) {
+          await this.db.mailJob.updateMany({
+            where,
+            data: {
+              status: "SKIPPED",
+              payload: Prisma.DbNull,
+              leaseUntil: null,
+            },
+          });
+          return true;
+        }
+      }
+      if (message.customerTokenId) {
+        const token = await this.db.customerActionToken.findUnique({
+          where: { id: message.customerTokenId },
+          include: { customer: true },
+        });
+        if (
+          !token ||
+          token.usedAt ||
+          token.expiresAt <= new Date() ||
+          !token.customer ||
+          !["ACTIVE", "PENDING_VERIFICATION"].includes(token.customer.status) ||
+          token.customer.securityVersion !== token.securityVersion
         ) {
           await this.db.mailJob.updateMany({
             where,

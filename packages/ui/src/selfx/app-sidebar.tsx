@@ -26,6 +26,8 @@ import {
   DropdownMenuTrigger,
 } from "@selfx/ui/components/dropdown-menu";
 import { SelfxLogo } from "./selfx-logo";
+import { Switch } from "../components/switch";
+import { DashboardTypeName, type DashboardSwitch } from "./dashboard-type-name";
 import { cn } from "@selfx/ui/lib/utils";
 import { useSelfxTheme } from "../theme/selfx-ui-provider";
 import type { SelfxNavItem, SelfxUserSummary } from "./types";
@@ -40,6 +42,7 @@ export function AppSidebar({
   onNavigateTo,
   onLogout,
   onToggleCollapsed,
+  dashboardSwitch,
 }: {
   items: SelfxNavItem[];
   activePath?: string;
@@ -50,6 +53,7 @@ export function AppSidebar({
   onNavigateTo?: (href: string) => void;
   onLogout?: () => void;
   onToggleCollapsed?: () => void;
+  dashboardSwitch?: DashboardSwitch;
 }) {
   const initiallyOpen = useMemo(
     () =>
@@ -116,6 +120,59 @@ export function AppSidebar({
           const hasChildren = Boolean(item.children?.length);
           const active = isActive(item, activePath);
           const open = openGroups.has(item.label);
+
+          if (item.href === "/app/dashboard" && dashboardSwitch) {
+            return (
+              <div
+                key={item.href}
+                className={cn(
+                  "flex items-center gap-1 rounded-lg",
+                  active && "bg-sidebar-accent/40",
+                  collapsed && "flex-col gap-0 pb-2",
+                )}
+              >
+                <a
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  title="Open Business Dashboard"
+                  className={cn(
+                    navItemClass(active, collapsed),
+                    "min-w-0 flex-1 gap-2 text-[13px] tracking-tight",
+                    !collapsed && "pr-0",
+                  )}
+                  onClick={(event) => {
+                    if (isPlainLeftClick(event) && onNavigateTo) {
+                      event.preventDefault();
+                      onNavigateTo(item.href!);
+                      onNavigate?.();
+                    }
+                  }}
+                >
+                  {item.icon ? (
+                    <NavIcon icon={item.icon} active={active} />
+                  ) : null}
+                  <DashboardTypeName
+                    type={dashboardSwitch.type}
+                    className={cn(collapsed && "sr-only")}
+                  />
+                </a>
+                <Switch
+                  aria-label="Mobile dashboard"
+                  title={
+                    dashboardSwitch.type === "mobile"
+                      ? "Switch to Business Dashboard"
+                      : "Switch to Mobile Dashboard"
+                  }
+                  checked={dashboardSwitch.type === "mobile"}
+                  onCheckedChange={(checked) => {
+                    dashboardSwitch.onChange(checked ? "mobile" : "business");
+                    onNavigate?.();
+                  }}
+                  className={cn("selfx-dashboard-switch", !collapsed && "mr-2")}
+                />
+              </div>
+            );
+          }
 
           if (hasChildren) {
             return (

@@ -7,6 +7,99 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum CustomerStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum CustomerIdentityProvider {
+  EMAIL_PASSWORD
+  GOOGLE
+  APPLE
+}
+
+enum CustomerActionPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+  APPLE_NONCE
+}
+
+model Customer {
+  id                    String                @id @db.Uuid
+  email                 String?               @unique @db.VarChar(320)
+  displayName           String                @map("display_name") @db.VarChar(160)
+  status                CustomerStatus        @default(PENDING_VERIFICATION)
+  securityVersion       Int                   @default(0) @map("security_version")
+  verificationProofHash String?               @map("verification_proof_hash") @db.Char(64)
+  termsVersion          String                @map("terms_version") @db.VarChar(40)
+  termsAcceptedAt       DateTime              @map("terms_accepted_at") @db.Timestamptz(3)
+  language              String                @default("en") @db.VarChar(12)
+  notifications         Boolean               @default(false)
+  lastActiveAt          DateTime?             @map("last_active_at") @db.Timestamptz(3)
+  deletedAt             DateTime?             @map("deleted_at") @db.Timestamptz(3)
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  identities            CustomerIdentity[]
+  sessions              CustomerSession[]
+  actionTokens          CustomerActionToken[]
+
+  @@map("customers")
+}
+
+model CustomerIdentity {
+  id              String                   @id @db.Uuid
+  customerId      String                   @map("customer_id") @db.Uuid
+  provider        CustomerIdentityProvider
+  providerSubject String                   @map("provider_subject") @db.VarChar(320)
+  email           String?                  @db.VarChar(320)
+  passwordHash    String?                  @map("password_hash")
+  verifiedAt      DateTime?                @map("verified_at") @db.Timestamptz(3)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  customer        Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@unique([customerId, provider])
+  @@index([customerId])
+  @@map("customer_identities")
+}
+
+model CustomerSession {
+  id         String    @id @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  familyId   String    @map("family_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash") @db.Char(64)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(3)
+  deviceName String?   @map("device_name") @db.VarChar(100)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, revokedAt])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("customer_sessions")
+}
+
+model CustomerActionToken {
+  id              String                @id @db.Uuid
+  customerId      String?               @map("customer_id") @db.Uuid
+  purpose         CustomerActionPurpose
+  tokenHash       String                @unique @map("token_hash") @db.Char(64)
+  securityVersion Int                   @default(0) @map("security_version")
+  expiresAt       DateTime              @map("expires_at") @db.Timestamptz(3)
+  usedAt          DateTime?             @map("used_at") @db.Timestamptz(3)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer        Customer?             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, purpose])
+  @@index([expiresAt])
+  @@map("customer_action_tokens")
+}
+
 enum UserStatus {
   ACTIVE
   SUSPENDED

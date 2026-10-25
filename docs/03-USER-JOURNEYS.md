@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### Dashboard sidebar switch and mobile metrics (2026-10-25)
+
+Opening Dashboard goes to Business by default. Eligible platform users turn on the sidebar toggle to view Mobile; the label slides to Mobile Dashboard, its page heading agrees and its own date filter/refresh/export operate on customer aggregates. Turning it off or clicking the label returns to Business. Store users retain the existing Business dashboard with no mobile toggle; the mobile page is not mounted during Store impersonation. Failed requests show an actionable error and no stale counts. An enabled empty customer database shows real zero values; a disabled backend shows activation guidance and unavailable values. Future-generation/payment/Store-QR sections explain that their services are not connected.
+
+### CUSTOMER-MOBILE-1 — Customer account journey (2026-10-25)
+
+First launch opens four app introduction slides with Skip, even without network access. Continue/Skip persists completion and opens sign-in once the API is reachable. Existing users choose email/password, Google or iOS Apple. New users choose Create account, accept the current Terms/Privacy policy and submit name/email/password or an available OAuth provider. Email signup requires the emailed eight-digit code on the same registration attempt, then returns to sign-in. Unknown email and wrong password produce the same safe message; no automatic account lookup or merchant account creation occurs. An existing provider account with the same email is not silently linked.
+
+Forgot password requests a generic email response and opens code/new-password entry. Successful reset invalidates all customer devices. Home/Saved/Me are protected by a live customer session. Me supports profile name, notification preference, recovery/security, sign-out/current or all devices, and account deletion with explicit confirmation and reauthentication. Legal/support links use configured HTTPS destinations; preview copy is not final legal publication.
+
+Future Saved shows outfit plus generated result with a 30-day mobile-result expiry and earlier deletion. No image is collected in this foundation. Original photos keep the seven-day maximum. Future Store QR enters an explicitly identified sponsored session: only its eligible Store catalog and Store allowance apply, with no personal-credit fallback. Personal mobile purchases remain separate from Store billing.
+
 ### Commerce merchant recovery and payment journey (2026-10-25)
 
 Shopify merchants can leave the app while catalog reconciliation continues, inspect sync results, retry, disconnect and reconnect the same SelfX Store. Eligible products reveal Try it on after a successful availability check. In Plans, choose an existing SelfX plan, specify a spending cap for usage pricing, and approve Shopify's native charge screen. SelfX verifies approval server-side. Subsequent paid plan changes remain scheduled until renewal; the current allowance continues until then. Cancellation stops paid access, and paid approvals must be cancelled before disconnect/archive/permanent deletion. WooCommerce merchants set per-browser day/week/month allowances and a monthly website allowance in WooCommerce > SelfX; safe error text explains recovery. No Change Store journey is added.

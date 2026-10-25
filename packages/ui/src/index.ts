@@ -97,6 +97,12 @@ export {
   TooltipTrigger,
 } from "./components/tooltip";
 export { SelfxLogo } from "./selfx/selfx-logo";
+export { DashboardTypeName } from "./selfx/dashboard-type-name";
+export { MobileDashboardCharts } from "./selfx/mobile-dashboard-charts";
+export type {
+  DashboardType,
+  DashboardSwitch,
+} from "./selfx/dashboard-type-name";
 export { LoadingScreen } from "./selfx/loading-screen";
 export { StatusBadge } from "./selfx/status-badge";
 export {

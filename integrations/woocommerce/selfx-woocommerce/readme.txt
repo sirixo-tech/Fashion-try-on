@@ -3,7 +3,7 @@ Contributors: selfx
 Tags: woocommerce, catalog, virtual-try-on, kiosk
 Requires at least: 6.5
 Requires PHP: 8.1
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,7 +45,23 @@ Tokens are encrypted using WP salts, never shown in storefront HTML. Reconnect a
 5. Check sync status; classify and enable imports in SelfX Products.
 6. Use automatic classic placement or block/shortcode for block themes.
 
+== Customize the Try-On block ==
+
+In Appearance > Editor, open the Single Product template and select SelfX Try-On.
+Change Button text in the block settings. In Styles, choose text/background
+colors (including theme palettes/gradients), typography, padding/margins and
+border width, style, color and radius. Available controls follow your theme.
+The button previews changes in the editor; save the template to publish them.
+The preview is illustrative: live buttons still require an eligible product.
+Each block has its own styles. Existing blocks use the default Try it on label.
+Automatic classic placement and shortcodes retain theme styling; these editor
+controls apply to the SelfX Try-On block. Use one placement to avoid duplicates.
+
 == Changelog ==
+
+= 0.5.0 =
+* Native WordPress Try-On block styling with a live button preview and editable text.
+* Theme-aware colors, gradients, typography, spacing and borders on the storefront button.
 
 = 0.4.0 =
 * Central Store-owned visitor and monthly allowances with WordPress management controls.

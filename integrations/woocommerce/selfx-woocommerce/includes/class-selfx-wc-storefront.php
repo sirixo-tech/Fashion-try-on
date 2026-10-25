@@ -11,9 +11,15 @@ final class SelfX_WC_Storefront {
         add_action('admin_post_nopriv_selfx_wc_try_on', array($this, 'launch'));
     }
     public function block(): void {
-        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element'), defined('SELFX_WC_VERSION') ? SELFX_WC_VERSION : '0.4.0', true);
-        register_block_type('selfx/try-on', array('api_version' => 3, 'editor_script' => 'selfx-try-on-editor', 'uses_context' => array('postId'),
-            'render_callback' => function ($attributes, $content, $block) { return $this->button(array('product_id' => $block->context['postId'] ?? 0)); }));
+        wp_register_script('selfx-try-on-editor', plugins_url('../assets/block.js', __FILE__), array('wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n'), defined('SELFX_WC_VERSION') ? SELFX_WC_VERSION : '0.5.0', true);
+        register_block_type(__DIR__ . '/../assets/block.json', array(
+            'render_callback' => function ($attributes, $content, $block) {
+                // Apply native styles to the actionable button, not its nonce/form.
+                return $this->render_button(
+                    array('product_id' => $block->context['postId'] ?? 0, 'label' => $attributes['label'] ?? ''),
+                    get_block_wrapper_attributes(array('class' => 'button wp-element-button'))
+                );
+            }));
     }
     private function product(int $id) {
         $product = wc_get_product($id);
@@ -27,7 +33,8 @@ final class SelfX_WC_Storefront {
         return new SelfX_WC_Client($config['origin'], SelfX_WC_Client::decrypt($config['credential']));
     }
     public function automatic_button(): void { echo $this->button(array()); } // Already escaped by button().
-    public function button($attributes = array()): string {
+    public function button($attributes = array()): string { return $this->render_button($attributes); }
+    private function render_button($attributes = array(), ?string $block_button_attributes = null): string {
         $id = absint($attributes['product_id'] ?? get_queried_object_id());
         if (!$this->product($id)) { return ''; }
         $config = get_option(SelfX_WC_Plugin::CONFIG, array());
@@ -40,7 +47,12 @@ final class SelfX_WC_Storefront {
             set_transient($cache, $ready, 60);
         }
         if (($ready['available'] ?? false) !== true) { return ''; }
-        return '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="selfx-try-on"><input type="hidden" name="action" value="selfx_wc_try_on"><input type="hidden" name="product_id" value="' . esc_attr((string) $id) . '"><input type="hidden" name="_wpnonce" value="' . esc_attr(wp_create_nonce('selfx_wc_try_on_' . $id)) . '"><button type="submit" class="button">' . esc_html__('Try it on', 'selfx-woocommerce') . '</button></form>';
+        $label = isset($attributes['label']) && is_string($attributes['label']) ? trim(wp_strip_all_tags($attributes['label'])) : '';
+        if ($label === '') { $label = __('Try it on', 'selfx-woocommerce'); }
+        // Only the block callback supplies WordPress-generated, escaped attributes.
+        // Shortcodes inside other blocks must not inherit the parent block's styles.
+        $button_attributes = $block_button_attributes ?? 'class="button"';
+        return '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="selfx-try-on"><input type="hidden" name="action" value="selfx_wc_try_on"><input type="hidden" name="product_id" value="' . esc_attr((string) $id) . '"><input type="hidden" name="_wpnonce" value="' . esc_attr(wp_create_nonce('selfx_wc_try_on_' . $id)) . '"><button type="submit" ' . $button_attributes . '>' . esc_html($label) . '</button></form>';
     }
     public function launch(): void {
         $id = absint($_POST['product_id'] ?? 0);

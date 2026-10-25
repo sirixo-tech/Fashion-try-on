@@ -1,4 +1,4 @@
-# SelfX for WooCommerce — 0.4.0
+# SelfX for WooCommerce — 0.5.0
 
 One-way website catalog → SelfX Store → assigned kiosks, plus a storefront **Try it on** button. WooCommerce owns products, size/color choices, prices, inventory, cart, checkout and orders. SelfX imports one parent product reference with its image and runs Virtual Try-On through the central backend. There is no stock/order writeback or SelfX checkout for imported products.
 
@@ -9,6 +9,7 @@ One-way website catalog → SelfX Store → assigned kiosks, plus a storefront *
 3. Open **WooCommerce → SelfX → Connect to SelfX**. Sign in or create an account, select an active SelfX Store and approve the website. SelfX returns to WordPress, where the plugin verifies the one-time return state, completes the link server-to-server and queues catalog sync. **Retry connection** is available if completion fails. A newly created eligible Store gets its one-time Starter trial; reconnecting does not add credits. Existing token-based connections remain supported under the advanced option.
 4. Let Scheduled Actions/WordPress cron deliver initial sync. **Sync now / retry** recovers interrupted work. In SelfX Products, classify eligible imports and enable Try-On. New imports start disabled; website updates preserve SelfX eligibility.
 5. Classic templates show the button automatically after the purchase area. For a block theme, add **SelfX Try-On** to the Single Product template, or a Shortcode block containing `[selfx_try_on]`. Place outside the cart form and choose one placement to avoid duplicates.
+6. To customize a block, open **Appearance → Editor → Templates → Single Product**, select **SelfX Try-On**, and edit **Button text** in Settings. Use its **Styles** controls for colors/gradients, typography, padding/margins and border color/style/width/radius, then save the template. The editor button previews the styling without starting a Try-On or checking eligibility. Native controls respect the active theme's available design settings. Saved styles apply to the block's actual submit button; automatic classic placement and shortcodes continue to use theme styling. Existing blocks retain the default label and do not require reinsertion.
 6. Visit an enabled product page, click **Try it on**, accept consent on SelfX, upload/take a photo, generate and view/download the result, then **Return to product**. Purchase normally through WooCommerce.
 
 Eligibility is cached for at most 60 seconds. SelfX rechecks Store, integration, mapping, plan and product at launch/during sessions. Sold-out products can still be tried on. Disabled, hidden, archived or unsupported products have no button. Temporary API failure hides the button until eligibility can be checked.

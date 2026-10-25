@@ -45,6 +45,7 @@ export function navigationAccess({
 }
 
 const platformPermissionsByHref: Record<string, string[]> = {
+  "/app/dashboard/mobile": ["USAGE_VIEW"],
   "/app/apps-downloads": ["APP_RELEASES_VIEW", "APP_RELEASES_MANAGE"],
   "/app/stores": ["STORES_VIEW"],
   "/app/locations": ["STORES_VIEW"],

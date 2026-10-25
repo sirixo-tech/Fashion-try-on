@@ -11,10 +11,17 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/brand/selfx-logo.png", type: "image/png" },
-      { url: "/kiosk/icon.svg", type: "image/svg+xml" },
+      { url: "/brand/selfx-favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/brand/selfx-icon-192.png", type: "image/png", sizes: "192x192" },
     ],
-    apple: [{ url: "/kiosk/icon.svg" }],
+    shortcut: "/favicon.ico",
+    apple: [
+      {
+        url: "/brand/selfx-apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
   },
 };
 

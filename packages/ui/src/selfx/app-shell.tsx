@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 
 import { AppHeader } from "./app-header";
 import { AppSidebar } from "./app-sidebar";
+import type { DashboardSwitch } from "./dashboard-type-name";
 import { Sheet, SheetContent, SheetTitle } from "@selfx/ui/components/sheet";
 import { cn } from "@selfx/ui/lib/utils";
 import type {
@@ -20,6 +21,7 @@ export function AppShell({
   user,
   onLogout,
   onNavigateTo,
+  dashboardSwitch,
 }: {
   children: ReactNode;
   navItems: SelfxNavItem[];
@@ -31,6 +33,7 @@ export function AppShell({
   user?: SelfxUserSummary | null;
   onLogout?: () => void;
   onNavigateTo?: (href: string) => void;
+  dashboardSwitch?: DashboardSwitch;
 }) {
   const [mobileOpened, setMobileOpened] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
@@ -43,6 +46,7 @@ export function AppShell({
       onLogout={onLogout}
       onNavigate={() => setMobileOpened(false)}
       onNavigateTo={onNavigateTo}
+      dashboardSwitch={dashboardSwitch}
     />
   );
   const desktopSidebar = (
@@ -54,6 +58,7 @@ export function AppShell({
       onToggleCollapsed={() => setDesktopCollapsed((collapsed) => !collapsed)}
       onLogout={onLogout}
       onNavigateTo={onNavigateTo}
+      dashboardSwitch={dashboardSwitch}
     />
   );
 

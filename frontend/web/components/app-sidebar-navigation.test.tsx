@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 
-import { AppSidebar, SelfxUiProvider } from "@selfx/ui";
+import { AppSidebar, SelfxUiProvider, type DashboardType } from "@selfx/ui";
 
 const items = [
   { href: "/app/dashboard", label: "Dashboard" },
@@ -10,6 +11,7 @@ const items = [
 ];
 
 beforeAll(() => {
+  window.PointerEvent ??= MouseEvent as typeof PointerEvent;
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
@@ -37,12 +39,70 @@ function renderSidebar(props: {
 }
 
 describe("AppSidebar navigation", () => {
+  it("keeps the toggle separate from the Business link and slides its current name", () => {
+    const navigate = vi.fn();
+    function Fixture() {
+      const [type, setType] = useState<DashboardType>("business");
+      return (
+        <SelfxUiProvider>
+          <AppSidebar
+            items={items}
+            activePath="/app/dashboard"
+            dashboardSwitch={{ type, onChange: setType }}
+            onNavigateTo={navigate}
+          />
+        </SelfxUiProvider>
+      );
+    }
+    render(<Fixture />);
+    const toggle = screen.getByRole("switch", { name: "Mobile dashboard" });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(
+      screen
+        .getByRole("link", { name: "Business Dashboard" })
+        .getAttribute("href"),
+    ).toBe("/app/dashboard");
+    expect(toggle.closest("a")).toBeNull();
+    fireEvent.click(toggle);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    const mobileLink = screen.getByRole("link", { name: "Mobile Dashboard" });
+    expect(mobileLink.querySelector('[data-mobile="true"]')).toBeTruthy();
+    fireEvent.click(mobileLink);
+    expect(navigate).toHaveBeenCalledWith("/app/dashboard");
+    fireEvent.click(toggle);
+    expect(
+      screen.getByRole("link", { name: "Business Dashboard" }),
+    ).toBeTruthy();
+  });
+  it("keeps the toggle available when navigation is collapsed", () => {
+    const change = vi.fn();
+    render(
+      <SelfxUiProvider>
+        <AppSidebar
+          items={items}
+          collapsed
+          dashboardSwitch={{ type: "business", onChange: change }}
+        />
+      </SelfxUiProvider>,
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "Mobile dashboard" }));
+    expect(change).toHaveBeenCalledWith("mobile");
+  });
+  it("does not show a dashboard toggle without explicit access from the shell", () => {
+    renderSidebar({});
+    expect(
+      screen.queryByRole("switch", { name: "Mobile dashboard" }),
+    ).toBeNull();
+  });
   it("uses provider-neutral client navigation for normal clicks", () => {
     const onNavigate = vi.fn();
     const onNavigateTo = vi.fn();
     renderSidebar({ onNavigate, onNavigateTo });
 
-    const event = fireEvent.click(screen.getByRole("link", { name: /stores/i }));
+    const event = fireEvent.click(
+      screen.getByRole("link", { name: /stores/i }),
+    );
 
     expect(event).toBe(false);
     expect(onNavigateTo).toHaveBeenCalledWith("/app/stores");

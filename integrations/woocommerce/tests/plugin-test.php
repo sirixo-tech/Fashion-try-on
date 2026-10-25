@@ -54,10 +54,24 @@ function wp_die($message, ...$args) { throw new Exception('PERMISSION_DENIED'); 
 function wp_unslash($value) { return $value; }
 function wp_safe_redirect($url) { throw new Exception('REDIRECT'); }
 function esc_html__($value, $domain) { return $value; }
+function __($value, $domain) { return $value; }
 function esc_html($value) { return htmlspecialchars((string) $value, ENT_QUOTES); }
 function esc_attr($value) { return esc_html($value); }
 function esc_url($value) { return esc_html($value); }
 function admin_url($path) { return 'https://website.example/wp-admin/' . $path; }
+function plugins_url($path, $file) { return 'https://website.example/wp-content/plugins/selfx-woocommerce/assets/block.js'; }
+function wp_register_script($handle, $url, $deps, $version, $footer) {
+    global $block_script; $block_script = compact('handle', 'url', 'deps', 'version', 'footer');
+}
+function register_block_type($path, $args) {
+    global $block_registration; $block_registration = array_merge(json_decode(file_get_contents($path), true, 512, JSON_THROW_ON_ERROR), $args);
+}
+function get_block_wrapper_attributes($extra = array()) {
+    // Native style generation belongs to WordPress. This fixture checks placement
+    // and isolation of its already-escaped output, not a replacement style engine.
+    global $native_button_attributes;
+    return 'class="' . esc_attr(($extra['class'] ?? '') . ' wp-block-selfx-try-on') . '" ' . ($native_button_attributes ?? '');
+}
 function wp_nonce_field($action) { echo '<input name="_wpnonce" value="fixture">'; }
 function submit_button($label, ...$args) { echo '<button>' . esc_html($label) . '</button>'; }
 function get_post($id) { global $posts; return $posts[$id] ?? null; }
@@ -201,6 +215,48 @@ test('ineligible and unpublished products hide the storefront button', function 
     setup(); add_product(10, 'simple', array('status' => 'draft')); $front = new SelfX_WC_Storefront(); equal($front->button(), '');
     setup(); add_product(10); global $response_hook;
     $response_hook = fn() => array('code' => 200, 'body' => '{"available":false}'); equal($front->button(), '');
+});
+
+test('block render applies native styles to the submit button and preserves secure launch fields', function () {
+    setup(); add_product(10); $front = new SelfX_WC_Storefront(); $front->block();
+    global $block_registration, $block_script, $native_button_attributes;
+    equal(in_array('wp-block-editor', $block_script['deps'], true), true);
+    equal($block_registration['name'], 'selfx/try-on');
+    equal($block_registration['supports']['color']['gradients'], true);
+    equal($block_registration['supports']['spacing']['padding'], true);
+    equal($block_registration['supports']['__experimentalBorder']['radius'], true);
+    $native_button_attributes = 'style="background-color:#123456;color:#ffffff;padding:12px;border-radius:16px"';
+    $render = $block_registration['render_callback'];
+    $html = $render(array('label' => 'Preview & try'), '', (object) array('context' => array('postId' => 10)));
+    equal(str_contains($html, '<button type="submit" class="button wp-element-button wp-block-selfx-try-on" ' . $native_button_attributes . '>Preview &amp; try</button>'), true);
+    equal(str_contains($html, '<form method="post" action="https://website.example/wp-admin/admin-post.php" class="selfx-try-on">'), true);
+    equal(str_contains($html, 'name="product_id" value="10"'), true);
+    equal(str_contains($html, 'name="_wpnonce" value="nonce:selfx_wc_try_on_10"'), true);
+    equal(str_contains($html, 'selfx_woocommerce_'), false);
+    // A second block and a shortcode rendered in a styled parent cannot leak styles.
+    $native_button_attributes = 'style="border-radius:4px"';
+    $second = $render(array(), '', (object) array('context' => array('postId' => 10)));
+    equal(str_contains($second, '#123456'), false);
+    equal(str_contains($second, '>Try it on</button>'), true);
+    equal(str_contains($front->button(), 'style='), false);
+    // WordPress supplies enclosed shortcode content as a second callback argument.
+    equal(str_contains($front->button(array(), 'onclick="alert(1)"', 'selfx_try_on'), 'onclick'), false);
+    $native_button_attributes = '';
+});
+
+test('block styling cannot bypass eligibility or inject markup through button text', function () {
+    setup(); add_product(10); $front = new SelfX_WC_Storefront(); $front->block();
+    global $block_registration, $response_hook;
+    $render = $block_registration['render_callback']; $block = (object) array('context' => array('postId' => 10));
+    $html = $render(array('label' => '<img src=x onerror=alert(1)>Try <b>now</b> & enjoy'), '', $block);
+    equal(str_contains($html, '>Try now &amp; enjoy</button>'), true);
+    equal(str_contains($html, 'onerror'), false);
+    equal(str_contains($render(array('label' => '   '), '', $block), '>Try it on</button>'), true);
+    equal(str_contains($render(array('label' => array('invalid')), '', $block), '>Try it on</button>'), true);
+    setup(); add_product(10); $response_hook = fn() => array('code' => 200, 'body' => '{"available":false}');
+    equal($render(array('label' => 'Custom'), '', $block), '');
+    setup(); add_product(10, 'simple', array('status' => 'draft'));
+    equal($render(array('label' => 'Custom'), '', $block), '');
 });
 test('a public launch validates its nonce before using the server credential', function () {
     setup(); add_product(10); $_POST = array('product_id' => 10, '_wpnonce' => 'wrong');

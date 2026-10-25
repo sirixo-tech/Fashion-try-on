@@ -16,11 +16,13 @@ import { RbacModule } from "./rbac/rbac.module.js";
 import { StoresModule } from "./stores/stores.module.js";
 import { TryOnLabModule } from "./try-on-lab/try-on-lab.module.js";
 import { UsageModule } from "./usage/usage.module.js";
+import { CustomerModule } from "./customers/customer.module.js";
 
 @Module({
   imports: [
     DatabaseModule,
     AuthModule,
+    CustomerModule,
     AppsModule,
     OrganizationsModule,
     RbacModule,

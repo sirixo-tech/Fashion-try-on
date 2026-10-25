@@ -1,0 +1,102 @@
+import 'package:flutter/material.dart';
+import 'auth/customer_controller.dart';
+import 'ui/auth_screen.dart';
+import 'ui/customer_shell.dart';
+import 'ui/customer_theme.dart';
+import 'ui/onboarding.dart';
+import 'ui/customer_skeleton.dart';
+
+class CustomerApp extends StatefulWidget {
+  final CustomerController controller;
+  const CustomerApp({super.key, required this.controller});
+  @override
+  State<CustomerApp> createState() => _CustomerAppState();
+}
+
+class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
+  final navigator = GlobalKey<NavigatorState>();
+  CustomerController get controller => widget.controller;
+  bool wasReady = false;
+  @override
+  void initState() {
+    super.initState();
+    wasReady = controller.stage == CustomerStage.ready;
+    controller.addListener(syncRoutes);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  void syncRoutes() {
+    if (wasReady && controller.stage != CustomerStage.ready) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) navigator.currentState?.popUntil((route) => route.isFirst);
+      });
+    }
+    wasReady = controller.stage == CustomerStage.ready;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        controller.stage == CustomerStage.ready) {
+      controller.loadProfile().catchError((_) {});
+    }
+  }
+
+  @override
+  void dispose() {
+    controller.removeListener(syncRoutes);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    navigatorKey: navigator,
+    title: 'SelfX',
+    debugShowCheckedModeBanner: false,
+    theme: customerTheme(),
+    home: ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => switch (controller.stage) {
+        CustomerStage.loading => CustomerLoadingScreen(
+          restoringSession: controller.restoringSession,
+        ),
+        CustomerStage.onboarding => CustomerOnboarding(controller: controller),
+        CustomerStage.authentication => CustomerAuthScreen(
+          controller: controller,
+        ),
+        CustomerStage.ready => CustomerShell(controller: controller),
+        CustomerStage.recovery => Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CustomerBrand(),
+                    const SizedBox(height: 32),
+                    Text(
+                      'Let’s try that again.',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      controller.initializationError ?? 'Unable to open SelfX.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: controller.initialize,
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      },
+    ),
+  );
+}

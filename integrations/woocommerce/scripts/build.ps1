@@ -21,6 +21,7 @@ $expectedEntries = @(
     'selfx-woocommerce.php',
     'uninstall.php',
     'assets/block.js',
+    'assets/block.json',
     'includes/class-selfx-wc-client.php',
     'includes/class-selfx-wc-plugin.php',
     'includes/class-selfx-wc-product.php',

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SelfX for WooCommerce
  * Description: Connect your WooCommerce catalog to your SelfX Store and its kiosks.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Requires Plugins: woocommerce
@@ -12,7 +12,7 @@
  * Text Domain: selfx-woocommerce
  */
 defined('ABSPATH') || exit;
-define('SELFX_WC_VERSION', '0.4.0');
+define('SELFX_WC_VERSION', '0.5.0');
 require_once __DIR__ . '/includes/class-selfx-wc-client.php';
 require_once __DIR__ . '/includes/class-selfx-wc-product.php';
 require_once __DIR__ . '/includes/class-selfx-wc-plugin.php';

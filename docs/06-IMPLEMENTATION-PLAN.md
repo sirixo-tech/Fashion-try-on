@@ -1,5 +1,29 @@
 ## Document Evolution
 
+### Dashboard sidebar switch and mobile metrics (2026-10-25)
+
+Implement the requested existing-sidebar toggle with Business default, independent row navigation, synchronized animated type label and separate platform-only Mobile dashboard. Preserve Business data scope and behavior. Verify switch isolation, collapsed/drawer behavior, route/access gating, impersonation exclusion, range/stale-request handling, unavailable-versus-zero states, CSV separation and aggregate SQL without PII. Run focused web/API tests, real disposable PostgreSQL aggregation checks, types/lint and the web production build. No APK builds, migrations, deployment, real customer emails or payment/provider calls are included. Browser visual acceptance depends on enabled local browser access.
+
+### Supplied app/PWA icon assets — no APK builds (2026-10-25)
+
+Replace launcher/PWA/favicon source assets with the user's attached X logo and update PWA/Apple metadata. Reuse the exact supplied source, generate native sizes/Windows ICO/normal and maskable PWA variants, and verify file references, dimensions, ICO frames and maskable safe area. Do not run APK/application package builds for this update; existing binaries remain unchanged. This supersedes the earlier build instruction for this specific follow-up.
+
+### CUSTOMER-MOBILE-1.1 — Logo assets and skeleton verification (2026-10-25)
+
+Replace the temporary customer logo/launcher artwork with the approved logo and derived X, preserving independent Flutter presentation. Add native Android/iOS splash assets and genuine request-driven skeletons for startup/session restoration/profile. Verify packaged logo rendering, pending/error/ready transitions, reduced motion, narrow layouts and existing auth navigation; run Flutter analysis, focused mobile tests and an Android debug build. iOS native visual/build acceptance still requires macOS/device testing. No backend, billing, QR or media storage changes are included.
+
+### CUSTOMER-MOBILE-1 — Approved first mobile slice (2026-10-25)
+
+User authorization starts the customer app with independent Flutter UI, four onboarding slides, customer-only authentication, verified signup/recovery, secure sessions, Home/Saved/Me, profile/preferences and reauthenticated deletion. Add a customer-only migration and disabled-by-default backend module. Keep kiosk/commerce behavior and their retention unchanged. Verify email/code lifecycle, account isolation, OAuth validation, session rotation/replay, reset revocation, deletion, API validation, widget flows, narrow-screen/accessibility layouts and an Android debug build. Email delivery tests must use a simulated sender. Apply migrations only to a disposable local database during development.
+
+Live acceptance requires configured SMTP encryption/account, distinct customer secret, Google Android/iOS/server OAuth clients, Apple capability/provisioning, reviewed published legal/support URLs, staging migration and real Android/iOS testing. iOS compilation/signing requires macOS. A debug build is a development artifact, not a published app.
+
+Next slice: consented person/outfit uploads, private assets, customer-owned durable generation through shared SelfX orchestration, Saved plus 30-day mobile generated-result expiry/cleanup and seven-day original-input cleanup. Then add separate personal plans/store-native purchasing and verified Store QR sponsorship with server-selected payer, eligible catalog, Store limits and no personal fallback. Referrals/coupons, translations, push delivery, wardrobe/planning and recommendations remain later features. Do not expose paid or generation controls as functioning before these services exist.
+
+### WooCommerce native button styling (2026-10-25)
+
+Implement the approved WordPress-native SelfX Try-On block controls and editor preview using shared block metadata and native style serialization. Preserve launch/eligibility behavior and compatibility with unstyled existing blocks, automatic placement and shortcodes. Verify safe labels, independent styles, submit-button placement and existing plugin behavior, run PHP syntax and JavaScript checks, and rebuild the versioned plugin/stable dashboard ZIP. Actual WordPress editor/theme save/reload checks remain staging acceptance; no deployment or live merchant changes are included.
+
 ### Scope-aware dashboard rankings (2026-10-25)
 
 Implement the user's approved platform Store metrics and authorized Store product metrics using existing usage data and shared Capitalio components. Verify complete database Store aggregates beyond bounded detail samples, preserved Store authorization, platform/store switching, unavailable denominators, null/unselectable Store actions, scope-specific formula-safe CSV, stale/failed requests and mobile cards. Run relevant API/web tests, API/web/shared-UI types, lint and production build; review actual built browser interactions with intercepted synthetic data. No migration or deployment is included.
