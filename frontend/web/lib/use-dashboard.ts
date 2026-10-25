@@ -232,7 +232,10 @@ export function useDashboard(
               storeId ? "/app/analytics" : "/app/billing",
               access,
             ),
-            canProducts: canSeeHref("/app/products", access),
+            canProducts:
+              storeId && access.hasPlatformAccess
+                ? resource("stores.view") && canSeeHref("/app/stores", access)
+                : canSeeHref("/app/products", access),
             canActivity: canSeeHref("/app/try-on-activity", access),
             error:
               failures

@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### Scope-aware dashboard rankings (2026-10-25)
+
+Implement the user's approved platform Store metrics and authorized Store product metrics using existing usage data and shared Capitalio components. Verify complete database Store aggregates beyond bounded detail samples, preserved Store authorization, platform/store switching, unavailable denominators, null/unselectable Store actions, scope-specific formula-safe CSV, stale/failed requests and mobile cards. Run relevant API/web tests, API/web/shared-UI types, lint and production build; review actual built browser interactions with intercepted synthetic data. No migration or deployment is included.
+
+### Shopify layout alignment (2026-10-25)
+
+Implement the user's approved Shopify overview and Store-detail layout matching WooCommerce. Reuse shared commerce monitoring/UI orchestration, preserve existing channel-specific OAuth/sync/disconnect and billing behavior, and verify both channels. Cover Platform/Store authorization, channel-scoped durable usage, completed versus failed sync receipts, normalized domains, view-only controls, required product permissions, navigation/permission races and callback recovery. Run focused API/web tests, disposable PostgreSQL monitoring checks, types, changed-source lint and a production web build. Review actual built Shopify and WooCommerce pages with synthetic intercepted browser data on desktop/mobile and in light/dark themes. Do not deploy or contact production Shopify services.
+
 ### WooCommerce monitoring and layout refinement (2026-10-25)
 
 Implement the user's approved Platform overview and redesigned WooCommerce details/setup page. Verify Platform and Store read authorization, cross-Store denial, durable usage counts across billing modes, parent-product counts, pagination/filtering, successful-full-sync receipts, view-only controls, one-time secrets and stale response handling. Run relevant API/web tests, disposable PostgreSQL catalog/overview checks, types, changed-source lint and a production web build. Review the actual built page at desktop/mobile sizes with synthetic intercepted API responses. Deployment is separate.

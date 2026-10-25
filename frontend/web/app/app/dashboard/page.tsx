@@ -171,7 +171,12 @@ export default function DashboardPage() {
           data?.canProducts
             ? {
                 label: "View products",
-                onClick: () => router.push("/app/products"),
+                onClick: () =>
+                  router.push(
+                    dashboard.canChooseStore && dashboard.storeId
+                      ? `/app/stores/${encodeURIComponent(dashboard.storeId)}/products`
+                      : "/app/products",
+                  ),
               }
             : analysisAction
               ? { label: "View usage", onClick: analysisAction.onClick }
@@ -185,6 +190,16 @@ export default function DashboardPage() {
               }
             : analysisAction
         }
+        performanceScope={dashboard.storeId ? "STORE" : "PLATFORM"}
+        onStoreSelect={
+          dashboard.canChooseStore
+            ? (id) => {
+                setAnalysisOpen(false);
+                setStoreId(id);
+              }
+            : undefined
+        }
+        selectableStoreIds={context?.options.map((store) => store.id) ?? []}
       />
       <section
         aria-label="Workspace resources"

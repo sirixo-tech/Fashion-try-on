@@ -55,7 +55,7 @@ export type IntegrationListResponse = {
   };
 };
 
-export type WooCommerceOverviewRow = {
+export type CommerceOverviewRow = {
   id: string;
   storeId: string;
   storeName: string;
@@ -68,8 +68,8 @@ export type WooCommerceOverviewRow = {
   lastCatalogSyncAt: string | null;
 };
 
-export type WooCommerceOverviewResponse = {
-  data: WooCommerceOverviewRow[];
+export type CommerceOverviewResponse = {
+  data: CommerceOverviewRow[];
   summary: {
     total: number;
     connected: number;
@@ -80,6 +80,9 @@ export type WooCommerceOverviewResponse = {
   period: { from: string; to: string; days: 30 };
   pagination: IntegrationListResponse["pagination"];
 };
+
+export type WooCommerceOverviewRow = CommerceOverviewRow;
+export type WooCommerceOverviewResponse = CommerceOverviewResponse;
 
 export function getWooCommerceOverview(
   accessToken: string,
@@ -96,6 +99,19 @@ export function getWooCommerceOverview(
     if (value !== undefined && value !== "") params.set(key, String(value));
   });
   return selfxApi(`/api/v1/admin/integrations/woocommerce/overview?${params}`, {
+    accessToken,
+  });
+}
+
+export function getShopifyOverview(
+  accessToken: string,
+  input: Parameters<typeof getWooCommerceOverview>[1] = {},
+): Promise<WooCommerceOverviewResponse> {
+  const params = new URLSearchParams();
+  Object.entries(input).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  });
+  return selfxApi(`/api/v1/admin/integrations/shopify/overview?${params}`, {
     accessToken,
   });
 }

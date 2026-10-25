@@ -3,7 +3,7 @@
 // Adapted from Capitalio Dashboard, MIT © Watermelon Contributors.
 // See capitalio/LICENSE. Layout retained; all metrics are supplied by SelfX.
 import { useId, type ReactNode } from "react";
-import { ArrowUpRightIcon, PackageIcon } from "lucide-react";
+import { ArrowUpRightIcon, PackageIcon, StoreIcon } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -311,6 +311,9 @@ export function CapitalioDashboard({
   analysisAction,
   productsAction,
   activityAction,
+  performanceScope = "STORE",
+  onStoreSelect,
+  selectableStoreIds = [],
 }: CapitalioDashboardProps) {
   const noData = m == null ? unavailableMessage : "No activity in this period";
   const donutId = useId().replaceAll(":", "");
@@ -325,6 +328,25 @@ export function CapitalioDashboard({
     : [];
   const outcomeTotal = outcomes.reduce((sum, item) => sum + item.value, 0);
   const generatedSeries = m?.daily ?? [];
+  const platform = performanceScope === "PLATFORM";
+  const PerformanceIcon = platform ? StoreIcon : PackageIcon;
+  const performanceTitle = platform
+    ? "Store performance"
+    : "Product performance";
+  const performanceRows = platform
+    ? (m?.stores ?? []).map((row, index) => ({
+        ...row,
+        key: row.id ?? `platform-${index}`,
+        category: row.id ? "SelfX Store" : "Platform fleet",
+        successRate: row.successRate,
+      }))
+    : (m?.products ?? []).map((row) => ({
+        ...row,
+        key: row.id,
+        successRate: null,
+      }));
+  const maySelectStore = (id: string | null) =>
+    Boolean(id && onStoreSelect && selectableStoreIds.includes(id));
   return (
     <div
       className="capitalio-dashboard-content grid min-w-0 gap-4"
@@ -675,50 +697,59 @@ export function CapitalioDashboard({
       </div>
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-3">
-        <Panel title="Product performance" className="xl:col-span-2">
-          <Header title="Product performance">
-            <Action action={productsAction} />
+        <Panel title={performanceTitle} className="xl:col-span-2">
+          <Header title={performanceTitle}>
+            <Action action={platform ? analysisAction : productsAction} />
           </Header>
           <div className="hidden min-w-0 overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
-                  <TableHead>Product</TableHead>
+                  <TableHead>{platform ? "Store" : "Product"}</TableHead>
                   <TableHead className="text-right">Try-Ons</TableHead>
-                  <TableHead className="text-right">Share</TableHead>
+                  <TableHead className="text-right">
+                    {platform ? "Success rate" : "Share"}
+                  </TableHead>
                   <TableHead className="text-right">Downloads</TableHead>
                   <TableHead className="text-right">Failed</TableHead>
+                  {platform && onStoreSelect ? (
+                    <TableHead>
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={platform && onStoreSelect ? 7 : 6}>
                       <Skeleton className="h-28 w-full" />
                     </TableCell>
                   </TableRow>
-                ) : !m?.products.length ? (
+                ) : !performanceRows.length ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={platform && onStoreSelect ? 7 : 6}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {m
-                        ? "No product activity in this period"
+                        ? platform
+                          ? "No Store activity in this period"
+                          : "No product activity in this period"
                         : unavailableMessage}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  m.products.map((product, index) => (
-                    <TableRow key={product.id}>
+                  performanceRows.map((product, index) => (
+                    <TableRow key={product.key}>
                       <TableCell className="text-muted-foreground">
                         {index + 1}
                       </TableCell>
                       <TableCell>
                         <div className="flex min-w-40 items-center gap-3">
                           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                            <PackageIcon
+                            <PerformanceIcon
                               className="size-4 text-muted-foreground"
                               aria-hidden="true"
                             />
@@ -737,9 +768,11 @@ export function CapitalioDashboard({
                         {number(product.generated)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {m.generated
-                          ? percent((product.generated / m.generated) * 100)
-                          : "—"}
+                        {platform
+                          ? percent(product.successRate)
+                          : m?.generated
+                            ? percent((product.generated / m.generated) * 100)
+                            : "—"}
                       </TableCell>
                       <TableCell className="text-right">
                         {number(product.downloads)}
@@ -747,6 +780,21 @@ export function CapitalioDashboard({
                       <TableCell className="text-right">
                         {number(product.failed)}
                       </TableCell>
+                      {platform && onStoreSelect ? (
+                        <TableCell className="text-right">
+                          {maySelectStore(product.id) ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              aria-label={`View ${product.name} Store`}
+                              onClick={() => onStoreSelect(product.id!)}
+                            >
+                              View Store
+                              <ArrowUpRightIcon aria-hidden="true" />
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))
                 )}
@@ -756,13 +804,17 @@ export function CapitalioDashboard({
           <div className="grid gap-3 md:hidden">
             {loading ? (
               <Skeleton className="h-32 w-full" />
-            ) : !m?.products.length ? (
+            ) : !performanceRows.length ? (
               <Empty>
-                {m ? "No product activity in this period" : unavailableMessage}
+                {m
+                  ? platform
+                    ? "No Store activity in this period"
+                    : "No product activity in this period"
+                  : unavailableMessage}
               </Empty>
             ) : (
-              m.products.map((product, index) => (
-                <div key={product.id} className="rounded-lg border p-3">
+              performanceRows.map((product, index) => (
+                <div key={product.key} className="rounded-lg border p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate font-medium">{product.name}</div>
@@ -778,10 +830,12 @@ export function CapitalioDashboard({
                     {[
                       { label: "Try-Ons", value: number(product.generated) },
                       {
-                        label: "Share",
-                        value: m.generated
-                          ? percent((product.generated / m.generated) * 100)
-                          : "—",
+                        label: platform ? "Success rate" : "Share",
+                        value: platform
+                          ? percent(product.successRate)
+                          : m?.generated
+                            ? percent((product.generated / m.generated) * 100)
+                            : "—",
                       },
                       { label: "Downloads", value: number(product.downloads) },
                       { label: "Failed", value: number(product.failed) },
@@ -794,12 +848,26 @@ export function CapitalioDashboard({
                       </div>
                     ))}
                   </dl>
+                  {platform && maySelectStore(product.id) ? (
+                    <Button
+                      className="mt-4 w-full"
+                      variant="outline"
+                      size="sm"
+                      aria-label={`Open ${product.name} Store metrics`}
+                      onClick={() => onStoreSelect?.(product.id!)}
+                    >
+                      View Store
+                      <ArrowUpRightIcon aria-hidden="true" />
+                    </Button>
+                  ) : null}
                 </div>
               ))
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Most used product references in the selected period.
+            {platform
+              ? "Top Stores by generated Try-Ons in the selected period. Success rate is completed attempts divided by all attempts; Stores with no attempts show a dash."
+              : "Most used product references in the selected period."}
           </p>
         </Panel>
         <Panel title="Operational insights">

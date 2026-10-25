@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### Scope-aware dashboard performance (2026-10-25)
+
+Use the existing authorized usage-summary Store rollups for platform dashboard Store performance and product rollups for a selected authorized Store. Store rankings must use grouped database counts across the complete requested time window, independent of the 10,000-run detail/metadata sample. Count generated results, all/completed/failed attempts and downloads using the existing usage definitions and filters; preserve the explicit unassigned Platform fleet bucket. Store success rate is completed attempts divided by all attempts, unavailable for zero attempts. Continue existing Platform USAGE_VIEW and Store analytics authorization; showing a Store metric does not grant Store resource or navigation access. No schema change is required.
+
+Dashboard mapping, mobile/desktop rows and safe CSV exports follow the current resolved scope. Platform views must not fall back to product rows when Stores are empty. Selecting a Store retains the date range and uses the existing authorized Store filter; late/denied/failed loads cannot leave previous rows or exports available. View products from a platform-selected Store uses that Store's explicit catalog route.
+
+### Shared commerce monitoring and Shopify layout (2026-10-25)
+
+Reuse the WooCommerce monitoring implementation for `GET /api/v1/admin/integrations/shopify/overview`, with the same Platform/Store authorization, validated search/health filters, bounded pagination and global matching totals. Filter integrations and durable successful-generation usage to SHOPIFY. Return normalized myshopify.com domains rather than opaque Shop GIDs or private metadata. Search stored shop domains as well as Store/shop names. Shopify's existing sync metadata records both successful and failed attempts; only a COMPLETED receipt may populate the last-full-sync date. No billing, connection ownership, OAuth, sync execution or persistence contracts change.
+
+Share authenticated commerce overview/navigation orchestration between Shopify and WooCommerce, retaining separate channel-specific detail actions. Guard Shopify OAuth/sync controls with integration management and Store product management, matching the existing API requirements. Keep disconnect confirmation and server billing restrictions. Permission/impersonation changes and navigation clear the prior Store's UI; late responses cannot repopulate it. Optional plan/credit diagnostics require their existing APIs and must not block integration viewing when unavailable.
+
 ### WooCommerce platform monitoring (2026-10-25)
 
 Provide a paginated, searchable WooCommerce operations overview through `GET /api/v1/admin/integrations/woocommerce/overview`. Unscoped queries require Platform INTEGRATIONS_VIEW or INTEGRATIONS_MANAGE; Store queries require the existing server-side Store integration permission. Do not require unrelated STORES_VIEW authority or return credentials, token hashes, link state or arbitrary integration metadata in the overview. Count active parent product mappings, excluding variants, and successful WooCommerce generations from durable BillableGeneration records over the last 30 days, independently of credits consumed or billing mode. Summary counts cover all matching Stores rather than the current page. Connection health reflects Store status, integration status and an unexpired credential, not proof that WordPress is reachable.

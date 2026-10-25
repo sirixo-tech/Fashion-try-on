@@ -144,6 +144,14 @@ export class UsageSummaryService {
       kioskById,
     );
 
+    // Store rankings must cover the entire period, independently of the
+    // bounded run sample used for product metadata and detailed charts.
+    context.stores = await this.storePerformance(
+      baseRunWhere,
+      baseEventWhere,
+      storeNameById,
+    );
+
     addStoreEventCounts(
       context.stores,
       await this.groupEventByStore(baseEventWhere),
@@ -233,6 +241,67 @@ export class UsageSummaryService {
     } catch {
       return null;
     }
+  }
+
+  private async storePerformance(
+    runWhere: Prisma.KioskTryOnRunWhereInput,
+    eventWhere: Prisma.UsageEventWhereInput,
+    storeNames: Map<string, string>,
+  ): Promise<Map<string, UsageStoreRowDto>> {
+    const [statusRows, resultRows, downloadRows] = await Promise.all([
+      this.prisma.kioskTryOnRun.groupBy({
+        by: ["organizationId", "storeId", "status"],
+        where: runWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.kioskTryOnRun.groupBy({
+        by: ["organizationId", "storeId"],
+        where: { ...runWhere, resultAssetId: { not: null } },
+        _count: { _all: true },
+      }),
+      this.prisma.usageEvent.groupBy({
+        by: ["organizationId", "storeId"],
+        where: {
+          ...eventWhere,
+          eventName: { in: [...downloadEventNames] },
+          kioskTryOnRunId: { not: null },
+        },
+        _sum: { quantity: true },
+      }),
+    ]);
+    const rows = new Map<string, UsageStoreRowDto>();
+    const getRow = (source: {
+      organizationId: string | null;
+      storeId: string | null;
+    }) => {
+      const id = source.organizationId ?? source.storeId;
+      const key = id ?? platformBucketKey;
+      let row = rows.get(key);
+      if (!row) {
+        row = {
+          storeId: id,
+          storeName: id
+            ? (storeNames.get(id) ?? "Unknown Store")
+            : "Platform fleet",
+          ...emptyCounts(),
+        };
+        rows.set(key, row);
+      }
+      return row;
+    };
+    for (const source of statusRows) {
+      const row = getRow(source);
+      row.runsCreated += source._count._all;
+      if (source.status === runStatus.completed)
+        row.completedRuns += source._count._all;
+      if (source.status === runStatus.failed)
+        row.failedRuns += source._count._all;
+    }
+    for (const source of resultRows)
+      getRow(source).tryOnsGenerated += source._count._all;
+    for (const source of downloadRows)
+      getRow(source).downloadsCompleted += source._sum.quantity ?? 0;
+    return rows;
   }
 
   private async sumQuantity(

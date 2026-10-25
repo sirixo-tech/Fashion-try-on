@@ -29,15 +29,32 @@ export function dashboardMetrics(
         ? (row.completedRuns / row.runsCreated) * 100
         : null,
     })),
-    products: summary.products.map((row, index) => ({
-      id: row.productId ?? `unmapped-${index}`,
-      name: row.name,
-      category: row.category ?? row.catalogSource ?? "Product reference",
-      generated: row.tryOnsGenerated,
-      attempts: row.runsCreated,
-      downloads: row.downloadsCompleted,
-      failed: row.failedRuns,
-    })),
+    products:
+      summary.scope.mode === "PLATFORM"
+        ? []
+        : summary.products.map((row, index) => ({
+            id: row.productId ?? `unmapped-${index}`,
+            name: row.name,
+            category: row.category ?? row.catalogSource ?? "Product reference",
+            generated: row.tryOnsGenerated,
+            attempts: row.runsCreated,
+            downloads: row.downloadsCompleted,
+            failed: row.failedRuns,
+          })),
+    stores:
+      summary.scope.mode === "PLATFORM"
+        ? summary.stores.map((row) => ({
+            id: row.storeId,
+            name: row.storeName,
+            generated: row.tryOnsGenerated,
+            attempts: row.runsCreated,
+            downloads: row.downloadsCompleted,
+            failed: row.failedRuns,
+            successRate: row.runsCreated
+              ? (row.completedRuns / row.runsCreated) * 100
+              : null,
+          }))
+        : [],
   };
 }
 export function previousDashboardRange(summary: UsageSummary) {
@@ -81,15 +98,43 @@ export function dashboardCsv(summary: UsageSummary): string {
       row.downloadsCompleted,
     ]),
     [],
-    ["Top product", "Category", "Generated", "Attempts", "Failed", "Downloads"],
-    ...summary.products.map((row) => [
-      row.name,
-      row.category ?? "",
-      row.tryOnsGenerated,
-      row.runsCreated,
-      row.failedRuns,
-      row.downloadsCompleted,
-    ]),
+    ...(summary.scope.mode === "PLATFORM"
+      ? [
+          [
+            "Top Store",
+            "Generated",
+            "Attempts",
+            "Success rate (%)",
+            "Failed",
+            "Downloads",
+          ],
+          ...summary.stores.map((row) => [
+            row.storeName,
+            row.tryOnsGenerated,
+            row.runsCreated,
+            row.runsCreated ? (row.completedRuns / row.runsCreated) * 100 : "",
+            row.failedRuns,
+            row.downloadsCompleted,
+          ]),
+        ]
+      : [
+          [
+            "Top product",
+            "Category",
+            "Generated",
+            "Attempts",
+            "Failed",
+            "Downloads",
+          ],
+          ...summary.products.map((row) => [
+            row.name,
+            row.category ?? "",
+            row.tryOnsGenerated,
+            row.runsCreated,
+            row.failedRuns,
+            row.downloadsCompleted,
+          ]),
+        ]),
   ];
   return "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }

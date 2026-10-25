@@ -18,6 +18,7 @@ import {
 import { hashIntegrationToken } from "./integrations.service.js";
 import { IntegrationCatalogSyncInputDto } from "./dto/integration-catalog-sync.dto.js";
 import { wooCommerceOverview } from "./woocommerce-overview.js";
+import { commerceOverview } from "./commerce-overview.js";
 
 const url = process.env.WOOCOMMERCE_TEST_DATABASE_URL;
 if (
@@ -483,6 +484,132 @@ describe.skipIf(!url)("WooCommerce plugin → SelfX Store → kiosk", () => {
     expect(after.lastSeenAt).toEqual(latest.lastSeenAt);
     expect(after.status).toBe("ACTIVE");
   });
+  it("keeps Shopify monitoring scoped to Shopify products, usage and completed receipts", async () => {
+    const shopifyId = createSelfxId();
+    const completedAt = new Date(Date.now() - 1000);
+    try {
+      await db.integration.create({
+        data: {
+          id: shopifyId,
+          organizationId: other,
+          type: "SHOPIFY",
+          externalAccountId: `gid://shopify/Shop/${shopifyId}`,
+          metadata: {
+            shopDomain: "monitor.myshopify.com",
+            lastCatalogSyncStatus: "COMPLETED",
+            lastCatalogSyncAt: completedAt.toISOString(),
+            privateLinkToken: "do-not-expose",
+          },
+        },
+      });
+      await db.integrationCredential.create({
+        data: {
+          id: createSelfxId(),
+          integrationId: shopifyId,
+          organizationId: other,
+          tokenHash: hashIntegrationToken(createSelfxId()),
+          tokenPrefix: "synthetic-shopify-monitor",
+          name: "Monitoring fixture",
+          scopes: ["catalog:sync"],
+        },
+      });
+      await sync.sync(
+        {
+          ...credential,
+          integrationId: shopifyId,
+          integrationType: "SHOPIFY",
+          storeId: other,
+        },
+        {
+          mode: "INCREMENTAL",
+          products: [
+            {
+              ...input.products[0]!,
+              externalProductId: "monitor-product",
+              variants: [
+                { externalVariantId: "one" },
+                { externalVariantId: "two" },
+              ],
+            },
+          ],
+        },
+      );
+      await db.billableGeneration.createMany({
+        data: [
+          {
+            id: createSelfxId(),
+            runId: createSelfxId(),
+            organizationId: other,
+            channel: "SHOPIFY",
+            completedAt,
+          },
+          {
+            id: createSelfxId(),
+            runId: createSelfxId(),
+            organizationId: other,
+            channel: "SHOPIFY",
+            completedAt: new Date(Date.now() - 31 * 86400000),
+          },
+          {
+            id: createSelfxId(),
+            runId: createSelfxId(),
+            organizationId: other,
+            channel: "WOOCOMMERCE",
+            completedAt,
+          },
+        ],
+      });
+      const result = await commerceOverview(
+        db,
+        { storeId: other, search: "MONITOR", health: "CONNECTED" },
+        "SHOPIFY",
+      );
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).toMatchObject({
+        website: "https://monitor.myshopify.com",
+        productCount: 1,
+        successfulTryOns: 1,
+        lastCatalogSyncAt: completedAt.toISOString(),
+      });
+      expect(result.summary).toEqual({
+        total: 1,
+        connected: 1,
+        needsAttention: 0,
+        disconnected: 0,
+        successfulTryOns: 1,
+      });
+      expect(JSON.stringify(result)).not.toMatch(/gid:\/\/|do-not-expose/);
+      expect(
+        (await commerceOverview(db, { storeId: store }, "SHOPIFY")).data,
+      ).toEqual([]);
+      await db.integration.update({
+        where: { id: shopifyId },
+        data: {
+          status: "ERROR",
+          metadata: {
+            shopDomain: "monitor.myshopify.com",
+            lastCatalogSyncStatus: "FAILED",
+            lastCatalogSyncAt: new Date().toISOString(),
+          },
+        },
+      });
+      const failed = await commerceOverview(
+        db,
+        { storeId: other, health: "NEEDS_ATTENTION" },
+        "SHOPIFY",
+      );
+      expect(failed.summary.needsAttention).toBe(1);
+      expect(failed.data[0]!.lastCatalogSyncAt).toBeNull();
+    } finally {
+      await db.billableGeneration.deleteMany({
+        where: { organizationId: other },
+      });
+      await db.integration.deleteMany({ where: { id: shopifyId } });
+      await db.product.deleteMany({ where: { organizationId: other } });
+      await db.productCategory.deleteMany({ where: { organizationId: other } });
+    }
+  });
+
   it("rejects revoked credentials, missing scopes and suspended Store access", async () => {
     await db.integrationCredential.update({
       where: { id: credentialId },

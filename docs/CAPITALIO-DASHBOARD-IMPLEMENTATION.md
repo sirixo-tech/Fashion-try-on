@@ -1,5 +1,7 @@
 # SelfX Capitalio dashboard
 
+Updated 2026-10-25: the ranked section now follows scope. All Stores shows Store performance; one authorized Store shows Product performance. CSV follows the same scope, and View Store preserves the selected date range. Store rollups now use complete database aggregates independently of the bounded detailed run sample. See [DASHBOARD-STORE-PERFORMANCE.md](DASHBOARD-STORE-PERFORMANCE.md) for the current behavior and validation.
+
 The Capitalio Overview layout is adapted into `/app/dashboard`, supporting the existing Platform and Store scopes. All Overview sections remain: four summary cards, the large performance chart and four supporting counts, donut allocation/legend, ranked product table and three operational insights. Mobile product rows use cards. Existing workspace resource counts and the kiosk fleet snapshot remain below the template layout.
 
 | Template section | SelfX data |

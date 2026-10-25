@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### Platform Store performance / Store product performance (2026-10-25)
+
+On the all-Stores dashboard, replace Product performance with Store performance: Store name, generated Try-Ons, success rate, downloads, failed attempts and View Store. Rank by generated Try-Ons, then attempts. View Store switches the dashboard to that authorized Store's product metrics and keeps the current date range. Offer navigation only for Stores already selectable under the user's Store access; unassigned Platform fleet and unselectable Stores have no action. Platform usage viewers can read Store aggregates without receiving Store-management rights.
+
+Selecting one Store or opening a merchant/staff dashboard retains Product performance with the existing product share metric. Choosing All Stores restores Store metrics. Loading/error/empty states and CSV exports follow the resolved scope, and mobile uses the same metric semantics in cards. Existing charts, insights, resource counts, date controls and account/navigation remain intact.
+
+### Shopify overview and detail alignment (2026-10-25)
+
+Shopify uses the same overview/detail navigation, summary cards, search, connection filter, pagination, desktop table and mobile Store cards as WooCommerce. View details opens the selected Store's integration details rather than its general Store page. Show its readable shop domain, active imported products, successful Shopify Try-Ons over the last 30 days and last completed full sync. Failed attempts must not appear as completed syncs. Keep loading, empty and failure states distinct.
+
+Store details retain Connect/Reconnect Shopify, the shop-domain OAuth dialog, Sync Catalog, callback recovery messages and confirmed disconnect. Reconnect stays bound to the selected authorized SelfX Store. Shopify setup uses three compact steps and a safe Shopify admin link. Keep Store-wide plan/allowance information separate from Shopify generation counts and collapse credit diagnostics. Viewers see no mutation controls; product management is required for catalog/OAuth actions. Product enablement and native Shopify billing remain in the embedded SelfX Shopify app. No Change Store control is introduced.
+
 ### WooCommerce overview and Store details (2026-10-25)
 
 Platform integration administrators land on a WooCommerce Store overview with connection counts, successful Try-Ons over the last 30 days, search, connection-health filters and server pagination. Each row shows the SelfX Store, website, connection health, active imported products, acknowledged last full sync and View details. Store details open separately with a back action and a bookmarkable Store ID; merchants always resolve their own authorized Store and cannot select another tenant through the URL. Loading/error/empty states must be distinct, and failed or superseded requests must not populate another Store's details.

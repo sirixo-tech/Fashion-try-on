@@ -7,6 +7,82 @@ import {
 import { UsageSummaryService } from "./usage-summary.service.js";
 
 describe("UsageSummaryService", () => {
+  it("ranks complete Store aggregates even when the detailed run sample omits them", async () => {
+    const prisma = new FakePrisma({
+      runs: [
+        ...Array.from({ length: 12 }, (_, index) =>
+          run({
+            id: `a-${index}`,
+            organizationId: "store-a",
+            status: index < 10 ? "COMPLETED" : "FAILED",
+            resultAssetId: index < 10 ? `result-${index}` : null,
+          }),
+        ),
+        run({
+          id: "b-1",
+          organizationId: "store-b",
+          status: "COMPLETED",
+          resultAssetId: "b-result",
+        }),
+        run({
+          id: "unassigned",
+          status: "COMPLETED",
+          resultAssetId: "fleet-result",
+        }),
+      ],
+      events: [
+        event({
+          eventName: KIOSK_USAGE_EVENTS.downloadCompleted,
+          organizationId: "store-a",
+          kioskTryOnRunId: "a-0",
+          quantity: 3,
+        }),
+        event({ organizationId: "store-b" }),
+      ],
+    });
+    // Simulate the bounded metadata sample leaving every Store out.
+    prisma.kioskTryOnRun.findMany.mockResolvedValue([]);
+    const service = new UsageSummaryService(
+      prisma as never,
+      storage() as never,
+    );
+    const query = {
+      range: "custom" as const,
+      from: "2026-08-01T00:00:00.000Z",
+      to: "2026-09-01T00:00:00.000Z",
+      limit: 10,
+    };
+    const summary = await service.summary(query);
+    expect(summary.stores[0]).toMatchObject({
+      storeId: "store-a",
+      runsCreated: 12,
+      completedRuns: 10,
+      failedRuns: 2,
+      tryOnsGenerated: 10,
+      downloadsCompleted: 3,
+    });
+    expect(summary.stores).toContainEqual(
+      expect.objectContaining({
+        storeId: "store-b",
+        tryOnsGenerated: 1,
+        sessionsStarted: 1,
+      }),
+    );
+    expect(summary.stores).toContainEqual(
+      expect.objectContaining({
+        storeId: null,
+        storeName: "Platform fleet",
+        tryOnsGenerated: 1,
+      }),
+    );
+    expect((await service.summary({ ...query, limit: 1 })).stores).toHaveLength(
+      1,
+    );
+    const scoped = await service.summary({ ...query, storeId: "store-b" });
+    expect(scoped.stores).toHaveLength(1);
+    expect(scoped.stores[0]!.storeId).toBe("store-b");
+    expect(JSON.stringify(scoped)).not.toContain("Store A");
+  });
   it("rolls up hierarchical usage without touching image assets", async () => {
     const prisma = new FakePrisma({
       events: [

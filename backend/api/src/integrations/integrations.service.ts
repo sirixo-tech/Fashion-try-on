@@ -14,7 +14,10 @@ import { createSelfxId } from "@selfx/database";
 
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { readableShopDomain } from "./integration-domain.js";
+import { commerceOverview } from "./commerce-overview.js";
 import { wooCommerceOverview } from "./woocommerce-overview.js";
+import { type CommerceOverviewQueryDto } from "./dto/commerce-overview.dto.js";
 import { type WooCommerceOverviewQueryDto } from "./dto/woocommerce-overview.dto.js";
 import {
   type CreateIntegrationCredentialDto,
@@ -81,6 +84,10 @@ export class IntegrationsService {
 
   wooCommerceOverview(query: WooCommerceOverviewQueryDto) {
     return wooCommerceOverview(this.prisma, query);
+  }
+
+  shopifyOverview(query: CommerceOverviewQueryDto) {
+    return commerceOverview(this.prisma, query, "SHOPIFY");
   }
 
   async listIntegrations(
@@ -507,18 +514,6 @@ function mapIntegration(integration: IntegrationWithRelations): IntegrationDto {
     createdAt: integration.createdAt.toISOString(),
     updatedAt: integration.updatedAt.toISOString(),
   };
-}
-
-function readableShopDomain(value: unknown): string | null {
-  const domain =
-    value && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>).shopDomain
-      : value;
-  if (typeof domain !== "string") return null;
-  const normalized = domain.trim().toLowerCase();
-  return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(normalized)
-    ? normalized
-    : null;
 }
 
 function resolveIntegrationHealth(integration: IntegrationWithRelations): {

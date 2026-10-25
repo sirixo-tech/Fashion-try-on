@@ -9,7 +9,8 @@ import {
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "@/app/app/dashboard/page";
-import { SelfxUiProvider } from "@selfx/ui";
+import { CapitalioDashboard, SelfxUiProvider } from "@selfx/ui";
+import { dashboardMetrics } from "@/lib/dashboard-metrics";
 import { dashboardFixture } from "@/lib/dashboard-fixture";
 
 const mocks = vi.hoisted(() => ({
@@ -189,5 +190,127 @@ describe("Capitalio SelfX dashboard", () => {
     expect(
       screen.getByRole("button", { name: "Export" }).hasAttribute("disabled"),
     ).toBe(true);
+  });
+  function platformPage() {
+    mocks.platform.mockResolvedValue({ isSuperadmin: true, permissions: [] });
+    mocks.stores.mockResolvedValue({
+      data: [{ id: "store-a", name: "Store A" }],
+      pagination: { total: 1 },
+    });
+    mocks.usage.mockImplementation(async (_token, query) => {
+      const fixture = dashboardFixture();
+      fixture.scope = query.storeId
+        ? { mode: "STORE", storeId: query.storeId, storeName: "Store A" }
+        : { mode: "PLATFORM" };
+      return fixture;
+    });
+    return page();
+  }
+  it("shows Store metrics globally, then switches to products for the selected Store and back", async () => {
+    platformPage();
+    await screen.findByRole("button", { name: "View Store A Store" });
+    expect(
+      screen.getByRole("heading", { name: "Store performance" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Store" })).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Product performance" }),
+    ).toBeNull();
+    expect(screen.queryByText("Linen shirt")).toBeNull();
+    const performance = screen
+      .getByRole("heading", { name: "Store performance" })
+      .closest('[aria-label="Store performance"]')!;
+    expect(
+      within(performance as HTMLElement).getByRole("columnheader", {
+        name: "Success rate",
+      }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View Store A Store" }));
+    expect(screen.queryByText("Store performance")).toBeNull();
+    await screen.findAllByText("Linen shirt");
+    expect(
+      screen.getByRole("heading", { name: "Product performance" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View products" }));
+    expect(mocks.push).toHaveBeenCalledWith("/app/stores/store-a/products");
+    expect(
+      screen.getByRole("combobox", { name: "Store scope" }),
+    ).toHaveProperty("value", "store-a");
+    expect(mocks.usage).toHaveBeenCalledWith(
+      "fixture",
+      expect.objectContaining({ storeId: "store-a", range: "30d" }),
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Store scope" }), {
+      target: { value: "" },
+    });
+    await screen.findByRole("button", { name: "View Store A Store" });
+    expect(screen.queryByText("Linen shirt")).toBeNull();
+  });
+  it("allows platform usage viewers to read Store metrics without offering Store navigation they lack", async () => {
+    mocks.platform.mockResolvedValue({
+      isSuperadmin: false,
+      permissions: ["USAGE_VIEW"],
+    });
+    const fixture = dashboardFixture();
+    fixture.scope = { mode: "PLATFORM" };
+    mocks.usage.mockResolvedValue(fixture);
+    page();
+    await waitFor(() =>
+      expect(screen.queryByText("Loading scope…")).toBeNull(),
+    );
+    await screen.findAllByText("Store A");
+    expect(
+      screen.getByRole("heading", { name: "Store performance" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "View Store A Store" }),
+    ).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Store scope" })).toBeNull();
+    expect(mocks.stores).not.toHaveBeenCalled();
+  });
+  it("does not fall back to product names when the platform Store list is empty", async () => {
+    platformPage();
+    mocks.usage.mockImplementation(async () => {
+      const fixture = dashboardFixture();
+      fixture.scope = { mode: "PLATFORM" };
+      fixture.stores = [];
+      return fixture;
+    });
+    await screen.findAllByText("No Store activity in this period");
+    expect(screen.queryByText("Linen shirt")).toBeNull();
+  });
+  it("keeps Store metrics empty on a failed global refresh", async () => {
+    platformPage();
+    await screen.findByRole("button", { name: "View Store A Store" });
+    mocks.usage.mockRejectedValue(new Error("Store metrics unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh dashboard" }));
+    await screen.findByRole("alert");
+    expect(
+      screen.queryByRole("button", { name: "View Store A Store" }),
+    ).toBeNull();
+    expect(screen.queryByText("Linen shirt")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Export" }).hasAttribute("disabled"),
+    ).toBe(true);
+  });
+  it("shows no navigation for unassigned or unselectable Store rows", () => {
+    const fixture = dashboardFixture();
+    fixture.scope = { mode: "PLATFORM" };
+    fixture.stores.push({
+      ...fixture.stores[0]!,
+      storeId: null,
+      storeName: "Platform fleet",
+      runsCreated: 0,
+    });
+    render(
+      <CapitalioDashboard
+        metrics={dashboardMetrics(fixture)}
+        performanceScope="PLATFORM"
+        onStoreSelect={vi.fn()}
+        selectableStoreIds={[]}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /View .* Store/ })).toBeNull();
+    expect(screen.getAllByText("Platform fleet").length).toBeGreaterThan(0);
   });
 });

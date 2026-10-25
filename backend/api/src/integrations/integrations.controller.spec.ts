@@ -7,6 +7,54 @@ import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import { IntegrationsController } from "./integrations.controller.js";
 
 describe("IntegrationsController", () => {
+  it("allows Platform integration viewers to monitor Shopify without Store management", async () => {
+    const integrations = {
+      shopifyOverview: vi.fn().mockResolvedValue({ data: [] }),
+    };
+    const storeRbac = rbac();
+    const controller = new IntegrationsController(
+      auth(),
+      platformAuthorization(true) as never,
+      storeRbac as never,
+      integrations as never,
+      oauth() as never,
+    );
+    await controller.shopifyOverview(request(), { page: 2 });
+    expect(integrations.shopifyOverview).toHaveBeenCalledWith({ page: 2 });
+    expect(storeRbac.requireStorePermission).not.toHaveBeenCalled();
+  });
+  it("rejects a merchant's unscoped Shopify overview before reading data", async () => {
+    const integrations = { shopifyOverview: vi.fn() };
+    const controller = new IntegrationsController(
+      auth(),
+      platformAuthorization(false) as never,
+      rbac() as never,
+      integrations as never,
+      oauth() as never,
+    );
+    await expect(controller.shopifyOverview(request(), {})).rejects.toThrow();
+    expect(integrations.shopifyOverview).not.toHaveBeenCalled();
+  });
+  it("rejects a Shopify overview for an unauthorized Store", async () => {
+    const integrations = { shopifyOverview: vi.fn() };
+    const storeRbac = rbacReject();
+    const controller = new IntegrationsController(
+      auth(),
+      platformAuthorization(false) as never,
+      storeRbac as never,
+      integrations as never,
+      oauth() as never,
+    );
+    await expect(
+      controller.shopifyOverview(request(), { storeId: "other-store" }),
+    ).rejects.toThrow();
+    expect(storeRbac.requireStorePermission).toHaveBeenCalledWith(
+      "user-1",
+      "other-store",
+      STORE_PERMISSION_CODES.integrationsView,
+    );
+    expect(integrations.shopifyOverview).not.toHaveBeenCalled();
+  });
   it("allows platform integration viewers to read the WooCommerce overview without Store management", async () => {
     const integrations = {
       wooCommerceOverview: vi.fn().mockResolvedValue({ data: [] }),

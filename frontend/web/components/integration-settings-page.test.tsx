@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { IntegrationSettingsPage } from "./integration-settings-page";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
-import { listIntegrations } from "@/lib/integrations";
+import { getShopifyOverview } from "@/lib/integrations";
 import { getEffectiveStorePermissions, listStores } from "@/lib/stores";
 vi.mock("@/lib/session", () => ({
   useSession: () => ({ status: "authenticated", accessToken: "staff" }),
@@ -16,6 +16,10 @@ vi.mock("@/lib/access-control", () => ({
     .mockResolvedValue({ isSuperadmin: false, permissions: [] }),
 }));
 vi.mock("@/lib/current-store", () => ({
+  hasStoreResourcePermission: (
+    access: { permissions?: string[] } | null,
+    code: string,
+  ) => access?.permissions?.includes(code) ?? false,
   getCurrentMerchantStore: vi
     .fn()
     .mockResolvedValue({ id: "store-a", name: "Store A" }),
@@ -35,6 +39,32 @@ vi.mock("@/lib/stores", () => ({
   }),
 }));
 vi.mock("@/lib/integrations", () => ({
+  getShopifyOverview: vi
+    .fn()
+    .mockResolvedValue({
+      data: [
+        {
+          id: "integration-a",
+          storeId: "store-a",
+          storeName: "Store A",
+          website: "https://merchant.myshopify.com",
+          externalAccountName: "Shop",
+          health: "CONNECTED",
+          healthReasons: [],
+          productCount: 3,
+          successfulTryOns: 2,
+          lastCatalogSyncAt: null,
+        },
+      ],
+      summary: {
+        total: 1,
+        connected: 1,
+        needsAttention: 0,
+        disconnected: 0,
+        successfulTryOns: 2,
+      },
+      pagination: { page: 1, total: 1, totalPages: 1, hasMore: false },
+    }),
   getWooCommerceOverview: vi
     .fn()
     .mockResolvedValue({ data: [], summary: {}, pagination: {} }),
@@ -65,7 +95,11 @@ vi.mock("@/lib/integrations", () => ({
 }));
 beforeEach(() => {
   vi.mocked(getEffectiveStorePermissions).mockResolvedValue({
-    permissions: ["integrations.view", "integrations.manage"],
+    permissions: [
+      "integrations.view",
+      "integrations.manage",
+      "products.manage",
+    ],
   } as never);
 });
 afterEach(cleanup);
@@ -108,7 +142,7 @@ it("keeps the Shopify page on its existing OAuth workflow", async () => {
   expect(
     screen.queryByRole("link", { name: "Download WooCommerce plugin" }),
   ).toBeNull();
-  expect(screen.getByText("Shopify Used")).toBeTruthy();
+  expect(screen.getByText("Successful Try-Ons")).toBeTruthy();
 });
 
 it("shows the domain rather than Shop GID in the platform overview", async () => {
@@ -119,10 +153,13 @@ it("shows the domain rather than Shop GID in the platform overview", async () =>
   vi.mocked(listStores).mockResolvedValueOnce({ data: [] } as never);
   render(<IntegrationSettingsPage type="SHOPIFY" title="Shopify" />);
 
-  await screen.findByText("merchant.myshopify.com");
+  await screen.findByRole("button", { name: "View Store A details" });
+  expect(screen.getAllByText("merchant.myshopify.com").length).toBeGreaterThan(
+    0,
+  );
   expect(screen.queryByText("gid://shopify/Shop/123")).toBeNull();
-  expect(listIntegrations).toHaveBeenCalledWith("staff", {
-    type: "SHOPIFY",
-    pageSize: 100,
-  });
+  expect(getShopifyOverview).toHaveBeenCalledWith(
+    "staff",
+    expect.objectContaining({ page: 1, pageSize: 20 }),
+  );
 });

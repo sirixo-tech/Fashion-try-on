@@ -49,6 +49,7 @@ import {
   StartShopifyOauthDto,
 } from "./dto/shopify-oauth.dto.js";
 import { ShopifyOauthService } from "./shopify-oauth.service.js";
+import { CommerceOverviewQueryDto } from "./dto/commerce-overview.dto.js";
 import { WooCommerceOverviewQueryDto } from "./dto/woocommerce-overview.dto.js";
 
 @ApiTags("Integrations")
@@ -140,6 +141,27 @@ export class IntegrationsController {
       "SHOPIFY_INTEGRATION",
     );
     return this.shopifyOauth.sync(user.id, integrationId);
+  }
+
+  @Get("shopify/overview")
+  @ApiOperation({
+    summary:
+      "Monitor Shopify Stores and successful Try-Ons in the last 30 days",
+  })
+  async shopifyOverview(
+    @Req() request: FastifyRequest,
+    @Query() query: CommerceOverviewQueryDto,
+  ) {
+    await this.requirePlatformOrStorePermission(
+      request,
+      query.storeId,
+      [
+        PLATFORM_PERMISSIONS.integrationsView,
+        PLATFORM_PERMISSIONS.integrationsManage,
+      ],
+      STORE_PERMISSION_CODES.integrationsView,
+    );
+    return this.integrations.shopifyOverview(query);
   }
 
   @Get("woocommerce/overview")

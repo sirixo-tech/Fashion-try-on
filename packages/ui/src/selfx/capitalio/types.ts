@@ -31,6 +31,15 @@ export type CapitalioDashboardMetrics = {
   growthPercent: number | null;
   daily: DashboardPoint[];
   products: DashboardProduct[];
+  stores?: Array<{
+    id: string | null;
+    name: string;
+    generated: number;
+    attempts: number;
+    downloads: number;
+    failed: number;
+    successRate: number | null;
+  }>;
 };
 
 export type DashboardAction = { label: string; onClick: () => void };
@@ -42,4 +51,7 @@ export type CapitalioDashboardProps = {
   analysisAction?: DashboardAction;
   productsAction?: DashboardAction;
   activityAction?: DashboardAction;
+  performanceScope?: "PLATFORM" | "STORE";
+  onStoreSelect?: (storeId: string) => void;
+  selectableStoreIds?: string[];
 };
