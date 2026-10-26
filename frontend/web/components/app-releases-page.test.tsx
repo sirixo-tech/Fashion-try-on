@@ -54,9 +54,7 @@ afterEach(cleanup);
 it("lets platform viewers download without exposing management controls", async () => {
   render(<AppReleasesPage platform />);
   await screen.findByText("SelfX Kiosk 1.0");
-  expect(
-    screen.getByRole("button", { name: "Download" }),
-  ).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Download" })).toBeTruthy();
   expect(screen.queryByLabelText("APK file")).toBeNull();
   expect(screen.queryByRole("button", { name: "Retire" })).toBeNull();
 });
@@ -91,4 +89,48 @@ it("uploads binary FormData as a draft for a release manager", async () => {
   await screen.findByText(
     "APK validated and saved as a draft. Review it before publishing.",
   );
+});
+
+it("keeps mobile releases separate and targets customer uploads explicitly", async () => {
+  vi.mocked(getCurrentPlatformAccess).mockResolvedValue({
+    isSuperadmin: true,
+    permissions: [],
+  });
+  render(<AppReleasesPage platform />);
+  await screen.findByLabelText("APK file");
+  fireEvent.click(screen.getByRole("combobox", { name: "Application" }));
+  const option = await screen.findByRole("option", {
+    name: "Customer mobile app",
+  });
+  fireEvent.pointerDown(option, { pointerType: "mouse" });
+  fireEvent.click(option);
+  await waitFor(() =>
+    expect(selfxApi).toHaveBeenCalledWith(
+      "/api/v1/platform/app-releases?pageSize=12&app=CUSTOMER",
+      expect.anything(),
+    ),
+  );
+  await screen.findByText("SelfX Mobile 1.0");
+  fireEvent.change(screen.getByLabelText("APK file"), {
+    target: { files: [new File(["fixture"], "customer.apk")] },
+  });
+  fireEvent.change(screen.getByLabelText("Release notes"), {
+    target: { value: "Customer release" },
+  });
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Upload draft" }).closest("form")!,
+  );
+  await waitFor(() =>
+    expect(selfxApi).toHaveBeenCalledWith(
+      "/api/v1/platform/app-releases",
+      expect.objectContaining({ method: "POST" }),
+    ),
+  );
+  const sent = vi
+    .mocked(selfxApi)
+    .mock.calls.find(
+      ([path, options]) =>
+        path === "/api/v1/platform/app-releases" && options?.method === "POST",
+    );
+  expect((sent![1]!.body as FormData).get("app")).toBe("CUSTOMER");
 });

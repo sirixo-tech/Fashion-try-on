@@ -1,3 +1,4 @@
+import '../l10n/customer_copy.dart';
 import 'package:flutter/material.dart';
 
 /// The approved logo asset; independent from web/kiosk presentation widgets.
@@ -8,7 +9,7 @@ class CustomerBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'SelfX',
+    label: tr(context, 'SelfX'),
     image: true,
     child: ExcludeSemantics(
       child: Image.asset(

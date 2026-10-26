@@ -1,0 +1,15 @@
+{
+  "android": {
+    "apiKey": "PUBLIC_FIREBASE_API_KEY",
+    "appId": "PUBLIC_ANDROID_FIREBASE_APP_ID",
+    "messagingSenderId": "PUBLIC_SENDER_ID",
+    "projectId": "YOUR_FIREBASE_PROJECT_ID"
+  },
+  "ios": {
+    "apiKey": "PUBLIC_FIREBASE_API_KEY",
+    "appId": "PUBLIC_IOS_FIREBASE_APP_ID",
+    "messagingSenderId": "PUBLIC_SENDER_ID",
+    "projectId": "YOUR_FIREBASE_PROJECT_ID",
+    "iosBundleId": "com.selfx.selfxCustomer"
+  }
+}

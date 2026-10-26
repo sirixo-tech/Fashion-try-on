@@ -1,6 +1,8 @@
+import '../l10n/customer_copy.dart';
 import 'package:flutter/material.dart';
 import '../auth/customer_controller.dart';
 import 'customer_theme.dart';
+import '../l10n/customer_language_screen.dart';
 
 class CustomerOnboarding extends StatefulWidget {
   final CustomerController controller;
@@ -79,9 +81,29 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const CustomerBrand(compact: true),
-                TextButton(
-                  onPressed: finishing ? null : finish,
-                  child: const Text('Skip'),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: tr(context, 'Language'),
+                  onPressed: finishing
+                      ? null
+                      : () => Navigator.push<void>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CustomerLanguageScreen(
+                              controller: widget.controller,
+                            ),
+                          ),
+                        ),
+                  icon: const Icon(Icons.language),
+                ),
+                Flexible(
+                  child: TextButton(
+                    onPressed: finishing ? null : finish,
+                    child: const CustomerText(
+                      'Skip',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -115,7 +137,7 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                             ),
                           ),
                           const SizedBox(height: 28),
-                          Text(
+                          CustomerText(
                             slide.eyebrow,
                             style: const TextStyle(
                               fontSize: 10,
@@ -125,7 +147,7 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          Text(
+                          CustomerText(
                             slide.title,
                             style: Theme.of(context).textTheme.displayLarge
                                 ?.copyWith(
@@ -135,7 +157,7 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                                 ),
                           ),
                           const SizedBox(height: 18),
-                          Text(
+                          CustomerText(
                             slide.body,
                             style: Theme.of(context).textTheme.bodyLarge
                                 ?.copyWith(color: CustomerColors.muted),
@@ -159,13 +181,16 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                 Row(
                   children: [
                     Semantics(
-                      label: 'Introduction ${index + 1} of ${slides.length}',
+                      label: tr(
+                        context,
+                        'Introduction ${index + 1} of ${slides.length}',
+                      ),
                       child: Row(
                         children: List.generate(
                           slides.length,
                           (i) => AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
-                            margin: const EdgeInsets.only(right: 7),
+                            margin: const EdgeInsetsDirectional.only(end: 7),
                             height: 6,
                             width: index == i ? 26 : 6,
                             decoration: BoxDecoration(
@@ -178,34 +203,44 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                         ),
                       ),
                     ),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: finishing
-                          ? null
-                          : () {
-                              if (index == slides.length - 1) {
-                                finish();
-                              } else {
-                                pager.nextPage(
-                                  duration:
-                                      MediaQuery.disableAnimationsOf(context)
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 350),
-                                  curve: Curves.easeOutCubic,
-                                );
-                              }
-                            },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            index == slides.length - 1
-                                ? 'Get started'
-                                : 'Continue',
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: FilledButton(
+                          onPressed: finishing
+                              ? null
+                              : () {
+                                  if (index == slides.length - 1) {
+                                    finish();
+                                  } else {
+                                    pager.nextPage(
+                                      duration:
+                                          MediaQuery.disableAnimationsOf(
+                                            context,
+                                          )
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 350),
+                                      curve: Curves.easeOutCubic,
+                                    );
+                                  }
+                                },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: CustomerText(
+                                  index == slides.length - 1
+                                      ? 'Get started'
+                                      : 'Continue',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              const Icon(Icons.arrow_forward_rounded, size: 19),
+                            ],
                           ),
-                          const SizedBox(width: 14),
-                          const Icon(Icons.arrow_forward_rounded, size: 19),
-                        ],
+                        ),
                       ),
                     ),
                   ],

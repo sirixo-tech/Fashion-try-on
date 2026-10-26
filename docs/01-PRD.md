@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
+
+The user approved 20 customer app languages: English default, Hindi, Tamil, Telugu, Spanish, Arabic, Kannada, Bengali, Marathi, Malayalam, Gujarati, Urdu, French, Portuguese, German, Simplified Chinese, Japanese, Korean, Russian and Indonesian. Save the selected language locally and to the customer account; switch immediately, including Arabic/Urdu RTL. Translate app-owned copy and prepared notifications; retain customer/merchant content and external legal/OS/email content in its source language. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.
+
+### CUSTOMER-MOBILE-3 — Customer services and distribution (2026-10-26)
+
+The user approved functional customer support, public Terms/Privacy, a customer look-ready inbox, optional phone alerts and direct Android APK updates. Reuse the existing SelfX contact/site. Prepare Firebase integration now; configure it later, with delivery inactive until configured. Mobile and kiosk releases remain separate. Support opens the user's composer; updates require user installation approval. No APK build or production publication is included. See `CUSTOMER-MOBILE-3-SERVICES.md`.
+
 ### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
 
 The user approved working customer mobile photo Try-On, Saved, premium image-led onboarding and Store QR sponsorship. Customers without a personal paid plan receive the existing Starter trial-credit setting once per customer account; no merchant tenant is created. Personal paid products remain separate and are not offered until configured. Reserve one credit at admission, use it only after a saved result, release on failure and never reset used credits on image expiry/deletion. Store QR selects eligible Store products and explicitly charges only the Store, with no personal fallback. Mobile generated results expire within 30 days from result creation; originals/captures stay within 7 days. This implements the previously approved mobile retention exception; all other channel policies remain unchanged.

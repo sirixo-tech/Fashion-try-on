@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'src/l10n/customer_copy.dart';
+import 'src/l10n/customer_language.dart';
 import 'src/auth/customer_api.dart';
 import 'src/auth/customer_controller.dart';
 import 'src/auth/customer_identity.dart';
@@ -19,9 +22,21 @@ Future<void> main() async {
     runApp(CustomerApp(controller: controller));
     controller.initialize();
   } catch (_) {
+    var language = 'en';
+    try {
+      language = CustomerLanguage.normalize(
+        await LocalCustomerLanguageStore().read(),
+      );
+    } catch (_) {}
     runApp(
       MaterialApp(
-        theme: customerTheme(),
+        theme: customerTheme(language),
+        locale: Locale(language),
+        supportedLocales: CustomerLanguage.locales,
+        localizationsDelegates: const [
+          CustomerCopy.delegate,
+          ...GlobalMaterialLocalizations.delegates,
+        ],
         home: Scaffold(
           body: SafeArea(
             child: Center(
@@ -32,7 +47,7 @@ Future<void> main() async {
                   children: [
                     const CustomerBrand(),
                     const SizedBox(height: 28),
-                    const Text(
+                    const CustomerText(
                       'SelfX needs a secure API connection before it can open. Please install a configured app build.',
                       textAlign: TextAlign.center,
                     ),

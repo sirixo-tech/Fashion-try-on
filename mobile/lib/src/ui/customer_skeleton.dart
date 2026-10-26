@@ -1,3 +1,4 @@
+import '../l10n/customer_copy.dart';
 import 'package:flutter/material.dart';
 import 'customer_theme.dart';
 
@@ -46,7 +47,7 @@ class _CustomerSkeletonState extends State<CustomerSkeleton>
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: widget.label,
+    label: tr(context, widget.label),
     liveRegion: true,
     child: ExcludeSemantics(
       child: IgnorePointer(
@@ -69,7 +70,7 @@ class CustomerSkeletonBlock extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => Align(
-    alignment: Alignment.centerLeft,
+    alignment: AlignmentDirectional.centerStart,
     child: Container(
       width: width,
       height: height,

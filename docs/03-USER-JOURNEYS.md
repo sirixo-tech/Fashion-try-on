@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
+
+Customers choose a language before sign-in/onboarding or under Me → Language, searchable by native or English name. English is the first-install default; existing account preference loads on sign-in. A successful choice persists and applies without restart; failures restore the prior language. Switching preserves navigation, form state and Try-On context. Arabic/Urdu use RTL while names, images, codes and account identifiers remain unchanged. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.
+
+### CUSTOMER-MOBILE-3 — Customer services and distribution (2026-10-26)
+
+Customers open Me for support email/copy fallback, Terms/Privacy, look-ready inbox and App updates. Inbox works without Firebase. Phone alerts require explicit permission after configuration. A notification opens only an owned, unexpired result. Android updates offer a newer published compatible customer APK and require browser download/Android approval. Platform managers choose Kiosk or Customer mobile releases; merchant downloads stay kiosk-only. See `CUSTOMER-MOBILE-3-SERVICES.md`.
+
 ### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
 
 After four skippable image-led slides and existing verified email/OAuth sign-in, the customer sees actual trial credits. Explore Try-On, My photo and Your outfit open consent, then camera/gallery selection, upload, generation and the saved result. Saved shows results/available original outfit photos, expiry, download and early delete. Plans opens the real free-trial balance. Scan Store QR opens that Store catalog and clearly names the Store as payer; eligible product generation uses Store allowance only. A QR rescan cannot reset the daily customer/Store limit. Leaving Store mode returns to personal allowance. Restarting the app restores active generation status; retries reuse a request ID.

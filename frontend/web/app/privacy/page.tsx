@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "Privacy policy for SelfX Virtual Try-On, including Shopify integration and customer image handling.",
 };
 
-const effectiveDate = "September 25, 2026";
+const effectiveDate = "October 26, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -68,9 +68,47 @@ export default function PrivacyPage() {
             Customer photos and generated try-on images are treated as sensitive
             data. They are used only to provide the requested try-on experience
             and related support. Customer person images, temporary provider
-            inputs, and generated try-on results are retained only for a limited
-            period and are deleted no later than seven days after creation
-            unless a shorter retention period applies.
+            inputs and customer-session outfit captures expire within seven
+            days. Generated results saved by the SelfX customer mobile app
+            expire within 30 days of result creation. Generated results from
+            other channels retain the seven-day maximum. You can delete mobile
+            photos/results sooner from Me or Saved. Expired or deleted assets
+            lose application access; private download links have a short
+            lifetime and failed storage deletions are retried. A result you
+            explicitly download to your own device remains under your control.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">
+            Customer Accounts and Store Visits
+          </h2>
+          <p className="leading-7 text-muted-foreground">
+            Your personal SelfX customer account is separate from merchant staff
+            accounts. Email verification, sign-in providers and security records
+            support account access and recovery. A Store QR session identifies
+            the sponsoring Store before generation. Only eligible Store products
+            use that Store’s allowance; personal credits are not an automatic
+            fallback. Explicit Store-session consent permits access to generated
+            results, not your original person photo. Durable consent and
+            non-image usage records may remain after image deletion.
+          </p>
+        </section>
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">
+            Notifications and App Downloads
+          </h2>
+          <p className="leading-7 text-muted-foreground">
+            The app can show an in-app notification when a look is ready.
+            Optional device alerts use Firebase Cloud Messaging when configured
+            and enabled by you. Delivery uses an encrypted device registration
+            token and sends a generic message with resource identifiers, not
+            photographs or private image links. Disable device alerts in the app
+            or device settings; sign-out revokes the device registration.
+            Notification records expire with the result. Android update checks
+            use app version, supported architecture and Android version to find
+            a compatible published customer APK. Support email opens your email
+            application; choose what information and attachments to send.
           </p>
         </section>
 
@@ -100,7 +138,10 @@ export default function PrivacyPage() {
             Merchants can uninstall the Shopify app or disconnect an integration
             from SelfX. Customers or merchants can request access, correction,
             deletion, or privacy support by contacting us at{" "}
-            <a className="font-medium text-primary underline" href={supportMailto}>
+            <a
+              className="font-medium text-primary underline"
+              href={supportMailto}
+            >
               {supportEmail}
             </a>
             .
@@ -111,7 +152,10 @@ export default function PrivacyPage() {
           <h2 className="text-xl font-semibold">Contact</h2>
           <p className="leading-7 text-muted-foreground">
             For privacy questions or requests, contact SelfX at{" "}
-            <a className="font-medium text-primary underline" href={supportMailto}>
+            <a
+              className="font-medium text-primary underline"
+              href={supportMailto}
+            >
               {supportEmail}
             </a>
             .

@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
+
+Explicitly approved customer-language follow-up: all 20 bundled catalogs, locale persistence/account synchronization, signup support, Arabic/Urdu RTL, localized notifications/consent and long-label layouts. Verify resource/placeholder coverage, identifiers/customer data preservation, all locale layouts, preference rollback, backend validation/isolation and durable consent. Native-speaker and real-device acceptance remain release follow-ups. Do not build APKs or activate/publish Firebase/app-store delivery in this slice. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.
+
+### CUSTOMER-MOBILE-3 — Customer services and distribution (2026-10-26)
+
+Approved follow-up implements support/policy pages, private inbox and optional prepared Firebase delivery, plus separate customer direct-APK distribution through existing release management. Verify isolated database ownership/expiry/retry behavior, session-refresh/revocation handling, HTTP validation, mobile service screens and release UI. Firebase/APNs delivery and iOS/device acceptance remain pending real configuration. No production migration/deployment, external sends or APK build/publication is authorized in this implementation. See `CUSTOMER-MOBILE-3-SERVICES.md`.
+
 ### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
 
 The user explicitly authorized this later mobile slice: premium imagery/theme, working photo Try-On, Saved/download/expiry, free trial for customers with no active personal plan, real Plans/credits and Store QR sponsorship. Implement and validate ownership, consent, idempotent/concurrent quota admission, refund behavior, 7-day inputs/30-day mobile results, tenant isolation, QR daily limits, shared Store billing and separate dashboard aggregates together. Verify migration on a disposable database, focused API/web tests, Flutter analysis/tests and actual rendered screen reviews. Production migration/deployment, storage lifecycle verification, device acceptance and rebuilding/distributing the customer APK remain deployment steps; no APK build is authorized in this task.

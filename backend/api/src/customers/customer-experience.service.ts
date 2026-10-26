@@ -24,6 +24,15 @@ import {
 } from "../storage/object-storage.js";
 import { TryOnExecutionService } from "../try-on/try-on-execution.service.js";
 import { TryOnSessionService } from "../try-on/try-on-session.service.js";
+import { recordCustomerLookNotification } from "./customer-notifications.service.js";
+import {
+  customerNotificationCopy,
+  CUSTOMER_TRANSLATION_VERSION,
+} from "./customer-notification-copy.js";
+import {
+  CUSTOMER_LANGUAGES,
+  type CustomerLanguage,
+} from "./customer-languages.js";
 import {
   validateTryOnLabUploadedImage,
   type CreateTryOnLabRunPayload,
@@ -214,6 +223,7 @@ export class CustomerExperienceService
     input: {
       consentAccepted: boolean;
       consentVersion: string;
+      consentLanguage?: string;
       storeVisitId?: string;
     },
   ) {
@@ -234,6 +244,12 @@ export class CustomerExperienceService
     const visit = input.storeVisitId
       ? await this.requireVisit(customer.id, input.storeVisitId)
       : null;
+    const language = CUSTOMER_LANGUAGES.includes(
+      input.consentLanguage as CustomerLanguage,
+    )
+      ? input.consentLanguage!
+      : "en";
+    const copy = customerNotificationCopy(language);
     const consent = await this.db.$transaction(async (tx) => {
       await this.lockCustomer(tx, customer);
       return tx.customerPhotoConsent.create({
@@ -245,7 +261,8 @@ export class CustomerExperienceService
           version: CUSTOMER_PHOTO_CONSENT_VERSION,
           statement:
             CUSTOMER_PHOTO_CONSENT +
-            (visit ? ` ${CUSTOMER_STORE_CONSENT}` : ""),
+            (visit ? ` ${CUSTOMER_STORE_CONSENT}` : "") +
+            `\n\nPresentation language: ${language}\nTranslation version: ${CUSTOMER_TRANSLATION_VERSION}\n${copy.photoConsent}${visit ? ` ${copy.storeConsent}` : ""}`,
           merchantResultAccess: Boolean(visit),
         },
       });
@@ -917,6 +934,12 @@ export class CustomerExperienceService
           },
           tx,
         );
+        await recordCustomerLookNotification(
+          tx,
+          run.customerId!,
+          run.id,
+          expiresAt,
+        );
         if (!run.organizationId && current.customerCreditState === "RESERVED")
           await tx.customerCreditAccount.update({
             where: { customerId: run.customerId! },
@@ -1036,6 +1059,7 @@ export class CustomerExperienceService
         id: row.id,
         runId: row.kioskTryOnRunId,
         name: row.product?.name ?? "Your look",
+        nameIsDefault: !row.product,
         createdAt: row.createdAt.toISOString(),
         expiresAt: row.expiresAt.toISOString(),
         result: this.assetDto(row.resultAsset),
@@ -1119,6 +1143,7 @@ export class CustomerExperienceService
         where: { customerId, withdrawnAt: null },
         data: { withdrawnAt: now },
       });
+      await tx.customerNotification.deleteMany({ where: { customerId } });
       await tx.customerStoreVisit.updateMany({
         where: { customerId, endedAt: null },
         data: { endedAt: now },

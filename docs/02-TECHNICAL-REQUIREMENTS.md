@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
+
+Use Flutter localization delegates with bundled offline customer catalogs, safe placeholders and localized dates/numbers. Reuse Customer.language with a centralized API allowlist; signup accepts an optional supported language and profile updates stay customer-owned. Use native RTL and directional layout. Record consent presentation language/version/wording in the existing durable consent statement alongside the canonical policy. Notification/consent copy is generated offline for the API from the app catalogs. No runtime translation service or new schema is required. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.
+
+### CUSTOMER-MOBILE-3 — Customer services and distribution (2026-10-26)
+
+Add central customer public configuration/update endpoints, private customer-owned notifications and encrypted session-bound device registrations. Persist look-ready inbox and bounded leased delivery jobs atomically with results. Transfer devices through session refresh; revoke on opt-out/sign-out/deletion and check ownership/session before delivery. Optional Firebase HTTP v1 delivery remains server-side and inactive without configuration. Reuse the APK registry/validator with package-and-architecture recommendation scope. Native Android checks installed identity; iOS minimum becomes 15 for resolved SDK dependencies. See `CUSTOMER-MOBILE-3-SERVICES.md`.
+
 ### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
 
 Reuse canonical TryOnSession, TryOnAsset, TryOnLook, KioskTryOnRun and the central provider-neutral TryOnExecutionService. Add explicit customer ownership/consent, a one-time personal trial wallet, customer row locking, request idempotency, atomic result/credit settlement, Store QR token hashing and Store-owned sponsorship through shared merchant billing. Customer asset access is owned, private and short lived; retryable cleanup uses separate customer-mobile/inputs and customer-mobile/results prefixes. Store plan MOBILE means Store-sponsored QR and is distinct from personal billing. See CUSTOMER-MOBILE-2-IMPLEMENTATION.md for contracts and deployment requirements.

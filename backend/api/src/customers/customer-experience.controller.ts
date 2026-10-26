@@ -13,6 +13,7 @@ import {
 import {
   IsBoolean,
   IsInt,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -31,10 +32,12 @@ import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 import { CustomerAuthService } from "./customer-auth.service.js";
 import { CustomerExperienceService } from "./customer-experience.service.js";
+import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
 
 export class CustomerPhotoSessionDto {
   @IsBoolean() consentAccepted!: boolean;
   @IsString() @MaxLength(40) consentVersion!: string;
+  @IsOptional() @IsIn(CUSTOMER_LANGUAGES) consentLanguage?: string;
   @IsOptional() @IsUUID() storeVisitId?: string;
 }
 export class CustomerRunDto {

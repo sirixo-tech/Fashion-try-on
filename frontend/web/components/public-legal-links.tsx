@@ -14,6 +14,9 @@ export function PublicLegalLinks({ className = "" }: { className?: string }) {
       <Link className="hover:text-foreground" href="/support">
         Support
       </Link>
+      <Link className="hover:text-foreground" href="/terms">
+        Terms
+      </Link>
       <a className="hover:text-foreground" href={supportMailto}>
         {supportEmail}
       </a>

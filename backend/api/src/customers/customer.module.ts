@@ -21,6 +21,14 @@ import { CatalogModule } from "../catalog/catalog.module.js";
 import { RbacModule } from "../rbac/rbac.module.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
+import { MailCrypto } from "../mail/mail-crypto.js";
+import { AppsModule } from "../apps/apps.module.js";
+import {
+  CustomerAppController,
+  CustomerNotificationsController,
+} from "./customer-app.controller.js";
+import { CustomerNotificationsService } from "./customer-notifications.service.js";
+import { CustomerPushSender } from "./customer-push.sender.js";
 @Module({
   imports: [
     DatabaseModule,
@@ -30,15 +38,21 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
     EntitlementsModule,
     CatalogModule,
     RbacModule,
+    AppsModule,
   ],
   controllers: [
     CustomerAuthController,
     CustomerMetricsController,
     CustomerExperienceController,
     CustomerStoreQrController,
+    CustomerAppController,
+    CustomerNotificationsController,
   ],
   providers: [
     CustomerAuthService,
+    CustomerNotificationsService,
+    CustomerPushSender,
+    MailCrypto,
     CustomerExperienceService,
     ObjectStorageService,
     StoreImpersonationService,

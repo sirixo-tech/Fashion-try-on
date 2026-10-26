@@ -4,7 +4,7 @@ Standalone Flutter Android/iOS app with an independent visual system using the o
 
 Implemented: four offline introduction slides with Skip; email signup/verification and sign-in; Google and iOS Apple sign-in; password recovery; securely stored rotating customer sessions; Home/Saved/Me; profile name and notification preference; current/all-device sign-out; and confirmed, reauthenticated account deletion. Customer credentials never create a merchant or grant dashboard access.
 
-QR, Plans, credit balance, generation, uploads and Saved results are visibly unavailable. No images are collected. Referrals/coupons, push delivery and additional translations are deferred.
+Photo upload, personal trial Try-On, Store QR sponsorship, Plans/credits, Saved results, support, policies, notification inbox, Android update checks and 20 offline languages are implemented. Paid personal purchases, referrals/coupons, app-store publishing and Firebase activation remain separate follow-ups.
 
 ## Run
 
@@ -29,7 +29,7 @@ Google buttons require native configuration and backend availability. The server
 
 Apple uses native iOS sign-in only. Enable Sign in with Apple in the Developer account, App ID, provisioning profile and Xcode capabilities; Runner includes the entitlement. Allowlist the bundle audience on the backend. The API binds a single-use nonce and verifies the signed token. iOS builds/signing require macOS/Xcode and were not performed on Windows.
 
-Configure reviewed, published HTTPS Terms, Privacy and Support destinations before release. Preview fallback copy is explanatory, not final legal publication. The accepted policy version comes from the backend, currently `2026-10-25`.
+Configure reviewed, published HTTPS Terms, Privacy and Support destinations before release. Preview fallback copy is explanatory, not final legal publication. The accepted policy version comes from the backend, currently `2026-10-26`.
 
 ## Backend activation
 
@@ -59,3 +59,13 @@ Customer Try-On is now connected: durable consent, camera/gallery upload, free t
 Package versions are locked in `pubspec.lock`; the app's Licenses entry shows package notices. The full official wordmark remains in app headers. Launcher/PWA icons use the exact user-supplied X, while legacy launch screens keep the wordmark; see [branding assets](design/README.md). Preparing these source images does not build an APK or change an existing package.
 
 Session startup and profile requests use skeleton layouts while the API is pending. They end on success/error, do not add artificial delays and respect reduced-motion settings. Saved and Plans now load their real customer APIs with retryable errors. Sign-in/form submission retain action indicators.
+
+## Support, policies, notifications and updates
+
+Me includes working support contact, policy links, a private look-ready inbox and Android direct-APK update checks. Platform Apps & Downloads now separates Kiosk and Customer mobile releases. Phone alerts are intentionally inactive until Firebase is configured on both API and native apps; inbox use does not depend on Firebase. The resolved Firebase dependencies require Android 24+ and iOS 15+.
+
+The accepted policy version is now `2026-10-26`; Terms/Privacy/Support default to the existing public SelfX website. See [CUSTOMER-MOBILE-3](../docs/CUSTOMER-MOBILE-3-SERVICES.md) for deployment, customer certificate configuration, Firebase/APNs preparation and verification. No APK was built or published for this implementation.
+
+## Languages
+
+The app supports 20 offline languages with English default, immediate switching, saved account/device preferences and Arabic/Urdu RTL. Language is available before login and under Me. API deployment is required for the expanded language allowlist. See [CUSTOMER-MOBILE-4](../docs/CUSTOMER-MOBILE-4-LANGUAGES.md) for coverage, translation maintenance and release steps. Source version is 0.4.0+4; no APK was built.

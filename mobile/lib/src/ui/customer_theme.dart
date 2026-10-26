@@ -1,3 +1,4 @@
+import '../l10n/customer_copy.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -12,8 +13,8 @@ abstract final class CustomerColors {
   static const tint = Color(0xFFFFECE0);
 }
 
-ThemeData customerTheme() {
-  const text = TextTheme(
+ThemeData customerTheme([String language = 'en']) {
+  var text = const TextTheme(
     displayLarge: TextStyle(
       fontFamily: 'serif',
       fontSize: 48,
@@ -53,6 +54,20 @@ ThemeData customerTheme() {
       color: CustomerColors.muted,
     ),
   );
+  if (!['en', 'es', 'fr', 'pt', 'de', 'ru', 'id'].contains(language)) {
+    TextStyle? scriptStyle(TextStyle? style) => style?.copyWith(
+      fontFamily: 'sans-serif',
+      letterSpacing: 0,
+      height: 1.35,
+    );
+    text = text.copyWith(
+      displayLarge: scriptStyle(text.displayLarge),
+      headlineLarge: scriptStyle(text.headlineLarge),
+      headlineMedium: scriptStyle(text.headlineMedium),
+      titleLarge: scriptStyle(text.titleLarge),
+      titleMedium: scriptStyle(text.titleMedium),
+    );
+  }
   final scheme =
       ColorScheme.fromSeed(
         seedColor: CustomerColors.orange,
@@ -154,8 +169,9 @@ class CustomerNotice extends StatelessWidget {
         color: error ? const Color(0xFFFFEDE9) : CustomerColors.tint,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(
+      child: CustomerText(
         message,
+        error: error,
         style: TextStyle(
           fontSize: 13,
           height: 1.5,
@@ -201,15 +217,18 @@ Future<void> customerInfo(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(title, style: Theme.of(context).textTheme.headlineMedium),
+            CustomerText(
+              title,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             const SizedBox(height: 16),
-            Text(message, style: Theme.of(context).textTheme.bodyLarge),
+            CustomerText(message, style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Got it'),
+                child: const CustomerText('Got it'),
               ),
             ),
           ],

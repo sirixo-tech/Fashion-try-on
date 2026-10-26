@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
+
+Provide a real language picker with native names, search, selected state, save progress/error and immediate locale changes. Localize app-owned screens, validation, tooltips, skeleton semantics and date/number displays. Support Arabic/Urdu RTL, directional navigation/alignment and LTR identifier entry. Long labels wrap on narrow screens. Never translate customer/store/product names or external release notes. Preserve current premium branding and all working flows. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.
+
+### CUSTOMER-MOBILE-3 — Customer services and distribution (2026-10-26)
+
+Use functional Contact, Notifications and App updates screens in the existing premium mobile theme. Keep known policy/contact fallbacks available before login. Show loading, retry, empty inbox, expired-result and unsupported-update states accurately. Disable unavailable phone alerts without blocking the inbox. A signing/package mismatch prevents an update offer. The release management Application selector separates kiosk and customer builds without adding duplicate management screens. See `CUSTOMER-MOBILE-3-SERVICES.md`.
+
 ### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
 
 Customer Flutter UI uses a shared warm ivory/peach background, official logo/colors and original compressed editorial photography. Four introduction slides keep Skip and reduced-motion navigation. Header order is scanner, Plans, personal credits. Home, Studio, Saved, result and account states connect to real APIs; loading skeletons end on success/error. Consent is accepted and persisted before photo picker/camera access. Store mode visibly names the payer and prevents automatic personal fallback. Failures explain credit restoration; uncertain requests offer Check my request. The Plans screen does not invent paid products. Mobile Dashboard uses existing business-dashboard styling with separate real mobile usage/trial/QR aggregates.

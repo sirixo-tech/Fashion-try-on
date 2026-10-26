@@ -8,7 +8,11 @@ import { createSelfxId } from "@selfx/database";
 import { PrismaService } from "../database/prisma.service.js";
 import { ObjectStorageService } from "../storage/object-storage.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
-import { ApkValidator } from "./apk-validator.js";
+import {
+  ApkValidator,
+  releasePackage,
+  type ReleaseApp,
+} from "./apk-validator.js";
 
 export const MAX_APK_BYTES = 200 * 1024 * 1024;
 const publicFields = {
@@ -38,7 +42,12 @@ export class AppReleasesService {
     private readonly storage: ObjectStorageService,
     private readonly validator: ApkValidator,
   ) {}
-  async upload(userId: string, buffer: Buffer, releaseNotes: string) {
+  async upload(
+    userId: string,
+    buffer: Buffer,
+    releaseNotes: string,
+    app: ReleaseApp = "KIOSK",
+  ) {
     if (
       buffer.length < 4 ||
       buffer.length > MAX_APK_BYTES ||
@@ -54,13 +63,21 @@ export class AppReleasesService {
       where: { sha256 },
       select: publicFields,
     });
-    if (existing) return existing;
-    this.validator.configuration();
+    if (existing) {
+      if (existing.packageName !== releasePackage(app))
+        throw new ApiErrorException(
+          400,
+          "APK_WRONG_APP",
+          "This APK belongs to the other SelfX app.",
+        );
+      return existing;
+    }
+    this.validator.configuration(app);
     const directory = await mkdtemp(join(tmpdir(), "selfx-apk-"));
     try {
       const path = join(directory, "release.apk");
       await writeFile(path, buffer, { mode: 0o600 });
-      const metadata = await this.validator.inspect(path);
+      const metadata = await this.validator.inspect(path, app);
       const id = createSelfxId();
       const objectKey = `app-releases/${id}/${sha256}.apk`;
       await this.storage.putObject({
@@ -76,7 +93,7 @@ export class AppReleasesService {
               ...metadata,
               sha256,
               objectKey,
-              filename: `selfx-kiosk-${metadata.versionCode}-${metadata.architecture.toLowerCase()}.apk`,
+              filename: `selfx-${app === "CUSTOMER" ? "mobile" : "kiosk"}-${metadata.versionCode}-${metadata.architecture.toLowerCase()}.apk`,
               sizeBytes: buffer.length,
               uploadedById: userId,
               releaseNotes,
@@ -134,9 +151,15 @@ export class AppReleasesService {
   endUpload(userId: string) {
     this.uploads.delete(userId);
   }
-  async list(publishedOnly: boolean, cursor?: string, pageSize = 25) {
+  async list(
+    publishedOnly: boolean,
+    cursor?: string,
+    pageSize = 25,
+    app: ReleaseApp = "KIOSK",
+  ) {
     const rows = await this.prisma.appRelease.findMany({
       where: {
+        packageName: releasePackage(app),
         ...(publishedOnly ? { status: "PUBLISHED" as const } : {}),
         ...(cursor ? { id: { lt: cursor } } : {}),
       },
@@ -187,7 +210,14 @@ export class AppReleasesService {
             "This action is unavailable for the current release state.",
           );
         if (action === "publish") {
-          if (release.signerSha256 !== this.validator.configuration().signer)
+          const app =
+            release.packageName === releasePackage("CUSTOMER")
+              ? "CUSTOMER"
+              : "KIOSK";
+          if (
+            release.packageName !== releasePackage(app) ||
+            release.signerSha256 !== this.validator.configuration(app).signer
+          )
             throw new ApiErrorException(
               409,
               "APP_RELEASE_SIGNER_CHANGED",
@@ -210,7 +240,11 @@ export class AppReleasesService {
         }
         if (action === "recommend")
           await tx.appRelease.updateMany({
-            where: { architecture: release.architecture, recommended: true },
+            where: {
+              packageName: release.packageName,
+              architecture: release.architecture,
+              recommended: true,
+            },
             data: { recommended: false, revision: { increment: 1 } },
           });
         const data =
@@ -248,9 +282,18 @@ export class AppReleasesService {
       throw error;
     }
   }
-  async download(id: string, publishedOnly: boolean) {
+  async download(
+    id: string,
+    publishedOnly: boolean,
+    app: ReleaseApp = "KIOSK",
+  ) {
     const release = await this.prisma.appRelease.findFirst({
-      where: { id, ...(publishedOnly ? { status: "PUBLISHED" as const } : {}) },
+      where: {
+        id,
+        ...(publishedOnly
+          ? { status: "PUBLISHED" as const, packageName: releasePackage(app) }
+          : {}),
+      },
     });
     if (!release)
       throw new ApiErrorException(
@@ -267,5 +310,19 @@ export class AppReleasesService {
       }),
       expiresInSeconds: 60,
     };
+  }
+  async customerUpdate(versionCode: number, architecture: string, sdk: number) {
+    const release = await this.prisma.appRelease.findFirst({
+      where: {
+        packageName: releasePackage("CUSTOMER"),
+        status: "PUBLISHED",
+        versionCode: { gt: versionCode },
+        architecture: { in: [architecture, "UNIVERSAL"] },
+        minSdk: { lte: sdk },
+      },
+      orderBy: [{ versionCode: "desc" }, { id: "desc" }],
+      select: publicFields,
+    });
+    return { update: release ?? null };
   }
 }

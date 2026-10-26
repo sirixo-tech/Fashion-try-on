@@ -21,5 +21,6 @@ import {
     ApkValidator,
     AppReleasesService,
   ],
+  exports: [AppReleasesService],
 })
 export class AppsModule {}

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
-import { IsIn, IsInt, Min } from "class-validator";
+import { IsIn, IsInt, Min, IsOptional } from "class-validator";
 import type { FastifyRequest } from "fastify";
 import { AuthService } from "../auth/auth.service.js";
 import { PlatformAuthorizationService } from "../platform/platform-authorization.service.js";
@@ -10,6 +10,9 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import { SelfxUuidParamPipe } from "../common/uuid-param.pipe.js";
 import { CursorPaginationQueryDto } from "../common/pagination.dto.js";
 import { AppReleasesService, MAX_APK_BYTES } from "./app-releases.service.js";
+export class ReleaseListQuery extends CursorPaginationQueryDto {
+  @IsOptional() @IsIn(["KIOSK", "CUSTOMER"]) app?: "KIOSK" | "CUSTOMER";
+}
 
 export class ReleaseActionDto {
   @IsIn(["publish", "recommend", "retire"]) action!:
@@ -45,12 +48,11 @@ export class AppReleasesController {
     return user;
   }
   @Get()
-  async list(
-    @Req() request: FastifyRequest,
-    @Query() query: CursorPaginationQueryDto,
-  ) {
+  async list(@Req() request: FastifyRequest, @Query() query: ReleaseListQuery) {
     await this.authorize(request);
-    return this.releases.list(false, query.cursor, query.pageSize);
+    return query.app === "CUSTOMER"
+      ? this.releases.list(false, query.cursor, query.pageSize, "CUSTOMER")
+      : this.releases.list(false, query.cursor, query.pageSize);
   }
   @Post()
   async upload(@Req() request: FastifyRequest) {
@@ -66,13 +68,15 @@ export class AppReleasesController {
       let file: Buffer | undefined;
       let releaseNotes = "";
       let notesSeen = false;
+      let app: "KIOSK" | "CUSTOMER" = "KIOSK";
+      let appSeen = false;
       for await (const part of request.parts({
         limits: {
           files: 1,
           fileSize: MAX_APK_BYTES,
-          fields: 1,
+          fields: 2,
           fieldSize: 16000,
-          parts: 2,
+          parts: 3,
         },
       })) {
         if (part.type === "file") {
@@ -100,6 +104,16 @@ export class AppReleasesController {
             );
         } else {
           if (
+            part.fieldname === "app" &&
+            !appSeen &&
+            ["KIOSK", "CUSTOMER"].includes(String(part.value)) &&
+            !part.valueTruncated
+          ) {
+            app = part.value as "KIOSK" | "CUSTOMER";
+            appSeen = true;
+            continue;
+          }
+          if (
             part.fieldname !== "releaseNotes" ||
             notesSeen ||
             typeof part.value !== "string" ||
@@ -121,7 +135,9 @@ export class AppReleasesController {
           "APK_FILE_REQUIRED",
           "Choose an APK file.",
         );
-      return await this.releases.upload(user.id, file, releaseNotes);
+      return app === "CUSTOMER"
+        ? await this.releases.upload(user.id, file, releaseNotes, app)
+        : await this.releases.upload(user.id, file, releaseNotes);
     } catch (error) {
       if (error instanceof ApiErrorException) throw error;
       if (

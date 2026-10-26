@@ -9,7 +9,8 @@ import {
   it,
   vi,
 } from "vitest";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
+import { createSelfxId } from "@selfx/database";
 import { JwtService } from "@nestjs/jwt";
 import { ValidationPipe } from "@nestjs/common";
 import { PasswordService } from "../auth/password.service.js";
@@ -134,6 +135,55 @@ describe.skipIf(!url)(
       await db.passwordRecoveryRateBucket.deleteMany();
       await db.$disconnect();
       vi.unstubAllEnvs();
+    });
+    it("preserves signup language and keeps profile language changes isolated through refresh", async () => {
+      const response = await auth.signup({ ...signup(), language: "ta" }, ip);
+      const value = await code();
+      await auth.verifyEmail(email, value, ip, response.signupProof);
+      const first = await auth.login(email, password, ip);
+      if (!("accessToken" in first)) throw new Error("Expected verified login");
+      expect(await auth.me(bearer(first))).toMatchObject({ language: "ta" });
+      const second = await register("second@selfx.invalid");
+      await auth.updateProfile(bearer(first), { language: "ar" });
+      expect(await auth.me(bearer(second))).toMatchObject({ language: "en" });
+      const refreshed = await auth.refresh(first.refreshToken, ip);
+      if (!refreshed) throw new Error("Expected refreshed session");
+      expect(await auth.me(bearer(refreshed))).toMatchObject({
+        language: "ar",
+      });
+    });
+    it("moves phone registration through refresh and removes it on opt-out and sign-out", async () => {
+      const first = await register();
+      await auth.updateProfile(bearer(first), { notifications: true });
+      const principal = await auth.requireCustomer(bearer(first));
+      const addDevice = async (sessionId: string) =>
+        db.customerPushDevice.create({
+          data: {
+            id: createSelfxId(),
+            customerId: principal.customer.id,
+            sessionId,
+            installationId: createSelfxId(),
+            tokenHash: "f".repeat(64),
+            tokenCipher: crypto.encrypt({
+              token: "synthetic-fid",
+            }) as unknown as Prisma.InputJsonValue,
+            platform: "ANDROID",
+          },
+        });
+      await addDevice(principal.sessionId);
+      const next = await auth.refresh(first.refreshToken, ip);
+      if (!next) throw new Error("Expected refreshed customer session");
+      const rotated = await auth.requireCustomer(bearer(next));
+      expect(rotated.sessionId).not.toBe(principal.sessionId);
+      expect((await db.customerPushDevice.findFirstOrThrow()).sessionId).toBe(
+        rotated.sessionId,
+      );
+      await auth.updateProfile(bearer(next), { notifications: false });
+      expect(await db.customerPushDevice.count()).toBe(0);
+      await auth.updateProfile(bearer(next), { notifications: true });
+      await addDevice(rotated.sessionId);
+      await auth.logout(bearer(next));
+      expect(await db.customerPushDevice.count()).toBe(0);
     });
     it("verifies signup, stores only hashed secrets and creates no merchant/staff rows", async () => {
       const staff = await db.user.count(),

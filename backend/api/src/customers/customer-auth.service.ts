@@ -23,6 +23,7 @@ import {
   CUSTOMER_TERMS_VERSION,
 } from "./customer.config.js";
 import { CustomerIdentityClient } from "./customer-identity.client.js";
+import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
 import {
   type CustomerDeleteDto,
   type CustomerOAuthDto,
@@ -90,7 +91,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         apple: this.config.enabled && this.config.appleClientIds.length > 0,
       },
       termsVersion: CUSTOMER_TERMS_VERSION,
-      languages: ["en"],
+      languages: CUSTOMER_LANGUAGES,
       resultRetentionDays: 30,
       features: {
         tryOn: false,
@@ -185,6 +186,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
             id: createSelfxId(),
             email,
             displayName: input.displayName.trim(),
+            language: input.language ?? "en",
             termsVersion: input.termsVersion,
             termsAcceptedAt: new Date(),
             verificationProofHash: proofHash,
@@ -206,6 +208,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           data: {
             verificationProofHash: proofHash,
             securityVersion: { increment: 1 },
+            ...(input.language ? { language: input.language } : {}),
             displayName: input.displayName.trim(),
             termsVersion: input.termsVersion,
             termsAcceptedAt: new Date(),
@@ -620,6 +623,10 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           deviceName: current.deviceName,
         },
       });
+      await tx.customerPushDevice.updateMany({
+        where: { customerId: current.customerId, sessionId: current.id },
+        data: { sessionId: id },
+      });
       await tx.customer.update({
         where: { id: current.customerId },
         data: { lastActiveAt: new Date() },
@@ -662,13 +669,18 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
   }
   async logout(header: string | undefined, all = false) {
     const { customer, sessionId } = await this.requireCustomer(header);
-    await this.db.customerSession.updateMany({
-      where: {
-        customerId: customer.id,
-        ...(all ? {} : { id: sessionId }),
-        revokedAt: null,
-      },
-      data: { revokedAt: new Date() },
+    await this.db.$transaction(async (tx) => {
+      await tx.customerSession.updateMany({
+        where: {
+          customerId: customer.id,
+          ...(all ? {} : { id: sessionId }),
+          revokedAt: null,
+        },
+        data: { revokedAt: new Date() },
+      });
+      await tx.customerPushDevice.deleteMany({
+        where: { customerId: customer.id, ...(all ? {} : { sessionId }) },
+      });
     });
     return { message: "Signed out." };
   }
@@ -789,6 +801,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
             ).slice(0, 160),
             status: "ACTIVE",
             termsVersion: input.termsVersion!,
+            language: input.language ?? "en",
             termsAcceptedAt: new Date(),
             identities: {
               create: {
@@ -850,6 +863,10 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         current.securityVersion !== customer.securityVersion
       )
         unauthorized();
+      if (input.notifications === false)
+        await tx.customerPushDevice.deleteMany({
+          where: { customerId: customer.id },
+        });
       return this.profile(
         await tx.customer.update({
           where: { id: customer.id },
@@ -921,6 +938,12 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         data: { revokedAt: new Date() },
       });
       await tx.customerActionToken.deleteMany({
+        where: { customerId: customer.id },
+      });
+      await tx.customerPushDevice.deleteMany({
+        where: { customerId: customer.id },
+      });
+      await tx.customerNotification.deleteMany({
         where: { customerId: customer.id },
       });
       await tx.customerIdentity.deleteMany({

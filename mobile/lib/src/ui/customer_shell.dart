@@ -1,4 +1,7 @@
+import '../l10n/customer_copy.dart';
 import 'dart:async';
+import '../services/customer_push.dart';
+import 'customer_service_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/customer_api.dart';
@@ -8,6 +11,8 @@ import '../experience/customer_media.dart';
 import 'customer_experience_screens.dart';
 import 'customer_theme.dart';
 import 'customer_skeleton.dart';
+import '../l10n/customer_language.dart';
+import '../l10n/customer_language_screen.dart';
 
 class CustomerShell extends StatefulWidget {
   final CustomerController controller;
@@ -20,6 +25,7 @@ class CustomerShell extends StatefulWidget {
 class _CustomerShellState extends State<CustomerShell>
     with WidgetsBindingObserver {
   late final CustomerExperience experience;
+  late final CustomerPushRegistration pushRegistration;
   late final CustomerPhotoPicker picker;
   int tab = 0;
   bool busy = false;
@@ -28,6 +34,15 @@ class _CustomerShellState extends State<CustomerShell>
   void initState() {
     super.initState();
     experience = CustomerExperience(auth);
+    pushRegistration = CustomerPushRegistration(
+      auth,
+      NativeCustomerPush(),
+      onNotification: showLookNotice,
+      onOpened: () {
+        if (mounted) unawaited(notifications());
+      },
+    );
+    unawaited(restorePhoneAlerts());
     picker = widget.picker ?? NativeCustomerPhotoPicker();
     unawaited(experience.refresh());
     unawaited(picker.discardLost());
@@ -47,6 +62,7 @@ class _CustomerShellState extends State<CustomerShell>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     experience.dispose();
+    unawaited(pushRegistration.dispose());
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
@@ -59,13 +75,48 @@ class _CustomerShellState extends State<CustomerShell>
       await action();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(CustomerExperience.message(e))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: CustomerText(CustomerExperience.message(e))),
+        );
       }
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  Future<void> notifications() => Navigator.push<void>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => CustomerNotificationsScreen(
+        auth: auth,
+        experience: experience,
+        registration: pushRegistration,
+      ),
+    ),
+  );
+  Future<void> restorePhoneAlerts() async {
+    if (auth.profile?.notifications != true) return;
+    try {
+      await pushRegistration.enable(
+        requestPermission: false,
+        onNotification: () {},
+      );
+    } catch (_) {
+      /* Inbox remains available when phone alerts are unavailable. */
+    }
+  }
+
+  void showLookNotice() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const CustomerText('Your look is ready.'),
+        action: SnackBarAction(
+          label: tr(context, 'View'),
+          onPressed: notifications,
+        ),
+      ),
+    );
   }
 
   Future<void> unavailable(String title, String message) =>
@@ -93,18 +144,18 @@ class _CustomerShellState extends State<CustomerShell>
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete all photos?'),
-        content: const Text(
+        title: const CustomerText('Delete all photos?'),
+        content: const CustomerText(
           'Your uploaded photos and generated looks will be removed. This also ends active Try-Ons and Store sessions. Used trial credits are not reset.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const CustomerText('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete photos'),
+            child: const CustomerText('Delete photos'),
           ),
         ],
       ),
@@ -129,7 +180,7 @@ class _CustomerShellState extends State<CustomerShell>
                 children: [
                   const Expanded(
                     child: Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: CustomerBrand(compact: true),
@@ -137,14 +188,25 @@ class _CustomerShellState extends State<CustomerShell>
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Scan Store QR',
+                    tooltip: tr(context, 'Scan Store QR'),
                     onPressed: busy ? null : scanStore,
                     icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
                   ),
-                  TextButton(onPressed: plans, child: const Text('Plans')),
+                  Flexible(
+                    flex: 2,
+                    child: TextButton(
+                      onPressed: plans,
+                      child: const CustomerText(
+                        'Plans',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
                   Tooltip(
-                    message:
-                        'Personal free trial credits. Store-sponsored usage is separate.',
+                    message: tr(
+                      context,
+                      'Personal free trial credits. Store-sponsored usage is separate.',
+                    ),
                     child: Material(
                       color: CustomerColors.tint,
                       borderRadius: BorderRadius.circular(24),
@@ -165,7 +227,7 @@ class _CustomerShellState extends State<CustomerShell>
                                 size: 17,
                               ),
                               const SizedBox(width: 5),
-                              Text(
+                              CustomerText(
                                 experience.remaining?.toString() ?? '—',
                                 semanticsLabel:
                                     'Personal credits: ${experience.remaining ?? 'unavailable'}',
@@ -266,7 +328,7 @@ class _CustomerShellState extends State<CustomerShell>
                         : CustomerColors.muted,
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  CustomerText(
                     label,
                     style: TextStyle(
                       fontSize: 11,
@@ -303,7 +365,7 @@ class _CustomerShellState extends State<CustomerShell>
         primary: false,
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
         children: [
-          Text(
+          CustomerText(
             'HELLO, ${auth.profile?.displayName.split(' ').first.toUpperCase() ?? 'YOU'}',
             style: const TextStyle(
               fontSize: 10,
@@ -313,12 +375,12 @@ class _CustomerShellState extends State<CustomerShell>
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          CustomerText(
             'Style, with\nyou in mind.',
             style: Theme.of(context).textTheme.displayLarge,
           ),
           const SizedBox(height: 14),
-          const Text(
+          const CustomerText(
             'Your personal space to discover a different look.',
             style: TextStyle(color: CustomerColors.muted, height: 1.5),
           ),
@@ -327,7 +389,7 @@ class _CustomerShellState extends State<CustomerShell>
             CustomerNotice(experience.error!, error: true),
             TextButton(
               onPressed: experience.refresh,
-              child: const Text('Refresh Home'),
+              child: const CustomerText('Refresh Home'),
             ),
           ],
           if (experience.generating || experience.hasUncertainRequest) ...[
@@ -368,7 +430,7 @@ class _CustomerShellState extends State<CustomerShell>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
+                        const CustomerText(
                           'A NEW POSSIBILITY',
                           style: TextStyle(
                             color: Colors.white,
@@ -377,7 +439,7 @@ class _CustomerShellState extends State<CustomerShell>
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        CustomerText(
                           'Something new.\nStill entirely you.',
                           style: Theme.of(context).textTheme.headlineLarge
                               ?.copyWith(color: Colors.white, fontSize: 32),
@@ -391,7 +453,7 @@ class _CustomerShellState extends State<CustomerShell>
                               Icons.auto_awesome_outlined,
                               size: 18,
                             ),
-                            label: Text(
+                            label: CustomerText(
                               experience.generating ||
                                       experience.hasUncertainRequest
                                   ? 'Open current Try-On'
@@ -407,7 +469,7 @@ class _CustomerShellState extends State<CustomerShell>
             ),
           ),
           const SizedBox(height: 22),
-          const Text(
+          const CustomerText(
             'YOUR OWN STARTING POINT',
             style: TextStyle(
               fontSize: 10,
@@ -448,12 +510,12 @@ class _CustomerShellState extends State<CustomerShell>
                   size: 30,
                 ),
                 const SizedBox(height: 10),
-                Text(
+                CustomerText(
                   'Discover it in Store.',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                const CustomerText(
                   'Scan its QR from the button above. Choose a Store product and let the Store sponsor your Try-On.',
                   style: TextStyle(color: CustomerColors.muted, fontSize: 13),
                 ),
@@ -469,7 +531,7 @@ class _CustomerShellState extends State<CustomerShell>
     primary: false,
     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
     children: [
-      Text(
+      CustomerText(
         'A space that’s yours.',
         style: Theme.of(context).textTheme.headlineLarge,
       ),
@@ -528,35 +590,27 @@ class _CustomerShellState extends State<CustomerShell>
         settingsTile(
           Icons.language_rounded,
           'Language',
-          () => unavailable(
-            'Language',
-            'English is available in this version. More languages will be added as translations are completed.',
+          () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CustomerLanguageScreen(controller: auth),
+            ),
           ),
-          trailing: 'English',
-        ),
-        SwitchListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 5,
-          ),
-          secondary: const Icon(Icons.notifications_none_rounded, size: 22),
-          title: const Text('Optional updates', style: TextStyle(fontSize: 14)),
-          subtitle: const Text(
-            'Your notification preference',
-            style: TextStyle(fontSize: 11),
-          ),
-          value: auth.profile?.notifications ?? false,
-          onChanged: busy
-              ? null
-              : (value) => run(() => auth.updateProfile(notifications: value)),
-          activeThumbColor: CustomerColors.orange,
+          trailing: CustomerLanguage.find(auth.language).nativeName,
         ),
         settingsTile(
-          Icons.info_outline_rounded,
+          Icons.notifications_none_rounded,
+          'Notifications',
+          notifications,
+        ),
+        settingsTile(
+          Icons.system_update_outlined,
           'App updates',
-          () => unavailable(
-            'SelfX · version 0.1.0',
-            'You’re using the first customer-app preview. App updates will be distributed through your device’s app store after launch.',
+          () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CustomerUpdatesScreen(auth: auth),
+            ),
           ),
         ),
       ]),
@@ -571,28 +625,21 @@ class _CustomerShellState extends State<CustomerShell>
         settingsTile(
           Icons.privacy_tip_outlined,
           'Privacy Policy',
-          () => openInformation(
-            'Privacy Policy',
-            const String.fromEnvironment('SELFX_PRIVACY_URL'),
-            'Your customer account is separate from merchant accounts. Only your authorized account can access its profile. You control notification preferences and can delete your account. Mobile Try-On result retention is 30 days; original person photos keep the shorter approved retention period.',
-          ),
+          () => openCustomerPolicy(context, auth, 'privacy'),
         ),
         settingsTile(
           Icons.description_outlined,
           'Terms',
-          () => openInformation(
-            'Terms',
-            const String.fromEnvironment('SELFX_TERMS_URL'),
-            'Use only images you own or are authorized to use. Personal Try-On and Store-sponsored sessions have separate allowances. A Store session will identify who pays before generation.',
-          ),
+          () => openCustomerPolicy(context, auth, 'terms'),
         ),
         settingsTile(
           Icons.help_outline_rounded,
           'Contact us',
-          () => openInformation(
-            'Contact SelfX',
-            const String.fromEnvironment('SELFX_SUPPORT_URL'),
-            'Support contact details will be available at launch.',
+          () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CustomerSupportScreen(auth: auth),
+            ),
           ),
         ),
         settingsTile(
@@ -600,7 +647,7 @@ class _CustomerShellState extends State<CustomerShell>
           'About SelfX',
           () => unavailable(
             'A little more possibility',
-            'SelfX brings personal and Store-sponsored Try-On together in one place. Version 0.1.0.',
+            'SelfX brings personal and Store-sponsored Try-On together in one place. Customer app.',
           ),
         ),
         settingsTile(
@@ -638,7 +685,7 @@ class _CustomerShellState extends State<CustomerShell>
         ),
       ]),
       const SizedBox(height: 24),
-      const Text(
+      const CustomerText(
         'Designed around you.',
         textAlign: TextAlign.center,
         style: TextStyle(
@@ -671,7 +718,7 @@ class _CustomerShellState extends State<CustomerShell>
       size: 22,
       color: destructive ? const Color(0xFF9A3025) : CustomerColors.muted,
     ),
-    title: Text(
+    title: CustomerText(
       title,
       style: TextStyle(
         fontSize: 14,
@@ -679,7 +726,7 @@ class _CustomerShellState extends State<CustomerShell>
       ),
     ),
     trailing: trailing != null
-        ? Text(
+        ? CustomerText(
             trailing,
             style: const TextStyle(fontSize: 12, color: CustomerColors.muted),
           )
@@ -711,16 +758,16 @@ class _CustomerShellState extends State<CustomerShell>
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Make it personal'),
+        title: const CustomerText('Make it personal'),
         content: TextField(
           controller: field,
           maxLength: 160,
-          decoration: const InputDecoration(labelText: 'Your name'),
+          decoration: InputDecoration(labelText: tr(context, 'Your name')),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const CustomerText('Cancel'),
           ),
           TextButton(
             onPressed: () {
@@ -728,7 +775,7 @@ class _CustomerShellState extends State<CustomerShell>
                 Navigator.pop(context, field.text.trim());
               }
             },
-            child: const Text('Save'),
+            child: const CustomerText('Save'),
           ),
         ],
       ),
@@ -775,12 +822,12 @@ class _ActionTile extends StatelessWidget {
           children: [
             Icon(icon, color: CustomerColors.muted, size: 25),
             const SizedBox(height: 16),
-            Text(
+            CustomerText(
               title,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 5),
-            Text(
+            CustomerText(
               description,
               style: const TextStyle(
                 fontSize: 11,
@@ -861,7 +908,7 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Account security')),
+    appBar: AppBar(title: const CustomerText('Account security')),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(
@@ -869,7 +916,7 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            CustomerText(
               'A password\nthat’s only yours.',
               style: Theme.of(context).textTheme.headlineLarge,
             ),
@@ -890,29 +937,32 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
             if (sent) ...[
               TextFormField(
                 controller: code,
+                inputFormatters: const [CustomerCodeFormatter()],
+                textDirection: TextDirection.ltr,
                 enabled: !busy,
                 maxLength: 8,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: '8-digit email code',
+                decoration: InputDecoration(
+                  labelText: tr(context, '8-digit email code'),
                 ),
                 validator: (value) => RegExp(r'^\d{8}$').hasMatch(value ?? '')
                     ? null
-                    : 'Enter the 8-digit code.',
+                    : tr(context, 'Enter the 8-digit code.'),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: password,
+                textDirection: TextDirection.ltr,
                 enabled: !busy,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New password',
-                  helperText: 'Use 12–128 characters.',
+                decoration: InputDecoration(
+                  labelText: tr(context, 'New password'),
+                  helperText: trNullable(context, 'Use 12–128 characters.'),
                 ),
                 validator: (value) =>
                     (value?.length ?? 0) >= 12 && (value?.length ?? 0) <= 128
                     ? null
-                    : 'Use 12–128 characters.',
+                    : tr(context, 'Use 12–128 characters.'),
               ),
               const SizedBox(height: 24),
             ],
@@ -920,7 +970,7 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
               width: double.infinity,
               child: FilledButton(
                 onPressed: busy ? null : submit,
-                child: Text(
+                child: CustomerText(
                   busy
                       ? 'Please wait…'
                       : sent
@@ -987,18 +1037,18 @@ class _CustomerDeleteScreenState extends State<CustomerDeleteScreen> {
   Widget build(BuildContext context) {
     final auth = widget.controller;
     return Scaffold(
-      appBar: AppBar(title: const Text('Delete account')),
+      appBar: AppBar(title: const CustomerText('Delete account')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            CustomerText(
               'A final goodbye?',
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 18),
-            const Text(
+            const CustomerText(
               'This deletes your profile and sign-in methods and ends your sessions on every device. You’ll need to create a new account to return.',
               style: TextStyle(color: CustomerColors.muted, height: 1.6),
             ),
@@ -1009,19 +1059,21 @@ class _CustomerDeleteScreenState extends State<CustomerDeleteScreen> {
             ],
             TextField(
               controller: confirmation,
+              textDirection: TextDirection.ltr,
               enabled: !busy,
-              decoration: const InputDecoration(
-                labelText: 'Type DELETE to confirm',
+              decoration: InputDecoration(
+                labelText: tr(context, 'Type DELETE to confirm'),
               ),
             ),
             const SizedBox(height: 20),
             if (auth.profile?.methods.contains('EMAIL_PASSWORD') ?? false) ...[
               TextField(
                 controller: password,
+                textDirection: TextDirection.ltr,
                 enabled: !busy,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Current password',
+                decoration: InputDecoration(
+                  labelText: tr(context, 'Current password'),
                 ),
               ),
               const SizedBox(height: 20),
@@ -1033,7 +1085,7 @@ class _CustomerDeleteScreenState extends State<CustomerDeleteScreen> {
                     foregroundColor: Colors.white,
                   ),
                   onPressed: busy ? null : () => remove(),
-                  child: const Text('Permanently delete account'),
+                  child: const CustomerText('Permanently delete account'),
                 ),
               ),
             ],
@@ -1043,7 +1095,7 @@ class _CustomerDeleteScreenState extends State<CustomerDeleteScreen> {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: busy ? null : () => remove(provider: 'GOOGLE'),
-                  child: const Text('Verify with Google and delete'),
+                  child: const CustomerText('Verify with Google and delete'),
                 ),
               ),
             if ((auth.profile?.methods.contains('APPLE') ?? false) &&
@@ -1052,11 +1104,11 @@ class _CustomerDeleteScreenState extends State<CustomerDeleteScreen> {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: busy ? null : () => remove(provider: 'APPLE'),
-                  child: const Text('Verify with Apple and delete'),
+                  child: const CustomerText('Verify with Apple and delete'),
                 ),
               ),
             const SizedBox(height: 18),
-            const Text(
+            const CustomerText(
               'You can also verify your email and set a password from Account security before deleting.',
               style: TextStyle(fontSize: 12, color: CustomerColors.muted),
             ),

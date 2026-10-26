@@ -17,6 +17,7 @@ import {
   SectionCard,
   Textarea,
   Badge,
+  SelectMenu,
 } from "@selfx/ui";
 import { selfxApi } from "@/lib/api";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
@@ -49,6 +50,7 @@ type ReleasePage = {
   hasMore: boolean;
 };
 export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
+  const [app, setApp] = useState<"KIOSK" | "CUSTOMER">("KIOSK");
   const session = useSession(),
     token = session.accessToken;
   const [base, setBase] = useState(""),
@@ -66,12 +68,14 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
   const [file, setFile] = useState<File | null>(null),
     [notes, setNotes] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const loadRevision = useRef(0);
   const [pending, setPending] = useState<{
     release: Release;
     action: "publish" | "recommend" | "retire";
   } | null>(null);
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
+    const revision = ++loadRevision.current;
     if (!token) return;
     setLoading(true);
     setError("");
@@ -90,6 +94,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           throw new Error(
             "Platform app release viewing permission is required.",
           );
+        if (revision !== loadRevision.current) return;
         setCanManage(manage);
         path = "/api/v1/platform/app-releases";
       } else {
@@ -98,14 +103,15 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           throw new Error("Select an active Store with kiosk access.");
         path = `/api/v1/admin/stores/${access.store.id}/app-releases`;
       }
-      setBase(path);
-      setPage(
-        await selfxApi<ReleasePage>(
-          `${path}?pageSize=12${cursor ? `&cursor=${cursor}` : ""}`,
-          { accessToken: token },
-        ),
+      const result = await selfxApi<ReleasePage>(
+        `${path}?pageSize=12${platform && app === "CUSTOMER" ? "&app=CUSTOMER" : ""}${cursor ? `&cursor=${cursor}` : ""}`,
+        { accessToken: token },
       );
+      if (revision !== loadRevision.current) return;
+      setBase(path);
+      setPage(result);
     } catch (caught) {
+      if (revision !== loadRevision.current) return;
       setBase("");
       setCanManage(false);
       setPage({ data: [], nextCursor: null, hasMore: false });
@@ -115,11 +121,14 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           : "App releases could not be loaded.",
       );
     } finally {
-      setLoading(false);
+      if (revision === loadRevision.current) setLoading(false);
     }
-  }, [token, platform, cursor]);
+  }, [token, platform, cursor, app]);
   useEffect(() => {
     void load();
+    return () => {
+      loadRevision.current++;
+    };
   }, [load]);
   async function upload(event: React.FormEvent) {
     event.preventDefault();
@@ -136,6 +145,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
     setMessage("");
     try {
       const body = new FormData();
+      if (app === "CUSTOMER") body.set("app", app);
       body.set("releaseNotes", notes);
       body.set("apk", file);
       await selfxApi(base, { method: "POST", accessToken: token, body });
@@ -208,7 +218,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
         title={platform ? "Apps & Downloads" : "Download Kiosk APK"}
         description={
           platform
-            ? "Manage SelfX Kiosk App releases. Publishing makes a release available to eligible Stores."
+            ? "Manage kiosk and customer app releases separately. Only published customer releases appear in mobile update checks."
             : "Install a published SelfX Kiosk App build that matches your Android device."
         }
         actions={
@@ -221,6 +231,24 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           </Button>
         }
       />
+      {platform && (
+        <SelectMenu
+          ariaLabel="Application"
+          value={app}
+          onChange={(value) => {
+            setApp(value);
+            setCursor(undefined);
+            setPrevious([]);
+            setFile(null);
+            setPage({ data: [], nextCursor: null, hasMore: false });
+          }}
+          disabled={loading || busy}
+          options={[
+            { value: "KIOSK", label: "Kiosk app" },
+            { value: "CUSTOMER", label: "Customer mobile app" },
+          ]}
+        />
+      )}
       {error && (
         <p role="alert" className="text-destructive">
           {error}
@@ -277,7 +305,7 @@ export function AppReleasesPage({ platform = false }: { platform?: boolean }) {
           {page.data.map((release) => (
             <SectionCard
               key={release.id}
-              title={`SelfX Kiosk ${release.versionName}`}
+              title={`SelfX ${app === "CUSTOMER" ? "Mobile" : "Kiosk"} ${release.versionName}`}
               description={`${release.architecture} · Version code ${release.versionCode} · Android API ${release.minSdk}+`}
             >
               <div className="space-y-4">

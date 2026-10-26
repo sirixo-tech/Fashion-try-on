@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
+
+The existing Customer.language field stores the expanded supported-language preference; no migration is needed. Existing CustomerPhotoConsent.statement retains the canonical English policy and records presentation language, translation version and the translated text shown. Existing customer notification/device ownership and expiry structures remain unchanged. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.
+
+### CUSTOMER-MOBILE-3 — Customer services and distribution (2026-10-26)
+
+Migration `20261026020000_customer_services` adds CustomerNotification (owned, unique per run/kind, expiring), CustomerPushDevice (encrypted opaque registration, hash uniqueness, owned session, installation identity) and CustomerPushDelivery (unique event/device, attempts, retry time, lease). Customer/session deletion cascades linked registrations/deliveries. Notification run IDs intentionally have no FK so merchant purges cannot mutate customer identities; reads reauthorize the result. APK recommendation uniqueness becomes package plus architecture. See `CUSTOMER-MOBILE-3-SERVICES.md`.
+
 ### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
 
 Migration 20261026010000_customer_tryon_trial adds CustomerCreditAccount (one lifetime trial grant and used/reserved counters), CustomerPhotoConsent (durable statement/version/retention), CustomerStoreQr (hashed token, actual actor, expiry/revocation, daily limit) and CustomerStoreVisit (customer-owned 2-hour session). Canonical sessions/runs link customer and consent; composite foreign keys prevent cross-customer consent/visit/run ownership. Runs have customer request fingerprints and unique (customerId, clientRequestId); personal balance checks prohibit overspending. Assets track upload readiness and confirmed storage deletion for cleanup retries. MOBILE is a ledger channel for sponsored Store usage. Existing customer/staff/merchant separation is retained.

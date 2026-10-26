@@ -1,0 +1,23 @@
+export const CUSTOMER_LANGUAGES = [
+  "en",
+  "hi",
+  "ta",
+  "te",
+  "es",
+  "ar",
+  "kn",
+  "bn",
+  "mr",
+  "ml",
+  "gu",
+  "ur",
+  "fr",
+  "pt",
+  "de",
+  "zh",
+  "ja",
+  "ko",
+  "ru",
+  "id",
+] as const;
+export type CustomerLanguage = (typeof CUSTOMER_LANGUAGES)[number];

@@ -1,7 +1,10 @@
+import '../l10n/customer_copy.dart';
+import '../services/customer_public_links.dart';
 import 'package:flutter/material.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
 import 'customer_theme.dart';
+import '../l10n/customer_language_screen.dart';
 
 enum CustomerAuthView { signIn, signUp, verify, forgot, reset }
 
@@ -153,14 +156,16 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   String? validateEmail(String? value) =>
       value == null ||
           !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value.trim())
-      ? 'Enter a valid email address.'
+      ? tr(context, 'Enter a valid email address.')
       : null;
   String? validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Enter your password.';
-    if (view != CustomerAuthView.signIn && value.length < 12) {
-      return 'Use at least 12 characters.';
+    if (value == null || value.isEmpty) {
+      return tr(context, 'Enter your password.');
     }
-    if (value.length > 128) return 'Use 128 characters or fewer.';
+    if (view != CustomerAuthView.signIn && value.length < 12) {
+      return tr(context, 'Use at least 12 characters.');
+    }
+    if (value.length > 128) return tr(context, 'Use 128 characters or fewer.');
     return null;
   }
 
@@ -218,9 +223,24 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const CustomerBrand(),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: tr(context, 'Language'),
+                            onPressed: busy
+                                ? null
+                                : () => Navigator.push<void>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => CustomerLanguageScreen(
+                                        controller: widget.controller,
+                                      ),
+                                    ),
+                                  ),
+                            icon: const Icon(Icons.language),
+                          ),
                           if (!credentialForm)
                             IconButton(
-                              tooltip: 'Back to sign in',
+                              tooltip: tr(context, 'Back to sign in'),
                               onPressed: busy
                                   ? null
                                   : () => change(CustomerAuthView.signIn),
@@ -229,12 +249,12 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         ],
                       ),
                       const SizedBox(height: 44),
-                      Text(
+                      CustomerText(
                         title,
                         style: Theme.of(context).textTheme.headlineLarge,
                       ),
                       const SizedBox(height: 14),
-                      Text(
+                      CustomerText(
                         subtitle,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: CustomerColors.muted,
@@ -266,7 +286,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               Icons.g_mobiledata_rounded,
                               size: 28,
                             ),
-                            label: const Text('Continue with Google'),
+                            label: const CustomerText('Continue with Google'),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -279,7 +299,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                           child: OutlinedButton.icon(
                             onPressed: busy ? null : () => oauth('APPLE'),
                             icon: const Icon(Icons.apple_rounded, size: 23),
-                            label: const Text('Continue with Apple'),
+                            label: const CustomerText('Continue with Apple'),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -294,13 +314,17 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                           child: Row(
                             children: [
                               Expanded(child: Divider()),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  'or use email',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: CustomerColors.muted,
+                              Flexible(
+                                flex: 4,
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: CustomerText(
+                                    'or use email',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: CustomerColors.muted,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -314,8 +338,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         TextFormField(
                           controller: name,
                           enabled: !busy,
-                          decoration: const InputDecoration(
-                            labelText: 'Your name',
+                          decoration: InputDecoration(
+                            labelText: tr(context, 'Your name'),
                             counterText: '',
                           ),
                           maxLength: 160,
@@ -323,16 +347,17 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                           autofillHints: const [AutofillHints.name],
                           validator: (value) =>
                               value == null || value.trim().isEmpty
-                              ? 'Enter your name.'
+                              ? tr(context, 'Enter your name.')
                               : null,
                         ),
                         const SizedBox(height: 14),
                       ],
                       TextFormField(
                         controller: email,
+                        textDirection: TextDirection.ltr,
                         enabled: !busy && view != CustomerAuthView.verify,
-                        decoration: const InputDecoration(
-                          labelText: 'Email address',
+                        decoration: InputDecoration(
+                          labelText: tr(context, 'Email address'),
                           counterText: '',
                         ),
                         keyboardType: TextInputType.emailAddress,
@@ -347,9 +372,11 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         const SizedBox(height: 14),
                         TextFormField(
                           controller: code,
+                          inputFormatters: const [CustomerCodeFormatter()],
+                          textDirection: TextDirection.ltr,
                           enabled: !busy,
-                          decoration: const InputDecoration(
-                            labelText: '8-digit email code',
+                          decoration: InputDecoration(
+                            labelText: tr(context, '8-digit email code'),
                             counterText: '',
                           ),
                           keyboardType: TextInputType.number,
@@ -358,7 +385,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                           validator: (value) =>
                               value == null ||
                                   !RegExp(r'^\d{8}$').hasMatch(value.trim())
-                              ? 'Enter the 8-digit code.'
+                              ? tr(context, 'Enter the 8-digit code.')
                               : null,
                         ),
                       ],
@@ -366,6 +393,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         const SizedBox(height: 14),
                         TextFormField(
                           controller: password,
+                          textDirection: TextDirection.ltr,
                           enabled: !busy,
                           obscureText: obscure,
                           enableSuggestions: false,
@@ -376,16 +404,23 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 : AutofillHints.password,
                           ],
                           decoration: InputDecoration(
-                            labelText: view == CustomerAuthView.reset
-                                ? 'New password'
-                                : 'Password',
-                            helperText: view != CustomerAuthView.signIn
-                                ? 'At least 12 characters. A passphrase works well.'
-                                : null,
+                            labelText: tr(
+                              context,
+                              view == CustomerAuthView.reset
+                                  ? 'New password'
+                                  : 'Password',
+                            ),
+                            helperText: trNullable(
+                              context,
+                              view != CustomerAuthView.signIn
+                                  ? 'At least 12 characters. A passphrase works well.'
+                                  : null,
+                            ),
                             suffixIcon: IconButton(
-                              tooltip: obscure
-                                  ? 'Show password'
-                                  : 'Hide password',
+                              tooltip: tr(
+                                context,
+                                obscure ? 'Show password' : 'Hide password',
+                              ),
                               onPressed: () =>
                                   setState(() => obscure = !obscure),
                               icon: Icon(
@@ -403,12 +438,12 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                       ],
                       if (view == CustomerAuthView.signIn)
                         Align(
-                          alignment: Alignment.centerRight,
+                          alignment: AlignmentDirectional.centerEnd,
                           child: TextButton(
                             onPressed: busy
                                 ? null
                                 : () => change(CustomerAuthView.forgot),
-                            child: const Text('Forgot password?'),
+                            child: const CustomerText('Forgot password?'),
                           ),
                         ),
                       if (signup) ...[
@@ -421,7 +456,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               ? null
                               : (value) =>
                                     setState(() => accepted = value ?? false),
-                          title: const Text(
+                          title: const CustomerText(
                             'I agree to the Terms and Privacy Policy.',
                             style: TextStyle(fontSize: 13),
                           ),
@@ -436,22 +471,18 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 context,
                                 'Terms',
                                 'Your SelfX account is personal. Use only images you own or have permission to use. Personal Try-On and Store-sponsored sessions have separate allowances. Please respect other people’s privacy and use the service responsibly.',
-                                address: const String.fromEnvironment(
-                                  'SELFX_TERMS_URL',
-                                ),
+                                address: CustomerPublicLinks.terms,
                               ),
-                              child: const Text('Read Terms'),
+                              child: const CustomerText('Read Terms'),
                             ),
                             TextButton(
                               onPressed: () => customerInfo(
                                 context,
                                 'Privacy',
                                 'Your account is separate from Store administration. Mobile Try-On results will be retained for 30 days. Original person photos keep the shorter approved retention period. You can delete your account from Me.',
-                                address: const String.fromEnvironment(
-                                  'SELFX_PRIVACY_URL',
-                                ),
+                                address: CustomerPublicLinks.privacy,
                               ),
-                              child: const Text('Privacy Policy'),
+                              child: const CustomerText('Privacy Policy'),
                             ),
                           ],
                         ),
@@ -471,7 +502,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                     color: CustomerColors.ink,
                                   ),
                                 )
-                              : Text(button),
+                              : CustomerText(button),
                         ),
                       ),
                       if (view == CustomerAuthView.verify)
@@ -493,7 +524,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                     );
                                   }
                                 }),
-                          child: const Text('Send a new code'),
+                          child: const CustomerText('Send a new code'),
                         ),
                       const SizedBox(height: 20),
                       if (credentialForm)
@@ -501,7 +532,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                           child: Wrap(
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Text(
+                              CustomerText(
                                 signup
                                     ? 'Already have an account?'
                                     : 'New to SelfX?',
@@ -517,7 +548,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                             ? CustomerAuthView.signIn
                                             : CustomerAuthView.signUp,
                                       ),
-                                child: Text(
+                                child: CustomerText(
                                   signup ? 'Sign in' : 'Create an account',
                                 ),
                               ),
@@ -526,7 +557,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         ),
                       if (view == CustomerAuthView.signIn)
                         const Center(
-                          child: Text(
+                          child: CustomerText(
                             'Your style. Your space.',
                             style: TextStyle(
                               fontSize: 12,

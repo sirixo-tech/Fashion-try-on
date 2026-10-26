@@ -1,3 +1,4 @@
+import '../l10n/customer_copy.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -43,12 +44,12 @@ Future<void> openCustomerStudio(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              CustomerText(
                 'Your photos. Your choice.',
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 16),
-              Text(experience.summary!['consentStatement'] as String),
+              CustomerText(experience.summary!['consentStatement'] as String),
               if (experience.storeMode) ...[
                 const SizedBox(height: 16),
                 CustomerNotice(
@@ -56,7 +57,7 @@ Future<void> openCustomerStudio(
                 ),
               ],
               const SizedBox(height: 16),
-              const Text(
+              const CustomerText(
                 'Choose photos you own or have permission to use. Virtual Try-On is a visual preview; fit and detail can vary.',
               ),
               const SizedBox(height: 24),
@@ -64,13 +65,13 @@ Future<void> openCustomerStudio(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Agree & continue'),
+                  child: const CustomerText('Agree & continue'),
                 ),
               ),
               Center(
                 child: TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Not now'),
+                  child: const CustomerText('Not now'),
                 ),
               ),
             ],
@@ -95,7 +96,7 @@ class CustomerPlansScreen extends StatelessWidget {
   const CustomerPlansScreen({super.key, required this.experience});
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Plans & credits')),
+    appBar: AppBar(title: const CustomerText('Plans & credits')),
     body: ListenableBuilder(
       listenable: experience,
       builder: (context, _) {
@@ -105,12 +106,12 @@ class CustomerPlansScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              Text(
+              CustomerText(
                 'A little more possibility.',
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 12),
-              const Text(
+              const CustomerText(
                 'Your personal allowance stays with your SelfX account.',
               ),
               const SizedBox(height: 28),
@@ -124,21 +125,21 @@ class CustomerPlansScreen extends StatelessWidget {
                       size: 32,
                     ),
                     const SizedBox(height: 20),
-                    Text(
+                    CustomerText(
                       'Free trial',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    CustomerText(
                       '${experience.remaining ?? '—'} Try-Ons left',
                       style: Theme.of(context).textTheme.headlineLarge,
                     ),
                     const SizedBox(height: 16),
-                    Text(
+                    CustomerText(
                       '${trial?['used'] ?? 0} used · ${trial?['reserved'] ?? 0} in progress · ${trial?['granted'] ?? '—'} granted',
                     ),
                     const SizedBox(height: 18),
-                    const Text(
+                    const CustomerText(
                       'One credit creates one saved look. Failed generations return the reserved credit. This free trial is granted once per account.',
                     ),
                   ],
@@ -149,12 +150,12 @@ class CustomerPlansScreen extends StatelessWidget {
                 'Personal paid plans are not available in this version. Store subscriptions do not apply to your personal account.',
               ),
               const SizedBox(height: 24),
-              const Text(
+              const CustomerText(
                 'Visiting a participating Store?',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              const Text(
+              const CustomerText(
                 'Scan its QR from Home to explore its products. The Store pays for eligible Try-Ons in that session; your own credits stay separate.',
               ),
               if (experience.error != null) ...[
@@ -210,12 +211,12 @@ class _CustomerStudioState extends State<CustomerStudio> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from photos'),
+              title: const CustomerText('Choose from photos'),
               onTap: () => Navigator.pop(context, CustomerPhotoSource.gallery),
             ),
             ListTile(
               leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Take a photo'),
+              title: const CustomerText('Take a photo'),
               onTap: () => Navigator.pop(context, CustomerPhotoSource.camera),
             ),
             const SizedBox(height: 16),
@@ -240,7 +241,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
     builder: (context, _) {
       final result = exp.run?['result'];
       return Scaffold(
-        appBar: AppBar(title: const Text('Your fitting room')),
+        appBar: AppBar(title: const CustomerText('Your fitting room')),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 30),
           children: [
@@ -254,13 +255,13 @@ class _CustomerStudioState extends State<CustomerStudio> {
                 ),
               ),
               const SizedBox(height: 32),
-              Text(
+              CustomerText(
                 'Creating your look…',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 16),
-              const Text(
+              const CustomerText(
                 'You can return to Home. Your result will appear in Saved when it is ready.',
                 textAlign: TextAlign.center,
               ),
@@ -271,11 +272,11 @@ class _CustomerStudioState extends State<CustomerStudio> {
                 CustomerNotice(exp.pollError!, error: true),
                 TextButton(
                   onPressed: exp.checkRun,
-                  child: const Text('Check progress'),
+                  child: const CustomerText('Check progress'),
                 ),
               ],
             ] else if (result is Json) ...[
-              Text(
+              CustomerText(
                 'Still entirely you.',
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
@@ -297,7 +298,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
               if (exp.person != null &&
                   exp.person!.expiresAt.isAfter(DateTime.now())) ...[
                 const SizedBox(height: 20),
-                const Text(
+                const CustomerText(
                   'Your original',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
@@ -322,16 +323,18 @@ class _CustomerStudioState extends State<CustomerStudio> {
                         );
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Look downloaded.')),
+                            const SnackBar(
+                              content: CustomerText('Look downloaded.'),
+                            ),
                           );
                         }
                       }),
                 icon: const Icon(Icons.download_rounded),
-                label: const Text('Download look'),
+                label: const CustomerText('Download look'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Back to Home'),
+                child: const CustomerText('Back to Home'),
               ),
             ] else if (exp.run?['status'] == 'FAILED' &&
                 exp.person == null) ...[
@@ -343,15 +346,15 @@ class _CustomerStudioState extends State<CustomerStudio> {
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Back to Home'),
+                child: const CustomerText('Back to Home'),
               ),
             ] else ...[
-              Text(
+              CustomerText(
                 'Make it your own.',
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 12),
-              const Text(
+              const CustomerText(
                 'A clear photo of you. One outfit you love. A new possibility.',
               ),
               const SizedBox(height: 20),
@@ -373,7 +376,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                       const Icon(Icons.storefront_outlined),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
+                        child: CustomerText(
                           exp.product?['name'] as String? ?? 'Store product',
                         ),
                       ),
@@ -390,7 +393,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                   onTap: () => pick('GARMENT'),
                 ),
               const SizedBox(height: 16),
-              const Text(
+              const CustomerText(
                 'Use good light and a plain background. Original photos expire within 7 days.',
                 style: TextStyle(fontSize: 12, color: CustomerColors.muted),
               ),
@@ -411,7 +414,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                     ? null
                     : () => action(exp.generate),
                 icon: const Icon(Icons.auto_awesome_rounded),
-                label: Text(
+                label: CustomerText(
                   exp.hasUncertainRequest
                       ? 'Check my request'
                       : 'Try on this outfit',
@@ -422,7 +425,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
               const SizedBox(height: 16),
               const LinearProgressIndicator(),
               const SizedBox(height: 8),
-              const Text('Please wait…', textAlign: TextAlign.center),
+              const CustomerText('Please wait…', textAlign: TextAlign.center),
             ],
             if (error != null) ...[
               const SizedBox(height: 16),
@@ -473,9 +476,9 @@ class _PhotoCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        Text(label, style: Theme.of(context).textTheme.titleLarge),
+        CustomerText(label, style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 6),
-        Text(
+        CustomerText(
           hint,
           style: const TextStyle(fontSize: 13, color: CustomerColors.muted),
         ),
@@ -483,7 +486,7 @@ class _PhotoCard extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: disabled ? null : onTap,
           icon: const Icon(Icons.add_a_photo_outlined, size: 20),
-          label: Text(bytes == null ? 'Add $label' : 'Change $label'),
+          label: CustomerText(bytes == null ? 'Add $label' : 'Change $label'),
         ),
       ],
     ),
@@ -566,7 +569,7 @@ class _CustomerAssetImageState extends State<CustomerAssetImage> {
                 unawaited(load());
               },
               icon: const Icon(Icons.refresh),
-              label: const Text('Reload photo'),
+              label: const CustomerText('Reload photo'),
             ),
           )
         : url == null
@@ -587,7 +590,7 @@ class _CustomerAssetImageState extends State<CustomerAssetImage> {
                   unawaited(load());
                 },
                 icon: const Icon(Icons.refresh),
-                label: const Text('Reload photo'),
+                label: const CustomerText('Reload photo'),
               ),
             ),
           ),
@@ -640,19 +643,22 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 10, 24, 28),
           children: [
-            Text(
+            CustomerText(
               'A collection of you.',
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 12),
-            const Text(
+            const CustomerText(
               'Your tried-on outfits and results. Yours for 30 days.',
               style: TextStyle(color: CustomerColors.muted),
             ),
             const SizedBox(height: 24),
             if (error != null) ...[
               CustomerNotice(error!, error: true),
-              TextButton(onPressed: load, child: const Text('Try again')),
+              TextButton(
+                onPressed: load,
+                child: const CustomerText('Try again'),
+              ),
             ],
             if (exp.looks.isEmpty && error == null) ...[
               const SizedBox(height: 40),
@@ -664,20 +670,20 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text(
+              CustomerText(
                 'Your first look\nis yet to come.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const SizedBox(height: 16),
-              const Text(
+              const CustomerText(
                 'Create a Try-On to start your collection. Download favourite results before they expire.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
               OutlinedButton(
                 onPressed: widget.onHome,
-                child: const Text('Back to Home'),
+                child: const CustomerText('Back to Home'),
               ),
             ],
             for (final look in exp.looks)
@@ -706,12 +712,14 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              look.name,
+                              look.nameIsDefault
+                                  ? tr(context, 'Your look')
+                                  : look.name,
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              'Expires ${_date(look.expiresAt)} · ${look.payer == 'STORE' ? 'Store sponsored' : 'Personal'}',
+                            CustomerText(
+                              'Expires ${_date(context, look.expiresAt)} · ${look.payer == 'STORE' ? 'Store sponsored' : 'Personal'}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: CustomerColors.muted,
@@ -731,7 +739,7 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                                 );
                                 await load();
                               },
-                              child: const Text('View look'),
+                              child: const CustomerText('View look'),
                             ),
                           ],
                         ),
@@ -743,7 +751,9 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
             if (exp.hasMoreLooks)
               OutlinedButton(
                 onPressed: exp.savedLoading ? null : () => load(more: true),
-                child: Text(exp.savedLoading ? 'Loading…' : 'Load more looks'),
+                child: CustomerText(
+                  exp.savedLoading ? 'Loading…' : 'Load more looks',
+                ),
               ),
           ],
         ),
@@ -784,7 +794,11 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.look.name)),
+    appBar: AppBar(
+      title: Text(
+        widget.look.nameIsDefault ? tr(context, 'Your look') : widget.look.name,
+      ),
+    ),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -799,13 +813,13 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          'Available until ${_date(widget.look.expiresAt)}',
+        CustomerText(
+          'Available until ${_date(context, widget.look.expiresAt)}',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         if (widget.look.person != null || widget.look.outfit != null) ...[
-          Text(
+          CustomerText(
             'The starting point',
             style: Theme.of(context).textTheme.titleLarge,
           ),
@@ -835,7 +849,7 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          const Text(
+          const CustomerText(
             'Original photos are available for up to 7 days.',
             style: TextStyle(fontSize: 12, color: CustomerColors.muted),
           ),
@@ -851,12 +865,12 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
                   );
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Look downloaded.')),
+                      const SnackBar(content: CustomerText('Look downloaded.')),
                     );
                   }
                 }),
           icon: const Icon(Icons.download_rounded),
-          label: const Text('Download look'),
+          label: const CustomerText('Download look'),
         ),
         TextButton(
           onPressed: busy
@@ -865,18 +879,18 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
                   final confirmed = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Delete this look?'),
-                      content: const Text(
+                      title: const CustomerText('Delete this look?'),
+                      content: const CustomerText(
                         'This removes the saved result. Used credits are not restored.',
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
+                          child: const CustomerText('Cancel'),
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Delete'),
+                          child: const CustomerText('Delete'),
                         ),
                       ],
                     ),
@@ -886,7 +900,7 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
                     if (context.mounted) Navigator.pop(context);
                   }
                 }),
-          child: const Text('Delete look'),
+          child: const CustomerText('Delete look'),
         ),
         if (error != null) CustomerNotice(error!, error: true),
       ],
@@ -894,8 +908,8 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
   );
 }
 
-String _date(DateTime value) =>
-    '${value.toLocal().day}/${value.toLocal().month}/${value.toLocal().year}';
+String _date(BuildContext context, DateTime value) =>
+    CustomerCopy.of(context).date(value);
 
 class CustomerStoreCatalog extends StatelessWidget {
   final CustomerExperience experience;
@@ -919,7 +933,7 @@ class CustomerStoreCatalog extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          const Text(
+          const CustomerText(
             'YOUR STORE VISIT',
             style: TextStyle(
               fontSize: 10,
@@ -938,13 +952,13 @@ class CustomerStoreCatalog extends StatelessWidget {
           ),
           TextButton(
             onPressed: onLeave,
-            child: const Text('Leave Store session'),
+            child: const CustomerText('Leave Store session'),
           ),
           const SizedBox(height: 16),
           if (experience.generating || experience.hasUncertainRequest)
             FilledButton(
               onPressed: () => onTryOn({}),
-              child: const Text('Open current Try-On'),
+              child: const CustomerText('Open current Try-On'),
             ),
           if (experience.productsLoading && experience.products.isEmpty)
             const LinearProgressIndicator(),
@@ -952,14 +966,14 @@ class CustomerStoreCatalog extends StatelessWidget {
             CustomerNotice(experience.productsError!, error: true),
             TextButton(
               onPressed: onRefresh,
-              child: const Text('Reload products'),
+              child: const CustomerText('Reload products'),
             ),
           ],
           if (!experience.productsLoading &&
               experience.productsError == null &&
               experience.products.isEmpty)
             const PremiumPanel(
-              child: Text(
+              child: CustomerText(
                 'No eligible products are available yet. Ask the Store to enable its products for Try-On.',
               ),
             ),
@@ -998,7 +1012,7 @@ class CustomerStoreCatalog extends StatelessWidget {
                       child: FilledButton.icon(
                         onPressed: () => onTryOn(product),
                         icon: const Icon(Icons.auto_awesome_outlined),
-                        label: const Text('Try on me'),
+                        label: const CustomerText('Try on me'),
                       ),
                     ),
                   ],
@@ -1008,7 +1022,7 @@ class CustomerStoreCatalog extends StatelessWidget {
           if (experience.hasMoreProducts)
             OutlinedButton(
               onPressed: experience.productsLoading ? null : onMore,
-              child: const Text('Load more products'),
+              child: const CustomerText('Load more products'),
             ),
         ],
       ),
@@ -1084,16 +1098,16 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Visit a Store')),
+    appBar: AppBar(title: const CustomerText('Visit a Store')),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text(
+        CustomerText(
           'Scan. Discover.\nMake it yours.',
           style: Theme.of(context).textTheme.headlineLarge,
         ),
         const SizedBox(height: 16),
-        const Text(
+        const CustomerText(
           'Scan a participating Store’s SelfX QR. Its products and sponsorship will appear before you try on.',
         ),
         const SizedBox(height: 24),
@@ -1115,7 +1129,7 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
                 errorBuilder: (_, e) => const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
-                    child: Text(
+                    child: CustomerText(
                       'Camera unavailable. Allow camera access in device settings or paste the Store code below.',
                     ),
                   ),
@@ -1133,7 +1147,7 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
                   color: CustomerColors.orange,
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                const CustomerText(
                   'The camera scans on your device. Camera frames are not uploaded.',
                 ),
                 const SizedBox(height: 16),
@@ -1144,7 +1158,7 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
                       (_) => unawaited(startCamera()),
                     );
                   },
-                  child: const Text('Open camera'),
+                  child: const CustomerText('Open camera'),
                 ),
               ],
             ),
@@ -1152,16 +1166,17 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
         const SizedBox(height: 24),
         TextField(
           controller: text,
+          textDirection: TextDirection.ltr,
           autocorrect: false,
           enableSuggestions: false,
-          decoration: const InputDecoration(
-            labelText: 'Or paste the SelfX Store code',
+          decoration: InputDecoration(
+            labelText: tr(context, 'Or paste the SelfX Store code'),
           ),
         ),
         const SizedBox(height: 16),
         FilledButton(
           onPressed: () => accept(text.text),
-          child: const Text('Open Store'),
+          child: const CustomerText('Open Store'),
         ),
         if (error != null) ...[
           const SizedBox(height: 16),

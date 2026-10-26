@@ -134,6 +134,27 @@ void main() {
   }
 
   test(
+    'consent records the chosen language and falls back for an untranslated policy',
+    () async {
+      auth.language = 'ta';
+      await exp.begin();
+      expect(
+        api.calls
+            .lastWhere((call) => call.path == '/try-on/sessions')
+            .body!['consentLanguage'],
+        'ta',
+      );
+      exp.summary!['consentVersion'] = 'future-policy';
+      await exp.begin();
+      expect(
+        api.calls
+            .lastWhere((call) => call.path == '/try-on/sessions')
+            .body!['consentLanguage'],
+        'en',
+      );
+    },
+  );
+  test(
     'uses the personal free trial and records consent before photo upload',
     () async {
       expect(exp.remaining, 10);
@@ -145,6 +166,7 @@ void main() {
       expect(consent.body, {
         'consentAccepted': true,
         'consentVersion': '2026-10-26',
+        'consentLanguage': 'en',
       });
       await exp.generate();
       final request = api.calls
@@ -225,17 +247,30 @@ void main() {
     expect(exp.personPreview, isNull);
     expect(exp.looks, isEmpty);
   });
-  test('keeps a retryable Store catalog error separate from an empty catalog', () async {
-    api.handler = (path, method, body) async {
-      if (path.contains('/products')) throw const CustomerApiException('CONNECTION', 'Could not load Store products.');
-      return response(path, method, body);
-    };
-    await expectLater(exp.joinStore('a' * 43), throwsA(isA<CustomerApiException>()));
-    expect(exp.storeMode, isTrue); expect(exp.productsLoading, isFalse);
-    expect(exp.productsError, 'Could not load Store products.');
-    api.handler = (path, method, body) async => response(path, method, body);
-    await exp.loadProducts(); expect(exp.productsError, isNull);
-  });
+  test(
+    'keeps a retryable Store catalog error separate from an empty catalog',
+    () async {
+      api.handler = (path, method, body) async {
+        if (path.contains('/products')) {
+          throw const CustomerApiException(
+            'CONNECTION',
+            'Could not load Store products.',
+          );
+        }
+        return response(path, method, body);
+      };
+      await expectLater(
+        exp.joinStore('a' * 43),
+        throwsA(isA<CustomerApiException>()),
+      );
+      expect(exp.storeMode, isTrue);
+      expect(exp.productsLoading, isFalse);
+      expect(exp.productsError, 'Could not load Store products.');
+      api.handler = (path, method, body) async => response(path, method, body);
+      await exp.loadProducts();
+      expect(exp.productsError, isNull);
+    },
+  );
   test(
     'restores an in-progress generation from the server after app restart',
     () async {

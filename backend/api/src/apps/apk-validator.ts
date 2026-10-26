@@ -4,6 +4,12 @@ import { Injectable } from "@nestjs/common";
 import { ApiErrorException } from "../common/api-error.exception.js";
 
 const run = promisify(execFile);
+export type ReleaseApp = "KIOSK" | "CUSTOMER";
+export function releasePackage(app: ReleaseApp) {
+  return app === "CUSTOMER"
+    ? process.env.SELFX_CUSTOMER_APK_PACKAGE_NAME || "com.selfx.selfx_customer"
+    : process.env.SELFX_APK_PACKAGE_NAME || "com.selfx.kiosk";
+}
 export function parseApkMetadata(
   badging: string,
   certificates: string,
@@ -43,7 +49,7 @@ export function parseApkMetadata(
     throw new ApiErrorException(
       400,
       "APK_VALIDATION_FAILED",
-      "Upload a standalone SelfX kiosk release APK signed by the configured release certificate.",
+      "Upload a standalone SelfX release APK signed by the configured certificate for this app.",
     );
   }
   const architecture =
@@ -68,13 +74,16 @@ export function parseApkMetadata(
 
 @Injectable()
 export class ApkValidator {
-  configuration() {
+  configuration(app: ReleaseApp = "KIOSK") {
     const aapt = process.env.SELFX_APK_AAPT_PATH;
     const jar = process.env.SELFX_APK_SIGNER_JAR_PATH;
-    const signer = process.env.SELFX_APK_SIGNER_SHA256?.replaceAll(
-      ":",
-      "",
-    ).toLowerCase();
+    const signer = (
+      app === "CUSTOMER"
+        ? process.env.SELFX_CUSTOMER_APK_SIGNER_SHA256
+        : process.env.SELFX_APK_SIGNER_SHA256
+    )
+      ?.replaceAll(":", "")
+      .toLowerCase();
     if (!aapt || !jar || !signer || !/^[a-f0-9]{64}$/.test(signer))
       throw new ApiErrorException(
         503,
@@ -86,11 +95,11 @@ export class ApkValidator {
       jar,
       signer,
       java: process.env.SELFX_APK_JAVA_PATH || "java",
-      packageName: process.env.SELFX_APK_PACKAGE_NAME || "com.selfx.kiosk",
+      packageName: releasePackage(app),
     };
   }
-  async inspect(path: string) {
-    const config = this.configuration();
+  async inspect(path: string, app: ReleaseApp = "KIOSK") {
+    const config = this.configuration(app);
     try {
       const options = {
         timeout: 60000,

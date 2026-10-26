@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/customer_copy.dart';
+import 'l10n/customer_language.dart';
 import 'auth/customer_controller.dart';
 import 'ui/auth_screen.dart';
 import 'ui/customer_shell.dart';
@@ -52,67 +55,79 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    navigatorKey: navigator,
-    title: 'SelfX',
-    debugShowCheckedModeBanner: false,
-    theme: customerTheme(),
-    builder: (context, child) => DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: [0, .55, 1],
-          colors: [Color(0xFFFFF8EF), Color(0xFFFAF7F2), Color(0xFFF4E4D6)],
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => MaterialApp(
+      navigatorKey: navigator,
+      title: 'SelfX',
+      debugShowCheckedModeBanner: false,
+      theme: customerTheme(controller.language),
+      locale: Locale(controller.language),
+      supportedLocales: CustomerLanguage.locales,
+      localizationsDelegates: const [
+        CustomerCopy.delegate,
+        ...GlobalMaterialLocalizations.delegates,
+      ],
+      builder: (context, child) => DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            stops: [0, .55, 1],
+            colors: [Color(0xFFFFF8EF), Color(0xFFFAF7F2), Color(0xFFF4E4D6)],
+          ),
         ),
+        child: child,
       ),
-      child: child,
-    ),
-    home: ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) => switch (controller.stage) {
-        CustomerStage.loading => CustomerLoadingScreen(
-          restoringSession: controller.restoringSession,
-        ),
-        CustomerStage.onboarding => CustomerOnboarding(controller: controller),
-        CustomerStage.authentication => CustomerAuthScreen(
-          controller: controller,
-        ),
-        CustomerStage.ready => CustomerShell(
-          controller: controller,
-          picker: widget.picker,
-        ),
-        CustomerStage.recovery => Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CustomerBrand(),
-                    const SizedBox(height: 32),
-                    Text(
-                      'Let’s try that again.',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      controller.initializationError ?? 'Unable to open SelfX.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: controller.initialize,
-                      child: const Text('Try again'),
-                    ),
-                  ],
+      home: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) => switch (controller.stage) {
+          CustomerStage.loading => CustomerLoadingScreen(
+            restoringSession: controller.restoringSession,
+          ),
+          CustomerStage.onboarding => CustomerOnboarding(
+            controller: controller,
+          ),
+          CustomerStage.authentication => CustomerAuthScreen(
+            controller: controller,
+          ),
+          CustomerStage.ready => CustomerShell(
+            controller: controller,
+            picker: widget.picker,
+          ),
+          CustomerStage.recovery => Scaffold(
+            body: SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CustomerBrand(),
+                      const SizedBox(height: 32),
+                      CustomerText(
+                        'Let’s try that again.',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      CustomerText(
+                        controller.initializationError ??
+                            'Unable to open SelfX.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: controller.initialize,
+                        child: const CustomerText('Try again'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      },
+        },
+      ),
     ),
   );
 }

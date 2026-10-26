@@ -17,6 +17,7 @@ class CustomerPhoto {
 
 class CustomerLook {
   final String id, runId, name, payer;
+  final bool nameIsDefault;
   final DateTime expiresAt;
   final CustomerPhoto result;
   final CustomerPhoto? person, outfit;
@@ -24,6 +25,7 @@ class CustomerLook {
     : id = data['id'] as String,
       runId = data['runId'] as String,
       name = data['name'] as String? ?? 'Your look',
+      nameIsDefault = data['nameIsDefault'] == true || data['name'] == null,
       payer = data['payer'] as String,
       expiresAt = DateTime.parse(data['expiresAt'] as String),
       result = CustomerPhoto.fromJson(data['result'] as Json),
@@ -146,6 +148,10 @@ class CustomerExperience extends ChangeNotifier {
       body: {
         'consentAccepted': true,
         'consentVersion': summary!['consentVersion'],
+        // A future policy without a bundled translation is displayed in English.
+        'consentLanguage': summary!['consentVersion'] == '2026-10-26'
+            ? auth.language
+            : 'en',
         if (storeVisit != null) 'storeVisitId': storeVisit!['id'],
       },
     );

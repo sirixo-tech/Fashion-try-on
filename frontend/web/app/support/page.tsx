@@ -19,9 +19,9 @@ export default function SupportPage() {
           </p>
           <h1 className="text-4xl font-semibold tracking-tight">Support</h1>
           <p className="leading-7 text-muted-foreground">
-            Need help with SelfX, Shopify setup, product sync, or virtual
-            try-on? Contact us and include the details below so we can respond
-            quickly.
+            Need help with the SelfX customer app, Shopify setup, product sync,
+            or virtual try-on? Contact us and include the details below so we
+            can respond quickly.
           </p>
         </header>
 
@@ -29,7 +29,10 @@ export default function SupportPage() {
           <h2 className="text-xl font-semibold">Contact Email</h2>
           <p className="mt-3 text-muted-foreground">
             Email us at{" "}
-            <a className="font-medium text-primary underline" href={supportMailto}>
+            <a
+              className="font-medium text-primary underline"
+              href={supportMailto}
+            >
               {supportEmail}
             </a>
             .
@@ -42,7 +45,14 @@ export default function SupportPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">What To Include</h2>
           <ul className="list-disc space-y-2 pl-6 leading-7 text-muted-foreground">
-            <li>Your SelfX Store name.</li>
+            <li>
+              Whether you are using the customer mobile app or a Store
+              integration.
+            </li>
+            <li>
+              Your app version and Android/iOS version, for mobile issues.
+            </li>
+            <li>Your SelfX Store name, if the issue concerns a Store.</li>
             <li>Your Shopify shop domain, such as example.myshopify.com.</li>
             <li>The product URL or product handle involved.</li>
             <li>
@@ -54,6 +64,12 @@ export default function SupportPage() {
             </li>
           </ul>
         </section>
+        <p className="text-sm text-muted-foreground">
+          Never send your password, verification codes, payment credentials or
+          private access links. Customer photos are optional: share an image
+          only when needed and when you have permission. Privacy and
+          account-deletion requests can use the same contact email.
+        </p>
 
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Common Requests</h2>

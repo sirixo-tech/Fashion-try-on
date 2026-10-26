@@ -1,6 +1,6 @@
 import { ApiErrorException } from "../common/api-error.exception.js";
 
-export const CUSTOMER_TERMS_VERSION = "2026-10-25";
+export const CUSTOMER_TERMS_VERSION = "2026-10-26";
 export const customerError = (
   code: string,
   message: string,

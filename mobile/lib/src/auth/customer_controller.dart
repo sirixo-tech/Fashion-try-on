@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'customer_api.dart';
 import 'customer_identity.dart';
 import 'session_store.dart';
+import '../l10n/customer_language.dart';
 
 enum CustomerStage { loading, onboarding, authentication, ready, recovery }
 
@@ -9,6 +10,9 @@ class CustomerController extends ChangeNotifier {
   final CustomerApi api;
   final CustomerSessionStore store;
   final CustomerIdentity identity;
+  final CustomerLanguageStore languageStore;
+  String language = 'en';
+  bool languageSaving = false;
   CustomerStage stage = CustomerStage.loading;
   CustomerCapabilities capabilities = const CustomerCapabilities();
   CustomerProfile? profile;
@@ -27,7 +31,8 @@ class CustomerController extends ChangeNotifier {
     required this.api,
     required this.store,
     required this.identity,
-  });
+    CustomerLanguageStore? languageStore,
+  }) : languageStore = languageStore ?? LocalCustomerLanguageStore();
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -41,6 +46,13 @@ class CustomerController extends ChangeNotifier {
     initializationError = null;
     _notify();
     try {
+      try {
+        language = CustomerLanguage.normalize(await languageStore.read());
+      } catch (_) {
+        /* English is available even when local preferences are unavailable. */
+      }
+      if (_disposed || epoch != _epoch) return;
+      _notify();
       final complete = await store.onboardingComplete();
       if (_disposed || epoch != _epoch) return;
       if (!complete) {
@@ -114,6 +126,7 @@ class CustomerController extends ChangeNotifier {
     profile = CustomerProfile.fromJson(
       result['customer'] as Map<String, dynamic>,
     );
+    if (!languageSaving) await _profileLanguage();
   }
 
   Future<Map<String, dynamic>> signIn(String email, String password) async {
@@ -150,6 +163,7 @@ class CustomerController extends ChangeNotifier {
       'password': password,
       'acceptTerms': true,
       'termsVersion': capabilities.termsVersion,
+      'language': language,
     },
   );
   Future<void> oauth(String provider, {required bool signup}) async {
@@ -163,6 +177,7 @@ class CustomerController extends ChangeNotifier {
         if (signup) ...{
           'acceptTerms': true,
           'termsVersion': capabilities.termsVersion,
+          'language': language,
         },
         'deviceName': 'SelfX mobile',
       },
@@ -286,6 +301,7 @@ class CustomerController extends ChangeNotifier {
       final result = await authorized('/me');
       if (!_disposed && epoch == _epoch) {
         profile = CustomerProfile.fromJson(result);
+        if (!languageSaving) await _profileLanguage();
       }
     } finally {
       if (!_disposed && epoch == _epoch) {
@@ -306,6 +322,51 @@ class CustomerController extends ChangeNotifier {
       },
     );
     await loadProfile();
+  }
+
+  Future<void> _profileLanguage() async {
+    language = CustomerLanguage.normalize(profile?.language);
+    try {
+      await languageStore.write(language);
+    } catch (_) {
+      /* Server preference remains authoritative. */
+    }
+  }
+
+  Future<void> changeLanguage(String code) async {
+    if (!CustomerLanguage.supports(code)) {
+      throw ArgumentError.value(code, 'language');
+    }
+    if (languageSaving || code == language) return;
+    final previous = language, owner = profile?.id, epoch = _epoch;
+    languageSaving = true;
+    language = code;
+    _notify();
+    try {
+      await languageStore.write(code);
+      if (_disposed || epoch != _epoch || profile?.id != owner) return;
+      if (owner != null && stage == CustomerStage.ready) {
+        final result = await authorized(
+          '/me',
+          method: 'PATCH',
+          body: {'language': code},
+        );
+        if (!_disposed && epoch == _epoch && profile?.id == owner) {
+          profile = CustomerProfile.fromJson(result);
+        }
+      }
+    } catch (_) {
+      if (!_disposed && epoch == _epoch) {
+        language = previous;
+        try {
+          await languageStore.write(previous);
+        } catch (_) {}
+      }
+      rethrow;
+    } finally {
+      languageSaving = false;
+      _notify();
+    }
   }
 
   Future<void> signOut({bool all = false}) async {

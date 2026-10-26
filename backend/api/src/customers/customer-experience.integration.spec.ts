@@ -279,6 +279,22 @@ describe.skipIf(!url)(
       expect((await service.summary(other)).trial.granted).toBe(20);
       expect(await db.organization.count()).toBe(0);
     });
+    it("records the presentation language and exact translated photo consent durably", async () => {
+      await service.createSession(customer, {
+        consentAccepted: true,
+        consentVersion: CUSTOMER_PHOTO_CONSENT_VERSION,
+        consentLanguage: "ar",
+      });
+      const consent = await db.customerPhotoConsent.findFirstOrThrow({
+        where: { customerId: customer.id },
+      });
+      expect(consent.statement).toContain("Presentation language: ar");
+      expect(consent.statement).toContain("Translation version: 2026-10-27");
+      expect(consent.statement).toContain("SelfX");
+      expect(consent.statement).toMatch(/[\u0600-\u06ff]/);
+      expect(consent.inputRetentionDays).toBe(7);
+      expect(consent.resultRetentionDays).toBe(30);
+    });
     it("requires durable current consent before upload and fences other accounts and legacy access", async () => {
       await expect(
         service.createSession(customer, {
