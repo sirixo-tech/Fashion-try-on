@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
+
+The user approved working customer mobile photo Try-On, Saved, premium image-led onboarding and Store QR sponsorship. Customers without a personal paid plan receive the existing Starter trial-credit setting once per customer account; no merchant tenant is created. Personal paid products remain separate and are not offered until configured. Reserve one credit at admission, use it only after a saved result, release on failure and never reset used credits on image expiry/deletion. Store QR selects eligible Store products and explicitly charges only the Store, with no personal fallback. Mobile generated results expire within 30 days from result creation; originals/captures stay within 7 days. This implements the previously approved mobile retention exception; all other channel policies remain unchanged.
+
 ### Dashboard sidebar switch and mobile metrics (2026-10-25)
 
 Keep Business and Mobile dashboards separate. Business is the default at /app/dashboard. Authorized platform users switch through a compact toggle inside the existing Dashboard sidebar row; do not add a Mobile sidebar entry. Clicking the row label always opens Business and resets the toggle. Switching changes the displayed dashboard name with a vertical sliding animation. Mobile customer account counts are real aggregates; unavailable Try-On, personal revenue/plans and Store-QR services must not be represented as zero or fabricated data. Mobile personal billing remains separate from Store sponsorship; no financial totals are double-counted.

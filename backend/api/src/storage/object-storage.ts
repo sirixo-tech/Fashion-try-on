@@ -14,6 +14,7 @@ export interface ObjectStorage {
     key: string;
     contentType: string;
     body: Buffer;
+    timeoutMs?: number;
   }): Promise<void>;
   createUploadUrl(input: {
     key: string;
@@ -27,7 +28,11 @@ export interface ObjectStorage {
     responseContentType?: string;
   }): string;
   headObject(key: string): Promise<ObjectStorageHead>;
-  readObject(key: string, maxBytes: number): Promise<Buffer>;
+  readObject(
+    key: string,
+    maxBytes: number,
+    timeoutMs?: number,
+  ): Promise<Buffer>;
   deleteObject(key: string): Promise<void>;
 }
 
@@ -53,6 +58,7 @@ export class ObjectStorageService implements ObjectStorage {
     key: string;
     contentType: string;
     body: Buffer;
+    timeoutMs?: number;
   }): Promise<void> {
     const startedAt = Date.now();
     const url = this.presign("PUT", input.key, 60);
@@ -62,6 +68,9 @@ export class ObjectStorageService implements ObjectStorage {
         method: "PUT",
         headers: { "Content-Type": input.contentType },
         body: new Uint8Array(input.body),
+        ...(input.timeoutMs
+          ? { signal: AbortSignal.timeout(input.timeoutMs) }
+          : {}),
       });
     } catch (error) {
       this.logger.warn({
@@ -117,9 +126,14 @@ export class ObjectStorageService implements ObjectStorage {
     };
   }
 
-  async readObject(key: string, maxBytes: number): Promise<Buffer> {
+  async readObject(
+    key: string,
+    maxBytes: number,
+    timeoutMs?: number,
+  ): Promise<Buffer> {
     const response = await fetch(this.presign("GET", key, 60), {
       method: "GET",
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
     if (!response.ok) {
       throwStorageUnavailable("Stored upload could not be read.");
@@ -248,7 +262,9 @@ function objectUrl(config: Required<ObjectStorageConfig>, key: string): URL {
     .map((part) => encodeURIComponent(part))
     .join("/");
   if (config.urlStyle === "path") {
-    return new URL(`${endpoint}/${encodeURIComponent(config.bucket)}/${encodedKey}`);
+    return new URL(
+      `${endpoint}/${encodeURIComponent(config.bucket)}/${encodedKey}`,
+    );
   }
   const url = new URL(`${endpoint}/${encodedKey}`);
   url.hostname = `${config.bucket}.${url.hostname}`;

@@ -187,7 +187,10 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                                 finish();
                               } else {
                                 pager.nextPage(
-                                  duration: const Duration(milliseconds: 350),
+                                  duration:
+                                      MediaQuery.disableAnimationsOf(context)
+                                      ? Duration.zero
+                                      : const Duration(milliseconds: 350),
                                   curve: Curves.easeOutCubic,
                                 );
                               }
@@ -221,79 +224,35 @@ class _FashionIllustration extends StatelessWidget {
   final int step;
   const _FashionIllustration({required this.icon, required this.step});
   @override
-  Widget build(BuildContext context) => Center(
-    child: AspectRatio(
-      aspectRatio: 1.12,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 220,
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(28),
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          [
+            'assets/editorial/style-muse.webp',
+            'assets/editorial/style-atelier.webp',
+            'assets/editorial/style-tailored.webp',
+            'assets/editorial/style-muse.webp',
+          ][step],
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+          excludeFromSemantics: true,
+        ),
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: Container(
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0E7DA),
-              borderRadius: BorderRadius.circular(110),
+              color: Colors.white.withValues(alpha: .9),
+              borderRadius: BorderRadius.circular(18),
             ),
+            child: Icon(icon, color: CustomerColors.ink, size: 26),
           ),
-          Transform.rotate(
-            angle: -.14,
-            child: Container(
-              width: 146,
-              height: 190,
-              margin: const EdgeInsets.only(right: 95, top: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(26),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x12000000),
-                    blurRadius: 30,
-                    offset: Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.dry_cleaning_outlined,
-                size: 88,
-                color: Color.lerp(
-                  CustomerColors.orange,
-                  const Color(0xFF805D42),
-                  step / 5,
-                ),
-              ),
-            ),
-          ),
-          Transform.rotate(
-            angle: .10,
-            child: Container(
-              width: 156,
-              height: 210,
-              margin: const EdgeInsets.only(left: 83, bottom: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDFCAB6),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white, width: 6),
-              ),
-              child: Icon(icon, size: 84, color: const Color(0xFF79543C)),
-            ),
-          ),
-          Positioned(
-            bottom: 12,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.all(17),
-              decoration: const BoxDecoration(
-                color: CustomerColors.orange,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.auto_awesome_rounded,
-                size: 26,
-                color: CustomerColors.ink,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }

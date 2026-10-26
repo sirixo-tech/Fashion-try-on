@@ -324,6 +324,7 @@ export class UsageSummaryService {
         id: true,
         status: true,
         apiKeyId: true,
+        billingChannel: true,
         organizationId: true,
         storeId: true,
         kioskDeviceId: true,
@@ -520,6 +521,9 @@ function tryOnRunWhere(
   range: ResolvedUsageRange,
 ): Prisma.KioskTryOnRunWhereInput {
   return {
+    // Personal customer activity belongs only on Mobile Dashboard. Store QR
+    // sponsorship remains visible to the paying Store's business reporting.
+    NOT: { customerId: { not: null }, organizationId: null },
     createdAt: { gte: range.from, lte: range.to },
     ...(tryOnRunChannelFilter(input.channel) ?? {}),
     ...(input.storeId ? storeFilter(input.storeId) : {}),
@@ -544,7 +548,9 @@ function tryOnRunChannelFilter(
   }
   return channel === "PUBLIC_API"
     ? { apiKeyId: { not: null } }
-    : { apiKeyId: null };
+    : channel === "MOBILE"
+      ? { billingChannel: "MOBILE", organizationId: { not: null } }
+      : { apiKeyId: null, customerId: null };
 }
 
 function storeFilter(storeId: string) {
@@ -854,7 +860,12 @@ function addChannelEventCounts(
   counts: Map<string, number>,
 ): void {
   for (const [key, sessionsStarted] of counts) {
-    const channel = key === "PUBLIC_API" ? "PUBLIC_API" : "KIOSK";
+    const channel =
+      key === "PUBLIC_API"
+        ? "PUBLIC_API"
+        : key === "MOBILE"
+          ? "MOBILE"
+          : "KIOSK";
     const row = getChannelRow(rows, channel);
     row.sessionsStarted += sessionsStarted;
   }
@@ -977,13 +988,17 @@ function byCompletedThenName(
 }
 
 function runChannel(run: AnalyticsRun): UsageChannelRowDto["channel"] {
-  return run.apiKeyId ? "PUBLIC_API" : "KIOSK";
+  return run.billingChannel === "MOBILE"
+    ? "MOBILE"
+    : run.apiKeyId
+      ? "PUBLIC_API"
+      : "KIOSK";
 }
 
 function channelRows(
   rows: Map<string, UsageChannelRowDto>,
 ): UsageChannelRowDto[] {
-  return (["KIOSK", "PUBLIC_API"] as const).map(
+  return (["KIOSK", "PUBLIC_API", "MOBILE"] as const).map(
     (channel) =>
       rows.get(channel) ??
       ({

@@ -199,11 +199,19 @@ class CustomerController extends ChangeNotifier {
     await _accept(result, epoch);
   }
 
-  Future<Map<String, dynamic>> authorized(
-    String path, {
-    String method = 'GET',
-    Map<String, dynamic>? body,
-  }) async {
+  Future<T> withAccess<T>(Future<T> Function(String token) operation) async {
+    final epoch = _epoch;
+    void check() {
+      if (_disposed || epoch != _epoch || _refreshToken == null) {
+        throw const CustomerApiException(
+          'CUSTOMER_UNAUTHORIZED',
+          'Please sign in again.',
+          401,
+        );
+      }
+    }
+
+    check();
     try {
       if (_accessToken == null ||
           (_accessExpiresAt?.isBefore(
@@ -212,24 +220,22 @@ class CustomerController extends ChangeNotifier {
               true)) {
         await _refresh();
       }
-      return await api.request(
-        path,
-        method: method,
-        body: body,
-        token: _accessToken,
-      );
+      check();
+      final result = await operation(_accessToken!);
+      check();
+      return result;
     } on CustomerApiException catch (error) {
-      if (error.status != 401) rethrow;
+      if (error.status != 401 || epoch != _epoch || _disposed) rethrow;
       try {
         await _refresh();
-        return await api.request(
-          path,
-          method: method,
-          body: body,
-          token: _accessToken,
-        );
-      } on CustomerApiException catch (error) {
-        if (error.status == 401 || error.status == 403) {
+        check();
+        final result = await operation(_accessToken!);
+        check();
+        return result;
+      } on CustomerApiException catch (retry) {
+        if ((retry.status == 401 || retry.status == 403) &&
+            epoch == _epoch &&
+            !_disposed) {
           ++_epoch;
           await _clear();
           stage = CustomerStage.authentication;
@@ -239,6 +245,37 @@ class CustomerController extends ChangeNotifier {
       }
     }
   }
+
+  Future<Map<String, dynamic>> authorized(
+    String path, {
+    String method = 'GET',
+    Map<String, dynamic>? body,
+  }) => withAccess(
+    (token) => api.request(path, method: method, body: body, token: token),
+  );
+
+  Future<Map<String, dynamic>> authorizedUpload(
+    String path,
+    Uint8List bytes,
+    String mime,
+  ) => withAccess((token) {
+    if (api case final CustomerMediaApi media) {
+      return media.upload(path, bytes, mime, token);
+    }
+    throw const CustomerApiException(
+      'UPLOAD_UNAVAILABLE',
+      'Photo upload is unavailable on this device.',
+    );
+  });
+  Future<Uint8List> authorizedDownload(String path) => withAccess((token) {
+    if (api case final CustomerMediaApi media) {
+      return media.download(path, token);
+    }
+    throw const CustomerApiException(
+      'DOWNLOAD_UNAVAILABLE',
+      'Download is unavailable on this device.',
+    );
+  });
 
   Future<void> loadProfile() async {
     final epoch = _epoch;

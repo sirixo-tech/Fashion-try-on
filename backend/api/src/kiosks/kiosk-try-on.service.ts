@@ -608,7 +608,7 @@ export class KioskTryOnService {
 
   private async cleanupExpiredRuns(): Promise<void> {
     await this.prisma.kioskTryOnRun.deleteMany({
-      where: { expiresAt: { lte: new Date() } },
+      where: { customerId: null, expiresAt: { lte: new Date() } },
     });
   }
 

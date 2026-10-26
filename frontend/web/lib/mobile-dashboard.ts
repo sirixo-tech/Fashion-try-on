@@ -16,6 +16,17 @@ export type MobileDashboardSummary = {
   daily: Array<{ date: string; accounts: number }>;
   methods: Array<{ provider: string; accounts: number }>;
   unavailable: string[];
+  experience?: null | {
+    attempts: number;
+    completed: number;
+    failed: number;
+    personalCompleted: number;
+    storeCompleted: number;
+    storeVisits: number;
+    trialGranted: number;
+    trialUsed: number;
+    trialReserved: number;
+  };
 };
 export function getMobileDashboard(token: string, range: MobileRange) {
   return selfxApi<MobileDashboardSummary>(
@@ -36,7 +47,19 @@ export function mobileDashboardCsv(summary: MobileDashboardSummary) {
     `"Current verified accounts",${summary.totals.verified}`,
     `"Current pending accounts",${summary.totals.pending}`,
     `"Current suspended accounts",${summary.totals.suspended}`,
-    '"Try-On, personal billing and Store QR metrics","Not available"',
+    ...(summary.experience
+      ? [
+          `"Mobile generation attempts",${summary.experience.attempts}`,
+          `"Mobile completed looks",${summary.experience.completed}`,
+          `"Mobile failed attempts",${summary.experience.failed}`,
+          `"Personal completed looks",${summary.experience.personalCompleted}`,
+          `"Store-sponsored completed looks",${summary.experience.storeCompleted}`,
+          `"Store QR visits",${summary.experience.storeVisits}`,
+          `"Trial credits granted (lifetime)",${summary.experience.trialGranted}`,
+          `"Trial credits used (lifetime)",${summary.experience.trialUsed}`,
+          '"Personal paid billing","Not available"',
+        ]
+      : ['"Try-On, personal billing and Store QR metrics","Not available"']),
     "",
     '"Date (UTC)","New accounts"',
     ...summary.daily.map((row) => `"${row.date}",${row.accounts}`),

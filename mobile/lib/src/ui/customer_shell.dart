@@ -1,37 +1,67 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
+import '../experience/customer_experience.dart';
+import '../experience/customer_media.dart';
+import 'customer_experience_screens.dart';
 import 'customer_theme.dart';
 import 'customer_skeleton.dart';
 
 class CustomerShell extends StatefulWidget {
   final CustomerController controller;
-  const CustomerShell({super.key, required this.controller});
+  final CustomerPhotoPicker? picker;
+  const CustomerShell({super.key, required this.controller, this.picker});
   @override
   State<CustomerShell> createState() => _CustomerShellState();
 }
 
-class _CustomerShellState extends State<CustomerShell> {
+class _CustomerShellState extends State<CustomerShell>
+    with WidgetsBindingObserver {
+  late final CustomerExperience experience;
+  late final CustomerPhotoPicker picker;
   int tab = 0;
   bool busy = false;
   CustomerController get auth => widget.controller;
+  @override
+  void initState() {
+    super.initState();
+    experience = CustomerExperience(auth);
+    picker = widget.picker ?? NativeCustomerPhotoPicker();
+    unawaited(experience.refresh());
+    unawaited(picker.discardLost());
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      experience.resume();
+    } else {
+      experience.pause();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    experience.dispose();
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    super.dispose();
+  }
+
   Future<void> run(Future<void> Function() action) async {
     if (busy) return;
     setState(() => busy = true);
     try {
       await action();
-    } catch (error) {
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is CustomerApiException
-                  ? error.message
-                  : 'Unable to complete that. Please try again.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(CustomerExperience.message(e))));
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -40,115 +70,167 @@ class _CustomerShellState extends State<CustomerShell> {
 
   Future<void> unavailable(String title, String message) =>
       customerInfo(context, title, message);
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      bottom: false,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 18, 16),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: CustomerBrand(compact: true),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Scan Store QR',
-                  onPressed: () => unavailable(
-                    'Your next Store visit',
-                    'Store QR sessions will be available soon. When you scan a participating Store’s code, its name and sponsored allowance will appear here. Your personal credits won’t be used.',
-                  ),
-                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
-                ),
-                TextButton(
-                  onPressed: () => unavailable(
-                    'Made for your style',
-                    'Personal Try-On plans will be available soon. You’ll be able to review the price and allowance before approving any purchase.',
-                  ),
-                  child: const Text('Plans'),
-                ),
-                Semantics(
-                  label: 'Personal Try-On balance unavailable',
-                  child: Tooltip(
-                    message:
-                        'Your personal balance will appear when plans are available',
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: CustomerColors.tint,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            color: CustomerColors.orange,
-                            size: 17,
-                          ),
-                          SizedBox(width: 5),
-                          Text(
-                            '—',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+  Future<void> plans() => Navigator.push<void>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => CustomerPlansScreen(experience: experience),
+    ),
+  );
+  Future<void> scanStore() => run(() async {
+    final payload = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const CustomerStoreScanner()),
+    );
+    if (payload != null) {
+      await experience.joinStore(payload);
+      if (mounted) setState(() => tab = 0);
+    }
+  });
+  Future<void> studio({Json? product}) => run(
+    () => openCustomerStudio(context, experience, picker, product: product),
+  );
+  Future<void> erasePhotos() => run(() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete all photos?'),
+        content: const Text(
+          'Your uploaded photos and generated looks will be removed. This also ends active Try-Ons and Store sessions. Used trial credits are not reset.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-          Expanded(
-            child: IndexedStack(
-              index: tab,
-              children: [
-                home(context),
-                saved(context),
-                auth.profileLoading
-                    ? const CustomerContentSkeleton(
-                        layout: CustomerSkeletonLayout.account,
-                      )
-                    : account(context),
-              ],
-            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete photos'),
           ),
         ],
       ),
-    ),
-    bottomNavigationBar: SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(20, 8, 20, 14),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(40),
-          border: Border.all(color: CustomerColors.line),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 30,
-              offset: Offset(0, 4),
+    );
+    if (yes == true) {
+      await experience.erasePhotos();
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    }
+  });
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: experience,
+    builder: (context, _) => Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 12, 12),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: CustomerBrand(compact: true),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Scan Store QR',
+                    onPressed: busy ? null : scanStore,
+                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
+                  ),
+                  TextButton(onPressed: plans, child: const Text('Plans')),
+                  Tooltip(
+                    message:
+                        'Personal free trial credits. Store-sponsored usage is separate.',
+                    child: Material(
+                      color: CustomerColors.tint,
+                      borderRadius: BorderRadius.circular(24),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: plans,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.auto_awesome_rounded,
+                                color: CustomerColors.orange,
+                                size: 17,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                experience.remaining?.toString() ?? '—',
+                                semanticsLabel:
+                                    'Personal credits: ${experience.remaining ?? 'unavailable'}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: tab,
+                children: [
+                  home(context),
+                  CustomerSavedScreen(
+                    experience: experience,
+                    onHome: () => setState(() => tab = 0),
+                  ),
+                  auth.profileLoading
+                      ? const CustomerContentSkeleton(
+                          layout: CustomerSkeletonLayout.account,
+                        )
+                      : account(context),
+                ],
+              ),
             ),
           ],
         ),
-        child: Row(
-          children: [
-            nav('Home', Icons.home_outlined, Icons.home_rounded, 0),
-            nav('Saved', Icons.bookmarks_outlined, Icons.bookmarks_rounded, 1),
-            nav('Me', Icons.person_outline_rounded, Icons.person_rounded, 2),
-          ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .95),
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: CustomerColors.line),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x08000000),
+                blurRadius: 30,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              nav('Home', Icons.home_outlined, Icons.home_rounded, 0),
+              nav(
+                'Saved',
+                Icons.bookmarks_outlined,
+                Icons.bookmarks_rounded,
+                1,
+              ),
+              nav('Me', Icons.person_outline_rounded, Icons.person_rounded, 2),
+            ],
+          ),
         ),
       ),
     ),
@@ -160,9 +242,14 @@ class _CustomerShellState extends State<CustomerShell> {
           button: true,
           child: InkWell(
             borderRadius: BorderRadius.circular(32),
-            onTap: () => setState(() => tab = value),
+            onTap: () {
+              setState(() => tab = value);
+              if (value == 1) unawaited(run(experience.loadSaved));
+            },
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
                 color: tab == value ? CustomerColors.tint : Colors.transparent,
@@ -197,195 +284,186 @@ class _CustomerShellState extends State<CustomerShell> {
           ),
         ),
       );
-
-  Widget home(BuildContext context) => ListView(
-    primary: false,
-    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-    children: [
-      Text(
-        'HELLO, ${auth.profile?.displayName.split(' ').first.toUpperCase() ?? 'YOU'}',
-        style: const TextStyle(
-          fontSize: 10,
-          letterSpacing: 2,
-          fontWeight: FontWeight.w600,
-          color: CustomerColors.muted,
-        ),
-      ),
-      const SizedBox(height: 12),
-      Text(
-        'Style, with\nyou in mind.',
-        style: Theme.of(context).textTheme.displayLarge,
-      ),
-      const SizedBox(height: 16),
-      const Text(
-        'Your personal space to discover a different look.',
-        style: TextStyle(color: CustomerColors.muted, height: 1.5),
-      ),
-      const SizedBox(height: 28),
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEDE1D3),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget home(BuildContext context) {
+    if (experience.loading) {
+      return const CustomerContentSkeleton(layout: CustomerSkeletonLayout.home);
+    }
+    if (experience.storeMode) {
+      return CustomerStoreCatalog(
+        experience: experience,
+        onTryOn: (product) => studio(product: product),
+        onLeave: () => run(experience.leaveStore),
+        onRefresh: () => run(experience.loadProducts),
+        onMore: () => run(() => experience.loadProducts(more: true)),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: experience.refresh,
+      child: ListView(
+        primary: false,
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        children: [
+          Text(
+            'HELLO, ${auth.profile?.displayName.split(' ').first.toUpperCase() ?? 'YOU'}',
+            style: const TextStyle(
+              fontSize: 10,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w600,
+              color: CustomerColors.muted,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Style, with\nyou in mind.',
+            style: Theme.of(context).textTheme.displayLarge,
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Your personal space to discover a different look.',
+            style: TextStyle(color: CustomerColors.muted, height: 1.5),
+          ),
+          const SizedBox(height: 24),
+          if (experience.error != null) ...[
+            CustomerNotice(experience.error!, error: true),
+            TextButton(
+              onPressed: experience.refresh,
+              child: const Text('Refresh Home'),
+            ),
+          ],
+          if (experience.generating || experience.hasUncertainRequest) ...[
+            CustomerNotice(
+              experience.generating
+                  ? 'Your look is being created. Open your fitting room to see its progress.'
+                  : 'Check your last request before starting a new Try-On.',
+            ),
+            const SizedBox(height: 16),
+          ],
+          ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: SizedBox(
+              height: 440,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(
+                    'assets/editorial/style-muse.webp',
+                    fit: BoxFit.cover,
+                    alignment: const Alignment(0, -.4),
+                    excludeFromSemantics: true,
+                  ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.center,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Color(0xD924211F)],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 22,
+                    right: 22,
+                    bottom: 22,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'A NEW POSSIBILITY',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Something new.\nStill entirely you.',
+                          style: Theme.of(context).textTheme.headlineLarge
+                              ?.copyWith(color: Colors.white, fontSize: 32),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: busy ? null : studio,
+                            icon: const Icon(
+                              Icons.auto_awesome_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              experience.generating ||
+                                      experience.hasUncertainRequest
+                                  ? 'Open current Try-On'
+                                  : 'Explore Try-On',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+          const Text(
+            'YOUR OWN STARTING POINT',
+            style: TextStyle(
+              fontSize: 10,
+              letterSpacing: 1.8,
+              color: CustomerColors.muted,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _ActionTile(
+                  icon: Icons.add_photo_alternate_outlined,
+                  title: 'Your outfit',
+                  description: 'Bring your inspiration',
+                  onTap: studio,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _ActionTile(
+                  icon: Icons.person_outline_rounded,
+                  title: 'My photo',
+                  description: 'Make it personal',
+                  onTap: studio,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          PremiumPanel(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    'Something new.\nStill entirely you.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.headlineLarge?.copyWith(fontSize: 30),
-                  ),
+                const Icon(
+                  Icons.qr_code_rounded,
+                  color: CustomerColors.orange,
+                  size: 30,
                 ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .65),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: const Icon(
-                    Icons.checkroom_rounded,
-                    size: 54,
-                    color: Color(0xFF886044),
-                  ),
+                const SizedBox(height: 10),
+                Text(
+                  'Discover it in Store.',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Scan its QR from the button above. Choose a Store product and let the Store sponsor your Try-On.',
+                  style: TextStyle(color: CustomerColors.muted, fontSize: 13),
                 ),
               ],
             ),
-            const SizedBox(height: 40),
-            const Text(
-              'PERSONAL TRY-ON',
-              style: TextStyle(
-                fontSize: 10,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Bring an outfit. Make it your own.',
-              style: TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => unavailable(
-                  'Your fitting room is on its way',
-                  'Photo upload and Try-On will be available soon. You won’t be charged while these features are unavailable.',
-                ),
-                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
-                label: const Text('Explore Try-On'),
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 24),
-      Row(
-        children: [
-          Expanded(
-            child: _ActionTile(
-              icon: Icons.add_photo_alternate_outlined,
-              title: 'Your outfit',
-              description: 'Start with inspiration',
-              onTap: () => unavailable(
-                'Bring your inspiration',
-                'Outfit photo uploads will be available with Try-On. No photos are being collected yet.',
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: _ActionTile(
-              icon: Icons.person_outline_rounded,
-              title: 'My photo',
-              description: 'Your own starting point',
-              onTap: () => unavailable(
-                'Your photo, your choice',
-                'Camera and photo selection will be available with Try-On. You’ll give consent before an image is uploaded.',
-              ),
-            ),
           ),
         ],
       ),
-      const SizedBox(height: 28),
-      Row(
-        children: [
-          const Icon(
-            Icons.qr_code_rounded,
-            size: 26,
-            color: CustomerColors.muted,
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Visiting a Store? Scan its QR using the button above.',
-              style: TextStyle(
-                fontSize: 13,
-                color: CustomerColors.muted,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ],
-  );
-
-  Widget saved(BuildContext context) => ListView(
-    primary: false,
-    padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
-    children: [
-      Text(
-        'A collection of you.',
-        style: Theme.of(context).textTheme.headlineLarge,
-      ),
-      const SizedBox(height: 12),
-      const Text(
-        'Your tried-on outfits and their results, together.',
-        style: TextStyle(color: CustomerColors.muted),
-      ),
-      const SizedBox(height: 55),
-      Container(
-        width: 110,
-        height: 110,
-        decoration: const BoxDecoration(
-          color: CustomerColors.tint,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.bookmarks_outlined,
-          size: 40,
-          color: CustomerColors.orange,
-        ),
-      ),
-      const SizedBox(height: 28),
-      Text(
-        'Your first look\nis yet to come.',
-        textAlign: TextAlign.center,
-        style: Theme.of(
-          context,
-        ).textTheme.headlineLarge?.copyWith(fontSize: 30),
-      ),
-      const SizedBox(height: 16),
-      const Text(
-        'Once Try-On is available, your outfits and generated looks will appear here. Mobile results stay for 30 days, with expiry details beside each look.',
-        textAlign: TextAlign.center,
-        style: TextStyle(color: CustomerColors.muted, height: 1.7),
-      ),
-      const SizedBox(height: 28),
-      OutlinedButton(
-        onPressed: () => setState(() => tab = 0),
-        child: const Text('Back to Home'),
-      ),
-    ],
-  );
+    );
+  }
 
   Widget account(BuildContext context) => ListView(
     primary: false,
@@ -443,14 +521,7 @@ class _CustomerShellState extends State<CustomerShell> {
             ),
           ),
         ),
-        settingsTile(
-          Icons.workspace_premium_outlined,
-          'Subscriptions',
-          () => unavailable(
-            'Your personal plan',
-            'Subscriptions and one-time Try-On packs will be available soon. No purchase or subscription has been started.',
-          ),
-        ),
+        settingsTile(Icons.workspace_premium_outlined, 'Subscriptions', plans),
       ]),
       const SizedBox(height: 18),
       settingsGroup([
@@ -491,6 +562,12 @@ class _CustomerShellState extends State<CustomerShell> {
       ]),
       const SizedBox(height: 18),
       settingsGroup([
+        settingsTile(
+          Icons.delete_sweep_outlined,
+          'Delete my photos',
+          erasePhotos,
+          destructive: true,
+        ),
         settingsTile(
           Icons.privacy_tip_outlined,
           'Privacy Policy',

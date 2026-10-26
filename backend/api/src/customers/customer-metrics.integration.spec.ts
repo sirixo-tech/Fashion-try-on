@@ -90,11 +90,7 @@ describe.skipIf(!url)("Mobile customer metrics: PostgreSQL", () => {
     expect(JSON.stringify(result)).not.toMatch(
       /private-|selfx.invalid|Private customer name|tokenHash|passwordHash/,
     );
-    expect(result.unavailable).toEqual([
-      "tryOns",
-      "personalBilling",
-      "storeQr",
-    ]);
+    expect(result.unavailable).toEqual(["personalBilling"]);
     const today = await service.summary({ range: "today" });
     expect(today.range.from).toMatch(/T00:00:00.000Z$/);
     expect(today.totals?.newAccounts).toBe(0);

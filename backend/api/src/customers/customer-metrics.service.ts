@@ -25,7 +25,7 @@ export class CustomerMetricsService {
     const base = {
       range: { preset, from: from.toISOString(), to: to.toISOString() },
       updatedAt: to.toISOString(),
-      unavailable: ["tryOns", "personalBilling", "storeQr"] as const,
+      unavailable: ["personalBilling"] as const,
     };
     // Existing deployments may not have activated/migrated customer accounts yet.
     if (process.env.SELFX_CUSTOMER_AUTH_ENABLED !== "true") {
@@ -35,6 +35,7 @@ export class CustomerMetricsService {
         totals: null,
         daily: [],
         methods: [],
+        experience: null,
       };
     }
     return this.db.$transaction(
@@ -49,6 +50,11 @@ export class CustomerMetricsService {
           suspended,
           daily,
           methods,
+          runCounts,
+          personalCompleted,
+          storeCompleted,
+          storeVisits,
+          credits,
         ] = await Promise.all([
           tx.customer.count({ where: { status: { not: "DELETED" } } }),
           tx.customer.count({
@@ -69,6 +75,35 @@ export class CustomerMetricsService {
             by: ["provider"],
             where: { customer: { status: "ACTIVE" } },
             _count: { _all: true },
+          }),
+          tx.kioskTryOnRun.groupBy({
+            by: ["status"],
+            where: { customerId: { not: null }, createdAt: period },
+            _count: { _all: true },
+          }),
+          tx.kioskTryOnRun.count({
+            where: {
+              customerId: { not: null },
+              organizationId: null,
+              status: "COMPLETED",
+              createdAt: period,
+            },
+          }),
+          tx.kioskTryOnRun.count({
+            where: {
+              customerId: { not: null },
+              organizationId: { not: null },
+              status: "COMPLETED",
+              createdAt: period,
+            },
+          }),
+          tx.customerStoreVisit.count({ where: { createdAt: period } }),
+          tx.customerCreditAccount.aggregate({
+            _sum: {
+              trialCredits: true,
+              usedCredits: true,
+              reservedCredits: true,
+            },
           }),
         ]);
         const byDate = new Map(daily.map((row) => [row.date, row.accounts]));
@@ -103,6 +138,21 @@ export class CustomerMetricsService {
             provider: row.provider,
             accounts: row._count._all,
           })),
+          experience: {
+            attempts: runCounts.reduce((sum, row) => sum + row._count._all, 0),
+            completed:
+              runCounts.find((row) => row.status === "COMPLETED")?._count
+                ._all ?? 0,
+            failed:
+              runCounts.find((row) => row.status === "FAILED")?._count._all ??
+              0,
+            personalCompleted,
+            storeCompleted,
+            storeVisits,
+            trialGranted: credits._sum.trialCredits ?? 0,
+            trialUsed: credits._sum.usedCredits ?? 0,
+            trialReserved: credits._sum.reservedCredits ?? 0,
+          },
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

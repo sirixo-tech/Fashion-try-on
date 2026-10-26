@@ -2,7 +2,7 @@ import { selfxApi } from "./api";
 
 export type PricingPlanStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 export type PricingPlanChannel =
-  "SHOPIFY" | "WOOCOMMERCE" | "KIOSK" | "PUBLIC_API";
+  "SHOPIFY" | "WOOCOMMERCE" | "KIOSK" | "PUBLIC_API" | "MOBILE";
 
 export interface PricingPlan {
   billingMode?: "CREDIT_LIMITED" | "POSTPAID_PAYG";

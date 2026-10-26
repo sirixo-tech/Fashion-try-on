@@ -115,6 +115,19 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       expires_at = CASE WHEN password_recovery_rate_buckets.expires_at <= NOW() THEN EXCLUDED.expires_at ELSE password_recovery_rate_buckets.expires_at END RETURNING count`;
     return (rows[0]?.count ?? maximum + 1) <= maximum;
   }
+  async limitExperience(
+    scope: "upload" | "run" | "session" | "store",
+    customerId: string,
+    ip: string,
+  ) {
+    await this.limit(
+      `experience-${scope}-customer`,
+      customerId,
+      scope === "upload" ? 40 : 20,
+    );
+    await this.limit(`experience-${scope}-ip`, ip, 300);
+  }
+
   private async limit(scope: string, value: string, maximum = 20) {
     if (!(await this.rate(scope, value, maximum)))
       customerError(

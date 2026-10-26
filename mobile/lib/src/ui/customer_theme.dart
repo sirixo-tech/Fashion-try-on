@@ -67,10 +67,10 @@ ThemeData customerTheme() {
     fontFamily: 'Roboto',
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: CustomerColors.canvas,
+    scaffoldBackgroundColor: Colors.transparent,
     textTheme: text,
     appBarTheme: const AppBarTheme(
-      backgroundColor: CustomerColors.canvas,
+      backgroundColor: Colors.transparent,
       foregroundColor: CustomerColors.ink,
       surfaceTintColor: Colors.transparent,
     ),
@@ -125,6 +125,18 @@ ThemeData customerTheme() {
       ),
     ),
     dividerColor: CustomerColors.line,
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(
+        color: CustomerColors.ink,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      textStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 12,
+        height: 1.4,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    ),
   );
 }
 

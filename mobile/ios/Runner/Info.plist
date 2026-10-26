@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo for your Try-On or scan a participating Store QR code.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose only the photos you want to use for your Try-On.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save a Try-On result to your photos when you choose Download.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

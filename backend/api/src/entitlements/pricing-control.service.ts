@@ -419,12 +419,13 @@ export function featureKeysFromPricingPlanMetadata(
 
 function isKnownChannel(
   value: unknown,
-): value is "SHOPIFY" | "WOOCOMMERCE" | "KIOSK" | "PUBLIC_API" {
+): value is "SHOPIFY" | "WOOCOMMERCE" | "KIOSK" | "PUBLIC_API" | "MOBILE" {
   return (
     value === "SHOPIFY" ||
     value === "WOOCOMMERCE" ||
     value === "KIOSK" ||
-    value === "PUBLIC_API"
+    value === "PUBLIC_API" ||
+    value === "MOBILE"
   );
 }
 

@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val releaseKeys = Properties().apply {
+    val source = rootProject.file("key.properties")
+    if (source.isFile) source.inputStream().use { load(it) }
+}
+val hasReleaseKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .all { !releaseKeys.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "com.selfx.selfx_customer"
@@ -25,9 +34,32 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeys) {
+            create("selfxRelease") {
+                storeFile = rootProject.file(releaseKeys.getProperty("storeFile"))
+                storePassword = releaseKeys.getProperty("storePassword")
+                keyAlias = releaseKeys.getProperty("keyAlias")
+                keyPassword = releaseKeys.getProperty("keyPassword")
+                storeType = releaseKeys.getProperty("storeType", "JKS")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // A real release keystore must be supplied before store publication.
+            signingConfig = if (hasReleaseKeys) signingConfigs.getByName("selfxRelease") else null
+        }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.project == project && it.name.contains("release", ignoreCase = true) }) {
+        check(hasReleaseKeys) {
+            "SelfX mobile release signing is missing. Configure android/key.properties; see android/key.properties.example. Use --debug for a development APK."
+        }
+        check(rootProject.file(releaseKeys.getProperty("storeFile")).isFile) {
+            "SelfX mobile release keystore was not found. Restore the keystore referenced by android/key.properties."
         }
     }
 }

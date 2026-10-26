@@ -60,6 +60,7 @@ const channelOptions: PricingPlanChannel[] = [
   "WOOCOMMERCE",
   "KIOSK",
   "PUBLIC_API",
+  "MOBILE",
 ];
 
 const statusOptions: Array<{ value: PricingPlanStatus; label: string }> = [
@@ -1309,10 +1310,12 @@ function groupFeatures(
 }
 
 function channelLabel(channel: string): string {
+  if (channel === "MOBILE") return "Mobile Store QR";
   return channel.replace("_", " ");
 }
 
 function channelDescription(channel: PricingPlanChannel): string {
+  if (channel === "MOBILE") return "Store-sponsored mobile Try-On. Separate from personal mobile plans.";
   if (channel === "SHOPIFY") return "Shopify storefront Try-On.";
   if (channel === "WOOCOMMERCE") return "WooCommerce storefront Try-On.";
   if (channel === "KIOSK") return "Physical kiosk deployments.";

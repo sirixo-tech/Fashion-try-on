@@ -1,5 +1,7 @@
 # CUSTOMER-MOBILE-1 implementation
 
+Historical foundation record. Current photo Try-On, free trial, Store QR and Saved behavior is documented in [CUSTOMER-MOBILE-2](CUSTOMER-MOBILE-2-IMPLEMENTATION.md).
+
 First customer mobile milestone approved on 25 October 2026: account foundation and navigation with independent Flutter presentation. The latest branding approval reuses the official SelfX logo and colors; web/kiosk layouts remain separate. Generation, personal purchases and Store QR sponsorship remain later work.
 
 ## Official branding and loading follow-up

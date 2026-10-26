@@ -7,6 +7,51 @@ import {
 import { UsageSummaryService } from "./usage-summary.service.js";
 
 describe("UsageSummaryService", () => {
+  it("separates personal customer generations from business and Store QR metrics", async () => {
+    const prisma = new FakePrisma({
+      runs: [
+        run({
+          id: "personal",
+          customerId: "customer-a",
+          billingChannel: "MOBILE",
+          status: "COMPLETED",
+          resultAssetId: "personal-result",
+        }),
+        run({
+          id: "sponsored",
+          customerId: "customer-a",
+          organizationId: "store-a",
+          billingChannel: "MOBILE",
+          status: "COMPLETED",
+          resultAssetId: "store-result",
+        }),
+      ],
+      events: [],
+    });
+    const service = new UsageSummaryService(
+      prisma as never,
+      storage() as never,
+    );
+    const summary = await service.summary({
+      range: "custom",
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-09-01T00:00:00Z",
+    });
+    expect(summary.totals.tryOnsGenerated).toBe(1);
+    expect(
+      summary.channels.find((row) => row.channel === "MOBILE")?.runsCreated,
+    ).toBe(1);
+    expect(
+      summary.channels.find((row) => row.channel === "KIOSK")?.runsCreated,
+    ).toBe(0);
+    const kiosks = await service.summary({
+      range: "custom",
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-09-01T00:00:00Z",
+      channel: "KIOSK",
+    });
+    expect(kiosks.totals.tryOnsGenerated).toBe(0);
+  });
   it("ranks complete Store aggregates even when the detailed run sample omits them", async () => {
     const prisma = new FakePrisma({
       runs: [
@@ -197,6 +242,7 @@ describe("UsageSummaryService", () => {
         runsCreated: 1,
         downloadsCompleted: 1,
       }),
+      expect.objectContaining({ channel: "MOBILE", runsCreated: 0 }),
     ]);
     expect(summary).not.toHaveProperty("providerUsage");
     expect(JSON.stringify(summary)).not.toMatch(/google|virtual-try-on-001/i);
@@ -529,6 +575,8 @@ type FakeUsageEvent = {
 };
 
 type FakeRun = {
+  customerId: string | null;
+  billingChannel: "MOBILE" | "KIOSK" | "PUBLIC_API";
   id: string;
   status: string;
   apiKeyId: string | null;
@@ -664,6 +712,8 @@ function run(input: Partial<FakeRun>): FakeRun {
   const productId = input.productId ?? null;
   return {
     id: "run-1",
+    customerId: null,
+    billingChannel: "KIOSK",
     status: "QUEUED",
     apiKeyId: null,
     organizationId: null,
@@ -737,6 +787,8 @@ function matchesWhere(
   dateField: "occurredAt" | "createdAt",
 ): boolean {
   return Object.entries(where).every(([key, value]) => {
+    if (key === "NOT" && value && typeof value === "object")
+      return !matchesWhere(item, value as Record<string, unknown>, dateField);
     if (key === "OR" && Array.isArray(value)) {
       return value.some((entry) =>
         matchesWhere(item, entry as Record<string, unknown>, dateField),

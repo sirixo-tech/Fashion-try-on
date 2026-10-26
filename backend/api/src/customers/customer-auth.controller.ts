@@ -7,10 +7,12 @@ import {
   Patch,
   Post,
   Req,
+  Optional,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { type FastifyRequest } from "fastify";
 import { CustomerAuthService } from "./customer-auth.service.js";
+import { CustomerExperienceService } from "./customer-experience.service.js";
 import {
   CustomerDeleteDto,
   CustomerEmailDto,
@@ -27,11 +29,15 @@ import {
 @ApiTags("Customer accounts")
 @Controller("api/v1/customer")
 export class CustomerAuthController {
-  constructor(private readonly auth: CustomerAuthService) {}
+  constructor(private readonly auth: CustomerAuthService,
+    @Optional() private readonly experience?: CustomerExperienceService) {}
   @Header("Cache-Control", "no-store")
   @Get("auth/capabilities")
-  capabilities() {
-    return this.auth.capabilities();
+  async capabilities() {
+    const base = this.auth.capabilities();
+    if (!this.experience) return base;
+    const ready = await this.experience.available();
+    return { ...base, features: { ...base.features, tryOn: ready, storeQr: ready } };
   }
   @Header("Cache-Control", "no-store")
   @Post("auth/signup")
@@ -115,11 +121,14 @@ export class CustomerAuthController {
   }
   @Header("Cache-Control", "no-store")
   @Delete("me")
-  delete(@Body() dto: CustomerDeleteDto, @Req() request: FastifyRequest) {
-    return this.auth.deleteAccount(
+  async delete(@Body() dto: CustomerDeleteDto, @Req() request: FastifyRequest) {
+    const principal = this.experience ? await this.auth.requireCustomer(request.headers.authorization) : null;
+    const response = await this.auth.deleteAccount(
       request.headers.authorization,
       dto,
       request.ip,
     );
+    if (principal) await this.experience!.eraseCustomerPhotos(principal.customer.id).catch(() => undefined);
+    return response;
   }
 }

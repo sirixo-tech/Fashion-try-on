@@ -1,7 +1,7 @@
 import { selfxApi } from "@/lib/api";
 
 export type UsageRangePreset = "today" | "7d" | "30d" | "90d" | "custom";
-export type UsageChannelFilter = "ALL" | "KIOSK" | "PUBLIC_API";
+export type UsageChannelFilter = "ALL" | "KIOSK" | "PUBLIC_API" | "MOBILE";
 
 type UsageCountRow = {
   sessionsStarted: number;
@@ -67,7 +67,7 @@ export type UsageSummary = {
   categories: Array<
     Omit<UsageCountRow, "sessionsStarted"> & { category: string }
   >;
-  channels: Array<UsageCountRow & { channel: "KIOSK" | "PUBLIC_API" }>;
+  channels: Array<UsageCountRow & { channel: "KIOSK" | "PUBLIC_API" | "MOBILE" }>;
   daily: Array<UsageCountRow & { date: string }>;
 };
 

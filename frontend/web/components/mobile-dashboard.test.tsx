@@ -67,6 +67,33 @@ it("shows real account metrics separately from future Try-On, revenue and QR ser
   ).toBe(false);
   expect(screen.queryByRole("combobox", { name: "Store scope" })).toBeNull();
 });
+it("renders real mobile trial and Store-sponsored metrics without inventing personal paid revenue", () => {
+  mocks.summary.mockReturnValue({
+    data: {
+      ...summary,
+      experience: {
+        attempts: 7,
+        completed: 5,
+        failed: 2,
+        personalCompleted: 3,
+        storeCompleted: 2,
+        storeVisits: 4,
+        trialGranted: 30,
+        trialUsed: 3,
+        trialReserved: 0,
+      },
+    },
+    loading: false,
+    error: null,
+  });
+  render(<MobileDashboardPage />);
+  expect(screen.getByText("Personal looks")).toBeTruthy();
+  expect(screen.getByText("Store-sponsored looks")).toBeTruthy();
+  expect(
+    screen.getByText(/Personal paid plans are not connected/),
+  ).toBeTruthy();
+  expect(screen.queryByText("Not connected")).toBeNull();
+});
 it("shows an activation state rather than zero counts or fake loading when accounts are disabled", () => {
   mocks.summary.mockReturnValue({
     data: { ...summary, available: false, totals: null },

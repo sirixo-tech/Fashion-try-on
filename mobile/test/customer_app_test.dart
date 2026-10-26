@@ -345,7 +345,7 @@ void main() {
         tester.getTopLeft(find.byTooltip('Scan Store QR')).dx,
         lessThan(tester.getTopLeft(find.text('Plans')).dx),
       );
-      expect(find.text('—'), findsOneWidget);
+      expect(find.text('10'), findsOneWidget);
       await tap(tester, find.text('Saved'));
       expect(find.text('Your first look\nis yet to come.'), findsOneWidget);
       await tap(tester, find.text('Me'));
@@ -466,7 +466,21 @@ void main() {
       await controller.initialize();
       await tester.pumpAndSettle();
 
+      await tester.runAsync(
+        () => Future.wait([
+          for (final asset in ['style-muse', 'style-tailored', 'style-atelier'])
+            precacheImage(
+              AssetImage('assets/editorial/$asset.webp'),
+              boundary.currentContext!,
+            ),
+        ]),
+      );
+      await tester.pump();
       await capture('onboarding');
+      for (var slide = 2; slide <= 4; slide++) {
+        await tap(tester, find.text('Continue'));
+        await capture('onboarding-$slide');
+      }
       await tap(tester, find.text('Skip'));
       await capture('sign-in');
       await tap(tester, find.text('Create an account'));

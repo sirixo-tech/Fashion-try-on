@@ -61,6 +61,7 @@ const channels: Array<{ value: UsageChannelFilter; label: string }> = [
   { value: "ALL", label: "All channels" },
   { value: "KIOSK", label: "Kiosk" },
   { value: "PUBLIC_API", label: "Public API" },
+  { value: "MOBILE", label: "Mobile Store QR" },
 ];
 
 type StoreOption = { id: string; name: string };
@@ -482,7 +483,7 @@ function sourceLabel(value: string): string {
 }
 
 function channelName(value: UsageChannelFilter): string {
-  return value === "PUBLIC_API" ? "Public API" : "Kiosk";
+  return value === "MOBILE" ? "Mobile Store QR" : value === "PUBLIC_API" ? "Public API" : "Kiosk";
 }
 
 function displayNumber(value: number | null | undefined): string {

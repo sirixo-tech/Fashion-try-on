@@ -5,10 +5,12 @@ import 'ui/customer_shell.dart';
 import 'ui/customer_theme.dart';
 import 'ui/onboarding.dart';
 import 'ui/customer_skeleton.dart';
+import 'experience/customer_media.dart';
 
 class CustomerApp extends StatefulWidget {
   final CustomerController controller;
-  const CustomerApp({super.key, required this.controller});
+  final CustomerPhotoPicker? picker;
+  const CustomerApp({super.key, required this.controller, this.picker});
   @override
   State<CustomerApp> createState() => _CustomerAppState();
 }
@@ -55,6 +57,17 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
     title: 'SelfX',
     debugShowCheckedModeBanner: false,
     theme: customerTheme(),
+    builder: (context, child) => DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: [0, .55, 1],
+          colors: [Color(0xFFFFF8EF), Color(0xFFFAF7F2), Color(0xFFF4E4D6)],
+        ),
+      ),
+      child: child,
+    ),
     home: ListenableBuilder(
       listenable: controller,
       builder: (context, _) => switch (controller.stage) {
@@ -65,7 +78,10 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
         CustomerStage.authentication => CustomerAuthScreen(
           controller: controller,
         ),
-        CustomerStage.ready => CustomerShell(controller: controller),
+        CustomerStage.ready => CustomerShell(
+          controller: controller,
+          picker: widget.picker,
+        ),
         CustomerStage.recovery => Scaffold(
           body: SafeArea(
             child: Center(

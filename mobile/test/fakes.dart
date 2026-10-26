@@ -108,6 +108,25 @@ class FakeCustomerApi implements CustomerApi {
       };
     }
     if (path == '/me' && method == 'GET') return profile;
+    if (path == '/experience') {
+      return {
+        'generationAvailable': true,
+        'consentVersion': '2026-10-26',
+        'consentStatement':
+            'I allow SelfX to process my chosen photos. Original photos expire within 7 days and results within 30 days.',
+        'storeConsentStatement':
+            'The Store pays. Personal credits are not used.',
+        'trial': {'granted': 10, 'used': 0, 'reserved': 0, 'remaining': 10},
+        'saved': 0,
+        'pendingRunId': null,
+      };
+    }
+    if (path.startsWith('/looks')) {
+      return {
+        'data': <Map<String, dynamic>>[],
+        'pagination': {'page': 1, 'total': 0, 'hasMore': false},
+      };
+    }
     if (path == '/me' && method == 'PATCH') {
       profile = {...profile, ...?body};
       return profile;

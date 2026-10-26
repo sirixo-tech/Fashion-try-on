@@ -1,0 +1,7 @@
+# Copy to ignored android/key.properties and use your private signing key.
+# Relative storeFile paths resolve from android/. Use forward slashes on Windows.
+storeFile=signing/selfx-mobile-release.p12
+storeType=PKCS12
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=selfx-mobile
+keyPassword=YOUR_KEY_PASSWORD

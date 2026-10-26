@@ -13,6 +13,7 @@ import {
   SelectMenu,
   Skeleton,
   StatusBadge,
+  MetricValue,
 } from "@selfx/ui";
 import { useSession } from "@/lib/session";
 import { RegionalDateTime } from "@/lib/regional-settings";
@@ -158,32 +159,78 @@ export default function MobileDashboardPage() {
           historical daily-active-user count.
         </p>
       </CapitalioPanel>
-      <div className="grid gap-4 lg:grid-cols-3">
-        {[
-          [
-            "Mobile Try-Ons",
-            "Generation attempts, successful looks and failures will appear after customer Try-On is connected.",
-          ],
-          [
-            "Personal plans & revenue",
-            "Customer subscriptions, purchases and credit usage will appear after separate personal billing is connected.",
-          ],
-          [
-            "Store QR activity",
-            "Sponsored sessions and Store totals will appear after QR sponsorship is connected. Charges will belong to the Store.",
-          ],
-        ].map(([title, description]) => (
-          <CapitalioPanel key={title} title={title}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-medium">{title}</h2>
-              <StatusBadge status="PENDING" label="Not connected" />
-            </div>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {description}
-            </p>
-          </CapitalioPanel>
-        ))}
-      </div>
+      {data?.experience ? (
+        <CapitalioPanel title="Mobile Try-On activity">
+          <CapitalioPanelHeader title="Mobile Try-On activity" />
+          <div className="grid gap-6 sm:grid-cols-3">
+            {[
+              ["Generation attempts", data.experience.attempts],
+              ["Completed looks", data.experience.completed],
+              ["Failed attempts", data.experience.failed],
+              ["Personal looks", data.experience.personalCompleted],
+              ["Store-sponsored looks", data.experience.storeCompleted],
+              ["Store QR visits", data.experience.storeVisits],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  <MetricValue value={value as number} />
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Selected period. Store-sponsored costs belong to the Store. Personal
+            activity is excluded from business dashboards.
+          </p>
+          <div className="grid gap-5 border-t pt-4 sm:grid-cols-3">
+            {[
+              ["Trial credits granted", data.experience.trialGranted],
+              ["Trial credits used", data.experience.trialUsed],
+              ["Trial credits reserved", data.experience.trialReserved],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <p className="mt-1 text-xl font-semibold">
+                  <MetricValue value={value as number} />
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Lifetime free-trial snapshot. Deleting expired images does not reset
+            used credits. Personal paid plans are not connected.
+          </p>
+        </CapitalioPanel>
+      ) : null}
+      {!data?.experience ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {[
+            [
+              "Mobile Try-Ons",
+              "Generation attempts, successful looks and failures will appear after customer Try-On is connected.",
+            ],
+            [
+              "Personal plans & revenue",
+              "Customer subscriptions, purchases and credit usage will appear after separate personal billing is connected.",
+            ],
+            [
+              "Store QR activity",
+              "Sponsored sessions and Store totals will appear after QR sponsorship is connected. Charges will belong to the Store.",
+            ],
+          ].map(([title, description]) => (
+            <CapitalioPanel key={title} title={title}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-medium">{title}</h2>
+                <StatusBadge status="PENDING" label="Not connected" />
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {description}
+              </p>
+            </CapitalioPanel>
+          ))}
+        </div>
+      ) : null}
     </main>
   );
 }

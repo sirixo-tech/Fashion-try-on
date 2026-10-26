@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
+
+Migration 20261026010000_customer_tryon_trial adds CustomerCreditAccount (one lifetime trial grant and used/reserved counters), CustomerPhotoConsent (durable statement/version/retention), CustomerStoreQr (hashed token, actual actor, expiry/revocation, daily limit) and CustomerStoreVisit (customer-owned 2-hour session). Canonical sessions/runs link customer and consent; composite foreign keys prevent cross-customer consent/visit/run ownership. Runs have customer request fingerprints and unique (customerId, clientRequestId); personal balance checks prohibit overspending. Assets track upload readiness and confirmed storage deletion for cleanup retries. MOBILE is a ledger channel for sponsored Store usage. Existing customer/staff/merchant separation is retained.
+
 ### Dashboard sidebar switch and mobile metrics (2026-10-25)
 
 No migration or table is added for the dashboard switch. Mobile account aggregates use existing customers and customer_identities; customer status/deletion and date constraints are applied server-side. Latest successful customer sign-in/refresh updates customers.last_active_at. Current account-status/provider counts are snapshots; new accounts use created_at within the selected interval and UTC daily buckets, excluding deleted accounts. Provider counts may overlap when one customer has multiple methods. Sensitive identity fields are never selected into the response. Future mobile Try-On, customer billing and Store-QR metrics remain unavailable because their approved durable structures are not yet implemented.

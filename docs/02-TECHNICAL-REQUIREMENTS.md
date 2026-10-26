@@ -1,5 +1,20 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
+
+Reuse canonical TryOnSession, TryOnAsset, TryOnLook, KioskTryOnRun and the central provider-neutral TryOnExecutionService. Add explicit customer ownership/consent, a one-time personal trial wallet, customer row locking, request idempotency, atomic result/credit settlement, Store QR token hashing and Store-owned sponsorship through shared merchant billing. Customer asset access is owned, private and short lived; retryable cleanup uses separate customer-mobile/inputs and customer-mobile/results prefixes. Store plan MOBILE means Store-sponsored QR and is distinct from personal billing. See CUSTOMER-MOBILE-2-IMPLEMENTATION.md for contracts and deployment requirements.
+
+### Android release signing (2026-10-26)
+
+Both Flutter apps load explicit private signing properties, optional store type
+and a referenced keystore. Release tasks reject missing configuration/files;
+debug tasks remain independent. Private keys/properties stay out of Git, Docker
+and Flutter assets. Preserve the kiosk's verified existing certificate for
+installed APK compatibility, explicitly documenting its legacy debug identity;
+the customer app gets a separate release identity. This does not implement app
+updates, change OAuth/backend configuration or build APKs. See
+`docs/ANDROID-RELEASE-SIGNING.md` for the local setup and public fingerprints.
+
 ### Top-level Flutter app directories (2026-10-26)
 
 The customer app lives at repository-root `mobile/` and the kiosk app at

@@ -12,7 +12,7 @@ import {
 
 import { SELFX_CATALOG_SOURCES, type SelfxCatalogSource } from "@selfx/shared";
 
-export const usageChannelOptions = ["ALL", "KIOSK", "PUBLIC_API"] as const;
+export const usageChannelOptions = ["ALL", "KIOSK", "PUBLIC_API", "MOBILE"] as const;
 export type UsageChannelFilter = (typeof usageChannelOptions)[number];
 
 export class UsageSummaryQueryDto {
@@ -218,8 +218,8 @@ export class UsageProductRowDto {
 }
 
 export class UsageChannelRowDto {
-  @ApiProperty({ enum: ["KIOSK", "PUBLIC_API"] })
-  channel!: "KIOSK" | "PUBLIC_API";
+  @ApiProperty({ enum: ["KIOSK", "PUBLIC_API", "MOBILE"] })
+  channel!: "KIOSK" | "PUBLIC_API" | "MOBILE";
 
   @ApiProperty()
   sessionsStarted!: number;

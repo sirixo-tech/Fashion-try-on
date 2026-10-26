@@ -28,14 +28,19 @@ export interface TryOnAssetStorageInput {
   width?: number | null;
   height?: number | null;
   expiresAt?: Date;
+  readyAt?: Date | null;
 }
 
 export interface CreateTryOnSessionInput extends TryOnSessionTenantContext {
   expiresAt?: Date;
+  customerId?: string;
+  customerConsentId?: string;
+  customerStoreVisitId?: string;
 }
 
 export interface ScopedSessionInput {
   sessionId: string;
+  customerId?: string | null;
   kioskDeviceId?: string | null;
   organizationId?: string | null;
   storeId?: string | null;
@@ -63,6 +68,9 @@ export class TryOnSessionService {
             ? input.storeId
             : null,
         kioskDeviceId: input.kioskDeviceId ?? null,
+        customerId: input.customerId ?? null,
+        customerConsentId: input.customerConsentId ?? null,
+        customerStoreVisitId: input.customerStoreVisitId ?? null,
         expiresAt: input.expiresAt ?? defaultExpiresAt(),
       },
     });
@@ -190,11 +198,16 @@ export class TryOnSessionService {
       productId?: string | null;
       resultAsset: TryOnAssetStorageInput;
       expiresAt?: Date;
+      existingResultAssetId?: string;
     },
+    transaction?: Prisma.TransactionClient,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const record = async (tx: Prisma.TransactionClient) => {
       const existing = await tx.tryOnLook.findUnique({
-        where: { kioskTryOnRunId: input.kioskTryOnRunId },
+        where: {
+          kioskTryOnRunId: input.kioskTryOnRunId,
+          session: scopedSessionWhere(input),
+        },
         include: lookIncludes,
       });
       if (existing) {
@@ -229,12 +242,18 @@ export class TryOnSessionService {
           purpose: TryOnAssetPurpose.GARMENT,
         });
       }
-      const resultAsset = await this.createAsset(
-        tx,
-        session,
-        TryOnAssetPurpose.RESULT,
-        input.resultAsset,
-      );
+      const resultAsset = input.existingResultAssetId
+        ? await this.requireSessionAsset(tx, {
+            sessionId: session.id,
+            assetId: input.existingResultAssetId,
+            purpose: TryOnAssetPurpose.RESULT,
+          })
+        : await this.createAsset(
+            tx,
+            session,
+            TryOnAssetPurpose.RESULT,
+            input.resultAsset,
+          );
       const look = await tx.tryOnLook.create({
         data: {
           id: createSelfxId(),
@@ -258,7 +277,8 @@ export class TryOnSessionService {
       });
       await recordSuccessfulGeneration(tx, run);
       return look;
-    });
+    };
+    return transaction ? record(transaction) : this.prisma.$transaction(record);
   }
 
   async getSessionLooks(input: ScopedSessionInput) {
@@ -334,6 +354,7 @@ export class TryOnSessionService {
         sizeBytes: input.sizeBytes ?? null,
         width: input.width ?? null,
         height: input.height ?? null,
+        readyAt: input.readyAt,
         expiresAt: input.expiresAt ?? defaultExpiresAt(),
       },
     });
@@ -412,6 +433,7 @@ const sessionScopeSelect = {
   storeId: true,
   kioskDeviceId: true,
   currentPersonAssetId: true,
+  customerId: true,
   expiresAt: true,
 } satisfies Prisma.TryOnSessionSelect;
 
@@ -439,6 +461,7 @@ function scopedSessionWhere(
 ): Prisma.TryOnSessionWhereInput {
   return {
     id: input.sessionId,
+    customerId: input.customerId ?? null,
     kioskDeviceId:
       input.kioskDeviceId === undefined ? undefined : input.kioskDeviceId,
     organizationId:

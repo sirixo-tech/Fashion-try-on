@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
+
+The user explicitly authorized this later mobile slice: premium imagery/theme, working photo Try-On, Saved/download/expiry, free trial for customers with no active personal plan, real Plans/credits and Store QR sponsorship. Implement and validate ownership, consent, idempotent/concurrent quota admission, refund behavior, 7-day inputs/30-day mobile results, tenant isolation, QR daily limits, shared Store billing and separate dashboard aggregates together. Verify migration on a disposable database, focused API/web tests, Flutter analysis/tests and actual rendered screen reviews. Production migration/deployment, storage lifecycle verification, device acceptance and rebuilding/distributing the customer APK remain deployment steps; no APK build is authorized in this task.
+
+### Android release signing configuration (2026-10-26)
+
+Configure explicit release signing for mobile and kiosk, preserve the key that
+matches the existing kiosk APK, create a separate mobile release key, and keep
+private files ignored by Git and Docker. Verify certificate continuity,
+Gradle signing reports/validation without packaging APKs, and inspect the
+missing-configuration guards. Document private backup and the mobile debug-to-release
+transition. No UI, backend, native feature or automatic-update work is included.
+
 ### Flutter app folder reorganization (2026-10-26)
 
 Move the customer app to root `mobile/` and the kiosk app to root `kiosk/`.

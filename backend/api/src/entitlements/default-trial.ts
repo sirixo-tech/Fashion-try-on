@@ -11,6 +11,7 @@ export const DEFAULT_TRIAL_CHANNELS = [
   "WOOCOMMERCE",
   "KIOSK",
   "PUBLIC_API",
+  "MOBILE",
 ] as const;
 
 export const DEFAULT_TRIAL_FEATURE_KEYS = [

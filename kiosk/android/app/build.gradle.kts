@@ -38,6 +38,7 @@ android {
                 storePassword = releaseKeys.getProperty("storePassword")
                 keyAlias = releaseKeys.getProperty("keyAlias")
                 keyPassword = releaseKeys.getProperty("keyPassword")
+                storeType = releaseKeys.getProperty("storeType", "JKS")
             }
         }
     }
@@ -59,7 +60,10 @@ android {
 gradle.taskGraph.whenReady {
     if (allTasks.any { it.project == project && (it.name.contains("Release") || it.name.contains("release")) }) {
         check(hasReleaseKeys) {
-            "SelfX release signing is missing. Configure android/key.properties with your existing production signing identity. Use --debug for a development APK."
+            "SelfX release signing is missing. Configure android/key.properties with your existing kiosk signing identity. Use --debug for a development APK."
+        }
+        check(rootProject.file(releaseKeys.getProperty("storeFile")).isFile) {
+            "SelfX kiosk release keystore was not found. Restore the keystore referenced by android/key.properties."
         }
     }
 }

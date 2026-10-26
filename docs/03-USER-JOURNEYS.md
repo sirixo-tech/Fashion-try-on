@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
+
+After four skippable image-led slides and existing verified email/OAuth sign-in, the customer sees actual trial credits. Explore Try-On, My photo and Your outfit open consent, then camera/gallery selection, upload, generation and the saved result. Saved shows results/available original outfit photos, expiry, download and early delete. Plans opens the real free-trial balance. Scan Store QR opens that Store catalog and clearly names the Store as payer; eligible product generation uses Store allowance only. A QR rescan cannot reset the daily customer/Store limit. Leaving Store mode returns to personal allowance. Restarting the app restores active generation status; retries reuse a request ID.
+
 ### Dashboard sidebar switch and mobile metrics (2026-10-25)
 
 Opening Dashboard goes to Business by default. Eligible platform users turn on the sidebar toggle to view Mobile; the label slides to Mobile Dashboard, its page heading agrees and its own date filter/refresh/export operate on customer aggregates. Turning it off or clicking the label returns to Business. Store users retain the existing Business dashboard with no mobile toggle; the mobile page is not mounted during Store impersonation. Failed requests show an actionable error and no stale counts. An enabled empty customer database shows real zero values; a disabled backend shows activation guidance and unavailable values. Future-generation/payment/Store-QR sections explain that their services are not connected.

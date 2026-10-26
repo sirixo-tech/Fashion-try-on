@@ -20,6 +20,7 @@ const pricingChannels = [
   "WOOCOMMERCE",
   "KIOSK",
   "PUBLIC_API",
+  "MOBILE",
 ] as const;
 type PricingChannel = (typeof pricingChannels)[number];
 

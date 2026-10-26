@@ -61,6 +61,8 @@ const tables = [
   "try_on_sessions",
   "try_on_assets",
   "try_on_looks",
+  "customer_store_qrs",
+  "customer_store_visits",
   "integrations",
   "integration_provider_credentials",
   "integration_oauth_states",
@@ -388,6 +390,16 @@ export class StorePurgeService implements OnModuleInit, OnModuleDestroy {
         edge.child,
       );
     }
+    // Consent remains a customer-owned durable audit record after merchant
+    // erasure. Keep its immutable Store snapshot, unlink the temporary visit.
+    await tx.$executeRaw`UPDATE customer_photo_consents SET store_visit_id = NULL, withdrawn_at = COALESCE(withdrawn_at, CURRENT_TIMESTAMP)
+      WHERE store_visit_id IN (SELECT id FROM selfx_store_purge WHERE table_name = 'customer_store_visits')`;
+    // A session's legacy ON DELETE SET NULL action must not temporarily violate
+    // the customer-run identity check. These Store-owned runs are all erased in
+    // this same transaction; personal runs and customer wallets are untouched.
+    await tx.$executeRaw`UPDATE kiosk_try_on_runs SET customer_id = NULL
+      WHERE customer_id IS NOT NULL AND organization_id = ${storeId}::uuid
+      AND id IN (SELECT id FROM selfx_store_purge WHERE table_name = 'kiosk_try_on_runs')`;
     // Delete dependency leaves first. Savepoints allow RESTRICT edges to decide
     // actual row order without disabling constraints or broad cascades.
     let pending = counts

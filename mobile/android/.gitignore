@@ -1,5 +1,6 @@
 gradle-wrapper.jar
 /.gradle
+/.kotlin/
 /captures/
 /gradlew
 /gradlew.bat
@@ -12,3 +13,5 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+**/*.p12
+**/*.pfx

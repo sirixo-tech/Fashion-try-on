@@ -17,6 +17,11 @@
 **/*.log
 **/.env
 **/.env.*
+**/key.properties
+**/*.jks
+**/*.keystore
+**/*.p12
+**/*.pfx
 **/dev.sqlite
 **/dev.sqlite-journal
 kiosk/build

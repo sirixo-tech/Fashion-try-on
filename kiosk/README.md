@@ -526,10 +526,13 @@ externally managed. Production checkout requires the server's separate
 Platform gateway availability; APK installation cannot enable it.
 
 Development builds may use `flutter build apk --debug`. Release builds require
-`android/key.properties` with the existing production signing identity; see
+`android/key.properties` with the existing kiosk signing identity; see
 `android/key.properties.example`. Signing files are ignored. Release mode no
 longer silently uses the debug key. Use a monotonically increasing build number,
 inspect split APK version codes, and complete certified-device/payment acceptance
-before publishing through Apps & Downloads. See
+before publishing through Apps & Downloads. The matching legacy certificate has
+been restored locally for current kiosk updates; see
+[the signing setup](../docs/ANDROID-RELEASE-SIGNING.md) for identity details,
+private backup and signing-only checks. See
 `../docs/PRODUCTS-EDITOR-1-SHOPPING-3-IMPLEMENTATION-REPORT.md` for deployment
 steps and current validation limits.

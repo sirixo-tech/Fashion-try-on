@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 class CustomerApiException implements Exception {
   final String code;
@@ -60,7 +62,17 @@ abstract interface class CustomerApi {
   });
 }
 
-class HttpCustomerApi implements CustomerApi {
+abstract interface class CustomerMediaApi {
+  Future<Map<String, dynamic>> upload(
+    String path,
+    Uint8List bytes,
+    String mime,
+    String token,
+  );
+  Future<Uint8List> download(String path, String token);
+}
+
+class HttpCustomerApi implements CustomerApi, CustomerMediaApi {
   final Uri base;
   final http.Client client;
   HttpCustomerApi(String baseUrl, {http.Client? client})
@@ -87,6 +99,106 @@ class HttpCustomerApi implements CustomerApi {
     return uri;
   }
 
+  Uri route(String path) {
+    if (!path.startsWith('/') ||
+        path.startsWith('//') ||
+        path.contains('://') ||
+        path.contains('..')) {
+      throw ArgumentError('Invalid customer route');
+    }
+    return base.resolve('/api/v1/customer$path');
+  }
+
+  Map<String, dynamic> decode(http.Response response) {
+    Map<String, dynamic> data = {};
+    try {
+      data = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      /* Error below remains readable for gateway responses. */
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final error = data['error'] is Map ? data['error'] as Map : null;
+      throw CustomerApiException(
+        error?['code'] as String? ?? 'REQUEST_FAILED',
+        error?['message'] as String? ??
+            'We couldn’t complete that. Please try again.',
+        response.statusCode,
+      );
+    }
+    return data;
+  }
+
+  @override
+  Future<Map<String, dynamic>> upload(
+    String path,
+    Uint8List bytes,
+    String mime,
+    String token,
+  ) async {
+    try {
+      final request = http.MultipartRequest('POST', route(path))
+        ..followRedirects = false;
+      request.headers.addAll({
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      });
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'image',
+          bytes,
+          filename: 'photo.${mime.split('/').last}',
+          contentType: MediaType.parse(mime),
+        ),
+      );
+      return decode(
+        await http.Response.fromStream(
+          await client.send(request).timeout(const Duration(seconds: 60)),
+        ).timeout(const Duration(seconds: 60)),
+      );
+    } on CustomerApiException {
+      rethrow;
+    } catch (_) {
+      throw const CustomerApiException(
+        'UPLOAD_CONNECTION',
+        'Your photo could not be uploaded. Check your connection and try again.',
+      );
+    }
+  }
+
+  @override
+  Future<Uint8List> download(String path, String token) async {
+    try {
+      final request = http.Request('GET', route(path))..followRedirects = false;
+      request.headers['Authorization'] = 'Bearer $token';
+      final stream = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (stream.statusCode < 200 || stream.statusCode >= 300) {
+        decode(await http.Response.fromStream(stream));
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in stream.stream.timeout(
+        const Duration(seconds: 30),
+      )) {
+        bytes.add(chunk);
+        if (bytes.length > 20 * 1024 * 1024) {
+          throw const CustomerApiException(
+            'RESULT_TOO_LARGE',
+            'This result could not be downloaded.',
+          );
+        }
+      }
+      return bytes.takeBytes();
+    } on CustomerApiException {
+      rethrow;
+    } catch (_) {
+      throw const CustomerApiException(
+        'DOWNLOAD_CONNECTION',
+        'Unable to download. Check your connection and try again.',
+      );
+    }
+  }
+
   @override
   Future<Map<String, dynamic>> request(
     String path, {
@@ -98,10 +210,7 @@ class HttpCustomerApi implements CustomerApi {
       throw ArgumentError('Invalid customer route');
     }
     try {
-      final request = http.Request(
-        method,
-        base.resolve('/api/v1/customer$path'),
-      );
+      final request = http.Request(method, route(path));
       request.followRedirects = false;
       request.headers.addAll({
         'Accept': 'application/json',
@@ -114,7 +223,7 @@ class HttpCustomerApi implements CustomerApi {
       ).timeout(const Duration(seconds: 20));
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final error = data['error'] as Map?;
+        final error = data['error'] is Map ? data['error'] as Map : null;
         throw CustomerApiException(
           error?['code'] as String? ?? 'REQUEST_FAILED',
           error?['message'] as String? ??

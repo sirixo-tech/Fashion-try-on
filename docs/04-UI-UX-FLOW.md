@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
+
+Customer Flutter UI uses a shared warm ivory/peach background, official logo/colors and original compressed editorial photography. Four introduction slides keep Skip and reduced-motion navigation. Header order is scanner, Plans, personal credits. Home, Studio, Saved, result and account states connect to real APIs; loading skeletons end on success/error. Consent is accepted and persisted before photo picker/camera access. Store mode visibly names the payer and prevents automatic personal fallback. Failures explain credit restoration; uncertain requests offer Check my request. The Plans screen does not invent paid products. Mobile Dashboard uses existing business-dashboard styling with separate real mobile usage/trial/QR aggregates.
+
 ### Count-up metrics and progressive page loading (2026-10-25)
 
 Suitable numeric KPI cards on Business/Mobile dashboards, shared statistics cards, workspace resources and commerce details count from zero to their real value over about 850 ms when entering view. Preserve final number, currency/grouping/decimal/percentage formatting. Status text, dates, ratios, zero, unavailable values, chart ticks and product tables remain literal. Reduced motion bypasses animation and stops active animations; screen readers receive the actual final value throughout. Unrelated renders must not restart counting. Animation is presentation only and never changes exports or business calculations.

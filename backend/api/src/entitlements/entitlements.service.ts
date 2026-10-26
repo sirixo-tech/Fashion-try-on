@@ -734,6 +734,59 @@ export class EntitlementsService {
       : this.prisma.$transaction(consume);
   }
 
+  async refundFailedTryOnCredit(
+    input: {
+      organizationId: string;
+      runId: string;
+      debitKey: string;
+      shopifyReservationId: string | null;
+    },
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    await lockBillingSubscription(tx, input.organizationId);
+    if (
+      await tx.billableGeneration.findUnique({ where: { runId: input.runId } })
+    )
+      return;
+    if (input.shopifyReservationId)
+      await tx.shopifyUsageReservation.updateMany({
+        where: { id: input.shopifyReservationId, state: "RESERVED" },
+        data: { state: "RELEASED" },
+      });
+    const debit = await tx.creditLedgerEntry.findUnique({
+      where: { idempotencyKey: input.debitKey },
+    });
+    if (
+      !debit ||
+      debit.organizationId !== input.organizationId ||
+      debit.entryType !== "CREDIT_CONSUMED" ||
+      debit.quantity >= 0
+    )
+      return;
+    const idempotencyKey = `customer-store-refund:${input.runId}`;
+    if (await tx.creditLedgerEntry.findUnique({ where: { idempotencyKey } }))
+      return;
+    const balance = await this.getCreditBalanceWithClient(
+      input.organizationId,
+      tx,
+    );
+    await tx.creditLedgerEntry.create({
+      data: {
+        id: createSelfxId(),
+        organizationId: input.organizationId,
+        entryType: "CREDIT_REFUNDED",
+        channel: debit.channel,
+        quantity: -debit.quantity,
+        balanceAfter: balance.availableCredits - debit.quantity,
+        idempotencyKey,
+        kioskTryOnRunId: input.runId,
+        tryOnSessionId: debit.tryOnSessionId,
+        productId: debit.productId,
+        reason: "Store-sponsored mobile Try-On did not produce a saved result",
+      },
+    });
+  }
+
   private async getCreditBalanceWithClient(
     organizationId: string,
     tx: Pick<PrismaService, "creditLedgerEntry">,

@@ -918,6 +918,7 @@ function ledgerLabel(value: string): string {
 function channelLabel(value: string | null): string {
   if (!value) return "SelfX";
   if (value === "PUBLIC_API") return "Public API";
+  if (value === "MOBILE") return "Mobile Store QR";
   return statusLabel(value);
 }
 

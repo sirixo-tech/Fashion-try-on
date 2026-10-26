@@ -47,10 +47,15 @@ Release APKs: `build/app/outputs/flutter-apk/app-<abi>-release.apk`. Release sig
 
 Optional readable widget captures on Windows: `flutter test --dart-define=CUSTOMER_REVIEW=true`. This loads local Flutter Roboto/Material fonts and Windows Georgia for review only; Windows fonts are not bundled. Captures go to ignored repository `tmp/customer-mobile-review/`. Production uses native Roboto/serif resolution.
 
-## Retention and next slice
+Release signing is loaded from the ignored `android/key.properties`; see
+`android/key.properties.example` and [the signing setup](../docs/ANDROID-RELEASE-SIGNING.md)
+for private key backup, release fingerprints and the first debug-to-release
+installation. Missing signing configuration fails before release packaging.
 
-Future mobile saved generated results expire after 30 days. Original person photos, customer garment captures and derived inputs keep the seven-day maximum. Other channels keep seven-day generated results. This foundation does not store media or change the cleanup worker. Next implement ownership, consent, uploads, generation, actual expiry/deletion and Saved together. Store-sponsored saved results require explicit customer ownership/consent; Store QR must never silently spend personal credits.
+## Working Try-On and retention
+
+Customer Try-On is now connected: durable consent, camera/gallery upload, free trial, generation progress, Saved, result download and deletion. Personal trials use the configured Starter trial credits once per customer account. Store QR sponsorship uses eligible Store products and charges only that Store. Generated mobile results expire within 30 days; original photos and outfit captures within 7 days. Paid personal purchases remain unconfigured. See [CUSTOMER-MOBILE-2](../docs/CUSTOMER-MOBILE-2-IMPLEMENTATION.md) for migration, storage lifecycle and deployment requirements. No APK was built for this change.
 
 Package versions are locked in `pubspec.lock`; the app's Licenses entry shows package notices. The full official wordmark remains in app headers. Launcher/PWA icons use the exact user-supplied X, while legacy launch screens keep the wordmark; see [branding assets](design/README.md). Preparing these source images does not build an APK or change an existing package.
 
-Session startup and profile requests use skeleton layouts while the API is pending. They end on success/error, do not add artificial delays and respect reduced-motion settings. Saved and Plans do not show invented loading states while their services remain unavailable. Sign-in/form submission retain action indicators.
+Session startup and profile requests use skeleton layouts while the API is pending. They end on success/error, do not add artificial delays and respect reduced-motion settings. Saved and Plans now load their real customer APIs with retryable errors. Sign-in/form submission retain action indicators.
