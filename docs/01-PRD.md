@@ -1410,7 +1410,7 @@ Android is the primary commercial SelfX kiosk deployment platform for rented
 SelfX kiosk hardware. Windows remains a fully supported secondary platform for
 Windows kiosks, desktop testing and future Windows capture workflows.
 
-SelfX continues to use one Flutter kiosk application under `mobile/kiosk`.
+SelfX continues to use one Flutter kiosk application under `kiosk`.
 Platform-specific camera details must remain behind `CameraService`.
 
 KIOSK-1.5 product rules:

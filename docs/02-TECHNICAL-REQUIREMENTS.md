@@ -1,5 +1,18 @@
 ## Document Evolution
 
+### Top-level Flutter app directories (2026-10-26)
+
+The customer app lives at repository-root `mobile/` and the kiosk app at
+repository-root `kiosk/`. Both stay standalone Flutter applications outside npm
+workspaces, using the existing SelfX backend and their existing package/device
+identities. This is a directory reorganization: update relative tooling and
+documentation paths, preserve local configuration/signing files and existing
+build outputs, and regenerate local Flutter dependency metadata after moving.
+
+### Customer app bundled API origin (2026-10-26)
+
+The customer Flutter app loads its default SelfX API origin from the packaged `assets/config/production.json` (`selfxCustomerApiBaseUrl`), using the same production origin as kiosk bootstrap configuration. `SELFX_API_BASE_URL` remains an optional build-time development/staging override. Load configuration before constructing the customer API/controller and preserve the safe configuration-error screen on missing or malformed assets. Existing customer API validation remains authoritative for HTTPS, origin-only URLs, credentials/query/fragment rejection and explicitly opted-in local development. Bundle only the public server address; no secrets, backend activation, SMTP/OAuth changes or APK builds are included.
+
 ### Shared web reads and progressive metrics (2026-10-25)
 
 Web access context uses a bounded browser-memory cache scoped to the API origin, access token and exact resource route. Current Store/platform/effective permissions expire after 15 seconds; matching Store, usage and commerce overview reads share only in-flight requests. Never persist this cache or enable shared/server HTTP caching for private responses. Clear it on session/token changes, writes, access denial, permissions/impersonation/Store events, focus and explicit Refresh. Invalidated in-flight reads must not repopulate the cache. Backend authorization and billing admission remain authoritative.
@@ -20,7 +33,7 @@ Reuse the shared @selfx/ui shadcn Switch and sidebar shell with optional typed d
 
 ### CUSTOMER-MOBILE-1 — Customer identity and native boundary (2026-10-25)
 
-'mobile/customer-app' is a standalone Flutter Android/iOS app outside npm workspaces and independent of kiosk presentation. It uses only SelfX's API; no AI provider keys, merchant credentials or backend secrets belong in Flutter. Customer auth lives under '/api/v1/customer', disabled by default with 'SELFX_CUSTOMER_AUTH_ENABLED=false'. Enabling requires a distinct long 'SELFX_CUSTOMER_JWT_SECRET', encrypted platform SMTP outbox configuration and provider client allowlists. Customer JWTs use issuer selfx, audience selfx-customer and typ customer_access; database customer/session/security version checks are mandatory. Staff JWTs and authorization remain separate.
+'mobile' is a standalone Flutter Android/iOS app outside npm workspaces and independent of kiosk presentation. It uses only SelfX's API; no AI provider keys, merchant credentials or backend secrets belong in Flutter. Customer auth lives under '/api/v1/customer', disabled by default with 'SELFX_CUSTOMER_AUTH_ENABLED=false'. Enabling requires a distinct long 'SELFX_CUSTOMER_JWT_SECRET', encrypted platform SMTP outbox configuration and provider client allowlists. Customer JWTs use issuer selfx, audience selfx-customer and typ customer_access; database customer/session/security version checks are mandatory. Staff JWTs and authorization remain separate.
 
 Email signup/recovery use durable encrypted outbox jobs and expiring single-use eight-digit codes stored as keyed hashes, protected by durable per-IP/per-address limits. Signup verification additionally requires an opaque proof bound to the latest registration/password, preventing activation of a pre-registered attacker's password. Password changes revoke all sessions. Refresh tokens are opaque, hashed at rest and rotated in serialized transactions; predecessor replay revokes its family. Native storage retains only the refresh token in Keychain/Android secure storage; access tokens and verification proofs remain in memory. OAuth ID tokens are verified on the server with allowed audiences, verified email and issuer; Apple additionally binds a single-use server nonce. Matching email never automatically links identities.
 
@@ -964,8 +977,8 @@ Protected route coverage:
    `packages/api-client` — generated or shared API client tooling
    `packages/shared` — safe cross-application constants/types
    `packages/config` — shared engineering configuration
-   `mobile/kiosk` — Flutter kiosk app
-   `mobile/customer-app` — Flutter customer app
+   `kiosk` — Flutter kiosk app
+   `mobile` — Flutter customer app
    `integrations/shopify` — Shopify integration
    `integrations/woocommerce` — WooCommerce plugin
    `docs` — project documentation
@@ -1764,7 +1777,7 @@ Protected route coverage:
     The internal authenticated Lab is an administrative/development tool. It
     shows an authorized-use notice instead of a customer consent checkbox:
     internal testers may proceed without click acknowledgement, but customer
-    web/mobile/kiosk flows still require consent before camera access, photo
+    web, mobile and kiosk flows still require consent before camera access, photo
     upload or AI processing.
 
     CORE VTO-1.1 organized the Lab UI into Images, Generation setup and Result.
@@ -2027,7 +2040,7 @@ Protected route coverage:
    kiosks. Windows remains a fully supported secondary kiosk and desktop
    camera-testing platform.
    KIOSK-1 starts kiosk hardware validation with a standalone Flutter Windows
-   desktop app in `mobile/kiosk`.
+   desktop app in `kiosk`.
    KIOSK-1 is not the full managed kiosk Try-On application and does not
    require kiosk pairing, device authentication, catalog sync, SelfX API
    upload, FASHN or another provider.
@@ -2065,7 +2078,7 @@ Protected route coverage:
    practical, and must not be committed or uploaded during KIOSK-1.
    Flutter kiosk UI mirrors the SelfX design language with Flutter-native
    components rather than React/shadcn or React/Mantine components.
-   KIOSK-1.5 keeps `mobile/kiosk` as one Flutter kiosk app and adds Android as
+   KIOSK-1.5 keeps `kiosk` as one Flutter kiosk app and adds Android as
    the primary build target without removing Windows support.
    The shared kiosk UI/session flow remains independent of platform camera
    plugins through `CameraService`.
@@ -2276,7 +2289,7 @@ Protected route coverage:
     and shadows.
 
     SaaS web should use a premium modern SaaS visual language and Shadcn-first
-    interaction patterns. Windows/mobile/kiosk applications should use solid
+    interaction patterns. Windows, mobile and kiosk applications should use solid
     premium surfaces rather than glassmorphism: solid white/light cards, clear
     neutral borders, restrained shadows and readable hierarchy.
     Flutter implementations should use reusable solid SelfX button primitives

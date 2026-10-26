@@ -430,7 +430,7 @@ void main() {
                       as RenderRepaintBoundary)
                   .toImage();
           final data = await image.toByteData(format: ui.ImageByteFormat.png);
-          final file = File('../../tmp/customer-mobile-review/$name.png');
+          final file = File('../tmp/customer-mobile-review/$name.png');
           await file.parent.create(recursive: true);
           await file.writeAsBytes(data!.buffer.asUint8List());
           image.dispose();

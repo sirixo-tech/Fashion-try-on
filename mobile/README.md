@@ -12,10 +12,12 @@ Use Flutter 3.44 / Dart 3.12 or newer compatible versions. From this directory:
 
 ```powershell
 flutter pub get
-flutter run --dart-define=SELFX_API_BASE_URL=https://YOUR-SELFX-API-HOST
+flutter run
 ```
 
-The API base must be an HTTPS origin without path, query, fragment or credentials. Local development may explicitly set `--dart-define=SELFX_ALLOW_LOCAL_API=true` and use `http://10.0.2.2:3001` (Android emulator), `http://127.0.0.1:3001` or `http://localhost:3001`. Native development transport policies must also permit that local endpoint; do not enable cleartext globally for release. No production API address is shipped.
+The production API origin is bundled in `assets/config/production.json` (`selfxCustomerApiBaseUrl`), matching the kiosk's configured SelfX backend. Normal runs/builds do not require a URL argument. An optional `--dart-define=SELFX_API_BASE_URL=https://YOUR-STAGING-API-HOST` overrides that asset for development/staging. The URL is public configuration, not a secret; credentials and provider keys must never be bundled.
+
+The API base must be an HTTPS origin without path, query, fragment or credentials. Local development may explicitly set `--dart-define=SELFX_ALLOW_LOCAL_API=true` and override the URL with `http://10.0.2.2:3001` (Android emulator), `http://127.0.0.1:3001` or `http://localhost:3001`. Native development transport policies must also permit that local endpoint; do not enable cleartext globally for release. Missing or invalid configuration retains the safe configuration-error screen.
 
 Optional public native configuration (never secrets):
 
@@ -31,17 +33,17 @@ Configure reviewed, published HTTPS Terms, Privacy and Support destinations befo
 
 ## Backend activation
 
-See [the implementation record](../../docs/CUSTOMER-MOBILE-1-IMPLEMENTATION.md). Review/apply the migration on staging, configure encrypted platform SMTP, set a distinct customer JWT secret and enable the feature. Building this app does not change production configuration or schema.
+See [the implementation record](../docs/CUSTOMER-MOBILE-1-IMPLEMENTATION.md). Review/apply the migration on staging, configure encrypted platform SMTP, set a distinct customer JWT secret and enable the feature. Building this app does not change production configuration or schema.
 
 ## Verification and build
 
 ```powershell
 flutter analyze
 flutter test
-flutter build apk --debug --dart-define=SELFX_API_BASE_URL=https://YOUR-STAGING-API-HOST
+flutter build apk --release --split-per-abi
 ```
 
-Debug APK: `build/app/outputs/flutter-apk/app-debug.apk`. A preview compiled against `https://api.selfx.invalid` cannot sign in; rebuild against configured staging for live acceptance. Release signing requires a real keystore; do not publish a debug package.
+Release APKs: `build/app/outputs/flutter-apk/app-<abi>-release.apk`. Release signing requires a real keystore. For an installable development package, use `flutter build apk --debug`; its output is `build/app/outputs/flutter-apk/app-debug.apk`. Existing APKs retain their previous configuration until rebuilt. Bundling the production origin does not enable customer auth or configure SMTP/OAuth on the backend; those activation requirements still apply.
 
 Optional readable widget captures on Windows: `flutter test --dart-define=CUSTOMER_REVIEW=true`. This loads local Flutter Roboto/Material fonts and Windows Georgia for review only; Windows fonts are not bundled. Captures go to ignored repository `tmp/customer-mobile-review/`. Production uses native Roboto/serif resolution.
 

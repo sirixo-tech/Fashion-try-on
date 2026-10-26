@@ -54,7 +54,7 @@ Shopify AI Toolkit schema validation passed for the existing product reference f
 - Plugin: `frontend/web/public/downloads/selfx-woocommerce-0.2.0.zip` (dashboard download path `/downloads/selfx-woocommerce-0.2.0.zip`).
 - Build copy/checksum: `integrations/woocommerce/dist/selfx-woocommerce-0.2.0.zip` and `.zip.sha256`.
 - Plugin SHA-256: `21356f0ea06002fd3d5d827933f6830c9510537f6d8311397b71b6a43186164c`.
-- Kiosk debug APK: `mobile/kiosk/build/app/outputs/flutter-apk/app-debug.apk`. This is a local test build, not a published release.
+- Kiosk debug APK: `kiosk/build/app/outputs/flutter-apk/app-debug.apk`. This is a local test build, not a published release.
 
 ## Deployment and acceptance
 

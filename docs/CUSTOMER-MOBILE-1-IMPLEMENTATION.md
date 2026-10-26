@@ -6,7 +6,7 @@ First customer mobile milestone approved on 25 October 2026: account foundation 
 
 Latest icon instruction: use the exact attached `Selfx Logo.png` X, stored unchanged at `frontend/web/public/brand/selfx-mark.png`, for customer/kiosk launchers and the existing PWA/favicon/Apple touch icons. The shared asset-only generator is `tools/branding/prepare-app-icons.cjs`; the customer command remains a wrapper. The X is no longer extracted from the wordmark. Full wordmark headers are unchanged. **No APK or application packages are built for this follow-up**; earlier APKs remain unchanged until a later authorized rebuild.
 
-The customer app bundles the existing approved full wordmark unchanged for onboarding, sign-in/signup, navigation, retry/configuration and legacy launch screens. The separately supplied orange/yellow X is used for launcher/system splash icons. Native Android density variants, iOS sizes, Windows ICO and existing web PWA/favicon icons are prepared by the shared generator; `mobile/customer-app/tool/prepare_brand_assets.cjs` remains a compatible entry point. See the app's `design/README.md`. Temporary typed-wordmark and generic launcher artwork are removed.
+The customer app bundles the existing approved full wordmark unchanged for onboarding, sign-in/signup, navigation, retry/configuration and legacy launch screens. The separately supplied orange/yellow X is used for launcher/system splash icons. Native Android density variants, iOS sizes, Windows ICO and existing web PWA/favicon icons are prepared by the shared generator; `mobile/tool/prepare_brand_assets.cjs` remains a compatible entry point. See the app's `design/README.md`. Temporary typed-wordmark and generic launcher artwork are removed.
 
 The supplied-icon follow-up verified identical source hashes, 29 native icon images, four square PWA icons including maskable safe areas, Apple touch/favicon images, and ten embedded ICO frames. Native iOS icon PNGs have no alpha channel. The existing customer APK's size and modification time remain unchanged; no Flutter build or other application packaging command ran. Web metadata lint and diff whitespace checks passed.
 
@@ -16,7 +16,9 @@ Follow-up verification: all 20 mobile tests passed, Flutter analysis reported no
 
 ## Delivered
 
-- Android/iOS app in `mobile/customer-app`, outside npm workspaces and independent from kiosk widgets.
+Backend configuration follow-up (26 October 2026): the customer app now packages `assets/config/production.json` with the same public SelfX API origin used by the kiosk. `CustomerBootstrapConfig` loads it before controller construction; a nonblank `SELFX_API_BASE_URL` override takes priority for development/staging. Missing/malformed configuration and invalid origins retain the existing safe failure screen and URL validation. Normal `flutter build apk --release --split-per-abi` commands need no URL argument. Existing APKs remain unchanged until rebuilt; backend customer-auth activation, release signing and native OAuth configuration remain separate requirements. This source update does not send production requests or build an APK.
+
+- Android/iOS app in `mobile`, outside npm workspaces and independent from kiosk widgets.
 - Four offline introduction slides, Skip and persisted completion; email and configured Google/iOS Apple account flows; verified registration; password recovery; validation, visibility and safe inline errors.
 - Home/Saved/Me, scanner → Plans → unavailable credit header, future-feature states, profile name, persisted notification preference, security/reset, sign-out, policy/support destinations, intro replay and confirmed deletion.
 - Customer-only NestJS module and Prisma migration `20261025030000_customer_mobile_accounts`: global customers, provider identities, rotating sessions and single-use action tokens. No staff, membership or Store creation.

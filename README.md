@@ -58,7 +58,7 @@ For a production-mode local web smoke test on the approved SelfX web port:
 npm run start:local --workspace @selfx/web
 ```
 
-Current Phase 0 structure:
+Repository directories:
 
 ```text
 frontend/web
@@ -68,11 +68,30 @@ packages/ui
 packages/api-client
 packages/shared
 packages/config
-mobile/kiosk
-mobile/customer-app
+kiosk
+mobile
 integrations/shopify
 integrations/woocommerce
 ```
+
+The customer Flutter app is in `mobile/`; the kiosk Flutter app is in `kiosk/`.
+Both remain independent of npm workspaces. Run Flutter commands from the app's
+directory, for example:
+
+```powershell
+cd mobile
+flutter pub get
+flutter run
+```
+
+For kiosk development, use `cd kiosk` from the repository root instead. See
+[customer app instructions](mobile/README.md) and
+[kiosk instructions](kiosk/README.md) for configuration and build commands.
+After pulling this folder reorganization, reopen terminals at the new paths and
+run `flutter pub get` in each app to refresh local generated dependency paths.
+Signing files and build outputs stay local and are ignored by Git; existing
+clones should carry their private app configuration into the corresponding new
+directory. Native dependency caches may need regeneration after a local move.
 
 Phase 4 web design-system files:
 
@@ -126,7 +145,7 @@ and kiosk/mobile applications:
 - Default buttons are rounded rectangles, not global pills.
 - shadcn/ui is the preferred SaaS web component system.
 - SaaS web uses a premium clean SaaS direction with restrained solid surfaces.
-- Windows/mobile/kiosk no longer use glassmorphism as a SelfX visual direction.
+- Windows, mobile and kiosk no longer use glassmorphism as a SelfX visual direction.
   Use solid cards/buttons, clear neutral borders, restrained shadows and strong
   hierarchy. Customer wallpaper/slideshow remains supported, but controls over
   imagery should be solid/readable or backed by simple scrims rather than blur.
@@ -270,7 +289,7 @@ CORE VTO-1.2 refines the internal lab workflow:
 - the lab shows a passive notice: "Internal testing only. Upload only images
   you are authorized to process.";
 - the lab does not show a customer-style consent checkbox;
-- customer web/mobile/kiosk consent remains mandatory in the production
+- customer web, mobile and kiosk consent remains mandatory in the production
   architecture before camera access, upload or AI processing;
 - the page flow is Images -> Generate Try-On -> Result;
 - upload cards use compact, consistent previews with contained image fitting;
@@ -312,7 +331,7 @@ analytics table.
 
 ## KIOSK-2C Customer Kiosk Home and Operator Access
 
-`mobile/kiosk` is now one standalone Flutter kiosk application for the
+`kiosk` is now one standalone Flutter kiosk application for the
 SelfX-owned camera and capture foundation. Android is the primary commercial
 kiosk deployment target, while Windows remains a fully supported secondary
 kiosk/desktop platform. The app is kept outside npm workspaces and does not
@@ -508,7 +527,7 @@ KIOSK-3A added the first real end-to-end kiosk Try-On generation bridge:
 Useful kiosk commands:
 
 ```bash
-cd mobile/kiosk
+cd kiosk
 flutter pub get
 dart format --output=none --set-exit-if-changed .
 flutter analyze
@@ -527,7 +546,7 @@ flutter run \
 ```
 
 Build installable Android kiosk APKs. The production API base URL is loaded
-from `mobile/kiosk/assets/config/production.json`; a
+from `kiosk/assets/config/production.json`; a
 `SELFX_KIOSK_API_BASE_URL` Dart define is only needed when intentionally
 overriding it for development:
 

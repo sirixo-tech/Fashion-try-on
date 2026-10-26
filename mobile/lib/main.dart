@@ -3,15 +3,16 @@ import 'src/auth/customer_api.dart';
 import 'src/auth/customer_controller.dart';
 import 'src/auth/customer_identity.dart';
 import 'src/auth/session_store.dart';
+import 'src/config/customer_bootstrap_config.dart';
 import 'src/customer_app.dart';
 import 'src/ui/customer_theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const apiUrl = String.fromEnvironment('SELFX_API_BASE_URL');
   try {
+    final config = await CustomerBootstrapConfig.load();
     final controller = CustomerController(
-      api: HttpCustomerApi(apiUrl),
+      api: HttpCustomerApi(config.apiBaseUrl),
       store: SecureCustomerSessionStore(),
       identity: NativeCustomerIdentity(),
     );

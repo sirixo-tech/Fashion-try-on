@@ -8,6 +8,9 @@
 **/.react-router
 **/.shopify
 **/build
+**/.dart_tool
+**/.gradle
+**/.cxx
 **/dist
 **/dist-integration
 **/coverage
@@ -16,4 +19,6 @@
 **/.env.*
 **/dev.sqlite
 **/dev.sqlite-journal
-mobile/kiosk/build
+kiosk/build
+mobile/build
+tmp

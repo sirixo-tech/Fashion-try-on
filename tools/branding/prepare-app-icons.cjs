@@ -54,7 +54,7 @@ function ico(frames) {
 async function generateAppIcons() {
   // This is the exact user-supplied X artwork, not a crop of the wordmark.
   const mark = fs.readFileSync(markPath);
-  const customer = path.join(root, "mobile/customer-app");
+  const customer = path.join(root, "mobile");
   const publicDirectory = path.join(root, "frontend/web/public");
   const wordmark = path.join(publicDirectory, "brand/selfx-logo.png");
   await write(path.join(customer, "assets/branding/selfx-mark.png"), mark);
@@ -63,7 +63,7 @@ async function generateAppIcons() {
     fs.readFileSync(wordmark),
   );
 
-  for (const app of [customer, path.join(root, "mobile/kiosk")]) {
+  for (const app of [customer, path.join(root, "kiosk")]) {
     for (const [density, factor] of Object.entries(androidDensities)) {
       await write(
         path.join(
@@ -99,7 +99,7 @@ async function generateAppIcons() {
         .toBuffer(),
     });
   await write(
-    path.join(root, "mobile/kiosk/windows/runner/resources/app_icon.ico"),
+    path.join(root, "kiosk/windows/runner/resources/app_icon.ico"),
     ico(windowsFrames),
   );
   await write(

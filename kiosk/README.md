@@ -531,5 +531,5 @@ Development builds may use `flutter build apk --debug`. Release builds require
 longer silently uses the debug key. Use a monotonically increasing build number,
 inspect split APK version codes, and complete certified-device/payment acceptance
 before publishing through Apps & Downloads. See
-`../../docs/PRODUCTS-EDITOR-1-SHOPPING-3-IMPLEMENTATION-REPORT.md` for deployment
+`../docs/PRODUCTS-EDITOR-1-SHOPPING-3-IMPLEMENTATION-REPORT.md` for deployment
 steps and current validation limits.

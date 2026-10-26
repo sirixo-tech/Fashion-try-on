@@ -1,6 +1,6 @@
 # Try-On failure illustration
 
-Asset: `mobile/kiosk/assets/illustrations/try-on-unavailable.png`
+Asset: `kiosk/assets/illustrations/try-on-unavailable.png`
 
 Created with the built-in imagegen tool for the kiosk failure-screen redesign.
 The PNG has a transparent background and is bundled locally; no network request

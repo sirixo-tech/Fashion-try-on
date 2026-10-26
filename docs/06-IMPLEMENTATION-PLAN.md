@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### Flutter app folder reorganization (2026-10-26)
+
+Move the customer app to root `mobile/` and the kiosk app to root `kiosk/`.
+Update documentation, branding tooling, review-output paths and Docker build
+exclusions. Verify source/asset preservation, ignored signing/build files,
+dependency resolution, both Flutter test suites and analysis. Preserve existing
+uncommitted app work. Do not build APKs or change backend behavior for this move.
+
+### Customer app default backend configuration (2026-10-26)
+
+Add the approved bundled API origin and asynchronous bootstrap to the existing customer app so normal Flutter run/APK commands need no API URL argument. Preserve optional overrides and existing API validation. Verify real asset loading, mock customer-route construction, override precedence, blank fallback, malformed/missing configuration and unsafe-origin rejection. Run customer Flutter tests and analysis, without contacting production or building APKs.
+
 ### Web count-up and shared loading optimization (2026-10-25)
 
 Implement the approved shared metric animation, bounded session-scoped access caching/in-flight deduplication, progressive dashboard/Shopify loading and isolated debounced product queries. Verify animation completion/formatting, accessibility, reduced motion and cleanup; verify expiry, identity/Store isolation, writes/access-event invalidation, late responses, access denial, progressive results and preserved navigation/mutations. Run focused and full web regression tests, UI/web type checks, scoped lint and the production web build. No real mail, live financial actions, migrations, deployment or APK builds are included. Production speed improvements require before/after field timings; browser visual acceptance requires enabled browser access.
@@ -727,8 +739,8 @@ Create the technical workspace without implementing business features.
   - `frontend/web`
   - `backend/api`
   - `backend/worker`
-  - `mobile/kiosk`
-  - `mobile/customer-app`
+  - `kiosk`
+  - `mobile`
   - `integrations/shopify`
   - `integrations/woocommerce`
   - `packages/ui`
@@ -1269,7 +1281,7 @@ kiosk backend and production kiosk Try-On flow.
 
 KIOSK-1 implements only:
 
-- standalone Flutter Windows desktop app in `mobile/kiosk`;
+- standalone Flutter Windows desktop app in `kiosk`;
 - `CameraService` abstraction with `CameraDevice`, `CameraCapabilities`,
   `CameraState`, `CameraCaptureResult` and `CameraFailure`;
 - Windows camera adapter using Flutter `camera` plus `camera_windows`;
@@ -1319,7 +1331,7 @@ while keeping Windows fully supported.
 
 KIOSK-1.5 implements only:
 
-- Android runner/build foundation in the existing `mobile/kiosk` Flutter app;
+- Android runner/build foundation in the existing `kiosk` Flutter app;
 - Android camera permission for still-image capture, without microphone
   permission;
 - Flutter `camera` Android CameraX path for enumeration, preview and still
@@ -1525,7 +1537,7 @@ KIOSK-2C adds the kiosk shell around the existing local capture foundation.
 
 Implemented scope:
 
-- startup/default `mobile/kiosk` UI is the customer-facing home/idle
+- startup/default `kiosk` UI is the customer-facing home/idle
   presentation;
 - local provider-neutral idle presentation model supports static/slideshow
   semantics and an offline fallback;

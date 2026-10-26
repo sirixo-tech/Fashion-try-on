@@ -578,7 +578,7 @@ the approved later phases.
 
 ## KIOSK-1 Windows Camera & Capture Foundation
 
-`mobile/kiosk` is a standalone Flutter Windows desktop kiosk application for
+`kiosk` is a standalone Flutter Windows desktop kiosk application for
 the KIOSK-1 camera foundation. It must remain separate from `frontend/web` and
 backend services, and Flutter must not be forced into npm workspaces.
 
@@ -630,7 +630,7 @@ deprecated or weakened.
 
 KIOSK-1.5 rules:
 
-- `mobile/kiosk` remains one Flutter kiosk application. Do not create separate
+- `kiosk` remains one Flutter kiosk application. Do not create separate
   Android and Windows kiosk apps.
 - Kiosk UI/session logic must remain platform-independent and use
   `CameraService`.
@@ -826,7 +826,7 @@ primary, Windows-supported capture foundation.
 
 KIOSK-2C rules:
 
-- `mobile/kiosk` must start on a customer-facing kiosk home/idle presentation,
+- `kiosk` must start on a customer-facing kiosk home/idle presentation,
   not camera settings, diagnostics or technical test controls.
 - The customer flow is Kiosk Home -> Start Try-On -> garment selection/preview
   -> photo source choice -> existing capture/readiness/review/photo-ready flow.
@@ -1100,7 +1100,7 @@ Design-system rules:
   temporary migration-safety exception.
 - SaaS web uses modern, premium, clean surfaces with restrained borders,
   shadows, spacing and typography.
-- Windows/mobile/kiosk no longer use glassmorphism as a SelfX visual direction.
+- Windows, mobile and kiosk no longer use glassmorphism as a SelfX visual direction.
   Prefer solid surfaces, clear neutral borders, restrained shadows and strong
   hierarchy. Wallpaper/slideshow imagery may remain on customer home, but
   controls over imagery must use readable solid surfaces or simple scrims rather
@@ -1225,8 +1225,8 @@ The current canonical repository structure is:
 - `frontend/web`
 - `backend/api`
 - `backend/worker`
-- `mobile/kiosk`
-- `mobile/customer-app`
+- `kiosk`
+- `mobile`
 - `integrations/shopify`
 - `integrations/woocommerce`
 - `packages/ui`

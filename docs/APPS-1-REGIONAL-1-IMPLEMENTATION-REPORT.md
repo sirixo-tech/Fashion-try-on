@@ -24,7 +24,7 @@ Implemented locally on 21 October 2026. Production has not been changed.
 ## What you need to do
 
 1. Use a stable production release signing key for the kiosk APK. The current
-   `mobile/kiosk/android/app/build.gradle.kts` release configuration still signs
+   `kiosk/android/app/build.gradle.kts` release configuration still signs
    with the Android debug key. This implementation deliberately does not create,
    replace or expose signing keys. Decide/migrate your production signing identity
    before distributing commercial builds; installing a differently signed APK

@@ -20,5 +20,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/config/production.json
     - assets/branding/selfx-logo.png
     - assets/branding/selfx-mark.png

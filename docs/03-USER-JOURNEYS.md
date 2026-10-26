@@ -1396,7 +1396,7 @@ SelfX developer or authorized kiosk operator validating Android kiosk hardware.
 ### Main Flow
 
 1. Operator installs the SelfX kiosk APK on an Android box.
-2. Operator launches the same `mobile/kiosk` Flutter application.
+2. Operator launches the same `kiosk` Flutter application.
 3. The app presents portrait-first kiosk screens with immersive presentation.
 4. Operator grants camera permission when Android requests it.
 5. Kiosk enumerates cameras exposed through Android CameraX.
@@ -1933,7 +1933,7 @@ Future SaaS module builders use the shared SelfX design system for primary,
 secondary, selected, ghost and danger actions. The primary action color is
 `#FF7119` with white text; secondary/inactive controls use white/light surfaces,
 dark text and neutral borders; destructive actions remain red. SaaS web uses
-premium clean Shadcn-first patterns, while Windows/mobile/kiosk use solid
+premium clean Shadcn-first patterns, while Windows, mobile and kiosk use solid
 premium cards/buttons rather than glassmorphism. Flutter applications match the
 same SelfX design semantics through Flutter-native components rather than
 React/shadcn components.

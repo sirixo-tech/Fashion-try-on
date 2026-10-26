@@ -993,7 +993,7 @@ multi-platform:
 
 - Android is the primary commercial kiosk display target.
 - Windows remains supported for Windows kiosks and desktop camera testing.
-- The app remains one Flutter application under `mobile/kiosk`.
+- The app remains one Flutter application under `kiosk`.
 - Android commercial kiosk screens are portrait-first for SelfX's current
   32-inch and 42-inch vertically mounted displays, while Windows remains
   responsive in both portrait and landscape windows.
@@ -2756,7 +2756,7 @@ camera controls.
 - Danger buttons: semantic red, never orange.
 - Default button shape: premium rounded rectangle around 8-10px visual radius.
 - SaaS web uses premium clean Shadcn-first surfaces.
-- Windows/mobile/kiosk use solid premium cards/buttons rather than
+- Windows, mobile and kiosk use solid premium cards/buttons rather than
   glassmorphism; readability takes priority over transparency.
 - The required orange/white combination may need an accessible action variant
   before formal WCAG AA compliance.

@@ -103,7 +103,7 @@ collection automation, refunds and additional payment gateways remain separate.
    `SELFX_PHONEPE_UAT_ENABLED` (test execution). Verification success alone does not
    enable checkout. Disabling gateway policy/selection prevents new attempts.
 5. Configure the existing production signing identity in ignored
-   `mobile/kiosk/android/key.properties`, using `key.properties.example` as a guide.
+   `kiosk/android/key.properties`, using `key.properties.example` as a guide.
    Protect the keystore and passwords. Build release APKs with the correct API URL,
    `--release --split-per-abi --target-platform=android-arm,android-arm64` and a
    monotonically increasing build number. Split ABI version codes differ from the
