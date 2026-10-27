@@ -1,7 +1,7 @@
 name: selfx_customer
 description: Independent SelfX customer app for personal and Store-sponsored Try-On.
 publish_to: none
-version: 0.5.0+5
+version: 0.7.0+7
 environment:
   sdk: ^3.12.1
 dependencies:
@@ -25,6 +25,9 @@ dependencies:
   firebase_auth: ^7.0.1
   firebase_messaging: ^17.0.1
   intl: ^0.20.2
+  country_picker: ^2.0.28
+  phone_numbers_parser: ^9.0.28
+  package_info_plus: ^10.2.2
   flutter_localizations:
     sdk: flutter
 dev_dependencies:

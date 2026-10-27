@@ -6,6 +6,7 @@ import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
 import 'customer_theme.dart';
 import 'customer_code_screen.dart';
+import 'customer_phone_field.dart';
 import '../l10n/customer_language_screen.dart';
 
 enum CustomerAuthView { signIn, signUp, verify, forgot, reset }
@@ -23,8 +24,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       password = TextEditingController(),
       name = TextEditingController(),
       code = TextEditingController();
-  final phone = TextEditingController(),
-      country = TextEditingController(text: '+91');
+  final phone = TextEditingController();
+  final phoneField = GlobalKey<CustomerPhoneFieldState>();
   Timer? resendTimer;
   int resendWait = 0;
   void startResendWait() {
@@ -121,7 +122,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
           password.text,
           phoneNumber: phone.text.trim().isEmpty
               ? null
-              : '${country.text.trim()}${phone.text.trim()}',
+              : phoneField.currentState?.canonical,
         );
         if (mounted) {
           setState(() {
@@ -224,74 +225,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     name.dispose();
     code.dispose();
     phone.dispose();
-    country.dispose();
     resendTimer?.cancel();
     super.dispose();
   }
-
-  Widget contactField(
-    String label,
-    TextEditingController controller,
-    FormFieldValidator<String> validator,
-    int maximum,
-  ) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 36),
-        child: CustomerText(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ),
-      Semantics(
-        label: tr(context, label),
-        child: TextFormField(
-          controller: controller,
-          enabled: !busy,
-          textDirection: TextDirection.ltr,
-          keyboardType: TextInputType.phone,
-          inputFormatters: const [CustomerCodeFormatter()],
-          maxLength: maximum,
-          decoration: const InputDecoration(counterText: ''),
-          validator: validator,
-        ),
-      ),
-    ],
-  );
-  Widget phoneContacts() => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(
-        child: contactField(
-          'Country code',
-          country,
-          (value) =>
-              phone.text.trim().isEmpty ||
-                  RegExp(r'^\+[1-9]\d{0,2}$').hasMatch(value?.trim() ?? '')
-              ? null
-              : tr(context, 'Enter a valid country code.'),
-          4,
-        ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        flex: 2,
-        child: contactField(
-          'Phone number (optional)',
-          phone,
-          (value) =>
-              (value?.trim().isEmpty ?? true) ||
-                  RegExp(
-                    r'^\+[1-9]\d{7,14}$',
-                  ).hasMatch('${country.text.trim()}${value!.trim()}')
-              ? null
-              : tr(context, 'Enter a valid phone number with country code.'),
-          14,
-        ),
-      ),
-    ],
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -563,7 +499,14 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         ),
                       if (signup) ...[
                         const SizedBox(height: 14),
-                        phoneContacts(),
+                        CustomerPhoneField(
+                          key: phoneField,
+                          controller: phone,
+                          countries: auth.countries,
+                          label: 'Phone number (optional)',
+                          optional: true,
+                          enabled: !busy,
+                        ),
                         const SizedBox(height: 8),
                         const CustomerText(
                           'Verify your phone in Account settings after signing in. Your email must be verified first.',

@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:selfx_customer/src/auth/customer_api.dart';
 import 'package:selfx_customer/src/auth/customer_controller.dart';
 import 'package:selfx_customer/src/customer_app.dart';
 import 'package:selfx_customer/src/ui/customer_skeleton.dart';
 import 'package:selfx_customer/src/ui/customer_theme.dart';
+import 'package:selfx_customer/src/ui/customer_phone_field.dart';
+import 'package:selfx_customer/src/ui/customer_experience_screens.dart';
 import 'fakes.dart';
 
 void main() {
@@ -352,15 +355,16 @@ void main() {
     },
   );
   testWidgets(
-    'signs in to the new shell and keeps scanner, Plans and balance in the header',
+    'signs in to the shell with scanner, language and balance in the header',
     (tester) async {
       await mount(tester);
       await login(tester);
       expect(find.byTooltip('Scan Store QR'), findsOneWidget);
-      expect(find.text('Plans'), findsOneWidget);
+      expect(find.text('Plans'), findsNothing);
+      expect(find.text('EN'), findsOneWidget);
       expect(
         tester.getTopLeft(find.byTooltip('Scan Store QR')).dx,
-        lessThan(tester.getTopLeft(find.text('Plans')).dx),
+        lessThan(tester.getTopLeft(find.text('EN')).dx),
       );
       expect(find.text('10'), findsOneWidget);
       await tap(tester, find.text('Saved'));
@@ -384,6 +388,7 @@ void main() {
     await mount(tester);
     await login(tester);
     await tap(tester, find.text('Me'));
+    await tap(tester, find.text('Profile'));
     await tap(tester, find.text('Sign out'));
     expect(find.text('Your next look\nstarts here.'), findsOneWidget);
     expect(find.text('Ava Morgan'), findsNothing);
@@ -425,6 +430,7 @@ void main() {
     await mount(tester);
     await login(tester);
     await tap(tester, find.text('Me'));
+    await tap(tester, find.text('Profile'));
     await tap(tester, find.text('Delete account'));
     await tap(tester, find.text('Permanently delete account'));
     expect(find.text('Type DELETE to confirm.'), findsOneWidget);
@@ -435,12 +441,22 @@ void main() {
     (tester) async {
       const enabled = bool.fromEnvironment('CUSTOMER_REVIEW');
       if (!enabled) return;
+      PackageInfo.setMockInitialValues(
+        appName: 'SelfX',
+        packageName: 'com.selfx.selfx_customer',
+        version: '0.7.0',
+        buildNumber: '7',
+        buildSignature: '',
+      );
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final boundary = GlobalKey();
       Future<void> capture(String name) async {
+        (boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary)
+            .markNeedsPaint();
+        await tester.pump();
         await tester.runAsync(() async {
           final image =
               await (boundary.currentContext!.findRenderObject()!
@@ -502,7 +518,10 @@ void main() {
       await capture('sign-in');
       await tap(tester, find.text('Sign in with a code'));
       await capture('code-contact');
-      await tester.enterText(find.byType(TextFormField).first, 'customer@example.test');
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'customer@example.test',
+      );
       await tap(tester, find.widgetWithText(FilledButton, 'Send code'));
       await capture('code-entry');
       await tap(tester, find.byType(BackButton));
@@ -511,12 +530,59 @@ void main() {
       await tap(tester, find.widgetWithText(TextButton, 'Sign in'));
       await login(tester);
       await capture('home');
+      await tap(tester, find.byKey(const ValueKey('header-language')));
+      await capture('language-menu');
+      await tester.tapAt(const Offset(10, 150));
+      await tester.pumpAndSettle();
+      await tap(tester, find.byKey(const ValueKey('header-credits')));
+      final creditsExperience = tester
+          .widget<CustomerPlansScreen>(find.byType(CustomerPlansScreen))
+          .experience;
+      api.trialRemaining = 0;
+      await creditsExperience.refresh();
+      await tap(tester, find.byType(BackButton));
+      await capture('home-zero-credits');
+      api.trialRemaining = 10;
+      await creditsExperience.refresh();
       await tap(tester, find.text('Saved'));
       await capture('saved');
       await tap(tester, find.text('Me'));
       await capture('account');
+      await tap(tester, find.text('Profile'));
+      await capture('profile');
+      await tap(tester, find.text('Add profile photo'));
+      await capture('profile-photo-consent');
+      await tap(tester, find.text('Cancel'));
       await tap(tester, find.text('Phone number'));
       await capture('phone-link');
+      await tap(
+        tester,
+        find
+            .descendant(
+              of: find.byType(CustomerPhoneField),
+              matching: find.byType(OutlinedButton),
+            )
+            .first,
+      );
+      await capture('country-picker');
+      await tester.enterText(find.byType(TextField).last, '+44');
+      await tester.pumpAndSettle();
+      await capture('country-search');
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      await tap(tester, find.byType(BackButton));
+      await tap(tester, find.text('Your name'));
+      await capture('profile-edit');
+      await tap(tester, find.text('Cancel'));
+      await tap(tester, find.byType(BackButton));
+      final about = find.text('About SelfX');
+      await tester.scrollUntilVisible(
+        about,
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tap(tester, about);
+      await capture('about');
     },
   );
 }

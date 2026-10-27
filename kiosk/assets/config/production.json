@@ -1,3 +1,11 @@
 {
-  "selfxKioskApiBaseUrl": "https://selfxapi-production.up.railway.app"
+  "selfxCustomerApiBaseUrl": "https://selfxapi-production.up.railway.app",
+  "firebase": {
+    "android": {
+      "apiKey": "AIzaSyC2nvg3wyXasFiLbAZ4pw3VSj57s5p43-w",
+      "appId": "1:339412880970:android:8b016755426ff6c153a0b3",
+      "messagingSenderId": "339412880970",
+      "projectId": "selfx-userapp"
+    }
+  }
 }

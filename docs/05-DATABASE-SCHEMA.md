@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
+
+Migration 20261027030000_customer_profile_photo adds CustomerProfilePhoto, owned by Customer, with a private storage key, consent version/statement/language, readiness, seven-day expiry and deletion/cleanup timestamps. Replacements and deletions remain unreadable; durable consent metadata is retained. Existing customer, Store, credit and identity records are preserved. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.
+
+
+### CUSTOMER-MOBILE-6 — Country and account UI (2026-10-27)
+
+No backend schema changes. The selected country is a device-local preference; existing customer profile/verified-phone ownership, credits and history are preserved. See `CUSTOMER-MOBILE-6-ACCOUNT-UI.md`.
+
 ### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
 
 Extend Customer with unique verified phone, non-unique pending phone and verification/consent timestamps. Add FIREBASE_PHONE to customer identity providers and EMAIL_LOGIN to existing action-token purposes. CustomerSession.authenticatedAt persists original authentication time across refresh. Existing accounts/credits/history remain unchanged. See `CUSTOMER-MOBILE-5-OTP.md` and its two migrations.

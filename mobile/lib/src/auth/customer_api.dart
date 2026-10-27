@@ -15,6 +15,7 @@ class CustomerApiException implements Exception {
 class CustomerProfile {
   final String id, email, displayName, language;
   final bool notifications;
+  final bool emailVerified;
   final List<String> methods;
   final String? phoneNumber, pendingPhoneNumber;
   const CustomerProfile({
@@ -23,6 +24,7 @@ class CustomerProfile {
     required this.displayName,
     this.language = 'en',
     this.notifications = false,
+    this.emailVerified = false,
     this.methods = const [],
     this.phoneNumber,
     this.pendingPhoneNumber,
@@ -34,6 +36,7 @@ class CustomerProfile {
         displayName: json['displayName'] as String,
         language: json['language'] as String? ?? 'en',
         notifications: json['notifications'] as bool? ?? false,
+        emailVerified: json['emailVerified'] == true,
         methods: List<String>.from(json['methods'] as List? ?? []),
         phoneNumber: json['phoneNumber'] as String?,
         pendingPhoneNumber: json['pendingPhoneNumber'] as String?,

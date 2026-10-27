@@ -2,7 +2,10 @@ import '../l10n/customer_copy.dart';
 import 'dart:async';
 import '../services/customer_push.dart';
 import 'customer_service_screens.dart';
-import 'customer_code_screen.dart';
+import 'customer_about_screen.dart';
+import 'customer_profile_screen.dart';
+import 'customer_language_menu.dart';
+import '../services/customer_profile_photo.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/customer_api.dart';
@@ -26,6 +29,7 @@ class CustomerShell extends StatefulWidget {
 class _CustomerShellState extends State<CustomerShell>
     with WidgetsBindingObserver {
   late final CustomerExperience experience;
+  late final CustomerProfilePhoto profilePhoto;
   late final CustomerPushRegistration pushRegistration;
   late final CustomerPhotoPicker picker;
   int tab = 0;
@@ -35,6 +39,7 @@ class _CustomerShellState extends State<CustomerShell>
   void initState() {
     super.initState();
     experience = CustomerExperience(auth);
+    profilePhoto = CustomerProfilePhoto(auth);
     pushRegistration = CustomerPushRegistration(
       auth,
       NativeCustomerPush(),
@@ -54,6 +59,7 @@ class _CustomerShellState extends State<CustomerShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       experience.resume();
+      if (tab == 2) unawaited(profilePhoto.load());
     } else {
       experience.pause();
     }
@@ -63,6 +69,7 @@ class _CustomerShellState extends State<CustomerShell>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     experience.dispose();
+    profilePhoto.dispose();
     unawaited(pushRegistration.dispose());
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
@@ -163,6 +170,7 @@ class _CustomerShellState extends State<CustomerShell>
     );
     if (yes == true) {
       await experience.erasePhotos();
+      profilePhoto.clear();
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
     }
@@ -188,69 +196,78 @@ class _CustomerShellState extends State<CustomerShell>
                       ),
                     ),
                   ),
-                  Expanded(
-                    flex: 2,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        IconButton(
-                          tooltip: tr(context, 'Scan Store QR'),
-                          onPressed: busy ? null : scanStore,
-                          icon: const Icon(
-                            Icons.qr_code_scanner_rounded,
-                            size: 24,
-                          ),
-                        ),
-                        Flexible(
-                          flex: 2,
-                          child: TextButton(
-                            onPressed: plans,
-                            child: const CustomerText(
-                              'Plans',
-                              textAlign: TextAlign.center,
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: tr(context, 'Scan Store QR'),
+                    onPressed: busy ? null : scanStore,
+                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
+                  ),
+                  CustomerLanguageMenu(auth: auth),
+                  Tooltip(
+                    message: tr(
+                      context,
+                      experience.remaining == 0
+                          ? 'Add credits'
+                          : 'Personal free trial credits. Store-sponsored usage is separate.',
+                    ),
+                    child: Semantics(
+                      button: true,
+                      label: tr(
+                        context,
+                        experience.remaining == 0
+                            ? 'Add credits'
+                            : 'Personal credits: ${experience.remaining ?? 'unavailable'}',
+                      ),
+                      child: Material(
+                        color: CustomerColors.tint,
+                        borderRadius: BorderRadius.circular(24),
+                        child: InkWell(
+                          key: const ValueKey('header-credits'),
+                          borderRadius: BorderRadius.circular(24),
+                          onTap: plans,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 12,
                             ),
-                          ),
-                        ),
-                        Tooltip(
-                          message: tr(
-                            context,
-                            'Personal free trial credits. Store-sponsored usage is separate.',
-                          ),
-                          child: Material(
-                            color: CustomerColors.tint,
-                            borderRadius: BorderRadius.circular(24),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(24),
-                              onTap: plans,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 12,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  experience.remaining == 0
+                                      ? Icons.add_rounded
+                                      : Icons.auto_awesome_rounded,
+                                  color: CustomerColors.orange,
+                                  size: 17,
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.auto_awesome_rounded,
-                                      color: CustomerColors.orange,
-                                      size: 17,
+                                const SizedBox(width: 5),
+                                if (experience.remaining == 0)
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 66,
                                     ),
-                                    const SizedBox(width: 5),
-                                    CustomerText(
-                                      experience.remaining?.toString() ?? '—',
-                                      semanticsLabel:
-                                          'Personal credits: ${experience.remaining ?? 'unavailable'}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: const CustomerText(
+                                        'Add credits',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
+                                  )
+                                else
+                                  CustomerText(
+                                    experience.remaining?.toString() ?? '—',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -319,6 +336,7 @@ class _CustomerShellState extends State<CustomerShell>
             onTap: () {
               setState(() => tab = value);
               if (value == 1) unawaited(run(experience.loadSaved));
+              if (value == 2) unawaited(profilePhoto.load());
             },
             child: AnimatedContainer(
               duration: MediaQuery.disableAnimationsOf(context)
@@ -548,70 +566,35 @@ class _CustomerShellState extends State<CustomerShell>
         style: Theme.of(context).textTheme.headlineLarge,
       ),
       const SizedBox(height: 24),
-      Row(
-        children: [
-          CircleAvatar(
-            radius: 31,
-            backgroundColor: CustomerColors.tint,
-            child: Text(
-              (auth.profile?.displayName.isNotEmpty ?? false)
-                  ? auth.profile!.displayName.characters.first.toUpperCase()
-                  : 'S',
-              style: const TextStyle(fontSize: 24, color: CustomerColors.ink),
-            ),
+      Material(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: CustomerColors.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          key: const ValueKey('account-profile'),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 14,
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  auth.profile?.displayName ?? '',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  auth.profile?.email ?? '',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: CustomerColors.muted,
-                  ),
-                ),
-              ],
-            ),
+          leading: CustomerAvatar(
+            photo: profilePhoto,
+            name: auth.profile?.displayName ?? '',
+            radius: 27,
           ),
-        ],
+          title: Text(
+            auth.profile?.displayName ?? '',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          subtitle: const CustomerText('Profile'),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: openProfile,
+        ),
       ),
-      const SizedBox(height: 28),
+      const SizedBox(height: 18),
       settingsGroup([
-        settingsTile(Icons.person_outline_rounded, 'Profile', editProfile),
-        settingsTile(
-          Icons.phone_outlined,
-          'Phone number',
-          () => Navigator.push<void>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CustomerCodeScreen(
-                auth: auth,
-                linkPhone: true,
-                initialContact:
-                    auth.profile?.phoneNumber ??
-                    auth.profile?.pendingPhoneNumber,
-              ),
-            ),
-          ),
-          trailing: auth.profile?.phoneNumber,
-        ),
-        settingsTile(
-          Icons.lock_outline_rounded,
-          'Account security',
-          () => Navigator.push<void>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CustomerPasswordScreen(controller: auth),
-            ),
-          ),
-        ),
         settingsTile(Icons.workspace_premium_outlined, 'Subscriptions', plans),
       ]),
       const SizedBox(height: 18),
@@ -674,45 +657,13 @@ class _CustomerShellState extends State<CustomerShell>
         settingsTile(
           Icons.auto_awesome_outlined,
           'About SelfX',
-          () => unavailable(
-            'A little more possibility',
-            'SelfX brings personal and Store-sponsored Try-On together in one place. Customer app.',
-          ),
-        ),
-        settingsTile(
-          Icons.slideshow_outlined,
-          'See the introduction',
-          auth.replayOnboarding,
-        ),
-        settingsTile(
-          Icons.article_outlined,
-          'Licenses',
-          () => showLicensePage(
-            context: context,
-            applicationName: 'SelfX',
-            applicationVersion: '0.1.0',
+          () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(builder: (_) => const CustomerAboutScreen()),
           ),
         ),
       ]),
       const SizedBox(height: 18),
-      settingsGroup([
-        settingsTile(
-          Icons.logout_rounded,
-          'Sign out',
-          () => run(() => auth.signOut()),
-        ),
-        settingsTile(
-          Icons.devices_rounded,
-          'Sign out on all devices',
-          () => run(() => auth.signOut(all: true)),
-        ),
-        settingsTile(
-          Icons.delete_outline_rounded,
-          'Delete account',
-          deleteAccount,
-          destructive: true,
-        ),
-      ]),
       const SizedBox(height: 24),
       const CustomerText(
         'Designed around you.',
@@ -782,38 +733,20 @@ class _CustomerShellState extends State<CustomerShell>
     if (mounted) await customerInfo(context, title, fallback);
   }
 
-  Future<void> editProfile() async {
-    final field = TextEditingController(text: auth.profile?.displayName ?? '');
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const CustomerText('Make it personal'),
-        content: TextField(
-          controller: field,
-          maxLength: 160,
-          decoration: InputDecoration(labelText: tr(context, 'Your name')),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const CustomerText('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (field.text.trim().isNotEmpty) {
-                Navigator.pop(context, field.text.trim());
-              }
-            },
-            child: const CustomerText('Save'),
-          ),
-        ],
+  Future<void> openProfile() => Navigator.push<void>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => CustomerProfileScreen(
+        auth: auth,
+        photo: profilePhoto,
+        picker: picker,
+        notifications: notifications,
+        signOut: () => run(() => auth.signOut()),
+        signOutAll: () => run(() => auth.signOut(all: true)),
+        deleteAccount: deleteAccount,
       ),
-    );
-    field.dispose();
-    if (result != null && mounted) {
-      await run(() => auth.updateProfile(name: result));
-    }
-  }
+    ),
+  );
 
   Future<void> deleteAccount() async {
     await Navigator.push<void>(
@@ -864,184 +797,6 @@ class _ActionTile extends StatelessWidget {
                 height: 1.5,
               ),
             ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class CustomerPasswordScreen extends StatefulWidget {
-  final CustomerController controller;
-  const CustomerPasswordScreen({super.key, required this.controller});
-  @override
-  State<CustomerPasswordScreen> createState() => _CustomerPasswordScreenState();
-}
-
-class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
-  final form = GlobalKey<FormState>(),
-      code = TextEditingController(),
-      password = TextEditingController();
-  bool sent = false, busy = false;
-  String? error, notice;
-  Timer? resendTimer;
-  int resendWait = 0;
-  void startResendWait() {
-    resendTimer?.cancel();
-    resendWait = 60;
-    resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        resendWait--;
-        if (resendWait <= 0) timer.cancel();
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    code.dispose();
-    password.dispose();
-    resendTimer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> submit({bool resend = false}) async {
-    if (busy ||
-        (resend && resendWait > 0) ||
-        (!resend && sent && !(form.currentState?.validate() ?? false))) {
-      return;
-    }
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      final email = widget.controller.profile!.email;
-      if (!sent || resend) {
-        final result = await widget.controller.api.request(
-          '/auth/forgot-password',
-          body: {'email': email},
-        );
-        if (mounted) {
-          setState(() {
-            sent = true;
-            startResendWait();
-            notice = result['message'] as String;
-          });
-        }
-      } else {
-        await widget.controller.api.request(
-          '/auth/reset-password',
-          body: {'email': email, 'code': code.text, 'password': password.text},
-        );
-        try {
-          await widget.controller.signOut();
-        } catch (_) {
-          /* Reset already invalidated all sessions. */
-        }
-        if (mounted) Navigator.pop(context);
-      }
-    } catch (caught) {
-      if (mounted) {
-        setState(
-          () => error = caught is CustomerApiException
-              ? caught.message
-              : 'Unable to change your password. Try again.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('Account security')),
-    body: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Form(
-        key: form,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CustomerText(
-              'A password\nthat’s only yours.',
-              style: Theme.of(context).textTheme.headlineLarge,
-            ),
-            const SizedBox(height: 16),
-            CustomerText(
-              'We’ll verify ${widget.controller.profile?.email ?? 'your email'} before changing your password. This signs you out on every device.',
-              style: const TextStyle(color: CustomerColors.muted, height: 1.6),
-            ),
-            const SizedBox(height: 24),
-            if (error != null) ...[
-              CustomerNotice(error!, error: true),
-              const SizedBox(height: 16),
-            ],
-            if (notice != null) ...[
-              CustomerNotice(notice!),
-              const SizedBox(height: 16),
-            ],
-            if (sent) ...[
-              TextFormField(
-                controller: code,
-                inputFormatters: const [CustomerCodeFormatter()],
-                textDirection: TextDirection.ltr,
-                enabled: !busy,
-                maxLength: 6,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: tr(context, '6-digit email code'),
-                ),
-                validator: (value) => RegExp(r'^\d{6}$').hasMatch(value ?? '')
-                    ? null
-                    : tr(context, 'Enter the 6-digit code.'),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: password,
-                textDirection: TextDirection.ltr,
-                enabled: !busy,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: tr(context, 'New password'),
-                  helperText: trNullable(context, 'Use 8–128 characters.'),
-                ),
-                validator: (value) =>
-                    (value?.length ?? 0) >= 8 && (value?.length ?? 0) <= 128
-                    ? null
-                    : tr(context, 'Use 8–128 characters.'),
-              ),
-              const SizedBox(height: 24),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: busy ? null : submit,
-                child: CustomerText(
-                  busy
-                      ? 'Please wait…'
-                      : sent
-                      ? 'Update password'
-                      : 'Send verification code',
-                ),
-              ),
-            ),
-            if (sent)
-              TextButton(
-                onPressed: busy || resendWait > 0
-                    ? null
-                    : () => submit(resend: true),
-                child: CustomerText(
-                  resendWait > 0
-                      ? 'Resend in ${resendWait}s'
-                      : 'Send a new code',
-                ),
-              ),
           ],
         ),
       ),

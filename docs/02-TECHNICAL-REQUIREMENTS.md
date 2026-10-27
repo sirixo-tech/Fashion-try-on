@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
+
+Reuse existing customer auth and language/credit APIs. Store profile-photo ownership and durable consent separately, validate/decode/normalize selected images, expose only authenticated owner-scoped content, and delete photos on replacement/removal/expiry. Use the existing private storage and seven-day customer-photo retention. Firebase and provider flows remain unchanged. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.
+
+
+### CUSTOMER-MOBILE-6 — Country and account UI (2026-10-27)
+
+Use bundled country/phone metadata and a shared Flutter phone field to normalize the existing international-number contract. Persist manual country preferences locally; infer initial region from OS locale without location permissions or network lookup. Read version/build from installed metadata. Backend verification, Firebase setup and authorization remain unchanged. See `CUSTOMER-MOBILE-6-ACCOUNT-UI.md`.
+
 ### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
 
 Extend the central customer auth service with request-bound, single-use email code login and Admin-SDK-verified Firebase phone proofs. Keep SelfX sessions/authorization authoritative. Enforce project, revocation, verified phone, recent authentication, unique ownership and durable request/attempt limits. Phone remains unavailable without explicit server/client configuration. See `CUSTOMER-MOBILE-5-OTP.md`.

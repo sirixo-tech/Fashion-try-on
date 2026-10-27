@@ -316,7 +316,7 @@ void main() {
       final picker = PhotoPicker();
       await tester.pumpWidget(CustomerApp(controller: auth, picker: picker));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Plans'));
+      await tester.tap(find.byKey(const ValueKey('header-credits')));
       await tester.pumpAndSettle();
       expect(find.text('Free trial'), findsOneWidget);
       expect(find.text('10 Try-Ons left'), findsOneWidget);

@@ -48,6 +48,7 @@ class FakeIdentity implements CustomerIdentity {
 }
 
 class FakeCustomerApi implements CustomerApi {
+  int trialRemaining = 10;
   bool phoneAvailable = false;
   final calls =
       <
@@ -64,6 +65,7 @@ class FakeCustomerApi implements CustomerApi {
     'displayName': 'Ava Morgan',
     'language': 'en',
     'notifications': false,
+    'emailVerified': true,
     'methods': ['EMAIL_PASSWORD'],
   };
   Future<Map<String, dynamic>> Function(
@@ -131,6 +133,7 @@ class FakeCustomerApi implements CustomerApi {
       };
     }
     if (path == '/me' && method == 'GET') return profile;
+    if (path == '/me/photo') return {'photo': null};
     if (path == '/experience') {
       return {
         'generationAvailable': true,
@@ -139,7 +142,12 @@ class FakeCustomerApi implements CustomerApi {
             'I allow SelfX to process my chosen photos. Original photos expire within 7 days and results within 30 days.',
         'storeConsentStatement':
             'The Store pays. Personal credits are not used.',
-        'trial': {'granted': 10, 'used': 0, 'reserved': 0, 'remaining': 10},
+        'trial': {
+          'granted': 10,
+          'used': 10 - trialRemaining,
+          'reserved': 0,
+          'remaining': trialRemaining,
+        },
         'saved': 0,
         'pendingRunId': null,
       };

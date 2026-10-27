@@ -127,6 +127,7 @@ void main() {
       await auth.signIn('customer@example.test', 'synthetic-password');
       await tester.pumpAndSettle();
       await tap(tester, find.text('Me'));
+      await tap(tester, find.text('Profile'));
       await tap(tester, find.text('Account security'));
       await tap(
         tester,
@@ -167,6 +168,7 @@ void main() {
       await tester.pumpAndSettle();
       final owner = auth.profile!.id;
       await tap(tester, find.text('Me'));
+      await tap(tester, find.text('Profile'));
       await tap(tester, find.text('Phone number'));
       await tester.enterText(find.byType(TextFormField).first, '+919876543210');
       await tester.pump();

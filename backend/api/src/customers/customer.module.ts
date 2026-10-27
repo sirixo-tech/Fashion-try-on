@@ -30,6 +30,8 @@ import {
 import { CustomerNotificationsService } from "./customer-notifications.service.js";
 import { CustomerPushSender } from "./customer-push.sender.js";
 import { CustomerPhoneClient } from "./customer-phone.client.js";
+import { CustomerProfilePhotoController } from "./customer-profile-photo.controller.js";
+import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
 @Module({
   imports: [
     DatabaseModule,
@@ -42,6 +44,7 @@ import { CustomerPhoneClient } from "./customer-phone.client.js";
     AppsModule,
   ],
   controllers: [
+    CustomerProfilePhotoController,
     CustomerAuthController,
     CustomerMetricsController,
     CustomerExperienceController,
@@ -50,6 +53,7 @@ import { CustomerPhoneClient } from "./customer-phone.client.js";
     CustomerNotificationsController,
   ],
   providers: [
+    CustomerProfilePhotoService,
     CustomerPhoneClient,
     CustomerAuthService,
     CustomerNotificationsService,

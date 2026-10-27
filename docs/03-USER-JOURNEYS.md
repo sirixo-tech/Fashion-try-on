@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
+
+Header: scanner → selected language → personal credits/Add credits. Me → profile card opens name/photo, email/phone verification, security/password reset, notifications and sign-out/account deletion. Other settings remain under Me. Profile photo selection requires prior consent; onboarding remains for first use without a replay button. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.
+
+
+### CUSTOMER-MOBILE-6 — Country and account UI (2026-10-27)
+
+Customers select/search a calling country and enter a national number in signup, code login and phone settings. They can edit the default and reuse their choice later. Me → Profile opens a save/cancel bottom sheet; Me → About SelfX shows the installed version with no Licenses section. Firebase activation remains deferred. See `CUSTOMER-MOBILE-6-ACCOUNT-UI.md`.
+
 ### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
 
 Customers may choose Sign in with a code, enter email or an internationally formatted mobile number and verify six digits. New users create an email account and verify it; optional signup phone details remain pending until Me → Phone number verification. Existing users link a phone after recent sign-in, without replacing their account or allowance. See `CUSTOMER-MOBILE-5-OTP.md`.

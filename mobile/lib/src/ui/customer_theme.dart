@@ -140,6 +140,18 @@ ThemeData customerTheme([String language = 'en']) {
       ),
     ),
     dividerColor: CustomerColors.line,
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: CustomerColors.canvas,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: CustomerColors.canvas,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+    ),
     tooltipTheme: TooltipThemeData(
       decoration: BoxDecoration(
         color: CustomerColors.ink,

@@ -9,6 +9,7 @@ import '../services/customer_push.dart';
 import '../experience/customer_experience.dart';
 import 'customer_experience_screens.dart';
 import 'customer_theme.dart';
+import '../services/customer_app_info.dart';
 
 const customerDeviceChannel = MethodChannel('com.selfx.customer/services');
 
@@ -50,10 +51,7 @@ class _CustomerSupportScreenState extends State<CustomerSupportScreen> {
   Future<void> email() async {
     String version = 'unknown';
     try {
-      final data = await customerDeviceChannel.invokeMapMethod<String, dynamic>(
-        'appInfo',
-      );
-      version = '${data?['versionName']} (${data?['versionCode']})';
+      version = (await CustomerInstalledApp.load()).display;
     } catch (_) {}
     if (!mounted) return;
     final subject = tr(context, 'SelfX mobile support');

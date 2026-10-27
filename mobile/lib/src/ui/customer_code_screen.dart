@@ -5,6 +5,7 @@ import '../auth/customer_controller.dart';
 import '../auth/customer_phone.dart';
 import '../l10n/customer_copy.dart';
 import 'customer_theme.dart';
+import 'customer_phone_field.dart';
 
 class CustomerCodeScreen extends StatefulWidget {
   final CustomerController auth;
@@ -22,6 +23,7 @@ class CustomerCodeScreen extends StatefulWidget {
 
 class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
   final form = GlobalKey<FormState>();
+  final phoneField = GlobalKey<CustomerPhoneFieldState>();
   final contact = TextEditingController(), code = TextEditingController();
   CustomerPhoneChallenge? challenge;
   String? proof, error, owner;
@@ -98,7 +100,9 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
       return;
     }
     await run(() async {
-      final value = contact.text.trim();
+      final value = phone
+          ? phoneField.currentState!.canonical!
+          : contact.text.trim();
       if (phone) {
         if (!widget.auth.capabilities.phone ||
             !await widget.auth.phone.configured()) {
@@ -203,41 +207,16 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                   ),
                   const SizedBox(height: 14),
                 ],
-                TextFormField(
+                CustomerPhoneField(
+                  key: phoneField,
                   controller: contact,
+                  countries: widget.auth.countries,
+                  allowEmail: !widget.linkPhone,
                   enabled: !busy && !sent,
-                  textDirection: TextDirection.ltr,
-                  decoration: InputDecoration(
-                    counterText: '',
-                    helperMaxLines: 3,
-                    labelText: tr(
-                      context,
-                      widget.linkPhone
-                          ? 'Phone number'
-                          : 'Email or mobile number',
-                    ),
-                    helperText: tr(
-                      context,
-                      'Include the country code, for example +91.',
-                    ),
-                  ),
-                  maxLength: 320,
-                  autocorrect: false,
-                  onChanged: (_) => setState(() => consent = false),
-                  validator: (value) {
-                    final input = value?.trim() ?? '';
-                    if (widget.linkPhone || !input.contains('@')) {
-                      return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(input)
-                          ? null
-                          : tr(
-                              context,
-                              'Enter a valid phone number with country code.',
-                            );
-                    }
-                    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(input)
-                        ? null
-                        : tr(context, 'Enter a valid email address.');
-                  },
+                  label: widget.linkPhone
+                      ? 'Phone number'
+                      : 'Email or mobile number',
+                  onChanged: () => setState(() => consent = false),
                 ),
                 if (phoneUnavailable)
                   const CustomerText('Phone sign-in is not configured yet.'),

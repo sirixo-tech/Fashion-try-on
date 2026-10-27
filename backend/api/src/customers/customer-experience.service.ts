@@ -1123,6 +1123,10 @@ export class CustomerExperienceService
           );
       }
       const now = new Date();
+      await tx.customerProfilePhoto.updateMany({
+        where: { customerId, deletedAt: null },
+        data: { deletedAt: now, expiresAt: now },
+      });
       await tx.tryOnAsset.updateMany({
         where: { session: { customerId }, storageDeletedAt: null },
         data: { deletedAt: now, expiresAt: now },

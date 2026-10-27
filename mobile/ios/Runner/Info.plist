@@ -6,9 +6,9 @@
 	<key>FirebaseAnalyticsCollectionEnabled</key><false/>
 	<key>FirebaseMessagingInstallationIdEnabled</key><true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Take a photo for your Try-On or scan a participating Store QR code.</string>
+	<string>Take a profile or Try-On photo, or scan a participating Store QR code.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose only the photos you want to use for your Try-On.</string>
+	<string>Choose a profile photo or the photos you want to use for your Try-On.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save a Try-On result to your photos when you choose Download.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
+
+Consolidate account details under one profile card; add optional private profile photos. Replace the Plans header button with a compact language dropdown, and show Add credits at zero personal balance. Keep subscriptions, language, notifications, updates, support and policy links; remove See the introduction. Firebase remains deferred. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.
+
+
+### CUSTOMER-MOBILE-6 — Country and account UI (2026-10-27)
+
+Approved follow-up adds searchable country codes with editable device-region defaults and remembered manual choice, consistent profile editing, About navigation and actual installed versions. The customer app has no Licenses section, per the latest UI direction; bundled notices remain intact. Phone formatting remains separate from verified ownership. Firebase configuration is explicitly deferred. See `CUSTOMER-MOBILE-6-ACCOUNT-UI.md`.
+
 ### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
 
 Approved follow-up adds six-digit email verification/reset/login codes and prepared Firebase phone login/linking. Keep existing account IDs, credits/history and password/Google/Apple login. Phone is optional at signup and becomes a login method only after verified linking to an authenticated account. No automatic account merging or phone-only signup. See `CUSTOMER-MOBILE-5-OTP.md`.

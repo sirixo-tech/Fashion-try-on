@@ -1072,6 +1072,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     return {
       id: customer.id,
       email: customer.email,
+      emailVerified: customer.status === "ACTIVE" && Boolean(customer.email),
       phoneNumber: customer.phoneNumber,
       pendingPhoneNumber: customer.pendingPhoneNumber,
       phoneVerifiedAt: customer.phoneVerifiedAt?.toISOString() ?? null,

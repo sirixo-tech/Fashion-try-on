@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:country_picker/country_picker.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/customer_copy.dart';
 import 'l10n/customer_language.dart';
@@ -65,6 +66,7 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
       locale: Locale(controller.language),
       supportedLocales: CustomerLanguage.locales,
       localizationsDelegates: const [
+        _CustomerCountryLocalizationsDelegate(),
         CustomerCopy.delegate,
         ...GlobalMaterialLocalizations.delegates,
       ],
@@ -130,4 +132,25 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
       ),
     ),
   );
+}
+
+// Keep app copy in the chosen language when the country-name dataset has no
+// translation for it. Country names alone fall back to English.
+class _CustomerCountryLocalizationsDelegate
+    extends LocalizationsDelegate<CountryLocalizations> {
+  const _CustomerCountryLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) => true;
+
+  @override
+  Future<CountryLocalizations> load(Locale locale) =>
+      CountryLocalizations.delegate.load(
+        CountryLocalizations.delegate.isSupported(locale)
+            ? locale
+            : const Locale('en'),
+      );
+
+  @override
+  bool shouldReload(_CustomerCountryLocalizationsDelegate old) => false;
 }

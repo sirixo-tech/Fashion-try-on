@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
+
+Use a compact 20-language header dropdown and a zero-credit plus/Add credits control leading to existing Plans & credits. Me has one named profile card with avatar/initial. The profile screen consolidates account settings and offers consent-gated gallery/camera/change/remove actions. Preserve RTL, narrow-screen scrolling and the absence of license UI. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.
+
+
+### CUSTOMER-MOBILE-6 — Country and account UI (2026-10-27)
+
+Add a searchable country dropdown and phone keyboard, shared warm keyboard-aware sheets, profile save/error states and a real About screen. Remove the Licenses section from the customer app UI while preserving bundled notices; show installed version/build instead of hardcoded text. Preserve all 20 languages, RTL identifiers and header positions. See `CUSTOMER-MOBILE-6-ACCOUNT-UI.md`.
+
 ### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
 
 Keep the independent premium customer theme and existing header. Add email/mobile code entry, six-digit OTP/autofill, consent before SMS, loading/errors, resend countdown and new-account access. Signup adds optional country-code/phone fields; Me adds phone verification. Translate new text in all 20 languages and retain RTL layout with LTR contact/code fields. See `CUSTOMER-MOBILE-5-OTP.md`.

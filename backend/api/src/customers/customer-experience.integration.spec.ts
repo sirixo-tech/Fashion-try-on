@@ -30,6 +30,7 @@ import {
 import { StorePurgeService } from "../stores/store-purge.service.js";
 import type { Prisma } from "@prisma/client";
 import { CustomerMetricsService } from "./customer-metrics.service.js";
+import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
 
 const url = process.env.CUSTOMER_MOBILE_TEST_DATABASE_URL;
 if (
@@ -267,6 +268,20 @@ describe.skipIf(!url)(
     afterAll(async () => {
       service?.onModuleDestroy();
       await db.$disconnect();
+    });
+    it("Delete my photos also withdraws access to the separate private profile photo", async () => {
+      const photos = new CustomerProfilePhotoService(
+        db as PrismaService,
+        storage as unknown as ObjectStorageService,
+      );
+      const uploaded = await photos.upload(customer, photo, "image/png", "en");
+      await service.eraseCustomerPhotos(customer.id);
+      expect(await photos.get(customer.id)).toEqual({ photo: null });
+      await expect(
+        photos.content(customer.id, uploaded.photo.id),
+      ).rejects.toThrow();
+      await photos.cleanup();
+      expect(objects.size).toBe(0);
     });
     it("grants the configured free trial once, without creating a merchant Store", async () => {
       const initial = await service.summary(customer);

@@ -4,6 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 class CustomerLanguage {
   final String code, name, nativeName;
   const CustomerLanguage(this.code, this.name, this.nativeName);
+  String get shortName => switch (code) {
+    'hi' => 'HIN',
+    'te' => 'TEL',
+    'ta' => 'TAM',
+    'kn' => 'KAN',
+    _ => code.toUpperCase(),
+  };
   static const all = [
     CustomerLanguage('en', 'English', 'English'),
     CustomerLanguage('hi', 'Hindi', 'हिन्दी'),

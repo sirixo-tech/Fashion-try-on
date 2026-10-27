@@ -1,5 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
+
+Implement the approved profile/header slice and private photo storage behind the existing customer backend. Validate all 20 narrow-screen layouts, zero-credit routing, consent cancellation, image normalization, owner isolation, expiry/removal/account deletion and late-response races. Migrate/deploy the API before distributing source version 0.7.0+7. Do not build APKs, activate Firebase or add paid checkout in this slice. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.
+
+
+### CUSTOMER-MOBILE-6 — Country and account UI (2026-10-27)
+
+Implement the approved country/profile/About/version changes while leaving Firebase configuration deferred. Validate country persistence/formatting, profile save/error states, absence of the Licenses section, installed-version metadata, 20-language keyboard layouts and native Android plugin compilation. No APK assembly or production change. See `CUSTOMER-MOBILE-6-ACCOUNT-UI.md`.
+
 ### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
 
 Implement the explicitly requested email/phone OTP and six-digit-code slice. Validate code binding/replay/expiry, ownership isolation, recent sign-in, disabled configuration, existing login regressions, all 20 layouts and Android plugin compilation without assembling APKs. Firebase configuration, real SMS/device tests and production rollout follow separately. See `CUSTOMER-MOBILE-5-OTP.md`.

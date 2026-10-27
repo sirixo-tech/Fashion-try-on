@@ -26,12 +26,20 @@ import { AuthService } from "../auth/auth.service.js";
 import { StoreRbacService } from "../rbac/store-rbac.service.js";
 import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
+import { CustomerProfilePhotoController } from "./customer-profile-photo.controller.js";
+import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
 
 describe("Customer photo HTTP and Store QR permission boundaries", () => {
   let app: NestFastifyApplication;
   const customer = { id: randomUUID(), securityVersion: 0 },
     storeId = randomUUID();
   const auth = { requireCustomer: vi.fn(), limitExperience: vi.fn() };
+  const photos = {
+    get: vi.fn(),
+    content: vi.fn(),
+    upload: vi.fn(),
+    remove: vi.fn(),
+  };
   const staff = { requireAccessUser: vi.fn() },
     rbac = { requireStoreResourcePermission: vi.fn() },
     impersonation = { resolveStoreContext: vi.fn() };
@@ -50,10 +58,15 @@ describe("Customer photo HTTP and Store QR permission boundaries", () => {
   };
   beforeAll(async () => {
     @Module({
-      controllers: [CustomerExperienceController, CustomerStoreQrController],
+      controllers: [
+        CustomerExperienceController,
+        CustomerStoreQrController,
+        CustomerProfilePhotoController,
+      ],
       providers: [
         { provide: CustomerAuthService, useValue: auth },
         { provide: CustomerExperienceService, useValue: experience },
+        { provide: CustomerProfilePhotoService, useValue: photos },
         { provide: AuthService, useValue: staff },
         { provide: StoreRbacService, useValue: rbac },
         { provide: StoreImpersonationService, useValue: impersonation },
@@ -86,6 +99,61 @@ describe("Customer photo HTTP and Store QR permission boundaries", () => {
   });
   afterAll(async () => {
     await app.close();
+  });
+  it("profile photo routes authenticate owners, require current consent and stream only private content", async () => {
+    photos.get.mockResolvedValue({ photo: null });
+    photos.content.mockResolvedValue(Buffer.from("synthetic-jpeg"));
+    const read = await app.inject({
+      method: "GET",
+      url: "/api/v1/customer/me/photo",
+    });
+    expect(read.statusCode).toBe(200);
+    expect(read.headers["cache-control"]).toBe("no-store");
+    expect(photos.get).toHaveBeenCalledWith(customer.id);
+    const id = randomUUID();
+    const content = await app.inject({
+      method: "GET",
+      url: `/api/v1/customer/me/photo/${id}/content`,
+    });
+    expect(content.headers["content-type"]).toContain("image/jpeg");
+    expect(content.headers["x-content-type-options"]).toBe("nosniff");
+    expect(photos.content).toHaveBeenCalledWith(customer.id, id);
+    const invalidConsent = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/me/photo?consentVersion=old&consentLanguage=en",
+    });
+    expect(invalidConsent.statusCode).toBe(400);
+    expect(photos.upload).not.toHaveBeenCalled();
+    const boundary = "selfx-profile-fixture";
+    const payload = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="fixture.png"\r\nContent-Type: image/png\r\n\r\nfixture-bytes\r\n--${boundary}--\r\n`,
+    );
+    photos.upload.mockResolvedValue({ photo: { id } });
+    const upload = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/me/photo?consentVersion=2026-10-27&consentLanguage=te",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload,
+    });
+    expect(upload.statusCode).toBe(201);
+    expect(photos.upload).toHaveBeenCalledWith(
+      customer,
+      Buffer.from("fixture-bytes"),
+      "image/png",
+      "te",
+    );
+    photos.remove.mockResolvedValue({ photo: null });
+    await app.inject({ method: "DELETE", url: "/api/v1/customer/me/photo" });
+    expect(photos.remove).toHaveBeenCalledWith(customer);
+    auth.requireCustomer.mockRejectedValue(
+      new ApiErrorException(401, "CUSTOMER_UNAUTHORIZED", "Sign in"),
+    );
+    photos.get.mockClear();
+    expect(
+      (await app.inject({ method: "GET", url: "/api/v1/customer/me/photo" }))
+        .statusCode,
+    ).toBe(401);
+    expect(photos.get).not.toHaveBeenCalled();
   });
   it("requires customer identity before any sensitive reads and never caches the balance", async () => {
     const ok = await app.inject({

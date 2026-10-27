@@ -4,6 +4,7 @@ import 'customer_identity.dart';
 import 'customer_phone.dart';
 import 'session_store.dart';
 import '../l10n/customer_language.dart';
+import '../services/customer_country.dart';
 
 enum CustomerStage { loading, onboarding, authentication, ready, recovery }
 
@@ -13,6 +14,7 @@ class CustomerController extends ChangeNotifier {
   final CustomerIdentity identity;
   final CustomerLanguageStore languageStore;
   final CustomerPhone phone;
+  final CustomerCountrySelection countries;
   String language = 'en';
   bool languageSaving = false;
   CustomerStage stage = CustomerStage.loading;
@@ -35,8 +37,10 @@ class CustomerController extends ChangeNotifier {
     required this.identity,
     CustomerLanguageStore? languageStore,
     CustomerPhone? phone,
+    CustomerCountrySelection? countries,
   }) : languageStore = languageStore ?? LocalCustomerLanguageStore(),
-       phone = phone ?? FirebaseCustomerPhone();
+       phone = phone ?? FirebaseCustomerPhone(),
+       countries = countries ?? CustomerCountrySelection();
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -50,6 +54,7 @@ class CustomerController extends ChangeNotifier {
     initializationError = null;
     _notify();
     try {
+      await countries.initialize();
       try {
         language = CustomerLanguage.normalize(await languageStore.read());
       } catch (_) {
@@ -472,6 +477,7 @@ class CustomerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    countries.dispose();
     phone.cancel();
     _disposed = true;
     ++_epoch;
