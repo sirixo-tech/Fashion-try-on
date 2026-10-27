@@ -65,7 +65,7 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Customer Images</h2>
           <p className="leading-7 text-muted-foreground">
-            Customer photos and generated try-on images are treated as sensitive
+            Photos used for try-on and generated images are treated as sensitive
             data. They are used only to provide the requested try-on experience
             and related support. Customer person images, temporary provider
             inputs and customer-session outfit captures expire within seven
@@ -76,6 +76,14 @@ export default function PrivacyPage() {
             lose application access; private download links have a short
             lifetime and failed storage deletions are retried. A result you
             explicitly download to your own device remains under your control.
+          </p>
+          <p className="leading-7 text-muted-foreground">
+            Profile pictures are separate from try-on photos. New profile
+            pictures stay private to your account until you replace or remove
+            them. Delete my photos and account deletion also remove profile
+            pictures. They are not automatically used for try-on. Pictures
+            uploaded under a previous time-limited policy keep that original
+            limit until replaced.
           </p>
         </section>
 

@@ -1,6 +1,5 @@
 import '../config/customer_firebase_config.dart';
 import 'dart:async';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,9 +32,7 @@ class NativeCustomerPush extends CustomerFirebaseConfiguration
     required void Function() onOpened,
   }) async {
     if (!await configured()) return false;
-    if (!Firebase.apps.any((app) => app.name == '[DEFAULT]')) {
-      await Firebase.initializeApp(options: options);
-    }
+    await initializeDefaultApp();
     final messaging = FirebaseMessaging.instance;
     final settings = requestPermission
         ? await messaging.requestPermission(

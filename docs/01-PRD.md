@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
+
+Allow email/mobile password entry and number-first signup with an email for required email verification; SMS verification stays optional. Use inline linked Terms/Privacy without a checkbox, direct Google continuation and controlled linking to the same existing account. Ten-second phone retries retain broader abuse limits. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.
+
+### CUSTOMER-MOBILE-10 — Reference-led welcome and authentication (2026-10-27)
+
+First launch shows an editorial welcome, three illustrated information screens and existing login/signup. Use the supplied fashion reference while describing only implemented photo Try-On, Store QR and Saved behavior. Preserve returning sessions and local onboarding completion. See `CUSTOMER-MOBILE-10-WELCOME-AUTH.md`.
+
+### CUSTOMER-MOBILE-9 — Compact profile settings (2026-10-27)
+
+Move Log out and Delete account to outer Me/settings and remove Sign out on all devices from the app UI. Replace verbose profile-photo controls with an avatar + and compact Gallery/Camera/Remove chooser. The user explicitly approves new profile pictures staying until replaced/removed/account deletion; Try-On photo retention is unchanged. See `CUSTOMER-MOBILE-9-PROFILE-SIMPLIFICATION.md`.
+
+
+### CUSTOMER-MOBILE-8 — Native Firebase wiring (2026-10-27)
+
+Implement the Firebase app wiring using the downloaded native Android settings. Preserve explicit SMS consent, notification opt-in and backend verification; do not require duplicated public values in the Dart config. Firebase Console/Railway setup and real delivery acceptance remain rollout work. See `CUSTOMER-MOBILE-8-FIREBASE-WIRING.md`.
+
+
 ### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
 
 Consolidate account details under one profile card; add optional private profile photos. Replace the Plans header button with a compact language dropdown, and show Add credits at zero personal balance. Keep subscriptions, language, notifications, updates, support and policy links; remove See the introduction. Firebase remains deferred. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.

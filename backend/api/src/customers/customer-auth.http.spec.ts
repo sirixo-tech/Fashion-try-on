@@ -34,6 +34,7 @@ describe("Customer HTTP validation and auth boundary", () => {
     phoneRequest: vi.fn(),
     phoneLogin: vi.fn(),
     linkPhone: vi.fn(),
+    linkOAuth: vi.fn(),
   };
   beforeAll(async () => {
     @Module({
@@ -81,6 +82,66 @@ describe("Customer HTTP validation and auth boundary", () => {
   });
   afterAll(async () => {
     await app?.close();
+  });
+  it("accepts canonical mobile/password login while rejecting ambiguous or invalid contact payloads", async () => {
+    auth.login.mockResolvedValue({ accessToken: "fixture" });
+    for (const email of ["customer@example.test", "+919876543210"]) {
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/api/v1/customer/auth/login",
+            payload: { email, password: "fixture-password" },
+          })
+        ).statusCode,
+      ).toBe(201);
+      expect(auth.login).toHaveBeenCalledWith(
+        email,
+        "fixture-password",
+        expect.any(String),
+        undefined,
+      );
+    }
+    for (const email of ["9876543210", "bad email", "+00000000", ""]) {
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/api/v1/customer/auth/login",
+            payload: { email, password: "fixture-password" },
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/v1/customer/me/oauth",
+          payload: {
+            provider: "GOOGLE",
+            idToken: "x".repeat(30),
+            customerId: "forged",
+          },
+        })
+      ).statusCode,
+    ).toBe(400);
+    auth.linkOAuth.mockRejectedValue(
+      new ApiErrorException(
+        401,
+        "CUSTOMER_UNAUTHORIZED",
+        "Please sign in again.",
+      ),
+    );
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/v1/customer/me/oauth",
+          payload: { provider: "GOOGLE", idToken: "x".repeat(30) },
+        })
+      ).statusCode,
+    ).toBe(401);
   });
   it("requires a bound six-digit email login proof and disallows client phone ownership claims", async () => {
     for (const code of ["1234", "12345678", "abcdef"]) {

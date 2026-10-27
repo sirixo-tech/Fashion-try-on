@@ -40,12 +40,7 @@ class ProfileMediaApi extends FakeCustomerApi implements CustomerMediaApi {
   ) async {
     uploads++;
     uploadPath = path;
-    photo = {
-      'id': 'private-avatar',
-      'expiresAt': DateTime.now()
-          .add(const Duration(days: 7))
-          .toIso8601String(),
-    };
+    photo = {'id': 'private-avatar', 'expiresAt': null};
     return {'photo': photo};
   }
 
@@ -54,13 +49,22 @@ class ProfileMediaApi extends FakeCustomerApi implements CustomerMediaApi {
       downloadWait == null ? syntheticPhoto : await downloadWait!.future;
 }
 
+class ProfilePhotoPicker extends PhotoPicker {
+  CustomerPhotoSource? source;
+  @override
+  Future<PickedCustomerPhoto?> pick(CustomerPhotoSource source) {
+    this.source = source;
+    return super.pick(source);
+  }
+}
+
 void main() {
   late ProfileMediaApi api;
   late CustomerController auth;
-  late PhotoPicker picker;
+  late ProfilePhotoPicker picker;
   setUp(() {
     api = ProfileMediaApi();
-    picker = PhotoPicker();
+    picker = ProfilePhotoPicker();
     auth = CustomerController(
       api: api,
       store: MemorySessionStore(),
@@ -125,24 +129,50 @@ void main() {
       await tap(tester, find.byKey(const ValueKey('account-profile')));
       expect(find.text('Email address'), findsOneWidget);
       expect(find.text('Verified'), findsOneWidget);
-      await tap(tester, find.text('Add profile photo'));
+      expect(find.text('Log out'), findsNothing);
+      expect(find.text('Delete account'), findsNothing);
+      expect(find.text('Sign out on all devices'), findsNothing);
+      expect(find.text('Add profile photo'), findsNothing);
+      await tap(tester, find.byKey(const ValueKey('profile-photo-action')));
       expect(find.text(customerProfilePhotoConsent), findsOneWidget);
+      expect(find.text('Gallery'), findsOneWidget);
+      expect(find.text('Take a photo'), findsOneWidget);
       await tap(tester, find.text('Cancel'));
       expect(picker.selections, 0);
       expect(api.uploads, 0);
-      await tap(tester, find.text('Add profile photo'));
-      await tap(tester, find.text('Agree & choose photo'));
+      await tap(tester, find.byKey(const ValueKey('profile-photo-action')));
+      await tap(tester, find.text('Gallery'));
       expect(picker.selections, 1);
+      expect(picker.source, CustomerPhotoSource.gallery);
       expect(
         api.uploadPath,
-        contains('consentVersion=2026-10-27&consentLanguage=en'),
+        contains('consentVersion=2026-10-27-v2&consentLanguage=en'),
       );
-      expect(find.text('Change profile photo'), findsOneWidget);
-      await tap(tester, find.text('Remove profile photo'));
-      await tester.scrollUntilVisible(find.text('Add profile photo'), -160, scrollable: find.byType(Scrollable).last);
-      expect(find.text('Add profile photo'), findsOneWidget);
+      expect(find.byTooltip('Change profile photo'), findsOneWidget);
+      await tap(tester, find.byKey(const ValueKey('profile-photo-action')));
+      await tap(tester, find.text('Remove photo'));
+      expect(find.byTooltip('Add profile photo'), findsOneWidget);
       expect(api.photo, isNull);
+      await tap(tester, find.byKey(const ValueKey('profile-photo-action')));
+      await tap(tester, find.text('Take a photo'));
+      expect(picker.source, CustomerPhotoSource.camera);
+      expect(api.uploads, 2);
       expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'persistent profile photos remain after the previous seven-day window',
+    (tester) async {
+      await auth.initialize();
+      await auth.signIn('customer@example.test', 'synthetic-password');
+      final photo = CustomerProfilePhoto(auth);
+      addTearDown(photo.dispose);
+      await photo.upload(PickedCustomerPhoto(syntheticPhoto, 'image/png'));
+      expect(photo.expiresAt, isNull);
+      await tester.pump(const Duration(days: 8));
+      expect(photo.bytes, syntheticPhoto);
+      await photo.remove();
+      expect(photo.bytes, isNull);
     },
   );
   test(

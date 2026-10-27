@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "프로필 사진을 로드할 수 없습니다. 다시 시도해 주세요.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "최대 5MB의 JPEG, PNG 또는 WebP 사진 한 장을 선택하세요.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "최대 5MB, 각 면 최소 256픽셀, 각 면 최대 8192픽셀의 JPEG, PNG 또는 WebP 사진을 선택하세요.",
-  "Your photo upload was cancelled. Please try again.": "사진 업로드가 취소되었습니다. 다시 시도해 주세요."
+  "Your photo upload was cancelled. Please try again.": "사진 업로드가 취소되었습니다. 다시 시도해 주세요.",
+  "Log out": "로그아웃",
+  "Gallery": "갤러리",
+  "Remove photo": "사진 삭제",
+  "Saved to your profile until replaced or removed.": "교체하거나 삭제할 때까지 프로필에 저장됩니다.",
+  "Please update SelfX before changing your profile photo.": "프로필 사진을 변경하기 전에 SelfX를 업데이트해 주세요.",
+  "By continuing, you agree to our": "계속하면 다음 내용에 동의하게 됩니다:",
+  "Your verification code will be sent to this email.": "인증 코드가 이 이메일로 전송됩니다.",
+  "Link Google": "Google 연결",
+  "Google linked": "Google 연결됨",
+  "Use the same email as your SelfX account.": "SelfX 계정과 동일한 이메일을 사용하세요.",
+  "Verification error: {p0}": "인증 오류: {p0}"
 }

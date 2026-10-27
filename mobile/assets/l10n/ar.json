@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "لا يمكن تحميل صورة ملفك الشخصي. يرجى المحاولة مرة أخرى.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "اختر صورة واحدة بتنسيق JPEG أو PNG أو WebP يصل حجمها إلى 5 ميجابايت.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "اختر صورة بتنسيق JPEG أو PNG أو WebP بحجم يصل إلى 5 ميجابايت، وبحجم لا يقل عن 256 بكسل على كل جانب ولا يزيد عن 8192 بكسل على كلا الجانبين.",
-  "Your photo upload was cancelled. Please try again.": "تم إلغاء تحميل صورتك. يرجى المحاولة مرة أخرى."
+  "Your photo upload was cancelled. Please try again.": "تم إلغاء تحميل صورتك. يرجى المحاولة مرة أخرى.",
+  "Log out": "تسجيل الخروج",
+  "Gallery": "المعرض",
+  "Remove photo": "إزالة الصورة",
+  "Saved to your profile until replaced or removed.": "تُحفظ في ملفك الشخصي حتى تستبدلها أو تزيلها.",
+  "Please update SelfX before changing your profile photo.": "يرجى تحديث SelfX قبل تغيير صورة ملفك الشخصي.",
+  "By continuing, you agree to our": "بالمتابعة، فإنك توافق على",
+  "Your verification code will be sent to this email.": "سيُرسل رمز التحقق إلى هذا البريد الإلكتروني.",
+  "Link Google": "ربط Google",
+  "Google linked": "تم ربط Google",
+  "Use the same email as your SelfX account.": "استخدم البريد الإلكتروني نفسه لحسابك في SelfX.",
+  "Verification error: {p0}": "خطأ التحقق: {p0}"
 }

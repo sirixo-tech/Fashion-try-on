@@ -17,11 +17,13 @@ import { CustomerAuthService } from "./customer-auth.service.js";
 import {
   CustomerProfilePhotoService,
   PROFILE_PHOTO_VERSION,
+  LEGACY_PROFILE_PHOTO_VERSION,
 } from "./customer-profile-photo.service.js";
 import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
 
 export class ProfilePhotoConsentDto {
-  @IsIn([PROFILE_PHOTO_VERSION]) consentVersion!: string;
+  @IsIn([PROFILE_PHOTO_VERSION, LEGACY_PROFILE_PHOTO_VERSION])
+  consentVersion!: string;
   @IsIn(CUSTOMER_LANGUAGES) consentLanguage!: string;
 }
 
@@ -95,6 +97,7 @@ export class CustomerProfilePhotoController {
       file.bytes,
       file.mime,
       consent.consentLanguage,
+      consent.consentVersion,
     );
   }
 }

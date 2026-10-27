@@ -24,6 +24,9 @@ export class TryOnErrorFilter implements ExceptionFilter<ApiErrorException> {
           },
         }
       : body;
+    if (exception.getStatus() === 429 && body.error.retryAfterSeconds) {
+      reply.header("Retry-After", body.error.retryAfterSeconds);
+    }
     reply.status(exception.getStatus()).send(response);
   }
 }

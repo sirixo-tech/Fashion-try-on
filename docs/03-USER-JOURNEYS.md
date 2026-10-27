@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
+
+Start signup with email or number, collect email for verification when needed, then sign in by password or a linked Google identity. Existing customers link Google from Profile after a recent sign-in. Optional SMS verification shows the actual retry timer and sanitized failure diagnostics. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.
+
+### CUSTOMER-MOBILE-10 — Reference-led welcome and authentication (2026-10-27)
+
+Welcome Get started opens three information screens; Continue/swipe and Back navigate them. Skip or final Get started saves completion before opening login/signup. Retry local save failures and preserve returning-user session behavior. See `CUSTOMER-MOBILE-10-WELCOME-AUTH.md`.
+
+### CUSTOMER-MOBILE-9 — Compact profile settings (2026-10-27)
+
+Me/settings exposes Log out and the existing confirmed Delete account flow. Profile keeps identity/security preferences and an avatar +; it opens Gallery, Take a photo, Remove photo when applicable, and Cancel. Choosing a photo records the persistent-profile retention version before upload. See `CUSTOMER-MOBILE-9-PROFILE-SIMPLIFICATION.md`.
+
+
+### CUSTOMER-MOBILE-8 — Native Firebase wiring (2026-10-27)
+
+Phone verification can recheck a previously disabled server capability when the customer retries Send code; only then request SMS after current consent. Notification refresh rechecks server/client readiness and distinguishes missing server setup from missing app configuration. Existing email login and inbox stay available. See `CUSTOMER-MOBILE-8-FIREBASE-WIRING.md`.
+
+
 ### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
 
 Header: scanner → selected language → personal credits/Add credits. Me → profile card opens name/photo, email/phone verification, security/password reset, notifications and sign-out/account deletion. Other settings remain under Me. Profile photo selection requires prior consent; onboarding remains for first use without a replay button. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.

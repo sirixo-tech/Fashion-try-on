@@ -141,6 +141,21 @@ describe("Customer photo HTTP and Store QR permission boundaries", () => {
       Buffer.from("fixture-bytes"),
       "image/png",
       "te",
+      "2026-10-27",
+    );
+    const persistentUpload = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/me/photo?consentVersion=2026-10-27-v2&consentLanguage=te",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload,
+    });
+    expect(persistentUpload.statusCode).toBe(201);
+    expect(photos.upload).toHaveBeenLastCalledWith(
+      customer,
+      Buffer.from("fixture-bytes"),
+      "image/png",
+      "te",
+      "2026-10-27-v2",
     );
     photos.remove.mockResolvedValue({ photo: null });
     await app.inject({ method: "DELETE", url: "/api/v1/customer/me/photo" });

@@ -26,11 +26,13 @@ import {
 import { CustomerIdentityClient } from "./customer-identity.client.js";
 import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
 import { CustomerPhoneClient } from "./customer-phone.client.js";
+import { ApiErrorException } from "../common/api-error.exception.js";
 import {
   type CustomerDeleteDto,
   type CustomerOAuthDto,
   type CustomerSignupDto,
   type CustomerProfileDto,
+  type CustomerOAuthLinkDto,
 } from "./customer.dto.js";
 
 const audience = "selfx-customer";
@@ -412,17 +414,68 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
   }
   async phoneRequest(phoneNumber: string, ip: string) {
     this.assertPhoneReady();
-    await this.limit("phone-request-ip", ip, 15);
-    await this.limit("phone-request-number", phoneNumber, 3);
-    if (!(await this.rate("phone-cooldown", phoneNumber, 1, 60000)))
-      customerError(
-        "CUSTOMER_PHONE_COOLDOWN",
-        "Please wait one minute before requesting another code.",
-        429,
-      );
+    await this.db.$transaction(async (tx) => {
+      // Admission is atomic. Rejected cooldown retries consume no send budget.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.phone.ip'), hashtext(${ip}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.phone.number'), hashtext(${phoneNumber}))`;
+      const cooldownKey = this.digest("rate:phone-cooldown-v2", phoneNumber);
+      const current = await tx.passwordRecoveryRateBucket.findUnique({
+        where: { key: cooldownKey },
+      });
+      const now = new Date();
+      if (current && current.expiresAt > now) {
+        throw new ApiErrorException(
+          429,
+          "CUSTOMER_PHONE_COOLDOWN",
+          "Please wait before requesting another code.",
+          Math.max(
+            1,
+            Math.ceil((current.expiresAt.getTime() - now.getTime()) / 1000),
+          ),
+        );
+      }
+      for (const [scope, value, maximum, windowMs] of [
+        ["phone-number-hour-v2", phoneNumber, 30, 3600000],
+        ["phone-ip-hour-v2", ip, 120, 3600000],
+        ["phone-number-day-v2", phoneNumber, 100, 86400000],
+      ] as const) {
+        const key = this.digest(`rate:${scope}`, value),
+          expires = new Date(now.getTime() + windowMs);
+        const [bucket] = await tx.$queryRaw<
+          Array<{ count: number; expiresAt: Date }>
+        >`
+          INSERT INTO password_recovery_rate_buckets (key, count, expires_at) VALUES (${key}, 1, ${expires})
+          ON CONFLICT (key) DO UPDATE SET count = CASE WHEN password_recovery_rate_buckets.expires_at <= NOW() THEN 1 ELSE password_recovery_rate_buckets.count + 1 END,
+          expires_at = CASE WHEN password_recovery_rate_buckets.expires_at <= NOW() THEN EXCLUDED.expires_at ELSE password_recovery_rate_buckets.expires_at END RETURNING count, expires_at AS "expiresAt"`;
+        if (!bucket || bucket.count > maximum) {
+          throw new ApiErrorException(
+            429,
+            "CUSTOMER_RATE_LIMITED",
+            "Too many phone verification requests. Please try again later.",
+            bucket
+              ? Math.max(
+                  1,
+                  Math.ceil(
+                    (bucket.expiresAt.getTime() - now.getTime()) / 1000,
+                  ),
+                )
+              : 3600,
+          );
+        }
+      }
+      await tx.passwordRecoveryRateBucket.upsert({
+        where: { key: cooldownKey },
+        create: {
+          key: cooldownKey,
+          count: 1,
+          expiresAt: new Date(now.getTime() + 10000),
+        },
+        update: { count: 1, expiresAt: new Date(now.getTime() + 10000) },
+      });
+    });
     return {
       projectId: process.env.SELFX_CUSTOMER_FIREBASE_PROJECT_ID,
-      resendAfterSeconds: 60,
+      resendAfterSeconds: 10,
     };
   }
   async phoneLogin(idToken: string, ip: string, deviceName?: string) {
@@ -690,18 +743,43 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     ip: string,
     deviceName?: string,
   ) {
-    const email = normalize(emailInput);
+    const identifier = normalize(emailInput);
     await this.limit("login-ip", ip, 30);
-    await this.limit("login-email", email, 10);
-    const identity = await this.db.customerIdentity.findUnique({
-      where: {
-        provider_providerSubject: {
-          provider: "EMAIL_PASSWORD",
-          providerSubject: email,
+    await this.limit("login-email", identifier, 10);
+    let identity:
+      | Prisma.CustomerIdentityGetPayload<{ include: { customer: true } }>
+      | null
+      | undefined;
+    if (identifier.includes("@")) {
+      identity = await this.db.customerIdentity.findUnique({
+        where: {
+          provider_providerSubject: {
+            provider: "EMAIL_PASSWORD",
+            providerSubject: identifier,
+          },
         },
-      },
-      include: { customer: true },
-    });
+        include: { customer: true },
+      });
+    } else {
+      // Verified ownership takes precedence over unverified contact aliases.
+      // Ambiguous aliases require email; never guess an account or merge them.
+      const owner = await this.db.customer.findUnique({
+        where: { phoneNumber: identifier },
+      });
+      const candidates = await this.db.customerIdentity.findMany({
+        where: {
+          provider: "EMAIL_PASSWORD",
+          customer: owner
+            ? { id: owner.id }
+            : { pendingPhoneNumber: identifier, status: "ACTIVE" },
+        },
+        include: { customer: true },
+        orderBy: { id: "asc" },
+        take: 2,
+      });
+      identity = candidates.length === 1 ? candidates[0] : null;
+    }
+    const email = identity?.customer.email ?? identifier;
     this.dummyHash ??= this.passwords.hashPassword(tokenSecret());
     const valid = await this.passwords.verifyPassword(
       identity?.passwordHash ?? (await this.dummyHash),
@@ -1067,6 +1145,96 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       throw caught;
     }
     return this.newSession(customerId!, input.deviceName);
+  }
+  async linkOAuth(
+    header: string | undefined,
+    input: CustomerOAuthLinkDto,
+    ip: string,
+  ) {
+    const principal = await this.requireCustomer(header);
+    await this.limit("oauth-link-customer", principal.customer.id, 5);
+    await this.limit("oauth-link-ip", ip, 20);
+    const verified = await this.verifiedProvider(input);
+    try {
+      await this.db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.customer.identity'), hashtext(${`${input.provider}:${verified.subject}`}))`;
+        await tx.$queryRaw`SELECT id FROM customers WHERE id = ${principal.customer.id}::uuid FOR UPDATE`;
+        const session = await tx.customerSession.findUnique({
+          where: { id: principal.sessionId },
+          include: { customer: true },
+        });
+        if (
+          !session ||
+          session.revokedAt ||
+          session.expiresAt <= new Date() ||
+          session.customer.status !== "ACTIVE" ||
+          session.customer.securityVersion !==
+            principal.customer.securityVersion
+        )
+          unauthorized();
+        if (session!.authenticatedAt < new Date(Date.now() - 10 * 60000)) {
+          customerError(
+            "CUSTOMER_OAUTH_REAUTH_REQUIRED",
+            "Sign out and sign in again before linking Google.",
+            403,
+          );
+        }
+        if (
+          !verified.email ||
+          normalize(verified.email) !== session!.customer.email
+        ) {
+          customerError(
+            "CUSTOMER_OAUTH_EMAIL_MISMATCH",
+            "Choose the Google account with the same email as your SelfX account.",
+            409,
+          );
+        }
+        const existing = await tx.customerIdentity.findFirst({
+          where: {
+            provider: input.provider,
+            OR: [
+              { providerSubject: verified.subject },
+              { customerId: principal.customer.id },
+            ],
+          },
+        });
+        if (
+          existing &&
+          (existing.customerId !== principal.customer.id ||
+            existing.providerSubject !== verified.subject)
+        ) {
+          customerError(
+            "CUSTOMER_ACCOUNT_LINK_REQUIRED",
+            "This Google account is already linked. Sign in with your existing account method.",
+            409,
+          );
+        }
+        if (!existing)
+          await tx.customerIdentity.create({
+            data: {
+              id: createSelfxId(),
+              customerId: principal.customer.id,
+              provider: input.provider,
+              providerSubject: verified.subject,
+              email: verified.email,
+              verifiedAt: new Date(),
+            },
+          });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        customerError(
+          "CUSTOMER_ACCOUNT_LINK_REQUIRED",
+          "This Google account is already linked. Sign in with your existing account method.",
+          409,
+        );
+      }
+      throw error;
+    }
+    return this.me(header);
   }
   profile(customer: Customer) {
     return {

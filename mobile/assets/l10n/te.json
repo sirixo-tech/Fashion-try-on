@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "మీ ప్రొఫైల్ ఫోటో లోడ్ చేయబడలేదు. దయచేసి మళ్లీ ప్రయత్నించండి.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "5 MB వరకు ఒక JPEG, PNG లేదా WebP ఫోటోని ఎంచుకోండి.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "5 MB వరకు JPEG, PNG లేదా WebP ఫోటోను ఎంచుకోండి, ప్రతి వైపు కనీసం 256 పిక్సెల్‌లు మరియు ఇరువైపులా 8192 పిక్సెల్‌ల కంటే ఎక్కువ ఉండకూడదు.",
-  "Your photo upload was cancelled. Please try again.": "మీ ఫోటో అప్‌లోడ్ రద్దు చేయబడింది. దయచేసి మళ్లీ ప్రయత్నించండి."
+  "Your photo upload was cancelled. Please try again.": "మీ ఫోటో అప్‌లోడ్ రద్దు చేయబడింది. దయచేసి మళ్లీ ప్రయత్నించండి.",
+  "Log out": "లాగ్ అవుట్",
+  "Gallery": "గ్యాలరీ",
+  "Remove photo": "ఫోటోను తీసివేయండి",
+  "Saved to your profile until replaced or removed.": "మీరు మార్చే లేదా తీసివేసే వరకు మీ ప్రొఫైల్‌లో సేవ్ చేయబడుతుంది.",
+  "Please update SelfX before changing your profile photo.": "ప్రొఫైల్ ఫోటోను మార్చే ముందు SelfXని అప్‌డేట్ చేయండి.",
+  "By continuing, you agree to our": "కొనసాగించడం ద్వారా మీరు వీటికి అంగీకరిస్తున్నారు:",
+  "Your verification code will be sent to this email.": "మీ ధృవీకరణ కోడ్ ఈ ఇమెయిల్‌కు పంపబడుతుంది.",
+  "Link Google": "Google లింక్ చేయండి",
+  "Google linked": "Google లింక్ అయింది",
+  "Use the same email as your SelfX account.": "మీ SelfX ఖాతాలోని ఇమెయిల్‌నే ఉపయోగించండి.",
+  "Verification error: {p0}": "ధృవీకరణ లోపం: {p0}"
 }

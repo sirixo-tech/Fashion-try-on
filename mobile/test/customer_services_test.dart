@@ -10,9 +10,11 @@ import 'package:selfx_customer/src/ui/customer_service_screens.dart';
 import 'fakes.dart';
 
 class PreparedPush implements CustomerPush {
+  final bool available;
+  PreparedPush({this.available = false});
   int starts = 0, stops = 0;
   @override
-  Future<bool> configured() async => false;
+  Future<bool> configured() async => available;
   @override
   Future<bool> enable({
     required bool requestPermission,
@@ -76,6 +78,79 @@ void main() {
     expect(push.starts, 0);
     await registration.dispose();
   });
+  for (final serverReady in [false, true]) {
+    testWidgets(
+      'phone-alert messaging distinguishes server readiness from missing app settings ($serverReady)',
+      (tester) async {
+        api.handler = (path, method, body) async => path == '/app/config'
+            ? {'pushAvailable': serverReady}
+            : {'data': []};
+        final push = PreparedPush();
+        final registration = CustomerPushRegistration(auth, push);
+        final experience = CustomerExperience(auth);
+        addTearDown(registration.dispose);
+        addTearDown(experience.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: CustomerNotificationsScreen(
+              auth: auth,
+              experience: experience,
+              registration: registration,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
+          isNull,
+        );
+        expect(
+          find.text(
+            serverReady
+                ? 'Phone alerts are not configured in this build. Your in-app inbox works independently.'
+                : 'Phone alerts have not been configured yet. Your in-app inbox remains available.',
+          ),
+          findsOneWidget,
+        );
+        expect(push.starts, 0);
+      },
+    );
+  }
+  testWidgets(
+    'notification refresh recognizes newly enabled server delivery without requesting permission',
+    (tester) async {
+      var serverReady = false;
+      api.handler = (path, method, body) async =>
+          path == '/app/config' ? {'pushAvailable': serverReady} : {'data': []};
+      final push = PreparedPush(available: true);
+      final registration = CustomerPushRegistration(auth, push);
+      final experience = CustomerExperience(auth);
+      addTearDown(registration.dispose);
+      addTearDown(experience.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CustomerNotificationsScreen(
+            auth: auth,
+            experience: experience,
+            registration: registration,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
+        isNull,
+      );
+      serverReady = true;
+      await tester.tap(find.byTooltip('Refresh notifications'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
+        isNotNull,
+      );
+      expect(push.starts, 0);
+    },
+  );
   testWidgets('support shows the known contact and a copy fallback', (
     tester,
   ) async {

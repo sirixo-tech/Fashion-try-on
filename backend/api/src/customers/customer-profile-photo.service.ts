@@ -12,8 +12,11 @@ import { ObjectStorageService } from "../storage/object-storage.js";
 import { validateTechnicalImageBuffer } from "../common/image-validation.js";
 import { ApiErrorException } from "../common/api-error.exception.js";
 
-export const PROFILE_PHOTO_VERSION = "2026-10-27";
+export const PROFILE_PHOTO_VERSION = "2026-10-27-v2";
+export const LEGACY_PROFILE_PHOTO_VERSION = "2026-10-27";
 export const PROFILE_PHOTO_CONSENT =
+  "Saved to your profile until replaced or removed.";
+const LEGACY_PROFILE_PHOTO_CONSENT =
   "I allow SelfX to upload my selected profile photo. It is private to my account, is not used for Try-On, and expires within 7 days. I can change or remove it earlier.";
 type Principal = { id: string; securityVersion: number };
 const DAY = 86400000;
@@ -94,14 +97,14 @@ export class CustomerProfilePhotoService
         customerId,
         deletedAt: null,
         readyAt: { not: null },
-        expiresAt: { gt: new Date() },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         customer: { status: "ACTIVE" },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
     return {
       photo: photo
-        ? { id: photo.id, expiresAt: photo.expiresAt.toISOString() }
+        ? { id: photo.id, expiresAt: photo.expiresAt?.toISOString() ?? null }
         : null,
     };
   }
@@ -112,7 +115,7 @@ export class CustomerProfilePhotoService
         customerId,
         deletedAt: null,
         readyAt: { not: null },
-        expiresAt: { gt: new Date() },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         customer: { status: "ACTIVE" },
       },
     });
@@ -129,7 +132,18 @@ export class CustomerProfilePhotoService
     body: Buffer,
     mime: string,
     language: string,
+    consentVersion: string = PROFILE_PHOTO_VERSION,
   ) {
+    if (
+      ![PROFILE_PHOTO_VERSION, LEGACY_PROFILE_PHOTO_VERSION].includes(
+        consentVersion,
+      )
+    )
+      throw new ApiErrorException(
+        400,
+        "PROFILE_PHOTO_CONSENT_INVALID",
+        "Please update SelfX before changing your profile photo.",
+      );
     const bytes = await normalizeProfilePhoto(body, mime);
     const id = createSelfxId(),
       storageKey = `customer-mobile/profile/${principal.id}/${id}`;
@@ -140,10 +154,16 @@ export class CustomerProfilePhotoService
           id,
           customerId: principal.id,
           storageKey,
-          consentVersion: PROFILE_PHOTO_VERSION,
-          consentStatement: PROFILE_PHOTO_CONSENT,
+          consentVersion,
+          consentStatement:
+            consentVersion === PROFILE_PHOTO_VERSION
+              ? PROFILE_PHOTO_CONSENT
+              : LEGACY_PROFILE_PHOTO_CONSENT,
           consentLanguage: language,
-          expiresAt: new Date(Date.now() + 7 * DAY),
+          expiresAt:
+            consentVersion === PROFILE_PHOTO_VERSION
+              ? null
+              : new Date(Date.now() + 7 * DAY),
         },
       });
     });
@@ -162,7 +182,7 @@ export class CustomerProfilePhotoService
             id,
             customerId: principal.id,
             deletedAt: null,
-            expiresAt: { gt: now },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
           },
           data: { readyAt: now },
         });
@@ -177,7 +197,9 @@ export class CustomerProfilePhotoService
           data: { deletedAt: now, expiresAt: now },
         });
       });
-      return { photo: { id, expiresAt: created.expiresAt.toISOString() } };
+      return {
+        photo: { id, expiresAt: created.expiresAt?.toISOString() ?? null },
+      };
     } catch (error) {
       // Upload may have completed after a removal. Reset cleanup state so the
       // object is deleted again even if an earlier cleanup saw no object yet.

@@ -29,6 +29,7 @@ import {
   CustomerPhoneDto,
   CustomerPhoneRequestDto,
   CustomerPhoneLinkDto,
+  CustomerOAuthLinkDto,
 } from "./customer.dto.js";
 
 @ApiTags("Customer accounts")
@@ -152,6 +153,11 @@ export class CustomerAuthController {
   @Post("auth/oauth")
   oauth(@Body() dto: CustomerOAuthDto, @Req() request: FastifyRequest) {
     return this.auth.oauth(dto, request.ip);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("me/oauth")
+  linkOAuth(@Body() dto: CustomerOAuthLinkDto, @Req() request: FastifyRequest) {
+    return this.auth.linkOAuth(request.headers.authorization, dto, request.ip);
   }
   @Header("Cache-Control", "no-store")
   @Post("auth/logout")

@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "আপনার প্রোফাইল ফটো লোড করা যায়নি৷ আবার চেষ্টা করুন.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "5 MB পর্যন্ত একটি JPEG, PNG বা WebP ফটো বেছে নিন।",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "5 MB পর্যন্ত একটি JPEG, PNG বা WebP ফটো চয়ন করুন, প্রতিটি পাশে কমপক্ষে 256 পিক্সেল এবং উভয় পাশে 8192 পিক্সেলের বেশি নয়৷",
-  "Your photo upload was cancelled. Please try again.": "আপনার ফটো আপলোড বাতিল করা হয়েছে৷ আবার চেষ্টা করুন."
+  "Your photo upload was cancelled. Please try again.": "আপনার ফটো আপলোড বাতিল করা হয়েছে৷ আবার চেষ্টা করুন.",
+  "Log out": "লগ আউট",
+  "Gallery": "গ্যালারি",
+  "Remove photo": "ছবি সরান",
+  "Saved to your profile until replaced or removed.": "আপনি বদলে বা সরিয়ে না দেওয়া পর্যন্ত আপনার প্রোফাইলে সংরক্ষিত থাকবে।",
+  "Please update SelfX before changing your profile photo.": "প্রোফাইলের ছবি পরিবর্তন করার আগে SelfX আপডেট করুন।",
+  "By continuing, you agree to our": "চালিয়ে যাওয়ার মাধ্যমে আপনি এগুলিতে সম্মত হচ্ছেন:",
+  "Your verification code will be sent to this email.": "আপনার যাচাইকরণ কোড এই ইমেলে পাঠানো হবে।",
+  "Link Google": "Google লিঙ্ক করুন",
+  "Google linked": "Google লিঙ্ক করা আছে",
+  "Use the same email as your SelfX account.": "আপনার SelfX অ্যাকাউন্টের একই ইমেল ব্যবহার করুন।",
+  "Verification error: {p0}": "যাচাইকরণ ত্রুটি: {p0}"
 }

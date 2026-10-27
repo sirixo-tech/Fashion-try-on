@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "无法加载您的个人资料照片。请再试一次。",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "选择一张最大 5 MB 的 JPEG、PNG 或 WebP 照片。",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "选择一张最大 5 MB 的 JPEG、PNG 或 WebP 照片，每侧至少 256 像素，每侧不超过 8192 像素。",
-  "Your photo upload was cancelled. Please try again.": "您的照片上传已取消。请再试一次。"
+  "Your photo upload was cancelled. Please try again.": "您的照片上传已取消。请再试一次。",
+  "Log out": "退出登录",
+  "Gallery": "相册",
+  "Remove photo": "移除照片",
+  "Saved to your profile until replaced or removed.": "保存在个人资料中，直到您更换或移除。",
+  "Please update SelfX before changing your profile photo.": "请先更新 SelfX，再更换个人资料照片。",
+  "By continuing, you agree to our": "继续即表示您同意我们的",
+  "Your verification code will be sent to this email.": "验证码将发送到此电子邮箱。",
+  "Link Google": "关联 Google",
+  "Google linked": "Google 已关联",
+  "Use the same email as your SelfX account.": "请使用与 SelfX 账户相同的电子邮箱。",
+  "Verification error: {p0}": "验证错误：{p0}"
 }

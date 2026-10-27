@@ -211,6 +211,117 @@ describe.skipIf(!url)(
       ).rejects.toMatchObject({ status: 400 });
       expect(await db.customerSession.count()).toBe(1);
     });
+    it("uses an email-verified phone/password alias without granting SMS ownership, and rejects ambiguous aliases", async () => {
+      const number = "+919876543210";
+      const request = await auth.signup(
+        { ...signup(), phoneNumber: number },
+        ip,
+      );
+      await expect(auth.login(number, password, ip)).rejects.toMatchObject({
+        status: 401,
+      });
+      const value = await code();
+      await auth.verifyEmail(email, value, ip, request.signupProof);
+      const session = await auth.login(number, password, ip);
+      expect(session).toHaveProperty("accessToken");
+      expect(session).toMatchObject({ customer: { email, phoneNumber: null } });
+      await expect(
+        auth.login(number, "wrong-password", ip),
+      ).rejects.toMatchObject({ status: 401 });
+      await expect(
+        auth.phoneLogin("synthetic-token", ip),
+      ).rejects.toMatchObject({ status: 409 });
+      const other = await register("other@selfx.invalid");
+      await db.customer.update({
+        where: { id: other.customer.id },
+        data: { pendingPhoneNumber: number },
+      });
+      await expect(auth.login(number, password, ip)).rejects.toMatchObject({
+        status: 401,
+      });
+      const first = await auth.login(email, password, ip);
+      if (!("accessToken" in first)) throw Error("Expected session");
+      await auth.linkPhone(bearer(first), "synthetic-token", ip);
+      expect(await auth.login(number, password, ip)).toMatchObject({
+        customer: { id: first.customer.id },
+      });
+      await db.customer.update({
+        where: { id: first.customer.id },
+        data: { status: "SUSPENDED" },
+      });
+      await expect(auth.login(number, password, ip)).rejects.toMatchObject({
+        status: 401,
+      });
+    });
+    it("links Google only after recent authenticated consent, preserves customer identity and rejects mismatches", async () => {
+      const original = await register();
+      const input = { provider: "GOOGLE" as const, idToken: "synthetic-token" };
+      await expect(auth.linkOAuth(undefined, input, ip)).rejects.toMatchObject({
+        status: 401,
+      });
+      identities.verify.mockResolvedValueOnce({
+        subject: "wrong-google",
+        email: "other@selfx.invalid",
+        name: "Other",
+      });
+      await expect(
+        auth.linkOAuth(bearer(original), input, ip),
+      ).rejects.toMatchObject({ status: 409 });
+      await auth.linkOAuth(bearer(original), input, ip);
+      expect(await auth.oauth(input, ip)).toMatchObject({
+        customer: { id: original.customer.id },
+      });
+      expect(await db.customer.count()).toBe(1);
+      expect(await auth.me(bearer(original))).toMatchObject({
+        methods: expect.arrayContaining(["EMAIL_PASSWORD", "GOOGLE"]),
+      });
+      await db.customerSession.updateMany({
+        data: { authenticatedAt: new Date(Date.now() - 11 * 60000) },
+      });
+      await expect(
+        auth.linkOAuth(bearer(original), input, ip),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+    it("admits phone requests every ten seconds, charges no rejected retries and serializes concurrent admissions", async () => {
+      const number = "+919876543210";
+      for (let i = 0; i < 4; i++)
+        await auth.rate("phone-request-number", number, 3);
+      expect(await auth.phoneRequest(number, ip)).toMatchObject({
+        resendAfterSeconds: 10,
+      });
+      for (let i = 0; i < 5; i++) {
+        await expect(auth.phoneRequest(number, ip)).rejects.toMatchObject({
+          status: 429,
+        });
+      }
+      const buckets = await db.passwordRecoveryRateBucket.findMany({
+        where: { expiresAt: { gt: new Date(Date.now() + 16 * 60000) } },
+      });
+      expect(buckets.map((b) => b.count)).toEqual([1, 1, 1]);
+      await db.passwordRecoveryRateBucket.updateMany({
+        where: { expiresAt: { lt: new Date(Date.now() + 11000) } },
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+      const concurrent = await Promise.allSettled([
+        auth.phoneRequest(number, ip),
+        auth.phoneRequest(number, "127.0.0.2"),
+      ]);
+      expect(concurrent.filter((r) => r.status === "fulfilled")).toHaveLength(
+        1,
+      );
+      expect(concurrent.filter((r) => r.status === "rejected")).toHaveLength(1);
+      await db.passwordRecoveryRateBucket.updateMany({
+        where: { expiresAt: { gt: new Date(Date.now() + 16 * 60000) } },
+        data: { count: 120 },
+      });
+      await db.passwordRecoveryRateBucket.updateMany({
+        where: { expiresAt: { lt: new Date(Date.now() + 11000) } },
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+      await expect(auth.phoneRequest(number, ip)).rejects.toMatchObject({
+        status: 429,
+      });
+    });
     it("links a verified phone only to the authenticated account and keeps identity/history across phone login", async () => {
       const first = await register();
       await expect(

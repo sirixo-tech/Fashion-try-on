@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "உங்கள் சுயவிவரப் புகைப்படத்தை ஏற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "5 MB வரை ஒரு JPEG, PNG அல்லது WebP புகைப்படத்தைத் தேர்வு செய்யவும்.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "5 MB வரை JPEG, PNG அல்லது WebP புகைப்படத்தைத் தேர்வு செய்யவும், ஒவ்வொரு பக்கத்திலும் குறைந்தது 256 பிக்சல்கள் மற்றும் இருபுறமும் 8192 பிக்சல்களுக்கு மேல் இல்லை.",
-  "Your photo upload was cancelled. Please try again.": "உங்கள் புகைப்படப் பதிவேற்றம் ரத்துசெய்யப்பட்டது. மீண்டும் முயற்சிக்கவும்."
+  "Your photo upload was cancelled. Please try again.": "உங்கள் புகைப்படப் பதிவேற்றம் ரத்துசெய்யப்பட்டது. மீண்டும் முயற்சிக்கவும்.",
+  "Log out": "வெளியேறு",
+  "Gallery": "படத்தொகுப்பு",
+  "Remove photo": "படத்தை அகற்று",
+  "Saved to your profile until replaced or removed.": "நீங்கள் மாற்றும் அல்லது அகற்றும் வரை உங்கள் சுயவிவரத்தில் சேமிக்கப்படும்.",
+  "Please update SelfX before changing your profile photo.": "சுயவிவரப் படத்தை மாற்றும் முன் SelfX செயலியைப் புதுப்பிக்கவும்.",
+  "By continuing, you agree to our": "தொடர்வதன் மூலம் இவற்றை ஏற்கிறீர்கள்:",
+  "Your verification code will be sent to this email.": "உங்கள் சரிபார்ப்புக் குறியீடு இந்த மின்னஞ்சலுக்கு அனுப்பப்படும்.",
+  "Link Google": "Google-ஐ இணைக்கவும்",
+  "Google linked": "Google இணைக்கப்பட்டது",
+  "Use the same email as your SelfX account.": "உங்கள் SelfX கணக்கில் உள்ள அதே மின்னஞ்சலைப் பயன்படுத்தவும்.",
+  "Verification error: {p0}": "சரிபார்ப்புப் பிழை: {p0}"
 }

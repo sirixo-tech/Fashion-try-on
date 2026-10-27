@@ -1,7 +1,7 @@
 name: selfx_customer
 description: Independent SelfX customer app for personal and Store-sponsored Try-On.
 publish_to: none
-version: 0.7.0+7
+version: 0.10.0+11
 environment:
   sdk: ^3.12.1
 dependencies:
@@ -40,5 +40,6 @@ flutter:
     - assets/config/production.json
     - assets/branding/selfx-logo.png
     - assets/branding/selfx-mark.png
+    - assets/branding/google-g.png
     - assets/editorial/
     - assets/l10n/

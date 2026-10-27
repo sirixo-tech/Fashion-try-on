@@ -7,7 +7,13 @@ class CustomerApiException implements Exception {
   final String code;
   final String message;
   final int status;
-  const CustomerApiException(this.code, this.message, [this.status = 0]);
+  final int? retryAfterSeconds;
+  const CustomerApiException(
+    this.code,
+    this.message, [
+    this.status = 0,
+    this.retryAfterSeconds,
+  ]);
   @override
   String toString() => message;
 }
@@ -135,6 +141,7 @@ class HttpCustomerApi implements CustomerApi, CustomerMediaApi {
         error?['message'] as String? ??
             'We couldn’t complete that. Please try again.',
         response.statusCode,
+        (error?['retryAfterSeconds'] as num?)?.toInt(),
       );
     }
     return data;

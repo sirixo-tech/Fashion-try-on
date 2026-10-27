@@ -26,7 +26,8 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
   final phoneField = GlobalKey<CustomerPhoneFieldState>();
   final contact = TextEditingController(), code = TextEditingController();
   CustomerPhoneChallenge? challenge;
-  String? proof, error, owner;
+  String? proof, error, owner, diagnostic;
+  String stage = 'SELFX_PREFLIGHT';
   bool busy = false, sent = false, consent = false;
   int cooldown = 0, guesses = 0;
   Timer? timer;
@@ -51,9 +52,9 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
     super.dispose();
   }
 
-  void startCooldown() {
+  void startCooldown([int seconds = 10]) {
     timer?.cancel();
-    cooldown = 60;
+    cooldown = seconds.clamp(1, 86400);
     timer = Timer.periodic(const Duration(seconds: 1), (value) {
       if (!mounted) {
         value.cancel();
@@ -71,14 +72,33 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
     setState(() {
       busy = true;
       error = null;
+      diagnostic = null;
     });
     try {
       await work();
     } on CustomerApiException catch (e) {
-      if (mounted) setState(() => error = e.message);
+      if (mounted) {
+        setState(() {
+          error = e.status == 429
+              ? 'Too many attempts. Please try again later.'
+              : e.message;
+          if (phone) {
+            final safeCode = RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(e.code)
+                ? e.code
+                : 'REQUEST_FAILED';
+            diagnostic = e is CustomerPhoneException
+                ? '${e.stage} / ${e.diagnosticCode}'
+                : '$stage / $safeCode';
+            if (e.status == 429) startCooldown(e.retryAfterSeconds ?? 10);
+          }
+        });
+      }
     } catch (_) {
       if (mounted) {
-        setState(() => error = 'We couldn’t complete that. Please try again.');
+        setState(() {
+          error = 'We couldn’t complete that. Please try again.';
+          if (phone) diagnostic = '$stage / REQUEST_FAILED';
+        });
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -89,6 +109,7 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
     if (!mounted || (widget.linkPhone && widget.auth.profile?.id != owner)) {
       return;
     }
+    stage = widget.linkPhone ? 'SELFX_LINK' : 'SELFX_LOGIN';
     await widget.auth.finishPhone(idToken, link: widget.linkPhone);
     if (mounted) Navigator.pop(context);
   }
@@ -104,6 +125,14 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
           ? phoneField.currentState!.canonical!
           : contact.text.trim();
       if (phone) {
+        stage = 'SELFX_PREFLIGHT';
+        if (!widget.auth.capabilities.phone) {
+          await widget.auth.refreshCapabilities();
+          if (!mounted ||
+              (widget.linkPhone && widget.auth.profile?.id != owner)) {
+            return;
+          }
+        }
         if (!widget.auth.capabilities.phone ||
             !await widget.auth.phone.configured()) {
           throw const CustomerApiException(
@@ -115,6 +144,9 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
           '/auth/phone/request',
           body: {'phoneNumber': value},
         );
+        if (!mounted) return;
+        startCooldown((result['resendAfterSeconds'] as num?)?.toInt() ?? 10);
+        stage = 'FIREBASE_REQUEST';
         final next = await widget.auth.phone.send(
           value,
           result['projectId'] as String,
@@ -138,7 +170,7 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
           sent = true;
           guesses = 0;
           code.clear();
-          startCooldown();
+          if (!phone) startCooldown(60);
         });
       }
     });
@@ -152,6 +184,7 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
     await run(() async {
       guesses++;
       if (phone) {
+        stage = 'FIREBASE_VERIFY';
         final token = await widget.auth.phone.verify(challenge!, code.text);
         await finish(token);
       } else {
@@ -207,6 +240,16 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                   ),
                   const SizedBox(height: 14),
                 ],
+                if (diagnostic != null) ...[
+                  CustomerText(
+                    'Verification error: $diagnostic',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: CustomerColors.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 CustomerPhoneField(
                   key: phoneField,
                   controller: contact,
@@ -218,7 +261,8 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                       : 'Email or mobile number',
                   onChanged: () => setState(() => consent = false),
                 ),
-                if (phoneUnavailable)
+                if (phoneUnavailable &&
+                    error != 'Phone sign-in is not configured yet.')
                   const CustomerText('Phone sign-in is not configured yet.'),
                 if (phone && contact.text.trim().isNotEmpty && !sent)
                   CheckboxListTile(
@@ -254,9 +298,7 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed:
-                      busy ||
-                          (sent && guesses >= 5) ||
-                          (!sent && phoneUnavailable)
+                      busy || (!sent && cooldown > 0) || (sent && guesses >= 5)
                       ? null
                       : sent
                       ? verify
@@ -267,7 +309,13 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : CustomerText(sent ? 'Verify code' : 'Send code'),
+                      : CustomerText(
+                          sent
+                              ? 'Verify code'
+                              : cooldown > 0
+                              ? 'Resend in ${cooldown}s'
+                              : 'Send code',
+                        ),
                 ),
                 if (sent) ...[
                   TextButton(

@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "آپ کی پروفائل تصویر لوڈ نہیں ہو سکی۔ براہ کرم دوبارہ کوشش کریں۔",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "5 MB تک ایک JPEG، PNG یا WebP تصویر منتخب کریں۔",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "5 MB تک کی JPEG، PNG یا WebP تصویر منتخب کریں، ہر طرف کم از کم 256 پکسلز اور دونوں طرف 8192 پکسلز سے زیادہ نہ ہوں۔",
-  "Your photo upload was cancelled. Please try again.": "آپ کی تصویر کا اپ لوڈ منسوخ کر دیا گیا تھا۔ براہ کرم دوبارہ کوشش کریں۔"
+  "Your photo upload was cancelled. Please try again.": "آپ کی تصویر کا اپ لوڈ منسوخ کر دیا گیا تھا۔ براہ کرم دوبارہ کوشش کریں۔",
+  "Log out": "لاگ آؤٹ",
+  "Gallery": "گیلری",
+  "Remove photo": "تصویر ہٹائیں",
+  "Saved to your profile until replaced or removed.": "آپ کے تبدیل کرنے یا ہٹانے تک آپ کی پروفائل میں محفوظ رہے گی۔",
+  "Please update SelfX before changing your profile photo.": "پروفائل تصویر تبدیل کرنے سے پہلے براہ کرم SelfX اپ ڈیٹ کریں۔",
+  "By continuing, you agree to our": "جاری رکھ کر آپ ان سے اتفاق کرتے ہیں:",
+  "Your verification code will be sent to this email.": "آپ کا تصدیقی کوڈ اس ای میل پر بھیجا جائے گا۔",
+  "Link Google": "Google منسلک کریں",
+  "Google linked": "Google منسلک ہے",
+  "Use the same email as your SelfX account.": "اپنے SelfX اکاؤنٹ والی ای میل ہی استعمال کریں۔",
+  "Verification error: {p0}": "تصدیق کی خرابی: {p0}"
 }

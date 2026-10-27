@@ -59,6 +59,7 @@ model Customer {
   tryOnRuns             KioskTryOnRun[]
   storeVisits           CustomerStoreVisit[]
 
+  @@index([pendingPhoneNumber])
   @@map("customers")
 }
 
@@ -71,7 +72,7 @@ model CustomerProfilePhoto {
   consentStatement String   @map("consent_statement")
   consentLanguage  String   @map("consent_language") @db.VarChar(12)
   readyAt          DateTime? @map("ready_at") @db.Timestamptz(3)
-  expiresAt        DateTime @map("expires_at") @db.Timestamptz(3)
+  expiresAt        DateTime? @map("expires_at") @db.Timestamptz(3)
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
   storageDeletedAt DateTime? @map("storage_deleted_at") @db.Timestamptz(3)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)

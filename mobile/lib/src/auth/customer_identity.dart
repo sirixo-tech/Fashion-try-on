@@ -23,7 +23,8 @@ class NativeCustomerIdentity implements CustomerIdentity {
         TargetPlatform.android,
         TargetPlatform.iOS,
       ].contains(defaultTargetPlatform) &&
-      _googleServerClient.isNotEmpty;
+      (defaultTargetPlatform == TargetPlatform.android ||
+          _googleServerClient.isNotEmpty);
   @override
   bool get appleAvailable =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
@@ -36,7 +37,9 @@ class NativeCustomerIdentity implements CustomerIdentity {
       if (provider == 'GOOGLE' && googleAvailable) {
         _googleInitialization ??= GoogleSignIn.instance.initialize(
           clientId: _googleClient.isEmpty ? null : _googleClient,
-          serverClientId: _googleServerClient,
+          serverClientId: _googleServerClient.isEmpty
+              ? null
+              : _googleServerClient,
         );
         await _googleInitialization;
         final account = await GoogleSignIn.instance.authenticate();

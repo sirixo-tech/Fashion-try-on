@@ -160,6 +160,22 @@ void main() {
     expect(api.calls.where((c) => c.path == '/auth/phone/request'), isEmpty);
   });
   testWidgets(
+    'phone verification refreshes a previously disabled server capability before sending',
+    (tester) async {
+      await mount(tester);
+      expect(auth.capabilities.phone, false);
+      api.phoneAvailable = true;
+      await tap(tester, find.text('Sign in with a code'));
+      await tester.enterText(find.byType(TextFormField).first, '+919876543210');
+      await tester.pump();
+      await tap(tester, find.byType(CheckboxListTile));
+      await tap(tester, find.widgetWithText(FilledButton, 'Send code'));
+      expect(auth.capabilities.phone, true);
+      expect(phone.sent, ['+919876543210']);
+      expect(find.text('Phone sign-in is not configured yet.'), findsNothing);
+    },
+  );
+  testWidgets(
     'phone linking requires consent and sends only verified proof to the authenticated account',
     (tester) async {
       api.phoneAvailable = true;

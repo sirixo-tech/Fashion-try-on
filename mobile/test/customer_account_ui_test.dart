@@ -66,6 +66,7 @@ void main() {
     (tester) async {
       await mount(tester, login: false);
       await tap(tester, find.text('Create an account'));
+      await tap(tester, find.text('Use phone number'));
       expect(find.text('IN +91'), findsOneWidget);
       await tap(tester, find.text('IN +91'));
       await tester.enterText(find.byType(TextField).last, '+44');
@@ -73,7 +74,13 @@ void main() {
       await tap(tester, find.text('United Kingdom'));
       expect(countries.value, 'GB');
       expect(find.text('GB +44'), findsOneWidget);
-      await tester.enterText(find.byType(TextFormField).last, '020 7946 0018');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(CustomerPhoneField),
+          matching: find.byType(TextFormField),
+        ),
+        '020 7946 0018',
+      );
       expect(
         tester
             .state<CustomerPhoneFieldState>(find.byType(CustomerPhoneField))

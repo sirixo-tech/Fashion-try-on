@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "ನಿಮ್ಮ ಪ್ರೊಫೈಲ್ ಫೋಟೋವನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "5 MB ವರೆಗಿನ ಒಂದು JPEG, PNG ಅಥವಾ WebP ಫೋಟೋ ಆಯ್ಕೆಮಾಡಿ.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "5 MB ವರೆಗಿನ JPEG, PNG ಅಥವಾ WebP ಫೋಟೋವನ್ನು ಆಯ್ಕೆಮಾಡಿ, ಪ್ರತಿ ಬದಿಯಲ್ಲಿ ಕನಿಷ್ಠ 256 ಪಿಕ್ಸೆಲ್‌ಗಳು ಮತ್ತು ಎರಡೂ ಬದಿಗಳಲ್ಲಿ 8192 ಪಿಕ್ಸೆಲ್‌ಗಳಿಗಿಂತ ಹೆಚ್ಚಿಲ್ಲ.",
-  "Your photo upload was cancelled. Please try again.": "ನಿಮ್ಮ ಫೋಟೋ ಅಪ್‌ಲೋಡ್ ಅನ್ನು ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ."
+  "Your photo upload was cancelled. Please try again.": "ನಿಮ್ಮ ಫೋಟೋ ಅಪ್‌ಲೋಡ್ ಅನ್ನು ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  "Log out": "ಲಾಗ್ ಔಟ್",
+  "Gallery": "ಗ್ಯಾಲರಿ",
+  "Remove photo": "ಫೋಟೋ ತೆಗೆದುಹಾಕಿ",
+  "Saved to your profile until replaced or removed.": "ನೀವು ಬದಲಿಸುವವರೆಗೆ ಅಥವಾ ತೆಗೆದುಹಾಕುವವರೆಗೆ ನಿಮ್ಮ ಪ್ರೊಫೈಲ್‌ನಲ್ಲಿ ಉಳಿಸಲಾಗುತ್ತದೆ.",
+  "Please update SelfX before changing your profile photo.": "ಪ್ರೊಫೈಲ್ ಫೋಟೋ ಬದಲಿಸುವ ಮೊದಲು SelfX ಅನ್ನು ನವೀಕರಿಸಿ.",
+  "By continuing, you agree to our": "ಮುಂದುವರಿಯುವ ಮೂಲಕ ನೀವು ಇವುಗಳಿಗೆ ಒಪ್ಪುತ್ತೀರಿ:",
+  "Your verification code will be sent to this email.": "ನಿಮ್ಮ ಪರಿಶೀಲನಾ ಕೋಡ್ ಅನ್ನು ಈ ಇಮೇಲ್‌ಗೆ ಕಳುಹಿಸಲಾಗುತ್ತದೆ.",
+  "Link Google": "Google ಲಿಂಕ್ ಮಾಡಿ",
+  "Google linked": "Google ಲಿಂಕ್ ಆಗಿದೆ",
+  "Use the same email as your SelfX account.": "ನಿಮ್ಮ SelfX ಖಾತೆಯ ಅದೇ ಇಮೇಲ್ ಬಳಸಿ.",
+  "Verification error: {p0}": "ಪರಿಶೀಲನಾ ದೋಷ: {p0}"
 }

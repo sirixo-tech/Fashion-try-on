@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "Foto profil Anda tidak dapat dimuat. Silakan coba lagi.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "Pilih satu foto JPEG, PNG atau WebP hingga 5 MB.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "Pilih foto JPEG, PNG, atau WebP hingga 5 MB, minimal 256 piksel di setiap sisi dan tidak lebih dari 8192 piksel di kedua sisi.",
-  "Your photo upload was cancelled. Please try again.": "Upload foto Anda dibatalkan. Silakan coba lagi."
+  "Your photo upload was cancelled. Please try again.": "Upload foto Anda dibatalkan. Silakan coba lagi.",
+  "Log out": "Keluar",
+  "Gallery": "Galeri",
+  "Remove photo": "Hapus foto",
+  "Saved to your profile until replaced or removed.": "Disimpan di profil Anda hingga diganti atau dihapus.",
+  "Please update SelfX before changing your profile photo.": "Perbarui SelfX sebelum mengganti foto profil Anda.",
+  "By continuing, you agree to our": "Dengan melanjutkan, Anda menyetujui",
+  "Your verification code will be sent to this email.": "Kode verifikasi akan dikirim ke email ini.",
+  "Link Google": "Tautkan Google",
+  "Google linked": "Google ditautkan",
+  "Use the same email as your SelfX account.": "Gunakan email yang sama dengan akun SelfX Anda.",
+  "Verification error: {p0}": "Kesalahan verifikasi: {p0}"
 }

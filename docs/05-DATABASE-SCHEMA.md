@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
+
+Add only the pending-phone lookup index in migration 20261027050000_customer_phone_password_lookup. Reuse customer password/provider identities, pending contact, verified ownership and HMAC-keyed rate buckets. Do not grant ownership from an unverified phone, merge accounts or rewrite existing contacts. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.
+
+### CUSTOMER-MOBILE-10 — Reference-led welcome and authentication (2026-10-27)
+
+No schema or persistence changes. The existing device-local onboarding preference and existing customer/session records support the updated entry flow. See `CUSTOMER-MOBILE-10-WELCOME-AUTH.md`.
+
+### CUSTOMER-MOBILE-9 — Compact profile settings (2026-10-27)
+
+Migration 20261027040000_persistent_profile_photos makes CustomerProfilePhoto.expiresAt nullable. New v2 profile uploads have no expiry; legacy rows retain their original consent/expiry. Existing deletion, ownership and cleanup indexes remain. Try-On asset/run/session retention fields are unchanged. See `CUSTOMER-MOBILE-9-PROFILE-SIMPLIFICATION.md`.
+
+
+### CUSTOMER-MOBILE-8 — Native Firebase wiring (2026-10-27)
+
+No database or account changes. Native Firebase options, readiness refresh and messaging initialization use existing customer identity/session and notification structures. No server private credentials are added to mobile assets. See `CUSTOMER-MOBILE-8-FIREBASE-WIRING.md`.
+
+
 ### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
 
 Migration 20261027030000_customer_profile_photo adds CustomerProfilePhoto, owned by Customer, with a private storage key, consent version/statement/language, readiness, seven-day expiry and deletion/cleanup timestamps. Replacements and deletions remain unreadable; durable consent metadata is retained. Existing customer, Store, credit and identity records are preserved. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.

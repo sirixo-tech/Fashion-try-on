@@ -16,7 +16,11 @@ import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
 export class CustomerEmailDto {
   @IsEmail() @MaxLength(320) email!: string;
 }
-export class CustomerLoginDto extends CustomerEmailDto {
+export class CustomerLoginDto {
+  @IsString()
+  @MaxLength(320)
+  @Matches(/^(?:[^\s@]+@[^\s@]+\.[^\s@]+|\+[1-9]\d{7,14})$/)
+  email!: string;
   @IsString() @MinLength(1) @MaxLength(128) password!: string;
   @IsOptional() @IsString() @MaxLength(100) deviceName?: string;
 }
@@ -69,6 +73,10 @@ export class CustomerOAuthDto {
   @IsOptional() @Equals(true) acceptTerms?: boolean;
   @IsOptional() @Equals(CUSTOMER_TERMS_VERSION) termsVersion?: string;
   @IsOptional() @IsString() @MaxLength(100) deviceName?: string;
+}
+export class CustomerOAuthLinkDto {
+  @IsIn(["GOOGLE"]) provider!: "GOOGLE";
+  @IsString() @MinLength(20) @MaxLength(16384) idToken!: string;
 }
 export class CustomerProfileDto {
   @IsOptional() @IsString() @Matches(/\S/) @MaxLength(160) displayName?: string;

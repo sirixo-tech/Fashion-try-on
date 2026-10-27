@@ -237,6 +237,23 @@ class CustomerController extends ChangeNotifier {
     }
   }
 
+  Future<void> linkGoogle() async {
+    final epoch = _epoch;
+    final owner = profile?.id;
+    final credential = await identity.authenticate('GOOGLE', api);
+    if (_disposed || epoch != _epoch || owner == null || profile?.id != owner) {
+      return;
+    }
+    await authorized(
+      '/me/oauth',
+      method: 'POST',
+      body: {'provider': 'GOOGLE', 'idToken': credential['idToken']},
+    );
+    if (!_disposed && epoch == _epoch && profile?.id == owner) {
+      await loadProfile();
+    }
+  }
+
   Future<void> _refresh() {
     return _refreshing ??= _performRefresh().whenComplete(() {
       _refreshing = null;
@@ -367,6 +384,15 @@ class CustomerController extends ChangeNotifier {
       },
     );
     await loadProfile();
+  }
+
+  Future<void> refreshCapabilities() async {
+    final epoch = _epoch;
+    final result = await api.request('/auth/capabilities', method: 'GET');
+    if (!_disposed && epoch == _epoch) {
+      capabilities = CustomerCapabilities.fromJson(result);
+      _notify();
+    }
   }
 
   Future<void> _profileLanguage() async {

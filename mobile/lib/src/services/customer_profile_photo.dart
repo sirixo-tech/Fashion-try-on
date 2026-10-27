@@ -6,9 +6,7 @@ import '../auth/customer_controller.dart';
 import '../experience/customer_media.dart';
 
 const customerProfilePhotoConsent =
-    'I allow SelfX to upload my selected profile photo. It is private to my account, is not used for Try-On, and expires within 7 days. I can change or remove it earlier.';
-const customerProfilePhotoCriteria =
-    'Choose a clear photo of yourself. JPEG, PNG or WebP, up to 5 MB; 256–8192 pixels on each side. Your photo is cropped to a square and expires within 7 days.';
+    'Saved to your profile until replaced or removed.';
 
 class CustomerProfilePhoto extends ChangeNotifier {
   final CustomerController auth;
@@ -68,22 +66,29 @@ class CustomerProfilePhoto extends ChangeNotifier {
       expiresAt = null;
       return;
     }
-    final expiry = DateTime.parse(photo['expiresAt'] as String);
+    final expiry = photo['expiresAt'] == null
+        ? null
+        : DateTime.parse(photo['expiresAt'] as String);
     if (_photoId == photo['id'] &&
         bytes != null &&
-        expiry.isAfter(DateTime.now())) {
+        (expiry == null || expiry.isAfter(DateTime.now()))) {
       return;
     }
     final data = await auth.authorizedDownload(
       '/me/photo/${photo['id']}/content',
     );
-    if (!_valid(revision) || !expiry.isAfter(DateTime.now())) return;
+    if (!_valid(revision) ||
+        (expiry != null && !expiry.isAfter(DateTime.now()))) {
+      return;
+    }
     _dropBytes();
     bytes = data;
     _photoId = photo['id'] as String;
     expiresAt = expiry;
     _expiry?.cancel();
-    _expiry = Timer(expiry.difference(DateTime.now()), clear);
+    _expiry = expiry == null
+        ? null
+        : Timer(expiry.difference(DateTime.now()), clear);
   }
 
   Future<void> load() async {
@@ -110,7 +115,7 @@ class CustomerProfilePhoto extends ChangeNotifier {
       );
     }
     return auth.authorizedUpload(
-      '/me/photo?consentVersion=2026-10-27&consentLanguage=${auth.language}',
+      '/me/photo?consentVersion=2026-10-27-v2&consentLanguage=${auth.language}',
       photo.bytes,
       photo.mime,
     );

@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "Ihr Profilfoto konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "Wählen Sie ein JPEG-, PNG- oder WebP-Foto mit bis zu 5 MB.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "Wählen Sie ein JPEG-, PNG- oder WebP-Foto mit bis zu 5 MB, mindestens 256 Pixel auf jeder Seite und nicht mehr als 8192 Pixel auf jeder Seite.",
-  "Your photo upload was cancelled. Please try again.": "Ihr Foto-Upload wurde abgebrochen. Bitte versuchen Sie es erneut."
+  "Your photo upload was cancelled. Please try again.": "Ihr Foto-Upload wurde abgebrochen. Bitte versuchen Sie es erneut.",
+  "Log out": "Abmelden",
+  "Gallery": "Galerie",
+  "Remove photo": "Foto entfernen",
+  "Saved to your profile until replaced or removed.": "Wird in deinem Profil gespeichert, bis du es ersetzt oder entfernst.",
+  "Please update SelfX before changing your profile photo.": "Bitte aktualisiere SelfX, bevor du dein Profilfoto änderst.",
+  "By continuing, you agree to our": "Indem du fortfährst, akzeptierst du unsere",
+  "Your verification code will be sent to this email.": "Dein Bestätigungscode wird an diese E-Mail-Adresse gesendet.",
+  "Link Google": "Google verknüpfen",
+  "Google linked": "Google verknüpft",
+  "Use the same email as your SelfX account.": "Verwende dieselbe E-Mail-Adresse wie für dein SelfX-Konto.",
+  "Verification error: {p0}": "Bestätigungsfehler: {p0}"
 }

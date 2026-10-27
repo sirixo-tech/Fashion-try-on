@@ -17,6 +17,8 @@ import {
   CustomerProfilePhotoService,
   normalizeProfilePhoto,
   PROFILE_PHOTO_CONSENT,
+  PROFILE_PHOTO_VERSION,
+  LEGACY_PROFILE_PHOTO_VERSION,
 } from "./customer-profile-photo.service.js";
 
 const url = process.env.CUSTOMER_MOBILE_TEST_DATABASE_URL;
@@ -98,12 +100,9 @@ describe.skipIf(!url)("Private profile photos on disposable PostgreSQL", () => {
   afterAll(async () => {
     await db.$disconnect();
   });
-  it("keeps photo reads customer-owned and private, records consent, and expires after seven days", async () => {
+  it("keeps photo reads customer-owned and private, records consent, and retains persistent photos beyond seven days", async () => {
     const uploaded = await service.upload(owner, photo, "image/png", "te");
-    expect(uploaded.photo.expiresAt).toBeDefined();
-    expect(
-      Date.parse(uploaded.photo.expiresAt) - Date.now(),
-    ).toBeLessThanOrEqual(7 * 86400000);
+    expect(uploaded.photo.expiresAt).toBeNull();
     expect(await service.get(other.id)).toEqual({ photo: null });
     await expect(
       service.content(other.id, uploaded.photo.id),
@@ -115,16 +114,39 @@ describe.skipIf(!url)("Private profile photos on disposable PostgreSQL", () => {
       where: { id: uploaded.photo.id },
     });
     expect(row.consentStatement).toBe(PROFILE_PHOTO_CONSENT);
+    expect(row.consentVersion).toBe(PROFILE_PHOTO_VERSION);
     expect(row.consentLanguage).toBe("te");
     expect(JSON.stringify(await service.get(owner.id))).not.toContain(
       "storageKey",
     );
     await db.customerProfilePhoto.update({
       where: { id: row.id },
+      data: { createdAt: new Date(Date.now() - 30 * 86400000) },
+    });
+    await service.cleanup();
+    expect((await service.get(owner.id)).photo?.id).toBe(row.id);
+    expect(await service.content(owner.id, row.id)).toBeDefined();
+    expect(objects.size).toBe(1);
+  });
+  it("honors the original retention for uploads from older app versions", async () => {
+    const uploaded = await service.upload(
+      owner,
+      photo,
+      "image/png",
+      "en",
+      LEGACY_PROFILE_PHOTO_VERSION,
+    );
+    expect(
+      Date.parse(uploaded.photo.expiresAt!) - Date.now(),
+    ).toBeLessThanOrEqual(7 * 86400000);
+    await db.customerProfilePhoto.update({
+      where: { id: uploaded.photo.id },
       data: { expiresAt: new Date(Date.now() - 1) },
     });
     expect(await service.get(owner.id)).toEqual({ photo: null });
-    await expect(service.content(owner.id, row.id)).rejects.toThrow();
+    await expect(
+      service.content(owner.id, uploaded.photo.id),
+    ).rejects.toThrow();
     await service.cleanup();
     expect(objects.size).toBe(0);
   });

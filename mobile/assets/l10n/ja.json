@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "プロフィール写真をロードできませんでした。もう一度試してください。",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "最大 5 MB までの JPEG、PNG、または WebP 写真を 1 枚選択します。",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "最大 5 MB、各辺 256 ピクセル以上、各辺 8192 ピクセル以下の JPEG、PNG、または WebP 写真を選択してください。",
-  "Your photo upload was cancelled. Please try again.": "写真のアップロードはキャンセルされました。もう一度試してください。"
+  "Your photo upload was cancelled. Please try again.": "写真のアップロードはキャンセルされました。もう一度試してください。",
+  "Log out": "ログアウト",
+  "Gallery": "ギャラリー",
+  "Remove photo": "写真を削除",
+  "Saved to your profile until replaced or removed.": "変更または削除するまでプロフィールに保存されます。",
+  "Please update SelfX before changing your profile photo.": "プロフィール写真を変更する前に、SelfXを更新してください。",
+  "By continuing, you agree to our": "続行すると、以下に同意したものとみなされます：",
+  "Your verification code will be sent to this email.": "確認コードはこのメールアドレスに送信されます。",
+  "Link Google": "Google を連携",
+  "Google linked": "Google 連携済み",
+  "Use the same email as your SelfX account.": "SelfX アカウントと同じメールアドレスを使用してください。",
+  "Verification error: {p0}": "確認エラー：{p0}"
 }

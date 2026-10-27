@@ -664,6 +664,19 @@ class _CustomerShellState extends State<CustomerShell>
         ),
       ]),
       const SizedBox(height: 18),
+      settingsGroup([
+        settingsTile(
+          Icons.logout_rounded,
+          'Log out',
+          () => run(() => auth.signOut()),
+        ),
+        settingsTile(
+          Icons.delete_outline_rounded,
+          'Delete account',
+          deleteAccount,
+          destructive: true,
+        ),
+      ]),
       const SizedBox(height: 24),
       const CustomerText(
         'Designed around you.',
@@ -741,9 +754,6 @@ class _CustomerShellState extends State<CustomerShell>
         photo: profilePhoto,
         picker: picker,
         notifications: notifications,
-        signOut: () => run(() => auth.signOut()),
-        signOutAll: () => run(() => auth.signOut(all: true)),
-        deleteAccount: deleteAccount,
       ),
     ),
   );

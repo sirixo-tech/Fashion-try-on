@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
+
+Replace email-only credential entry and the secondary optional phone field with one country-aware email/mobile field and conditional verification email. Align linked policy text without a checkbox; keep manual keyboard/small-screen scrolling. Add direct Google continuation, Profile linking and ten-second SMS retry/diagnostic states across the 20-language UI. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.
+
+### CUSTOMER-MOBILE-10 — Reference-led welcome and authentication (2026-10-27)
+
+Use a full-screen fashion welcome, cream information screens with layered image cards and progress dots, then matching clean login/signup forms. Preserve official branding, language selection, RTL, small-screen/large-text scrolling and existing authentication controls. See `CUSTOMER-MOBILE-10-WELCOME-AUTH.md`.
+
+### CUSTOMER-MOBILE-9 — Compact profile settings (2026-10-27)
+
+Remove the large Add profile photo button, inline removal control, lengthy instructions and profile logout/delete group. Add an accessible 44-pixel + target over the avatar and a compact scrollable chooser with a one-line retention caption. Move Log out/Delete account to outer settings; retain all other settings and 20 languages. See `CUSTOMER-MOBILE-9-PROFILE-SIMPLIFICATION.md`.
+
+
+### CUSTOMER-MOBILE-8 — Native Firebase wiring (2026-10-27)
+
+Do not leave Send code permanently disabled by an old startup capability result. Recheck availability and show one readable setup error when needed. Phone alerts remain disabled until both native configuration and server delivery are ready; ensure the enabled switch has a Material surface for visible interaction. See `CUSTOMER-MOBILE-8-FIREBASE-WIRING.md`.
+
+
 ### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
 
 Use a compact 20-language header dropdown and a zero-credit plus/Add credits control leading to existing Plans & credits. Me has one named profile card with avatar/initial. The profile screen consolidates account settings and offers consent-gated gallery/camera/change/remove actions. Preserve RTL, narrow-screen scrolling and the absence of license UI. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.

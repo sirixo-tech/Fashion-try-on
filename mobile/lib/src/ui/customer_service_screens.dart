@@ -163,6 +163,7 @@ class _CustomerNotificationsScreenState
     extends State<CustomerNotificationsScreen> {
   final events = <Map<String, dynamic>>[];
   bool loading = true, busy = false, pushAvailable = false;
+  bool pushServerAvailable = false;
   String? error, cursor;
   @override
   void initState() {
@@ -187,6 +188,7 @@ class _CustomerNotificationsScreenState
       if (mounted) {
         setState(() {
           pushAvailable = ready;
+          pushServerAvailable = config['pushAvailable'] == true;
           if (!more) events.clear();
           events.addAll(
             (data['data'] as List? ?? []).cast<Map<String, dynamic>>(),
@@ -251,23 +253,28 @@ class _CustomerNotificationsScreenState
           PremiumPanel(
             child: Column(
               children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const CustomerText('Phone alerts'),
-                  subtitle: const CustomerText(
-                    'Let me know when a Try-On is ready',
+                Material(
+                  color: Colors.transparent,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const CustomerText('Phone alerts'),
+                    subtitle: const CustomerText(
+                      'Let me know when a Try-On is ready',
+                    ),
+                    value: widget.auth.profile?.notifications ?? false,
+                    onChanged:
+                        busy ||
+                            !pushAvailable &&
+                                widget.auth.profile?.notifications != true
+                        ? null
+                        : toggle,
                   ),
-                  value: widget.auth.profile?.notifications ?? false,
-                  onChanged:
-                      busy ||
-                          !pushAvailable &&
-                              widget.auth.profile?.notifications != true
-                      ? null
-                      : toggle,
                 ),
                 if (!pushAvailable)
-                  const CustomerText(
-                    'Phone alerts are not configured in this build. Your in-app inbox works independently.',
+                  CustomerText(
+                    pushServerAvailable
+                        ? 'Phone alerts are not configured in this build. Your in-app inbox works independently.'
+                        : 'Phone alerts have not been configured yet. Your in-app inbox remains available.',
                     style: TextStyle(fontSize: 12, color: CustomerColors.muted),
                   ),
               ],

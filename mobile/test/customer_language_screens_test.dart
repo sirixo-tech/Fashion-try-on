@@ -75,7 +75,7 @@ void main() {
         await tester.ensureVisible(find.text(d['Profile']!));
         await tester.tap(find.text(d['Profile']!));
         await tester.pumpAndSettle();
-        await tester.tap(find.text(d['Add profile photo']!));
+        await tester.tap(find.byKey(const ValueKey('profile-photo-action')));
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text(d['Cancel']!));
         await tester.pumpAndSettle();
@@ -99,8 +99,10 @@ void main() {
         await tester.pumpAndSettle();
         auth.replayOnboarding();
         await settleLocale(tester);
+        await tester.tap(find.byKey(const ValueKey('welcome-start')));
+        await tester.pumpAndSettle();
         expect(find.text(d['Skip']!), findsOneWidget);
-        for (var i = 0; i < 3; i++) {
+        for (var i = 0; i < 2; i++) {
           await tester.tap(find.text(d['Continue']!));
           await tester.pumpAndSettle();
         }
@@ -110,7 +112,7 @@ void main() {
         await tester.ensureVisible(find.text(d['Create an account']!));
         await tester.tap(find.text(d['Create an account']!));
         await tester.pumpAndSettle();
-        expect(find.text(d['Phone number (optional)']!), findsOneWidget);
+        expect(find.text(d['Email or mobile number']!), findsOneWidget);
         // Leave errors unconsumed: Flutter reports layout failures with their location.
         await tester.pumpWidget(const SizedBox());
         auth.dispose();

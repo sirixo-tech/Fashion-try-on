@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
+
+Extend customer password lookup to canonical numbers, preserving verified ownership precedence and rejecting ambiguous unverified contact aliases. Add authenticated recent-session Google linking, native Android OAuth client fallback, atomic ten-second SMS admission and sanitized stage/error diagnostics. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.
+
+### CUSTOMER-MOBILE-10 — Reference-led welcome and authentication (2026-10-27)
+
+Use bundled editorial assets and a Flutter theme scoped to onboarding/authentication. Reuse existing customer controller, local completion preference, authentication APIs and 20-language catalogs. No new backend, credentials, media access or dependencies. See `CUSTOMER-MOBILE-10-WELCOME-AUTH.md`.
+
+### CUSTOMER-MOBILE-9 — Compact profile settings (2026-10-27)
+
+Use versioned profile-photo consent and nullable expiry for persistent profile pictures. Preserve existing private storage, owner checks, validation, deletion retries and race protection. Preserve the recorded retention of legacy uploads; do not change Try-On image cleanup or Firebase configuration. See `CUSTOMER-MOBILE-9-PROFILE-SIMPLIFICATION.md`.
+
+
+### CUSTOMER-MOBILE-8 — Native Firebase wiring (2026-10-27)
+
+Resolve native Firebase Core options when optional platform-specific Dart options are absent. Fail closed on invalid explicit settings, unsupported platforms or project/app identity mismatches. Keep transient phone auth separate from push and retain disabled auto-collection/registration until opt-in. Refresh stale server capabilities before SMS admission. See `CUSTOMER-MOBILE-8-FIREBASE-WIRING.md`.
+
+
 ### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
 
 Reuse existing customer auth and language/credit APIs. Store profile-photo ownership and durable consent separately, validate/decode/normalize selected images, expose only authenticated owner-scoped content, and delete photos on replacement/removal/expiry. Use the existing private storage and seven-day customer-photo retention. Firebase and provider flows remain unchanged. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.

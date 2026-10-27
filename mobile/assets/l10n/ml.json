@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "നിങ്ങളുടെ പ്രൊഫൈൽ ഫോട്ടോ ലോഡ് ചെയ്യാൻ കഴിഞ്ഞില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "5 MB വരെയുള്ള ഒരു JPEG, PNG അല്ലെങ്കിൽ WebP ഫോട്ടോ തിരഞ്ഞെടുക്കുക.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "5 MB വരെയുള്ള JPEG, PNG അല്ലെങ്കിൽ WebP ഫോട്ടോ തിരഞ്ഞെടുക്കുക, ഓരോ വശത്തും കുറഞ്ഞത് 256 പിക്‌സലുകൾ, ഇരുവശത്തും 8192 പിക്‌സലുകളിൽ കൂടരുത്.",
-  "Your photo upload was cancelled. Please try again.": "നിങ്ങളുടെ ഫോട്ടോ അപ്‌ലോഡ് റദ്ദാക്കി. ദയവായി വീണ്ടും ശ്രമിക്കുക."
+  "Your photo upload was cancelled. Please try again.": "നിങ്ങളുടെ ഫോട്ടോ അപ്‌ലോഡ് റദ്ദാക്കി. ദയവായി വീണ്ടും ശ്രമിക്കുക.",
+  "Log out": "ലോഗ് ഔട്ട്",
+  "Gallery": "ഗാലറി",
+  "Remove photo": "ഫോട്ടോ നീക്കം ചെയ്യുക",
+  "Saved to your profile until replaced or removed.": "നിങ്ങൾ മാറ്റുകയോ നീക്കം ചെയ്യുകയോ ചെയ്യുന്നതുവരെ പ്രൊഫൈലിൽ സൂക്ഷിക്കും.",
+  "Please update SelfX before changing your profile photo.": "പ്രൊഫൈൽ ഫോട്ടോ മാറ്റുന്നതിന് മുമ്പ് SelfX അപ്ഡേറ്റ് ചെയ്യുക.",
+  "By continuing, you agree to our": "തുടരുന്നതിലൂടെ നിങ്ങൾ ഇവ അംഗീകരിക്കുന്നു:",
+  "Your verification code will be sent to this email.": "നിങ്ങളുടെ സ്ഥിരീകരണ കോഡ് ഈ ഇമെയിലിലേക്ക് അയയ്ക്കും.",
+  "Link Google": "Google ബന്ധിപ്പിക്കുക",
+  "Google linked": "Google ബന്ധിപ്പിച്ചു",
+  "Use the same email as your SelfX account.": "നിങ്ങളുടെ SelfX അക്കൗണ്ടിലെ അതേ ഇമെയിൽ ഉപയോഗിക്കുക.",
+  "Verification error: {p0}": "സ്ഥിരീകരണ പിശക്: {p0}"
 }

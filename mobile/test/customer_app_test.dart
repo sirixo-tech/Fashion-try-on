@@ -235,14 +235,17 @@ void main() {
   );
 
   testWidgets(
-    'shows four introduction slides and persists Skip on first launch',
+    'shows welcome then three information screens and persists Skip',
     (tester) async {
       store.complete = false;
       await mount(tester);
       expect(find.text('See yourself\nin something new.'), findsOneWidget);
-      await tap(tester, find.widgetWithText(FilledButton, 'Continue'));
+      expect(find.byType(TextFormField), findsNothing);
+      expect(store.complete, isFalse);
+      await tap(tester, find.byKey(const ValueKey('welcome-start')));
       expect(find.text('From a photo\nto your next look.'), findsOneWidget);
       await tap(tester, find.widgetWithText(FilledButton, 'Continue'));
+      expect(find.text('Scan. Discover.\nMake it yours.'), findsOneWidget);
       await tap(tester, find.widgetWithText(FilledButton, 'Continue'));
       expect(find.text('Keep the looks\nyou love.'), findsOneWidget);
       await tap(tester, find.text('Skip'));
@@ -256,7 +259,10 @@ void main() {
       await mount(tester);
       expect(find.text('Continue with Google'), findsOneWidget);
       await tap(tester, find.widgetWithText(FilledButton, 'Sign in'));
-      expect(find.text('Enter a valid email address.'), findsOneWidget);
+      expect(
+        find.text('Enter a valid phone number with country code.'),
+        findsOneWidget,
+      );
       expect(api.calls.where((call) => call.path == '/auth/login'), isEmpty);
       await tap(
         tester,
@@ -277,11 +283,13 @@ void main() {
         'a-secure-password',
       );
       await tap(tester, find.widgetWithText(FilledButton, 'Create account'));
+      expect(find.byType(CheckboxListTile), findsNothing);
       expect(
-        find.text('Please read and accept the Terms and Privacy Policy.'),
-        findsOneWidget,
+        api.calls
+            .singleWhere((call) => call.path == '/auth/signup')
+            .body?['acceptTerms'],
+        isTrue,
       );
-      expect(api.calls.where((call) => call.path == '/auth/signup'), isEmpty);
     },
   );
   testWidgets(
@@ -295,7 +303,6 @@ void main() {
         'customer@example.test',
       );
       await tester.enterText(find.byType(TextFormField).at(2), 'Abcd123');
-      await tap(tester, find.byType(CheckboxListTile));
       await tap(tester, find.widgetWithText(FilledButton, 'Create account'));
       expect(find.text('Use at least 8 characters.'), findsOneWidget);
       expect(api.calls.where((call) => call.path == '/auth/signup'), isEmpty);
@@ -388,8 +395,7 @@ void main() {
     await mount(tester);
     await login(tester);
     await tap(tester, find.text('Me'));
-    await tap(tester, find.text('Profile'));
-    await tap(tester, find.text('Sign out'));
+    await tap(tester, find.text('Log out'));
     expect(find.text('Your next look\nstarts here.'), findsOneWidget);
     expect(find.text('Ava Morgan'), findsNothing);
     expect(store.token, isNull);
@@ -430,7 +436,6 @@ void main() {
     await mount(tester);
     await login(tester);
     await tap(tester, find.text('Me'));
-    await tap(tester, find.text('Profile'));
     await tap(tester, find.text('Delete account'));
     await tap(tester, find.text('Permanently delete account'));
     expect(find.text('Type DELETE to confirm.'), findsOneWidget);
@@ -444,8 +449,8 @@ void main() {
       PackageInfo.setMockInitialValues(
         appName: 'SelfX',
         packageName: 'com.selfx.selfx_customer',
-        version: '0.7.0',
-        buildNumber: '7',
+        version: '0.8.0',
+        buildNumber: '9',
         buildSignature: '',
       );
       tester.view.physicalSize = const Size(390, 844);
@@ -501,6 +506,10 @@ void main() {
 
       await tester.runAsync(
         () => Future.wait([
+          precacheImage(
+            const AssetImage('assets/branding/google-g.png'),
+            boundary.currentContext!,
+          ),
           for (final asset in ['style-muse', 'style-tailored', 'style-atelier'])
             precacheImage(
               AssetImage('assets/editorial/$asset.webp'),
@@ -509,8 +518,10 @@ void main() {
         ]),
       );
       await tester.pump();
+      await capture('welcome');
+      await tap(tester, find.byKey(const ValueKey('welcome-start')));
       await capture('onboarding');
-      for (var slide = 2; slide <= 4; slide++) {
+      for (var slide = 2; slide <= 3; slide++) {
         await tap(tester, find.text('Continue'));
         await capture('onboarding-$slide');
       }
@@ -526,7 +537,15 @@ void main() {
       await capture('code-entry');
       await tap(tester, find.byType(BackButton));
       await tap(tester, find.text('Create an account'));
+      expect(
+        tester.getTopLeft(find.byType(CustomerBrand)).dy,
+        greaterThanOrEqualTo(0),
+      );
       await capture('sign-up');
+      await tester.enterText(find.byType(TextFormField).at(1), '+16505553434');
+      await tester.pumpAndSettle();
+      await capture('sign-up-number');
+      await tap(tester, find.text('Use email'));
       await tap(tester, find.widgetWithText(TextButton, 'Sign in'));
       await login(tester);
       await capture('home');
@@ -550,7 +569,7 @@ void main() {
       await capture('account');
       await tap(tester, find.text('Profile'));
       await capture('profile');
-      await tap(tester, find.text('Add profile photo'));
+      await tap(tester, find.byKey(const ValueKey('profile-photo-action')));
       await capture('profile-photo-consent');
       await tap(tester, find.text('Cancel'));
       await tap(tester, find.text('Phone number'));
@@ -583,6 +602,14 @@ void main() {
       );
       await tap(tester, about);
       await capture('about');
+      await tap(tester, find.byType(BackButton));
+      await tester.scrollUntilVisible(
+        find.text('Log out'),
+        220,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      await capture('account-actions');
     },
   );
 }

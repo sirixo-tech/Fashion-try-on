@@ -487,5 +487,16 @@
   "Your profile photo could not be loaded. Please try again.": "Не удалось загрузить фотографию вашего профиля. Пожалуйста, попробуйте еще раз.",
   "Choose one JPEG, PNG or WebP photo up to 5 MB.": "Выберите одну фотографию в формате JPEG, PNG или WebP размером до 5 МБ.",
   "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.": "Выберите фотографию в формате JPEG, PNG или WebP размером до 5 МБ, не менее 256 пикселей с каждой стороны и не более 8192 пикселей с каждой стороны.",
-  "Your photo upload was cancelled. Please try again.": "Загрузка вашей фотографии была отменена. Пожалуйста, попробуйте еще раз."
+  "Your photo upload was cancelled. Please try again.": "Загрузка вашей фотографии была отменена. Пожалуйста, попробуйте еще раз.",
+  "Log out": "Выйти",
+  "Gallery": "Галерея",
+  "Remove photo": "Удалить фото",
+  "Saved to your profile until replaced or removed.": "Хранится в вашем профиле, пока вы не замените или не удалите её.",
+  "Please update SelfX before changing your profile photo.": "Обновите SelfX перед изменением фото профиля.",
+  "By continuing, you agree to our": "Продолжая, вы принимаете наши",
+  "Your verification code will be sent to this email.": "Код подтверждения будет отправлен на эту почту.",
+  "Link Google": "Привязать Google",
+  "Google linked": "Google привязан",
+  "Use the same email as your SelfX account.": "Используйте ту же почту, что и в аккаунте SelfX.",
+  "Verification error: {p0}": "Ошибка подтверждения: {p0}"
 }

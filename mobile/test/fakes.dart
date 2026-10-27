@@ -116,7 +116,14 @@ class FakeCustomerApi implements CustomerApi {
       return {'loginProof': 'b' * 43, 'resendAfterSeconds': 60};
     }
     if (path == '/auth/phone/request') {
-      return {'projectId': 'synthetic-project', 'resendAfterSeconds': 60};
+      return {'projectId': 'synthetic-project', 'resendAfterSeconds': 10};
+    }
+    if (path == '/me/oauth') {
+      profile = {
+        ...profile,
+        'methods': ['EMAIL_PASSWORD', 'GOOGLE'],
+      };
+      return profile;
     }
     if (path == '/me/phone') {
       profile = {...profile, 'phoneNumber': '+919876543210'};

@@ -1,5 +1,23 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
+
+Implement and verify both password identifiers, number-first/email-verified signup, inline policy links, direct/native Google access, secure existing-account linking, concurrent ten-second admission and safe Firebase failure diagnostics. Cover account isolation, collisions, status/recent-auth checks, existing flows and all 20 layouts. Source 0.10.0+11; production setup, delivery acceptance and APK packaging remain rollout steps. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.
+
+### CUSTOMER-MOBILE-10 — Reference-led welcome and authentication (2026-10-27)
+
+Implement welcome, three illustrated information screens and matching existing login/signup only. Verify navigation, persisted completion/retry, all 20 locale layouts, large text/landscape, existing authentication, analysis and rendered previews. Source 0.9.0+10; APK packaging/deployment remains separate. See `CUSTOMER-MOBILE-10-WELCOME-AUTH.md`.
+
+### CUSTOMER-MOBILE-9 — Compact profile settings (2026-10-27)
+
+Implement the approved compact profile controls and persistent new profile photos. Verify outer account actions, all 20 layouts, picker consent/cancellation, null-expiry persistence, legacy retention, private ownership, removal/deletion and races. Migrate/deploy the API before distributing source 0.8.0+9; no APK assembly or production changes in this task. See `CUSTOMER-MOBILE-9-PROFILE-SIMPLIFICATION.md`.
+
+
+### CUSTOMER-MOBILE-8 — Native Firebase wiring (2026-10-27)
+
+Verify native-resource fallback, config precedence, placeholder/missing configuration, project identity checks, phone capability refresh, push readiness and all existing mobile flows. Process Android Google Services resources and compile Kotlin/manifest without assembling an APK. Source version is 0.7.1+8; production settings and device delivery remain rollout steps. See `CUSTOMER-MOBILE-8-FIREBASE-WIRING.md`.
+
+
 ### CUSTOMER-MOBILE-7 — Profile and header (2026-10-27)
 
 Implement the approved profile/header slice and private photo storage behind the existing customer backend. Validate all 20 narrow-screen layouts, zero-credit routing, consent cancellation, image normalization, owner isolation, expiry/removal/account deletion and late-response races. Migrate/deploy the API before distributing source version 0.7.0+7. Do not build APKs, activate Firebase or add paid checkout in this slice. See `CUSTOMER-MOBILE-7-PROFILE-HEADER.md`.

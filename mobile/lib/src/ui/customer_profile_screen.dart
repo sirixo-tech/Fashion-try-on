@@ -52,29 +52,56 @@ class CustomerProfileScreen extends StatefulWidget {
   final CustomerController auth;
   final CustomerProfilePhoto photo;
   final CustomerPhotoPicker picker;
-  final VoidCallback notifications, signOut, signOutAll, deleteAccount;
+  final VoidCallback notifications;
   const CustomerProfileScreen({
     super.key,
     required this.auth,
     required this.photo,
     required this.picker,
     required this.notifications,
-    required this.signOut,
-    required this.signOutAll,
-    required this.deleteAccount,
   });
   @override
   State<CustomerProfileScreen> createState() => _CustomerProfileScreenState();
 }
 
+enum _ProfilePhotoAction { gallery, camera, remove }
+
 class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   bool picking = false;
+  bool linkingGoogle = false;
+  Future<void> linkGoogle() async {
+    if (linkingGoogle) return;
+    setState(() => linkingGoogle = true);
+    try {
+      await widget.auth.linkGoogle();
+    } catch (e) {
+      if (mounted &&
+          !(e is CustomerApiException && e.code == 'OAUTH_CANCELLED')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: CustomerText(
+              e is CustomerApiException
+                  ? e.code == 'CUSTOMER_OAUTH_EMAIL_MISMATCH'
+                        ? 'Use the same email as your SelfX account.'
+                        : e.code == 'CUSTOMER_OAUTH_REAUTH_REQUIRED'
+                        ? 'Please sign in again.'
+                        : e.message
+                  : 'Unable to complete that. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => linkingGoogle = false);
+    }
+  }
+
   Future<void> changePhoto() async {
     if (picking || widget.photo.busy) return;
     final owner = widget.auth.profile?.id;
     setState(() => picking = true);
     try {
-      final source = await showCustomerSheet<CustomerPhotoSource>(
+      final action = await showCustomerSheet<_ProfilePhotoAction>(
         context,
         (context) => SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
@@ -86,24 +113,36 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 'Profile photo',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
-              const SizedBox(height: 16),
-              const CustomerText(customerProfilePhotoCriteria),
-              const SizedBox(height: 12),
-              const CustomerText(customerProfilePhotoConsent),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: () =>
-                    Navigator.pop(context, CustomerPhotoSource.gallery),
-                icon: const Icon(Icons.photo_library_outlined),
-                label: const CustomerText('Agree & choose photo'),
-              ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () =>
-                    Navigator.pop(context, CustomerPhotoSource.camera),
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const CustomerText('Agree & take photo'),
+              const CustomerText(
+                customerProfilePhotoConsent,
+                style: TextStyle(fontSize: 12, color: CustomerColors.muted),
               ),
+              const SizedBox(height: 12),
+              ListTile(
+                onTap: () =>
+                    Navigator.pop(context, _ProfilePhotoAction.gallery),
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const CustomerText('Gallery'),
+              ),
+              ListTile(
+                onTap: () => Navigator.pop(context, _ProfilePhotoAction.camera),
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const CustomerText('Take a photo'),
+              ),
+              if (widget.photo.bytes != null)
+                ListTile(
+                  onTap: () =>
+                      Navigator.pop(context, _ProfilePhotoAction.remove),
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Color(0xFF9A3025),
+                  ),
+                  title: const CustomerText(
+                    'Remove photo',
+                    style: TextStyle(color: Color(0xFF9A3025)),
+                  ),
+                ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const CustomerText('Cancel'),
@@ -112,9 +151,19 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           ),
         ),
       );
-      if (source == null || !mounted || widget.auth.profile?.id != owner) {
+      if (action == null ||
+          !mounted ||
+          widget.auth.stage != CustomerStage.ready ||
+          widget.auth.profile?.id != owner) {
         return;
       }
+      if (action == _ProfilePhotoAction.remove) {
+        await widget.photo.remove();
+        return;
+      }
+      final source = action == _ProfilePhotoAction.gallery
+          ? CustomerPhotoSource.gallery
+          : CustomerPhotoSource.camera;
       final selected = await widget.picker.pick(source);
       if (!mounted ||
           selected == null ||
@@ -175,10 +224,42 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             padding: const EdgeInsets.all(24),
             children: [
               Center(
-                child: CustomerAvatar(
-                  photo: widget.photo,
-                  name: profile?.displayName ?? '',
-                  radius: 48,
+                child: SizedBox(
+                  width: 112,
+                  height: 112,
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: CustomerAvatar(
+                          photo: widget.photo,
+                          name: profile?.displayName ?? '',
+                          radius: 48,
+                        ),
+                      ),
+                      PositionedDirectional(
+                        end: 0,
+                        bottom: 0,
+                        child: IconButton.filled(
+                          key: const ValueKey('profile-photo-action'),
+                          tooltip: tr(
+                            context,
+                            widget.photo.bytes == null
+                                ? 'Add profile photo'
+                                : 'Change profile photo',
+                          ),
+                          onPressed: picking || widget.photo.busy
+                              ? null
+                              : changePhoto,
+                          style: IconButton.styleFrom(
+                            backgroundColor: CustomerColors.orange,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(44, 44),
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 24),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -188,21 +269,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
-              const SizedBox(height: 12),
-              FilledButton.tonalIcon(
-                onPressed: picking || widget.photo.busy ? null : changePhoto,
-                icon: const Icon(Icons.add_a_photo_outlined),
-                label: CustomerText(
-                  widget.photo.bytes == null
-                      ? 'Add profile photo'
-                      : 'Change profile photo',
-                ),
-              ),
-              if (widget.photo.bytes != null)
-                TextButton(
-                  onPressed: widget.photo.busy ? null : widget.photo.remove,
-                  child: const CustomerText('Remove profile photo'),
-                ),
               if (widget.photo.busy) const LinearProgressIndicator(),
               if (widget.photo.error != null) ...[
                 CustomerNotice(widget.photo.error!, error: true),
@@ -255,7 +321,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                       ? 'Verified'
                       : 'Not verified',
                 ),
-                if (profile?.phoneNumber != null)
+                if (profile?.phoneNumber != null ||
+                    profile?.pendingPhoneNumber != null)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(
                       start: 56,
@@ -265,7 +332,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     child: Align(
                       alignment: AlignmentDirectional.centerStart,
                       child: Text(
-                        profile!.phoneNumber!,
+                        profile!.phoneNumber ?? profile.pendingPhoneNumber!,
                         textDirection: TextDirection.ltr,
                       ),
                     ),
@@ -275,6 +342,37 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   'Account security',
                   () => open(CustomerPasswordScreen(controller: widget.auth)),
                 ),
+                if (widget.auth.capabilities.google &&
+                    widget.auth.identity.googleAvailable)
+                  ListTile(
+                    leading: Image.asset(
+                      'assets/branding/google-g.png',
+                      width: 20,
+                      height: 20,
+                      fit: BoxFit.contain,
+                      excludeFromSemantics: true,
+                    ),
+                    title: CustomerText(
+                      profile?.methods.contains('GOOGLE') == true
+                          ? 'Google linked'
+                          : 'Link Google',
+                    ),
+                    subtitle: const CustomerText(
+                      'Use the same email as your SelfX account.',
+                    ),
+                    trailing: linkingGoogle
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                    onTap:
+                        linkingGoogle ||
+                            profile?.methods.contains('GOOGLE') == true
+                        ? null
+                        : linkGoogle,
+                  ),
               ]),
               const SizedBox(height: 18),
               group([
@@ -282,20 +380,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                   Icons.notifications_none_rounded,
                   'Notifications',
                   widget.notifications,
-                ),
-              ]),
-              const SizedBox(height: 18),
-              group([
-                tile(Icons.logout_rounded, 'Sign out', widget.signOut),
-                tile(
-                  Icons.devices_rounded,
-                  'Sign out on all devices',
-                  widget.signOutAll,
-                ),
-                tile(
-                  Icons.delete_outline_rounded,
-                  'Delete account',
-                  widget.deleteAccount,
                 ),
               ]),
             ],
