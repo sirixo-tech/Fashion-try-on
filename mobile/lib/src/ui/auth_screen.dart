@@ -1,9 +1,11 @@
+import 'dart:async';
 import '../l10n/customer_copy.dart';
 import '../services/customer_public_links.dart';
 import 'package:flutter/material.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
 import 'customer_theme.dart';
+import 'customer_code_screen.dart';
 import '../l10n/customer_language_screen.dart';
 
 enum CustomerAuthView { signIn, signUp, verify, forgot, reset }
@@ -21,6 +23,25 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       password = TextEditingController(),
       name = TextEditingController(),
       code = TextEditingController();
+  final phone = TextEditingController(),
+      country = TextEditingController(text: '+91');
+  Timer? resendTimer;
+  int resendWait = 0;
+  void startResendWait() {
+    resendTimer?.cancel();
+    resendWait = 60;
+    resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        resendWait--;
+        if (resendWait <= 0) timer.cancel();
+      });
+    });
+  }
+
   CustomerAuthView view = CustomerAuthView.signIn;
   bool obscure = true, accepted = false, busy = false;
   String? error, notice, signupProof;
@@ -28,6 +49,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   bool get signup => view == CustomerAuthView.signUp;
   bool get credentialForm => view == CustomerAuthView.signIn || signup;
   void change(CustomerAuthView next) {
+    resendTimer?.cancel();
+    resendWait = 0;
     setState(() {
       view = next;
       error = null;
@@ -86,16 +109,25 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
           setState(() {
             signupProof = result['signupProof'] as String;
             view = CustomerAuthView.verify;
+            startResendWait();
             password.clear();
             notice = result['message'] as String;
           });
         }
       } else if (signup) {
-        final result = await auth.signUp(name.text, email.text, password.text);
+        final result = await auth.signUp(
+          name.text,
+          email.text,
+          password.text,
+          phoneNumber: phone.text.trim().isEmpty
+              ? null
+              : '${country.text.trim()}${phone.text.trim()}',
+        );
         if (mounted) {
           setState(() {
             signupProof = result['signupProof'] as String;
             view = CustomerAuthView.verify;
+            startResendWait();
             password.clear();
             notice = result['message'] as String;
           });
@@ -121,6 +153,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
         if (mounted) {
           setState(() {
             view = CustomerAuthView.reset;
+            startResendWait();
             notice = result['message'] as String;
           });
         }
@@ -153,6 +186,21 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     });
   }
 
+  Future<void> codeLogin() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            CustomerCodeScreen(auth: auth, initialContact: email.text),
+      ),
+    );
+    if (mounted && result?['createAccount'] == true) {
+      final contact = result?['contact'] as String? ?? '';
+      change(CustomerAuthView.signUp);
+      email.text = contact.contains('@') ? contact : '';
+    }
+  }
+
   String? validateEmail(String? value) =>
       value == null ||
           !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value.trim())
@@ -162,8 +210,8 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     if (value == null || value.isEmpty) {
       return tr(context, 'Enter your password.');
     }
-    if (view != CustomerAuthView.signIn && value.length < 12) {
-      return tr(context, 'Use at least 12 characters.');
+    if (view != CustomerAuthView.signIn && value.length < 8) {
+      return tr(context, 'Use at least 8 characters.');
     }
     if (value.length > 128) return tr(context, 'Use 128 characters or fewer.');
     return null;
@@ -175,8 +223,75 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     password.dispose();
     name.dispose();
     code.dispose();
+    phone.dispose();
+    country.dispose();
+    resendTimer?.cancel();
     super.dispose();
   }
+
+  Widget contactField(
+    String label,
+    TextEditingController controller,
+    FormFieldValidator<String> validator,
+    int maximum,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 36),
+        child: CustomerText(
+          label,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
+      Semantics(
+        label: tr(context, label),
+        child: TextFormField(
+          controller: controller,
+          enabled: !busy,
+          textDirection: TextDirection.ltr,
+          keyboardType: TextInputType.phone,
+          inputFormatters: const [CustomerCodeFormatter()],
+          maxLength: maximum,
+          decoration: const InputDecoration(counterText: ''),
+          validator: validator,
+        ),
+      ),
+    ],
+  );
+  Widget phoneContacts() => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(
+        child: contactField(
+          'Country code',
+          country,
+          (value) =>
+              phone.text.trim().isEmpty ||
+                  RegExp(r'^\+[1-9]\d{0,2}$').hasMatch(value?.trim() ?? '')
+              ? null
+              : tr(context, 'Enter a valid country code.'),
+          4,
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        flex: 2,
+        child: contactField(
+          'Phone number (optional)',
+          phone,
+          (value) =>
+              (value?.trim().isEmpty ?? true) ||
+                  RegExp(
+                    r'^\+[1-9]\d{7,14}$',
+                  ).hasMatch('${country.text.trim()}${value!.trim()}')
+              ? null
+              : tr(context, 'Enter a valid phone number with country code.'),
+          14,
+        ),
+      ),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +307,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       CustomerAuthView.signUp =>
         'Create your own space to explore, try and save.',
       CustomerAuthView.verify =>
-        'Enter the 8-digit code sent to your email. It expires after 10 minutes.',
+        'Enter the 6-digit code sent to your email. It expires after 10 minutes.',
       CustomerAuthView.forgot =>
         'Enter your email and we’ll send a reset code.',
       CustomerAuthView.reset =>
@@ -376,16 +491,16 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                           textDirection: TextDirection.ltr,
                           enabled: !busy,
                           decoration: InputDecoration(
-                            labelText: tr(context, '8-digit email code'),
+                            labelText: tr(context, '6-digit email code'),
                             counterText: '',
                           ),
                           keyboardType: TextInputType.number,
                           autofillHints: const [AutofillHints.oneTimeCode],
-                          maxLength: 8,
+                          maxLength: 6,
                           validator: (value) =>
                               value == null ||
-                                  !RegExp(r'^\d{8}$').hasMatch(value.trim())
-                              ? tr(context, 'Enter the 8-digit code.')
+                                  !RegExp(r'^\d{6}$').hasMatch(value.trim())
+                              ? tr(context, 'Enter the 6-digit code.')
                               : null,
                         ),
                       ],
@@ -413,7 +528,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                             helperText: trNullable(
                               context,
                               view != CustomerAuthView.signIn
-                                  ? 'At least 12 characters. A passphrase works well.'
+                                  ? 'At least 8 characters. A passphrase works well.'
                                   : null,
                             ),
                             suffixIcon: IconButton(
@@ -445,6 +560,21 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 : () => change(CustomerAuthView.forgot),
                             child: const CustomerText('Forgot password?'),
                           ),
+                        ),
+                      if (signup) ...[
+                        const SizedBox(height: 14),
+                        phoneContacts(),
+                        const SizedBox(height: 8),
+                        const CustomerText(
+                          'Verify your phone in Account settings after signing in. Your email must be verified first.',
+                        ),
+                      ],
+                      if (view == CustomerAuthView.signIn &&
+                          (auth.capabilities.emailCode ||
+                              auth.capabilities.phone))
+                        TextButton(
+                          onPressed: busy ? null : codeLogin,
+                          child: const CustomerText('Sign in with a code'),
                         ),
                       if (signup) ...[
                         const SizedBox(height: 8),
@@ -505,26 +635,35 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               : CustomerText(button),
                         ),
                       ),
-                      if (view == CustomerAuthView.verify)
+                      if (view == CustomerAuthView.verify ||
+                          view == CustomerAuthView.reset)
                         TextButton(
-                          onPressed: busy
+                          onPressed: busy || resendWait > 0
                               ? null
                               : () => run(() async {
                                   final result = await auth.api.request(
-                                    '/auth/resend-verification',
+                                    view == CustomerAuthView.verify
+                                        ? '/auth/resend-verification'
+                                        : '/auth/forgot-password',
                                     body: {
                                       'email': email.text.trim(),
-                                      'signupProof': signupProof,
+                                      if (view == CustomerAuthView.verify)
+                                        'signupProof': signupProof,
                                     },
                                   );
                                   if (mounted) {
+                                    startResendWait();
                                     setState(
                                       () =>
                                           notice = result['message'] as String,
                                     );
                                   }
                                 }),
-                          child: const CustomerText('Send a new code'),
+                          child: CustomerText(
+                            resendWait > 0
+                                ? 'Resend in ${resendWait}s'
+                                : 'Send a new code',
+                          ),
                         ),
                       const SizedBox(height: 20),
                       if (credentialForm)

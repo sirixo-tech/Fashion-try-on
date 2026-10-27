@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
+
+Extend the central customer auth service with request-bound, single-use email code login and Admin-SDK-verified Firebase phone proofs. Keep SelfX sessions/authorization authoritative. Enforce project, revocation, verified phone, recent authentication, unique ownership and durable request/attempt limits. Phone remains unavailable without explicit server/client configuration. See `CUSTOMER-MOBILE-5-OTP.md`.
+
+### Customer account password minimum (2026-10-27)
+
+Enforce 8–128 characters for customer signup/reset in API DTO validation and Flutter forms. Update all bundled language hints/errors consistently. Preserve existing hashing, email verification/reset codes, rate limits and session revocation; no schema migration or forced password change is needed.
+
 ### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
 
 Use Flutter localization delegates with bundled offline customer catalogs, safe placeholders and localized dates/numbers. Reuse Customer.language with a centralized API allowlist; signup accepts an optional supported language and profile updates stay customer-owned. Use native RTL and directional layout. Record consent presentation language/version/wording in the existing durable consent statement alongside the canonical policy. Notification/consent copy is generated offline for the API from the app catalogs. No runtime translation service or new schema is required. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.

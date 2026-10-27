@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
+
+Approved follow-up adds six-digit email verification/reset/login codes and prepared Firebase phone login/linking. Keep existing account IDs, credits/history and password/Google/Apple login. Phone is optional at signup and becomes a login method only after verified linking to an authenticated account. No automatic account merging or phone-only signup. See `CUSTOMER-MOBILE-5-OTP.md`.
+
+### Customer account password minimum (2026-10-27)
+
+The user approved an eight-character minimum for customer account passwords on signup and password reset. Longer passwords remain allowed up to the existing 128-character maximum. Existing passwords and sign-in continue to work; staff and merchant password policies are unchanged.
+
 ### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
 
 The user approved 20 customer app languages: English default, Hindi, Tamil, Telugu, Spanish, Arabic, Kannada, Bengali, Marathi, Malayalam, Gujarati, Urdu, French, Portuguese, German, Simplified Chinese, Japanese, Korean, Russian and Indonesian. Save the selected language locally and to the customer account; switch immediately, including Arabic/Urdu RTL. Translate app-owned copy and prepared notifications; retain customer/merchant content and external legal/OS/email content in its source language. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.

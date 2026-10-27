@@ -28,4 +28,5 @@ kiosk/build
 mobile/build
 tmp
 **/*firebase-service-account*.json
+**/*firebase-adminsdk*.json
 **/*google-service-account*.json

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'customer_api.dart';
 import 'customer_identity.dart';
+import 'customer_phone.dart';
 import 'session_store.dart';
 import '../l10n/customer_language.dart';
 
@@ -11,6 +12,7 @@ class CustomerController extends ChangeNotifier {
   final CustomerSessionStore store;
   final CustomerIdentity identity;
   final CustomerLanguageStore languageStore;
+  final CustomerPhone phone;
   String language = 'en';
   bool languageSaving = false;
   CustomerStage stage = CustomerStage.loading;
@@ -32,7 +34,9 @@ class CustomerController extends ChangeNotifier {
     required this.store,
     required this.identity,
     CustomerLanguageStore? languageStore,
-  }) : languageStore = languageStore ?? LocalCustomerLanguageStore();
+    CustomerPhone? phone,
+  }) : languageStore = languageStore ?? LocalCustomerLanguageStore(),
+       phone = phone ?? FirebaseCustomerPhone();
   void _notify() {
     if (!_disposed) notifyListeners();
   }
@@ -154,8 +158,9 @@ class CustomerController extends ChangeNotifier {
   Future<Map<String, dynamic>> signUp(
     String name,
     String email,
-    String password,
-  ) => api.request(
+    String password, {
+    String? phoneNumber,
+  }) => api.request(
     '/auth/signup',
     body: {
       'displayName': name.trim(),
@@ -164,8 +169,43 @@ class CustomerController extends ChangeNotifier {
       'acceptTerms': true,
       'termsVersion': capabilities.termsVersion,
       'language': language,
+      if (phoneNumber != null && phoneNumber.isNotEmpty)
+        'phoneNumber': phoneNumber,
     },
   );
+  Future<void> acceptCodeSession(
+    Future<Map<String, dynamic>> Function() request,
+  ) async {
+    final epoch = _epoch;
+    final result = await request();
+    await _accept(result, epoch);
+    if (!_disposed && epoch == _epoch) {
+      await loadProfile();
+      if (!_disposed && epoch == _epoch && profile != null) {
+        stage = CustomerStage.ready;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> finishPhone(String idToken, {required bool link}) async {
+    if (link) {
+      await authorized(
+        '/me/phone',
+        method: 'POST',
+        body: {'idToken': idToken, 'acceptPhoneVerification': true},
+      );
+      await loadProfile();
+    } else {
+      await acceptCodeSession(
+        () => api.request(
+          '/auth/phone/login',
+          body: {'idToken': idToken, 'deviceName': 'SelfX mobile'},
+        ),
+      );
+    }
+  }
+
   Future<void> oauth(String provider, {required bool signup}) async {
     final epoch = _epoch;
     final credential = await identity.authenticate(provider, api);
@@ -370,6 +410,7 @@ class CustomerController extends ChangeNotifier {
   }
 
   Future<void> signOut({bool all = false}) async {
+    phone.cancel();
     try {
       await authorized(
         all ? '/auth/logout-all' : '/auth/logout',
@@ -385,6 +426,7 @@ class CustomerController extends ChangeNotifier {
   }
 
   Future<void> deleteAccount({String? password, String? provider}) async {
+    phone.cancel();
     final credential = provider != null
         ? await identity.authenticate(provider, api)
         : <String, dynamic>{};
@@ -430,6 +472,7 @@ class CustomerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    phone.cancel();
     _disposed = true;
     ++_epoch;
     super.dispose();

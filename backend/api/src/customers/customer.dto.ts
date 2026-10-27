@@ -21,18 +21,35 @@ export class CustomerLoginDto extends CustomerEmailDto {
   @IsOptional() @IsString() @MaxLength(100) deviceName?: string;
 }
 export class CustomerSignupDto extends CustomerEmailDto {
+  @IsOptional() @Matches(/^\+[1-9]\d{7,14}$/) phoneNumber?: string;
   @IsOptional() @IsIn(CUSTOMER_LANGUAGES) language?: string;
   @IsString() @Matches(/\S/) @MaxLength(160) displayName!: string;
-  @IsString() @MinLength(12) @MaxLength(128) password!: string;
+  @IsString() @MinLength(8) @MaxLength(128) password!: string;
   @Equals(true) acceptTerms!: boolean;
   @Equals(CUSTOMER_TERMS_VERSION) termsVersion!: string;
 }
 export class CustomerCodeDto extends CustomerEmailDto {
-  @Matches(/^\d{8}$/) code!: string;
+  @Matches(/^\d{6}$/) code!: string;
   @IsOptional() @IsString() @MaxLength(100) deviceName?: string;
 }
 export class CustomerResetDto extends CustomerCodeDto {
-  @IsString() @MinLength(12) @MaxLength(128) password!: string;
+  @IsString() @MinLength(8) @MaxLength(128) password!: string;
+}
+export class CustomerEmailLoginRequestDto extends CustomerEmailDto {
+  @IsOptional() @Matches(/^[A-Za-z0-9_-]{43}$/) loginProof?: string;
+}
+export class CustomerEmailLoginDto extends CustomerCodeDto {
+  @Matches(/^[A-Za-z0-9_-]{43}$/) loginProof!: string;
+}
+export class CustomerPhoneDto {
+  @IsString() @MinLength(20) @MaxLength(16384) idToken!: string;
+  @IsOptional() @IsString() @MaxLength(100) deviceName?: string;
+}
+export class CustomerPhoneRequestDto {
+  @Matches(/^\+[1-9]\d{7,14}$/) phoneNumber!: string;
+}
+export class CustomerPhoneLinkDto extends CustomerPhoneDto {
+  @Equals(true) acceptPhoneVerification!: boolean;
 }
 export class CustomerVerificationDto extends CustomerCodeDto {
   @Matches(/^[A-Za-z0-9_-]{43}$/) signupProof!: string;

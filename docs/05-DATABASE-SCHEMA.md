@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
+
+Extend Customer with unique verified phone, non-unique pending phone and verification/consent timestamps. Add FIREBASE_PHONE to customer identity providers and EMAIL_LOGIN to existing action-token purposes. CustomerSession.authenticatedAt persists original authentication time across refresh. Existing accounts/credits/history remain unchanged. See `CUSTOMER-MOBILE-5-OTP.md` and its two migrations.
+
 ### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
 
 The existing Customer.language field stores the expanded supported-language preference; no migration is needed. Existing CustomerPhotoConsent.statement retains the canonical English policy and records presentation language, translation version and the translated text shown. Existing customer notification/device ownership and expiry structures remain unchanged. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.

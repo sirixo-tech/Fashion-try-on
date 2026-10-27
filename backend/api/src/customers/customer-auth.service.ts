@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomInt } from "node:crypto";
 import {
   Injectable,
+  Optional,
   type OnModuleInit,
   type OnModuleDestroy,
 } from "@nestjs/common";
@@ -24,6 +25,7 @@ import {
 } from "./customer.config.js";
 import { CustomerIdentityClient } from "./customer-identity.client.js";
 import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
+import { CustomerPhoneClient } from "./customer-phone.client.js";
 import {
   type CustomerDeleteDto,
   type CustomerOAuthDto,
@@ -35,7 +37,8 @@ const audience = "selfx-customer";
 const codeTtl = 10 * 60000;
 const genericEmail = {
   message:
-    "If this address is eligible, an email with an 8-digit code will arrive shortly. Check your spam folder too.",
+    "If this address is eligible, an email with a 6-digit code will arrive shortly. Check your spam folder too.",
+  resendAfterSeconds: 60,
 };
 const tokenSecret = () => randomBytes(32).toString("base64url");
 const normalize = (email: string) => email.trim().toLowerCase();
@@ -61,6 +64,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     private readonly mail: MailSettingsService,
     private readonly outbox: MailOutboxService,
     private readonly crypto: MailCrypto,
+    @Optional() private readonly phone?: CustomerPhoneClient,
   ) {}
   onModuleInit() {
     this.outbox.prepareCustomerAuth = (job) => this.prepareMail(job);
@@ -89,10 +93,13 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       providers: {
         google: this.config.enabled && this.config.googleClientIds.length > 0,
         apple: this.config.enabled && this.config.appleClientIds.length > 0,
+        phone: this.config.enabled && (this.phone?.ready() ?? false),
+        emailCode: this.config.enabled,
       },
       termsVersion: CUSTOMER_TERMS_VERSION,
       languages: CUSTOMER_LANGUAGES,
       resultRetentionDays: 30,
+      codeLength: 6,
       features: {
         tryOn: false,
         plans: false,
@@ -106,10 +113,15 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       .update(`customer:${scope}:${value}`)
       .digest("hex");
   }
-  async rate(scope: string, value: string, maximum: number) {
+  async rate(
+    scope: string,
+    value: string,
+    maximum: number,
+    windowMs = 15 * 60000,
+  ) {
     this.assertEnabled();
     const key = this.digest(`rate:${scope}`, value),
-      expires = new Date(Date.now() + 15 * 60000);
+      expires = new Date(Date.now() + windowMs);
     const rows = await this.db.$queryRaw<Array<{ count: number }>>`
       INSERT INTO password_recovery_rate_buckets (key, count, expires_at) VALUES (${key}, 1, ${expires})
       ON CONFLICT (key) DO UPDATE SET count = CASE WHEN password_recovery_rate_buckets.expires_at <= NOW() THEN 1 ELSE password_recovery_rate_buckets.count + 1 END,
@@ -157,7 +169,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
   private async queueEmail(
     tx: Prisma.TransactionClient,
     email: string,
-    purpose: "VERIFY_EMAIL" | "RESET_PASSWORD",
+    purpose: "VERIFY_EMAIL" | "RESET_PASSWORD" | "EMAIL_LOGIN",
     proofHash?: string,
   ) {
     await this.outbox.enqueue(
@@ -185,6 +197,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           data: {
             id: createSelfxId(),
             email,
+            pendingPhoneNumber: input.phoneNumber ?? null,
             displayName: input.displayName.trim(),
             language: input.language ?? "en",
             termsVersion: input.termsVersion,
@@ -211,6 +224,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
             ...(input.language ? { language: input.language } : {}),
             displayName: input.displayName.trim(),
             termsVersion: input.termsVersion,
+            pendingPhoneNumber: input.phoneNumber ?? null,
             termsAcceptedAt: new Date(),
           },
         });
@@ -232,7 +246,10 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     await this.limit("email-ip", ip, 10);
     await this.assertEmailReady();
     const email = normalize(emailInput);
-    if (await this.rate("email-request", email, 3))
+    if (
+      (await this.rate("email-request", email, 3)) &&
+      (await this.rate(`email-cooldown-${purpose}`, email, 1, 60000))
+    )
       await this.queueEmail(
         this.db,
         email,
@@ -245,10 +262,12 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     this.assertEnabled();
     const input = this.crypto.decrypt<{
       email: string;
-      purpose: "VERIFY_EMAIL" | "RESET_PASSWORD";
+      purpose: "VERIFY_EMAIL" | "RESET_PASSWORD" | "EMAIL_LOGIN";
       proofHash?: string;
     }>(job.payload as unknown as MailEnvelope);
-    if (!["VERIFY_EMAIL", "RESET_PASSWORD"].includes(input.purpose))
+    if (
+      !["VERIFY_EMAIL", "RESET_PASSWORD", "EMAIL_LOGIN"].includes(input.purpose)
+    )
       return null;
     return this.db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM customers WHERE email = ${input.email} FOR UPDATE`;
@@ -286,13 +305,16 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         },
         data: { usedAt: new Date() },
       });
-      const code = String(randomInt(0, 100000000)).padStart(8, "0");
+      const code = String(randomInt(0, 1000000)).padStart(6, "0");
       const token = await tx.customerActionToken.create({
         data: {
           id: createSelfxId(),
           customerId: customer.id,
           purpose: input.purpose,
-          tokenHash: this.digest(input.purpose, `${input.email}:${code}`),
+          tokenHash: this.digest(
+            input.purpose,
+            `${input.email}:${code}${input.purpose === "EMAIL_LOGIN" ? `:${input.proofHash}` : ""}`,
+          ),
           securityVersion: customer.securityVersion,
           expiresAt: job.expiresAt,
           createdAt: job.createdAt,
@@ -301,11 +323,13 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       const action =
         input.purpose === "VERIFY_EMAIL"
           ? "Verify your email"
-          : "Reset your password";
+          : input.purpose === "EMAIL_LOGIN"
+            ? "Sign in to SelfX"
+            : "Reset your password";
       const message = {
         to: input.email,
         subject: `${action} · SelfX`,
-        text: `Your SelfX code is ${code}.\n\nEnter it in the SelfX customer app to ${input.purpose === "VERIFY_EMAIL" ? "verify your email" : "reset your password"}. It expires 10 minutes after the request and can be used once.\n\nIf you did not request this, ignore this email. Never share your code.`,
+        text: `Your SelfX code is ${code}.\n\nEnter it in the SelfX customer app to ${input.purpose === "VERIFY_EMAIL" ? "verify your email" : input.purpose === "EMAIL_LOGIN" ? "sign in" : "reset your password"}. It expires 10 minutes after the request and can be used once.\n\nIf you did not request this, ignore this email. Never share your code.`,
         customerTokenId: token.id,
       };
       const updated = await tx.mailJob.updateMany({
@@ -321,6 +345,205 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       return tx.mailJob.findUniqueOrThrow({ where: { id: job.id } });
     });
   }
+  async requestEmailLogin(
+    emailInput: string,
+    ip: string,
+    previousProof?: string,
+  ) {
+    await this.limit("email-login-ip", ip, 10);
+    await this.assertEmailReady();
+    const email = normalize(emailInput),
+      loginProof = previousProof ?? tokenSecret();
+    if (
+      (await this.rate("email-login-request", email, 3)) &&
+      (await this.rate("email-login-cooldown", email, 1, 60000))
+    ) {
+      await this.queueEmail(
+        this.db,
+        email,
+        "EMAIL_LOGIN",
+        this.digest("email-login-proof", loginProof),
+      );
+    }
+    return { ...genericEmail, loginProof };
+  }
+  async emailLogin(
+    email: string,
+    code: string,
+    loginProof: string,
+    ip: string,
+    deviceName?: string,
+  ) {
+    return this.consumeCode(
+      normalize(email),
+      code,
+      "EMAIL_LOGIN",
+      ip,
+      (tx, customer) =>
+        this.createSession(
+          tx,
+          customer.id,
+          deviceName,
+          customer.securityVersion,
+        ),
+      loginProof,
+    );
+  }
+  private assertPhoneReady() {
+    this.assertEnabled();
+    if (!this.phone?.ready())
+      customerError(
+        "CUSTOMER_PHONE_UNAVAILABLE",
+        "Phone sign-in is not configured yet.",
+        503,
+      );
+  }
+  private async verifiedPhone(idToken: string) {
+    this.assertPhoneReady();
+    try {
+      return await this.phone!.verify(idToken);
+    } catch {
+      customerError(
+        "CUSTOMER_PHONE_INVALID",
+        "Phone verification expired or failed. Request a new code.",
+        400,
+      );
+    }
+  }
+  async phoneRequest(phoneNumber: string, ip: string) {
+    this.assertPhoneReady();
+    await this.limit("phone-request-ip", ip, 15);
+    await this.limit("phone-request-number", phoneNumber, 3);
+    if (!(await this.rate("phone-cooldown", phoneNumber, 1, 60000)))
+      customerError(
+        "CUSTOMER_PHONE_COOLDOWN",
+        "Please wait one minute before requesting another code.",
+        429,
+      );
+    return {
+      projectId: process.env.SELFX_CUSTOMER_FIREBASE_PROJECT_ID,
+      resendAfterSeconds: 60,
+    };
+  }
+  async phoneLogin(idToken: string, ip: string, deviceName?: string) {
+    await this.limit("phone-login-ip", ip, 20);
+    const verified = await this.verifiedPhone(idToken);
+    const identity = await this.db.customerIdentity.findUnique({
+      where: {
+        provider_providerSubject: {
+          provider: "FIREBASE_PHONE",
+          providerSubject: verified!.subject,
+        },
+      },
+      include: { customer: true },
+    });
+    if (
+      !identity ||
+      identity.customer.phoneNumber !== verified!.phoneNumber ||
+      !identity.customer.phoneVerifiedAt
+    )
+      customerError(
+        "CUSTOMER_PHONE_NOT_LINKED",
+        "This phone is not linked. Sign in with email or create an account, then verify your phone in Account settings.",
+        409,
+      );
+    return this.newSession(
+      identity!.customerId,
+      deviceName,
+      identity!.customer.securityVersion,
+    );
+  }
+  async linkPhone(header: string | undefined, idToken: string, ip: string) {
+    const principal = await this.requireCustomer(header);
+    await this.limit("phone-link-customer", principal.customer.id, 5);
+    await this.limit("phone-link-ip", ip, 20);
+    const verified = await this.verifiedPhone(idToken);
+    try {
+      await this.db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.customer.phone'), hashtext(${verified!.phoneNumber}))`;
+        await tx.$queryRaw`SELECT id FROM customers WHERE id = ${principal.customer.id}::uuid FOR UPDATE`;
+        const session = await tx.customerSession.findUnique({
+          where: { id: principal.sessionId },
+          include: { customer: true },
+        });
+        if (
+          !session ||
+          session.revokedAt ||
+          session.expiresAt <= new Date() ||
+          session.customer.status !== "ACTIVE" ||
+          session.customer.securityVersion !==
+            principal.customer.securityVersion
+        )
+          unauthorized();
+        if (session!.authenticatedAt < new Date(Date.now() - 10 * 60000))
+          customerError(
+            "CUSTOMER_PHONE_REAUTH_REQUIRED",
+            "Sign out and sign in again before changing your phone number.",
+            403,
+          );
+        const taken = await tx.customer.findUnique({
+          where: { phoneNumber: verified!.phoneNumber },
+        });
+        const identity = await tx.customerIdentity.findUnique({
+          where: {
+            provider_providerSubject: {
+              provider: "FIREBASE_PHONE",
+              providerSubject: verified!.subject,
+            },
+          },
+        });
+        if (
+          (taken && taken.id !== principal.customer.id) ||
+          (identity && identity.customerId !== principal.customer.id)
+        )
+          customerError(
+            "CUSTOMER_PHONE_IN_USE",
+            "This phone is already linked to another account.",
+            409,
+          );
+        await tx.customerIdentity.upsert({
+          where: {
+            customerId_provider: {
+              customerId: principal.customer.id,
+              provider: "FIREBASE_PHONE",
+            },
+          },
+          create: {
+            id: createSelfxId(),
+            customerId: principal.customer.id,
+            provider: "FIREBASE_PHONE",
+            providerSubject: verified!.subject,
+            verifiedAt: new Date(),
+          },
+          update: {
+            providerSubject: verified!.subject,
+            verifiedAt: new Date(),
+          },
+        });
+        await tx.customer.update({
+          where: { id: principal.customer.id },
+          data: {
+            phoneNumber: verified!.phoneNumber,
+            phoneVerifiedAt: new Date(),
+            phoneConsentAt: new Date(),
+            pendingPhoneNumber: null,
+          },
+        });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+        customerError(
+          "CUSTOMER_PHONE_IN_USE",
+          "This phone is already linked to another account.",
+          409,
+        );
+      throw error;
+    }
+    return this.me(header);
+  }
   private async consumeCode(
     email: string,
     code: string,
@@ -330,6 +553,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       tx: Prisma.TransactionClient,
       customer: Customer,
     ) => Promise<unknown>,
+    loginProof?: string,
   ) {
     await this.limit("code-ip", ip);
     await this.limit(`code-${purpose}`, email, 5);
@@ -337,7 +561,12 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       await tx.$queryRaw`SELECT id FROM customers WHERE email = ${email} FOR UPDATE`;
       const customer = await tx.customer.findUnique({ where: { email } });
       const token = await tx.customerActionToken.findUnique({
-        where: { tokenHash: this.digest(purpose, `${email}:${code}`) },
+        where: {
+          tokenHash: this.digest(
+            purpose,
+            `${email}:${code}${purpose === "EMAIL_LOGIN" ? `:${this.digest("email-login-proof", loginProof ?? "")}` : ""}`,
+          ),
+        },
       });
       if (
         !customer ||
@@ -524,35 +753,43 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     deviceName?: string,
     securityVersion?: number,
   ) {
-    return this.db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customerId}::uuid FOR UPDATE`;
-      const customer = await tx.customer.findUniqueOrThrow({
-        where: { id: customerId },
-      });
-      if (
-        customer.status !== "ACTIVE" ||
-        (securityVersion !== undefined &&
-          customer.securityVersion !== securityVersion)
-      )
-        unauthorized();
-      const refreshToken = tokenSecret(),
-        id = createSelfxId();
-      const session = await tx.customerSession.create({
-        data: {
-          id,
-          familyId: id,
-          customerId,
-          tokenHash: this.digest("refresh", refreshToken),
-          expiresAt: new Date(Date.now() + this.config.refreshDays * 86400000),
-          deviceName,
-        },
-      });
-      await tx.customer.update({
-        where: { id: customerId },
-        data: { lastActiveAt: new Date() },
-      });
-      return this.bundle(customer, session.id, refreshToken);
+    return this.db.$transaction((tx) =>
+      this.createSession(tx, customerId, deviceName, securityVersion),
+    );
+  }
+  private async createSession(
+    tx: Prisma.TransactionClient,
+    customerId: string,
+    deviceName?: string,
+    securityVersion?: number,
+  ) {
+    await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customerId}::uuid FOR UPDATE`;
+    const customer = await tx.customer.findUniqueOrThrow({
+      where: { id: customerId },
     });
+    if (
+      customer.status !== "ACTIVE" ||
+      (securityVersion !== undefined &&
+        customer.securityVersion !== securityVersion)
+    )
+      unauthorized();
+    const refreshToken = tokenSecret(),
+      id = createSelfxId();
+    const session = await tx.customerSession.create({
+      data: {
+        id,
+        familyId: id,
+        customerId,
+        tokenHash: this.digest("refresh", refreshToken),
+        expiresAt: new Date(Date.now() + this.config.refreshDays * 86400000),
+        deviceName,
+      },
+    });
+    await tx.customer.update({
+      where: { id: customerId },
+      data: { lastActiveAt: new Date() },
+    });
+    return this.bundle(customer, session.id, refreshToken);
   }
   private async bundle(
     customer: Customer,
@@ -621,6 +858,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           tokenHash: this.digest("refresh", next),
           expiresAt: current.expiresAt,
           deviceName: current.deviceName,
+          authenticatedAt: current.authenticatedAt,
         },
       });
       await tx.customerPushDevice.updateMany({
@@ -834,6 +1072,9 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
     return {
       id: customer.id,
       email: customer.email,
+      phoneNumber: customer.phoneNumber,
+      pendingPhoneNumber: customer.pendingPhoneNumber,
+      phoneVerifiedAt: customer.phoneVerifiedAt?.toISOString() ?? null,
       displayName: customer.displayName,
       language: customer.language,
       notifications: customer.notifications,
@@ -953,6 +1194,10 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         where: { id: customer.id },
         data: {
           email: null,
+          phoneNumber: null,
+          pendingPhoneNumber: null,
+          phoneVerifiedAt: null,
+          phoneConsentAt: null,
           displayName: "Deleted account",
           status: "DELETED",
           deletedAt: new Date(),

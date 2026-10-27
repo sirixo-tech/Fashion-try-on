@@ -16,6 +16,7 @@ class CustomerProfile {
   final String id, email, displayName, language;
   final bool notifications;
   final List<String> methods;
+  final String? phoneNumber, pendingPhoneNumber;
   const CustomerProfile({
     required this.id,
     required this.email,
@@ -23,6 +24,8 @@ class CustomerProfile {
     this.language = 'en',
     this.notifications = false,
     this.methods = const [],
+    this.phoneNumber,
+    this.pendingPhoneNumber,
   });
   factory CustomerProfile.fromJson(Map<String, dynamic> json) =>
       CustomerProfile(
@@ -32,16 +35,20 @@ class CustomerProfile {
         language: json['language'] as String? ?? 'en',
         notifications: json['notifications'] as bool? ?? false,
         methods: List<String>.from(json['methods'] as List? ?? []),
+        phoneNumber: json['phoneNumber'] as String?,
+        pendingPhoneNumber: json['pendingPhoneNumber'] as String?,
       );
 }
 
 class CustomerCapabilities {
-  final bool enabled, google, apple;
+  final bool enabled, google, apple, phone, emailCode;
   final String termsVersion;
   const CustomerCapabilities({
     this.enabled = false,
     this.google = false,
     this.apple = false,
+    this.phone = false,
+    this.emailCode = false,
     this.termsVersion = '2026-10-25',
   });
   factory CustomerCapabilities.fromJson(Map<String, dynamic> json) =>
@@ -49,6 +56,8 @@ class CustomerCapabilities {
         enabled: json['enabled'] == true,
         google: (json['providers'] as Map?)?['google'] == true,
         apple: (json['providers'] as Map?)?['apple'] == true,
+        phone: (json['providers'] as Map?)?['phone'] == true,
+        emailCode: (json['providers'] as Map?)?['emailCode'] == true,
         termsVersion: json['termsVersion'] as String,
       );
 }

@@ -29,6 +29,7 @@ import {
 } from "./customer-app.controller.js";
 import { CustomerNotificationsService } from "./customer-notifications.service.js";
 import { CustomerPushSender } from "./customer-push.sender.js";
+import { CustomerPhoneClient } from "./customer-phone.client.js";
 @Module({
   imports: [
     DatabaseModule,
@@ -49,6 +50,7 @@ import { CustomerPushSender } from "./customer-push.sender.js";
     CustomerNotificationsController,
   ],
   providers: [
+    CustomerPhoneClient,
     CustomerAuthService,
     CustomerNotificationsService,
     CustomerPushSender,

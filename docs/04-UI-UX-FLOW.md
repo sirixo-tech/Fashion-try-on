@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
+
+Keep the independent premium customer theme and existing header. Add email/mobile code entry, six-digit OTP/autofill, consent before SMS, loading/errors, resend countdown and new-account access. Signup adds optional country-code/phone fields; Me adds phone verification. Translate new text in all 20 languages and retain RTL layout with LTR contact/code fields. See `CUSTOMER-MOBILE-5-OTP.md`.
+
 ### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
 
 Provide a real language picker with native names, search, selected state, save progress/error and immediate locale changes. Localize app-owned screens, validation, tooltips, skeleton semantics and date/number displays. Support Arabic/Urdu RTL, directional navigation/alignment and LTR identifier entry. Long labels wrap on narrow screens. Never translate customer/store/product names or external release notes. Preserve current premium branding and all working flows. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.

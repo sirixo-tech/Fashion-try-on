@@ -282,7 +282,7 @@ void main() {
     },
   );
   testWidgets(
-    'creates an email account, verifies its bound code and returns to sign in',
+    'requires eight characters for signup, verifies its bound code and returns to sign in',
     (tester) async {
       await mount(tester);
       await tap(tester, find.text('Create an account'));
@@ -291,14 +291,21 @@ void main() {
         find.byType(TextFormField).at(1),
         'customer@example.test',
       );
-      await tester.enterText(
-        find.byType(TextFormField).at(2),
-        'a-secure-password',
-      );
+      await tester.enterText(find.byType(TextFormField).at(2), 'Abcd123');
       await tap(tester, find.byType(CheckboxListTile));
       await tap(tester, find.widgetWithText(FilledButton, 'Create account'));
+      expect(find.text('Use at least 8 characters.'), findsOneWidget);
+      expect(api.calls.where((call) => call.path == '/auth/signup'), isEmpty);
+      await tester.enterText(find.byType(TextFormField).at(2), 'Abcd1234');
+      await tap(tester, find.widgetWithText(FilledButton, 'Create account'));
+      expect(
+        api.calls
+            .firstWhere((call) => call.path == '/auth/signup')
+            .body?['password'],
+        'Abcd1234',
+      );
       expect(find.text('Check your inbox.'), findsOneWidget);
-      await tester.enterText(find.byType(TextFormField).at(1), '12345678');
+      await tester.enterText(find.byType(TextFormField).at(1), '123456');
       await tap(tester, find.widgetWithText(FilledButton, 'Verify email'));
       expect(
         api.calls
@@ -311,7 +318,7 @@ void main() {
     },
   );
   testWidgets(
-    'supports email password recovery without creating an authenticated session',
+    'requires eight characters for password recovery without creating an authenticated session',
     (tester) async {
       await mount(tester);
       await tap(tester, find.text('Forgot password?'));
@@ -321,15 +328,25 @@ void main() {
       );
       await tap(tester, find.widgetWithText(FilledButton, 'Send reset code'));
       expect(find.text('A fresh start.'), findsOneWidget);
-      await tester.enterText(find.byType(TextFormField).at(1), '12345678');
-      await tester.enterText(
-        find.byType(TextFormField).at(2),
-        'a-new-secure-password',
+      await tester.enterText(find.byType(TextFormField).at(1), '123456');
+      await tester.enterText(find.byType(TextFormField).at(2), 'Abcd123');
+      await tap(tester, find.widgetWithText(FilledButton, 'Reset password'));
+      expect(find.text('Use at least 8 characters.'), findsOneWidget);
+      expect(
+        api.calls.where((call) => call.path == '/auth/reset-password'),
+        isEmpty,
       );
+      await tester.enterText(find.byType(TextFormField).at(2), 'Abcd1234');
       await tap(tester, find.widgetWithText(FilledButton, 'Reset password'));
       expect(
         api.calls.where((call) => call.path == '/auth/reset-password'),
         hasLength(1),
+      );
+      expect(
+        api.calls
+            .firstWhere((call) => call.path == '/auth/reset-password')
+            .body?['password'],
+        'Abcd1234',
       );
       expect(controller.profile, isNull);
     },
@@ -483,6 +500,12 @@ void main() {
       }
       await tap(tester, find.text('Skip'));
       await capture('sign-in');
+      await tap(tester, find.text('Sign in with a code'));
+      await capture('code-contact');
+      await tester.enterText(find.byType(TextFormField).first, 'customer@example.test');
+      await tap(tester, find.widgetWithText(FilledButton, 'Send code'));
+      await capture('code-entry');
+      await tap(tester, find.byType(BackButton));
       await tap(tester, find.text('Create an account'));
       await capture('sign-up');
       await tap(tester, find.widgetWithText(TextButton, 'Sign in'));
@@ -492,6 +515,8 @@ void main() {
       await capture('saved');
       await tap(tester, find.text('Me'));
       await capture('account');
+      await tap(tester, find.text('Phone number'));
+      await capture('phone-link');
     },
   );
 }

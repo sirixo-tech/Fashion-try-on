@@ -48,6 +48,7 @@ class FakeIdentity implements CustomerIdentity {
 }
 
 class FakeCustomerApi implements CustomerApi {
+  bool phoneAvailable = false;
   final calls =
       <
         ({
@@ -92,11 +93,33 @@ class FakeCustomerApi implements CustomerApi {
     if (path == '/auth/capabilities') {
       return {
         'enabled': true,
-        'providers': {'google': true, 'apple': true},
+        'providers': {
+          'google': true,
+          'apple': true,
+          'emailCode': true,
+          'phone': phoneAvailable,
+        },
         'termsVersion': '2026-10-25',
       };
     }
-    if (path == '/auth/login' || path == '/auth/oauth') return bundle();
+    if ([
+      '/auth/login',
+      '/auth/oauth',
+      '/auth/email-code/login',
+      '/auth/phone/login',
+    ].contains(path)) {
+      return bundle();
+    }
+    if (path == '/auth/email-code/request') {
+      return {'loginProof': 'b' * 43, 'resendAfterSeconds': 60};
+    }
+    if (path == '/auth/phone/request') {
+      return {'projectId': 'synthetic-project', 'resendAfterSeconds': 60};
+    }
+    if (path == '/me/phone') {
+      profile = {...profile, 'phoneNumber': '+919876543210'};
+      return profile;
+    }
     if (path == '/auth/refresh') {
       refreshes++;
       return bundle();

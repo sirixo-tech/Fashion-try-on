@@ -4,7 +4,7 @@ Standalone Flutter Android/iOS app with an independent visual system using the o
 
 Implemented: four offline introduction slides with Skip; email signup/verification and sign-in; Google and iOS Apple sign-in; password recovery; securely stored rotating customer sessions; Home/Saved/Me; profile name and notification preference; current/all-device sign-out; and confirmed, reauthenticated account deletion. Customer credentials never create a merchant or grant dashboard access.
 
-Photo upload, personal trial Try-On, Store QR sponsorship, Plans/credits, Saved results, support, policies, notification inbox, Android update checks and 20 offline languages are implemented. Paid personal purchases, referrals/coupons, app-store publishing and Firebase activation remain separate follow-ups.
+Photo upload, personal trial Try-On, Store QR sponsorship, Plans/credits, Saved results, support, policies, notification inbox, Android update checks and 20 offline languages are implemented. Email code login, six-digit verification/reset codes and prepared Firebase phone login/linking are included. Paid personal purchases, referrals/coupons, app-store publishing and Firebase activation remain separate follow-ups.
 
 ## Run
 
@@ -68,4 +68,4 @@ The accepted policy version is now `2026-10-26`; Terms/Privacy/Support default t
 
 ## Languages
 
-The app supports 20 offline languages with English default, immediate switching, saved account/device preferences and Arabic/Urdu RTL. Language is available before login and under Me. API deployment is required for the expanded language allowlist. See [CUSTOMER-MOBILE-4](../docs/CUSTOMER-MOBILE-4-LANGUAGES.md) for coverage, translation maintenance and release steps. Source version is 0.4.0+4; no APK was built.
+The app supports 20 offline languages with English default, immediate switching, saved account/device preferences and Arabic/Urdu RTL. Language is available before login and under Me. API deployment is required for the expanded language allowlist. See [CUSTOMER-MOBILE-4](../docs/CUSTOMER-MOBILE-4-LANGUAGES.md) for translation maintenance. Source version is 0.5.0+5; no APK was built. See [CUSTOMER-MOBILE-5](../docs/CUSTOMER-MOBILE-5-OTP.md) for email/phone codes, the two required migrations, Firebase configuration, account linking and rollout steps. Real SMS remains unavailable until the project, signing fingerprints, billing and server/client settings are configured.

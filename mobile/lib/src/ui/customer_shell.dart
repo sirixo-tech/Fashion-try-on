@@ -2,6 +2,7 @@ import '../l10n/customer_copy.dart';
 import 'dart:async';
 import '../services/customer_push.dart';
 import 'customer_service_screens.dart';
+import 'customer_code_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/customer_api.dart';
@@ -187,58 +188,69 @@ class _CustomerShellState extends State<CustomerShell>
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: tr(context, 'Scan Store QR'),
-                    onPressed: busy ? null : scanStore,
-                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
-                  ),
-                  Flexible(
+                  Expanded(
                     flex: 2,
-                    child: TextButton(
-                      onPressed: plans,
-                      child: const CustomerText(
-                        'Plans',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: tr(
-                      context,
-                      'Personal free trial credits. Store-sponsored usage is separate.',
-                    ),
-                    child: Material(
-                      color: CustomerColors.tint,
-                      borderRadius: BorderRadius.circular(24),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: plans,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.auto_awesome_rounded,
-                                color: CustomerColors.orange,
-                                size: 17,
-                              ),
-                              const SizedBox(width: 5),
-                              CustomerText(
-                                experience.remaining?.toString() ?? '—',
-                                semanticsLabel:
-                                    'Personal credits: ${experience.remaining ?? 'unavailable'}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          tooltip: tr(context, 'Scan Store QR'),
+                          onPressed: busy ? null : scanStore,
+                          icon: const Icon(
+                            Icons.qr_code_scanner_rounded,
+                            size: 24,
                           ),
                         ),
-                      ),
+                        Flexible(
+                          flex: 2,
+                          child: TextButton(
+                            onPressed: plans,
+                            child: const CustomerText(
+                              'Plans',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                        Tooltip(
+                          message: tr(
+                            context,
+                            'Personal free trial credits. Store-sponsored usage is separate.',
+                          ),
+                          child: Material(
+                            color: CustomerColors.tint,
+                            borderRadius: BorderRadius.circular(24),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(24),
+                              onTap: plans,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.auto_awesome_rounded,
+                                      color: CustomerColors.orange,
+                                      size: 17,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    CustomerText(
+                                      experience.remaining?.toString() ?? '—',
+                                      semanticsLabel:
+                                          'Personal credits: ${experience.remaining ?? 'unavailable'}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -574,6 +586,23 @@ class _CustomerShellState extends State<CustomerShell>
       settingsGroup([
         settingsTile(Icons.person_outline_rounded, 'Profile', editProfile),
         settingsTile(
+          Icons.phone_outlined,
+          'Phone number',
+          () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CustomerCodeScreen(
+                auth: auth,
+                linkPhone: true,
+                initialContact:
+                    auth.profile?.phoneNumber ??
+                    auth.profile?.pendingPhoneNumber,
+              ),
+            ),
+          ),
+          trailing: auth.profile?.phoneNumber,
+        ),
+        settingsTile(
           Icons.lock_outline_rounded,
           'Account security',
           () => Navigator.push<void>(
@@ -855,22 +884,44 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
       password = TextEditingController();
   bool sent = false, busy = false;
   String? error, notice;
+  Timer? resendTimer;
+  int resendWait = 0;
+  void startResendWait() {
+    resendTimer?.cancel();
+    resendWait = 60;
+    resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        resendWait--;
+        if (resendWait <= 0) timer.cancel();
+      });
+    });
+  }
+
   @override
   void dispose() {
     code.dispose();
     password.dispose();
+    resendTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> submit() async {
-    if (busy || (sent && !(form.currentState?.validate() ?? false))) return;
+  Future<void> submit({bool resend = false}) async {
+    if (busy ||
+        (resend && resendWait > 0) ||
+        (!resend && sent && !(form.currentState?.validate() ?? false))) {
+      return;
+    }
     setState(() {
       busy = true;
       error = null;
     });
     try {
       final email = widget.controller.profile!.email;
-      if (!sent) {
+      if (!sent || resend) {
         final result = await widget.controller.api.request(
           '/auth/forgot-password',
           body: {'email': email},
@@ -878,6 +929,7 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
         if (mounted) {
           setState(() {
             sent = true;
+            startResendWait();
             notice = result['message'] as String;
           });
         }
@@ -921,7 +973,7 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 16),
-            Text(
+            CustomerText(
               'We’ll verify ${widget.controller.profile?.email ?? 'your email'} before changing your password. This signs you out on every device.',
               style: const TextStyle(color: CustomerColors.muted, height: 1.6),
             ),
@@ -940,14 +992,14 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
                 inputFormatters: const [CustomerCodeFormatter()],
                 textDirection: TextDirection.ltr,
                 enabled: !busy,
-                maxLength: 8,
+                maxLength: 6,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: tr(context, '8-digit email code'),
+                  labelText: tr(context, '6-digit email code'),
                 ),
-                validator: (value) => RegExp(r'^\d{8}$').hasMatch(value ?? '')
+                validator: (value) => RegExp(r'^\d{6}$').hasMatch(value ?? '')
                     ? null
-                    : tr(context, 'Enter the 8-digit code.'),
+                    : tr(context, 'Enter the 6-digit code.'),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -957,12 +1009,12 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: tr(context, 'New password'),
-                  helperText: trNullable(context, 'Use 12–128 characters.'),
+                  helperText: trNullable(context, 'Use 8–128 characters.'),
                 ),
                 validator: (value) =>
-                    (value?.length ?? 0) >= 12 && (value?.length ?? 0) <= 128
+                    (value?.length ?? 0) >= 8 && (value?.length ?? 0) <= 128
                     ? null
-                    : tr(context, 'Use 12–128 characters.'),
+                    : tr(context, 'Use 8–128 characters.'),
               ),
               const SizedBox(height: 24),
             ],
@@ -979,6 +1031,17 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
                 ),
               ),
             ),
+            if (sent)
+              TextButton(
+                onPressed: busy || resendWait > 0
+                    ? null
+                    : () => submit(resend: true),
+                child: CustomerText(
+                  resendWait > 0
+                      ? 'Resend in ${resendWait}s'
+                      : 'Send a new code',
+                ),
+              ),
           ],
         ),
       ),

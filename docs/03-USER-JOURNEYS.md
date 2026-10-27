@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
+
+Customers may choose Sign in with a code, enter email or an internationally formatted mobile number and verify six digits. New users create an email account and verify it; optional signup phone details remain pending until Me → Phone number verification. Existing users link a phone after recent sign-in, without replacing their account or allowance. See `CUSTOMER-MOBILE-5-OTP.md`.
+
 ### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
 
 Customers choose a language before sign-in/onboarding or under Me → Language, searchable by native or English name. English is the first-install default; existing account preference loads on sign-in. A successful choice persists and applies without restart; failures restore the prior language. Switching preserves navigation, form state and Try-On context. Arabic/Urdu use RTL while names, images, codes and account identifiers remain unchanged. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.

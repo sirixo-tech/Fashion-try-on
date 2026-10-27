@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "Privacy policy for SelfX Virtual Try-On, including Shopify integration and customer image handling.",
 };
 
-const effectiveDate = "October 26, 2026";
+const effectiveDate = "October 27, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -92,6 +92,15 @@ export default function PrivacyPage() {
             fallback. Explicit Store-session consent permits access to generated
             results, not your original person photo. Durable consent and
             non-image usage records may remain after image deletion.
+          </p>
+          <p className="leading-7 text-muted-foreground">
+            If you choose phone sign-in, we store your verified phone number to
+            access your existing SelfX account. Firebase Authentication,
+            provided by Google, sends and verifies SMS codes. Google receives
+            and stores the number for authentication and spam and abuse
+            prevention across Google services. You consent before requesting
+            phone verification. Email and other available sign-in methods remain
+            available.
           </p>
         </section>
         <section className="space-y-3">

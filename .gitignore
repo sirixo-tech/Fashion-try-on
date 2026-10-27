@@ -6,6 +6,7 @@ coverage/
 .env
 .env.*
 **/*firebase-service-account*.json
+**/*firebase-adminsdk*.json
 **/*google-service-account*.json
 !.env.example
 

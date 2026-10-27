@@ -24,20 +24,30 @@ import {
   CustomerSignupDto,
   CustomerResendDto,
   CustomerVerificationDto,
+  CustomerEmailLoginRequestDto,
+  CustomerEmailLoginDto,
+  CustomerPhoneDto,
+  CustomerPhoneRequestDto,
+  CustomerPhoneLinkDto,
 } from "./customer.dto.js";
 
 @ApiTags("Customer accounts")
 @Controller("api/v1/customer")
 export class CustomerAuthController {
-  constructor(private readonly auth: CustomerAuthService,
-    @Optional() private readonly experience?: CustomerExperienceService) {}
+  constructor(
+    private readonly auth: CustomerAuthService,
+    @Optional() private readonly experience?: CustomerExperienceService,
+  ) {}
   @Header("Cache-Control", "no-store")
   @Get("auth/capabilities")
   async capabilities() {
     const base = this.auth.capabilities();
     if (!this.experience) return base;
     const ready = await this.experience.available();
-    return { ...base, features: { ...base.features, tryOn: ready, storeQr: ready } };
+    return {
+      ...base,
+      features: { ...base.features, tryOn: ready, storeQr: ready },
+    };
   }
   @Header("Cache-Control", "no-store")
   @Post("auth/signup")
@@ -48,6 +58,50 @@ export class CustomerAuthController {
   @Post("auth/login")
   login(@Body() dto: CustomerLoginDto, @Req() request: FastifyRequest) {
     return this.auth.login(dto.email, dto.password, request.ip, dto.deviceName);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("auth/email-code/request")
+  emailCodeRequest(
+    @Body() dto: CustomerEmailLoginRequestDto,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.auth.requestEmailLogin(dto.email, request.ip, dto.loginProof);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("auth/email-code/login")
+  emailCodeLogin(
+    @Body() dto: CustomerEmailLoginDto,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.auth.emailLogin(
+      dto.email,
+      dto.code,
+      dto.loginProof,
+      request.ip,
+      dto.deviceName,
+    );
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("auth/phone/request")
+  phoneRequest(
+    @Body() dto: CustomerPhoneRequestDto,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.auth.phoneRequest(dto.phoneNumber, request.ip);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("auth/phone/login")
+  phoneLogin(@Body() dto: CustomerPhoneDto, @Req() request: FastifyRequest) {
+    return this.auth.phoneLogin(dto.idToken, request.ip, dto.deviceName);
+  }
+  @Header("Cache-Control", "no-store")
+  @Post("me/phone")
+  linkPhone(@Body() dto: CustomerPhoneLinkDto, @Req() request: FastifyRequest) {
+    return this.auth.linkPhone(
+      request.headers.authorization,
+      dto.idToken,
+      request.ip,
+    );
   }
   @Header("Cache-Control", "no-store")
   @Post("auth/verify-email")
@@ -122,13 +176,18 @@ export class CustomerAuthController {
   @Header("Cache-Control", "no-store")
   @Delete("me")
   async delete(@Body() dto: CustomerDeleteDto, @Req() request: FastifyRequest) {
-    const principal = this.experience ? await this.auth.requireCustomer(request.headers.authorization) : null;
+    const principal = this.experience
+      ? await this.auth.requireCustomer(request.headers.authorization)
+      : null;
     const response = await this.auth.deleteAccount(
       request.headers.authorization,
       dto,
       request.ip,
     );
-    if (principal) await this.experience!.eraseCustomerPhotos(principal.customer.id).catch(() => undefined);
+    if (principal)
+      await this.experience!.eraseCustomerPhotos(principal.customer.id).catch(
+        () => undefined,
+      );
     return response;
   }
 }

@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-5 — Email and phone codes (2026-10-27)
+
+Implement the explicitly requested email/phone OTP and six-digit-code slice. Validate code binding/replay/expiry, ownership isolation, recent sign-in, disabled configuration, existing login regressions, all 20 layouts and Android plugin compilation without assembling APKs. Firebase configuration, real SMS/device tests and production rollout follow separately. See `CUSTOMER-MOBILE-5-OTP.md`.
+
 ### CUSTOMER-MOBILE-4 — Customer languages (2026-10-27)
 
 Explicitly approved customer-language follow-up: all 20 bundled catalogs, locale persistence/account synchronization, signup support, Arabic/Urdu RTL, localized notifications/consent and long-label layouts. Verify resource/placeholder coverage, identifiers/customer data preservation, all locale layouts, preference rollback, backend validation/isolation and durable consent. Native-speaker and real-device acceptance remain release follow-ups. Do not build APKs or activate/publish Firebase/app-store delivery in this slice. See `CUSTOMER-MOBILE-4-LANGUAGES.md`.

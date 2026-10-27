@@ -18,12 +18,14 @@ enum CustomerIdentityProvider {
   EMAIL_PASSWORD
   GOOGLE
   APPLE
+  FIREBASE_PHONE
 }
 
 enum CustomerActionPurpose {
   VERIFY_EMAIL
   RESET_PASSWORD
   APPLE_NONCE
+  EMAIL_LOGIN
 }
 
 model Customer {
@@ -31,6 +33,10 @@ model Customer {
   notificationsInbox    CustomerNotification[]
   id                    String                 @id @db.Uuid
   email                 String?                @unique @db.VarChar(320)
+  phoneNumber           String?                @unique @map("phone_number") @db.VarChar(16)
+  pendingPhoneNumber    String?                @map("pending_phone_number") @db.VarChar(16)
+  phoneVerifiedAt       DateTime?              @map("phone_verified_at") @db.Timestamptz(3)
+  phoneConsentAt        DateTime?              @map("phone_consent_at") @db.Timestamptz(3)
   displayName           String                 @map("display_name") @db.VarChar(160)
   status                CustomerStatus         @default(PENDING_VERIFICATION)
   securityVersion       Int                    @default(0) @map("security_version")
@@ -84,6 +90,7 @@ model CustomerSession {
   lastUsedAt  DateTime?            @map("last_used_at") @db.Timestamptz(3)
   deviceName  String?              @map("device_name") @db.VarChar(100)
   createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  authenticatedAt DateTime         @default(now()) @map("authenticated_at") @db.Timestamptz(3)
   customer    Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, revokedAt])

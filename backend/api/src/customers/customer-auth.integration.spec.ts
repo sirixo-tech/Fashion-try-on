@@ -21,6 +21,7 @@ import { MailSettingsService } from "../mail/mail-settings.service.js";
 import { MailDeliveryError, SmtpSender } from "../mail/smtp-sender.js";
 import { CustomerAuthService } from "./customer-auth.service.js";
 import { CustomerIdentityClient } from "./customer-identity.client.js";
+import { CustomerPhoneClient } from "./customer-phone.client.js";
 import { CUSTOMER_TERMS_VERSION } from "./customer.config.js";
 import { CustomerProfileDto, CustomerSignupDto } from "./customer.dto.js";
 
@@ -57,6 +58,13 @@ describe.skipIf(!url)(
       jwt = new JwtService();
     const sender = { send: vi.fn<SmtpSender["send"]>() };
     const identities = { verify: vi.fn<CustomerIdentityClient["verify"]>() };
+    const phone = {
+      ready: vi.fn().mockReturnValue(true),
+      verify: vi.fn().mockResolvedValue({
+        subject: "firebase-one",
+        phoneNumber: "+919876543210",
+      }),
+    };
     const settings = {
       account: vi.fn().mockResolvedValue({ host: "smtp.invalid" }),
     };
@@ -72,12 +80,12 @@ describe.skipIf(!url)(
       const messages = await deliver();
       const last = messages.at(-1);
       expect(last?.to).toBe(email);
-      return last!.text.match(/code is (\d{8})/)![1]!;
+      return last!.text.match(/code is (\d{6})/)![1]!;
     }
     async function register(address = email) {
       const result = await auth.signup(signup(address), ip);
       const messages = await deliver();
-      const value = messages.at(-1)!.text.match(/code is (\d{8})/)![1]!;
+      const value = messages.at(-1)!.text.match(/code is (\d{6})/)![1]!;
       await auth.verifyEmail(address, value, ip, result.signupProof);
       const resultBundle = await auth.login(address, password, ip);
       if (!("accessToken" in resultBundle))
@@ -110,6 +118,11 @@ describe.skipIf(!url)(
       identities.verify
         .mockReset()
         .mockResolvedValue({ subject: "google-subject", email, name: "Ava" });
+      phone.ready.mockReturnValue(true);
+      phone.verify.mockReset().mockResolvedValue({
+        subject: "firebase-one",
+        phoneNumber: "+919876543210",
+      });
       outbox = new MailOutboxService(
         db as PrismaService,
         crypto,
@@ -124,6 +137,7 @@ describe.skipIf(!url)(
         settings as unknown as MailSettingsService,
         outbox,
         crypto,
+        phone as unknown as CustomerPhoneClient,
       );
       auth.onModuleInit();
     });
@@ -135,6 +149,113 @@ describe.skipIf(!url)(
       await db.passwordRecoveryRateBucket.deleteMany();
       await db.$disconnect();
       vi.unstubAllEnvs();
+    });
+    it("email login requires six digits, its own request proof and single use without changing password or credits", async () => {
+      const original = await register();
+      const request = await auth.requestEmailLogin(email, ip);
+      const value = await code();
+      expect(value).toHaveLength(6);
+      await expect(
+        auth.emailLogin(email, value, "x".repeat(43), ip),
+      ).rejects.toMatchObject({ status: 400 });
+      const result = (await auth.emailLogin(
+        email,
+        value,
+        request.loginProof,
+        ip,
+      )) as { accessToken: string; customer: { id: string } };
+      expect(result.customer.id).toBe(original.customer.id);
+      await expect(
+        auth.emailLogin(email, value, request.loginProof, ip),
+      ).rejects.toMatchObject({ status: 400 });
+      await expect(auth.login(email, password, ip)).resolves.toHaveProperty(
+        "accessToken",
+      );
+      expect(await db.customer.count()).toBe(1);
+      expect(await db.customerCreditAccount.count()).toBe(0);
+    });
+    it("email login sends no code for unknown, pending or suspended accounts and has a persistent resend cooldown", async () => {
+      await register();
+      const known = await auth.requestEmailLogin(email, ip);
+      expect(await deliver()).toHaveLength(1);
+      await auth.requestEmailLogin(email, ip, known.loginProof);
+      expect(await deliver()).toHaveLength(0);
+      const unknown = await auth.requestEmailLogin("unknown@selfx.invalid", ip);
+      expect(unknown.message).toBe(known.message);
+      expect(await deliver()).toHaveLength(0);
+      await auth.signup(signup("pending@selfx.invalid"), ip);
+      await deliver();
+      await auth.requestEmailLogin("pending@selfx.invalid", ip);
+      expect(await deliver()).toHaveLength(0);
+      await db.customer.update({
+        where: { email },
+        data: { status: "SUSPENDED" },
+      });
+      await db.passwordRecoveryRateBucket.deleteMany();
+      await auth.requestEmailLogin(email, ip);
+      expect(await deliver()).toHaveLength(0);
+    });
+    it("email login codes expire and cannot be used for password reset", async () => {
+      await register();
+      const request = await auth.requestEmailLogin(email, ip);
+      const value = await code();
+      await expect(
+        auth.resetPassword(email, value, "new-password", ip),
+      ).rejects.toMatchObject({ status: 400 });
+      await db.customerActionToken.updateMany({
+        where: { purpose: "EMAIL_LOGIN" },
+        data: { expiresAt: new Date(Date.now() - 1) },
+      });
+      await expect(
+        auth.emailLogin(email, value, request.loginProof, ip),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(await db.customerSession.count()).toBe(1);
+    });
+    it("links a verified phone only to the authenticated account and keeps identity/history across phone login", async () => {
+      const first = await register();
+      await expect(
+        auth.phoneLogin("synthetic-token", ip),
+      ).rejects.toMatchObject({ status: 409 });
+      await auth.linkPhone(bearer(first), "synthetic-token", ip);
+      const linked = await auth.phoneLogin("synthetic-token", ip);
+      expect(linked.customer.id).toBe(first.customer.id);
+      expect(linked.customer.phoneNumber).toBe("+919876543210");
+      const second = await register("other@selfx.invalid");
+      await expect(
+        auth.linkPhone(bearer(second), "synthetic-token", ip),
+      ).rejects.toMatchObject({ status: 409 });
+      expect((await auth.me(bearer(second))).phoneNumber).toBeNull();
+      await db.customer.update({
+        where: { id: first.customer.id },
+        data: { status: "SUSPENDED" },
+      });
+      await expect(
+        auth.phoneLogin("synthetic-token", ip),
+      ).rejects.toMatchObject({ status: 401 });
+    });
+    it("does not extend phone-link authentication time through refresh, rejects stale/invalid proofs and fails closed without Firebase", async () => {
+      const first = await register();
+      await db.customerSession.updateMany({
+        data: { authenticatedAt: new Date(Date.now() - 11 * 60000) },
+      });
+      const refreshed = await auth.refresh(first.refreshToken, ip);
+      await expect(
+        auth.linkPhone(bearer(refreshed!), "synthetic-token", ip),
+      ).rejects.toMatchObject({ status: 403 });
+      phone.verify.mockRejectedValueOnce(new Error("invalid"));
+      await expect(
+        auth.phoneLogin("synthetic-token", ip),
+      ).rejects.toMatchObject({ status: 400 });
+      phone.ready.mockReturnValue(false);
+      expect(auth.capabilities().providers.phone).toBe(false);
+      await expect(
+        auth.phoneLogin("synthetic-token", ip),
+      ).rejects.toMatchObject({ status: 503 });
+      expect(
+        await db.customerIdentity.count({
+          where: { provider: "FIREBASE_PHONE" },
+        }),
+      ).toBe(0);
     });
     it("preserves signup language and keeps profile language changes isolated through refresh", async () => {
       const response = await auth.signup({ ...signup(), language: "ta" }, ip);

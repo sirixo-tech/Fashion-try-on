@@ -1,9 +1,8 @@
+import '../config/customer_firebase_config.dart';
 import 'dart:async';
-import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../auth/customer_api.dart';
@@ -21,55 +20,11 @@ abstract interface class CustomerPush {
   Future<void> disable();
 }
 
-class NativeCustomerPush implements CustomerPush {
-  FirebaseOptions? options;
-  bool loaded = false, started = false;
+class NativeCustomerPush extends CustomerFirebaseConfiguration
+    implements CustomerPush {
+  bool started = false;
   StreamSubscription<String>? tokens;
   StreamSubscription<RemoteMessage>? foreground, opened;
-  @override
-  Future<bool> configured() async {
-    if (kIsWeb ||
-        ![
-          TargetPlatform.android,
-          TargetPlatform.iOS,
-        ].contains(defaultTargetPlatform)) {
-      return false;
-    }
-    if (!loaded) {
-      loaded = true;
-      try {
-        final data =
-            jsonDecode(
-                  await rootBundle.loadString('assets/config/production.json'),
-                )
-                as Map;
-        final item =
-            (data['firebase'] as Map?)?[defaultTargetPlatform ==
-                        TargetPlatform.android
-                    ? 'android'
-                    : 'ios']
-                as Map?;
-        if (item != null &&
-            ['apiKey', 'appId', 'messagingSenderId', 'projectId'].every(
-              (key) =>
-                  item[key] is String &&
-                  (item[key] as String).trim().isNotEmpty,
-            )) {
-          options = FirebaseOptions(
-            apiKey: item['apiKey'] as String,
-            appId: item['appId'] as String,
-            messagingSenderId: item['messagingSenderId'] as String,
-            projectId: item['projectId'] as String,
-            iosBundleId: item['iosBundleId'] as String?,
-          );
-        }
-      } catch (_) {
-        /* No Firebase project is bundled until configuration. */
-      }
-    }
-    return options != null;
-  }
-
   @override
   Future<bool> enable({
     required bool requestPermission,
@@ -78,7 +33,9 @@ class NativeCustomerPush implements CustomerPush {
     required void Function() onOpened,
   }) async {
     if (!await configured()) return false;
-    if (Firebase.apps.isEmpty) await Firebase.initializeApp(options: options);
+    if (!Firebase.apps.any((app) => app.name == '[DEFAULT]')) {
+      await Firebase.initializeApp(options: options);
+    }
     final messaging = FirebaseMessaging.instance;
     final settings = requestPermission
         ? await messaging.requestPermission(

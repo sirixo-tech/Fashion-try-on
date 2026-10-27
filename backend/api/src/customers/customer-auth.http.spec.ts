@@ -17,6 +17,7 @@ import {
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { CustomerAuthController } from "./customer-auth.controller.js";
 import { CustomerAuthService } from "./customer-auth.service.js";
+import { CUSTOMER_TERMS_VERSION } from "./customer.config.js";
 
 describe("Customer HTTP validation and auth boundary", () => {
   let app: NestFastifyApplication;
@@ -28,6 +29,11 @@ describe("Customer HTTP validation and auth boundary", () => {
     updateProfile: vi.fn(),
     deleteAccount: vi.fn(),
     refresh: vi.fn(),
+    emailLogin: vi.fn(),
+    requestEmailLogin: vi.fn(),
+    phoneRequest: vi.fn(),
+    phoneLogin: vi.fn(),
+    linkPhone: vi.fn(),
   };
   beforeAll(async () => {
     @Module({
@@ -76,6 +82,64 @@ describe("Customer HTTP validation and auth boundary", () => {
   afterAll(async () => {
     await app?.close();
   });
+  it("requires a bound six-digit email login proof and disallows client phone ownership claims", async () => {
+    for (const code of ["1234", "12345678", "abcdef"]) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/customer/auth/email-code/login",
+        payload: {
+          email: "customer@example.test",
+          code,
+          loginProof: "a".repeat(43),
+        },
+      });
+      expect(response.statusCode).toBe(400);
+    }
+    auth.emailLogin.mockResolvedValue({ accessToken: "fixture" });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/auth/email-code/login",
+      payload: {
+        email: "customer@example.test",
+        code: "123456",
+        loginProof: "a".repeat(43),
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(auth.emailLogin).toHaveBeenCalledOnce();
+    for (const payload of [
+      { phoneNumber: "+919876543210", customerId: "attacker" },
+      { idToken: "a".repeat(30), customerId: "attacker" },
+      { idToken: "a".repeat(30), acceptPhoneVerification: false },
+    ]) {
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/api/v1/customer/me/phone",
+            payload,
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    expect(auth.linkPhone).not.toHaveBeenCalled();
+    auth.linkPhone.mockResolvedValue({ phoneNumber: "+919876543210" });
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/v1/customer/me/phone",
+          headers: { authorization: "Bearer fixture" },
+          payload: { idToken: "a".repeat(30), acceptPhoneVerification: true },
+        })
+      ).statusCode,
+    ).toBe(201);
+    expect(auth.linkPhone).toHaveBeenCalledWith(
+      "Bearer fixture",
+      "a".repeat(30),
+      expect.any(String),
+    );
+  });
   it("exposes capabilities and returns safe structured sign-in errors without cookies", async () => {
     const capabilities = await app.inject({
       method: "GET",
@@ -101,7 +165,7 @@ describe("Customer HTTP validation and auth boundary", () => {
       password: "a-secure-passphrase",
       displayName: "Ava",
       acceptTerms: true,
-      termsVersion: "2026-10-25",
+      termsVersion: CUSTOMER_TERMS_VERSION,
     };
     for (const changes of [
       { email: "bad-email" },

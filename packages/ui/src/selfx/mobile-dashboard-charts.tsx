@@ -217,6 +217,7 @@ export function MobileDashboardCharts({
   const gradient = useId().replace(/:/g, "");
   const methodNames: Record<string, string> = {
     EMAIL_PASSWORD: "Email",
+    FIREBASE_PHONE: "Phone",
     GOOGLE: "Google",
     APPLE: "Apple",
   };
