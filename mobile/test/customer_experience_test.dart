@@ -13,6 +13,8 @@ import 'package:selfx_customer/src/experience/customer_experience.dart';
 import 'package:selfx_customer/src/experience/customer_media.dart';
 import 'package:selfx_customer/src/ui/customer_experience_screens.dart';
 import 'package:selfx_customer/src/ui/customer_demo_catalog.dart';
+import 'package:selfx_customer/src/ui/customer_generating_look.dart';
+import 'package:selfx_customer/src/ui/customer_result_suggestions.dart';
 import 'package:selfx_customer/src/ui/customer_theme.dart';
 import 'fakes.dart';
 
@@ -172,6 +174,50 @@ void main() {
   }
 
   test(
+    'result suggestions stay in category and prefer complementary pieces',
+    () {
+      exp.demoProducts = [
+        {'id': 'jacket', 'name': 'Jacket', 'category': 'WOMEN', 'type': 'TOP'},
+        {'id': 'shirt', 'name': 'Shirt', 'category': 'WOMEN', 'type': 'TOP'},
+        {
+          'id': 'trousers',
+          'name': 'Trousers',
+          'category': 'WOMEN',
+          'type': 'BOTTOM',
+        },
+        {
+          'id': 'mens-shirt',
+          'name': 'Men shirt',
+          'category': 'MEN',
+          'type': 'TOP',
+        },
+      ];
+      exp.demoProduct = exp.demoProducts.first;
+      expect(suggestedResultGarments(exp).map((item) => item['id']).toList(), [
+        'trousers',
+        'shirt',
+      ]);
+    },
+  );
+
+  testWidgets('generating look shows selected inputs without fake progress', (
+    tester,
+  ) async {
+    exp.personPreview = syntheticPhoto;
+    exp.outfitPreview = syntheticPhoto;
+    exp.run = {'id': 'run', 'status': 'QUEUED'};
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: Scaffold(body: CustomerGeneratingLook(experience: exp)),
+      ),
+    );
+    expect(find.text('Your look is queued'), findsOneWidget);
+    expect(find.textContaining('%'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  test(
     'consent records the chosen language and falls back for an untranslated policy',
     () async {
       auth.language = 'ta';
@@ -264,6 +310,23 @@ void main() {
       expect(exp.demoProduct, isNull);
     },
   );
+  test('a demo garment can replace the current session garment', () async {
+    await exp.loadDemoCatalog();
+    await exp.begin();
+    await exp.upload('GARMENT', syntheticPhoto, 'image/png');
+    expect(exp.demoProduct, isNull);
+    await exp.chooseDemoProduct('terracotta-blazer');
+    expect(exp.outfit?.id, 'demo-garment-photo');
+    expect(exp.demoProduct?['id'], 'terracotta-blazer');
+    expect(
+      api.calls.lastWhere((call) => call.path.endsWith('/demo/GARMENT')).body,
+      {'id': 'terracotta-blazer'},
+    );
+    exp.clearSelectedPhoto('GARMENT');
+    expect(exp.outfit, isNull);
+    expect(exp.demoProduct, isNull);
+    expect(exp.canGenerate, isFalse);
+  });
   testWidgets(
     'demo product opens a detail view with upload and relevant model choices',
     (tester) async {
@@ -473,9 +536,7 @@ void main() {
       expect(find.text('10 Try-Ons left'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Explore Try-On'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Explore Try-On'));
+      await tester.tap(find.text('Try-On').first);
       await tester.pumpAndSettle();
       expect(find.text('Your photos. Your choice.'), findsOneWidget);
       expect(picker.selections, 0);
@@ -484,12 +545,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Agree & continue'));
       await tester.pumpAndSettle();
-      expect(find.byType(CustomerStudio), findsOneWidget);
-      await tester.ensureVisible(find.text('Add Your photo'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Add Your photo'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Choose from photos'));
+      expect(find.text('Person photo'), findsWidgets);
+      await tester.tap(find.text('Upload').first);
       await tester.pumpAndSettle();
       expect(picker.selections, 1);
       expect(api.uploads.single, contains('/photo-session/photos/PERSON'));

@@ -29,6 +29,7 @@ enum CustomerActionPurpose {
 }
 
 model Customer {
+  savedGarments         CustomerSavedGarment[]
   profilePhotos         CustomerProfilePhoto[]
   pushDevices           CustomerPushDevice[]
   notificationsInbox    CustomerNotification[]
@@ -63,6 +64,20 @@ model Customer {
 
   @@index([pendingPhoneNumber])
   @@map("customers")
+}
+
+model CustomerSavedGarment {
+  id             String   @id @db.Uuid
+  customerId     String   @map("customer_id") @db.Uuid
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  source         String   @db.VarChar(8)
+  sourceItemId   String   @map("source_item_id") @db.VarChar(64)
+  organizationId String?  @map("organization_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([customerId, source, sourceItemId])
+  @@index([customerId, createdAt])
+  @@map("customer_saved_garments")
 }
 
 model CustomerProfilePhoto {

@@ -57,6 +57,10 @@ export class CustomerStoreJoinDto {
 export class CustomerDemoChoiceDto {
   @IsString() @MaxLength(64) id!: string;
 }
+export class CustomerSavedGarmentDto {
+  @IsIn(["DEMO", "STORE"]) source!: "DEMO" | "STORE";
+  @IsString() @MaxLength(64) id!: string;
+}
 export class CustomerStoreQrDto {
   @IsString() @MaxLength(100) @Matches(/\S/) label!: string;
   @IsInt() @Min(1) @Max(100) dailyCustomerLimit!: number;
@@ -217,6 +221,28 @@ export class CustomerExperienceController {
       request.headers.authorization,
     );
     return this.experience.saved(customer.id, input.page);
+  }
+  @Get("saved-garments")
+  @Header("Cache-Control", "no-store")
+  async savedGarments(@Req() request: FastifyRequest) {
+    const { customer } = await this.auth.requireCustomer(request.headers.authorization);
+    return this.experience.savedGarments(customer.id);
+  }
+  @Post("saved-garments")
+  @Header("Cache-Control", "no-store")
+  async saveGarment(@Req() request: FastifyRequest, @Body() input: CustomerSavedGarmentDto) {
+    const { customer } = await this.auth.requireCustomer(request.headers.authorization);
+    return this.experience.saveGarment(customer.id, input);
+  }
+  @Delete("saved-garments/:source/:id")
+  @Header("Cache-Control", "no-store")
+  async removeGarment(
+    @Req() request: FastifyRequest,
+    @Param("source") source: string,
+    @Param("id") id: string,
+  ) {
+    const { customer } = await this.auth.requireCustomer(request.headers.authorization);
+    return this.experience.removeGarment(customer.id, source, id);
   }
   @Delete("looks/:id")
   @Header("Cache-Control", "no-store")

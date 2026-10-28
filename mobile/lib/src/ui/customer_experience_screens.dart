@@ -9,6 +9,8 @@ import '../experience/result_export.dart';
 import 'customer_theme.dart';
 import 'customer_skeleton.dart';
 import 'customer_demo_catalog.dart';
+import 'customer_generating_look.dart';
+import 'customer_result_suggestions.dart';
 
 Future<void> openCustomerStudio(
   BuildContext context,
@@ -342,284 +344,309 @@ class _CustomerStudioState extends State<CustomerStudio> {
       final result = exp.run?['result'];
       return Scaffold(
         appBar: AppBar(title: const CustomerText('Your fitting room')),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 30),
-          children: [
-            if (exp.generating) ...[
-              const SizedBox(height: 24),
-              const Center(
-                child: SizedBox(
-                  width: 70,
-                  height: 70,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-              const SizedBox(height: 32),
-              CustomerText(
-                'Creating your look…',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-              const SizedBox(height: 16),
-              const CustomerText(
-                'You can return to Home. Your result will appear in Saved when it is ready.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              _payer(exp),
-              if (exp.pollError != null) ...[
-                const SizedBox(height: 16),
-                CustomerNotice(exp.pollError!, error: true),
-                TextButton(
-                  onPressed: exp.checkRun,
-                  child: const CustomerText('Check progress'),
-                ),
-              ],
-            ] else if (result is Json) ...[
-              CustomerText(
-                'Still entirely you.',
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-              const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: AspectRatio(
-                  aspectRatio: .72,
-                  child: CustomerAssetImage(
-                    experience: exp,
-                    photo: CustomerPhoto.fromJson(result),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const CustomerNotice(
-                'Saved automatically for 30 days. Download a copy to keep it on your device.',
-              ),
-              if (exp.person != null &&
-                  exp.person!.expiresAt.isAfter(DateTime.now())) ...[
-                const SizedBox(height: 20),
-                const CustomerText(
-                  'Your original',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 160,
-                  child: CustomerAssetImage(
-                    experience: exp,
-                    photo: exp.person!,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: picking
-                    ? null
-                    : () => action(() async {
-                        await downloadCustomerResult(
-                          exp,
-                          CustomerPhoto.fromJson(result),
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: CustomerText('Look downloaded.'),
-                            ),
-                          );
-                        }
-                      }),
-                icon: const Icon(Icons.download_rounded),
-                label: const CustomerText('Download look'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const CustomerText('Back to Home'),
-              ),
-            ] else if (exp.run?['status'] == 'FAILED' &&
-                exp.person == null) ...[
-              CustomerNotice(
-                exp.run!['message'] as String? ??
-                    'This Try-On did not finish. Start again from Home.',
-                error: true,
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const CustomerText('Back to Home'),
-              ),
-            ] else ...[
-              CustomerText(
-                'Make it your own.',
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-              const SizedBox(height: 12),
-              const CustomerText(
-                'A clear photo of you. One outfit you love. A new possibility.',
-              ),
-              const SizedBox(height: 20),
-              _payer(exp),
-              const SizedBox(height: 20),
-              if ((exp.usingAvatar || exp.demoModelId != null) &&
-                  exp.person != null) ...[
-                SizedBox(
-                  height: 200,
-                  child: CustomerAssetImage(
-                    experience: exp,
-                    photo: exp.person!,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                CustomerNotice(
-                  exp.usingAvatar
-                      ? 'Using your saved full-body photo. Changes apply to this Try-On only.'
-                      : 'Using a demo model. Changes apply to this Try-On only.',
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (!exp.storeMode) ...[
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
+        body: exp.generating
+            ? Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+                child: Column(
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: picking || exp.busy
-                          ? null
-                          : () => action(exp.chooseAvatar),
-                      icon: const Icon(Icons.person_outline_rounded, size: 18),
-                      label: const CustomerText('My Avatar'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: picking || exp.busy ? null : pickDemoModel,
-                      icon: const Icon(Icons.people_outline_rounded, size: 18),
-                      label: const CustomerText('Model'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (exp.avatarError != null) ...[
-                CustomerNotice(exp.avatarError!, error: true),
-                const SizedBox(height: 12),
-              ],
-              _PhotoCard(
-                label: 'Your photo',
-                buttonText: exp.person != null ? 'Change photo' : null,
-                hint:
-                    'Face the camera, with the area you want to try on visible.',
-                bytes: exp.personPreview,
-                disabled: picking || exp.busy || exp.hasUncertainRequest,
-                onTap: () => pick('PERSON'),
-              ),
-              const SizedBox(height: 16),
-              if (exp.storeMode)
-                PremiumPanel(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.storefront_outlined),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: CustomerText(
-                          exp.product?['name'] as String? ?? 'Store product',
-                        ),
+                    const Spacer(),
+                    CustomerGeneratingLook(experience: exp),
+                    const Spacer(),
+                    _payer(exp),
+                    if (exp.pollError != null) ...[
+                      const SizedBox(height: 16),
+                      CustomerNotice(exp.pollError!, error: true),
+                      TextButton(
+                        onPressed: exp.checkRun,
+                        child: const CustomerText('Check progress'),
                       ),
                     ],
-                  ),
-                )
-              else if (exp.demoProduct != null)
-                PremiumPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  ],
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 30),
+                children: [
+                  if (result is Json) ...[
+                    CustomerText(
+                      'Still entirely you.',
+                      style: Theme.of(context).textTheme.headlineLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: AspectRatio(
+                        aspectRatio: .72,
+                        child: CustomerAssetImage(
+                          experience: exp,
+                          photo: CustomerPhoto.fromJson(result),
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    if (exp.person != null &&
+                        exp.person!.expiresAt.isAfter(DateTime.now())) ...[
+                      const SizedBox(height: 20),
                       const CustomerText(
-                        'Demo outfit',
+                        'Your original',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 10),
-                      Row(
+                      SizedBox(
+                        height: 160,
+                        child: CustomerAssetImage(
+                          experience: exp,
+                          photo: exp.person!,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: picking
+                          ? null
+                          : () => action(() async {
+                              await downloadCustomerResult(
+                                exp,
+                                CustomerPhoto.fromJson(result),
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: CustomerText('Look downloaded.'),
+                                  ),
+                                );
+                              }
+                            }),
+                      icon: const Icon(Icons.download_rounded),
+                      label: const CustomerText('Download look'),
+                    ),
+                    CustomerResultSuggestions(
+                      experience: exp,
+                      disabled: picking || exp.busy,
+                      onSelect: (item) => action(() async {
+                        await prepareCustomerStudio(
+                          context,
+                          exp,
+                          product: exp.storeMode ? item : null,
+                          demoProduct: exp.storeMode ? null : item,
+                        );
+                      }),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const CustomerText('Back to Home'),
+                    ),
+                  ] else if (exp.run?['status'] == 'FAILED' &&
+                      exp.person == null) ...[
+                    CustomerNotice(
+                      exp.run!['message'] as String? ??
+                          'This Try-On did not finish. Start again from Home.',
+                      error: true,
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const CustomerText('Back to Home'),
+                    ),
+                  ] else ...[
+                    CustomerText(
+                      'Make it your own.',
+                      style: Theme.of(context).textTheme.headlineLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    const CustomerText(
+                      'A clear photo of you. One outfit you love. A new possibility.',
+                    ),
+                    const SizedBox(height: 20),
+                    _payer(exp),
+                    const SizedBox(height: 20),
+                    if ((exp.usingAvatar || exp.demoModelId != null) &&
+                        exp.person != null) ...[
+                      SizedBox(
+                        height: 200,
+                        child: CustomerAssetImage(
+                          experience: exp,
+                          photo: exp.person!,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      CustomerNotice(
+                        exp.usingAvatar
+                            ? 'Using your saved full-body photo. Changes apply to this Try-On only.'
+                            : 'Using a demo model. Changes apply to this Try-On only.',
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (!exp.storeMode) ...[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
-                          if (demoProductImage(exp.demoProduct!['id'] as String)
-                              case final String image)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
-                                image,
-                                width: 82,
-                                height: 104,
-                                fit: BoxFit.contain,
-                              ),
+                          OutlinedButton.icon(
+                            onPressed: picking || exp.busy
+                                ? null
+                                : () => action(exp.chooseAvatar),
+                            icon: const Icon(
+                              Icons.person_outline_rounded,
+                              size: 18,
                             ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: CustomerText(
-                              exp.demoProduct!['name'] as String,
-                              style: Theme.of(context).textTheme.titleMedium,
+                            label: const CustomerText('My Avatar'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: picking || exp.busy
+                                ? null
+                                : pickDemoModel,
+                            icon: const Icon(
+                              Icons.people_outline_rounded,
+                              size: 18,
                             ),
+                            label: const CustomerText('Model'),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: picking || exp.busy
-                            ? null
-                            : () => pick('GARMENT'),
-                        icon: const Icon(Icons.add_photo_alternate_outlined),
-                        label: const CustomerText('Use my own outfit'),
+                      const SizedBox(height: 12),
+                    ],
+                    if (exp.avatarError != null) ...[
+                      CustomerNotice(exp.avatarError!, error: true),
+                      const SizedBox(height: 12),
+                    ],
+                    _PhotoCard(
+                      label: 'Your photo',
+                      buttonText: exp.person != null ? 'Change photo' : null,
+                      hint:
+                          'Face the camera, with the area you want to try on visible.',
+                      bytes: exp.personPreview,
+                      disabled: picking || exp.busy || exp.hasUncertainRequest,
+                      onTap: () => pick('PERSON'),
+                    ),
+                    const SizedBox(height: 16),
+                    if (exp.storeMode)
+                      PremiumPanel(
+                        child: Row(
+                          children: [
+                            const Icon(Icons.storefront_outlined),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: CustomerText(
+                                exp.product?['name'] as String? ??
+                                    'Store product',
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (exp.demoProduct != null)
+                      PremiumPanel(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const CustomerText(
+                              'Demo outfit',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                if (demoProductImage(
+                                      exp.demoProduct!['id'] as String,
+                                    )
+                                    case final String image)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.asset(
+                                      image,
+                                      width: 82,
+                                      height: 104,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: CustomerText(
+                                    exp.demoProduct!['name'] as String,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: picking || exp.busy
+                                  ? null
+                                  : () => pick('GARMENT'),
+                              icon: const Icon(
+                                Icons.add_photo_alternate_outlined,
+                              ),
+                              label: const CustomerText('Use my own outfit'),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      _PhotoCard(
+                        label: 'Your outfit',
+                        hint:
+                            'Choose a clear clothing photo or photograph an outfit.',
+                        bytes: exp.outfitPreview,
+                        disabled:
+                            picking || exp.busy || exp.hasUncertainRequest,
+                        onTap: () => pick('GARMENT'),
+                      ),
+                    const SizedBox(height: 16),
+                    const CustomerText(
+                      'Use good light and a plain background. Original photos expire within 7 days.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: CustomerColors.muted,
+                      ),
+                    ),
+                    if (exp.run?['status'] == 'FAILED') ...[
+                      const SizedBox(height: 16),
+                      CustomerNotice(
+                        exp.run!['message'] as String,
+                        error: true,
                       ),
                     ],
-                  ),
-                )
-              else
-                _PhotoCard(
-                  label: 'Your outfit',
-                  hint:
-                      'Choose a clear clothing photo or photograph an outfit.',
-                  bytes: exp.outfitPreview,
-                  disabled: picking || exp.busy || exp.hasUncertainRequest,
-                  onTap: () => pick('GARMENT'),
-                ),
-              const SizedBox(height: 16),
-              const CustomerText(
-                'Use good light and a plain background. Original photos expire within 7 days.',
-                style: TextStyle(fontSize: 12, color: CustomerColors.muted),
+                    if (exp.hasUncertainRequest) ...[
+                      const SizedBox(height: 16),
+                      const CustomerNotice(
+                        'Your request may already be processing. Check it again to continue safely; we will reuse the same request.',
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed:
+                          picking ||
+                              (!exp.canGenerate && !exp.hasUncertainRequest)
+                          ? null
+                          : () => action(exp.generate),
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: CustomerText(
+                        exp.hasUncertainRequest
+                            ? 'Check my request'
+                            : 'Try on this outfit',
+                      ),
+                    ),
+                  ],
+                  if (exp.busy) ...[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(),
+                    const SizedBox(height: 8),
+                    const CustomerText(
+                      'Please wait…',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  if (error != null) ...[
+                    const SizedBox(height: 16),
+                    CustomerNotice(error!, error: true),
+                  ],
+                ],
               ),
-              if (exp.run?['status'] == 'FAILED') ...[
-                const SizedBox(height: 16),
-                CustomerNotice(exp.run!['message'] as String, error: true),
-              ],
-              if (exp.hasUncertainRequest) ...[
-                const SizedBox(height: 16),
-                const CustomerNotice(
-                  'Your request may already be processing. Check it again to continue safely; we will reuse the same request.',
-                ),
-              ],
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed:
-                    picking || (!exp.canGenerate && !exp.hasUncertainRequest)
-                    ? null
-                    : () => action(exp.generate),
-                icon: const Icon(Icons.auto_awesome_rounded),
-                label: CustomerText(
-                  exp.hasUncertainRequest
-                      ? 'Check my request'
-                      : 'Try on this outfit',
-                ),
-              ),
-            ],
-            if (exp.busy) ...[
-              const SizedBox(height: 16),
-              const LinearProgressIndicator(),
-              const SizedBox(height: 8),
-              const CustomerText('Please wait…', textAlign: TextAlign.center),
-            ],
-            if (error != null) ...[
-              const SizedBox(height: 16),
-              CustomerNotice(error!, error: true),
-            ],
-          ],
-        ),
       );
     },
   );
@@ -792,11 +819,13 @@ class CustomerSavedScreen extends StatefulWidget {
   final CustomerExperience experience;
   final VoidCallback onHome;
   final VoidCallback onPlans;
+  final Future<void> Function(Json item, bool store) onTryOnGarment;
   const CustomerSavedScreen({
     super.key,
     required this.experience,
     required this.onHome,
     required this.onPlans,
+    required this.onTryOnGarment,
   });
   @override
   State<CustomerSavedScreen> createState() => _CustomerSavedScreenState();
@@ -805,6 +834,7 @@ class CustomerSavedScreen extends StatefulWidget {
 class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
   String? error;
   String? downloadingId;
+  bool showGarments = false;
   @override
   void initState() {
     super.initState();
@@ -815,7 +845,14 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
 
   Future<void> load({bool more = false}) async {
     try {
-      await widget.experience.loadSaved(more: more);
+      if (more) {
+        await widget.experience.loadSaved(more: true);
+      } else {
+        await Future.wait([
+          widget.experience.loadSaved(),
+          widget.experience.loadSavedGarments(),
+        ]);
+      }
       if (mounted) setState(() => error = null);
     } catch (e) {
       if (mounted) setState(() => error = CustomerExperience.message(e));
@@ -848,7 +885,7 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
     listenable: widget.experience,
     builder: (context, _) {
       final exp = widget.experience;
-      if (exp.savedLoading && exp.looks.isEmpty) {
+      if (!showGarments && exp.savedLoading && exp.looks.isEmpty) {
         return const CustomerContentSkeleton(
           layout: CustomerSkeletonLayout.home,
         );
@@ -859,8 +896,26 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
           padding: const EdgeInsets.fromLTRB(24, 10, 24, 28),
           children: [
             CustomerText(
-              'My Looks',
+              'Saved',
               style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                for (final entry in [(false, 'Looks'), (true, 'Garments')])
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        label: Center(child: CustomerText(entry.$2)),
+                        selected: showGarments == entry.$1,
+                        onSelected: (_) =>
+                            setState(() => showGarments = entry.$1),
+                        showCheckmark: false,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 14),
             if (exp.remaining case final int credits when credits < 10) ...[
@@ -904,7 +959,110 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                 child: const CustomerText('Try again'),
               ),
             ],
-            if (exp.looks.isEmpty && error == null) ...[
+            if (showGarments && exp.savedGarments.isEmpty && error == null) ...[
+              const SizedBox(height: 40),
+              const Center(
+                child: Icon(Icons.favorite_border_rounded, size: 48),
+              ),
+              const SizedBox(height: 14),
+              const CustomerText(
+                'Your saved garments will appear here.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+            if (showGarments)
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: exp.savedGarments.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: .68,
+                ),
+                itemBuilder: (context, index) {
+                  final saved = exp.savedGarments[index];
+                  final product = saved['product'] as Json?;
+                  final store = saved['source'] == 'STORE';
+                  final id = saved['id'] as String;
+                  final image = store
+                      ? ((product?['image'] as Map?)?['url'] as String?)
+                      : demoProductImage(id);
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Material(
+                      color: CustomerColors.canvas,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                image == null
+                                    ? const Icon(Icons.checkroom_outlined)
+                                    : store
+                                    ? Image.network(image, fit: BoxFit.cover)
+                                    : Image.asset(image, fit: BoxFit.cover),
+                                Align(
+                                  alignment: Alignment.topRight,
+                                  child: IconButton.filledTonal(
+                                    tooltip: 'Remove saved garment',
+                                    onPressed: () async {
+                                      try {
+                                        await exp.toggleSavedGarment(
+                                          saved['source'] as String,
+                                          id,
+                                        );
+                                      } catch (caught) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: CustomerText(
+                                                CustomerExperience.message(
+                                                  caught,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                    icon: const Icon(Icons.favorite_rounded),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+                            child: CustomerText(
+                              product?['name'] as String? ??
+                                  'Unavailable garment',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: product == null
+                                ? null
+                                : () => widget.onTryOnGarment(product, store),
+                            child: const CustomerText('Try on'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            if (!showGarments && exp.looks.isEmpty && error == null) ...[
               const SizedBox(height: 40),
               const Center(
                 child: Icon(
@@ -930,93 +1088,95 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                 child: const CustomerText('Back to Home'),
               ),
             ],
-            for (final look in exp.looks)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: PremiumPanel(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: AspectRatio(
-                            aspectRatio: .9,
-                            child: CustomerAssetImage(
-                              experience: exp,
-                              photo: look.result,
+            if (!showGarments)
+              for (final look in exp.looks)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: PremiumPanel(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: AspectRatio(
+                              aspectRatio: .9,
+                              child: CustomerAssetImage(
+                                experience: exp,
+                                photo: look.result,
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              look.nameIsDefault
-                                  ? tr(context, 'Your look')
-                                  : look.name,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 6),
-                            CustomerText(
-                              'Expires ${_date(context, look.expiresAt)} · ${look.payer == 'STORE' ? 'Store sponsored' : 'Personal'}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: CustomerColors.muted,
+                        Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                look.nameIsDefault
+                                    ? tr(context, 'Your look')
+                                    : look.name,
+                                style: Theme.of(context).textTheme.titleLarge,
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () async {
-                                      await Navigator.push<void>(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              CustomerSavedLookScreen(
-                                                experience: exp,
-                                                look: look,
-                                              ),
-                                        ),
-                                      );
-                                      await load();
-                                    },
-                                    child: const CustomerText('View look'),
-                                  ),
+                              const SizedBox(height: 6),
+                              CustomerText(
+                                'Expires ${_date(context, look.expiresAt)} · ${look.payer == 'STORE' ? 'Store sponsored' : 'Personal'}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: CustomerColors.muted,
                                 ),
-                                const SizedBox(width: 10),
-                                IconButton.filledTonal(
-                                  tooltip: tr(context, 'Download look'),
-                                  onPressed: downloadingId == null
-                                      ? () => download(look)
-                                      : null,
-                                  icon: downloadingId == look.id
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () async {
+                                        await Navigator.push<void>(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                CustomerSavedLookScreen(
+                                                  experience: exp,
+                                                  look: look,
+                                                ),
                                           ),
-                                        )
-                                      : const Icon(Icons.download_rounded),
-                                ),
-                              ],
-                            ),
-                          ],
+                                        );
+                                        await load();
+                                      },
+                                      child: const CustomerText('View look'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  IconButton.filledTonal(
+                                    tooltip: tr(context, 'Download look'),
+                                    onPressed: downloadingId == null
+                                        ? () => download(look)
+                                        : null,
+                                    icon: downloadingId == look.id
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.download_rounded),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            if (exp.hasMoreLooks)
+            if (!showGarments && exp.hasMoreLooks)
               OutlinedButton(
                 onPressed: exp.savedLoading ? null : () => load(more: true),
                 child: CustomerText(
@@ -1077,6 +1237,7 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
             child: CustomerAssetImage(
               experience: widget.experience,
               photo: widget.look.result,
+              fit: BoxFit.contain,
             ),
           ),
         ),
@@ -1193,6 +1354,18 @@ class CustomerStoreCatalog extends StatelessWidget {
     required this.onRefresh,
     required this.onMore,
   });
+  Future<void> toggleSaved(BuildContext context, String id) async {
+    try {
+      await experience.toggleSavedGarment('STORE', id);
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: CustomerText(CustomerExperience.message(error))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = experience.storeVisit!['store'] as Map;
@@ -1249,38 +1422,64 @@ class CustomerStoreCatalog extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: PremiumPanel(
+                padding: EdgeInsets.zero,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if ((product['image'] as Map?)?['url']
-                        case final String url)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.network(
-                          url,
-                          height: 240,
-                          width: double.infinity,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, e, stack) => const SizedBox(
-                            height: 120,
-                            child: Center(
-                              child: Icon(Icons.checkroom_rounded, size: 48),
+                    SizedBox(
+                      height: 240,
+                      width: double.infinity,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if ((product['image'] as Map?)?['url']
+                              case final String url)
+                            Image.network(url, fit: BoxFit.cover)
+                          else
+                            const Icon(Icons.checkroom_rounded, size: 48),
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: IconButton.filledTonal(
+                              tooltip:
+                                  experience.isGarmentSaved(
+                                    'STORE',
+                                    product['id'] as String,
+                                  )
+                                  ? 'Remove from saved garments'
+                                  : 'Save garment',
+                              onPressed: () =>
+                                  toggleSaved(context, product['id'] as String),
+                              icon: Icon(
+                                experience.isGarmentSaved(
+                                      'STORE',
+                                      product['id'] as String,
+                                    )
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
+                    ),
                     const SizedBox(height: 12),
-                    Text(
-                      product['name'] as String,
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        product['name'] as String,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
                     ),
                     const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () => onTryOn(product),
-                        icon: const Icon(Icons.auto_awesome_outlined),
-                        label: const CustomerText('Try on me'),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => onTryOn(product),
+                          icon: const Icon(Icons.auto_awesome_outlined),
+                          label: const CustomerText('Try on me'),
+                        ),
                       ),
                     ),
                   ],

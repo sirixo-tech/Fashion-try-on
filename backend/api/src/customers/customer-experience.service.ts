@@ -18,7 +18,7 @@ import {
 import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { lockBillingSubscription } from "../entitlements/postpaid-billing.js";
 import { CatalogService } from "../catalog/catalog.service.js";
-import { demoImage } from "./customer-demo-catalog.js";
+import { DEMO_PRODUCTS, demoImage } from "./customer-demo-catalog.js";
 import {
   ObjectStorageService,
   loadObjectStorageConfig,
@@ -1291,6 +1291,109 @@ export class CustomerExperienceService
       pageSize: 20,
       productVertical: "GARMENT",
     });
+  }
+  private async activeSavedGarmentStoreIds(customerId: string) {
+    const visits = await this.db.customerStoreVisit.findMany({
+      where: {
+        customerId,
+        endedAt: null,
+        qr: {
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+          organization: { status: "ACTIVE" },
+        },
+      },
+      include: { qr: true },
+    });
+    return [...new Set(visits.map((visit) => visit.qr.organizationId))];
+  }
+  async savedGarments(customerId: string) {
+    const [saved, allowedStoreIds] = await Promise.all([
+      this.db.customerSavedGarment.findMany({
+        where: { customerId },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.activeSavedGarmentStoreIds(customerId),
+    ]);
+    const storeProducts = allowedStoreIds.length
+      ? await this.db.product.findMany({
+          where: {
+            id: { in: saved.filter((item) => item.source === "STORE").map((item) => item.sourceItemId) },
+            organizationId: { in: allowedStoreIds },
+            scope: "STORE",
+            active: true,
+            vtoEnabled: true,
+            productVertical: "GARMENT",
+            category: { active: true, scope: "STORE" },
+          },
+          include: { category: true },
+        })
+      : [];
+    return {
+      items: saved.map((item) => {
+        const product = item.source === "DEMO"
+          ? DEMO_PRODUCTS.find((candidate) => candidate.id === item.sourceItemId)
+          : storeProducts.find((candidate) => candidate.id === item.sourceItemId && candidate.organizationId === item.organizationId && candidate.category.organizationId === candidate.organizationId);
+        return {
+          source: item.source,
+          id: item.sourceItemId,
+          createdAt: item.createdAt,
+          product: product && item.source === "STORE"
+            ? {
+                id: product.id,
+                name: product.name,
+                image: {
+                  url: "imageUrl" in product
+                    ? product.imageUrl ?? (product.imageStorageKey
+                        ? this.storage.createReadUrl({ key: product.imageStorageKey, expiresInSeconds: 900 })
+                        : null)
+                    : null,
+                },
+              }
+            : product ?? null,
+        };
+      }),
+    };
+  }
+  async saveGarment(customerId: string, input: { source: "DEMO" | "STORE"; id: string }) {
+    let organizationId: string | null = null;
+    if (input.source === "DEMO") {
+      if (!DEMO_PRODUCTS.some((item) => item.id === input.id))
+        fail("DEMO_ITEM_INVALID", "Choose an available demo garment.", 404);
+    } else {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.id))
+        fail("PRODUCT_INVALID", "Choose an available Store garment.", 400);
+      const allowedStoreIds = await this.activeSavedGarmentStoreIds(customerId);
+      const product = await this.db.product.findFirst({
+        where: {
+          id: input.id,
+          organizationId: { in: allowedStoreIds },
+          scope: "STORE",
+          active: true,
+          vtoEnabled: true,
+          productVertical: "GARMENT",
+          category: { active: true, scope: "STORE" },
+        },
+        include: { category: true },
+      });
+      if (!product || product.category.organizationId !== product.organizationId)
+        fail("PRODUCT_UNAVAILABLE", "This Store garment is unavailable.", 404);
+      organizationId = product.organizationId;
+    }
+    await this.db.customerSavedGarment.upsert({
+      where: { customerId_source_sourceItemId: { customerId, source: input.source, sourceItemId: input.id } },
+      create: { id: createSelfxId(), customerId, source: input.source, sourceItemId: input.id, organizationId },
+      update: {},
+    });
+    return { saved: true };
+  }
+  async removeGarment(customerId: string, source: string, id: string) {
+    if (source !== "DEMO" && source !== "STORE")
+      fail("SAVED_GARMENT_INVALID", "Choose a saved garment.", 400);
+    await this.db.customerSavedGarment.deleteMany({
+      where: { customerId, source, sourceItemId: id },
+    });
+    return { saved: false };
   }
   async leaveStore(customerId: string, id: string) {
     await this.db.customerStoreVisit.updateMany({

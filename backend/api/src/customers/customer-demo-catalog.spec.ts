@@ -15,11 +15,14 @@ describe("shared customer demo catalog", () => {
     for (const category of ["WOMEN", "MEN"]) {
       expect(
         DEMO_PRODUCTS.filter((item) => item.category === category),
-      ).toHaveLength(10);
+      ).toHaveLength(13);
       expect(
         DEMO_MODELS.filter((item) => item.category === category),
-      ).toHaveLength(10);
+      ).toHaveLength(12);
     }
+    expect(
+      DEMO_PRODUCTS.filter((item) => item.name.includes("Saree")),
+    ).toHaveLength(2);
     const ids = new Set<string>();
     for (const [kind, entries] of [
       ["GARMENT", DEMO_PRODUCTS],

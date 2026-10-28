@@ -141,16 +141,20 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                 padding: const EdgeInsets.fromLTRB(24, 16, 20, 0),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 4,
+                    DecoratedBox(
+                      decoration: const BoxDecoration(
+                        gradient: RadialGradient(
+                          radius: 1.1,
+                          colors: [Color(0xAAFFFFFF), Color(0x00FFFFFF)],
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: CustomerColors.canvas,
-                        borderRadius: BorderRadius.circular(12),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        child: CustomerBrand(compact: true),
                       ),
-                      child: const CustomerBrand(compact: true),
                     ),
                     const Spacer(),
                     languageButton(overImage: true),

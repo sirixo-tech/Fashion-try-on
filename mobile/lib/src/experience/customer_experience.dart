@@ -50,6 +50,8 @@ class CustomerExperience extends ChangeNotifier {
   bool demoLoading = false;
   String? demoError, demoModelId;
   List<CustomerLook> looks = [];
+  List<Json> savedGarments = [];
+  bool savedGarmentsLoading = false;
   List<Json> products = [];
   bool loading = true,
       busy = false,
@@ -100,6 +102,7 @@ class CustomerExperience extends ChangeNotifier {
       person = outfit = null;
       personPreview = outfitPreview = null;
       looks = [];
+      savedGarments = [];
       products = [];
       demoProducts = demoModels = [];
       demoProduct = null;
@@ -166,6 +169,38 @@ class CustomerExperience extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  bool isGarmentSaved(String source, String id) =>
+      savedGarments.any((item) => item['source'] == source && item['id'] == id);
+
+  Future<void> loadSavedGarments() async {
+    if (savedGarmentsLoading) return;
+    final epoch = _epoch;
+    savedGarmentsLoading = true;
+    _notify();
+    try {
+      final data = await auth.authorized('/saved-garments');
+      if (_valid(epoch)) {
+        savedGarments = (data['items'] as List).cast<Json>();
+      }
+    } finally {
+      if (_valid(epoch)) {
+        savedGarmentsLoading = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> toggleSavedGarment(String source, String id) async {
+    final epoch = _epoch;
+    final alreadySaved = isGarmentSaved(source, id);
+    await auth.authorized(
+      alreadySaved ? '/saved-garments/$source/$id' : '/saved-garments',
+      method: alreadySaved ? 'DELETE' : 'POST',
+      body: alreadySaved ? null : {'source': source, 'id': id},
+    );
+    if (_valid(epoch)) await loadSavedGarments();
   }
 
   Future<void> begin({
@@ -275,6 +310,55 @@ class CustomerExperience extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  Future<void> chooseDemoProduct(String id) async {
+    if (session == null ||
+        busy ||
+        generating ||
+        hasUncertainRequest ||
+        storeMode) {
+      return;
+    }
+    final epoch = _epoch, sessionId = session!['id'];
+    busy = true;
+    _notify();
+    try {
+      final saved = await auth.authorized(
+        '/try-on/sessions/$sessionId/demo/GARMENT',
+        method: 'POST',
+        body: {'id': id},
+      );
+      if (!_valid(epoch) || session?['id'] != sessionId) return;
+      outfit = CustomerPhoto.fromJson(saved);
+      outfitPreview = null;
+      demoProduct = demoProducts.where((item) => item['id'] == id).firstOrNull;
+      _requestId = null;
+    } finally {
+      if (_valid(epoch)) {
+        busy = false;
+        _notify();
+      }
+    }
+  }
+
+  void clearSelectedPhoto(String purpose) {
+    if (busy || generating || hasUncertainRequest) return;
+    if (purpose == 'PERSON') {
+      person = null;
+      personPreview = null;
+      demoModelId = null;
+      usingAvatar = false;
+      avatarError = null;
+    } else if (purpose == 'GARMENT' && !storeMode) {
+      outfit = null;
+      outfitPreview = null;
+      demoProduct = null;
+    } else {
+      return;
+    }
+    _requestId = null;
+    _notify();
   }
 
   void chooseStoreProduct(Json selected) {

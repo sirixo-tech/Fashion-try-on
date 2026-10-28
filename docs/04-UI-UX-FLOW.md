@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-20 — Product Try-On, progress and garment saves (2026-10-29)
+
+The welcome screen keeps the approved transparent SelfX mark over the photographic backdrop without an opaque logo tile. Product Try-On opens the main Try-On tab with that garment selected; the person can use a photo or a relevant demo model there. The queued/processing state centers the input-photo animation and shows an indeterminate progress bar without a fabricated percentage. Completed results show the full output image, omit the 30-day notice, and show edge-to-edge suggested garment images. A heart saves or removes a demo or Store garment without using credits. Saved has Looks and Garments tabs; garment saves belong to the signed-in customer, and Store garment details remain visible only during a valid Store visit while the product is eligible.
+
+### CUSTOMER-MOBILE-19 — Result suggestions and Try-On progress (2026-10-28)
+
+Show up to four relevant garments from the current personal demo or Store-visit catalog only beneath a completed Try-On result. Exclude the garment just used, prefer the selected category and complementary garment types where metadata allows, and open a new consented Try-On with the tapped garment selected. Suggestions do not generate a look or consume another credit until the customer submits it. Replace the Try-On tab's blank spinner state with a lightweight animation of the selected person and garment photos, real queued/processing copy, and a reduced-motion alternative; do not show a fabricated completion percentage.
+
 ### CUSTOMER-MOBILE-18 — Product detail, grid and My Looks (2026-10-28)
 
 Show the selected demo product prominently above category-relevant model choices. The saved full-body reference remains the implicit default; omit the My Avatar selector. Offer an explicit Upload my photo action that enters the existing consented Try-On flow. Keep product detail copy short and the Try it on action fixed at the bottom. Home category filters share the row evenly, and product cards use near-full available width with full-garment imagery and details beneath. My Looks uses large result cards with View look and Download actions, plus a Plans & credits banner when known personal credits fall below ten; do not advertise purchasing while personal paid plans are unavailable.

@@ -14,6 +14,9 @@ const _productImages = {
   'cobalt-tunic': 'assets/editorial/cobalt-tunic.webp',
   'floral-midi-skirt': 'assets/editorial/floral-midi-skirt.webp',
   'white-linen-shirt': 'assets/editorial/white-linen-shirt.webp',
+  'teal-saree': 'assets/editorial/teal-saree.webp',
+  'ruby-saree': 'assets/editorial/ruby-saree.webp',
+  'anarkali-dress': 'assets/editorial/anarkali-dress.webp',
   'navy-overshirt': 'assets/editorial/navy-overshirt.webp',
   'charcoal-blazer': 'assets/editorial/charcoal-blazer.webp',
   'mens-white-linen-shirt': 'assets/editorial/mens-white-linen-shirt.webp',
@@ -24,6 +27,9 @@ const _productImages = {
   'burgundy-polo': 'assets/editorial/burgundy-polo.webp',
   'heather-grey-hoodie': 'assets/editorial/heather-grey-hoodie.webp',
   'sand-kurta': 'assets/editorial/sand-kurta.webp',
+  'sherwani': 'assets/editorial/sherwani.webp',
+  'nehru-jacket': 'assets/editorial/nehru-jacket.webp',
+  'printed-kurta': 'assets/editorial/printed-kurta.webp',
 };
 const _modelImages = {
   'muse': 'assets/editorial/demo-model-maya.webp',
@@ -46,6 +52,10 @@ const _modelImages = {
   'neil': 'assets/editorial/demo-model-neil.webp',
   'sameer': 'assets/editorial/demo-model-sameer.webp',
   'kiran': 'assets/editorial/demo-model-kiran.webp',
+  'amara': 'assets/editorial/demo-model-amara.webp',
+  'yuna': 'assets/editorial/demo-model-yuna.webp',
+  'malik': 'assets/editorial/demo-model-malik.webp',
+  'kenji': 'assets/editorial/demo-model-kenji.webp',
 };
 String? demoProductImage(String id) => _productImages[id];
 String? demoModelImage(String id) => _modelImages[id];
@@ -68,6 +78,18 @@ class CustomerDemoCatalog extends StatefulWidget {
 class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
   String category = 'ALL';
   final search = TextEditingController();
+
+  Future<void> toggleSaved(String id) async {
+    try {
+      await widget.experience.toggleSavedGarment('DEMO', id);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: CustomerText(CustomerExperience.message(error))),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -198,6 +220,7 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => CustomerDemoProductScreen(
+                            experience: exp,
                             product: product,
                             models: exp.demoModels,
                             onTryOn: widget.onTryOn,
@@ -210,10 +233,33 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                         children: [
                           AspectRatio(
                             aspectRatio: .75,
-                            child: Image.asset(
-                              path,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.asset(path, fit: BoxFit.cover),
+                                Align(
+                                  alignment: Alignment.topRight,
+                                  child: IconButton.filledTonal(
+                                    tooltip:
+                                        exp.isGarmentSaved(
+                                          'DEMO',
+                                          product['id'] as String,
+                                        )
+                                        ? 'Remove from saved garments'
+                                        : 'Save garment',
+                                    onPressed: () =>
+                                        toggleSaved(product['id'] as String),
+                                    icon: Icon(
+                                      exp.isGarmentSaved(
+                                            'DEMO',
+                                            product['id'] as String,
+                                          )
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           Padding(
@@ -257,12 +303,14 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
 }
 
 class CustomerDemoProductScreen extends StatefulWidget {
+  final CustomerExperience experience;
   final Json product;
   final List<Json> models;
   final Future<void> Function(Json product, String? modelId) onTryOn;
   final Future<void> Function(Json product, String? modelId) onUploadPerson;
   const CustomerDemoProductScreen({
     super.key,
+    required this.experience,
     required this.product,
     required this.models,
     required this.onTryOn,
@@ -305,7 +353,49 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
         )
         .toList();
     return Scaffold(
-      appBar: AppBar(title: const CustomerText('Try it on')),
+      appBar: AppBar(
+        title: const CustomerText('Try it on'),
+        actions: [
+          ListenableBuilder(
+            listenable: widget.experience,
+            builder: (context, _) => IconButton(
+              tooltip:
+                  widget.experience.isGarmentSaved(
+                    'DEMO',
+                    widget.product['id'] as String,
+                  )
+                  ? 'Remove from saved garments'
+                  : 'Save garment',
+              onPressed: () async {
+                try {
+                  await widget.experience.toggleSavedGarment(
+                    'DEMO',
+                    widget.product['id'] as String,
+                  );
+                } catch (error) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: CustomerText(
+                          CustomerExperience.message(error),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+              icon: Icon(
+                widget.experience.isGarmentSaved(
+                      'DEMO',
+                      widget.product['id'] as String,
+                    )
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+              ),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
         children: [

@@ -55,6 +55,7 @@ class _CustomerShellState extends State<CustomerShell>
     picker = widget.picker ?? NativeCustomerPhotoPicker();
     unawaited(experience.refresh());
     unawaited(experience.loadDemoCatalog());
+    unawaited(experience.loadSavedGarments().catchError((Object _) {}));
     unawaited(picker.discardLost());
     WidgetsBinding.instance.addObserver(this);
   }
@@ -154,17 +155,24 @@ class _CustomerShellState extends State<CustomerShell>
     Json? demoProduct,
     String? demoModelId,
     bool uploadPerson = false,
-  }) => run(
-    () => openCustomerStudio(
+  }) => run(() async {
+    final ready = await prepareCustomerStudio(
       context,
       experience,
-      picker,
       product: product,
       demoProduct: demoProduct,
       demoModelId: demoModelId,
-      uploadPerson: uploadPerson,
-    ),
-  );
+    );
+    if (!ready || !mounted) return;
+    if (Navigator.canPop(context)) Navigator.pop(context);
+    setState(() => tab = 1);
+    if (uploadPerson && mounted) {
+      final photo = await picker.pick(CustomerPhotoSource.gallery);
+      if (photo != null && mounted) {
+        await experience.upload('PERSON', photo.bytes, photo.mime);
+      }
+    }
+  });
   Future<void> storeProduct(Json selected) async {
     if (!selectingStoreProduct) {
       await studio(product: selected);
@@ -336,6 +344,10 @@ class _CustomerShellState extends State<CustomerShell>
                     experience: experience,
                     onHome: () => setState(() => tab = 0),
                     onPlans: plans,
+                    onTryOnGarment: (item, store) => studio(
+                      product: store ? item : null,
+                      demoProduct: store ? null : item,
+                    ),
                   ),
                   auth.profileLoading
                       ? const CustomerContentSkeleton(
@@ -410,7 +422,16 @@ class _CustomerShellState extends State<CustomerShell>
               }),
             );
           }
-          if (value == 2) unawaited(run(experience.loadSaved));
+          if (value == 2) {
+            unawaited(
+              run(() async {
+                await Future.wait([
+                  experience.loadSaved(),
+                  experience.loadSavedGarments(),
+                ]);
+              }),
+            );
+          }
           if (value == 3) unawaited(profilePhoto.load());
         },
         child: AnimatedContainer(

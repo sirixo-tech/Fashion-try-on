@@ -74,6 +74,27 @@ export const DEMO_PRODUCTS = [
     image: "white-linen-shirt.webp",
   },
   {
+    id: "teal-saree",
+    name: "Teal Silk Saree",
+    category: "WOMEN",
+    type: "ONE_PIECE",
+    image: "teal-saree.webp",
+  },
+  {
+    id: "ruby-saree",
+    name: "Ruby Embroidered Saree",
+    category: "WOMEN",
+    type: "ONE_PIECE",
+    image: "ruby-saree.webp",
+  },
+  {
+    id: "anarkali-dress",
+    name: "Ivory Anarkali Dress",
+    category: "WOMEN",
+    type: "ONE_PIECE",
+    image: "anarkali-dress.webp",
+  },
+  {
     id: "navy-overshirt",
     name: "Navy Overshirt",
     category: "MEN",
@@ -142,6 +163,27 @@ export const DEMO_PRODUCTS = [
     category: "MEN",
     type: "TOP",
     image: "sand-kurta.webp",
+  },
+  {
+    id: "sherwani",
+    name: "Navy Embroidered Sherwani",
+    category: "MEN",
+    type: "TOP",
+    image: "sherwani.webp",
+  },
+  {
+    id: "nehru-jacket",
+    name: "Rust Nehru Jacket",
+    category: "MEN",
+    type: "TOP",
+    image: "nehru-jacket.webp",
+  },
+  {
+    id: "printed-kurta",
+    name: "Forest Printed Kurta",
+    category: "MEN",
+    type: "TOP",
+    image: "printed-kurta.webp",
   },
 ] as const;
 
@@ -255,6 +297,30 @@ export const DEMO_MODELS = [
     name: "Kiran",
     category: "MEN",
     image: "demo-model-kiran.webp",
+  },
+  {
+    id: "amara",
+    name: "Amara",
+    category: "WOMEN",
+    image: "demo-model-amara.webp",
+  },
+  {
+    id: "yuna",
+    name: "Yuna",
+    category: "WOMEN",
+    image: "demo-model-yuna.webp",
+  },
+  {
+    id: "malik",
+    name: "Malik",
+    category: "MEN",
+    image: "demo-model-malik.webp",
+  },
+  {
+    id: "kenji",
+    name: "Kenji",
+    category: "MEN",
+    image: "demo-model-kenji.webp",
   },
 ] as const;
 
