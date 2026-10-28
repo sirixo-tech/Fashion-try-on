@@ -19,6 +19,9 @@ import {
   PROFILE_PHOTO_CONSENT,
   PROFILE_PHOTO_VERSION,
   LEGACY_PROFILE_PHOTO_VERSION,
+  AVATAR_PHOTO_VERSION,
+  AVATAR_PHOTO_CONSENT,
+  normalizeAvatarPhoto,
 } from "./customer-profile-photo.service.js";
 
 const url = process.env.CUSTOMER_MOBILE_TEST_DATABASE_URL;
@@ -36,6 +39,20 @@ async function image(width = 768, height = 1024) {
     .toBuffer();
 }
 describe("Profile photo input", () => {
+  it("keeps avatar framing and strips metadata instead of applying the profile crop", async () => {
+    const result = await normalizeAvatarPhoto(
+      await image(768, 1536),
+      "image/png",
+    );
+    expect(await sharp(result).metadata()).toMatchObject({
+      format: "jpeg",
+      width: 768,
+      height: 1536,
+    });
+    await expect(
+      normalizeAvatarPhoto(Buffer.from("bad"), "image/png"),
+    ).rejects.toThrow();
+  });
   it("decodes, squares, compresses and strips metadata; rejects invalid content and size", async () => {
     const result = await normalizeProfilePhoto(await image(), "image/png");
     const meta = await sharp(result).metadata();
@@ -99,6 +116,84 @@ describe.skipIf(!url)("Private profile photos on disposable PostgreSQL", () => {
   });
   afterAll(async () => {
     await db.$disconnect();
+  });
+  it("isolates avatar kinds, owners and profile pictures; replacing/removing a kind leaves the others intact", async () => {
+    const profile = await service.upload(owner, photo, "image/png", "en");
+    const selfie = await service.upload(
+      owner,
+      photo,
+      "image/png",
+      "en",
+      AVATAR_PHOTO_VERSION,
+      "SELFIE",
+    );
+    const body = await service.upload(
+      owner,
+      photo,
+      "image/png",
+      "en",
+      AVATAR_PHOTO_VERSION,
+      "FULL_BODY",
+    );
+    expect(body.photo.expiresAt).toBeNull();
+    const row = await db.customerProfilePhoto.findUniqueOrThrow({
+      where: { id: body.photo.id },
+    });
+    expect(row.consentStatement).toBe(AVATAR_PHOTO_CONSENT);
+    expect(row.storageKey).toContain("customer-mobile/avatar/");
+    await expect(
+      service.content(other.id, body.photo.id, "FULL_BODY"),
+    ).rejects.toThrow();
+    await expect(service.content(owner.id, body.photo.id)).rejects.toThrow();
+    await expect(
+      service.content(owner.id, selfie.photo.id, "FULL_BODY"),
+    ).rejects.toThrow();
+    await expect(
+      service.upload(
+        owner,
+        photo,
+        "image/png",
+        "en",
+        PROFILE_PHOTO_VERSION,
+        "FULL_BODY",
+      ),
+    ).rejects.toThrow();
+    const replacement = await service.upload(
+      owner,
+      photo,
+      "image/png",
+      "en",
+      AVATAR_PHOTO_VERSION,
+      "FULL_BODY",
+    );
+    await expect(
+      service.content(owner.id, body.photo.id, "FULL_BODY"),
+    ).rejects.toThrow();
+    expect((await service.get(owner.id)).photo?.id).toBe(profile.photo.id);
+    expect((await service.get(owner.id, "SELFIE")).photo?.id).toBe(
+      selfie.photo.id,
+    );
+    expect((await service.get(owner.id, "FULL_BODY")).photo?.id).toBe(
+      replacement.photo.id,
+    );
+    await service.remove(owner, "SELFIE");
+    expect((await service.get(owner.id, "FULL_BODY")).photo?.id).toBe(
+      replacement.photo.id,
+    );
+    await db.customerProfilePhoto.update({
+      where: { id: replacement.photo.id },
+      data: { createdAt: new Date(Date.now() - 60 * 86400000) },
+    });
+    await service.cleanup();
+    expect((await service.get(owner.id, "FULL_BODY")).photo?.id).toBe(
+      replacement.photo.id,
+    );
+    await db.customer.update({
+      where: { id: owner.id },
+      data: { status: "DELETED" },
+    });
+    await service.cleanup();
+    expect(objects.size).toBe(0);
   });
   it("keeps photo reads customer-owned and private, records consent, and retains persistent photos beyond seven days", async () => {
     const uploaded = await service.upload(owner, photo, "image/png", "te");

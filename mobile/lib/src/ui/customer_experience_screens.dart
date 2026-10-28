@@ -8,12 +8,15 @@ import '../experience/customer_media.dart';
 import '../experience/result_export.dart';
 import 'customer_theme.dart';
 import 'customer_skeleton.dart';
+import 'customer_demo_catalog.dart';
 
 Future<void> openCustomerStudio(
   BuildContext context,
   CustomerExperience experience,
   CustomerPhotoPicker picker, {
   Json? product,
+  Json? demoProduct,
+  String? demoModelId,
 }) async {
   if (!experience.generating && !experience.hasUncertainRequest) {
     if (!experience.available) {
@@ -80,7 +83,11 @@ Future<void> openCustomerStudio(
       ),
     );
     if (accepted != true || !context.mounted) return;
-    await experience.begin(storeProduct: product);
+    await experience.begin(
+      storeProduct: product,
+      selectedDemoProduct: demoProduct,
+      selectedDemoModelId: demoModelId,
+    );
   }
   if (!context.mounted || experience.session == null) return;
   await Navigator.push<void>(
@@ -235,6 +242,46 @@ class _CustomerStudioState extends State<CustomerStudio> {
     }
     await exp.upload(purpose, photo.bytes, photo.mime);
   });
+  Future<void> pickDemoModel() async {
+    final model = await showModalBottomSheet<Json>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          children: [
+            CustomerText(
+              'Choose a demo model',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            for (final item in exp.demoModels)
+              if ({'muse', 'tailored'}.contains(item['id']))
+                ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      item['id'] == 'muse'
+                          ? 'assets/editorial/demo-model-maya.webp'
+                          : 'assets/editorial/demo-model-arjun.webp',
+                      width: 48,
+                      height: 56,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  title: CustomerText(item['name'] as String),
+                  onTap: () => Navigator.pop(context, item),
+                ),
+          ],
+        ),
+      ),
+    );
+    if (model != null && mounted) {
+      await action(() => exp.chooseDemoModel(model['id'] as String));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: exp,
@@ -360,8 +407,52 @@ class _CustomerStudioState extends State<CustomerStudio> {
               const SizedBox(height: 20),
               _payer(exp),
               const SizedBox(height: 20),
+              if ((exp.usingAvatar || exp.demoModelId != null) &&
+                  exp.person != null) ...[
+                SizedBox(
+                  height: 200,
+                  child: CustomerAssetImage(
+                    experience: exp,
+                    photo: exp.person!,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                CustomerNotice(
+                  exp.usingAvatar
+                      ? 'Using your saved full-body photo. Changes apply to this Try-On only.'
+                      : 'Using a demo model. Changes apply to this Try-On only.',
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (!exp.storeMode) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: picking || exp.busy
+                          ? null
+                          : () => action(exp.chooseAvatar),
+                      icon: const Icon(Icons.person_outline_rounded, size: 18),
+                      label: const CustomerText('My Avatar'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: picking || exp.busy ? null : pickDemoModel,
+                      icon: const Icon(Icons.people_outline_rounded, size: 18),
+                      label: const CustomerText('Model'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (exp.avatarError != null) ...[
+                CustomerNotice(exp.avatarError!, error: true),
+                const SizedBox(height: 12),
+              ],
               _PhotoCard(
                 label: 'Your photo',
+                buttonText: exp.person != null ? 'Change photo' : null,
                 hint:
                     'Face the camera, with the area you want to try on visible.',
                 bytes: exp.personPreview,
@@ -379,6 +470,49 @@ class _CustomerStudioState extends State<CustomerStudio> {
                         child: CustomerText(
                           exp.product?['name'] as String? ?? 'Store product',
                         ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (exp.demoProduct != null)
+                PremiumPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const CustomerText(
+                        'Demo outfit',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          if (demoProductImage(exp.demoProduct!['id'] as String)
+                              case final String image)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.asset(
+                                image,
+                                width: 82,
+                                height: 104,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: CustomerText(
+                              exp.demoProduct!['name'] as String,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: picking || exp.busy
+                            ? null
+                            : () => pick('GARMENT'),
+                        icon: const Icon(Icons.add_photo_alternate_outlined),
+                        label: const CustomerText('Use my own outfit'),
                       ),
                     ],
                   ),
@@ -448,10 +582,12 @@ Widget _payer(CustomerExperience exp) => CustomerNotice(
 
 class _PhotoCard extends StatelessWidget {
   final String label, hint;
+  final String? buttonText;
   final Uint8List? bytes;
   final bool disabled;
   final VoidCallback onTap;
   const _PhotoCard({
+    this.buttonText,
     required this.label,
     required this.hint,
     required this.bytes,
@@ -486,7 +622,9 @@ class _PhotoCard extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: disabled ? null : onTap,
           icon: const Icon(Icons.add_a_photo_outlined, size: 20),
-          label: CustomerText(bytes == null ? 'Add $label' : 'Change $label'),
+          label: CustomerText(
+            buttonText ?? (bytes == null ? 'Add $label' : 'Change $label'),
+          ),
         ),
       ],
     ),

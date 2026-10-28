@@ -10,6 +10,7 @@ import 'ui/customer_theme.dart';
 import 'ui/onboarding.dart';
 import 'ui/customer_skeleton.dart';
 import 'experience/customer_media.dart';
+import 'ui/customer_avatar_screen.dart';
 
 class CustomerApp extends StatefulWidget {
   final CustomerController controller;
@@ -93,6 +94,14 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
           CustomerStage.authentication => CustomerAuthScreen(
             controller: controller,
           ),
+          CustomerStage.ready
+              when controller.profile?.avatarSetupComplete == false =>
+            CustomerAvatarScreen(
+              key: ValueKey('avatar-setup-${controller.profile?.id}'),
+              controller: controller,
+              picker: widget.picker,
+              setup: true,
+            ),
           CustomerStage.ready => CustomerShell(
             controller: controller,
             picker: widget.picker,

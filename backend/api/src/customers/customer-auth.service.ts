@@ -1089,27 +1089,68 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           },
         });
         if (identity) return identity.customerId;
+        if (!verified.email)
+          customerError(
+            "CUSTOMER_OAUTH_EMAIL_REQUIRED",
+            "A verified email address is required. Try email sign-up.",
+          );
+        const providerEmail = normalize(verified.email!);
+        // Share the signup email lock, then lock the matching account before
+        // checking eligibility. Concurrent signups/links cannot create duplicates.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('selfx.customer.email'), hashtext(${providerEmail}))`;
+        const existing = await tx.customer.findUnique({
+          where: { email: providerEmail },
+        });
+        if (existing) {
+          await tx.$queryRaw`SELECT id FROM customers WHERE id = ${existing.id}::uuid FOR UPDATE`;
+          const current = await tx.customer.findUniqueOrThrow({
+            where: { id: existing.id },
+            include: { identities: true },
+          });
+          const emailVerified = current.identities.some(
+            (entry) =>
+              entry.verifiedAt !== null &&
+              entry.email !== null &&
+              normalize(entry.email) === providerEmail,
+          );
+          if (current.status === "SUSPENDED" || current.status === "DELETED")
+            unauthorized();
+          if (
+            input.provider !== "GOOGLE" ||
+            verified.emailAuthoritative !== true ||
+            current.status !== "ACTIVE" ||
+            current.email !== providerEmail ||
+            !emailVerified ||
+            current.identities.some((entry) => entry.provider === "GOOGLE")
+          ) {
+            customerError(
+              "CUSTOMER_ACCOUNT_LINK_REQUIRED",
+              "Sign in with your existing account method.",
+              409,
+            );
+          }
+          await tx.customerIdentity.create({
+            data: {
+              id: createSelfxId(),
+              customerId: current.id,
+              provider: "GOOGLE",
+              providerSubject: verified.subject,
+              email: providerEmail,
+              verifiedAt: new Date(),
+            },
+          });
+          return current.id;
+        }
         if (!input.acceptTerms || input.termsVersion !== CUSTOMER_TERMS_VERSION)
           customerError(
             "CUSTOMER_SIGNUP_REQUIRED",
             "Create an account and accept the terms to continue.",
             409,
           );
-        if (!verified.email)
-          customerError(
-            "CUSTOMER_OAUTH_EMAIL_REQUIRED",
-            "A verified email address is required. Try email sign-up.",
-          );
-        if (await tx.customer.findUnique({ where: { email: verified.email! } }))
-          customerError(
-            "CUSTOMER_ACCOUNT_LINK_REQUIRED",
-            "Sign in with the method you used to create your account. Accounts are not linked automatically.",
-            409,
-          );
         const created = await tx.customer.create({
           data: {
             id: createSelfxId(),
-            email: verified.email!,
+            email: providerEmail,
             displayName: (
               input.displayName?.trim() ||
               verified.name ||
@@ -1247,6 +1288,8 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
       displayName: customer.displayName,
       language: customer.language,
       notifications: customer.notifications,
+      interests: customer.interests,
+      avatarSetupComplete: Boolean(customer.avatarSetupCompletedAt),
       createdAt: customer.createdAt.toISOString(),
     };
   }
@@ -1368,6 +1411,8 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
           phoneVerifiedAt: null,
           phoneConsentAt: null,
           displayName: "Deleted account",
+          interests: [],
+          avatarSetupCompletedAt: null,
           status: "DELETED",
           deletedAt: new Date(),
           securityVersion: { increment: 1 },

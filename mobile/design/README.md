@@ -1,5 +1,16 @@
 # Customer branding
 
+Post-login category/avatar screens follow the supplied PoC with photographic
+selection cards and paired selfie/full-body examples. Jewellery uses built-in
+ImageGen: [prompt and provenance](category-jewellery-v1-prompt.md). Example
+images are never treated as uploaded customer photos.
+
+Image backgrounds may vary to suit the scene; cream is not a required image
+backdrop. Customer Try-On campaign imagery should make the connection between a
+garment and the person/outfit preview clear, while leaving readable space for
+native controls. The active welcome asset and edit prompt are documented in
+[welcome Try-On v3](welcome-tryon-v3-prompt.md).
+
 The Google sign-in/signup button bundles `assets/branding/google-g.png`, downloaded
 unchanged from Google's official asset at
 https://developers.google.com/static/identity/images/g-logo.png (2026-10-27).

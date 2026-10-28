@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "Privacy policy for SelfX Virtual Try-On, including Shopify integration and customer image handling.",
 };
 
-const effectiveDate = "October 27, 2026";
+const effectiveDate = "October 28, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -84,6 +84,16 @@ export default function PrivacyPage() {
             pictures. They are not automatically used for try-on. Pictures
             uploaded under a previous time-limited policy keep that original
             limit until replaced.
+          </p>
+          <p className="leading-7 text-muted-foreground">
+            If you choose to save an avatar, its selfie and full-body reference
+            photos remain private to your account until replaced or deleted,
+            including through Delete my photos or account deletion. Your saved
+            full-body reference is selected by default for clothing try-on;
+            you can choose another photo for an individual try-on without
+            replacing it. Temporary copies used for processing expire within
+            seven days. Saving a reference photo does not make it visible to
+            merchants or other customers.
           </p>
         </section>
 

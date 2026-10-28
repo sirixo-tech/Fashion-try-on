@@ -84,6 +84,7 @@ describe("Customer identity validation", () => {
       subject: "google-subject",
       email: "customer@selfx.invalid",
       name: "Ava",
+      emailAuthoritative: false,
     });
     expect(verify).toHaveBeenCalledWith({
       idToken: "provider-token",
@@ -100,6 +101,50 @@ describe("Customer identity validation", () => {
     await expect(
       new CustomerIdentityClient().verify("GOOGLE", "provider-token"),
     ).rejects.toThrow();
+  });
+  it.each([
+    ["Member@Gmail.com", undefined, true],
+    ["member@workspace.invalid", "workspace.invalid", true],
+    ["member@third-party.invalid", undefined, false],
+    ["member@third-party.invalid", "", false],
+    ["member@third-party.invalid", "   ", false],
+    ["member@gmail.com.attacker.invalid", undefined, false],
+  ])(
+    "derives Google email authority from signed claims for %s / %s",
+    async (email, hd, expected) => {
+      vi.spyOn(OAuth2Client.prototype, "verifyIdToken").mockResolvedValue({
+        getPayload: () => ({
+          iss: "https://accounts.google.com",
+          sub: "google-subject",
+          email,
+          email_verified: true,
+          hd,
+        }),
+      } as never);
+      expect(
+        await new CustomerIdentityClient().verify("GOOGLE", "provider-token"),
+      ).toMatchObject({ emailAuthoritative: expected });
+    },
+  );
+  it("rejects an unverified Google Workspace claim and invalid issuer", async () => {
+    const verify = vi.spyOn(OAuth2Client.prototype, "verifyIdToken");
+    for (const claims of [
+      { email_verified: false, iss: "https://accounts.google.com" },
+      { email_verified: "false", iss: "https://accounts.google.com" },
+      { email_verified: true, iss: "https://attacker.invalid" },
+    ]) {
+      verify.mockResolvedValue({
+        getPayload: () => ({
+          sub: "google-subject",
+          email: "member@gmail.com",
+          hd: "workspace.invalid",
+          ...claims,
+        }),
+      } as never);
+      await expect(
+        new CustomerIdentityClient().verify("GOOGLE", "provider-token"),
+      ).rejects.toThrow("CUSTOMER_OAUTH_INVALID");
+    }
   });
   it("verifies Apple's signature, issuer, audience, time and bound nonce with cached official keys", async () => {
     const client = new CustomerIdentityClient();

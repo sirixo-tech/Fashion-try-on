@@ -46,6 +46,8 @@ model Customer {
   termsAcceptedAt       DateTime               @map("terms_accepted_at") @db.Timestamptz(3)
   language              String                 @default("en") @db.VarChar(12)
   notifications         Boolean                @default(false)
+  interests             String[]               @default([])
+  avatarSetupCompletedAt DateTime?              @map("avatar_setup_completed_at") @db.Timestamptz(3)
   lastActiveAt          DateTime?              @map("last_active_at") @db.Timestamptz(3)
   deletedAt             DateTime?              @map("deleted_at") @db.Timestamptz(3)
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -68,6 +70,7 @@ model CustomerProfilePhoto {
   customerId       String   @map("customer_id") @db.Uuid
   customer         Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
   storageKey       String   @unique @map("storage_key") @db.VarChar(512)
+  kind             String   @default("PROFILE") @db.VarChar(16)
   consentVersion   String   @map("consent_version") @db.VarChar(40)
   consentStatement String   @map("consent_statement")
   consentLanguage  String   @map("consent_language") @db.VarChar(12)
@@ -78,6 +81,7 @@ model CustomerProfilePhoto {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([customerId, createdAt])
+  @@index([customerId, kind, createdAt])
   @@index([storageDeletedAt, expiresAt])
   @@map("customer_profile_photos")
 }

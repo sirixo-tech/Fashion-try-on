@@ -24,6 +24,8 @@ class CustomerProfile {
   final bool emailVerified;
   final List<String> methods;
   final String? phoneNumber, pendingPhoneNumber;
+  final List<String> interests;
+  final bool avatarSetupComplete, avatarSupported;
   const CustomerProfile({
     required this.id,
     required this.email,
@@ -34,6 +36,9 @@ class CustomerProfile {
     this.methods = const [],
     this.phoneNumber,
     this.pendingPhoneNumber,
+    this.interests = const [],
+    this.avatarSetupComplete = true,
+    this.avatarSupported = false,
   });
   factory CustomerProfile.fromJson(Map<String, dynamic> json) =>
       CustomerProfile(
@@ -46,6 +51,9 @@ class CustomerProfile {
         methods: List<String>.from(json['methods'] as List? ?? []),
         phoneNumber: json['phoneNumber'] as String?,
         pendingPhoneNumber: json['pendingPhoneNumber'] as String?,
+        interests: List<String>.from(json['interests'] as List? ?? []),
+        avatarSetupComplete: json['avatarSetupComplete'] as bool? ?? true,
+        avatarSupported: json.containsKey('avatarSetupComplete'),
       );
 }
 

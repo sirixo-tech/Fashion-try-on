@@ -111,6 +111,7 @@ describe.skipIf(!url)(
     beforeEach(async () => {
       auth?.onModuleDestroy();
       await db.mailJob.deleteMany();
+      await db.customerCreditAccount.deleteMany();
       await db.customer.deleteMany();
       await db.customerActionToken.deleteMany();
       await db.passwordRecoveryRateBucket.deleteMany();
@@ -144,6 +145,7 @@ describe.skipIf(!url)(
     afterAll(async () => {
       auth?.onModuleDestroy();
       await db.mailJob.deleteMany();
+      await db.customerCreditAccount.deleteMany();
       await db.customer.deleteMany();
       await db.customerActionToken.deleteMany();
       await db.passwordRecoveryRateBucket.deleteMany();
@@ -691,7 +693,152 @@ describe.skipIf(!url)(
         "second@selfx.invalid",
       );
     });
-    it("requires explicit OAuth signup and never merges matching provider emails automatically", async () => {
+    it("automatically links an authoritative Google email to the verified existing account without resetting its wallet or password", async () => {
+      const original = await register();
+      const before = await db.customerIdentity.findFirstOrThrow({
+        where: { customerId: original.customer.id, provider: "EMAIL_PASSWORD" },
+      });
+      await db.customerCreditAccount.create({
+        data: {
+          customerId: original.customer.id,
+          trialCredits: 10,
+          usedCredits: 4,
+          reservedCredits: 1,
+          trialPlanCode: "test-starter",
+        },
+      });
+      const wallet = await db.customerCreditAccount.findUniqueOrThrow({
+        where: { customerId: original.customer.id },
+      });
+      identities.verify.mockResolvedValue({
+        subject: "trusted-google",
+        email,
+        name: "Different Google name",
+        emailAuthoritative: true,
+      });
+      const input = {
+        provider: "GOOGLE" as const,
+        idToken: "synthetic-google-id-token",
+      };
+      const [first, second] = await Promise.all([
+        auth.oauth(input, ip),
+        auth.oauth(input, ip),
+      ]);
+      expect(first.customer.id).toBe(original.customer.id);
+      expect(second.customer.id).toBe(original.customer.id);
+      expect(first.customer.displayName).toBe("Ava Customer");
+      expect(await db.customer.count()).toBe(1);
+      expect(
+        await db.customerIdentity.count({ where: { provider: "GOOGLE" } }),
+      ).toBe(1);
+      expect(
+        await db.customerIdentity.findUnique({ where: { id: before.id } }),
+      ).toEqual(before);
+      expect(
+        await db.customerCreditAccount.findUnique({
+          where: { customerId: original.customer.id },
+        }),
+      ).toEqual(wallet);
+      expect(await auth.me(bearer(original))).toMatchObject({
+        id: original.customer.id,
+        methods: expect.arrayContaining(["EMAIL_PASSWORD", "GOOGLE"]),
+      });
+      expect(await auth.login(email, password, ip)).toMatchObject({
+        customer: { id: original.customer.id },
+      });
+    });
+    it.each(["PENDING_VERIFICATION", "SUSPENDED", "DELETED"] as const)(
+      "does not automatically link or activate a %s customer",
+      async (status) => {
+        const original = await register();
+        await db.customer.update({
+          where: { id: original.customer.id },
+          data: { status },
+        });
+        identities.verify.mockResolvedValue({
+          subject: "trusted-google",
+          email,
+          name: null,
+          emailAuthoritative: true,
+        });
+        await expect(
+          auth.oauth(
+            {
+              provider: "GOOGLE",
+              idToken: "synthetic-google-id-token",
+              acceptTerms: true,
+              termsVersion: CUSTOMER_TERMS_VERSION,
+            },
+            ip,
+          ),
+        ).rejects.toMatchObject({
+          status: status === "PENDING_VERIFICATION" ? 409 : 401,
+        });
+        expect(
+          await db.customerIdentity.count({ where: { provider: "GOOGLE" } }),
+        ).toBe(0);
+        expect(
+          (
+            await db.customer.findUniqueOrThrow({
+              where: { id: original.customer.id },
+            })
+          ).status,
+        ).toBe(status);
+      },
+    );
+    it("requires extra verification for third-party email, missing SelfX email proof and a conflicting Google subject", async () => {
+      const original = await register();
+      const input = {
+        provider: "GOOGLE" as const,
+        idToken: "synthetic-google-id-token",
+        acceptTerms: true,
+        termsVersion: CUSTOMER_TERMS_VERSION,
+      };
+      identities.verify.mockResolvedValue({
+        subject: "third-party-google",
+        email,
+        name: null,
+        emailAuthoritative: false,
+      });
+      await expect(auth.oauth(input, ip)).rejects.toMatchObject({
+        status: 409,
+      });
+      identities.verify.mockResolvedValue({
+        subject: "trusted-google",
+        email,
+        name: null,
+        emailAuthoritative: true,
+      });
+      await db.customerIdentity.updateMany({
+        where: { customerId: original.customer.id },
+        data: { verifiedAt: null },
+      });
+      await expect(auth.oauth(input, ip)).rejects.toMatchObject({
+        status: 409,
+      });
+      await db.customerIdentity.updateMany({
+        where: { customerId: original.customer.id },
+        data: { verifiedAt: new Date() },
+      });
+      await db.customerIdentity.create({
+        data: {
+          id: createSelfxId(),
+          customerId: original.customer.id,
+          provider: "GOOGLE",
+          providerSubject: "existing-other-google",
+          email,
+          verifiedAt: new Date(),
+        },
+      });
+      await expect(auth.oauth(input, ip)).rejects.toMatchObject({
+        status: 409,
+      });
+      expect(await db.customer.count()).toBe(1);
+      expect(
+        await db.customerIdentity.count({ where: { provider: "GOOGLE" } }),
+      ).toBe(1);
+    });
+    it("requires explicit new OAuth signup and extra verification for ambiguous provider matches", async () => {
       const input = {
         provider: "GOOGLE" as const,
         idToken: "synthetic-google-id-token",

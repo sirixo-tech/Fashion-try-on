@@ -31,6 +31,10 @@ import { StorePurgeService } from "../stores/store-purge.service.js";
 import type { Prisma } from "@prisma/client";
 import { CustomerMetricsService } from "./customer-metrics.service.js";
 import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
+import { AVATAR_PHOTO_VERSION } from "./customer-profile-photo.service.js";
+import { CustomerAvatarController } from "./customer-avatar.controller.js";
+import type { CustomerAuthService } from "./customer-auth.service.js";
+import type { FastifyRequest } from "fastify";
 
 const url = process.env.CUSTOMER_MOBILE_TEST_DATABASE_URL;
 if (
@@ -268,6 +272,81 @@ describe.skipIf(!url)(
     afterAll(async () => {
       service?.onModuleDestroy();
       await db.$disconnect();
+    });
+    it("persists setup and copies only the owner's saved full-body into a consented temporary session", async () => {
+      const photos = new CustomerProfilePhotoService(
+        db as PrismaService,
+        storage as unknown as ObjectStorageService,
+      );
+      const auth = {
+        requireCustomer: async () => ({
+          customer: await db.customer.findUniqueOrThrow({
+            where: { id: customer.id },
+          }),
+        }),
+        limitExperience: async () => {},
+      };
+      const controller = new CustomerAvatarController(
+        auth as unknown as CustomerAuthService,
+        db as PrismaService,
+        photos,
+        service,
+      );
+      const req = { headers: {}, ip: "127.0.0.1" } as FastifyRequest;
+      await controller.setup(req, {
+        interests: ["WOMEN", "JEWELLERY"],
+        complete: false,
+      });
+      expect(
+        (await db.customer.findUniqueOrThrow({ where: { id: customer.id } }))
+          .avatarSetupCompletedAt,
+      ).toBeNull();
+      await controller.setup(req, {
+        interests: ["WOMEN", "JEWELLERY"],
+        complete: true,
+      });
+      expect((await controller.get(req)).complete).toBe(true);
+      const saved = await photos.upload(
+        customer,
+        photo,
+        "image/png",
+        "en",
+        AVATAR_PHOTO_VERSION,
+        "FULL_BODY",
+      );
+      const session = await service.createSession(customer, {
+        consentAccepted: true,
+        consentVersion: CUSTOMER_PHOTO_CONSENT_VERSION,
+      });
+      const copy = await controller.useAvatar(req, session.id);
+      expect(copy).toHaveProperty("id");
+      const asset = await db.tryOnAsset.findFirstOrThrow({
+        where: { sessionId: session.id, purpose: "PERSON" },
+      });
+      expect(asset.storageKey).toContain("customer-mobile/inputs/");
+      expect(asset.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(
+        7 * DAY,
+      );
+      expect((await photos.get(customer.id, "FULL_BODY")).photo?.id).toBe(
+        saved.photo.id,
+      );
+      const otherSession = await service.createSession(other, {
+        consentAccepted: true,
+        consentVersion: CUSTOMER_PHOTO_CONSENT_VERSION,
+      });
+      await expect(
+        controller.useAvatar(req, otherSession.id),
+      ).rejects.toThrow();
+      await service.upload(customer, session.id, "PERSON", photo, "image/png");
+      expect((await photos.get(customer.id, "FULL_BODY")).photo?.id).toBe(
+        saved.photo.id,
+      );
+      await service.eraseCustomerPhotos(customer.id);
+      expect((await photos.get(customer.id, "FULL_BODY")).photo).toBeNull();
+      await expect(
+        photos.content(customer.id, saved.photo.id, "FULL_BODY"),
+      ).rejects.toThrow();
+      await photos.cleanup();
     });
     it("Delete my photos also withdraws access to the separate private profile photo", async () => {
       const photos = new CustomerProfilePhotoService(

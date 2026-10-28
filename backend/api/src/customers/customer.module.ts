@@ -32,6 +32,7 @@ import { CustomerPushSender } from "./customer-push.sender.js";
 import { CustomerPhoneClient } from "./customer-phone.client.js";
 import { CustomerProfilePhotoController } from "./customer-profile-photo.controller.js";
 import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
+import { CustomerAvatarController } from "./customer-avatar.controller.js";
 @Module({
   imports: [
     DatabaseModule,
@@ -44,6 +45,7 @@ import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js
     AppsModule,
   ],
   controllers: [
+    CustomerAvatarController,
     CustomerProfilePhotoController,
     CustomerAuthController,
     CustomerMetricsController,

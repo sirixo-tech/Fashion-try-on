@@ -14,6 +14,10 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 
 export const PROFILE_PHOTO_VERSION = "2026-10-27-v2";
 export const LEGACY_PROFILE_PHOTO_VERSION = "2026-10-27";
+export const AVATAR_PHOTO_VERSION = "2026-10-28-avatar-v1";
+export const AVATAR_PHOTO_CONSENT =
+  "I allow SelfX to save my selfie and full-body photos privately to my account and reuse them for Try-On. They stay until I replace or delete them, delete all my photos, or delete my account. Temporary Try-On copies still expire within 7 days.";
+export type AccountPhotoKind = "PROFILE" | "SELFIE" | "FULL_BODY";
 export const PROFILE_PHOTO_CONSENT =
   "Saved to your profile until replaced or removed.";
 const LEGACY_PROFILE_PHOTO_CONSENT =
@@ -47,6 +51,42 @@ export async function normalizeProfilePhoto(body: Buffer, mime: string) {
       400,
       "PROFILE_PHOTO_INVALID",
       "Choose a JPEG, PNG or WebP photo up to 5 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.",
+    );
+  }
+}
+
+export async function normalizeAvatarPhoto(body: Buffer, mime: string) {
+  try {
+    const meta = validateTechnicalImageBuffer({
+      buffer: body,
+      declaredContentType: mime,
+      maxBytes: 16 * 1024 * 1024,
+    });
+    if (
+      Math.min(meta.width, meta.height) < 256 ||
+      Math.max(meta.width, meta.height) > 8192
+    )
+      throw new Error("Dimensions");
+    // Preserve full-body framing; profile's square crop must never apply here.
+    return await sharp(body, {
+      limitInputPixels: 8192 * 8192,
+      animated: false,
+      failOn: "warning",
+    })
+      .rotate()
+      .resize({
+        width: 2048,
+        height: 2560,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+  } catch {
+    throw new ApiErrorException(
+      400,
+      "AVATAR_PHOTO_INVALID",
+      "Choose a JPEG, PNG or WebP photo up to 16 MB, at least 256 pixels on each side and no more than 8192 pixels on either side.",
     );
   }
 }
@@ -91,10 +131,11 @@ export class CustomerProfilePhotoService
         "Please sign in again.",
       );
   }
-  async get(customerId: string) {
+  async get(customerId: string, kind: AccountPhotoKind = "PROFILE") {
     const photo = await this.db.customerProfilePhoto.findFirst({
       where: {
         customerId,
+        kind,
         deletedAt: null,
         readyAt: { not: null },
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
@@ -108,11 +149,16 @@ export class CustomerProfilePhotoService
         : null,
     };
   }
-  async content(customerId: string, id: string) {
+  async content(
+    customerId: string,
+    id: string,
+    kind: AccountPhotoKind = "PROFILE",
+  ) {
     const photo = await this.db.customerProfilePhoto.findFirst({
       where: {
         id,
         customerId,
+        kind,
         deletedAt: null,
         readyAt: { not: null },
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
@@ -125,7 +171,7 @@ export class CustomerProfilePhotoService
         "PROFILE_PHOTO_NOT_FOUND",
         "This photo has expired or was deleted.",
       );
-    return this.storage.readObject(photo.storageKey, 5 * 1024 * 1024, 30000);
+    return this.storage.readObject(photo.storageKey, 16 * 1024 * 1024, 30000);
   }
   async upload(
     principal: Principal,
@@ -133,35 +179,47 @@ export class CustomerProfilePhotoService
     mime: string,
     language: string,
     consentVersion: string = PROFILE_PHOTO_VERSION,
+    kind: AccountPhotoKind = "PROFILE",
   ) {
     if (
-      ![PROFILE_PHOTO_VERSION, LEGACY_PROFILE_PHOTO_VERSION].includes(
-        consentVersion,
-      )
+      !(kind === "PROFILE"
+        ? [PROFILE_PHOTO_VERSION, LEGACY_PROFILE_PHOTO_VERSION].includes(
+            consentVersion,
+          )
+        : consentVersion === AVATAR_PHOTO_VERSION)
     )
       throw new ApiErrorException(
         400,
         "PROFILE_PHOTO_CONSENT_INVALID",
         "Please update SelfX before changing your profile photo.",
       );
-    const bytes = await normalizeProfilePhoto(body, mime);
+    const bytes =
+      kind === "PROFILE"
+        ? await normalizeProfilePhoto(body, mime)
+        : await normalizeAvatarPhoto(body, mime);
     const id = createSelfxId(),
-      storageKey = `customer-mobile/profile/${principal.id}/${id}`;
+      storageKey =
+        kind === "PROFILE"
+          ? `customer-mobile/profile/${principal.id}/${id}`
+          : `customer-mobile/avatar/${principal.id}/${kind}/${id}`;
     const created = await this.db.$transaction(async (tx) => {
       await this.lock(tx, principal);
       return tx.customerProfilePhoto.create({
         data: {
           id,
           customerId: principal.id,
+          kind,
           storageKey,
           consentVersion,
           consentStatement:
-            consentVersion === PROFILE_PHOTO_VERSION
-              ? PROFILE_PHOTO_CONSENT
-              : LEGACY_PROFILE_PHOTO_CONSENT,
+            kind !== "PROFILE"
+              ? AVATAR_PHOTO_CONSENT
+              : consentVersion === PROFILE_PHOTO_VERSION
+                ? PROFILE_PHOTO_CONSENT
+                : LEGACY_PROFILE_PHOTO_CONSENT,
           consentLanguage: language,
           expiresAt:
-            consentVersion === PROFILE_PHOTO_VERSION
+            consentVersion !== LEGACY_PROFILE_PHOTO_VERSION
               ? null
               : new Date(Date.now() + 7 * DAY),
         },
@@ -193,7 +251,12 @@ export class CustomerProfilePhotoService
             "Your photo upload was cancelled. Please try again.",
           );
         await tx.customerProfilePhoto.updateMany({
-          where: { customerId: principal.id, id: { not: id }, deletedAt: null },
+          where: {
+            customerId: principal.id,
+            kind,
+            id: { not: id },
+            deletedAt: null,
+          },
           data: { deletedAt: now, expiresAt: now },
         });
       });
@@ -219,11 +282,11 @@ export class CustomerProfilePhotoService
       );
     }
   }
-  async remove(principal: Principal) {
+  async remove(principal: Principal, kind: AccountPhotoKind = "PROFILE") {
     await this.db.$transaction(async (tx) => {
       await this.lock(tx, principal);
       await tx.customerProfilePhoto.updateMany({
-        where: { customerId: principal.id, deletedAt: null },
+        where: { customerId: principal.id, kind, deletedAt: null },
         data: { deletedAt: new Date(), expiresAt: new Date() },
       });
     });

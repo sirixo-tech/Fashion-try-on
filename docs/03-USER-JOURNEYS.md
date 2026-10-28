@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
+
+After sign-in and setup, Home displays demo outfits. A customer opens an outfit, chooses My Avatar or a demo model, accepts photo-processing consent, and generates using personal credits. In the fitting room, they can replace the person photo or demo garment for this Try-On alone. A Store QR session continues to show its Store's catalog instead. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
+
+Incomplete authenticated accounts select interests, then capture/upload selfie and full-body photos or skip photos. Account-level completion prevents replay on later logins/devices. Me → My avatar edits interests/photos. Each new Try-On defaults to a full-body reference copy; changing that session photo preserves the reference. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+
+### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
+
+An eligible Google sign-in automatically opens the customer's existing verified account. Ambiguous email ownership, conflicting Google subjects and pending accounts retain additional verification; suspended/deleted accounts cannot be activated. First launch uses the new editorial welcome cover. See `CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md`.
+
 ### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
 
 Start signup with email or number, collect email for verification when needed, then sign in by password or a linked Google identity. Existing customers link Google from Profile after a recent sign-in. Optional SMS verification shows the actual retry timer and sanitized failure diagnostics. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.

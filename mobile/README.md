@@ -1,6 +1,14 @@
 # SelfX customer app — first milestone
 
-Current source **0.10.0+11** adds email/mobile password login, number-first signup with email verification, inline policy links, native Android Google configuration, Profile → Link Google, ten-second phone retry admission and safe SMS failure diagnostics. See [Customer mobile 11](../docs/CUSTOMER-MOBILE-11-AUTH-METHODS.md) for the lookup-index migration, account-linking rules and real-device Firebase acceptance. No APK built.
+Current source **0.13.0+15** adds SelfX demo garments and selectable full-body models in Home and the personal Try-On flow. Demo looks use personal credits and temporary images, and do not appear in Store QR catalogs. See [Customer mobile 15](../docs/CUSTOMER-MOBILE-15-DEMO-CATALOG.md). Coordinate API assets and app rebuild for rollout; no APK built.
+
+Source **0.12.0+14** adds post-login interests and private saved avatar photos, with a temporary full-body copy selected by default in clothing Try-On. Manage photos in Me → My avatar. See [Customer mobile 14](../docs/CUSTOMER-MOBILE-14-AVATAR.md). Migration, deployment and an app rebuild are rollout steps; no APK built.
+
+Source **0.11.1+13** revises the welcome image to a deep teal boutique with garment/reference and outfit-preview imagery. Image backdrops can vary with the content; the app screen backgrounds remain unchanged. See [Customer mobile 13](../docs/CUSTOMER-MOBILE-13-TRYON-COVER.md). Rebuild the app to show the new cover. No APK built.
+
+Source **0.11.0+12** replaces the welcome cover with a two-model editorial image and supports automatic backend linking of eligible verified Google email matches to the existing customer account. See [Customer mobile 12](../docs/CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md) for authority checks, preserved credentials/credits and rollout. The API must be deployed for automatic linking; the cover requires an app rebuild. No APK built.
+
+Source **0.10.0+11** adds email/mobile password login, number-first signup with email verification, inline policy links, native Android Google configuration, Profile → Link Google, ten-second phone retry admission and safe SMS failure diagnostics. See [Customer mobile 11](../docs/CUSTOMER-MOBILE-11-AUTH-METHODS.md) for the lookup-index migration, account-linking rules and real-device Firebase acceptance. No APK built.
 
 Source 0.9.0+10 updates first launch to an editorial welcome, three illustrated information screens and matching login/signup. It reuses bundled fashion images, existing authentication and all 20 languages. Returning sessions keep their current behavior. See [Customer mobile 10](../docs/CUSTOMER-MOBILE-10-WELCOME-AUTH.md). No APK built.
 

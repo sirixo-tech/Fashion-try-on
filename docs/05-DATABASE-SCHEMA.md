@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
+
+No schema change. The fixed demo catalog is packaged with the API. Its selected images become normal customer-owned temporary TryOnAsset inputs in a consented personal TryOnSession, so existing asset expiry, look retention and credit records apply. No demo rows are inserted into merchant products. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
+
+Migration 20261028010000_customer_avatar adds checked Customer.interests and avatarSetupCompletedAt, plus CustomerProfilePhoto.kind default PROFILE with allowed SELFIE/FULL_BODY. Reuse consent, deletion, cleanup and nullable expiry. New avatar rows have no expiry; temporary Try-On asset expiry remains mandatory. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+
+### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
+
+No schema change. Create only the eligible customer's Google identity under existing provider-subject/customer-provider uniqueness constraints. Preserve the customer row, password identity, credit account and linked history. See `CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md`.
+
 ### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
 
 Add only the pending-phone lookup index in migration 20261027050000_customer_phone_password_lookup. Reuse customer password/provider identities, pending contact, verified ownership and HMAC-keyed rate buckets. Do not grant ownership from an unverified phone, merge accounts or rewrite existing contacts. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.

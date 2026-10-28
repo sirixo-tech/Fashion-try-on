@@ -28,6 +28,8 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { CustomerProfilePhotoController } from "./customer-profile-photo.controller.js";
 import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
+import { CustomerAvatarController } from "./customer-avatar.controller.js";
+import { PrismaService } from "../database/prisma.service.js";
 
 describe("Customer photo HTTP and Store QR permission boundaries", () => {
   let app: NestFastifyApplication;
@@ -47,6 +49,7 @@ describe("Customer photo HTTP and Store QR permission boundaries", () => {
     summary: vi.fn(),
     createSession: vi.fn(),
     createRun: vi.fn(),
+    useDemo: vi.fn(),
     getAsset: vi.fn(),
     upload: vi.fn(),
     downloadResult: vi.fn(),
@@ -62,8 +65,10 @@ describe("Customer photo HTTP and Store QR permission boundaries", () => {
         CustomerExperienceController,
         CustomerStoreQrController,
         CustomerProfilePhotoController,
+        CustomerAvatarController,
       ],
       providers: [
+        { provide: PrismaService, useValue: {} },
         { provide: CustomerAuthService, useValue: auth },
         { provide: CustomerExperienceService, useValue: experience },
         { provide: CustomerProfilePhotoService, useValue: photos },
@@ -99,6 +104,121 @@ describe("Customer photo HTTP and Store QR permission boundaries", () => {
   });
   afterAll(async () => {
     await app.close();
+  });
+  it("avatar routes enforce identity, kind, ownership and consent before making a temporary Try-On input", async () => {
+    const photoId = randomUUID(),
+      sessionId = randomUUID();
+    photos.get.mockResolvedValue({ photo: { id: photoId, expiresAt: null } });
+    photos.content.mockResolvedValue(Buffer.from("avatar"));
+    experience.upload.mockResolvedValue({
+      id: randomUUID(),
+      expiresAt: new Date().toISOString(),
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/v1/customer/try-on/sessions/${sessionId}/avatar`,
+    });
+    expect(response.statusCode).toBe(201);
+    expect(photos.get).toHaveBeenCalledWith(customer.id, "FULL_BODY");
+    expect(photos.content).toHaveBeenCalledWith(
+      customer.id,
+      photoId,
+      "FULL_BODY",
+    );
+    expect(experience.upload).toHaveBeenCalledWith(
+      customer,
+      sessionId,
+      "PERSON",
+      Buffer.from("avatar"),
+      "image/jpeg",
+    );
+    const wrongKind = await app.inject({
+      method: "GET",
+      url: `/api/v1/customer/me/avatar/PROFILE/${photoId}/content`,
+    });
+    expect(wrongKind.statusCode).toBe(400);
+    const oldConsent = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/me/avatar/FULL_BODY?consentVersion=2026-10-27-v2&consentLanguage=en",
+    });
+    expect(oldConsent.statusCode).toBe(400);
+    for (const interests of [[], ["OTHER"], ["MEN", "MEN"]]) {
+      expect(
+        (
+          await app.inject({
+            method: "PATCH",
+            url: "/api/v1/customer/me/avatar",
+            payload: { interests },
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    auth.requireCustomer.mockRejectedValue(
+      new ApiErrorException(401, "CUSTOMER_UNAUTHORIZED", "Sign in"),
+    );
+    experience.upload.mockClear();
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: `/api/v1/customer/try-on/sessions/${sessionId}/avatar`,
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(experience.upload).not.toHaveBeenCalled();
+  });
+  it("serves the shared demo catalog and copies only an authenticated choice", async () => {
+    const list = await app.inject({
+      method: "GET",
+      url: "/api/v1/customer/demo-catalog",
+    });
+    expect(list.statusCode).toBe(200);
+    expect(
+      list.json().products.map((item: { id: string }) => item.id),
+    ).toContain("terracotta-blazer");
+    expect(list.json().models.map((item: { id: string }) => item.id)).toContain(
+      "muse",
+    );
+    const sessionId = randomUUID();
+    experience.useDemo.mockResolvedValue({ id: randomUUID() });
+    const chosen = await app.inject({
+      method: "POST",
+      url: `/api/v1/customer/try-on/sessions/${sessionId}/demo/GARMENT`,
+      payload: { id: "terracotta-blazer" },
+    });
+    expect(chosen.statusCode).toBe(201);
+    expect(experience.useDemo).toHaveBeenCalledWith(
+      customer,
+      sessionId,
+      "GARMENT",
+      "terracotta-blazer",
+    );
+    const badPurpose = await app.inject({
+      method: "POST",
+      url: `/api/v1/customer/try-on/sessions/${sessionId}/demo/RESULT`,
+      payload: { id: "terracotta-blazer" },
+    });
+    expect(badPurpose.statusCode).toBe(400);
+    auth.requireCustomer.mockRejectedValue(
+      new ApiErrorException(401, "CUSTOMER_UNAUTHORIZED", "Sign in"),
+    );
+    expect(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/api/v1/customer/demo-catalog",
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: `/api/v1/customer/try-on/sessions/${sessionId}/demo/PERSON`,
+          payload: { id: "muse" },
+        })
+      ).statusCode,
+    ).toBe(401);
   });
   it("profile photo routes authenticate owners, require current consent and stream only private content", async () => {
     photos.get.mockResolvedValue({ photo: null });

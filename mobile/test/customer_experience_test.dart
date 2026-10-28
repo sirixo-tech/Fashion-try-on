@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:selfx_customer/src/auth/customer_api.dart';
 import 'package:selfx_customer/src/auth/customer_controller.dart';
@@ -9,6 +12,8 @@ import 'package:selfx_customer/src/customer_app.dart';
 import 'package:selfx_customer/src/experience/customer_experience.dart';
 import 'package:selfx_customer/src/experience/customer_media.dart';
 import 'package:selfx_customer/src/ui/customer_experience_screens.dart';
+import 'package:selfx_customer/src/ui/customer_demo_catalog.dart';
+import 'package:selfx_customer/src/ui/customer_theme.dart';
 import 'fakes.dart';
 
 final syntheticPhoto = base64Decode(
@@ -74,6 +79,39 @@ void main() {
     int remaining = 10,
   }) {
     if (path == '/experience') return summary(remaining: remaining);
+    if (path == '/demo-catalog') {
+      return {
+        'products': <Map<String, dynamic>>[
+          {
+            'id': 'terracotta-blazer',
+            'name': 'Terracotta Blazer',
+            'category': 'WOMEN',
+            'type': 'TOP',
+          },
+        ],
+        'models': <Map<String, dynamic>>[
+          {'id': 'muse', 'name': 'Maya', 'category': 'WOMEN'},
+        ],
+      };
+    }
+    if (path.endsWith('/demo/PERSON')) {
+      return {
+        'id': 'demo-model-photo',
+        'url': 'https://private.invalid/model',
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 7))
+            .toIso8601String(),
+      };
+    }
+    if (path.endsWith('/demo/GARMENT')) {
+      return {
+        'id': 'demo-garment-photo',
+        'url': 'https://private.invalid/garment',
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 7))
+            .toIso8601String(),
+      };
+    }
     if (path == '/me') return api.profile;
     if (path == '/try-on/sessions') {
       return {'id': 'photo-session', 'payer': 'PERSONAL'};
@@ -177,6 +215,123 @@ void main() {
       expect(request.containsKey('organizationId'), isFalse);
       expect(request.containsKey('payer'), isFalse);
       expect(exp.generating, isTrue);
+    },
+  );
+  test(
+    'demo outfit and model use personal credits and temporary copied assets',
+    () async {
+      await exp.loadDemoCatalog();
+      expect(exp.demoProducts.single['name'], 'Terracotta Blazer');
+      await exp.begin(
+        selectedDemoProduct: exp.demoProducts.single,
+        selectedDemoModelId: 'muse',
+      );
+      expect(exp.demoModelId, 'muse');
+      expect(exp.person?.id, 'demo-model-photo');
+      expect(exp.outfit?.id, 'demo-garment-photo');
+      expect(exp.canGenerate, isTrue);
+      await exp.generate();
+      final request = api.calls
+          .lastWhere((call) => call.path == '/try-on/runs')
+          .body!;
+      expect(request['personAssetId'], 'demo-model-photo');
+      expect(request['garmentAssetId'], 'demo-garment-photo');
+      expect(request.containsKey('productId'), isFalse);
+      expect(
+        api.calls
+            .where((call) => call.path.endsWith('/demo/GARMENT'))
+            .single
+            .body!['id'],
+        'terracotta-blazer',
+      );
+    },
+  );
+  test(
+    'a one-off photo replaces the model without changing the saved avatar',
+    () async {
+      await exp.begin(
+        selectedDemoProduct: {
+          'id': 'terracotta-blazer',
+          'name': 'Terracotta Blazer',
+        },
+        selectedDemoModelId: 'muse',
+      );
+      await exp.upload('PERSON', syntheticPhoto, 'image/png');
+      expect(exp.demoModelId, isNull);
+      expect(exp.person?.id, 'person-photo');
+      expect(exp.demoProduct?['id'], 'terracotta-blazer');
+      await exp.upload('GARMENT', syntheticPhoto, 'image/png');
+      expect(exp.demoProduct, isNull);
+    },
+  );
+  testWidgets(
+    'demo product opens a detail view with avatar and model choices',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final boundary = GlobalKey();
+      Future<void> capture(String name) async {
+        if (!const bool.fromEnvironment('SELFX_RENDER_DEMO')) return;
+        await tester.runAsync(() async {
+          final image =
+              await (boundary.currentContext!.findRenderObject()!
+                      as RenderRepaintBoundary)
+                  .toImage(pixelRatio: 1.5);
+          final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          final file = File('../tmp/customer-mobile-review/$name.png');
+          await file.parent.create(recursive: true);
+          await file.writeAsBytes(data!.buffer.asUint8List());
+        });
+      }
+
+      await exp.loadDemoCatalog();
+      String? chosenModel;
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: boundary,
+          child: MaterialApp(
+            theme: customerTheme(),
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: CustomerDemoCatalog(
+                  experience: exp,
+                  onTryOn: (product, modelId) async {
+                    chosenModel = modelId;
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('demo-explore');
+      expect(find.text('Terracotta Blazer'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'navy');
+      await tester.pumpAndSettle();
+      expect(find.text('Terracotta Blazer'), findsNothing);
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Terracotta Blazer'));
+      await tester.tap(find.text('Terracotta Blazer'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomerDemoProductScreen), findsOneWidget);
+      await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+      await tester.pumpAndSettle();
+      await capture('demo-product');
+      expect(find.text('My Avatar'), findsOneWidget);
+      await tester.tap(find.text('Maya'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Try on this outfit'),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Try on this outfit'));
+      await tester.pumpAndSettle();
+      expect(chosenModel, 'muse');
     },
   );
   test('reuses its request ID after an uncertain network failure', () async {

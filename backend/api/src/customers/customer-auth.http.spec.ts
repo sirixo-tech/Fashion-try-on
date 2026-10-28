@@ -83,6 +83,18 @@ describe("Customer HTTP validation and auth boundary", () => {
   afterAll(async () => {
     await app?.close();
   });
+  it("does not accept client-supplied Google email authority", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/customer/auth/oauth",
+      payload: {
+        provider: "GOOGLE",
+        idToken: "x".repeat(30),
+        emailAuthoritative: true,
+      },
+    });
+    expect(response.statusCode).toBe(400);
+  });
   it("accepts canonical mobile/password login while rejecting ambiguous or invalid contact payloads", async () => {
     auth.login.mockResolvedValue({ accessToken: "fixture" });
     for (const email of ["customer@example.test", "+919876543210"]) {

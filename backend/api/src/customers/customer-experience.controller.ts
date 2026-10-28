@@ -32,6 +32,7 @@ import { STORE_PERMISSION_CODES } from "../rbac/store-permissions.js";
 import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 import { CustomerAuthService } from "./customer-auth.service.js";
 import { CustomerExperienceService } from "./customer-experience.service.js";
+import { demoCatalog } from "./customer-demo-catalog.js";
 import { CUSTOMER_LANGUAGES } from "./customer-languages.js";
 
 export class CustomerPhotoSessionDto {
@@ -53,6 +54,9 @@ export class CustomerPageDto {
 export class CustomerStoreJoinDto {
   @IsString() @MaxLength(256) payload!: string;
 }
+export class CustomerDemoChoiceDto {
+  @IsString() @MaxLength(64) id!: string;
+}
 export class CustomerStoreQrDto {
   @IsString() @MaxLength(100) @Matches(/\S/) label!: string;
   @IsInt() @Min(1) @Max(100) dailyCustomerLimit!: number;
@@ -71,6 +75,32 @@ export class CustomerExperienceController {
       request.headers.authorization,
     );
     return this.experience.summary(customer);
+  }
+  @Get("demo-catalog")
+  @Header("Cache-Control", "no-store")
+  async demo(@Req() request: FastifyRequest) {
+    await this.auth.requireCustomer(request.headers.authorization);
+    return demoCatalog();
+  }
+  @Post("try-on/sessions/:id/demo/:purpose")
+  @Header("Cache-Control", "no-store")
+  async useDemo(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+    @Param("purpose") purpose: string,
+    @Body() input: CustomerDemoChoiceDto,
+  ) {
+    const { customer } = await this.auth.requireCustomer(
+      request.headers.authorization,
+    );
+    await this.auth.limitExperience("upload", customer.id, request.ip);
+    if (purpose !== "PERSON" && purpose !== "GARMENT")
+      throw new ApiErrorException(
+        400,
+        "DEMO_ITEM_INVALID",
+        "Choose a demo model or outfit.",
+      );
+    return this.experience.useDemo(customer, id, purpose, input.id);
   }
   @Post("try-on/sessions")
   @Header("Cache-Control", "no-store")

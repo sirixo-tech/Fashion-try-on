@@ -7,6 +7,8 @@ export type CustomerProviderIdentity = {
   subject: string;
   email: string | null;
   name: string | null;
+  /** Derived only from a verified Google token, never from request input. */
+  emailAuthoritative?: boolean;
 };
 @Injectable()
 export class CustomerIdentityClient {
@@ -29,7 +31,7 @@ export class CustomerIdentityClient {
         payload.sub.length > 320 ||
         !payload.email ||
         payload.email.length > 320 ||
-        !payload.email_verified ||
+        payload.email_verified !== true ||
         !["accounts.google.com", "https://accounts.google.com"].includes(
           payload.iss,
         )
@@ -39,6 +41,11 @@ export class CustomerIdentityClient {
         subject: payload.sub,
         email: payload.email.trim().toLowerCase(),
         name: payload.name?.slice(0, 160) ?? null,
+        // Google is authoritative for Gmail and verified Workspace accounts.
+        // email_verified alone does not establish current third-party ownership.
+        emailAuthoritative:
+          payload.email.trim().toLowerCase().endsWith("@gmail.com") ||
+          (typeof payload.hd === "string" && payload.hd.trim().length > 0),
       };
     }
     if (!config.appleClientIds.length || !nonce)

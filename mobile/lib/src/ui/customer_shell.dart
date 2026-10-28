@@ -4,6 +4,8 @@ import '../services/customer_push.dart';
 import 'customer_service_screens.dart';
 import 'customer_about_screen.dart';
 import 'customer_profile_screen.dart';
+import 'customer_avatar_screen.dart';
+import 'customer_demo_catalog.dart';
 import 'customer_language_menu.dart';
 import '../services/customer_profile_photo.dart';
 import 'package:flutter/material.dart';
@@ -51,6 +53,7 @@ class _CustomerShellState extends State<CustomerShell>
     unawaited(restorePhoneAlerts());
     picker = widget.picker ?? NativeCustomerPhotoPicker();
     unawaited(experience.refresh());
+    unawaited(experience.loadDemoCatalog());
     unawaited(picker.discardLost());
     WidgetsBinding.instance.addObserver(this);
   }
@@ -145,8 +148,19 @@ class _CustomerShellState extends State<CustomerShell>
       if (mounted) setState(() => tab = 0);
     }
   });
-  Future<void> studio({Json? product}) => run(
-    () => openCustomerStudio(context, experience, picker, product: product),
+  Future<void> studio({
+    Json? product,
+    Json? demoProduct,
+    String? demoModelId,
+  }) => run(
+    () => openCustomerStudio(
+      context,
+      experience,
+      picker,
+      product: product,
+      demoProduct: demoProduct,
+      demoModelId: demoModelId,
+    ),
   );
   Future<void> erasePhotos() => run(() async {
     final yes = await showDialog<bool>(
@@ -499,6 +513,12 @@ class _CustomerShellState extends State<CustomerShell>
             ),
           ),
           const SizedBox(height: 22),
+          CustomerDemoCatalog(
+            experience: experience,
+            onTryOn: (product, modelId) =>
+                studio(demoProduct: product, demoModelId: modelId),
+          ),
+          const SizedBox(height: 24),
           const CustomerText(
             'YOUR OWN STARTING POINT',
             style: TextStyle(
@@ -595,6 +615,17 @@ class _CustomerShellState extends State<CustomerShell>
       ),
       const SizedBox(height: 18),
       settingsGroup([
+        settingsTile(
+          Icons.accessibility_new_rounded,
+          'My avatar',
+          () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  CustomerAvatarScreen(controller: auth, picker: picker),
+            ),
+          ),
+        ),
         settingsTile(Icons.workspace_premium_outlined, 'Subscriptions', plans),
       ]),
       const SizedBox(height: 18),

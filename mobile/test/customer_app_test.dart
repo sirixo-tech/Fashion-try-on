@@ -510,7 +510,12 @@ void main() {
             const AssetImage('assets/branding/google-g.png'),
             boundary.currentContext!,
           ),
-          for (final asset in ['style-muse', 'style-tailored', 'style-atelier'])
+          for (final asset in [
+            'style-muse',
+            'style-tailored',
+            'style-atelier',
+            'welcome-tryon-v3',
+          ])
             precacheImage(
               AssetImage('assets/editorial/$asset.webp'),
               boundary.currentContext!,

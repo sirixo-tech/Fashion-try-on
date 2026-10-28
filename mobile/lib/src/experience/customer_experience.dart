@@ -45,6 +45,10 @@ class CustomerExperience extends ChangeNotifier {
   CustomerPhoto? person, outfit;
   Uint8List? personPreview, outfitPreview;
   Json? product;
+  Json? demoProduct;
+  List<Json> demoProducts = [], demoModels = [];
+  bool demoLoading = false;
+  String? demoError, demoModelId;
   List<CustomerLook> looks = [];
   List<Json> products = [];
   bool loading = true,
@@ -54,6 +58,8 @@ class CustomerExperience extends ChangeNotifier {
   bool hasMoreLooks = false, hasMoreProducts = false;
   int savedPage = 0, productPage = 0;
   String? error, pollError, productsError;
+  String? avatarError;
+  bool usingAvatar = false;
   String? _requestId;
   String? _owner;
   int _epoch = 0;
@@ -95,6 +101,13 @@ class CustomerExperience extends ChangeNotifier {
       personPreview = outfitPreview = null;
       looks = [];
       products = [];
+      demoProducts = demoModels = [];
+      demoProduct = null;
+      demoModelId = null;
+      demoLoading = false;
+      demoError = null;
+      usingAvatar = false;
+      avatarError = null;
       _requestId = null;
       _notify();
     }
@@ -134,7 +147,32 @@ class CustomerExperience extends ChangeNotifier {
     }
   }
 
-  Future<void> begin({Json? storeProduct}) async {
+  Future<void> loadDemoCatalog() async {
+    if (demoLoading || storeMode) return;
+    final epoch = _epoch;
+    demoLoading = true;
+    demoError = null;
+    _notify();
+    try {
+      final data = await auth.authorized('/demo-catalog');
+      if (!_valid(epoch)) return;
+      demoProducts = (data['products'] as List).cast<Json>();
+      demoModels = (data['models'] as List).cast<Json>();
+    } catch (e) {
+      if (_valid(epoch)) demoError = message(e);
+    } finally {
+      if (_valid(epoch)) {
+        demoLoading = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> begin({
+    Json? storeProduct,
+    Json? selectedDemoProduct,
+    String? selectedDemoModelId,
+  }) async {
     if (generating || hasUncertainRequest) {
       throw const CustomerApiException(
         'TRYON_PENDING',
@@ -159,12 +197,121 @@ class CustomerExperience extends ChangeNotifier {
     _poll?.cancel();
     session = data;
     product = storeProduct;
+    demoProduct = selectedDemoProduct;
+    demoModelId = null;
     run = null;
     person = outfit = null;
     personPreview = outfitPreview = null;
     _requestId = null;
     pollError = null;
+    avatarError = null;
+    usingAvatar = false;
+    if (selectedDemoModelId != null) {
+      final saved = await auth.authorized(
+        '/try-on/sessions/${data['id']}/demo/PERSON',
+        method: 'POST',
+        body: {'id': selectedDemoModelId},
+      );
+      if (!_valid(epoch) || session?['id'] != data['id']) return;
+      person = CustomerPhoto.fromJson(saved);
+      demoModelId = selectedDemoModelId;
+    } else if (auth.profile?.avatarSupported == true) {
+      try {
+        final saved = await auth.authorized(
+          '/try-on/sessions/${data['id']}/avatar',
+          method: 'POST',
+        );
+        if (!_valid(epoch) || session?['id'] != data['id']) return;
+        if (saved['id'] is String) {
+          person = CustomerPhoto.fromJson(saved);
+          usingAvatar = true;
+        }
+      } catch (_) {
+        if (_valid(epoch)) {
+          avatarError =
+              'Couldn’t load your avatar. Choose a photo for this Try-On.';
+        }
+      }
+    }
+    if (selectedDemoProduct != null) {
+      final saved = await auth.authorized(
+        '/try-on/sessions/${data['id']}/demo/GARMENT',
+        method: 'POST',
+        body: {'id': selectedDemoProduct['id']},
+      );
+      if (!_valid(epoch) || session?['id'] != data['id']) return;
+      outfit = CustomerPhoto.fromJson(saved);
+    }
     _notify();
+  }
+
+  Future<void> chooseDemoModel(String id) async {
+    if (session == null ||
+        busy ||
+        generating ||
+        hasUncertainRequest ||
+        storeMode) {
+      return;
+    }
+    final epoch = _epoch, sessionId = session!['id'];
+    busy = true;
+    _notify();
+    try {
+      final saved = await auth.authorized(
+        '/try-on/sessions/$sessionId/demo/PERSON',
+        method: 'POST',
+        body: {'id': id},
+      );
+      if (!_valid(epoch) || session?['id'] != sessionId) return;
+      person = CustomerPhoto.fromJson(saved);
+      personPreview = null;
+      usingAvatar = false;
+      demoModelId = id;
+      avatarError = null;
+      _requestId = null;
+    } finally {
+      if (_valid(epoch)) {
+        busy = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> chooseAvatar() async {
+    if (session == null ||
+        busy ||
+        generating ||
+        hasUncertainRequest ||
+        storeMode) {
+      return;
+    }
+    final epoch = _epoch, sessionId = session!['id'];
+    busy = true;
+    _notify();
+    try {
+      final saved = await auth.authorized(
+        '/try-on/sessions/$sessionId/avatar',
+        method: 'POST',
+      );
+      if (!_valid(epoch) || session?['id'] != sessionId) return;
+      if (saved['id'] is! String) {
+        throw const CustomerApiException(
+          'AVATAR_MISSING',
+          'Add a full-body photo in My avatar first.',
+        );
+      }
+      person = CustomerPhoto.fromJson(saved);
+      personPreview = null;
+      usingAvatar = true;
+      demoModelId = null;
+      avatarError = null;
+      _requestId = null;
+    } finally {
+      if (_valid(epoch)) {
+        busy = false;
+        _notify();
+      }
+    }
   }
 
   Future<void> upload(String purpose, Uint8List bytes, String mime) async {
@@ -182,9 +329,13 @@ class CustomerExperience extends ChangeNotifier {
       if (purpose == 'PERSON') {
         person = CustomerPhoto.fromJson(data);
         personPreview = bytes;
+        usingAvatar = false;
+        demoModelId = null;
+        avatarError = null;
       } else {
         outfit = CustomerPhoto.fromJson(data);
         outfitPreview = bytes;
+        demoProduct = null;
       }
       _requestId = null;
     } finally {
@@ -321,6 +472,8 @@ class CustomerExperience extends ChangeNotifier {
     savedLoading = productsLoading = busy = false;
     _poll?.cancel();
     run = session = product = storeVisit = null;
+    demoProduct = null;
+    demoModelId = null;
     person = outfit = null;
     personPreview = outfitPreview = null;
     looks = [];
@@ -347,6 +500,9 @@ class CustomerExperience extends ChangeNotifier {
     ++_epoch;
     savedLoading = productsLoading = busy = false;
     storeVisit = data;
+    demoProduct = null;
+    demoModelId = null;
+    demoLoading = false;
     session = run = product = null;
     _requestId = null;
     person = outfit = null;
@@ -400,11 +556,15 @@ class CustomerExperience extends ChangeNotifier {
     ++_epoch;
     savedLoading = productsLoading = busy = false;
     storeVisit = session = run = product = null;
+    demoProduct = null;
+    demoModelId = null;
+    demoLoading = false;
     _requestId = null;
     person = outfit = null;
     personPreview = outfitPreview = null;
     products = [];
     _notify();
+    if (demoProducts.isEmpty) await loadDemoCatalog();
   }
 
   @override

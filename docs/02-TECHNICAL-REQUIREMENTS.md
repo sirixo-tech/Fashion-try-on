@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
+
+Serve a fixed allowlisted demo catalog through the authenticated SelfX API. Resolve selected garment/model image bytes server-side, then use the existing consented session upload path with seven-day retention and central generation/credit admission. Reject unknown IDs and Store-session demo use. No merchant catalog or database structure is added. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
+
+Reuse private account-photo storage with explicit PROFILE/SELFIE/FULL_BODY kinds and versioned consent. Preserve framing and ownership/security-version checks. Copy saved full-body references through the consented session upload service into temporary seven-day inputs. Persistent avatars use a separate prefix. Provider, quota and tenant boundaries remain central. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+
+### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
+
+Derive Google email authority from server-verified Gmail/Workspace claims and require matching verified SelfX identity proof. Serialize provider/email/account linking and preserve existing identities, entitlements and status checks. Bundle the new welcome bitmap offline. See `CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md`.
+
 ### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
 
 Extend customer password lookup to canonical numbers, preserving verified ownership precedence and rejecting ambiguous unverified contact aliases. Add authenticated recent-session Google linking, native Android OAuth client fallback, atomic ten-second SMS admission and sanitized stage/error diagnostics. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.

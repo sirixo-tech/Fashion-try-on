@@ -1,5 +1,21 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
+
+Implement the explicitly approved demo garments/models and reference-inspired mobile Explore/detail flow over the central SelfX Try-On backend. Verify packaged images, auth/Store separation, personal credits, temporary input retention, avatar/model selection and one-off replacement. Coordinate API assets and app release; real-provider staging acceptance remains. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
+
+The user authorizes category/avatar setup and persistent saved-photo retention. Validate migration, owner/kind isolation, framing, replacement/deletion, default-photo copying, one-off replacement, setup persistence, localization and rendered screens. Production migration/deployment, lifecycle verification and APK rebuilding remain rollout steps. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+
+### CUSTOMER-MOBILE-13 — Try-On image direction (2026-10-28)
+
+Integrate the approved Try-On-relevant welcome image, preserve the existing entry flow, inspect the rendered result and run focused entry/accessibility regressions. Source 0.11.1+13; APK packaging remains separate. See `CUSTOMER-MOBILE-13-TRYON-COVER.md`.
+
+### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
+
+Verify trusted versus ambiguous Google ownership, inactive/conflicting accounts, concurrency and preserved passwords/credits alongside the new rendered welcome cover. Run focused auth/entry regressions, analysis, types and lint. Source 0.11.0+12; APK packaging and production API deployment remain separate. See `CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md`.
+
 ### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
 
 Implement and verify both password identifiers, number-first/email-verified signup, inline policy links, direct/native Google access, secure existing-account linking, concurrent ten-second admission and safe Firebase failure diagnostics. Cover account isolation, collisions, status/recent-auth checks, existing flows and all 20 layouts. Source 0.10.0+11; production setup, delivery acceptance and APK packaging remain rollout steps. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.

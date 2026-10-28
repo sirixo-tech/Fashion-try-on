@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
+
+Every signed-in mobile customer can browse sample clothing products and choose a sample model or their saved full-body photo for a personal Try-On. Demo items are clearly identified as samples and use ordinary personal credits. Store products and Store-sponsored sessions remain separate. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
+
+After authentication, choose Men/Women/Jewellery interests, then save a private selfie and full-body photo using the supplied PoC. The user explicitly approves persistent saved avatar originals until replacement/removal/account deletion. Ordinary Try-On inputs retain seven-day expiry; default to a temporary copy of the saved full-body photo, with a one-off Change photo. Manage references in Me → My avatar. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+
+### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
+
+Automatically link an authoritative, verified Google email to the same existing verified ACTIVE customer, preserving account identity, password, credits and history. Ambiguous matches require additional verification. Replace only the welcome cover with a premium two-model editorial image. See `CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md`.
+
 ### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
 
 Allow email/mobile password entry and number-first signup with an email for required email verification; SMS verification stays optional. Use inline linked Terms/Privacy without a checkbox, direct Google continuation and controlled linking to the same existing account. Ten-second phone retries retain broader abuse limits. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.

@@ -1,5 +1,21 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-15 — Demo Explore and detail (2026-10-28)
+
+Home has a SelfX Demo outfit grid with search and All/Women/Men filters. Each card opens a sample product detail view with a large garment preview and My Avatar / demo model selection. The fitting room displays the selected person and garment, with one-off replacement actions. Demo products have no price or purchase control. Store QR mode retains the Store catalog. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
+
+Follow the supplied PoC with photographic interest cards, selection ticks, a two-step indicator, side-by-side selfie/full-body cards, explicit examples, guidance and Continue/Skip. Camera/gallery opens after the saved-photo consent notice. Support small screens, accessibility text, 20 languages and RTL. Add Me → My avatar and per-Try-On Change photo. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+
+### CUSTOMER-MOBILE-13 — Try-On image direction (2026-10-28)
+
+Image backdrops may vary with the scene and purpose. Replace the welcome image's cream studio with a teal/blue boutique and garment-to-outfit preview imagery, preserving readable native controls. Screen backgrounds are unchanged. See `CUSTOMER-MOBILE-13-TRYON-COVER.md`.
+
+### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
+
+Use a two-model fashion editorial welcome image with readable existing logo, headline, language and Get started overlays. Eligible Google matches continue directly to the existing account without a separate linking screen. Other entry/authentication layouts remain. See `CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md`.
+
 ### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
 
 Replace email-only credential entry and the secondary optional phone field with one country-aware email/mobile field and conditional verification email. Align linked policy text without a checkbox; keep manual keyboard/small-screen scrolling. Add direct Google continuation, Profile linking and ten-second SMS retry/diagnostic states across the 20-language UI. See `CUSTOMER-MOBILE-11-AUTH-METHODS.md`.

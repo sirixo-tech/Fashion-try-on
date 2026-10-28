@@ -18,6 +18,7 @@ import {
 import { EntitlementsService } from "../entitlements/entitlements.service.js";
 import { lockBillingSubscription } from "../entitlements/postpaid-billing.js";
 import { CatalogService } from "../catalog/catalog.service.js";
+import { demoImage } from "./customer-demo-catalog.js";
 import {
   ObjectStorageService,
   loadObjectStorageConfig,
@@ -390,6 +391,22 @@ export class CustomerExperienceService
         503,
       );
     }
+  }
+  async useDemo(
+    customer: Principal,
+    sessionId: string,
+    purpose: "PERSON" | "GARMENT",
+    demoId: string,
+  ) {
+    const session = await this.ownSession(customer.id, sessionId);
+    if (session.customerStoreVisitId)
+      fail(
+        "STORE_PRODUCT_REQUIRED",
+        "Choose an eligible product from this Store.",
+      );
+    const body = await demoImage(purpose, demoId);
+    // Use the same consented, owned, seven-day input path as ordinary photos.
+    return this.upload(customer, sessionId, purpose, body, "image/webp");
   }
   private assetDto(asset: TryOnAsset | null) {
     if (
