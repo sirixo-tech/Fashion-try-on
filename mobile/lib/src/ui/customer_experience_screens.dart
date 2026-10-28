@@ -725,11 +725,13 @@ class CustomerAssetImage extends StatefulWidget {
   final CustomerExperience experience;
   final CustomerPhoto photo;
   final BoxFit fit;
+  final Color backgroundColor;
   const CustomerAssetImage({
     super.key,
     required this.experience,
     required this.photo,
     this.fit = BoxFit.cover,
+    this.backgroundColor = const Color(0xFFF0E7DA),
   });
   @override
   State<CustomerAssetImage> createState() => _CustomerAssetImageState();
@@ -775,7 +777,7 @@ class _CustomerAssetImageState extends State<CustomerAssetImage> {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: const Color(0xFFF0E7DA),
+    color: widget.backgroundColor,
     child: failed
         ? Center(
             child: TextButton.icon(

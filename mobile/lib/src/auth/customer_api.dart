@@ -248,17 +248,7 @@ class HttpCustomerApi implements CustomerApi, CustomerMediaApi {
       final response = await http.Response.fromStream(
         await client.send(request).timeout(const Duration(seconds: 20)),
       ).timeout(const Duration(seconds: 20));
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final error = data['error'] is Map ? data['error'] as Map : null;
-        throw CustomerApiException(
-          error?['code'] as String? ?? 'REQUEST_FAILED',
-          error?['message'] as String? ??
-              'We couldn’t complete that. Please try again.',
-          response.statusCode,
-        );
-      }
-      return data;
+      return decode(response);
     } on CustomerApiException {
       rethrow;
     } catch (_) {

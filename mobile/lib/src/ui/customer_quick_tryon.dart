@@ -17,11 +17,13 @@ class CustomerQuickTryOn extends StatefulWidget {
   final CustomerExperience experience;
   final CustomerPhotoPicker picker;
   final VoidCallback onChooseProduct;
+  final VoidCallback onViewSaved;
   const CustomerQuickTryOn({
     super.key,
     required this.experience,
     required this.picker,
     required this.onChooseProduct,
+    required this.onViewSaved,
   });
 
   @override
@@ -214,59 +216,141 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
           final models = exp.demoModels;
           final products = exp.demoProducts;
           return Padding(
-            padding: EdgeInsets.fromLTRB(16, tight ? 6 : 10, 16, 10),
+            padding: completed
+                ? EdgeInsets.zero
+                : EdgeInsets.fromLTRB(16, tight ? 6 : 10, 16, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                CustomerText(
-                  'Try-On',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                SizedBox(height: tight ? 8 : 12),
+                if (!completed) ...[
+                  CustomerText(
+                    'Try-On',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  SizedBox(height: tight ? 8 : 12),
+                ],
                 Expanded(
                   child: exp.generating
                       ? CustomerGeneratingLook(experience: exp)
                       : completed && result is Json
-                      ? Column(
+                      ? Stack(
                           children: [
-                            Expanded(
-                              child: _PreviewCard(
-                                label: 'Your look',
-                                experience: exp,
-                                photo: CustomerPhoto.fromJson(result),
-                                bytes: null,
-                                icon: Icons.auto_awesome_rounded,
-                                fit: BoxFit.contain,
+                            Positioned.fill(
+                              child: ColoredBox(
+                                color: const Color(0xFF202329),
+                                child: CustomerAssetImage(
+                                  experience: exp,
+                                  photo: CustomerPhoto.fromJson(result),
+                                  fit: BoxFit.contain,
+                                  backgroundColor: const Color(0xFF202329),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(
-                              onPressed: blocked
-                                  ? null
-                                  : () => run(() async {
-                                      await downloadCustomerResult(
-                                        exp,
-                                        CustomerPhoto.fromJson(result),
-                                      );
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: CustomerText(
-                                              'Look downloaded.',
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    }),
-                              icon: const Icon(Icons.download_rounded),
-                              label: const CustomerText('Download look'),
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: DecoratedBox(
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      stops: [0, .35, .65, 1],
+                                      colors: [
+                                        Color(0x66000000),
+                                        Colors.transparent,
+                                        Color(0x44000000),
+                                        Color(0xE6000000),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                            CustomerResultSuggestions(
-                              experience: exp,
-                              onSelect: trySuggested,
-                              disabled: blocked,
+                            const Positioned(
+                              top: 14,
+                              left: 16,
+                              child: CustomerText(
+                                'Your look',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: 12,
+                              right: 12,
+                              bottom: 12,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CustomerResultSuggestions(
+                                    experience: exp,
+                                    onSelect: trySuggested,
+                                    disabled: blocked,
+                                    compact: true,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.tonalIcon(
+                                          onPressed: blocked
+                                              ? null
+                                              : () => run(() async {
+                                                  await downloadCustomerResult(
+                                                    exp,
+                                                    CustomerPhoto.fromJson(
+                                                      result,
+                                                    ),
+                                                  );
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      const SnackBar(
+                                                        content: CustomerText(
+                                                          'Look downloaded.',
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+                                                }),
+                                          icon: const Icon(
+                                            Icons.download_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const CustomerText('Download'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: FilledButton.tonalIcon(
+                                          onPressed: widget.onViewSaved,
+                                          icon: const Icon(
+                                            Icons.bookmark_outline_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const CustomerText(
+                                            'View in Saved',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.icon(
+                                      onPressed: blocked ? null : primaryAction,
+                                      icon: const Icon(
+                                        Icons.auto_awesome_rounded,
+                                      ),
+                                      label: const CustomerText('New Try-On'),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         )
@@ -406,28 +490,30 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                     style: const TextStyle(color: Color(0xFF9A3025)),
                   ),
                 ],
-                SizedBox(height: tight ? 8 : 14),
-                FilledButton.icon(
-                  onPressed:
-                      working ||
-                          exp.busy ||
-                          exp.generating ||
-                          (!completed &&
-                              !failed &&
-                              exp.session != null &&
-                              !exp.canGenerate &&
-                              !exp.hasUncertainRequest)
-                      ? null
-                      : primaryAction,
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: CustomerText(
-                    completed || failed
-                        ? 'New Try-On'
-                        : exp.hasUncertainRequest
-                        ? 'Check my request'
-                        : 'Try it on',
+                if (!completed) ...[
+                  SizedBox(height: tight ? 8 : 14),
+                  FilledButton.icon(
+                    onPressed:
+                        working ||
+                            exp.busy ||
+                            exp.generating ||
+                            (!completed &&
+                                !failed &&
+                                exp.session != null &&
+                                !exp.canGenerate &&
+                                !exp.hasUncertainRequest)
+                        ? null
+                        : primaryAction,
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: CustomerText(
+                      completed || failed
+                          ? 'New Try-On'
+                          : exp.hasUncertainRequest
+                          ? 'Check my request'
+                          : 'Try it on',
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           );
@@ -448,7 +534,6 @@ class _PreviewCard extends StatelessWidget {
   final String? assetPath;
   final VoidCallback? onUpload, onCamera;
   final VoidCallback? onRemove;
-  final BoxFit fit;
   const _PreviewCard({
     required this.label,
     required this.experience,
@@ -461,7 +546,6 @@ class _PreviewCard extends StatelessWidget {
     this.onUpload,
     this.onCamera,
     this.onRemove,
-    this.fit = BoxFit.cover,
   });
 
   @override
@@ -489,19 +573,19 @@ class _PreviewCard extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 bytes != null
-                    ? Image.memory(bytes!, fit: fit)
+                    ? Image.memory(bytes!, fit: BoxFit.cover)
                     : assetPath != null
-                    ? Image.asset(assetPath!, fit: fit)
+                    ? Image.asset(assetPath!, fit: BoxFit.cover)
                     : photo != null
                     ? CustomerAssetImage(
                         experience: experience,
                         photo: photo!,
-                        fit: fit,
+                        fit: BoxFit.cover,
                       )
                     : imageUrl != null
                     ? Image.network(
                         imageUrl!,
-                        fit: fit,
+                        fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Center(
                           child: Icon(icon, color: CustomerColors.muted),
                         ),

@@ -49,6 +49,22 @@ void main() {
     },
   );
 
+  test('preserves HTTP status when the API returns a non-JSON error', () async {
+    final client = MockClient(
+      (request) async => http.Response('Not Found', 404),
+    );
+    addTearDown(client.close);
+    final api = HttpCustomerApi('https://selfx.invalid', client: client);
+    await expectLater(
+      api.request('/saved-garments', method: 'POST'),
+      throwsA(
+        isA<CustomerApiException>()
+            .having((error) => error.code, 'code', 'REQUEST_FAILED')
+            .having((error) => error.status, 'status', 404),
+      ),
+    );
+  });
+
   test(
     'prefers an explicit override without reading the bundled asset',
     () async {

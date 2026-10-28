@@ -195,12 +195,43 @@ class CustomerExperience extends ChangeNotifier {
   Future<void> toggleSavedGarment(String source, String id) async {
     final epoch = _epoch;
     final alreadySaved = isGarmentSaved(source, id);
-    await auth.authorized(
-      alreadySaved ? '/saved-garments/$source/$id' : '/saved-garments',
-      method: alreadySaved ? 'DELETE' : 'POST',
-      body: alreadySaved ? null : {'source': source, 'id': id},
-    );
-    if (_valid(epoch)) await loadSavedGarments();
+    try {
+      await auth.authorized(
+        alreadySaved ? '/saved-garments/$source/$id' : '/saved-garments',
+        method: alreadySaved ? 'DELETE' : 'POST',
+        body: alreadySaved ? null : {'source': source, 'id': id},
+      );
+    } on CustomerApiException catch (error) {
+      if (error.code == 'REQUEST_FAILED' && error.status == 404) {
+        throw const CustomerApiException(
+          'SAVED_GARMENTS_UNAVAILABLE',
+          'Garment saving is not available yet. Please try again after the app service is updated.',
+          404,
+        );
+      }
+      if (error.status >= 500) {
+        throw CustomerApiException(
+          'SAVED_GARMENTS_SERVER_ERROR',
+          'Garment saving is temporarily unavailable. Please try again later.',
+          error.status,
+        );
+      }
+      rethrow;
+    }
+    if (!_valid(epoch)) return;
+    if (alreadySaved) {
+      savedGarments.removeWhere(
+        (item) => item['source'] == source && item['id'] == id,
+      );
+    } else {
+      final catalog = source == 'DEMO' ? demoProducts : products;
+      savedGarments.insert(0, {
+        'source': source,
+        'id': id,
+        'product': catalog.where((item) => item['id'] == id).firstOrNull,
+      });
+    }
+    _notify();
   }
 
   Future<void> begin({

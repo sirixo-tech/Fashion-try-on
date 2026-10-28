@@ -11,9 +11,9 @@ import 'package:selfx_customer/src/auth/customer_controller.dart';
 import 'package:selfx_customer/src/customer_app.dart';
 import 'package:selfx_customer/src/experience/customer_experience.dart';
 import 'package:selfx_customer/src/experience/customer_media.dart';
-import 'package:selfx_customer/src/ui/customer_experience_screens.dart';
 import 'package:selfx_customer/src/ui/customer_demo_catalog.dart';
 import 'package:selfx_customer/src/ui/customer_generating_look.dart';
+import 'package:selfx_customer/src/ui/customer_quick_tryon.dart';
 import 'package:selfx_customer/src/ui/customer_result_suggestions.dart';
 import 'package:selfx_customer/src/ui/customer_theme.dart';
 import 'fakes.dart';
@@ -199,6 +199,41 @@ void main() {
       ]);
     },
   );
+  test('explains when the saved-garments API route is unavailable', () async {
+    api.handler = (path, method, body) async {
+      if (path == '/saved-garments' && method == 'POST') {
+        throw const CustomerApiException('REQUEST_FAILED', 'Not Found', 404);
+      }
+      return response(path, method, body);
+    };
+    await expectLater(
+      exp.toggleSavedGarment('DEMO', 'terracotta-blazer'),
+      throwsA(
+        isA<CustomerApiException>().having(
+          (error) => error.code,
+          'code',
+          'SAVED_GARMENTS_UNAVAILABLE',
+        ),
+      ),
+    );
+  });
+
+  test(
+    'updates the wishlist after a successful save without a second request',
+    () async {
+      exp.demoProducts = [
+        {'id': 'terracotta-blazer', 'name': 'Terracotta Blazer'},
+      ];
+      await exp.toggleSavedGarment('DEMO', 'terracotta-blazer');
+      expect(exp.isGarmentSaved('DEMO', 'terracotta-blazer'), isTrue);
+      expect(
+        api.calls.where((call) => call.path == '/saved-garments').length,
+        1,
+      );
+      await exp.toggleSavedGarment('DEMO', 'terracotta-blazer');
+      expect(exp.isGarmentSaved('DEMO', 'terracotta-blazer'), isFalse);
+    },
+  );
 
   testWidgets('generating look shows selected inputs without fake progress', (
     tester,
@@ -214,6 +249,60 @@ void main() {
     );
     expect(find.text('Your look is queued'), findsOneWidget);
     expect(find.textContaining('%'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('completed look keeps result actions in a compact viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 620);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    exp.run = {
+      'id': 'run-one',
+      'status': 'COMPLETED',
+      'result': {
+        'id': 'result-one',
+        'url': 'https://private.invalid/result',
+        'expiresAt': DateTime.now()
+            .add(const Duration(days: 7))
+            .toIso8601String(),
+      },
+    };
+    exp.demoProducts = [
+      {
+        'id': 'terracotta-blazer',
+        'name': 'Terracotta Blazer',
+        'category': 'WOMEN',
+        'type': 'TOP',
+      },
+      {
+        'id': 'burgundy-dress',
+        'name': 'Burgundy Midi Dress',
+        'category': 'WOMEN',
+        'type': 'ONE_PIECE',
+      },
+    ];
+    exp.demoProduct = exp.demoProducts.first;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: Scaffold(
+          body: CustomerQuickTryOn(
+            experience: exp,
+            picker: PhotoPicker(),
+            onChooseProduct: () {},
+            onViewSaved: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Your look'), findsOneWidget);
+    expect(find.text('Download'), findsOneWidget);
+    expect(find.text('View in Saved'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

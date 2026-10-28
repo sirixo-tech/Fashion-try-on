@@ -335,6 +335,10 @@ class _CustomerShellState extends State<CustomerShell>
                   CustomerQuickTryOn(
                     experience: experience,
                     picker: picker,
+                    onViewSaved: () {
+                      setState(() => tab = 2);
+                      unawaited(run(experience.loadSaved));
+                    },
                     onChooseProduct: () => setState(() {
                       selectingStoreProduct = true;
                       tab = 0;

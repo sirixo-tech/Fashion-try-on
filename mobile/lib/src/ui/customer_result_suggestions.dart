@@ -54,11 +54,13 @@ class CustomerResultSuggestions extends StatelessWidget {
   final CustomerExperience experience;
   final Future<void> Function(Json item) onSelect;
   final bool disabled;
+  final bool compact;
   const CustomerResultSuggestions({
     super.key,
     required this.experience,
     required this.onSelect,
     this.disabled = false,
+    this.compact = false,
   });
 
   @override
@@ -66,16 +68,21 @@ class CustomerResultSuggestions extends StatelessWidget {
     final suggestions = suggestedResultGarments(experience);
     if (suggestions.isEmpty) return const SizedBox.shrink();
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 14),
-        const CustomerText(
+        SizedBox(height: compact ? 0 : 14),
+        CustomerText(
           'Try another look',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: compact ? 13 : 16,
+            fontWeight: FontWeight.w700,
+            color: compact ? Colors.white : null,
+          ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: compact ? 6 : 8),
         SizedBox(
-          height: 168,
+          height: compact ? 108 : 168,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: suggestions.length,
@@ -90,7 +97,7 @@ class CustomerResultSuggestions extends StatelessWidget {
                 onTap: disabled ? null : () => onSelect(item),
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
-                  width: 122,
+                  width: compact ? 82 : 122,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -143,23 +150,32 @@ class CustomerResultSuggestions extends StatelessWidget {
                                       )
                                       ? Icons.favorite_rounded
                                       : Icons.favorite_border_rounded,
-                                  size: 18,
+                                  size: compact ? 15 : 18,
                                 ),
+                                style: compact
+                                    ? IconButton.styleFrom(
+                                        minimumSize: const Size(28, 28),
+                                        padding: EdgeInsets.zero,
+                                      )
+                                    : null,
                               ),
                             ),
                           ],
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: EdgeInsets.symmetric(
+                          vertical: compact ? 3 : 6,
+                        ),
                         child: CustomerText(
                           item['name'] as String? ?? 'Outfit',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 11,
+                          style: TextStyle(
+                            fontSize: compact ? 9 : 11,
                             fontWeight: FontWeight.w600,
+                            color: compact ? Colors.white : null,
                           ),
                         ),
                       ),

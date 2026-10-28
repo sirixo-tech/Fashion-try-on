@@ -144,14 +144,20 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                     DecoratedBox(
                       decoration: const BoxDecoration(
                         gradient: RadialGradient(
-                          radius: 1.1,
-                          colors: [Color(0xAAFFFFFF), Color(0x00FFFFFF)],
+                          center: Alignment(-.2, -.2),
+                          radius: 1.5,
+                          stops: [0, .5, 1],
+                          colors: [
+                            Color(0xF5FFF9F1),
+                            Color(0xDBFFF9F1),
+                            Color(0x00FFF9F1),
+                          ],
                         ),
                       ),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
+                          horizontal: 16,
+                          vertical: 16,
                         ),
                         child: CustomerBrand(compact: true),
                       ),
