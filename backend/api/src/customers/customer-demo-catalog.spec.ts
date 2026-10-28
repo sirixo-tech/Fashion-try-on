@@ -12,6 +12,14 @@ import { CustomerExperienceService } from "./customer-experience.service.js";
 
 describe("shared customer demo catalog", () => {
   it("contains only valid packaged garments and full-body model images", async () => {
+    for (const category of ["WOMEN", "MEN"]) {
+      expect(
+        DEMO_PRODUCTS.filter((item) => item.category === category),
+      ).toHaveLength(10);
+      expect(
+        DEMO_MODELS.filter((item) => item.category === category),
+      ).toHaveLength(10);
+    }
     const ids = new Set<string>();
     for (const [kind, entries] of [
       ["GARMENT", DEMO_PRODUCTS],

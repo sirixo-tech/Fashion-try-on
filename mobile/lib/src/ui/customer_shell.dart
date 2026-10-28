@@ -6,6 +6,7 @@ import 'customer_about_screen.dart';
 import 'customer_profile_screen.dart';
 import 'customer_avatar_screen.dart';
 import 'customer_demo_catalog.dart';
+import 'customer_quick_tryon.dart';
 import 'customer_language_menu.dart';
 import '../services/customer_profile_photo.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ class _CustomerShellState extends State<CustomerShell>
   late final CustomerPushRegistration pushRegistration;
   late final CustomerPhotoPicker picker;
   int tab = 0;
-  bool busy = false;
+  bool busy = false, selectingStoreProduct = false;
   CustomerController get auth => widget.controller;
   @override
   void initState() {
@@ -62,7 +63,7 @@ class _CustomerShellState extends State<CustomerShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       experience.resume();
-      if (tab == 2) unawaited(profilePhoto.load());
+      if (tab == 3) unawaited(profilePhoto.load());
     } else {
       experience.pause();
     }
@@ -152,6 +153,7 @@ class _CustomerShellState extends State<CustomerShell>
     Json? product,
     Json? demoProduct,
     String? demoModelId,
+    bool uploadPerson = false,
   }) => run(
     () => openCustomerStudio(
       context,
@@ -160,8 +162,37 @@ class _CustomerShellState extends State<CustomerShell>
       product: product,
       demoProduct: demoProduct,
       demoModelId: demoModelId,
+      uploadPerson: uploadPerson,
     ),
   );
+  Future<void> storeProduct(Json selected) async {
+    if (!selectingStoreProduct) {
+      await studio(product: selected);
+      return;
+    }
+    await run(() async {
+      if (experience.session == null ||
+          experience.run?['status'] == 'COMPLETED' ||
+          experience.run?['status'] == 'FAILED') {
+        if (!await prepareCustomerStudio(
+          context,
+          experience,
+          product: selected,
+        )) {
+          return;
+        }
+      } else {
+        experience.chooseStoreProduct(selected);
+      }
+      if (mounted) {
+        setState(() {
+          tab = 1;
+          selectingStoreProduct = false;
+        });
+      }
+    });
+  }
+
   Future<void> erasePhotos() => run(() async {
     final yes = await showDialog<bool>(
       context: context,
@@ -197,104 +228,114 @@ class _CustomerShellState extends State<CustomerShell>
         bottom: false,
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 12, 12),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: CustomerBrand(compact: true),
+            if (tab == 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 12, 12),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: CustomerBrand(compact: true),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: tr(context, 'Scan Store QR'),
-                    onPressed: busy ? null : scanStore,
-                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
-                  ),
-                  CustomerLanguageMenu(auth: auth),
-                  Tooltip(
-                    message: tr(
-                      context,
-                      experience.remaining == 0
-                          ? 'Add credits'
-                          : 'Personal free trial credits. Store-sponsored usage is separate.',
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: tr(context, 'Scan Store QR'),
+                      onPressed: busy ? null : scanStore,
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
                     ),
-                    child: Semantics(
-                      button: true,
-                      label: tr(
+                    CustomerLanguageMenu(auth: auth),
+                    Tooltip(
+                      message: tr(
                         context,
                         experience.remaining == 0
                             ? 'Add credits'
-                            : 'Personal credits: ${experience.remaining ?? 'unavailable'}',
+                            : 'Personal free trial credits. Store-sponsored usage is separate.',
                       ),
-                      child: Material(
-                        color: CustomerColors.tint,
-                        borderRadius: BorderRadius.circular(24),
-                        child: InkWell(
-                          key: const ValueKey('header-credits'),
+                      child: Semantics(
+                        button: true,
+                        label: tr(
+                          context,
+                          experience.remaining == 0
+                              ? 'Add credits'
+                              : 'Personal credits: ${experience.remaining ?? 'unavailable'}',
+                        ),
+                        child: Material(
+                          color: CustomerColors.tint,
                           borderRadius: BorderRadius.circular(24),
-                          onTap: plans,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  experience.remaining == 0
-                                      ? Icons.add_rounded
-                                      : Icons.auto_awesome_rounded,
-                                  color: CustomerColors.orange,
-                                  size: 17,
-                                ),
-                                const SizedBox(width: 5),
-                                if (experience.remaining == 0)
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 66,
-                                    ),
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: const CustomerText(
-                                        'Add credits',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
+                          child: InkWell(
+                            key: const ValueKey('header-credits'),
+                            borderRadius: BorderRadius.circular(24),
+                            onTap: plans,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    experience.remaining == 0
+                                        ? Icons.add_rounded
+                                        : Icons.auto_awesome_rounded,
+                                    color: CustomerColors.orange,
+                                    size: 17,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  if (experience.remaining == 0)
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 66,
+                                      ),
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: const CustomerText(
+                                          'Add credits',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
+                                    )
+                                  else
+                                    CustomerText(
+                                      experience.remaining?.toString() ?? '—',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
-                                  )
-                                else
-                                  CustomerText(
-                                    experience.remaining?.toString() ?? '—',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             Expanded(
               child: IndexedStack(
                 index: tab,
                 children: [
                   home(context),
+                  CustomerQuickTryOn(
+                    experience: experience,
+                    picker: picker,
+                    onChooseProduct: () => setState(() {
+                      selectingStoreProduct = true;
+                      tab = 0;
+                    }),
+                  ),
                   CustomerSavedScreen(
                     experience: experience,
                     onHome: () => setState(() => tab = 0),
+                    onPlans: plans,
                   ),
                   auth.profileLoading
                       ? const CustomerContentSkeleton(
@@ -328,68 +369,86 @@ class _CustomerShellState extends State<CustomerShell>
             children: [
               nav('Home', Icons.home_outlined, Icons.home_rounded, 0),
               nav(
+                'Try-On',
+                Icons.checkroom_outlined,
+                Icons.checkroom_rounded,
+                1,
+              ),
+              nav(
                 'Saved',
                 Icons.bookmarks_outlined,
                 Icons.bookmarks_rounded,
-                1,
+                2,
               ),
-              nav('Me', Icons.person_outline_rounded, Icons.person_rounded, 2),
+              nav('Me', Icons.person_outline_rounded, Icons.person_rounded, 3),
             ],
           ),
         ),
       ),
     ),
   );
-  Widget nav(String label, IconData icon, IconData selectedIcon, int value) =>
-      Expanded(
-        child: Semantics(
-          selected: tab == value,
-          button: true,
-          child: InkWell(
+  Widget nav(
+    String label,
+    IconData icon,
+    IconData selectedIcon,
+    int value,
+  ) => Expanded(
+    child: Semantics(
+      selected: tab == value,
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(32),
+        onTap: () {
+          setState(() {
+            tab = value;
+            if (value != 0) selectingStoreProduct = false;
+          });
+          if (value == 1 && experience.session == null && !experience.loading) {
+            unawaited(
+              run(() async {
+                await prepareCustomerStudio(context, experience);
+              }),
+            );
+          }
+          if (value == 2) unawaited(run(experience.loadSaved));
+          if (value == 3) unawaited(profilePhoto.load());
+        },
+        child: AnimatedContainer(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: tab == value ? CustomerColors.tint : Colors.transparent,
             borderRadius: BorderRadius.circular(32),
-            onTap: () {
-              setState(() => tab = value);
-              if (value == 1) unawaited(run(experience.loadSaved));
-              if (value == 2) unawaited(profilePhoto.load());
-            },
-            child: AnimatedContainer(
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: tab == value ? CustomerColors.tint : Colors.transparent,
-                borderRadius: BorderRadius.circular(32),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                tab == value ? selectedIcon : icon,
+                size: 24,
+                color: tab == value
+                    ? const Color(0xFFA7490C)
+                    : CustomerColors.muted,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    tab == value ? selectedIcon : icon,
-                    size: 24,
-                    color: tab == value
-                        ? const Color(0xFFA7490C)
-                        : CustomerColors.muted,
-                  ),
-                  const SizedBox(height: 4),
-                  CustomerText(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: tab == value
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: tab == value
-                          ? const Color(0xFFA7490C)
-                          : CustomerColors.muted,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 4),
+              CustomerText(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: tab == value ? FontWeight.w700 : FontWeight.w500,
+                  color: tab == value
+                      ? const Color(0xFFA7490C)
+                      : CustomerColors.muted,
+                ),
               ),
-            ),
+            ],
           ),
         ),
-      );
+      ),
+    ),
+  );
   Widget home(BuildContext context) {
     if (experience.loading) {
       return const CustomerContentSkeleton(layout: CustomerSkeletonLayout.home);
@@ -397,8 +456,11 @@ class _CustomerShellState extends State<CustomerShell>
     if (experience.storeMode) {
       return CustomerStoreCatalog(
         experience: experience,
-        onTryOn: (product) => studio(product: product),
-        onLeave: () => run(experience.leaveStore),
+        onTryOn: storeProduct,
+        onLeave: () => run(() async {
+          selectingStoreProduct = false;
+          await experience.leaveStore();
+        }),
         onRefresh: () => run(experience.loadProducts),
         onMore: () => run(() => experience.loadProducts(more: true)),
       );
@@ -407,28 +469,8 @@ class _CustomerShellState extends State<CustomerShell>
       onRefresh: experience.refresh,
       child: ListView(
         primary: false,
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 24),
         children: [
-          CustomerText(
-            'HELLO, ${auth.profile?.displayName.split(' ').first.toUpperCase() ?? 'YOU'}',
-            style: const TextStyle(
-              fontSize: 10,
-              letterSpacing: 2,
-              fontWeight: FontWeight.w600,
-              color: CustomerColors.muted,
-            ),
-          ),
-          const SizedBox(height: 12),
-          CustomerText(
-            'Style, with\nyou in mind.',
-            style: Theme.of(context).textTheme.displayLarge,
-          ),
-          const SizedBox(height: 14),
-          const CustomerText(
-            'Your personal space to discover a different look.',
-            style: TextStyle(color: CustomerColors.muted, height: 1.5),
-          ),
-          const SizedBox(height: 24),
           if (experience.error != null) ...[
             CustomerNotice(experience.error!, error: true),
             TextButton(
@@ -444,133 +486,12 @@ class _CustomerShellState extends State<CustomerShell>
             ),
             const SizedBox(height: 16),
           ],
-          ClipRRect(
-            borderRadius: BorderRadius.circular(30),
-            child: SizedBox(
-              height: 440,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.asset(
-                    'assets/editorial/style-muse.webp',
-                    fit: BoxFit.cover,
-                    alignment: const Alignment(0, -.4),
-                    excludeFromSemantics: true,
-                  ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.center,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0xD924211F)],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 22,
-                    right: 22,
-                    bottom: 22,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CustomerText(
-                          'A NEW POSSIBILITY',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        CustomerText(
-                          'Something new.\nStill entirely you.',
-                          style: Theme.of(context).textTheme.headlineLarge
-                              ?.copyWith(color: Colors.white, fontSize: 32),
-                        ),
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: busy ? null : studio,
-                            icon: const Icon(
-                              Icons.auto_awesome_outlined,
-                              size: 18,
-                            ),
-                            label: CustomerText(
-                              experience.generating ||
-                                      experience.hasUncertainRequest
-                                  ? 'Open current Try-On'
-                                  : 'Explore Try-On',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
           CustomerDemoCatalog(
             experience: experience,
             onTryOn: (product, modelId) =>
                 studio(demoProduct: product, demoModelId: modelId),
-          ),
-          const SizedBox(height: 24),
-          const CustomerText(
-            'YOUR OWN STARTING POINT',
-            style: TextStyle(
-              fontSize: 10,
-              letterSpacing: 1.8,
-              color: CustomerColors.muted,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.add_photo_alternate_outlined,
-                  title: 'Your outfit',
-                  description: 'Bring your inspiration',
-                  onTap: studio,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: _ActionTile(
-                  icon: Icons.person_outline_rounded,
-                  title: 'My photo',
-                  description: 'Make it personal',
-                  onTap: studio,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          PremiumPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.qr_code_rounded,
-                  color: CustomerColors.orange,
-                  size: 30,
-                ),
-                const SizedBox(height: 10),
-                CustomerText(
-                  'Discover it in Store.',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                const CustomerText(
-                  'Scan its QR from the button above. Choose a Store product and let the Store sponsor your Try-On.',
-                  style: TextStyle(color: CustomerColors.muted, fontSize: 13),
-                ),
-              ],
-            ),
+            onUploadPerson: (product, _) =>
+                studio(demoProduct: product, uploadPerson: true),
           ),
         ],
       ),
@@ -795,54 +716,6 @@ class _CustomerShellState extends State<CustomerShell>
       MaterialPageRoute(builder: (_) => CustomerDeleteScreen(controller: auth)),
     );
   }
-}
-
-class _ActionTile extends StatelessWidget {
-  final IconData icon;
-  final String title, description;
-  final VoidCallback onTap;
-  const _ActionTile({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.onTap,
-  });
-  @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(22),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: CustomerColors.line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: CustomerColors.muted, size: 25),
-            const SizedBox(height: 16),
-            CustomerText(
-              title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 5),
-            CustomerText(
-              description,
-              style: const TextStyle(
-                fontSize: 11,
-                color: CustomerColors.muted,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 class CustomerDeleteScreen extends StatefulWidget {

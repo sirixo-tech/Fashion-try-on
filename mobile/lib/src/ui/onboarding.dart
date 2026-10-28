@@ -219,6 +219,7 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
   );
 
   Widget introduction(BuildContext context) => Scaffold(
+    backgroundColor: const Color(0xFF10232D),
     body: SafeArea(
       child: Align(
         alignment: Alignment.topCenter,
@@ -232,16 +233,20 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                   children: [
                     IconButton(
                       onPressed: finishing ? null : back,
+                      color: Colors.white,
                       tooltip: MaterialLocalizations.of(
                         context,
                       ).backButtonTooltip,
                       icon: const BackButtonIcon(),
                     ),
                     const Spacer(),
-                    languageButton(),
+                    languageButton(overImage: true),
                     TextButton(
                       onPressed: finishing ? null : finish,
-                      child: const CustomerText('Skip'),
+                      child: const CustomerText(
+                        'Skip',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ],
                 ),
@@ -257,28 +262,29 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                   onPageChanged: (value) => setState(() => index = value),
                   itemBuilder: (context, i) => LayoutBuilder(
                     builder: (context, constraints) => SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(28, 22, 28, 12),
+                      padding: const EdgeInsets.fromLTRB(28, 12, 28, 4),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           CustomerText(
                             slides[i].title,
-                            style: Theme.of(context).textTheme.headlineLarge,
+                            style: Theme.of(context).textTheme.headlineLarge
+                                ?.copyWith(color: Colors.white),
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 8),
                           CustomerText(
                             slides[i].body,
                             style: const TextStyle(
                               fontSize: 15,
                               height: 1.5,
-                              color: CustomerColors.muted,
+                              color: Color(0xFFD0DBDF),
                             ),
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 16),
                           SizedBox(
-                            height: (constraints.maxHeight * .57).clamp(
-                              210.0,
-                              370.0,
+                            height: (constraints.maxHeight * .68).clamp(
+                              250.0,
+                              520.0,
                             ),
                             child: ExcludeSemantics(
                               child: IgnorePointer(
@@ -319,7 +325,7 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
                                 decoration: BoxDecoration(
                                   color: i == index
                                       ? CustomerColors.orange
-                                      : CustomerColors.line,
+                                      : const Color(0xFF6C7E85),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
@@ -455,21 +461,21 @@ class _IntroductionArt extends StatelessWidget {
               top: h * .16,
               width: w * .46,
               height: h * .72,
-              child: const _PhotoCard('style-tailored', angle: -.13),
+              child: const _PhotoCard('demo-model-maya', angle: -.13),
             ),
             Positioned(
               right: 0,
               top: h * .13,
               width: w * .46,
               height: h * .72,
-              child: const _PhotoCard('style-atelier', angle: .13),
+              child: const _PhotoCard('demo-model-arjun', angle: .13),
             ),
             Positioned(
               left: w * .18,
               top: h * .02,
               width: w * .64,
               height: h * .94,
-              child: const _PhotoCard('style-muse', angle: -.035),
+              child: const _PhotoCard('welcome-tryon-v3', angle: -.035),
             ),
             Positioned(
               right: 8,
@@ -486,14 +492,14 @@ class _IntroductionArt extends StatelessWidget {
               top: h * .05,
               width: w * .65,
               height: h * .88,
-              child: const _PhotoCard('style-atelier', angle: -.06),
+              child: const _PhotoCard('navy-overshirt', angle: -.06),
             ),
             Positioned(
               right: 0,
               top: h * .23,
               width: w * .48,
               height: h * .68,
-              child: const _PhotoCard('style-tailored', angle: .06),
+              child: const _PhotoCard('demo-model-arjun', angle: .06),
             ),
             Positioned(
               right: w * .08,
@@ -531,12 +537,12 @@ class _IntroductionArt extends StatelessWidget {
                       children: [
                         Expanded(
                           child: _PhotoCard(
-                            'style-muse',
+                            'demo-model-maya',
                             badge: badge(Icons.favorite_rounded),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(child: _PhotoCard('style-tailored')),
+                        const Expanded(child: _PhotoCard('demo-model-arjun')),
                       ],
                     ),
                   ),
@@ -544,11 +550,11 @@ class _IntroductionArt extends StatelessWidget {
                   Expanded(
                     child: Row(
                       children: [
-                        const Expanded(child: _PhotoCard('style-atelier')),
+                        const Expanded(child: _PhotoCard('burgundy-dress')),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _PhotoCard(
-                            'style-muse',
+                            'welcome-tryon-v3',
                             badge: badge(Icons.bookmark_rounded),
                           ),
                         ),

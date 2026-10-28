@@ -9,7 +9,7 @@ class CustomerPhoneField extends StatefulWidget {
   final TextEditingController controller;
   final CustomerCountrySelection countries;
   final String label;
-  final bool enabled, optional, allowEmail;
+  final bool enabled, optional, allowEmail, compact;
   final VoidCallback? onChanged;
   const CustomerPhoneField({
     super.key,
@@ -19,6 +19,7 @@ class CustomerPhoneField extends StatefulWidget {
     this.enabled = true,
     this.optional = false,
     this.allowEmail = false,
+    this.compact = false,
     this.onChanged,
   });
   @override
@@ -98,11 +99,13 @@ class CustomerPhoneFieldState extends State<CustomerPhoneField> {
     builder: (context, _) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        CustomerText(
-          widget.label,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
+        if (!widget.compact) ...[
+          CustomerText(
+            widget.label,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -159,7 +162,8 @@ class CustomerPhoneFieldState extends State<CustomerPhoneField> {
                       ? const []
                       : const [CustomerCodeFormatter()],
                   maxLength: widget.allowEmail ? 320 : 32,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
+                    hintText: widget.compact ? tr(context, widget.label) : null,
                     counterText: '',
                     errorMaxLines: 4,
                   ),
@@ -191,6 +195,13 @@ class CustomerPhoneFieldState extends State<CustomerPhoneField> {
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: TextButton(
+              style: widget.compact
+                  ? TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      minimumSize: const Size(48, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                    )
+                  : null,
               onPressed: widget.enabled
                   ? () {
                       setState(() {

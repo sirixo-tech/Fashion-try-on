@@ -244,8 +244,8 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                               runSpacing: 12,
                               children: [
                                 for (final entry in const [
-                                  ('WOMEN', 'Women', 'style-muse'),
-                                  ('MEN', 'Men', 'style-tailored'),
+                                  ('WOMEN', 'Women', 'demo-model-maya'),
+                                  ('MEN', 'Men', 'demo-model-arjun'),
                                   (
                                     'JEWELLERY',
                                     'Jewellery',
@@ -289,7 +289,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                               child: _photo(
                                 'FULL_BODY',
                                 'Full body',
-                                'style-muse',
+                                'demo-model-maya',
                                 false,
                               ),
                             ),

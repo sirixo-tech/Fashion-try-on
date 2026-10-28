@@ -5,7 +5,6 @@ import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
 import 'customer_theme.dart';
 import 'customer_entry_theme.dart';
-import 'customer_code_screen.dart';
 import 'customer_phone_field.dart';
 import 'customer_policy_notice.dart';
 import '../l10n/customer_language_screen.dart';
@@ -46,7 +45,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   CustomerAuthView view = CustomerAuthView.signIn;
-  bool obscure = true, busy = false;
+  bool obscure = true, busy = false, acceptedPolicy = false;
   String? error, notice, signupProof;
   CustomerController get auth => widget.controller;
   bool get signup => view == CustomerAuthView.signUp;
@@ -108,6 +107,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   Future<void> submit() async {
+    if (credentialForm && !ensurePolicy()) return;
     if (!(form.currentState?.validate() ?? false)) return;
     await run(() async {
       if (view == CustomerAuthView.signIn) {
@@ -184,6 +184,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
   }
 
   Future<void> oauth(String provider) async {
+    if (!ensurePolicy()) return;
     await run(() async {
       if (provider == 'GOOGLE' && !auth.capabilities.google) {
         await auth.refreshCapabilities();
@@ -198,19 +199,15 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     });
   }
 
-  Future<void> codeLogin() async {
-    final result = await Navigator.push<Map<String, dynamic>>(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            CustomerCodeScreen(auth: auth, initialContact: email.text),
+  bool ensurePolicy() {
+    if (acceptedPolicy) return true;
+    setState(
+      () => error = tr(
+        context,
+        'Please read and accept the Terms and Privacy Policy.',
       ),
     );
-    if (mounted && result?['createAccount'] == true) {
-      final contact = result?['contact'] as String? ?? '';
-      change(CustomerAuthView.signUp);
-      email.text = contact;
-    }
+    return false;
   }
 
   String? validateEmail(String? value) =>
@@ -243,8 +240,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = view == CustomerAuthView.signIn;
     final title = switch (view) {
-      CustomerAuthView.signIn => 'Your next look\nstarts here.',
+      CustomerAuthView.signIn => 'Sign in',
       CustomerAuthView.signUp => 'A little more you.\nA world of style.',
       CustomerAuthView.verify => 'Check your inbox.',
       CustomerAuthView.forgot => 'Let’s get you\nback in.',
@@ -272,385 +270,453 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     return Theme(
       data: entryTheme,
       child: Scaffold(
+        backgroundColor: const Color(0xFFF1F5F5),
         body: SafeArea(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: SingleChildScrollView(
-                controller: scroll,
-                padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
-                child: AutofillGroup(
-                  child: Form(
-                    key: form,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: LayoutBuilder(
+            builder: (context, viewport) => Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: SingleChildScrollView(
+                  controller: scroll,
+                  padding: EdgeInsets.fromLTRB(24, compact ? 4 : 20, 24, 20),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: compact ? viewport.maxHeight - 24 : 0,
+                    ),
+                    child: AutofillGroup(
+                      child: Form(
+                        key: form,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: compact
+                              ? MainAxisAlignment.center
+                              : MainAxisAlignment.start,
                           children: [
-                            if (!credentialForm)
-                              IconButton(
-                                tooltip: tr(context, 'Back to sign in'),
-                                onPressed: busy
-                                    ? null
-                                    : () => change(CustomerAuthView.signIn),
-                                icon: const Icon(Icons.arrow_back_rounded),
-                              )
-                            else
-                              const SizedBox(width: 48),
-                            const Expanded(
-                              child: Center(child: CustomerBrand()),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                if (!credentialForm)
+                                  IconButton(
+                                    tooltip: tr(context, 'Back to sign in'),
+                                    onPressed: busy
+                                        ? null
+                                        : () => change(CustomerAuthView.signIn),
+                                    icon: const Icon(Icons.arrow_back_rounded),
+                                  )
+                                else
+                                  const SizedBox(width: 48),
+                                Expanded(
+                                  child: Center(
+                                    child: CustomerBrand(compact: compact),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: tr(context, 'Language'),
+                                  onPressed: busy
+                                      ? null
+                                      : () => Navigator.push<void>(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                CustomerLanguageScreen(
+                                                  controller: widget.controller,
+                                                ),
+                                          ),
+                                        ),
+                                  icon: const Icon(Icons.language),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              tooltip: tr(context, 'Language'),
-                              onPressed: busy
-                                  ? null
-                                  : () => Navigator.push<void>(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => CustomerLanguageScreen(
-                                          controller: widget.controller,
+                            SizedBox(height: compact ? 12 : 32),
+                            Align(
+                              alignment: compact
+                                  ? Alignment.center
+                                  : AlignmentDirectional.centerStart,
+                              child: CustomerText(
+                                title,
+                                textAlign: compact ? TextAlign.center : null,
+                                style: compact
+                                    ? entryTheme.textTheme.headlineMedium
+                                          ?.copyWith(fontSize: 25, height: 1.1)
+                                    : entryTheme.textTheme.headlineLarge,
+                              ),
+                            ),
+                            SizedBox(height: compact ? 5 : 12),
+                            Align(
+                              alignment: compact
+                                  ? Alignment.center
+                                  : AlignmentDirectional.centerStart,
+                              child: CustomerText(
+                                subtitle,
+                                textAlign: compact ? TextAlign.center : null,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: CustomerColors.muted,
+                                      fontSize: compact ? 14 : null,
+                                      height: compact ? 1.3 : null,
+                                    ),
+                              ),
+                            ),
+                            SizedBox(height: compact ? 16 : 24),
+                            if (error != null) ...[
+                              CustomerNotice(error!, error: true),
+                              const SizedBox(height: 16),
+                            ],
+                            if (notice != null) ...[
+                              CustomerNotice(notice!),
+                              const SizedBox(height: 16),
+                            ],
+                            if (!auth.capabilities.enabled) ...[
+                              const CustomerNotice(
+                                'Customer sign-in is not available yet. Please try again later.',
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            if (credentialForm &&
+                                auth.identity.googleAvailable) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: busy
+                                      ? null
+                                      : () => oauth('GOOGLE'),
+                                  icon: Image.asset(
+                                    'assets/branding/google-g.png',
+                                    width: 20,
+                                    height: 20,
+                                    fit: BoxFit.contain,
+                                    excludeFromSemantics: true,
+                                  ),
+                                  label: const CustomerText(
+                                    'Continue with Google',
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: compact ? 6 : 12),
+                            ],
+                            if (credentialForm &&
+                                auth.capabilities.apple &&
+                                auth.identity.appleAvailable) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: busy ? null : () => oauth('APPLE'),
+                                  icon: const Icon(
+                                    Icons.apple_rounded,
+                                    size: 23,
+                                  ),
+                                  label: const CustomerText(
+                                    'Continue with Apple',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            if (credentialForm &&
+                                (auth.identity.googleAvailable ||
+                                    (auth.capabilities.apple &&
+                                        auth.identity.appleAvailable))) ...[
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 7,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Expanded(child: Divider()),
+                                    Flexible(
+                                      flex: 4,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                        child: CustomerText(
+                                          compact
+                                              ? 'Email or mobile number'
+                                              : 'or use email',
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: CustomerColors.muted,
+                                          ),
                                         ),
                                       ),
                                     ),
-                              icon: const Icon(Icons.language),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
-                        CustomerText(
-                          title,
-                          style: entryTheme.textTheme.headlineLarge,
-                        ),
-                        const SizedBox(height: 12),
-                        CustomerText(
-                          subtitle,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: CustomerColors.muted),
-                        ),
-                        const SizedBox(height: 24),
-                        if (credentialForm) ...[
-                          const CustomerPolicyNotice(),
-                          const SizedBox(height: 20),
-                        ],
-                        if (error != null) ...[
-                          CustomerNotice(error!, error: true),
-                          const SizedBox(height: 16),
-                        ],
-                        if (notice != null) ...[
-                          CustomerNotice(notice!),
-                          const SizedBox(height: 16),
-                        ],
-                        if (!auth.capabilities.enabled) ...[
-                          const CustomerNotice(
-                            'Customer sign-in is not available yet. Please try again later.',
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        if (credentialForm &&
-                            auth.identity.googleAvailable) ...[
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: busy ? null : () => oauth('GOOGLE'),
-                              icon: Image.asset(
-                                'assets/branding/google-g.png',
-                                width: 20,
-                                height: 20,
-                                fit: BoxFit.contain,
-                                excludeFromSemantics: true,
+                                    const Expanded(child: Divider()),
+                                  ],
+                                ),
                               ),
-                              label: const CustomerText('Continue with Google'),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        if (credentialForm &&
-                            auth.capabilities.apple &&
-                            auth.identity.appleAvailable) ...[
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: busy ? null : () => oauth('APPLE'),
-                              icon: const Icon(Icons.apple_rounded, size: 23),
-                              label: const CustomerText('Continue with Apple'),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        if (credentialForm &&
-                            (auth.identity.googleAvailable ||
-                                (auth.capabilities.apple &&
-                                    auth.identity.appleAvailable))) ...[
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 14),
-                            child: Row(
-                              children: [
-                                Expanded(child: Divider()),
-                                Flexible(
-                                  flex: 4,
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 16,
+                              if (!compact) const SizedBox(height: 8),
+                            ],
+                            if (signup) ...[
+                              TextFormField(
+                                controller: name,
+                                enabled: !busy,
+                                decoration: InputDecoration(
+                                  labelText: tr(context, 'Your name'),
+                                  counterText: '',
+                                ),
+                                maxLength: 160,
+                                textCapitalization: TextCapitalization.words,
+                                autofillHints: const [AutofillHints.name],
+                                validator: (value) =>
+                                    value == null || value.trim().isEmpty
+                                    ? tr(context, 'Enter your name.')
+                                    : null,
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                            if (credentialForm)
+                              CustomerPhoneField(
+                                key: identifierField,
+                                controller: email,
+                                countries: auth.countries,
+                                label: 'Email or mobile number',
+                                allowEmail: true,
+                                compact: compact,
+                                enabled: !busy,
+                                onChanged: () => setState(() {}),
+                              )
+                            else
+                              TextFormField(
+                                controller: email,
+                                textDirection: TextDirection.ltr,
+                                enabled:
+                                    !busy && view != CustomerAuthView.verify,
+                                decoration: InputDecoration(
+                                  labelText: tr(context, 'Email address'),
+                                  counterText: '',
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                autofillHints: const [AutofillHints.email],
+                                maxLength: 320,
+                                validator: validateEmail,
+                              ),
+                            if (view == CustomerAuthView.verify ||
+                                view == CustomerAuthView.reset) ...[
+                              SizedBox(height: compact ? 6 : 14),
+                              TextFormField(
+                                controller: code,
+                                inputFormatters: const [
+                                  CustomerCodeFormatter(),
+                                ],
+                                textDirection: TextDirection.ltr,
+                                enabled: !busy,
+                                decoration: InputDecoration(
+                                  labelText: tr(context, '6-digit email code'),
+                                  counterText: '',
+                                ),
+                                keyboardType: TextInputType.number,
+                                autofillHints: const [
+                                  AutofillHints.oneTimeCode,
+                                ],
+                                maxLength: 6,
+                                validator: (value) =>
+                                    value == null ||
+                                        !RegExp(
+                                          r'^\d{6}$',
+                                        ).hasMatch(value.trim())
+                                    ? tr(context, 'Enter the 6-digit code.')
+                                    : null,
+                              ),
+                            ],
+                            if (credentialForm ||
+                                view == CustomerAuthView.reset) ...[
+                              SizedBox(height: compact ? 6 : 14),
+                              TextFormField(
+                                controller: password,
+                                textDirection: TextDirection.ltr,
+                                enabled: !busy,
+                                obscureText: obscure,
+                                enableSuggestions: false,
+                                autocorrect: false,
+                                autofillHints: [
+                                  signup || view == CustomerAuthView.reset
+                                      ? AutofillHints.newPassword
+                                      : AutofillHints.password,
+                                ],
+                                decoration: InputDecoration(
+                                  labelText: tr(
+                                    context,
+                                    view == CustomerAuthView.reset
+                                        ? 'New password'
+                                        : 'Password',
+                                  ),
+                                  helperText: trNullable(
+                                    context,
+                                    view != CustomerAuthView.signIn
+                                        ? 'At least 8 characters. A passphrase works well.'
+                                        : null,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    tooltip: tr(
+                                      context,
+                                      obscure
+                                          ? 'Show password'
+                                          : 'Hide password',
                                     ),
-                                    child: CustomerText(
-                                      'or use email',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 12,
+                                    onPressed: () =>
+                                        setState(() => obscure = !obscure),
+                                    icon: Icon(
+                                      obscure
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                  ),
+                                ),
+                                validator: validatePassword,
+                                onFieldSubmitted: (_) {
+                                  if (!busy) submit();
+                                },
+                              ),
+                            ],
+                            if (view == CustomerAuthView.signIn)
+                              Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => change(CustomerAuthView.forgot),
+                                  child: const CustomerText('Forgot password?'),
+                                ),
+                              ),
+                            if (numberSignup) ...[
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                key: const ValueKey(
+                                  'signup-verification-email',
+                                ),
+                                controller: verificationEmail,
+                                decoration: InputDecoration(
+                                  labelText: tr(context, 'Email address'),
+                                  helperText: tr(
+                                    context,
+                                    'Your verification code will be sent to this email.',
+                                  ),
+                                  helperMaxLines: 3,
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                                textDirection: TextDirection.ltr,
+                                autofillHints: const [AutofillHints.email],
+                                validator: validateEmail,
+                                maxLength: 320,
+                                enabled: !busy,
+                              ),
+                            ],
+                            if (credentialForm) ...[
+                              Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 300,
+                                  ),
+                                  child: CustomerPolicyNotice(
+                                    accepted: acceptedPolicy,
+                                    onChanged: busy
+                                        ? null
+                                        : (value) => setState(
+                                            () =>
+                                                acceptedPolicy = value ?? false,
+                                          ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: compact ? 10 : 20),
+                            ] else
+                              const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: busy || !auth.capabilities.enabled
+                                    ? null
+                                    : submit,
+                                child: busy
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : CustomerText(button),
+                              ),
+                            ),
+                            if (view == CustomerAuthView.verify ||
+                                view == CustomerAuthView.reset)
+                              TextButton(
+                                onPressed: busy || resendWait > 0
+                                    ? null
+                                    : () => run(() async {
+                                        final result = await auth.api.request(
+                                          view == CustomerAuthView.verify
+                                              ? '/auth/resend-verification'
+                                              : '/auth/forgot-password',
+                                          body: {
+                                            'email': email.text.trim(),
+                                            if (view == CustomerAuthView.verify)
+                                              'signupProof': signupProof,
+                                          },
+                                        );
+                                        if (mounted) {
+                                          startResendWait();
+                                          setState(
+                                            () => notice =
+                                                result['message'] as String,
+                                          );
+                                        }
+                                      }),
+                                child: CustomerText(
+                                  resendWait > 0
+                                      ? 'Resend in ${resendWait}s'
+                                      : 'Send a new code',
+                                ),
+                              ),
+                            SizedBox(height: compact ? 4 : 20),
+                            if (credentialForm)
+                              Center(
+                                child: Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    CustomerText(
+                                      signup
+                                          ? 'Already have an account?'
+                                          : 'New to SelfX?',
+                                      style: const TextStyle(
                                         color: CustomerColors.muted,
                                       ),
                                     ),
-                                  ),
-                                ),
-                                Expanded(child: Divider()),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (signup) ...[
-                          TextFormField(
-                            controller: name,
-                            enabled: !busy,
-                            decoration: InputDecoration(
-                              labelText: tr(context, 'Your name'),
-                              counterText: '',
-                            ),
-                            maxLength: 160,
-                            textCapitalization: TextCapitalization.words,
-                            autofillHints: const [AutofillHints.name],
-                            validator: (value) =>
-                                value == null || value.trim().isEmpty
-                                ? tr(context, 'Enter your name.')
-                                : null,
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                        if (credentialForm)
-                          CustomerPhoneField(
-                            key: identifierField,
-                            controller: email,
-                            countries: auth.countries,
-                            label: 'Email or mobile number',
-                            allowEmail: true,
-                            enabled: !busy,
-                            onChanged: () => setState(() {}),
-                          )
-                        else
-                          TextFormField(
-                            controller: email,
-                            textDirection: TextDirection.ltr,
-                            enabled: !busy && view != CustomerAuthView.verify,
-                            decoration: InputDecoration(
-                              labelText: tr(context, 'Email address'),
-                              counterText: '',
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            autocorrect: false,
-                            autofillHints: const [AutofillHints.email],
-                            maxLength: 320,
-                            validator: validateEmail,
-                          ),
-                        if (view == CustomerAuthView.verify ||
-                            view == CustomerAuthView.reset) ...[
-                          const SizedBox(height: 14),
-                          TextFormField(
-                            controller: code,
-                            inputFormatters: const [CustomerCodeFormatter()],
-                            textDirection: TextDirection.ltr,
-                            enabled: !busy,
-                            decoration: InputDecoration(
-                              labelText: tr(context, '6-digit email code'),
-                              counterText: '',
-                            ),
-                            keyboardType: TextInputType.number,
-                            autofillHints: const [AutofillHints.oneTimeCode],
-                            maxLength: 6,
-                            validator: (value) =>
-                                value == null ||
-                                    !RegExp(r'^\d{6}$').hasMatch(value.trim())
-                                ? tr(context, 'Enter the 6-digit code.')
-                                : null,
-                          ),
-                        ],
-                        if (credentialForm ||
-                            view == CustomerAuthView.reset) ...[
-                          const SizedBox(height: 14),
-                          TextFormField(
-                            controller: password,
-                            textDirection: TextDirection.ltr,
-                            enabled: !busy,
-                            obscureText: obscure,
-                            enableSuggestions: false,
-                            autocorrect: false,
-                            autofillHints: [
-                              signup || view == CustomerAuthView.reset
-                                  ? AutofillHints.newPassword
-                                  : AutofillHints.password,
-                            ],
-                            decoration: InputDecoration(
-                              labelText: tr(
-                                context,
-                                view == CustomerAuthView.reset
-                                    ? 'New password'
-                                    : 'Password',
-                              ),
-                              helperText: trNullable(
-                                context,
-                                view != CustomerAuthView.signIn
-                                    ? 'At least 8 characters. A passphrase works well.'
-                                    : null,
-                              ),
-                              suffixIcon: IconButton(
-                                tooltip: tr(
-                                  context,
-                                  obscure ? 'Show password' : 'Hide password',
-                                ),
-                                onPressed: () =>
-                                    setState(() => obscure = !obscure),
-                                icon: Icon(
-                                  obscure
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                ),
-                              ),
-                            ),
-                            validator: validatePassword,
-                            onFieldSubmitted: (_) {
-                              if (!busy) submit();
-                            },
-                          ),
-                        ],
-                        if (view == CustomerAuthView.signIn)
-                          Align(
-                            alignment: AlignmentDirectional.centerEnd,
-                            child: TextButton(
-                              onPressed: busy
-                                  ? null
-                                  : () => change(CustomerAuthView.forgot),
-                              child: const CustomerText('Forgot password?'),
-                            ),
-                          ),
-                        if (numberSignup) ...[
-                          const SizedBox(height: 14),
-                          TextFormField(
-                            key: const ValueKey('signup-verification-email'),
-                            controller: verificationEmail,
-                            decoration: InputDecoration(
-                              labelText: tr(context, 'Email address'),
-                              helperText: tr(
-                                context,
-                                'Your verification code will be sent to this email.',
-                              ),
-                              helperMaxLines: 3,
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            textDirection: TextDirection.ltr,
-                            autofillHints: const [AutofillHints.email],
-                            validator: validateEmail,
-                            maxLength: 320,
-                            enabled: !busy,
-                          ),
-                        ],
-                        if (view == CustomerAuthView.signIn &&
-                            (auth.capabilities.emailCode ||
-                                auth.capabilities.phone))
-                          TextButton(
-                            onPressed: busy ? null : codeLogin,
-                            child: const CustomerText('Sign in with a code'),
-                          ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: busy || !auth.capabilities.enabled
-                                ? null
-                                : submit,
-                            child: busy
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
+                                    TextButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => change(
+                                              signup
+                                                  ? CustomerAuthView.signIn
+                                                  : CustomerAuthView.signUp,
+                                            ),
+                                      child: CustomerText(
+                                        signup
+                                            ? 'Sign in'
+                                            : 'Create an account',
+                                      ),
                                     ),
-                                  )
-                                : CustomerText(button),
-                          ),
-                        ),
-                        if (view == CustomerAuthView.verify ||
-                            view == CustomerAuthView.reset)
-                          TextButton(
-                            onPressed: busy || resendWait > 0
-                                ? null
-                                : () => run(() async {
-                                    final result = await auth.api.request(
-                                      view == CustomerAuthView.verify
-                                          ? '/auth/resend-verification'
-                                          : '/auth/forgot-password',
-                                      body: {
-                                        'email': email.text.trim(),
-                                        if (view == CustomerAuthView.verify)
-                                          'signupProof': signupProof,
-                                      },
-                                    );
-                                    if (mounted) {
-                                      startResendWait();
-                                      setState(
-                                        () => notice =
-                                            result['message'] as String,
-                                      );
-                                    }
-                                  }),
-                            child: CustomerText(
-                              resendWait > 0
-                                  ? 'Resend in ${resendWait}s'
-                                  : 'Send a new code',
-                            ),
-                          ),
-                        const SizedBox(height: 20),
-                        if (credentialForm)
-                          Center(
-                            child: Wrap(
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                CustomerText(
-                                  signup
-                                      ? 'Already have an account?'
-                                      : 'New to SelfX?',
-                                  style: const TextStyle(
+                                  ],
+                                ),
+                              ),
+                            if (view == CustomerAuthView.signIn)
+                              const Center(
+                                child: CustomerText(
+                                  'Your style. Your space.',
+                                  style: TextStyle(
+                                    fontSize: 12,
                                     color: CustomerColors.muted,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: busy
-                                      ? null
-                                      : () => change(
-                                          signup
-                                              ? CustomerAuthView.signIn
-                                              : CustomerAuthView.signUp,
-                                        ),
-                                  child: CustomerText(
-                                    signup ? 'Sign in' : 'Create an account',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (view == CustomerAuthView.signIn)
-                          const Center(
-                            child: CustomerText(
-                              'Your style. Your space.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: CustomerColors.muted,
                               ),
-                            ),
-                          ),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

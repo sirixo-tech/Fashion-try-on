@@ -17,6 +17,65 @@ Future<void> openCustomerStudio(
   Json? product,
   Json? demoProduct,
   String? demoModelId,
+  bool uploadPerson = false,
+}) async {
+  final ready = await prepareCustomerStudio(
+    context,
+    experience,
+    product: product,
+    demoProduct: demoProduct,
+    demoModelId: demoModelId,
+  );
+  if (!ready || !context.mounted) return;
+  if (uploadPerson) {
+    final source = await showModalBottomSheet<CustomerPhotoSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const CustomerText('Choose from photos'),
+              onTap: () => Navigator.pop(context, CustomerPhotoSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const CustomerText('Take a photo'),
+              onTap: () => Navigator.pop(context, CustomerPhotoSource.camera),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !context.mounted) return;
+    final sessionId = experience.session?['id'];
+    final photo = await picker.pick(source);
+    if (photo == null ||
+        !context.mounted ||
+        sessionId == null ||
+        experience.session?['id'] != sessionId) {
+      return;
+    }
+    await experience.upload('PERSON', photo.bytes, photo.mime);
+  }
+  if (!context.mounted) return;
+  await Navigator.push<void>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => CustomerStudio(experience: experience, picker: picker),
+    ),
+  );
+}
+
+Future<bool> prepareCustomerStudio(
+  BuildContext context,
+  CustomerExperience experience, {
+  Json? product,
+  Json? demoProduct,
+  String? demoModelId,
 }) async {
   if (!experience.generating && !experience.hasUncertainRequest) {
     if (!experience.available) {
@@ -25,7 +84,7 @@ Future<void> openCustomerStudio(
         'Your fitting room',
         'Try-On is temporarily unavailable. Refresh Home and try again shortly.',
       );
-      return;
+      return false;
     }
     if (!experience.storeMode && (experience.remaining ?? 0) < 1) {
       await Navigator.push<void>(
@@ -34,7 +93,7 @@ Future<void> openCustomerStudio(
           builder: (_) => CustomerPlansScreen(experience: experience),
         ),
       );
-      return;
+      return false;
     }
     final accepted = await showModalBottomSheet<bool>(
       context: context,
@@ -82,20 +141,14 @@ Future<void> openCustomerStudio(
         ),
       ),
     );
-    if (accepted != true || !context.mounted) return;
+    if (accepted != true || !context.mounted) return false;
     await experience.begin(
       storeProduct: product,
       selectedDemoProduct: demoProduct,
       selectedDemoModelId: demoModelId,
     );
   }
-  if (!context.mounted || experience.session == null) return;
-  await Navigator.push<void>(
-    context,
-    MaterialPageRoute(
-      builder: (_) => CustomerStudio(experience: experience, picker: picker),
-    ),
-  );
+  return context.mounted && experience.session != null;
 }
 
 class CustomerPlansScreen extends StatelessWidget {
@@ -257,22 +310,22 @@ class _CustomerStudioState extends State<CustomerStudio> {
             ),
             const SizedBox(height: 12),
             for (final item in exp.demoModels)
-              if ({'muse', 'tailored'}.contains(item['id']))
-                ListTile(
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.asset(
-                      item['id'] == 'muse'
-                          ? 'assets/editorial/demo-model-maya.webp'
-                          : 'assets/editorial/demo-model-arjun.webp',
-                      width: 48,
-                      height: 56,
-                      fit: BoxFit.cover,
+              if (demoModelImage(item['id'] as String) case final String image)
+                if (exp.demoProduct == null ||
+                    item['category'] == exp.demoProduct!['category'])
+                  ListTile(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        image,
+                        width: 48,
+                        height: 56,
+                        fit: BoxFit.cover,
+                      ),
                     ),
+                    title: CustomerText(item['name'] as String),
+                    onTap: () => Navigator.pop(context, item),
                   ),
-                  title: CustomerText(item['name'] as String),
-                  onTap: () => Navigator.pop(context, item),
-                ),
           ],
         ),
       ),
@@ -738,10 +791,12 @@ class _CustomerAssetImageState extends State<CustomerAssetImage> {
 class CustomerSavedScreen extends StatefulWidget {
   final CustomerExperience experience;
   final VoidCallback onHome;
+  final VoidCallback onPlans;
   const CustomerSavedScreen({
     super.key,
     required this.experience,
     required this.onHome,
+    required this.onPlans,
   });
   @override
   State<CustomerSavedScreen> createState() => _CustomerSavedScreenState();
@@ -749,6 +804,7 @@ class CustomerSavedScreen extends StatefulWidget {
 
 class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
   String? error;
+  String? downloadingId;
   @override
   void initState() {
     super.initState();
@@ -763,6 +819,27 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
       if (mounted) setState(() => error = null);
     } catch (e) {
       if (mounted) setState(() => error = CustomerExperience.message(e));
+    }
+  }
+
+  Future<void> download(CustomerLook look) async {
+    if (downloadingId != null) return;
+    setState(() => downloadingId = look.id);
+    try {
+      await downloadCustomerResult(widget.experience, look.result);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: CustomerText('Look downloaded.')),
+        );
+      }
+    } catch (caught) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: CustomerText(CustomerExperience.message(caught))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => downloadingId = null);
     }
   }
 
@@ -782,15 +859,44 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
           padding: const EdgeInsets.fromLTRB(24, 10, 24, 28),
           children: [
             CustomerText(
-              'A collection of you.',
-              style: Theme.of(context).textTheme.headlineLarge,
+              'My Looks',
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
-            const SizedBox(height: 12),
-            const CustomerText(
-              'Your tried-on outfits and results. Yours for 30 days.',
-              style: TextStyle(color: CustomerColors.muted),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 14),
+            if (exp.remaining case final int credits when credits < 10) ...[
+              Material(
+                color: const Color(0xFF292E34),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: CustomerText(
+                          '$credits credits left',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: widget.onPlans,
+                        child: const CustomerText(
+                          'Plans & credits',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             if (error != null) ...[
               CustomerNotice(error!, error: true),
               TextButton(
@@ -832,15 +938,16 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(26),
-                        ),
-                        child: AspectRatio(
-                          aspectRatio: .9,
-                          child: CustomerAssetImage(
-                            experience: exp,
-                            photo: look.result,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: AspectRatio(
+                            aspectRatio: .9,
+                            child: CustomerAssetImage(
+                              experience: exp,
+                              photo: look.result,
+                            ),
                           ),
                         ),
                       ),
@@ -864,20 +971,43 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            OutlinedButton(
-                              onPressed: () async {
-                                await Navigator.push<void>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CustomerSavedLookScreen(
-                                      experience: exp,
-                                      look: look,
-                                    ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () async {
+                                      await Navigator.push<void>(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              CustomerSavedLookScreen(
+                                                experience: exp,
+                                                look: look,
+                                              ),
+                                        ),
+                                      );
+                                      await load();
+                                    },
+                                    child: const CustomerText('View look'),
                                   ),
-                                );
-                                await load();
-                              },
-                              child: const CustomerText('View look'),
+                                ),
+                                const SizedBox(width: 10),
+                                IconButton.filledTonal(
+                                  tooltip: tr(context, 'Download look'),
+                                  onPressed: downloadingId == null
+                                      ? () => download(look)
+                                      : null,
+                                  icon: downloadingId == look.id
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.download_rounded),
+                                ),
+                              ],
                             ),
                           ],
                         ),

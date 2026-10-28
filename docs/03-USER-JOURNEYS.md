@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-18 — Demo selection and saved results (2026-10-28)
+
+The customer opens a full-width demo product image, then chooses a relevant demo model or Upload my photo. Without an explicit model or upload, the saved full-body photo is used automatically when available. Photo upload occurs only after Try-On consent. The customer can View or Download each result from My Looks; a low personal-credit balance links to Plans & credits without promising a paid purchase flow.
+
+### CUSTOMER-MOBILE-17 — Product-first entry and Try-On tab (2026-10-28)
+
+After sign-in, Home opens on products. The separate Try-On tab starts a consented session, defaults to the saved full-body photo when available, accepts one-off person and garment photos, and generates through the existing credit or Store payer flow. Store sessions choose a Store product from Home. The photo previews and generation action fit in the standard phone viewport.
+
 ### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
 
 After sign-in and setup, Home displays demo outfits. A customer opens an outfit, chooses My Avatar or a demo model, accepts photo-processing consent, and generates using personal credits. In the fitting room, they can replace the person photo or demo garment for this Try-On alone. A Store QR session continues to show its Store's catalog instead. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.

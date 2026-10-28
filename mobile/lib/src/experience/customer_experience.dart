@@ -277,6 +277,20 @@ class CustomerExperience extends ChangeNotifier {
     }
   }
 
+  void chooseStoreProduct(Json selected) {
+    if (!storeMode ||
+        session == null ||
+        busy ||
+        generating ||
+        hasUncertainRequest) {
+      return;
+    }
+    product = selected;
+    outfit = null;
+    outfitPreview = null;
+    _notify();
+  }
+
   Future<void> chooseAvatar() async {
     if (session == null ||
         busy ||

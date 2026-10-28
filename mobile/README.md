@@ -1,6 +1,6 @@
 # SelfX customer app — first milestone
 
-Current source **0.13.0+15** adds SelfX demo garments and selectable full-body models in Home and the personal Try-On flow. Demo looks use personal credits and temporary images, and do not appear in Store QR catalogs. See [Customer mobile 15](../docs/CUSTOMER-MOBILE-15-DEMO-CATALOG.md). Coordinate API assets and app rebuild for rollout; no APK built.
+Current source **0.13.0+15** includes ten SelfX demo garments and ten selectable full-body models per supported Women/Men category in Home and the personal Try-On flow. Demo looks use personal credits and temporary images, and do not appear in Store QR catalogs. See [Customer mobile 15](../docs/CUSTOMER-MOBILE-15-DEMO-CATALOG.md). Coordinate API assets and app rebuild for rollout; no APK built.
 
 Source **0.12.0+14** adds post-login interests and private saved avatar photos, with a temporary full-body copy selected by default in clothing Try-On. Manage photos in Me → My avatar. See [Customer mobile 14](../docs/CUSTOMER-MOBILE-14-AVATAR.md). Migration, deployment and an app rebuild are rollout steps; no APK built.
 

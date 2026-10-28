@@ -265,7 +265,7 @@ void main() {
     },
   );
   testWidgets(
-    'demo product opens a detail view with avatar and model choices',
+    'demo product opens a detail view with upload and relevant model choices',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -300,6 +300,7 @@ void main() {
                   onTryOn: (product, modelId) async {
                     chosenModel = modelId;
                   },
+                  onUploadPerson: (product, modelId) async {},
                 ),
               ),
             ),
@@ -321,15 +322,10 @@ void main() {
       await tester.drag(find.byType(ListView).first, const Offset(0, -400));
       await tester.pumpAndSettle();
       await capture('demo-product');
-      expect(find.text('My Avatar'), findsOneWidget);
+      expect(find.text('Upload my photo'), findsOneWidget);
       await tester.tap(find.text('Maya'));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('Try on this outfit'),
-        250,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('Try on this outfit'));
+      await tester.tap(find.text('Try it on').last);
       await tester.pumpAndSettle();
       expect(chosenModel, 'muse');
     },

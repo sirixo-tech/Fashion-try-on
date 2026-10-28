@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-18 — Product detail, grid and My Looks (2026-10-28)
+
+Show the selected demo product prominently above category-relevant model choices. The saved full-body reference remains the implicit default; omit the My Avatar selector. Offer an explicit Upload my photo action that enters the existing consented Try-On flow. Keep product detail copy short and the Try it on action fixed at the bottom. Home category filters share the row evenly, and product cards use near-full available width with full-garment imagery and details beneath. My Looks uses large result cards with View look and Download actions, plus a Plans & credits banner when known personal credits fall below ten; do not advertise purchasing while personal paid plans are unavailable.
+
+### CUSTOMER-MOBILE-17 — Product-first Home and compact Try-On tab (2026-10-28)
+
+Remove the sign-in-with-code action and center the compact sign-in content and Terms/Privacy checkbox. Home shows the product collection immediately after its brand/language/QR/credits header; remove the editorial hero, greeting and duplicate Try-On shortcuts. Add Try-On beside Home in bottom navigation. Its page has person and garment photo actions, compact previews, and a bottom Try it on action using the existing consent, saved-avatar, upload, entitlement and generation logic. The Home header appears only on Home; Saved, Try-On and Me have their own page headings. Keep the main Try-On composition within the standard phone viewport while preserving safe behavior on smaller displays.
+
+### CUSTOMER-MOBILE-16 — Compact entry screens (2026-10-28)
+
+Use a dark blue information-screen backdrop and larger Try-On/model image cards to reduce empty space. Replace the previous orange-blazer model image in active mobile screens. Keep sign-in compact: logo, brief title, Google, email/mobile and password, then a linked Terms/Privacy acceptance checkbox above Sign in. Retain the code, recovery and account-creation actions and keyboard/small-screen scrolling.
+
 ### CUSTOMER-MOBILE-15 — Demo Explore and detail (2026-10-28)
 
 Home has a SelfX Demo outfit grid with search and All/Women/Men filters. Each card opens a sample product detail view with a large garment preview and My Avatar / demo model selection. The fitting room displays the selected person and garment, with one-off replacement actions. Demo products have no price or purchase control. Store QR mode retains the Store catalog. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.

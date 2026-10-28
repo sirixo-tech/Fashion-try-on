@@ -5,7 +5,13 @@ import '../services/customer_public_links.dart';
 import 'customer_theme.dart';
 
 class CustomerPolicyNotice extends StatefulWidget {
-  const CustomerPolicyNotice({super.key});
+  final bool accepted;
+  final ValueChanged<bool?>? onChanged;
+  const CustomerPolicyNotice({
+    super.key,
+    required this.accepted,
+    required this.onChanged,
+  });
   @override
   State<CustomerPolicyNotice> createState() => _CustomerPolicyNoticeState();
 }
@@ -38,24 +44,55 @@ class _CustomerPolicyNoticeState extends State<CustomerPolicyNotice> {
       decoration: TextDecoration.underline,
       fontWeight: FontWeight.w600,
     );
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(text: '${tr(context, 'By continuing, you agree to our')} '),
-          TextSpan(text: tr(context, 'Terms'), style: link, recognizer: terms),
-          const TextSpan(text: ' · '),
-          TextSpan(
-            text: tr(context, 'Privacy Policy'),
-            style: link,
-            recognizer: privacy,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Checkbox(
+          value: widget.accepted,
+          onChanged: widget.onChanged,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          activeColor: CustomerColors.orange,
+          semanticLabel: tr(
+            context,
+            'I agree to the Terms and Privacy Policy.',
           ),
-        ],
-      ),
-      style: const TextStyle(
-        fontSize: 13,
-        height: 1.6,
-        color: CustomerColors.muted,
-      ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const CustomerText(
+                'I agree to the Terms and Privacy Policy.',
+                style: TextStyle(fontSize: 12, height: 1.25),
+              ),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: tr(context, 'Terms'),
+                      style: link,
+                      recognizer: terms,
+                    ),
+                    const TextSpan(text: '  ·  '),
+                    TextSpan(
+                      text: tr(context, 'Privacy Policy'),
+                      style: link,
+                      recognizer: privacy,
+                    ),
+                  ],
+                ),
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: CustomerColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
