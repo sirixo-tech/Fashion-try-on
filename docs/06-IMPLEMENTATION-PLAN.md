@@ -2,7 +2,7 @@
 
 ### CUSTOM-CREDITS-1 — Rollout (2026-10-29)
 
-Apply migration `20261029040000_custom_credit_plans` after the previous mobile migrations, deploy API and web admin, and rebuild the customer app. Configure and activate the MOBILE custom plan, then verify 1 and 1,000 credit PhonePe purchases, order amount snapshots and exactly-once grants. Configure the STORE custom plan and verify authorized quotes and tenant isolation; Store checkout remains disabled and must not grant credits. Check that editing either custom plan does not change regular Mobile Plan prices, Store postpaid prices, completed purchases or existing billing cycles. This supersedes the earlier shared-rate rollout.
+Apply migration `20261029040000_custom_credit_plans` after the previous mobile migrations, deploy API and web admin, and rebuild the customer app. Configure and activate the MOBILE custom plan, then verify 1 and 1,000 credit PhonePe purchases, order amount snapshots and exactly-once grants. Verify the Store custom-plan admin API is unavailable and Store Billing has no custom-credit quote. Check that editing the Mobile custom plan does not change regular Mobile Plan prices, Store postpaid prices, completed purchases or existing billing cycles. This supersedes the earlier shared-rate rollout.
 
 ### CUSTOMER-MOBILE-17 — Shared price rollout (2026-10-29)
 

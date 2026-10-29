@@ -28,9 +28,6 @@ describe("mobile plan catalog", () => {
     expect(() =>
       customCreditTotal(CustomCreditChannel.MOBILE, 1001, 900),
     ).toThrow();
-    expect(() =>
-      customCreditTotal(CustomCreditChannel.STORE, 1001, 900),
-    ).toThrow();
   });
 
   it("keeps regular mobile plan prices independent of custom credits", async () => {

@@ -2,7 +2,7 @@
 
 ### CUSTOM-CREDITS-1 — Custom credit plan UI (2026-10-29)
 
-Plans contains a Store Custom credits plan form; Mobile Plans contains a separate Mobile Custom credits plan form. Each shows its per-credit price and active state. The mobile Plans & credits screen shows the active Mobile custom rate and accepts 1–1,000 credits before the existing PhonePe checkout. The checkout dialog shows the server-snapshotted total. Store Billing can request an authorized quote for 1–1,000 custom credits and states that online purchase is not yet enabled. Normal Store and Mobile Plans keep their own prices.
+Mobile Plans shows Custom credits as a card alongside regular Mobile plans. New mobile plan first offers regular or Custom credits, then opens a dedicated editor. Mobile Custom credits has pricing and summary sections without feature checkboxes. Store Plans retains its regular creation flow, and Store Billing has no custom-credit quote. Regular Mobile Plans continue to use separate create and edit pages. The mobile Plans & credits screen shows the active Mobile custom rate and accepts 1–1,000 credits before the existing PhonePe checkout. The checkout dialog shows the server-snapshotted total. Normal Store and Mobile Plans keep their own prices.
 
 ### CUSTOMER-MOBILE-17 — Credit buying (2026-10-29)
 

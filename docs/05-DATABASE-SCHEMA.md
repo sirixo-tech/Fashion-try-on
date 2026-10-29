@@ -2,7 +2,7 @@
 
 ### CUSTOM-CREDITS-1 — Custom credit plans (2026-10-29)
 
-Migration `20261029040000_custom_credit_plans` adds `custom_credit_plans`, unique by STORE or MOBILE channel, with name, status, currency, unit price and optimistic version. `customer_mobile_purchases.custom_credit_plan_id` is nullable and refers to the plan used for custom purchases; the existing amount and quantity columns remain immutable order snapshots. The old `shared_credit_prices` table stays for migration compatibility but is inactive.
+Migration `20261029040000_custom_credit_plans` adds `custom_credit_plans`, unique by channel, with name, status, currency, unit price and optimistic version. Only MOBILE is used by the application; STORE remains an enum value for compatibility with any earlier rows. `customer_mobile_purchases.custom_credit_plan_id` is nullable and refers to the Mobile plan used for custom purchases; the existing amount and quantity columns remain immutable order snapshots. The old `shared_credit_prices` table stays for migration compatibility but is inactive.
 
 ### CUSTOMER-MOBILE-17 — Shared credit price (2026-10-29)
 

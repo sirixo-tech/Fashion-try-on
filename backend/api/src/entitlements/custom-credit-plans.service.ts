@@ -5,18 +5,24 @@ import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 
 export const MOBILE_CUSTOM_CREDIT_LIMIT = 1000;
-export const STORE_CUSTOM_CREDIT_LIMIT = 1000;
 const MAX_QUOTE_MINOR = 2_000_000_000;
+
+function requireMobile(channel: CustomCreditChannel) {
+  if (channel !== CustomCreditChannel.MOBILE)
+    throw new ApiErrorException(
+      404,
+      "CUSTOM_CREDIT_CHANNEL_UNAVAILABLE",
+      "Only Mobile custom credits are available.",
+    );
+}
 
 export function customCreditTotal(
   channel: CustomCreditChannel,
   quantity: number,
   unitPriceCents: number,
 ): number {
-  const limit =
-    channel === CustomCreditChannel.MOBILE
-      ? MOBILE_CUSTOM_CREDIT_LIMIT
-      : STORE_CUSTOM_CREDIT_LIMIT;
+  requireMobile(channel);
+  const limit = MOBILE_CUSTOM_CREDIT_LIMIT;
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > limit)
     throw new ApiErrorException(
       400,
@@ -24,12 +30,7 @@ export function customCreditTotal(
       `Choose 1 to ${limit.toLocaleString("en-US")} credits.`,
     );
   const total = quantity * unitPriceCents;
-  const minimum = channel === CustomCreditChannel.MOBILE ? 100 : 1;
-  if (
-    !Number.isSafeInteger(total) ||
-    total < minimum ||
-    total > MAX_QUOTE_MINOR
-  )
+  if (!Number.isSafeInteger(total) || total < 100 || total > MAX_QUOTE_MINOR)
     throw new ApiErrorException(
       400,
       "CUSTOM_CREDIT_TOTAL_INVALID",
@@ -43,6 +44,7 @@ export class CustomCreditPlansService {
   constructor(private readonly db: PrismaService) {}
 
   current(channel: CustomCreditChannel) {
+    requireMobile(channel);
     return this.db.customCreditPlan.findUnique({ where: { channel } });
   }
 
@@ -57,17 +59,17 @@ export class CustomCreditPlansService {
       expectedVersion: number;
     },
   ) {
-    const minPrice = channel === CustomCreditChannel.MOBILE ? 100 : 1;
+    requireMobile(channel);
     if (
       input.name.trim().length < 2 ||
       input.name.trim().length > 160 ||
       !/^[A-Z]{3}$/.test(input.currency) ||
-      (channel === CustomCreditChannel.MOBILE && input.currency !== "INR") ||
+      input.currency !== "INR" ||
       (input.status !== PricingPlanStatus.ACTIVE &&
         input.status !== PricingPlanStatus.INACTIVE) ||
       !Number.isInteger(input.unitPriceCents) ||
-      input.unitPriceCents < minPrice ||
-      input.unitPriceCents > MAX_QUOTE_MINOR / STORE_CUSTOM_CREDIT_LIMIT ||
+      input.unitPriceCents < 100 ||
+      input.unitPriceCents > MAX_QUOTE_MINOR / MOBILE_CUSTOM_CREDIT_LIMIT ||
       !Number.isInteger(input.expectedVersion) ||
       input.expectedVersion < 0
     )

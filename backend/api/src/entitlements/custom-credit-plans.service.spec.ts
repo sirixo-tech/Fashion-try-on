@@ -6,15 +6,8 @@ import {
 } from "./custom-credit-plans.service.js";
 
 describe("custom credit plans", () => {
-  it("keeps Store and Mobile prices independent and validates quantities", async () => {
+  it("quotes only Mobile custom credits and validates quantities", async () => {
     const rows = {
-      STORE: {
-        id: "store-plan",
-        channel: CustomCreditChannel.STORE,
-        status: PricingPlanStatus.ACTIVE,
-        currency: "INR",
-        unitPriceCents: 600,
-      },
       MOBILE: {
         id: "mobile-plan",
         channel: CustomCreditChannel.MOBILE,
@@ -32,21 +25,19 @@ describe("custom credit plans", () => {
       },
     };
     const plans = new CustomCreditPlansService(db as never);
-    expect((await plans.quote(CustomCreditChannel.STORE, 10)).totalMinor).toBe(
-      6000,
-    );
     expect((await plans.quote(CustomCreditChannel.MOBILE, 10)).totalMinor).toBe(
       9000,
     );
+    await expect(plans.quote(CustomCreditChannel.STORE, 10)).rejects.toThrow();
     await expect(
       plans.quote(CustomCreditChannel.MOBILE, 1001),
     ).rejects.toThrow();
     expect(() =>
-      customCreditTotal(CustomCreditChannel.STORE, 1001, 600),
+      customCreditTotal(CustomCreditChannel.STORE, 10, 600),
     ).toThrow();
   });
 
-  it("writes only the chosen channel with a version check", async () => {
+  it("writes only Mobile custom plans", async () => {
     const upsert = vi.fn().mockResolvedValue({
       id: "mobile-plan",
       channel: "MOBILE",

@@ -1,6 +1,6 @@
 import { selfxApi } from "./api";
 
-export type CustomCreditChannel = "STORE" | "MOBILE";
+export type CustomCreditChannel = "MOBILE";
 export interface CustomCreditPlan {
   id: string;
   channel: CustomCreditChannel;
@@ -38,26 +38,5 @@ export function saveCustomCreditPlan(
       method: "PUT",
       body: JSON.stringify(input),
     },
-  );
-}
-
-export interface StoreCustomCreditQuote {
-  planId: string;
-  storeId: string;
-  currency: string;
-  quantity: number;
-  unitPriceCents: number;
-  totalMinor: number;
-  checkoutAvailable: false;
-}
-
-export function quoteStoreCustomCredits(
-  accessToken: string,
-  storeId: string,
-  quantity: number,
-) {
-  return selfxApi<StoreCustomCreditQuote>(
-    `/api/v1/admin/stores/${storeId}/custom-credits/quote?quantity=${quantity}`,
-    { accessToken },
   );
 }

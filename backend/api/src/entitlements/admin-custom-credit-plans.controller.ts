@@ -36,14 +36,11 @@ export class AdminCustomCreditPlansController {
   ) {}
 
   private channel(value: string): CustomCreditChannel {
-    if (
-      value !== CustomCreditChannel.STORE &&
-      value !== CustomCreditChannel.MOBILE
-    )
+    if (value !== CustomCreditChannel.MOBILE)
       throw new ApiErrorException(
         400,
         "CUSTOM_CREDIT_CHANNEL_INVALID",
-        "Choose Store or Mobile.",
+        "Only Mobile custom credits are available.",
       );
     return value;
   }

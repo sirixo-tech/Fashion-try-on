@@ -58,7 +58,6 @@ import {
   type PricingPlan,
 } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
-import { StoreCustomCreditQuoteCard } from "@/components/store-custom-credit-quote";
 import {
   getStore,
   getStoreCreditDiagnostics,
@@ -338,15 +337,6 @@ export default function BillingPage() {
           features={planFeatures}
           loading={billingLoading}
         />
-      )}
-
-      {!canChooseStoreScope && accessToken && currentStore?.id && (
-        <PageSection>
-          <StoreCustomCreditQuoteCard
-            accessToken={accessToken}
-            storeId={currentStore.id}
-          />
-        </PageSection>
       )}
 
       <PageSection>

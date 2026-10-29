@@ -58,7 +58,6 @@ import {
   type PricingPlan,
 } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
-import { CustomCreditPlanCard } from "@/components/custom-credit-plan-card";
 
 export default function PricingControlPage() {
   const session = useSession();
@@ -224,16 +223,6 @@ export default function PricingControlPage() {
           </div>
         </PageSection>
       ) : null}
-
-      {accessToken && (
-        <PageSection>
-          <CustomCreditPlanCard
-            channel="STORE"
-            accessToken={accessToken}
-            canManage={canManagePricing}
-          />
-        </PageSection>
-      )}
 
       <PageSection>
         {loading ? (

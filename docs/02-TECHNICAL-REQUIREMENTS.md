@@ -1,8 +1,8 @@
 ## Document Evolution
 
-### CUSTOM-CREDITS-1 — Channel-specific credit prices (2026-10-29)
+### CUSTOM-CREDITS-1 — Mobile custom credit price (2026-10-29)
 
-`custom_credit_plans` has one independently versioned STORE or MOBILE row with a currency, fixed unit price and active state. Admin plan writes use optimistic version checks and transaction locks. A mobile custom purchase resolves the active MOBILE plan in the order transaction, computes quantity × unit price server-side, and snapshots the plan ID, quantity and amount. Regular Mobile Plan checkout uses that plan's stored total. Store quote requires authorized Store access and returns quantity × the active STORE plan rate; it never creates an order or grants credits. The earlier `shared_credit_prices` table is retained only for migration compatibility and is no longer read or written by the application.
+`custom_credit_plans` uses the MOBILE row with a currency, fixed unit price and active state. Admin plan writes use optimistic version checks and transaction locks. A mobile custom purchase resolves the active MOBILE plan in the order transaction, computes quantity × unit price server-side, and snapshots the plan ID, quantity and amount. Regular Mobile Plan checkout uses that plan's stored total. The earlier STORE enum value is retained only for data compatibility; the API rejects Store custom-plan reads, writes and quotes. The earlier `shared_credit_prices` table is retained only for migration compatibility and is no longer read or written by the application.
 
 ### CUSTOMER-MOBILE-17 — Shared credit price (2026-10-29)
 

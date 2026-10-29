@@ -6,7 +6,6 @@ import {
   StorePaymentTestCallbacksController,
 } from "../payments/store-payment-tests.controller.js";
 import { StorePurgeController } from "./store-purge.controller.js";
-import { StoreCustomCreditQuoteController } from "./store-custom-credit-quote.controller.js";
 import { StorePurgeService } from "./store-purge.service.js";
 
 import { AuthModule } from "../auth/auth.module.js";
@@ -66,7 +65,6 @@ import {
     StorePaymentTestCallbacksController,
     StoreKiosksController,
     StorePurgeController,
-    StoreCustomCreditQuoteController,
     AdminStoresController,
     StoreImpersonationController,
     ProductStockController,
