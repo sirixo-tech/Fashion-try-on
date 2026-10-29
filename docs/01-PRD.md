@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-18 — SelfX PhonePe dynamic QR payment choice (2026-10-29)
+
+SelfX Superadmin configures a dedicated SelfX-owned PhonePe merchant ID, Salt Index and Salt Key for customer mobile purchases. The mobile purchase screen shows installed UPI apps first, with optional QR display and short-lived QR or UPI URI sharing. Payment credentials stay on the API. A shared QR or URI credits the initiating SelfX customer only after the API verifies the exact payment once. This supersedes the Mobile Standard Checkout credential and hosted-link choice in CUSTOMER-MOBILE-16; pricing, credit expiry and grant rules remain the same.
+
 ### CUSTOM-CREDITS-1 — Mobile custom credit plan (2026-10-29)
 
 Platform pricing administrators create or edit a Mobile Custom credits plan in Mobile Plans. Mobile custom purchases accept 1–1,000 credits at its fixed per-credit price through verified PhonePe checkout; regular Mobile Plans retain their separately configured package prices. Custom credits are not offered to Stores. Existing Store plans and postpaid Pay As You Go terms remain unchanged. Completed Mobile purchases and historical Store billing cycles retain their original price snapshots. This supersedes the shared-rate behavior described below.

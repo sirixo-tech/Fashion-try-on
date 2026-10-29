@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Param,
   Post,
   Put,
@@ -38,12 +39,16 @@ class StartMobilePurchaseDto {
   @IsUUID() requestId!: string;
 }
 class SaveMobilePaymentDto {
-  @IsIn(["SANDBOX", "PRODUCTION"]) environment!: "SANDBOX" | "PRODUCTION";
+  @IsIn(["UAT", "PRODUCTION"]) environment!: "UAT" | "PRODUCTION";
   @IsString() @MinLength(1) @MaxLength(100) merchantId!: string;
-  @IsString() @MinLength(1) @MaxLength(150) clientId!: string;
-  @IsString() @MinLength(1) @MaxLength(40) clientVersion!: string;
-  @IsString() @MinLength(8) @MaxLength(256) clientSecret!: string;
+  @IsOptional() @IsString() @MaxLength(100) providerId?: string;
+  @IsOptional() @IsString() @MaxLength(37) providerStoreId?: string;
+  @IsString() @MinLength(1) @MaxLength(10) saltIndex!: string;
+  @IsString() @MinLength(16) @MaxLength(256) saltKey!: string;
   @IsBoolean() enabled!: boolean;
+}
+class MobilePhonePeCallbackDto {
+  @IsString() @MinLength(1) @MaxLength(32768) response!: string;
 }
 
 @Controller("api/v1/customer/mobile-payments")
@@ -98,6 +103,17 @@ export class CustomerMobilePaymentsController {
       errorCorrectionLevel: "M",
     });
     return new StreamableFile(png, { type: "image/png" });
+  }
+  @Post(":id/callback")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  async callback(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+    @Body() input: MobilePhonePeCallbackDto,
+  ) {
+    const signature = request.headers["x-verify"];
+    return this.payments.callback(id, input.response, typeof signature === "string" ? signature : "");
   }
 }
 

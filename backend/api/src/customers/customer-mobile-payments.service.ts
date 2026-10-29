@@ -15,6 +15,10 @@ import {
 import { encryptProviderSecret } from "../integrations/provider-secret-cipher.js";
 import { decryptPaymentSnapshot } from "../payments/payment-snapshots.js";
 import { paymentEncryptionKey } from "../payments/payment-settings.service.js";
+import { paymentCallbackOrigin } from "../payments/payment-execution-utils.js";
+import { phonePeProductionBase } from "../payments/phonepe-endpoints.js";
+import { PhonePeDqrAdapter, type PhonePeDqrCredentials } from "../payments/phonepe-dqr.adapter.js";
+import { PhonePeTransport } from "../payments/phonepe.transport.js";
 import {
   createMobileCheckout,
   mobileCheckoutStatus,
@@ -22,6 +26,11 @@ import {
 } from "../payments/phonepe-mobile-checkout.js";
 
 const connectionId = "PHONEPE";
+type MobileDqrCredentials = PhonePeDqrCredentials & { mode: "DQR" };
+type SavedCredentials = MobileDqrCredentials | MobilePhonePeCredentials;
+function isDqr(value: SavedCredentials): value is MobileDqrCredentials {
+  return "mode" in value && value.mode === "DQR";
+}
 function fail(code: string, message: string, status = 409): never {
   throw new ApiErrorException(status, code, message);
 }
@@ -55,6 +64,7 @@ export class CustomerMobilePaymentsService
 {
   private readonly logger = new Logger(CustomerMobilePaymentsService.name);
   private timer?: ReturnType<typeof setInterval>;
+  private readonly transport = new PhonePeTransport();
   constructor(private readonly db: PrismaService) {}
 
   onModuleInit() {
@@ -88,44 +98,54 @@ export class CustomerMobilePaymentsService
 
   async saveAdmin(
     actorId: string,
-    input: MobilePhonePeCredentials & { enabled: boolean },
+    input: {
+      environment: "UAT" | "PRODUCTION";
+      merchantId: string;
+      providerId?: string;
+      providerStoreId?: string;
+      saltIndex: string;
+      saltKey: string;
+      enabled: boolean;
+    },
   ) {
     if (
       !/^[A-Za-z0-9_-]{1,100}$/.test(input.merchantId) ||
-      !/^[A-Za-z0-9_-]{1,150}$/.test(input.clientId) ||
-      !/^[A-Za-z0-9_.-]{1,40}$/.test(input.clientVersion) ||
-      !/^\S{8,256}$/.test(input.clientSecret) ||
-      !["SANDBOX", "PRODUCTION"].includes(input.environment)
+      (input.providerId && !/^[A-Za-z0-9_-]{1,100}$/.test(input.providerId)) ||
+      (input.providerStoreId && !/^[A-Za-z0-9_-]{1,37}$/.test(input.providerStoreId)) ||
+      !/^[0-9]{1,10}$/.test(input.saltIndex) ||
+      !/^\S{16,256}$/.test(input.saltKey) ||
+      !["UAT", "PRODUCTION"].includes(input.environment)
     )
       fail(
         "MOBILE_PAYMENT_CONFIGURATION_INVALID",
-        "Enter valid PhonePe checkout credentials.",
+        "Enter valid PhonePe Dynamic QR credentials.",
         400,
       );
+    const credentials: MobileDqrCredentials = {
+      mode: "DQR",
+      environment: input.environment,
+      merchantId: input.merchantId,
+      providerId: input.providerId || undefined,
+      providerStoreId: input.providerStoreId || "SELFXMOBILE",
+      saltIndex: input.saltIndex,
+      saltKey: input.saltKey,
+      ...(input.environment === "PRODUCTION" ? { apiBaseUrl: phonePeProductionBase() } : {}),
+    };
     const { key, version } = paymentEncryptionKey();
-    const encrypted = encryptProviderSecret(
-      {
-        merchantId: input.merchantId,
-        clientId: input.clientId,
-        clientVersion: input.clientVersion,
-        clientSecret: input.clientSecret,
-        environment: input.environment,
-      } satisfies MobilePhonePeCredentials,
-      key,
-    );
+    const encrypted = encryptProviderSecret(credentials, key);
     await this.db.$transaction(async (tx) => {
       await tx.mobilePaymentConnection.upsert({
         where: { id: connectionId },
         create: {
           id: connectionId,
           environment: input.environment,
-          enabled: input.enabled,
+          enabled: input.enabled && input.environment === "PRODUCTION",
           ...encrypted,
           keyVersion: version,
         },
         update: {
           environment: input.environment,
-          enabled: input.enabled,
+          enabled: input.enabled && input.environment === "PRODUCTION",
           ...encrypted,
           keyVersion: version,
         },
@@ -141,7 +161,7 @@ export class CustomerMobilePaymentsService
           metadata: {
             provider: connectionId,
             environment: input.environment,
-            enabled: input.enabled,
+            enabled: input.enabled && input.environment === "PRODUCTION",
           },
         },
       });
@@ -281,7 +301,7 @@ export class CustomerMobilePaymentsService
           planId: plan?.id ?? null,
           customCreditPlanId: customPlan?.id ?? null,
           requestKey,
-          merchantOrderId: `SELFX_${id.replaceAll("-", "")}`,
+          merchantOrderId: `SX${id.replaceAll("-", "")}`,
           status: "INITIALIZING",
           environment: connection.environment,
           amountMinor,
@@ -289,7 +309,7 @@ export class CustomerMobilePaymentsService
           credits,
           bonusCredits: plan?.trialCredits ?? 0,
           billingPeriod: plan?.billingPeriod ?? "ONE_TIME",
-          expiresAt: new Date(Date.now() + 20 * 60000),
+          expiresAt: new Date(Date.now() + 5 * 60000),
           encryptedPayload: connection.encryptedPayload,
           initializationVector: connection.initializationVector,
           authenticationTag: connection.authenticationTag,
@@ -308,8 +328,7 @@ export class CustomerMobilePaymentsService
       });
       return publicPurchase(current);
     }
-    const credentials =
-      decryptPaymentSnapshot<MobilePhonePeCredentials>(purchase);
+    const credentials = decryptPaymentSnapshot<SavedCredentials>(purchase);
     if (credentials.environment !== purchase.environment)
       fail(
         "MOBILE_PAYMENT_CONFIGURATION_INVALID",
@@ -317,11 +336,13 @@ export class CustomerMobilePaymentsService
         503,
       );
     try {
-      const checkout = await createMobileCheckout(
-        credentials,
-        purchase.merchantOrderId,
-        purchase.amountMinor,
-      );
+      const checkout = isDqr(credentials)
+        ? await this.createDqrPurchase(credentials, purchase)
+        : await createMobileCheckout(
+            credentials,
+            purchase.merchantOrderId,
+            purchase.amountMinor,
+          );
       await this.db.customerMobilePurchase.updateMany({
         where: { id: purchase.id, status: { in: ["INITIATING", "PENDING"] } },
         data: {
@@ -341,6 +362,29 @@ export class CustomerMobilePaymentsService
       });
       throw error;
     }
+  }
+
+  private async createDqrPurchase(
+    credentials: MobileDqrCredentials,
+    purchase: { id: string; merchantOrderId: string; amountMinor: number; expiresAt: Date },
+  ) {
+    const adapter = new PhonePeDqrAdapter(credentials);
+    const expected = {
+      transactionId: purchase.merchantOrderId,
+      amountMinor: purchase.amountMinor,
+      currency: "INR" as const,
+    };
+    const remaining = Math.floor((purchase.expiresAt.getTime() - Date.now()) / 1000);
+    if (remaining < 1) fail("MOBILE_PAYMENT_EXPIRED", "Start this purchase again.");
+    const response = await this.transport.send(
+      adapter.createRequest(
+        expected,
+        `${paymentCallbackOrigin()}/api/v1/customer/mobile-payments/${purchase.id}/callback`,
+        Math.min(remaining, 300),
+      ),
+      { purpose: "MOBILE", environment: "PRODUCTION", productionBase: credentials.apiBaseUrl },
+    );
+    return { providerOrderId: purchase.merchantOrderId, checkoutUrl: adapter.parseQr(response, expected).qrString };
   }
 
   async status(customerId: string, id: string, verify = true) {
@@ -391,6 +435,25 @@ export class CustomerMobilePaymentsService
     return purchase.checkoutUrl;
   }
 
+  async callback(id: string, encoded: string, signature: string) {
+    const purchase = await this.db.customerMobilePurchase.findUnique({ where: { id } });
+    if (!purchase) fail("MOBILE_PAYMENT_NOT_FOUND", "Payment not found.", 404);
+    try {
+      const credentials = decryptPaymentSnapshot<SavedCredentials>(purchase);
+      if (!isDqr(credentials) || signature.length > 128) throw new Error();
+      new PhonePeDqrAdapter(credentials).verifyCallback(
+        encoded,
+        signature,
+        { transactionId: purchase.merchantOrderId, amountMinor: purchase.amountMinor, currency: "INR" },
+      );
+    } catch {
+      fail("MOBILE_PAYMENT_CALLBACK_INVALID", "Payment notification could not be verified.", 401);
+    }
+    // A signed notification is only a signal: fulfillment still queries PhonePe.
+    await this.verify(id).catch(() => undefined);
+    return { accepted: true };
+  }
+
   async verify(id: string) {
     const purchase = await this.db.customerMobilePurchase.findUnique({
       where: { id },
@@ -402,14 +465,15 @@ export class CustomerMobilePaymentsService
       )
     )
       return;
-    const credentials =
-      decryptPaymentSnapshot<MobilePhonePeCredentials>(purchase);
+    const credentials = decryptPaymentSnapshot<SavedCredentials>(purchase);
     if (credentials.environment !== purchase.environment) return;
-    const result = await mobileCheckoutStatus(
-      credentials,
-      purchase.merchantOrderId,
-      purchase.amountMinor,
-    );
+    const result = isDqr(credentials)
+      ? await this.dqrStatus(credentials, purchase)
+      : await mobileCheckoutStatus(
+          credentials,
+          purchase.merchantOrderId,
+          purchase.amountMinor,
+        );
     if (
       purchase.providerOrderId &&
       result.providerOrderId !== purchase.providerOrderId
@@ -468,6 +532,29 @@ export class CustomerMobilePaymentsService
         });
       }
     });
+  }
+
+  private async dqrStatus(
+    credentials: MobileDqrCredentials,
+    purchase: { merchantOrderId: string; amountMinor: number },
+  ) {
+    const adapter = new PhonePeDqrAdapter(credentials);
+    const expected = {
+      transactionId: purchase.merchantOrderId,
+      amountMinor: purchase.amountMinor,
+      currency: "INR" as const,
+    };
+    const response = await this.transport.send(adapter.statusRequest(expected), {
+      purpose: "MOBILE",
+      environment: "PRODUCTION",
+      productionBase: credentials.apiBaseUrl,
+    });
+    const status = adapter.parseStatus(response, expected);
+    return {
+      status: status.status === "SUCCEEDED" ? "COMPLETED" as const
+        : status.status === "FAILED" ? "FAILED" as const : "PENDING" as const,
+      providerOrderId: purchase.merchantOrderId,
+    };
   }
 
   async reconcilePending() {

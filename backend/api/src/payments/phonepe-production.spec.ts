@@ -25,6 +25,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("production v3 QR routing", () => {
+  it("keeps mobile QR execution independent from Store checkout", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"success":true}'));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("SELFX_PHONEPE_CHECKOUT_ENABLED", "false");
+    vi.stubEnv("SELFX_MOBILE_PHONEPE_ENABLED", "false");
+    const request = new PhonePeDqrAdapter(credentials).statusRequest(expected);
+    const context = { purpose: "MOBILE" as const, environment: "PRODUCTION" as const, productionBase: base };
+    await expect(new PhonePeTransport().send(request, context)).rejects.toThrow();
+    vi.stubEnv("SELFX_MOBILE_PHONEPE_ENABLED", "true");
+    await new PhonePeTransport().send(request, context);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("gates checkout separately and reconciles only the encrypted snapshot's pinned endpoint", async () => {
     const fetchMock = vi
       .fn()

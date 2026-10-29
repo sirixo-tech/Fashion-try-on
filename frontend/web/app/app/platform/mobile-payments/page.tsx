@@ -27,13 +27,14 @@ type Settings = {
 export default function MobilePaymentsPage() {
   const session = useSession();
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [environment, setEnvironment] = useState<"SANDBOX" | "PRODUCTION">(
-    "SANDBOX",
+  const [environment, setEnvironment] = useState<"UAT" | "PRODUCTION">(
+    "UAT",
   );
   const [merchantId, setMerchantId] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientVersion, setClientVersion] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
+  const [providerId, setProviderId] = useState("");
+  const [providerStoreId, setProviderStoreId] = useState("");
+  const [saltIndex, setSaltIndex] = useState("");
+  const [saltKey, setSaltKey] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -56,7 +57,7 @@ export default function MobilePaymentsPage() {
         accessToken,
       });
       setSettings(next);
-      if (next.environment === "SANDBOX" || next.environment === "PRODUCTION")
+      if (next.environment === "UAT" || next.environment === "PRODUCTION")
         setEnvironment(next.environment);
       setEnabled(next.enabled);
     } catch (cause) {
@@ -82,14 +83,15 @@ export default function MobilePaymentsPage() {
         body: JSON.stringify({
           environment,
           merchantId,
-          clientId,
-          clientVersion,
-          clientSecret,
+          providerId,
+          providerStoreId,
+          saltIndex,
+          saltKey,
           enabled,
         }),
       });
       setSettings(next);
-      setClientSecret("");
+      setSaltKey("");
     } catch (cause) {
       setError(
         cause instanceof SafeApiError || cause instanceof Error
@@ -114,7 +116,7 @@ export default function MobilePaymentsPage() {
       {canView && (
         <Card>
           <CardHeader>
-            <CardTitle>PhonePe checkout</CardTitle>
+          <CardTitle>PhonePe Dynamic QR</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
@@ -127,12 +129,12 @@ export default function MobilePaymentsPage() {
               Server execution:{" "}
               {settings?.executionEnabled ? "Enabled" : "Disabled"}. Customer
               purchases require a production PhonePe account and
-              SELFX_MOBILE_PHONEPE_ENABLED=true on the API.
+              SELFX_MOBILE_PHONEPE_ENABLED=true and a confirmed production PhonePe endpoint on the API.
             </p>
             <p>
-              Customers can pay once for a credit pack or each month for a
-              monthly plan. Monthly plans do not renew automatically. Credits
-              are granted only after PhonePe confirms payment.
+              Customers can open a UPI app directly or share a short-lived QR.
+              Monthly plans require a new payment each month. Credits are granted
+              only after PhonePe confirms payment.
             </p>
             {canManage && (
               <form onSubmit={save} className="grid max-w-xl gap-4">
@@ -141,11 +143,11 @@ export default function MobilePaymentsPage() {
                   id="mobile-environment"
                   value={environment}
                   onChange={(e) =>
-                    setEnvironment(e.target.value as "SANDBOX" | "PRODUCTION")
+                    setEnvironment(e.target.value as "UAT" | "PRODUCTION")
                   }
                   className="rounded border p-2"
                 >
-                  <option value="SANDBOX">Sandbox</option>
+                  <option value="UAT">UAT</option>
                   <option value="PRODUCTION">Production</option>
                 </select>
                 <Label htmlFor="mobile-merchant">Merchant ID</Label>
@@ -155,26 +157,31 @@ export default function MobilePaymentsPage() {
                   onChange={(e) => setMerchantId(e.target.value)}
                   required
                 />
-                <Label htmlFor="mobile-client">Client ID</Label>
+                <Label htmlFor="mobile-provider">Provider ID (if supplied by PhonePe)</Label>
                 <Input
-                  id="mobile-client"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
+                  id="mobile-provider"
+                  value={providerId}
+                  onChange={(e) => setProviderId(e.target.value)}
+                />
+                <Label htmlFor="mobile-store">PhonePe Store reference (if supplied)</Label>
+                <Input
+                  id="mobile-store"
+                  value={providerStoreId}
+                  onChange={(e) => setProviderStoreId(e.target.value)}
+                />
+                <Label htmlFor="mobile-salt-index">Salt Index</Label>
+                <Input
+                  id="mobile-salt-index"
+                  value={saltIndex}
+                  onChange={(e) => setSaltIndex(e.target.value)}
                   required
                 />
-                <Label htmlFor="mobile-version">Client version</Label>
-                <Input
-                  id="mobile-version"
-                  value={clientVersion}
-                  onChange={(e) => setClientVersion(e.target.value)}
-                  required
-                />
-                <Label htmlFor="mobile-secret">Client secret</Label>
+                <Label htmlFor="mobile-secret">Salt Key</Label>
                 <Input
                   id="mobile-secret"
                   type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
+                  value={saltKey}
+                  onChange={(e) => setSaltKey(e.target.value)}
                   required
                 />
                 <label className="flex items-center gap-2">

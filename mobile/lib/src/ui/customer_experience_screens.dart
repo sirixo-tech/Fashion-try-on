@@ -1,7 +1,8 @@
 import '../l10n/customer_copy.dart';
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
@@ -166,6 +167,7 @@ class CustomerPlansScreen extends StatefulWidget {
 
 class _CustomerPlansScreenState extends State<CustomerPlansScreen>
     with WidgetsBindingObserver {
+  static const upiChannel = MethodChannel('com.selfx.customer/upi');
   late Future<Json> mobilePlans;
   Json? purchase;
   bool purchasing = false;
@@ -224,6 +226,18 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   Future<void> showPaymentOptions() async {
     final id = purchase?['id'] as String?;
     final checkout = purchase?['checkoutUrl'] as String?;
+    final expiresAt = DateTime.tryParse(
+      purchase?['expiresAt'] as String? ?? '',
+    );
+    if (expiresAt != null && !expiresAt.isAfter(DateTime.now())) {
+      if (mounted) {
+        setState(
+          () => paymentError =
+              'This payment has expired. Check its status, then start a new purchase.',
+        );
+      }
+      return;
+    }
     if (id == null || checkout == null) {
       if (mounted) {
         setState(
@@ -233,63 +247,205 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       }
       return;
     }
+    final isUpi = Uri.tryParse(checkout)?.scheme == 'upi';
     Uint8List? qr;
     try {
       qr = await widget.experience.auth.authorizedDownload(
         '/mobile-payments/$id/qr',
       );
     } catch (_) {
-      // The supported UPI app option remains available if a QR cannot load.
+      // App payment remains available if QR loading fails.
+    }
+    var apps = <Map<String, dynamic>>[];
+    if (isUpi && Platform.isAndroid) {
+      try {
+        final found = await upiChannel.invokeListMethod<dynamic>('apps', {
+          'uri': checkout,
+        });
+        apps = [
+          for (final item in found ?? const [])
+            if (item is Map) Map<String, dynamic>.from(item),
+        ];
+      } catch (_) {
+        // The platform UPI chooser can still handle the payment URI.
+      }
     }
     if (!mounted) return;
+    var showQr = false;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const CustomerText('Complete payment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (purchase?['amountMinor'] is num)
-              CustomerText(
-                'Total: ${intl.NumberFormat.simpleCurrency(name: purchase?['currency'] as String? ?? 'INR').format((purchase!['amountMinor'] as num) / 100)}',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const CustomerText('Complete payment'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (purchase?['amountMinor'] is num)
+                  CustomerText(
+                    'Total: ${intl.NumberFormat.simpleCurrency(name: purchase?['currency'] as String? ?? 'INR').format((purchase!['amountMinor'] as num) / 100)}',
+                  ),
+                const SizedBox(height: 16),
+                if (apps.isNotEmpty) ...[
+                  const CustomerText('Pay with an app on this phone'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final app in apps)
+                        InkWell(
+                          onTap: () async {
+                            try {
+                              await upiChannel.invokeMethod<bool>('open', {
+                                'uri': checkout,
+                                'package': app['package'],
+                              });
+                              if (dialogContext.mounted) {
+                                Navigator.pop(dialogContext);
+                              }
+                            } catch (_) {
+                              if (dialogContext.mounted) {
+                                ScaffoldMessenger.of(
+                                  dialogContext,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content: CustomerText(
+                                      'Payment app could not be opened.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          child: SizedBox(
+                            width: 78,
+                            child: Column(
+                              children: [
+                                if (app['icon'] is Uint8List)
+                                  Image.memory(
+                                    app['icon'] as Uint8List,
+                                    width: 48,
+                                    height: 48,
+                                  )
+                                else
+                                  const Icon(
+                                    Icons.account_balance_wallet,
+                                    size: 48,
+                                  ),
+                                const SizedBox(height: 4),
+                                CustomerText(
+                                  app['name'] as String? ?? 'UPI app',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+                if (apps.isEmpty)
+                  const CustomerText(
+                    'Choose an installed UPI app to complete payment.',
+                  ),
+                if (qr != null) ...[
+                  const SizedBox(height: 12),
+                  TextButton.icon(
+                    onPressed: () => setDialogState(() => showQr = !showQr),
+                    icon: const Icon(Icons.qr_code),
+                    label: CustomerText(showQr ? 'Hide QR' : 'Show QR'),
+                  ),
+                ],
+                if (showQr && qr != null) ...[
+                  Image.memory(qr, width: 240, height: 240),
+                  const SizedBox(height: 8),
+                  const CustomerText(
+                    'Scan with another phone before this payment expires.',
+                  ),
+                ],
+                if (qr != null && Platform.isAndroid)
+                  TextButton.icon(
+                    onPressed: () async {
+                      try {
+                        await upiChannel.invokeMethod<bool>('shareQr', {
+                          'uri': checkout,
+                          'png': qr,
+                        });
+                      } catch (_) {
+                        if (dialogContext.mounted) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            const SnackBar(
+                              content: CustomerText(
+                                'Payment QR could not be shared.',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.share_outlined),
+                    label: const CustomerText('Share QR'),
+                  ),
+                if (isUpi && Platform.isAndroid)
+                  TextButton.icon(
+                    onPressed: () async {
+                      try {
+                        await upiChannel.invokeMethod<bool>('shareLink', {
+                          'uri': checkout,
+                        });
+                      } catch (_) {
+                        if (dialogContext.mounted) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            const SnackBar(
+                              content: CustomerText(
+                                'Payment link could not be shared.',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.link_rounded),
+                    label: const CustomerText('Share payment link'),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const CustomerText('Later'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                bool opened = false;
+                try {
+                  opened = await launchUrl(
+                    Uri.parse(checkout),
+                    mode: LaunchMode.externalApplication,
+                  );
+                } catch (_) {
+                  opened = false;
+                }
+                if (!opened && dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: CustomerText(
+                        'PhonePe checkout could not be opened.',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: CustomerText(
+                isUpi ? 'More payment apps' : 'Open PhonePe checkout',
               ),
-            if (qr != null) ...[
-              Image.memory(qr, width: 240, height: 240),
-              const SizedBox(height: 8),
-              const CustomerText(
-                'Scan on another device to open PhonePe checkout.',
-              ),
-            ],
-            const SizedBox(height: 12),
-            const CustomerText(
-              'You can also pay with a supported UPI app on this phone.',
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const CustomerText('Later'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final opened = await launchUrl(
-                Uri.parse(checkout),
-                mode: LaunchMode.externalApplication,
-              );
-              if (!opened && dialogContext.mounted) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(
-                    content: CustomerText(
-                      'PhonePe checkout could not be opened.',
-                    ),
-                  ),
-                );
-              }
-            },
-            child: const CustomerText('Pay with UPI app'),
-          ),
-        ],
       ),
     );
   }
@@ -540,15 +696,13 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                               ? 'Payment confirmed. Credits are ready.'
                               : purchase!['status'] == 'FAILED'
                               ? 'Payment failed. No credits were charged.'
-                              : 'Payment pending. PhonePe checkout offers supported UPI apps and a QR option. Credits appear after payment is confirmed.',
+                              : 'Payment pending. Open a UPI app or share the QR. Credits appear after PhonePe confirms payment.',
                         ),
                         if (purchase!['status'] != 'PAID' &&
                             purchase!['status'] != 'FAILED')
                           TextButton(
                             onPressed: showPaymentOptions,
-                            child: const CustomerText(
-                              'Show payment QR and apps',
-                            ),
+                            child: const CustomerText('Payment options'),
                           ),
                         if (purchase!['status'] != 'PAID' &&
                             purchase!['status'] != 'FAILED')
