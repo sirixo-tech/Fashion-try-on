@@ -33,6 +33,9 @@ import { CustomerPhoneClient } from "./customer-phone.client.js";
 import { CustomerProfilePhotoController } from "./customer-profile-photo.controller.js";
 import { CustomerProfilePhotoService } from "./customer-profile-photo.service.js";
 import { CustomerAvatarController } from "./customer-avatar.controller.js";
+import { CustomerMobilePlansController } from "./customer-mobile-plans.controller.js";
+import { CustomerMobilePaymentsService } from "./customer-mobile-payments.service.js";
+import { CustomerMobilePaymentsController, AdminMobilePaymentsController } from "./customer-mobile-payments.controller.js";
 @Module({
   imports: [
     DatabaseModule,
@@ -46,6 +49,9 @@ import { CustomerAvatarController } from "./customer-avatar.controller.js";
   ],
   controllers: [
     CustomerAvatarController,
+    CustomerMobilePlansController,
+    CustomerMobilePaymentsController,
+    AdminMobilePaymentsController,
     CustomerProfilePhotoController,
     CustomerAuthController,
     CustomerMetricsController,
@@ -56,6 +62,7 @@ import { CustomerAvatarController } from "./customer-avatar.controller.js";
   ],
   providers: [
     CustomerProfilePhotoService,
+    CustomerMobilePaymentsService,
     CustomerPhoneClient,
     CustomerAuthService,
     CustomerNotificationsService,

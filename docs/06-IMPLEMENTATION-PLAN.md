@@ -1,8 +1,14 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-17 — Shared price rollout (2026-10-29)
+
+Apply the shared-credit-price migration after the Mobile Plans and mobile payments migrations. Configure the INR unit rate in Mobile Plans before enabling purchases. Verify 1 and 1,000 custom credits, reject 0 and 1,001, confirm server-derived checkout totals, and check that price changes affect future mobile quotes and Store billing cycles without repricing historical purchases or cycles.
+
 ### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
 
 Implement the explicitly approved demo garments/models and reference-inspired mobile Explore/detail flow over the central SelfX Try-On backend. Verify packaged images, auth/Store separation, personal credits, temporary input retention, avatar/model selection and one-off replacement. Coordinate API assets and app release; real-provider staging acceptance remains. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+The Mobile Plans catalog slice adds separate platform administration and authenticated mobile display. Apply its database migration before deploying the API, then deploy the web admin and rebuild the customer app. Test active-only customer visibility and platform pricing permissions. CUSTOMER-MOBILE-16 adds payment checkout and verified personal credit grants; recurring AutoPay subscriptions remain deferred.
 
 ### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
 
@@ -3358,3 +3364,6 @@ This MVP does not require:
 This is a living roadmap.
 
 It may be revised as the product evolves, but implementation must always follow the latest approved baseline and preserve migration, security, API, and tenant-isolation discipline.
+# Customer Mobile Payments implementation (2026-10-29)
+
+Deploy the Mobile Plans catalog migration before the mobile payment migration and API. Configure the SelfX PhonePe production account in Platform Settings > Mobile Payments, then enable `SELFX_MOBILE_PHONEPE_ENABLED=true` after validating provider checkout and status against the merchant account. Deploy web admin and distribute a rebuilt direct APK. Verify an actual small payment, UPI app and QR checkout, pending/retry behavior, exact-amount rejection, one credit grant per paid order, trial/paid/Store separation, monthly expiry, failed Try-On release and account deletion behavior before production rollout. No real payment or production deployment is part of source implementation.

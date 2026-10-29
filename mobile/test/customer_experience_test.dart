@@ -174,6 +174,68 @@ void main() {
     await exp.upload('GARMENT', syntheticPhoto, 'image/png');
   }
 
+  testWidgets('shows active mobile plans and explains checkout availability', (
+    tester,
+  ) async {
+    api.handler = (path, method, body) async {
+      if (path == '/mobile-plans') {
+        return {
+          'purchasingAvailable': false,
+          'data': [
+            {
+              'name': 'Style 20',
+              'description': 'Twenty personal looks',
+              'currency': 'INR',
+              'priceCents': 19900,
+              'billingPeriod': 'MONTHLY',
+              'includedCredits': 20,
+              'trialCredits': 2,
+            },
+          ],
+        };
+      }
+      return response(path, method, body);
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: CustomerPlansScreen(experience: exp),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Style 20'), findsOneWidget);
+    expect(find.text('20 Try-On credits'), findsOneWidget);
+    expect(find.textContaining('Purchases are unavailable'), findsOneWidget);
+    expect(find.text('Choose plan'), findsNothing);
+  });
+
+  testWidgets('custom credits allow 1 through 1000', (tester) async {
+    api.handler = (path, method, body) async {
+      if (path == '/mobile-plans') {
+        return {
+          'purchasingAvailable': true,
+          'unitPriceCents': 900,
+          'data': [],
+        };
+      }
+      return response(path, method, body);
+    };
+    await tester.pumpWidget(MaterialApp(
+      theme: customerTheme(),
+      home: CustomerPlansScreen(experience: exp),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('₹9.00'), findsOneWidget);
+    final quantity = find.byType(TextField);
+    await tester.enterText(quantity, '1000');
+    await tester.pump();
+    expect(find.text('₹9,000.00'), findsOneWidget);
+    await tester.enterText(quantity, '1001');
+    await tester.pump();
+    expect(find.text('₹9,009.00'), findsNothing);
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Buy credits')).onPressed, isNull);
+  });
+
   test(
     'result suggestions stay in category and prefer complementary pieces',
     () {
@@ -682,7 +744,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('header-credits')));
       await tester.pumpAndSettle();
-      expect(find.text('Free trial'), findsOneWidget);
+      expect(find.text('Personal credits'), findsOneWidget);
       expect(find.text('10 Try-Ons left'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();

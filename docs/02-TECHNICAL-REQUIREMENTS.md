@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-17 — Shared credit price (2026-10-29)
+
+`shared_credit_prices` stores the versioned INR unit rate. Admin updates use an optimistic version and transaction lock, then update INR Store per-credit plan terms and rate history for future cycles. Mobile plan listing derives totals from the current rate. Mobile checkout accepts exactly one plan ID or a custom quantity of 1–1,000; the API computes and snapshots the exact total. Client-supplied prices are never accepted.
+
 ### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
 
 Serve a fixed allowlisted demo catalog through the authenticated SelfX API. Resolve selected garment/model image bytes server-side, then use the existing consented session upload path with seven-day retention and central generation/credit admission. Reject unknown IDs and Store-session demo use. No merchant catalog or database structure is added. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
@@ -57,7 +61,7 @@ Add central customer public configuration/update endpoints, private customer-own
 
 ### CUSTOMER-MOBILE-2 — Working Try-On, free trial and Store QR (2026-10-26)
 
-Reuse canonical TryOnSession, TryOnAsset, TryOnLook, KioskTryOnRun and the central provider-neutral TryOnExecutionService. Add explicit customer ownership/consent, a one-time personal trial wallet, customer row locking, request idempotency, atomic result/credit settlement, Store QR token hashing and Store-owned sponsorship through shared merchant billing. Customer asset access is owned, private and short lived; retryable cleanup uses separate customer-mobile/inputs and customer-mobile/results prefixes. Store plan MOBILE means Store-sponsored QR and is distinct from personal billing. See CUSTOMER-MOBILE-2-IMPLEMENTATION.md for contracts and deployment requirements.
+Reuse canonical TryOnSession, TryOnAsset, TryOnLook, KioskTryOnRun and the central provider-neutral TryOnExecutionService. Add explicit customer ownership/consent, a one-time personal trial wallet, customer row locking, request idempotency, atomic result/credit settlement, Store QR token hashing and Store-owned sponsorship through shared merchant billing. Customer asset access is owned, private and short lived; retryable cleanup uses separate customer-mobile/inputs and customer-mobile/results prefixes. Store plan MOBILE means Store-sponsored QR and is distinct from personal billing. The separate mobile_plans catalog is administered with platform pricing permissions; only active plans are returned to authenticated customers. Catalog visibility does not change the customer credit wallet until verified purchasing is implemented. See CUSTOMER-MOBILE-2-IMPLEMENTATION.md for contracts and deployment requirements.
 
 ### Android release signing (2026-10-26)
 
@@ -3213,3 +3217,6 @@ Protected route coverage:
     Technical Requirements & System Design v1.0 — APPROVED BASELINE
     This document is sufficient to guide the remaining design documents.
     Application implementation should not begin until the database schema and implementation plan have been completed and approved.
+# Mobile checkout extension (2026-10-29)
+
+Customer Mobile Plans use a separate encrypted platform PhonePe OAuth connection and PhonePe Standard Checkout. The API creates orders and snapshots plan price, credits, billing period and encrypted connection; the customer client receives only the hosted checkout URL and purchase status. The client cannot assert payment success. The backend queries PhonePe order status, checks amount and provider order identity, and grants credits atomically once. Pending orders are reconciled by the API. Production checkout requires `SELFX_MOBILE_PHONEPE_ENABLED=true`, a production account and an enabled Mobile Payments setting; sandbox payments cannot grant customer credits. Paid grants are reserved per Try-On and settled on saved results or released on failure. Store-sponsored runs never spend personal credits.

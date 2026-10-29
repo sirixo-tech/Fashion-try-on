@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-17 — Shared credit price (2026-10-29)
+
+Migration `20261029030000_shared_credit_price` adds `shared_credit_prices` with one INR unit rate and optimistic version, and makes `customer_mobile_purchases.plan_id` nullable for custom quantity purchases. Each purchase still snapshots amount, credits and billing period. Existing Store billing cycles retain their rate snapshots.
+
 ### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
 
 No schema change. The fixed demo catalog is packaged with the API. Its selected images become normal customer-owned temporary TryOnAsset inputs in a consented personal TryOnSession, so existing asset expiry, look retention and credit records apply. No demo rows are inserted into merchant products. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
@@ -11,6 +15,10 @@ Migration 20261028010000_customer_avatar adds checked Customer.interests and ava
 ### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
 
 No schema change. Create only the eligible customer's Google identity under existing provider-subject/customer-provider uniqueness constraints. Preserve the customer row, password identity, credit account and linked history. See `CUSTOMER-MOBILE-12-GOOGLE-AUTO-LINK-COVER.md`.
+
+### CUSTOMER-MOBILE-21 — Mobile plan catalog (2026-10-29)
+
+`mobile_plans` stores a globally managed personal-plan catalog with immutable code, status, currency, price in minor units, monthly/one-time period, included credits and introductory trial credits. It has no Store or customer subscription relationship. No paid customer balance or purchase record is created in this phase.
 
 ### CUSTOMER-MOBILE-11 — Email/mobile authentication (2026-10-27)
 
@@ -2849,3 +2857,6 @@ This document defines the logical database structure required before Prisma impl
 Exact Prisma types, enum names, relation names, and final index choices may be refined during implementation, but must remain consistent with the current approved product and technical architecture.
 
 This document may be updated whenever justified requirements change. Such changes must be reflected through the appropriate Prisma schema updates, new migrations, tests, and related documentation.
+# Customer mobile payment extension (2026-10-29)
+
+`mobile_payment_connections` stores encrypted SelfX-owned PhonePe credentials separately from Store connections. `customer_mobile_purchases` stores the customer, plan, idempotency request key, provider order identity, price and credit snapshots, encrypted credential snapshot and verified status. `customer_paid_credit_grants` has a unique purchase foreign key and tracks granted, reserved and used credits with optional monthly expiry. `kiosk_try_on_runs.customer_paid_grant_id` identifies the grant reserved by a personal paid run. Customer trial balances and Store credit ledgers remain independent.

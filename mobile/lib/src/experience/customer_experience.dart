@@ -72,7 +72,9 @@ class CustomerExperience extends ChangeNotifier {
     _owner = auth.profile?.id;
     auth.addListener(_authChanged);
   }
-  int? get remaining => (summary?['trial'] as Map?)?['remaining'] as int?;
+  int? get remaining =>
+      summary?['personalCreditsRemaining'] as int? ??
+      (summary?['trial'] as Map?)?['remaining'] as int?;
   bool get available => summary?['generationAvailable'] == true;
   bool get storeMode => storeVisit != null;
   bool get generating =>

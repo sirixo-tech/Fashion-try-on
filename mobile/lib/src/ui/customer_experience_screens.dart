@@ -2,6 +2,9 @@ import '../l10n/customer_copy.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' as intl;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../experience/customer_experience.dart';
 import '../experience/customer_media.dart';
@@ -153,18 +156,191 @@ Future<bool> prepareCustomerStudio(
   return context.mounted && experience.session != null;
 }
 
-class CustomerPlansScreen extends StatelessWidget {
+class CustomerPlansScreen extends StatefulWidget {
   final CustomerExperience experience;
   const CustomerPlansScreen({super.key, required this.experience});
+
+  @override
+  State<CustomerPlansScreen> createState() => _CustomerPlansScreenState();
+}
+
+class _CustomerPlansScreenState extends State<CustomerPlansScreen>
+    with WidgetsBindingObserver {
+  late Future<Json> mobilePlans;
+  Json? purchase;
+  bool purchasing = false;
+  bool checking = false;
+  String? paymentError;
+  final TextEditingController customCredits = TextEditingController(text: '1');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    mobilePlans = widget.experience.auth.authorized('/mobile-plans');
+    unawaited(loadPending());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    customCredits.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && purchase != null) {
+      unawaited(checkPayment());
+    }
+  }
+
+  Future<void> buy({String? planId, int? credits}) async {
+    if (purchasing) return;
+    setState(() {
+      purchasing = true;
+      paymentError = null;
+    });
+    try {
+      final next = await widget.experience.auth.authorized(
+        '/mobile-payments',
+        method: 'POST',
+        body: {
+          'planId': ?planId,
+          'credits': ?credits,
+          'requestId': const Uuid().v4(),
+        },
+      );
+      if (!mounted) return;
+      setState(() => purchase = next);
+      await showPaymentOptions();
+    } catch (error) {
+      if (mounted) setState(() => paymentError = error.toString());
+    } finally {
+      if (mounted) setState(() => purchasing = false);
+    }
+  }
+
+  Future<void> showPaymentOptions() async {
+    final id = purchase?['id'] as String?;
+    final checkout = purchase?['checkoutUrl'] as String?;
+    if (id == null || checkout == null) {
+      if (mounted) {
+        setState(
+          () => paymentError =
+              'The payment link is being prepared. Check this payment shortly.',
+        );
+      }
+      return;
+    }
+    Uint8List? qr;
+    try {
+      qr = await widget.experience.auth.authorizedDownload(
+        '/mobile-payments/$id/qr',
+      );
+    } catch (_) {
+      // The supported UPI app option remains available if a QR cannot load.
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const CustomerText('Complete payment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (qr != null) ...[
+              Image.memory(qr, width: 240, height: 240),
+              const SizedBox(height: 8),
+              const CustomerText(
+                'Scan on another device to open PhonePe checkout.',
+              ),
+            ],
+            const SizedBox(height: 12),
+            const CustomerText(
+              'You can also pay with a supported UPI app on this phone.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const CustomerText('Later'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final opened = await launchUrl(
+                Uri.parse(checkout),
+                mode: LaunchMode.externalApplication,
+              );
+              if (!opened && dialogContext.mounted) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: CustomerText(
+                      'PhonePe checkout could not be opened.',
+                    ),
+                  ),
+                );
+              }
+            },
+            child: const CustomerText('Pay with UPI app'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> loadPending() async {
+    try {
+      final latest = await widget.experience.auth.authorized(
+        '/mobile-payments',
+      );
+      if (mounted && latest['purchase'] is Map<String, dynamic>) {
+        setState(() => purchase = latest['purchase'] as Json);
+      }
+    } catch (_) {
+      /* Plans can still be viewed when payment history is unavailable. */
+    }
+  }
+
+  Future<void> checkPayment() async {
+    final id = purchase?['id'] as String?;
+    if (id == null || checking) return;
+    setState(() {
+      checking = true;
+      paymentError = null;
+    });
+    try {
+      final next = await widget.experience.auth.authorized(
+        '/mobile-payments/$id',
+      );
+      if (!mounted) return;
+      setState(() => purchase = next);
+      if (next['status'] == 'PAID') await refresh();
+    } catch (error) {
+      if (mounted) setState(() => paymentError = error.toString());
+    } finally {
+      if (mounted) setState(() => checking = false);
+    }
+  }
+
+  Future<void> refresh() async {
+    final next = widget.experience.auth.authorized('/mobile-plans');
+    setState(() => mobilePlans = next);
+    await Future.wait([widget.experience.refresh(), next]);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const CustomerText('Plans & credits')),
     body: ListenableBuilder(
-      listenable: experience,
+      listenable: widget.experience,
       builder: (context, _) {
+        final experience = widget.experience;
         final trial = experience.summary?['trial'] as Map?;
+        final paid = experience.summary?['paid'] as Map?;
         return RefreshIndicator(
-          onRefresh: experience.refresh,
+          onRefresh: refresh,
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
@@ -188,7 +364,7 @@ class CustomerPlansScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     CustomerText(
-                      'Free trial',
+                      'Personal credits',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 8),
@@ -198,18 +374,192 @@ class CustomerPlansScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     CustomerText(
-                      '${trial?['used'] ?? 0} used · ${trial?['reserved'] ?? 0} in progress · ${trial?['granted'] ?? '—'} granted',
+                      '${trial?['remaining'] ?? 0} trial · ${paid?['remaining'] ?? 0} paid',
                     ),
                     const SizedBox(height: 18),
                     const CustomerText(
-                      'One credit creates one saved look. Failed generations return the reserved credit. This free trial is granted once per account.',
+                      'One credit creates one saved look. Failed generations return the reserved credit.',
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              const CustomerNotice(
-                'Personal paid plans are not available in this version. Store subscriptions do not apply to your personal account.',
+              FutureBuilder<Json>(
+                future: mobilePlans,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const LinearProgressIndicator();
+                  }
+                  if (snapshot.hasError) {
+                    return const CustomerNotice(
+                      'Mobile plans could not be loaded. Pull down to retry.',
+                      error: true,
+                    );
+                  }
+                  final plans = (snapshot.data?['data'] as List? ?? const []);
+                  final unitPriceCents =
+                      snapshot.data?['unitPriceCents'] as int?;
+                  final quantity = int.tryParse(customCredits.text.trim());
+                  final validQuantity =
+                      quantity != null && quantity >= 1 && quantity <= 1000;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PremiumPanel(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CustomerText(
+                              'Buy credits',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            const CustomerText(
+                              'Choose any amount from 1 to 1,000. Credits do not expire.',
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: customCredits,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Credits',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 10),
+                            if (unitPriceCents != null && validQuantity)
+                              CustomerText(
+                                intl.NumberFormat.simpleCurrency(
+                                  name: 'INR',
+                                ).format(quantity * unitPriceCents / 100),
+                              ),
+                            const SizedBox(height: 10),
+                            FilledButton(
+                              onPressed:
+                                  purchasing ||
+                                      !validQuantity ||
+                                      unitPriceCents == null ||
+                                      snapshot.data?['purchasingAvailable'] !=
+                                          true
+                                  ? null
+                                  : () => buy(credits: quantity),
+                              child: CustomerText(
+                                purchasing
+                                    ? 'Opening checkout…'
+                                    : 'Buy credits',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (plans.isEmpty)
+                        const CustomerNotice(
+                          'No mobile plans are available yet.',
+                        ),
+                      if (plans.isNotEmpty) ...[
+                        CustomerText(
+                          'Mobile plans',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 10),
+                        for (final item in plans)
+                          if (item is Map)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: PremiumPanel(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CustomerText(
+                                      item['name'] as String,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    ),
+                                    if ((item['description'] as String? ?? '')
+                                        .isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      CustomerText(
+                                        item['description'] as String,
+                                      ),
+                                    ],
+                                    const SizedBox(height: 10),
+                                    CustomerText(
+                                      '${intl.NumberFormat.simpleCurrency(name: item['currency'] as String).format((item['priceCents'] as num) / 100)} ${item['billingPeriod'] == 'MONTHLY' ? '/ month' : 'one-time'}',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    CustomerText(
+                                      '${item['includedCredits']} Try-On credits',
+                                    ),
+                                    if (item['billingPeriod'] == 'MONTHLY')
+                                      const CustomerText(
+                                        'Credits expire after one month. Pay again to renew; no automatic charge.',
+                                      ),
+                                    if ((item['trialCredits'] as num? ?? 0) > 0)
+                                      CustomerText(
+                                        '${item['trialCredits']} intro trial credits',
+                                      ),
+                                    const SizedBox(height: 10),
+                                    if (snapshot.data?['purchasingAvailable'] ==
+                                            true &&
+                                        item['currency'] == 'INR' &&
+                                        (item['priceCents'] as num) >= 100)
+                                      FilledButton(
+                                        onPressed: purchasing
+                                            ? null
+                                            : () => buy(
+                                                planId: item['id'] as String,
+                                              ),
+                                        child: CustomerText(
+                                          purchasing
+                                              ? 'Opening checkout…'
+                                              : 'Choose plan',
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                      ],
+                      if (snapshot.data?['purchasingAvailable'] != true)
+                        const CustomerNotice(
+                          'Purchases are unavailable until SelfX enables mobile payments.',
+                        ),
+                      if (purchase != null) ...[
+                        const SizedBox(height: 12),
+                        CustomerNotice(
+                          purchase!['status'] == 'PAID'
+                              ? 'Payment confirmed. Credits are ready.'
+                              : purchase!['status'] == 'FAILED'
+                              ? 'Payment failed. No credits were charged.'
+                              : 'Payment pending. PhonePe checkout offers supported UPI apps and a QR option. Credits appear after payment is confirmed.',
+                        ),
+                        if (purchase!['status'] != 'PAID' &&
+                            purchase!['status'] != 'FAILED')
+                          TextButton(
+                            onPressed: showPaymentOptions,
+                            child: const CustomerText(
+                              'Show payment QR and apps',
+                            ),
+                          ),
+                        if (purchase!['status'] != 'PAID' &&
+                            purchase!['status'] != 'FAILED')
+                          TextButton(
+                            onPressed: checking ? null : checkPayment,
+                            child: CustomerText(
+                              checking ? 'Checking…' : 'Check payment',
+                            ),
+                          ),
+                      ],
+                      if (paymentError != null)
+                        CustomerNotice(paymentError!, error: true),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 24),
               const CustomerText(

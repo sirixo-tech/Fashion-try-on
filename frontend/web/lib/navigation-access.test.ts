@@ -28,6 +28,7 @@ const items: SelfxNavItem[] = [
     ],
   },
   { href: "/app/platform/pricing", label: "Plans" },
+  { href: "/app/platform/mobile-plans", label: "Mobile Plans" },
   {
     label: "Integrations",
     children: [
@@ -64,6 +65,23 @@ const baseAccess: NavigationAccess = {
   storeFeatureKeys: [],
   hasActiveStore: false,
 };
+it("shows Mobile Plans only with platform pricing access", () => {
+  expect(canSeeHref("/app/platform/mobile-plans", baseAccess)).toBe(false);
+  expect(
+    canSeeHref("/app/platform/mobile-plans", {
+      ...baseAccess,
+      hasActiveStore: true,
+      storePermissions: ["PRICING_VIEW"],
+    }),
+  ).toBe(false);
+  expect(
+    canSeeHref("/app/platform/mobile-plans", {
+      ...baseAccess,
+      hasPlatformAccess: true,
+      platformPermissions: ["PRICING_VIEW"],
+    }),
+  ).toBe(true);
+});
 it("keeps Mobile Dashboard platform-usage-only without adding a sidebar item", () => {
   expect(canSeeHref("/app/dashboard/mobile", baseAccess)).toBe(false);
   expect(
@@ -252,6 +270,7 @@ describe("permission-aware navigation", () => {
       "Garment Lab",
       "Jewellery Lab",
       "Plans",
+      "Mobile Plans",
       "Developer / API",
       "Activity",
       "Platform",
@@ -369,6 +388,7 @@ describe("permission-aware navigation", () => {
       "Garment Lab",
       "Jewellery Lab",
       "Plans",
+      "Mobile Plans",
       "Integrations",
       "Shopify",
       "WooCommerce",

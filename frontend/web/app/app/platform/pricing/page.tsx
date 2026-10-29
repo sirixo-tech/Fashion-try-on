@@ -567,6 +567,7 @@ function PlanMetric({
 }
 
 function channelLabel(channel: string): string {
+  if (channel === "MOBILE") return "Mobile Store QR";
   return channel.replace("_", " ");
 }
 

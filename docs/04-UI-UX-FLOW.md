@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-17 — Credit buying (2026-10-29)
+
+Platform Mobile Plans shows the shared INR credit price. The mobile Plans & credits screen lets the customer enter 1–1,000 credits, see the server-derived total, and use the existing PhonePe QR/app checkout. Mobile plans show totals derived from the same rate.
+
+### CUSTOMER-MOBILE-21 — Mobile plan catalog (2026-10-29)
+
+Platform navigation has a separate Mobile Plans item beside Plans. Platform pricing viewers can see it and pricing managers can create or edit mobile plans. Active plans appear in the customer Plans & credits screen with price, billing period and credit amounts. Checkout is available after production PhonePe configuration and shared credit pricing are enabled. The personal free trial and Store QR sponsorship remain unchanged.
+
 ### CUSTOMER-MOBILE-20 — Product Try-On, progress and garment saves (2026-10-29)
 
 The welcome screen keeps the approved transparent SelfX mark over the photographic backdrop without an opaque logo tile. Product Try-On opens the main Try-On tab with that garment selected; the person can use a photo or a relevant demo model there. The queued/processing state centers the input-photo animation and shows an indeterminate progress bar without a fabricated percentage. Completed results show the full output image, omit the 30-day notice, and show edge-to-edge suggested garment images. A heart saves or removes a demo or Store garment without using credits. Saved has Looks and Wardrobe tabs; a saved garment card and its prominent Try on button open the Try-On flow with that garment selected, while the heart only removes the save. Garment saves belong to the signed-in customer, and Store garment details remain visible only during a valid Store visit while the product is eligible.
@@ -3375,3 +3383,6 @@ Do not:
 **UI/UX Flow & Screen Specification v1.0 — APPROVED BASELINE**
 
 This document is sufficient to guide detailed Figma/design work and implementation planning while leaving exact visual styling and component composition to the approved SelfX design system.
+# Mobile payments (2026-10-29)
+
+Platform Settings has a Mobile Payments page for the SelfX PhonePe account. The customer Plans & credits page shows active plans and a Choose plan action only when production checkout is enabled. PhonePe's hosted checkout offers UPI app and QR modes. Returning to SelfX or pressing Check payment queries the backend; credits appear only after verified confirmation. Pending state is recoverable on reopening Plans & credits. Monthly plans require a new payment after expiry and do not auto-renew.

@@ -114,6 +114,11 @@ const navItems: SelfxNavItem[] = [
   },
   { href: "/app/platform/pricing", label: "Plans", icon: CreditCardIcon },
   {
+    href: "/app/platform/mobile-plans",
+    label: "Mobile Plans",
+    icon: CreditCardIcon,
+  },
+  {
     label: "User Management",
     icon: LockKeyholeIcon,
     children: [
@@ -165,6 +170,11 @@ const navItems: SelfxNavItem[] = [
       {
         href: "/app/platform/payment-gateways",
         label: "Payment Gateways",
+        icon: CreditCardIcon,
+      },
+      {
+        href: "/app/platform/mobile-payments",
+        label: "Mobile Payments",
         icon: CreditCardIcon,
       },
     ],

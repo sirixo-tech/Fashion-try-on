@@ -1386,6 +1386,18 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         current.status !== "ACTIVE"
       )
         unauthorized();
+      const pendingMobilePayment = await tx.customerMobilePurchase.count({
+        where: {
+          customerId: customer.id,
+          status: { in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"] },
+        },
+      });
+      if (pendingMobilePayment)
+        customerError(
+          "CUSTOMER_PAYMENT_PENDING",
+          "Check your pending mobile payment before deleting your account.",
+          409,
+        );
       await tx.customerSession.updateMany({
         where: { customerId: customer.id, revokedAt: null },
         data: { revokedAt: new Date() },

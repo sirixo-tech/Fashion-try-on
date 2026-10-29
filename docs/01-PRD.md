@@ -1,8 +1,18 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-17 — Shared credit price and custom purchases (2026-10-29)
+
+Customers may buy any whole number of personal credits from 1 to 1,000, including a single credit. The server calculates mobile purchase and Mobile Plan totals from one platform-managed INR per-credit rate. INR Store per-credit terms use the same rate for future billing cycles. Completed orders and existing Store billing cycles keep their saved prices. Monthly Store subscription fees remain separate.
+
+### CUSTOMER-MOBILE-16 — SelfX mobile payments (2026-10-29)
+
+The platform Mobile Payments setting stores a SelfX-owned PhonePe checkout account separately from Store gateway accounts. Active INR Mobile Plans can be purchased in the direct customer APK when production checkout is configured and enabled. PhonePe checkout presents supported UPI app and QR payment options. The backend verifies the provider order and exact amount before granting credits, and grants once per completed purchase. A plan's introductory bonus credits are granted only on the customer's first verified mobile purchase. Personal paid credits remain separate from the one-time trial and Store-sponsored billing. One-time credits do not expire; monthly plan credits expire one month after verified payment and renew only after another payment. Monthly plans do not auto-renew.
+
 ### CUSTOMER-MOBILE-15 — Shared demo collection (2026-10-28)
 
 Every signed-in mobile customer can browse sample clothing products and choose a sample model or their saved full-body photo for a personal Try-On. Demo items are clearly identified as samples and use ordinary personal credits. Store products and Store-sponsored sessions remain separate. See `CUSTOMER-MOBILE-15-DEMO-CATALOG.md`.
+
+Platform administrators can configure separate Mobile Plans with price, billing period, included Try-On credits and introductory trial credits. Active Mobile Plans are visible in the customer app. The original catalog-only scope is superseded by CUSTOMER-MOBILE-16 for purchases and verified credit grants. The existing one-time personal trial and Store-sponsored QR billing remain separate.
 
 ### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
 

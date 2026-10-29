@@ -57,6 +57,8 @@ model Customer {
   sessions              CustomerSession[]
   actionTokens          CustomerActionToken[]
   creditAccount         CustomerCreditAccount?
+  mobilePurchases       CustomerMobilePurchase[]
+  paidCreditGrants      CustomerPaidCreditGrant[]
   photoConsents         CustomerPhotoConsent[]
   tryOnSessions         TryOnSession[]
   tryOnRuns             KioskTryOnRun[]
@@ -1551,6 +1553,8 @@ model KioskTryOnRun {
   customerId                             String?                  @map("customer_id") @db.Uuid
   customerRequestFingerprint             String?                  @map("customer_request_fingerprint") @db.Char(64)
   customerCreditState                    String?                  @map("customer_credit_state") @db.VarChar(20)
+  customerPaidGrantId                    String?                  @map("customer_paid_grant_id") @db.Uuid
+  customerPaidGrant                      CustomerPaidCreditGrant? @relation(fields: [customerPaidGrantId], references: [id], onDelete: Restrict)
   customer                               Customer?                @relation(fields: [customerId], references: [id], onDelete: Restrict)
   shopifyReservationId                   String?                  @unique @map("shopify_reservation_id") @db.Uuid
   shopifyReservation                     ShopifyUsageReservation? @relation(fields: [shopifyReservationId], references: [id], onDelete: Restrict)
@@ -1687,6 +1691,68 @@ model CustomerCreditAccount {
   customer        Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   @@map("customer_credit_accounts")
+}
+
+model MobilePaymentConnection {
+  id                   String   @id @db.VarChar(32)
+  environment          String   @db.VarChar(16)
+  enabled              Boolean  @default(false)
+  encryptedPayload     String   @map("encrypted_payload") @db.Text
+  initializationVector String   @map("initialization_vector") @db.VarChar(128)
+  authenticationTag    String   @map("authentication_tag") @db.VarChar(128)
+  keyVersion           String   @map("key_version") @db.VarChar(80)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("mobile_payment_connections")
+}
+
+model CustomerMobilePurchase {
+  id                   String   @id @db.Uuid
+  customerId           String   @map("customer_id") @db.Uuid
+  planId               String?  @map("plan_id") @db.Uuid
+  merchantOrderId      String   @unique @map("merchant_order_id") @db.VarChar(63)
+  requestKey           String   @unique @map("request_key") @db.VarChar(160)
+  providerOrderId      String?  @map("provider_order_id") @db.VarChar(100)
+  status               String   @default("INITIALIZING") @db.VarChar(24)
+  environment          String   @db.VarChar(16)
+  amountMinor          Int      @map("amount_minor")
+  currency             String   @db.Char(3)
+  credits              Int
+  bonusCredits         Int      @default(0) @map("bonus_credits")
+  billingPeriod        MobilePlanBillingPeriod @map("billing_period")
+  checkoutUrl          String?  @map("checkout_url") @db.Text
+  encryptedPayload     String   @map("encrypted_payload") @db.Text
+  initializationVector String   @map("initialization_vector") @db.VarChar(128)
+  authenticationTag    String   @map("authentication_tag") @db.VarChar(128)
+  keyVersion           String   @map("key_version") @db.VarChar(80)
+  expiresAt            DateTime @map("expires_at") @db.Timestamptz(3)
+  paidAt               DateTime? @map("paid_at") @db.Timestamptz(3)
+  checkedAt            DateTime? @map("checked_at") @db.Timestamptz(3)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer             Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plan                 MobilePlan? @relation(fields: [planId], references: [id], onDelete: Restrict)
+  grant                CustomerPaidCreditGrant?
+
+  @@index([customerId, createdAt])
+  @@index([status, checkedAt])
+  @@map("customer_mobile_purchases")
+}
+
+model CustomerPaidCreditGrant {
+  id              String   @id @db.Uuid
+  customerId      String   @map("customer_id") @db.Uuid
+  purchaseId      String   @unique @map("purchase_id") @db.Uuid
+  credits         Int
+  usedCredits     Int      @default(0) @map("used_credits")
+  reservedCredits Int      @default(0) @map("reserved_credits")
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(3)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  purchase        CustomerMobilePurchase @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+  runs            KioskTryOnRun[]
+
+  @@index([customerId, expiresAt])
+  @@map("customer_paid_credit_grants")
 }
 
 model CustomerPhotoConsent {
@@ -2241,6 +2307,39 @@ model StoreSubscription {
 enum PlanBillingMode {
   CREDIT_LIMITED
   POSTPAID_PAYG
+}
+
+enum MobilePlanBillingPeriod {
+  MONTHLY
+  ONE_TIME
+}
+
+model MobilePlan {
+  id               String                  @id @db.Uuid
+  code             String                  @unique @db.VarChar(80)
+  name             String                  @db.VarChar(160)
+  description      String                  @default("") @db.VarChar(500)
+  status           PricingPlanStatus       @default(INACTIVE)
+  currency         String                  @db.Char(3)
+  priceCents       Int                     @map("price_cents")
+  billingPeriod    MobilePlanBillingPeriod @map("billing_period")
+  includedCredits  Int                     @map("included_credits")
+  trialCredits     Int                     @default(0) @map("trial_credits")
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  purchases        CustomerMobilePurchase[]
+
+  @@index([status, priceCents])
+  @@map("mobile_plans")
+}
+
+model SharedCreditPrice {
+  currency       String   @id @db.Char(3)
+  unitPriceCents Int      @map("unit_price_cents")
+  version        Int      @default(1)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("shared_credit_prices")
 }
 
 enum GenerationBillingCoverage {

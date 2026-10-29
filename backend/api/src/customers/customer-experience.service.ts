@@ -188,7 +188,7 @@ export class CustomerExperienceService
       await this.lockCustomer(tx, customer);
       return this.account(tx, customer.id);
     });
-    const [generationAvailable, saved, pending] = await Promise.all([
+    const [generationAvailable, saved, pending, grants] = await Promise.all([
       this.available(),
       this.db.tryOnLook.count({
         where: {
@@ -204,13 +204,33 @@ export class CustomerExperienceService
         },
         select: { id: true },
       }),
+      this.db.customerPaidCreditGrant.findMany({
+        where: {
+          customerId: customer.id,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+        select: { credits: true, usedCredits: true, reservedCredits: true },
+      }),
     ]);
+    const paid = {
+      granted: grants.reduce((n, grant) => n + grant.credits, 0),
+      used: grants.reduce((n, grant) => n + grant.usedCredits, 0),
+      reserved: grants.reduce((n, grant) => n + grant.reservedCredits, 0),
+      remaining: grants.reduce(
+        (n, grant) =>
+          n + grant.credits - grant.usedCredits - grant.reservedCredits,
+        0,
+      ),
+    };
     return {
       generationAvailable,
       consentVersion: CUSTOMER_PHOTO_CONSENT_VERSION,
       consentStatement: CUSTOMER_PHOTO_CONSENT,
       storeConsentStatement: CUSTOMER_STORE_CONSENT,
       trial: personalTrialBalance(account),
+      paid,
+      personalCreditsRemaining:
+        personalTrialBalance(account).remaining + paid.remaining,
       plan: { kind: "FREE_TRIAL", name: "Free trial", paid: false },
       saved,
       pendingRunId: pending?.id ?? null,
@@ -676,6 +696,7 @@ export class CustomerExperienceService
         let admission:
           | Awaited<ReturnType<EntitlementsService["consumeTryOnCredit"]>>
           | undefined;
+        let paidGrantId: string | undefined;
         if (visit) {
           await this.assertStoreAdmission(tx, customer.id, visit.id);
           admission = await this.entitlements.consumeTryOnCredit(
@@ -692,23 +713,49 @@ export class CustomerExperienceService
           );
         } else {
           const account = await this.account(tx, customer.id);
-          if (personalTrialBalance(account).remaining < 1)
-            fail(
-              "CUSTOMER_TRIAL_EXHAUSTED",
-              "Your free trial credits are used up. You can still use a participating Store's QR session.",
-              402,
+          if (personalTrialBalance(account).remaining > 0) {
+            await tx.customerCreditAccount.update({
+              where: { customerId: customer.id },
+              data: { reservedCredits: { increment: 1 } },
+            });
+          } else {
+            const grants = await tx.customerPaidCreditGrant.findMany({
+              where: {
+                customerId: customer.id,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+              },
+              orderBy: [{ expiresAt: "asc" }, { createdAt: "asc" }],
+            });
+            const grant = grants.find(
+              (item) =>
+                item.credits - item.usedCredits - item.reservedCredits > 0,
             );
-          await tx.customerCreditAccount.update({
-            where: { customerId: customer.id },
-            data: { reservedCredits: { increment: 1 } },
-          });
+            if (!grant)
+              fail(
+                "CUSTOMER_CREDITS_EXHAUSTED",
+                "Your personal credits are used up. Choose a mobile plan or use a participating Store QR session.",
+                402,
+              );
+            paidGrantId = grant.id;
+            await tx.customerPaidCreditGrant.update({
+              where: { id: grant.id },
+              data: {
+                reservedCredits: { increment: 1 },
+              },
+            });
+          }
         }
         const run = await tx.kioskTryOnRun.create({
           data: {
             id,
             customerId: customer.id,
             customerRequestFingerprint: fingerprint,
-            customerCreditState: visit ? null : "RESERVED",
+            customerCreditState: visit
+              ? null
+              : paidGrantId
+                ? "PAID_RESERVED"
+                : "RESERVED",
+            customerPaidGrantId: paidGrantId,
             clientRequestId: input.clientRequestId,
             tryOnSessionId: session.id,
             assignmentScope: session.assignmentScope,
@@ -965,6 +1012,18 @@ export class CustomerExperienceService
               usedCredits: { increment: 1 },
             },
           });
+        if (
+          !run.organizationId &&
+          current.customerCreditState === "PAID_RESERVED" &&
+          current.customerPaidGrantId
+        )
+          await tx.customerPaidCreditGrant.update({
+            where: { id: current.customerPaidGrantId },
+            data: {
+              reservedCredits: { decrement: 1 },
+              usedCredits: { increment: 1 },
+            },
+          });
       });
     } catch (error) {
       await this.db.tryOnAsset.update({
@@ -990,10 +1049,11 @@ export class CustomerExperienceService
           errorCode,
           errorMessage: "We couldn't create this look. Please try again.",
           completedAt: new Date(),
-          customerCreditState:
-            run.customerCreditState === "RESERVED"
-              ? "RELEASED"
-              : run.customerCreditState,
+          customerCreditState: ["RESERVED", "PAID_RESERVED"].includes(
+            run.customerCreditState ?? "",
+          )
+            ? "RELEASED"
+            : run.customerCreditState,
         },
       });
       if (!changed.count) return;
@@ -1001,6 +1061,17 @@ export class CustomerExperienceService
         await tx.customerCreditAccount.update({
           where: { customerId: run.customerId },
           data: { reservedCredits: { decrement: 1 } },
+        });
+      if (
+        !run.organizationId &&
+        run.customerCreditState === "PAID_RESERVED" &&
+        run.customerPaidGrantId
+      )
+        await tx.customerPaidCreditGrant.update({
+          where: { id: run.customerPaidGrantId },
+          data: {
+            reservedCredits: { decrement: 1 },
+          },
         });
       if (run.organizationId)
         await this.entitlements.refundFailedTryOnCredit(
@@ -1117,16 +1188,28 @@ export class CustomerExperienceService
             status: "FAILED",
             errorCode: "CUSTOMER_SESSION_ENDED",
             completedAt: new Date(),
-            customerCreditState:
-              run.customerCreditState === "RESERVED"
-                ? "RELEASED"
-                : run.customerCreditState,
+            customerCreditState: ["RESERVED", "PAID_RESERVED"].includes(
+              run.customerCreditState ?? "",
+            )
+              ? "RELEASED"
+              : run.customerCreditState,
           },
         });
         if (!run.organizationId && run.customerCreditState === "RESERVED")
           await tx.customerCreditAccount.update({
             where: { customerId },
             data: { reservedCredits: { decrement: 1 } },
+          });
+        if (
+          !run.organizationId &&
+          run.customerCreditState === "PAID_RESERVED" &&
+          run.customerPaidGrantId
+        )
+          await tx.customerPaidCreditGrant.update({
+            where: { id: run.customerPaidGrantId },
+            data: {
+              reservedCredits: { decrement: 1 },
+            },
           });
         if (run.organizationId)
           await this.entitlements.refundFailedTryOnCredit(
@@ -1318,7 +1401,11 @@ export class CustomerExperienceService
     const storeProducts = allowedStoreIds.length
       ? await this.db.product.findMany({
           where: {
-            id: { in: saved.filter((item) => item.source === "STORE").map((item) => item.sourceItemId) },
+            id: {
+              in: saved
+                .filter((item) => item.source === "STORE")
+                .map((item) => item.sourceItemId),
+            },
             organizationId: { in: allowedStoreIds },
             scope: "STORE",
             active: true,
@@ -1331,37 +1418,59 @@ export class CustomerExperienceService
       : [];
     return {
       items: saved.map((item) => {
-        const product = item.source === "DEMO"
-          ? DEMO_PRODUCTS.find((candidate) => candidate.id === item.sourceItemId)
-          : storeProducts.find((candidate) => candidate.id === item.sourceItemId && candidate.organizationId === item.organizationId && candidate.category.organizationId === candidate.organizationId);
+        const product =
+          item.source === "DEMO"
+            ? DEMO_PRODUCTS.find(
+                (candidate) => candidate.id === item.sourceItemId,
+              )
+            : storeProducts.find(
+                (candidate) =>
+                  candidate.id === item.sourceItemId &&
+                  candidate.organizationId === item.organizationId &&
+                  candidate.category.organizationId ===
+                    candidate.organizationId,
+              );
         return {
           source: item.source,
           id: item.sourceItemId,
           createdAt: item.createdAt,
-          product: product && item.source === "STORE"
-            ? {
-                id: product.id,
-                name: product.name,
-                image: {
-                  url: "imageUrl" in product
-                    ? product.imageUrl ?? (product.imageStorageKey
-                        ? this.storage.createReadUrl({ key: product.imageStorageKey, expiresInSeconds: 900 })
-                        : null)
-                    : null,
-                },
-              }
-            : product ?? null,
+          product:
+            product && item.source === "STORE"
+              ? {
+                  id: product.id,
+                  name: product.name,
+                  image: {
+                    url:
+                      "imageUrl" in product
+                        ? (product.imageUrl ??
+                          (product.imageStorageKey
+                            ? this.storage.createReadUrl({
+                                key: product.imageStorageKey,
+                                expiresInSeconds: 900,
+                              })
+                            : null))
+                        : null,
+                  },
+                }
+              : (product ?? null),
         };
       }),
     };
   }
-  async saveGarment(customerId: string, input: { source: "DEMO" | "STORE"; id: string }) {
+  async saveGarment(
+    customerId: string,
+    input: { source: "DEMO" | "STORE"; id: string },
+  ) {
     let organizationId: string | null = null;
     if (input.source === "DEMO") {
       if (!DEMO_PRODUCTS.some((item) => item.id === input.id))
         fail("DEMO_ITEM_INVALID", "Choose an available demo garment.", 404);
     } else {
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.id))
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          input.id,
+        )
+      )
         fail("PRODUCT_INVALID", "Choose an available Store garment.", 400);
       const allowedStoreIds = await this.activeSavedGarmentStoreIds(customerId);
       const product = await this.db.product.findFirst({
@@ -1376,13 +1485,28 @@ export class CustomerExperienceService
         },
         include: { category: true },
       });
-      if (!product || product.category.organizationId !== product.organizationId)
+      if (
+        !product ||
+        product.category.organizationId !== product.organizationId
+      )
         fail("PRODUCT_UNAVAILABLE", "This Store garment is unavailable.", 404);
       organizationId = product.organizationId;
     }
     await this.db.customerSavedGarment.upsert({
-      where: { customerId_source_sourceItemId: { customerId, source: input.source, sourceItemId: input.id } },
-      create: { id: createSelfxId(), customerId, source: input.source, sourceItemId: input.id, organizationId },
+      where: {
+        customerId_source_sourceItemId: {
+          customerId,
+          source: input.source,
+          sourceItemId: input.id,
+        },
+      },
+      create: {
+        id: createSelfxId(),
+        customerId,
+        source: input.source,
+        sourceItemId: input.id,
+        organizationId,
+      },
       update: {},
     });
     return { saved: true };
