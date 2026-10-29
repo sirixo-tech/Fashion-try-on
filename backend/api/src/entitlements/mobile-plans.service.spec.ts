@@ -1,8 +1,8 @@
-import { PricingPlanStatus } from "@prisma/client";
+import { CustomCreditChannel, PricingPlanStatus } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { MobilePlansService } from "./mobile-plans.service.js";
 import { AdminMobilePlansController } from "./admin-mobile-plans.controller.js";
-import { creditTotalMinor } from "./shared-credit-price.service.js";
+import { customCreditTotal } from "./custom-credit-plans.service.js";
 
 const plan = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -20,20 +20,25 @@ const plan = {
 };
 
 describe("mobile plan catalog", () => {
-  it("quotes custom credits from the shared rate with a 1,000-credit limit", () => {
-    expect(creditTotalMinor(1, 900)).toBe(900);
-    expect(creditTotalMinor(1000, 900)).toBe(900000);
-    expect(() => creditTotalMinor(0, 900)).toThrow();
-    expect(() => creditTotalMinor(1001, 900)).toThrow();
+  it("quotes custom credits with channel-specific limits", () => {
+    expect(customCreditTotal(CustomCreditChannel.MOBILE, 1, 900)).toBe(900);
+    expect(customCreditTotal(CustomCreditChannel.MOBILE, 1000, 900)).toBe(
+      900000,
+    );
+    expect(() =>
+      customCreditTotal(CustomCreditChannel.MOBILE, 1001, 900),
+    ).toThrow();
+    expect(() =>
+      customCreditTotal(CustomCreditChannel.STORE, 1001, 900),
+    ).toThrow();
   });
 
-  it("reprices mobile plans when the shared credit rate changes", async () => {
-    const prisma = { mobilePlan: { findMany: vi.fn().mockResolvedValue([plan]) } };
-    const shared = { current: vi.fn().mockResolvedValue({ unitPriceCents: 900 }) };
-    const service = new MobilePlansService(prisma as never, shared as never);
-    expect((await service.listActive())[0]?.priceCents).toBe(18000);
-    shared.current.mockResolvedValue({ unitPriceCents: 1200 });
-    expect((await service.listActive())[0]?.priceCents).toBe(24000);
+  it("keeps regular mobile plan prices independent of custom credits", async () => {
+    const prisma = {
+      mobilePlan: { findMany: vi.fn().mockResolvedValue([plan]) },
+    };
+    const service = new MobilePlansService(prisma as never);
+    expect((await service.listActive())[0]?.priceCents).toBe(19900);
   });
   it("returns only active plans to customers without touching credit accounts", async () => {
     const prisma = {

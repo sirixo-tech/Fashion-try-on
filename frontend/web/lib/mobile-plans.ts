@@ -3,29 +3,6 @@ import { selfxApi } from "./api";
 export type MobilePlanStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 export type MobileBillingPeriod = "MONTHLY" | "ONE_TIME";
 
-export interface SharedCreditPrice {
-  currency: string;
-  unitPriceCents: number | null;
-  version: number;
-  customMaxCredits: number;
-}
-
-export async function getSharedCreditPrice(accessToken: string): Promise<SharedCreditPrice> {
-  return selfxApi<SharedCreditPrice>("/api/v1/admin/shared-credit-price", { accessToken });
-}
-
-export async function saveSharedCreditPrice(
-  accessToken: string,
-  unitPriceCents: number,
-  expectedVersion: number,
-): Promise<SharedCreditPrice> {
-  return selfxApi<SharedCreditPrice>("/api/v1/admin/shared-credit-price", {
-    accessToken,
-    method: "PUT",
-    body: JSON.stringify({ unitPriceCents, expectedVersion }),
-  });
-}
-
 export interface MobilePlan {
   id: string;
   code: string;

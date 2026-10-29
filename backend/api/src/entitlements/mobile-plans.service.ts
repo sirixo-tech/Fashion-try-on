@@ -1,9 +1,8 @@
-import { HttpStatus, Injectable, Optional } from "@nestjs/common";
+import { HttpStatus, Injectable } from "@nestjs/common";
 import { Prisma, PricingPlanStatus, type MobilePlan } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { SharedCreditPriceService, MAX_CHECKOUT_MINOR } from "./shared-credit-price.service.js";
 import {
   type CreateMobilePlanDto,
   type MobilePlanResponseDto,
@@ -12,14 +11,13 @@ import {
 
 @Injectable()
 export class MobilePlansService {
-  constructor(private readonly prisma: PrismaService, @Optional() private readonly sharedPrice?: SharedCreditPriceService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async listAll(): Promise<MobilePlanResponseDto[]> {
     const plans = await this.prisma.mobilePlan.findMany({
       orderBy: [{ status: "asc" }, { priceCents: "asc" }, { createdAt: "asc" }],
     });
-    const rate = await this.sharedPrice?.current();
-    return plans.map((plan) => toDto(plan, rate?.unitPriceCents));
+    return plans.map(toDto);
   }
 
   async listActive(): Promise<MobilePlanResponseDto[]> {
@@ -27,8 +25,7 @@ export class MobilePlansService {
       where: { status: PricingPlanStatus.ACTIVE },
       orderBy: [{ priceCents: "asc" }, { createdAt: "asc" }],
     });
-    const rate = await this.sharedPrice?.current();
-    return plans.map((plan) => toDto(plan, rate?.unitPriceCents));
+    return plans.map(toDto);
   }
 
   async create(
@@ -36,8 +33,7 @@ export class MobilePlansService {
     actorUserId: string,
   ): Promise<MobilePlanResponseDto> {
     assertPlanName(input.name);
-    const rate = await this.sharedPrice?.current();
-    const effectivePrice = effectivePlanPrice(input.currency, input.includedCredits, input.priceCents, rate?.unitPriceCents);
+    const effectivePrice = input.priceCents;
     try {
       const plan = await this.prisma.$transaction(async (tx) => {
         const created = await tx.mobilePlan.create({
@@ -66,7 +62,7 @@ export class MobilePlansService {
         });
         return created;
       });
-      return toDto(plan, rate?.unitPriceCents);
+      return toDto(plan);
     } catch (error) {
       if (isUniqueConflict(error))
         throw new ApiErrorException(
@@ -99,10 +95,7 @@ export class MobilePlansService {
         "Plan code cannot be changed.",
       );
     if (input.name !== undefined) assertPlanName(input.name);
-    const rate = await this.sharedPrice?.current();
-    const effectivePrice = effectivePlanPrice(input.currency ?? current.currency,
-      input.includedCredits ?? current.includedCredits, input.priceCents ?? current.priceCents,
-      rate?.unitPriceCents);
+    const effectivePrice = input.priceCents ?? current.priceCents;
     const { code: _code, ...changes } = input;
     const plan = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.mobilePlan.update({
@@ -128,11 +121,11 @@ export class MobilePlansService {
       });
       return updated;
     });
-    return toDto(plan, rate?.unitPriceCents);
+    return toDto(plan);
   }
 }
 
-function toDto(plan: MobilePlan, unitPriceCents?: number): MobilePlanResponseDto {
+function toDto(plan: MobilePlan): MobilePlanResponseDto {
   return {
     id: plan.id,
     code: plan.code,
@@ -140,21 +133,13 @@ function toDto(plan: MobilePlan, unitPriceCents?: number): MobilePlanResponseDto
     description: plan.description,
     status: plan.status,
     currency: plan.currency,
-    priceCents: effectivePlanPrice(plan.currency, plan.includedCredits, plan.priceCents, unitPriceCents),
+    priceCents: plan.priceCents,
     billingPeriod: plan.billingPeriod,
     includedCredits: plan.includedCredits,
     trialCredits: plan.trialCredits,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
   };
-}
-
-function effectivePlanPrice(currency: string, credits: number, storedPrice: number, unitPriceCents?: number) {
-  if (currency !== "INR" || unitPriceCents === undefined) return storedPrice;
-  const amount = credits * unitPriceCents;
-  if (!Number.isSafeInteger(amount) || amount < 100 || amount > MAX_CHECKOUT_MINOR)
-    throw new ApiErrorException(400, "MOBILE_PLAN_PRICE_INVALID", "This plan exceeds the supported checkout amount.");
-  return amount;
 }
 
 function isUniqueConflict(error: unknown): boolean {

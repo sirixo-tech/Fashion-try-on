@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOM-CREDITS-1 — Channel-specific credit prices (2026-10-29)
+
+`custom_credit_plans` has one independently versioned STORE or MOBILE row with a currency, fixed unit price and active state. Admin plan writes use optimistic version checks and transaction locks. A mobile custom purchase resolves the active MOBILE plan in the order transaction, computes quantity × unit price server-side, and snapshots the plan ID, quantity and amount. Regular Mobile Plan checkout uses that plan's stored total. Store quote requires authorized Store access and returns quantity × the active STORE plan rate; it never creates an order or grants credits. The earlier `shared_credit_prices` table is retained only for migration compatibility and is no longer read or written by the application.
+
 ### CUSTOMER-MOBILE-17 — Shared credit price (2026-10-29)
 
 `shared_credit_prices` stores the versioned INR unit rate. Admin updates use an optimistic version and transaction lock, then update INR Store per-credit plan terms and rate history for future cycles. Mobile plan listing derives totals from the current rate. Mobile checkout accepts exactly one plan ID or a custom quantity of 1–1,000; the API computes and snapshots the exact total. Client-supplied prices are never accepted.

@@ -11,7 +11,6 @@ import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
 import { GarmentPreviewSettingsService } from "../try-on/garment-preview-settings.service.js";
-import { SharedCreditPriceService } from "./shared-credit-price.service.js";
 import {
   DEFAULT_STARTER_PLAN_CODE,
   ensureDefaultStarterPricingPlan,
@@ -35,8 +34,6 @@ export class PricingControlService {
     private readonly prisma: PrismaService,
     @Optional()
     private readonly platformSettings?: GarmentPreviewSettingsService,
-    @Optional()
-    private readonly sharedCreditPrice?: SharedCreditPriceService,
   ) {}
 
   async listPlans(): Promise<PricingPlanResponseDto[]> {
@@ -76,15 +73,7 @@ export class PricingControlService {
   ): Promise<PricingPlanResponseDto> {
     try {
       const plan = await this.prisma.$transaction(async (tx) => {
-        if (this.sharedCreditPrice)
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended('shared-credit-price:INR', 0))::text`;
-        const globalRate = await this.sharedCreditPrice?.current(tx);
-        const shared = input.currency === "INR" ? globalRate?.unitPriceCents : undefined;
-        const effectiveRate = input.billingMode === "POSTPAID_PAYG" && shared
-          ? shared : input.creditUnitPriceCents;
-        const extraRate = input.extraCreditPriceCents != null && shared
-          ? shared : input.extraCreditPriceCents;
-        validateBillingTerms({ ...input, creditUnitPriceCents: effectiveRate, extraCreditPriceCents: extraRate });
+        validateBillingTerms(input);
         const created = await tx.pricingPlan.create({
           data: {
             id: createSelfxId(),
@@ -94,14 +83,14 @@ export class PricingControlService {
             channels: input.channels,
             currency: input.currency.trim().toUpperCase(),
             billingMode: input.billingMode ?? "CREDIT_LIMITED",
-            creditUnitPriceCents: effectiveRate ?? null,
+            creditUnitPriceCents: input.creditUnitPriceCents ?? null,
             ...(input.billingMode === "POSTPAID_PAYG"
               ? {
                   rates: {
                     create: {
                       id: createSelfxId(),
                       currency: input.currency,
-                      creditUnitPriceCents: effectiveRate!,
+                      creditUnitPriceCents: input.creditUnitPriceCents!,
                       effectiveAt: new Date(),
                     },
                   },
@@ -111,7 +100,7 @@ export class PricingControlService {
             includedCredits: input.includedCredits,
             trialCredits: input.trialCredits,
             storeLocationLimit: input.storeLocationLimit ?? null,
-            extraCreditPriceCents: extraRate ?? null,
+            extraCreditPriceCents: input.extraCreditPriceCents ?? null,
             kioskMonthlyRentCents: input.kioskMonthlyRentCents ?? null,
             kioskDeviceLimit: input.kioskDeviceLimit ?? null,
             metadata: jsonMetadataWithFeatureKeys(
@@ -157,8 +146,6 @@ export class PricingControlService {
   ): Promise<PricingPlanResponseDto> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        if (this.sharedCreditPrice)
-          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended('shared-credit-price:INR', 0))::text`;
         const current = await tx.pricingPlan.findUnique({
           where: { id: planId },
         });
@@ -176,11 +163,7 @@ export class PricingControlService {
             "Create a separate plan to change billing mode, then explicitly assign it to Stores.",
           );
         }
-        const globalRate = await this.sharedCreditPrice?.current(tx);
         const merged = { ...current, ...input };
-        const shared = merged.currency === "INR" ? globalRate?.unitPriceCents : undefined;
-        if (shared && current.billingMode === "POSTPAID_PAYG") merged.creditUnitPriceCents = shared;
-        if (shared && merged.extraCreditPriceCents != null) merged.extraCreditPriceCents = shared;
         validateBillingTerms(merged);
         const rateChanged =
           current.billingMode === "POSTPAID_PAYG" &&
@@ -189,7 +172,7 @@ export class PricingControlService {
         const plan = await tx.pricingPlan.update({
           where: { id: planId },
           data: {
-            ...(input.creditUnitPriceCents !== undefined || (shared && current.billingMode === "POSTPAID_PAYG")
+            ...(input.creditUnitPriceCents !== undefined
               ? { creditUnitPriceCents: merged.creditUnitPriceCents }
               : {}),
             ...(rateChanged
@@ -232,7 +215,7 @@ export class PricingControlService {
                 : {}),
             ...(starterPlan
               ? { extraCreditPriceCents: null }
-              : input.extraCreditPriceCents !== undefined || (shared && merged.extraCreditPriceCents != null)
+              : input.extraCreditPriceCents !== undefined
                 ? { extraCreditPriceCents: merged.extraCreditPriceCents }
                 : {}),
             ...(starterPlan

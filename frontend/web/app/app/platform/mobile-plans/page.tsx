@@ -20,17 +20,15 @@ import {
   Textarea,
 } from "@selfx/ui";
 import { getCurrentPlatformAccess } from "@/lib/access-control";
+import { CustomCreditPlanCard } from "@/components/custom-credit-plan-card";
 import {
   createMobilePlan,
-  getSharedCreditPrice,
   listMobilePlans,
-  saveSharedCreditPrice,
   updateMobilePlan,
   type MobileBillingPeriod,
   type MobilePlan,
   type MobilePlanInput,
   type MobilePlanStatus,
-  type SharedCreditPrice,
 } from "@/lib/mobile-plans";
 import { useSession } from "@/lib/session";
 
@@ -72,13 +70,12 @@ function toDraft(plan: MobilePlan): Draft {
   };
 }
 
-function toInput(draft: Draft, unitPriceCents: number | null): MobilePlanInput {
+function toInput(draft: Draft): MobilePlanInput {
   const price = draft.price.trim();
-  const sharedRate = draft.currency === "INR" ? unitPriceCents : null;
   const included = Number(draft.includedCredits);
   const trial = Number(draft.trialCredits);
   if (
-    (sharedRate === null && !/^\d+(?:\.\d{1,2})?$/.test(price)) ||
+    !/^\d+(?:\.\d{1,2})?$/.test(price) ||
     !Number.isSafeInteger(included) ||
     included < 1 ||
     !Number.isSafeInteger(trial) ||
@@ -93,7 +90,7 @@ function toInput(draft: Draft, unitPriceCents: number | null): MobilePlanInput {
     description: draft.description.trim(),
     status: draft.status,
     currency: draft.currency.trim(),
-    priceCents: sharedRate === null ? Math.round(Number(price) * 100) : included * sharedRate,
+    priceCents: Math.round(Number(price) * 100),
     billingPeriod: draft.billingPeriod,
     includedCredits: included,
     trialCredits: trial,
@@ -108,8 +105,6 @@ export default function MobilePlansPage() {
     manage: boolean;
   } | null>(null);
   const [plans, setPlans] = useState<MobilePlan[]>([]);
-  const [sharedPrice, setSharedPrice] = useState<SharedCreditPrice | null>(null);
-  const [unitPriceInput, setUnitPriceInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | "new" | null>(null);
@@ -130,10 +125,7 @@ export default function MobilePlansPage() {
         access.isSuperadmin || access.permissions.includes("PRICING_MANAGE");
       setPermissions({ view, manage });
       if (view) {
-        const [nextPlans, nextPrice] = await Promise.all([listMobilePlans(token), getSharedCreditPrice(token)]);
-        setPlans(nextPlans);
-        setSharedPrice(nextPrice);
-        setUnitPriceInput(nextPrice.unitPriceCents === null ? "" : (nextPrice.unitPriceCents / 100).toFixed(2));
+        setPlans(await listMobilePlans(token));
       }
     } catch (caught) {
       setError(
@@ -162,7 +154,7 @@ export default function MobilePlansPage() {
     setSaving(true);
     setError(null);
     try {
-      const input = toInput(draft, sharedPrice?.unitPriceCents ?? null);
+      const input = toInput(draft);
       if (editing === "new") {
         await createMobilePlan(token, input);
       } else {
@@ -178,26 +170,6 @@ export default function MobilePlansPage() {
           ? caught.message
           : "Mobile plan could not be saved.",
       );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveRate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token || !permissions?.manage || !sharedPrice || saving) return;
-    const amount = unitPriceInput.trim();
-    if (!/^\d+(?:\.\d{1,2})?$/.test(amount)) {
-      setError("Enter a valid INR price per credit.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await saveSharedCreditPrice(token, Math.round(Number(amount) * 100), sharedPrice.version);
-      await load();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Credit price could not be saved.");
     } finally {
       setSaving(false);
     }
@@ -243,19 +215,13 @@ export default function MobilePlansPage() {
         }
       />
       <PageSection>
-        <Card>
-          <CardHeader><CardTitle>Shared Try-On credit price</CardTitle></CardHeader>
-          <CardContent>
-            <form onSubmit={(event) => void saveRate(event)} className="flex flex-wrap items-end gap-3">
-              <Field label="INR per credit" id="shared-credit-price">
-                <Input id="shared-credit-price" inputMode="decimal" value={unitPriceInput}
-                  onChange={(event) => setUnitPriceInput(event.target.value)} disabled={!permissions?.manage} />
-              </Field>
-              {permissions?.manage && <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save price"}</Button>}
-            </form>
-            <p className="mt-3 text-sm text-muted-foreground">Used for mobile plans, purchases of 1–1,000 credits, and future Store per-credit billing cycles. Completed purchases and existing billing cycles retain their saved prices.</p>
-          </CardContent>
-        </Card>
+        {token && (
+          <CustomCreditPlanCard
+            channel="MOBILE"
+            accessToken={token}
+            canManage={permissions.manage}
+          />
+        )}
         {error && (
           <div
             role="alert"
@@ -365,8 +331,7 @@ export default function MobilePlansPage() {
                     required
                     inputMode="decimal"
                     placeholder="199.00"
-                    disabled={draft.currency === "INR" && sharedPrice?.unitPriceCents !== null && sharedPrice?.unitPriceCents !== undefined}
-                    value={draft.currency === "INR" && sharedPrice?.unitPriceCents != null && Number.isInteger(Number(draft.includedCredits)) && Number(draft.includedCredits) > 0 ? (Number(draft.includedCredits) * sharedPrice.unitPriceCents / 100).toFixed(2) : draft.price}
+                    value={draft.price}
                     onChange={(e) =>
                       setDraft({ ...draft, price: e.target.value })
                     }

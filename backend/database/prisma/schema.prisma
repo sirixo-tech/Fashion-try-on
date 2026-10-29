@@ -1710,6 +1710,7 @@ model CustomerMobilePurchase {
   id                   String   @id @db.Uuid
   customerId           String   @map("customer_id") @db.Uuid
   planId               String?  @map("plan_id") @db.Uuid
+  customCreditPlanId   String?  @map("custom_credit_plan_id") @db.Uuid
   merchantOrderId      String   @unique @map("merchant_order_id") @db.VarChar(63)
   requestKey           String   @unique @map("request_key") @db.VarChar(160)
   providerOrderId      String?  @map("provider_order_id") @db.VarChar(100)
@@ -1731,6 +1732,7 @@ model CustomerMobilePurchase {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   customer             Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
   plan                 MobilePlan? @relation(fields: [planId], references: [id], onDelete: Restrict)
+  customCreditPlan     CustomCreditPlan? @relation(fields: [customCreditPlanId], references: [id], onDelete: Restrict)
   grant                CustomerPaidCreditGrant?
 
   @@index([customerId, createdAt])
@@ -2340,6 +2342,26 @@ model SharedCreditPrice {
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("shared_credit_prices")
+}
+
+enum CustomCreditChannel {
+  STORE
+  MOBILE
+}
+
+model CustomCreditPlan {
+  id             String              @id @db.Uuid
+  channel        CustomCreditChannel @unique
+  name           String              @db.VarChar(160)
+  status         PricingPlanStatus   @default(INACTIVE)
+  currency       String              @db.Char(3)
+  unitPriceCents Int                 @map("unit_price_cents")
+  version        Int                 @default(1)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  mobilePurchases CustomerMobilePurchase[]
+
+  @@map("custom_credit_plans")
 }
 
 enum GenerationBillingCoverage {

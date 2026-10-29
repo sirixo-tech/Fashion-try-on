@@ -42,7 +42,6 @@ import {
   type CurrentPlatformAccess,
 } from "@/lib/access-control";
 import { getPlatformVirtualTryOnSettings } from "@/lib/platform-settings";
-import { getSharedCreditPrice } from "@/lib/mobile-plans";
 import {
   createPricingPlan,
   listPlanFeatures,
@@ -138,7 +137,6 @@ export function PricingPlanEditor({
   const [features, setFeatures] = useState<PlanFeature[]>([]);
   const [accessLoading, setAccessLoading] = useState(true);
   const [platformCurrency, setPlatformCurrency] = useState(emptyForm.currency);
-  const [sharedCreditCents, setSharedCreditCents] = useState<number | null>(null);
   const [activeSectionId, setActiveSectionId] =
     useState<EditorSectionId>("name");
   const { showToast } = useToast();
@@ -236,15 +234,6 @@ export function PricingPlanEditor({
   }, [accessToken, canViewPricing]);
 
   useEffect(() => {
-    if (!accessToken || !canViewPricing) return;
-    let cancelled = false;
-    getSharedCreditPrice(accessToken)
-      .then((rate) => { if (!cancelled) setSharedCreditCents(rate.unitPriceCents); })
-      .catch(() => { if (!cancelled) setSharedCreditCents(null); });
-    return () => { cancelled = true; };
-  }, [accessToken, canViewPricing]);
-
-  useEffect(() => {
     if (!accessToken || !canViewPricing) {
       return;
     }
@@ -338,7 +327,7 @@ export function PricingPlanEditor({
     if (!accessToken || !canManagePricing) {
       return;
     }
-    const baseForm = editingDefaultStarterPlan
+    const saveForm = editingDefaultStarterPlan
       ? {
           ...form,
           monthlyPrice: "0",
@@ -349,10 +338,6 @@ export function PricingPlanEditor({
           kioskDeviceLimit: "",
         }
       : form;
-    const saveForm = platformCurrency === "INR" && sharedCreditCents !== null
-      ? { ...baseForm, creditUnitPrice: centsToMoneyInput(sharedCreditCents),
-          extraCreditPrice: baseForm.extraCreditPrice ? centsToMoneyInput(sharedCreditCents) : "" }
-      : baseForm;
     const validationError = validateForm(saveForm);
     if (validationError) {
       setError(validationError);
@@ -594,8 +579,8 @@ export function PricingPlanEditor({
                     <>
                       <NumberField
                         label="Price per credit"
-                        value={platformCurrency === "INR" && sharedCreditCents !== null ? centsToMoneyInput(sharedCreditCents) : form.creditUnitPrice}
-                        disabled={!canManagePricing || (platformCurrency === "INR" && sharedCreditCents !== null)}
+                        value={form.creditUnitPrice}
+                        disabled={!canManagePricing}
                         onChange={(creditUnitPrice) =>
                           setForm((current) => ({
                             ...current,
@@ -607,7 +592,7 @@ export function PricingPlanEditor({
                         One successful generation uses one credit. No advance
                         purchase or credit limit. Monthly cycles follow
                         activation in UTC. Rate changes apply from the next
-                        cycle. For INR, change the shared rate in Mobile Plans.
+                        cycle.
                       </p>
                     </>
                   ) : (
@@ -624,9 +609,9 @@ export function PricingPlanEditor({
                       />
                       <NumberField
                         label="Extra credit price"
-                        value={platformCurrency === "INR" && sharedCreditCents !== null && form.extraCreditPrice ? centsToMoneyInput(sharedCreditCents) : form.extraCreditPrice}
+                        value={form.extraCreditPrice}
                         disabled={
-                          !canManagePricing || editingDefaultStarterPlan || (platformCurrency === "INR" && sharedCreditCents !== null)
+                          !canManagePricing || editingDefaultStarterPlan
                         }
                         placeholder="Optional"
                         onChange={(extraCreditPrice) =>
@@ -1330,7 +1315,8 @@ function channelLabel(channel: string): string {
 }
 
 function channelDescription(channel: PricingPlanChannel): string {
-  if (channel === "MOBILE") return "Store-sponsored mobile Try-On. Separate from personal mobile plans.";
+  if (channel === "MOBILE")
+    return "Store-sponsored mobile Try-On. Separate from personal mobile plans.";
   if (channel === "SHOPIFY") return "Shopify storefront Try-On.";
   if (channel === "WOOCOMMERCE") return "WooCommerce storefront Try-On.";
   if (channel === "KIOSK") return "Physical kiosk deployments.";

@@ -5,9 +5,13 @@ import {
   Logger,
 } from "@nestjs/common";
 import { createSelfxId } from "@selfx/database";
+import { CustomCreditChannel, PricingPlanStatus } from "@prisma/client";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
-import { creditTotalMinor, CUSTOM_CREDIT_LIMIT, MAX_CHECKOUT_MINOR } from "../entitlements/shared-credit-price.service.js";
+import {
+  customCreditTotal,
+  MOBILE_CUSTOM_CREDIT_LIMIT,
+} from "../entitlements/custom-credit-plans.service.js";
 import { encryptProviderSecret } from "../integrations/provider-secret-cipher.js";
 import { decryptPaymentSnapshot } from "../payments/payment-snapshots.js";
 import { paymentEncryptionKey } from "../payments/payment-settings.service.js";
@@ -153,7 +157,11 @@ export class CustomerMobilePaymentsService
     return row?.enabled === true && row.environment === "PRODUCTION";
   }
 
-  async start(customerId: string, choice: { planId?: string; credits?: number }, requestId: string) {
+  async start(
+    customerId: string,
+    choice: { planId?: string; credits?: number },
+    requestId: string,
+  ) {
     if (!/^[0-9a-f-]{36}$/i.test(requestId))
       fail("MOBILE_PAYMENT_REQUEST_INVALID", "Start this purchase again.", 400);
     if (!(await this.available()))
@@ -163,9 +171,18 @@ export class CustomerMobilePaymentsService
         503,
       );
     const custom = choice.credits !== undefined;
-    if (custom === (choice.planId !== undefined) ||
-        (custom && (!Number.isInteger(choice.credits) || choice.credits! < 1 || choice.credits! > CUSTOM_CREDIT_LIMIT)))
-      fail("MOBILE_PAYMENT_SELECTION_INVALID", "Choose a plan or 1 to 1,000 custom credits.", 400);
+    if (
+      custom === (choice.planId !== undefined) ||
+      (custom &&
+        (!Number.isInteger(choice.credits) ||
+          choice.credits! < 1 ||
+          choice.credits! > MOBILE_CUSTOM_CREDIT_LIMIT))
+    )
+      fail(
+        "MOBILE_PAYMENT_SELECTION_INVALID",
+        "Choose a plan or 1 to 1,000 custom credits.",
+        400,
+      );
     const requestKey = `${customerId}:${requestId}`;
     const purchase = await this.db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customerId}::uuid FOR UPDATE`;
@@ -173,8 +190,10 @@ export class CustomerMobilePaymentsService
         where: { requestKey },
       });
       if (existing) {
-        if (existing.planId !== (choice.planId ?? null) ||
-            (custom && existing.credits !== choice.credits))
+        if (
+          existing.planId !== (choice.planId ?? null) ||
+          (custom && existing.credits !== choice.credits)
+        )
           fail(
             "MOBILE_PAYMENT_REQUEST_CONFLICT",
             "This purchase request belongs to another plan.",
@@ -198,21 +217,56 @@ export class CustomerMobilePaymentsService
       });
       if (customer?.status !== "ACTIVE")
         fail("CUSTOMER_SESSION_INVALID", "Sign in again to continue.", 401);
-      const [plan, connection, rate] = await Promise.all([
-        choice.planId ? tx.mobilePlan.findFirst({ where: { id: choice.planId, status: "ACTIVE" } }) : Promise.resolve(null),
+      const [plan, connection, customPlan] = await Promise.all([
+        choice.planId
+          ? tx.mobilePlan.findFirst({
+              where: { id: choice.planId, status: "ACTIVE" },
+            })
+          : Promise.resolve(null),
         tx.mobilePaymentConnection.findUnique({ where: { id: connectionId } }),
-        tx.sharedCreditPrice.findUnique({ where: { currency: "INR" } }),
+        custom
+          ? tx.customCreditPlan.findUnique({
+              where: { channel: CustomCreditChannel.MOBILE },
+            })
+          : Promise.resolve(null),
       ]);
-      if (choice.planId && (!plan || plan.currency !== "INR" || plan.includedCredits < 1))
+      if (
+        choice.planId &&
+        (!plan || plan.currency !== "INR" || plan.includedCredits < 1)
+      )
         fail(
           "MOBILE_PLAN_UNAVAILABLE",
           "This plan is not available for purchase.",
         );
-      if (!rate) fail("CREDIT_PRICE_UNAVAILABLE", "The shared credit price is not configured yet.", 503);
+      if (
+        custom &&
+        (!customPlan ||
+          customPlan.status !== PricingPlanStatus.ACTIVE ||
+          customPlan.currency !== "INR")
+      )
+        fail(
+          "CUSTOM_CREDIT_PLAN_UNAVAILABLE",
+          "Mobile custom credits are not available yet.",
+          503,
+        );
       const credits = plan?.includedCredits ?? choice.credits!;
-      const amountMinor = custom ? creditTotalMinor(credits, rate.unitPriceCents) : credits * rate.unitPriceCents;
-      if (!Number.isSafeInteger(amountMinor) || amountMinor < 100 || amountMinor > MAX_CHECKOUT_MINOR)
-        fail("MOBILE_PLAN_PRICE_INVALID", "This purchase exceeds the supported checkout amount.", 400);
+      const amountMinor = custom
+        ? customCreditTotal(
+            CustomCreditChannel.MOBILE,
+            credits,
+            customPlan!.unitPriceCents,
+          )
+        : plan!.priceCents;
+      if (
+        !Number.isSafeInteger(amountMinor) ||
+        amountMinor < 100 ||
+        amountMinor > 2_000_000_000
+      )
+        fail(
+          "MOBILE_PLAN_PRICE_INVALID",
+          "This purchase exceeds the supported checkout amount.",
+          400,
+        );
       if (!connection?.enabled || connection.environment !== "PRODUCTION")
         fail(
           "MOBILE_PAYMENTS_UNAVAILABLE",
@@ -225,6 +279,7 @@ export class CustomerMobilePaymentsService
           id,
           customerId,
           planId: plan?.id ?? null,
+          customCreditPlanId: customPlan?.id ?? null,
           requestKey,
           merchantOrderId: `SELFX_${id.replaceAll("-", "")}`,
           status: "INITIALIZING",

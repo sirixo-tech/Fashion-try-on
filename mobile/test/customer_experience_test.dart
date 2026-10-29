@@ -214,6 +214,7 @@ void main() {
       if (path == '/mobile-plans') {
         return {
           'purchasingAvailable': true,
+          'customPurchasingAvailable': true,
           'unitPriceCents': 900,
           'data': [],
         };

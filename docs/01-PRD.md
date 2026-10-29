@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOM-CREDITS-1 — Channel-specific custom credit plans (2026-10-29)
+
+Platform pricing administrators create or edit a Store Custom credits plan in Plans and a Mobile Custom credits plan in Mobile Plans. Each has its own fixed per-credit price and active state. Mobile custom purchases accept 1–1,000 credits through verified PhonePe checkout; regular Mobile Plans retain their separately configured package prices. Stores can request a quote for 1–1,000 credits, but no Store credits are granted until a future paid checkout is implemented and verified. Store Custom credits are independent of existing Store postpaid Pay As You Go terms. Purchase totals and historical Store billing cycles retain their original price snapshots. This supersedes the shared-rate behavior described below.
+
 ### CUSTOMER-MOBILE-17 — Shared credit price and custom purchases (2026-10-29)
 
 Customers may buy any whole number of personal credits from 1 to 1,000, including a single credit. The server calculates mobile purchase and Mobile Plan totals from one platform-managed INR per-credit rate. INR Store per-credit terms use the same rate for future billing cycles. Completed orders and existing Store billing cycles keep their saved prices. Monthly Store subscription fees remain separate.

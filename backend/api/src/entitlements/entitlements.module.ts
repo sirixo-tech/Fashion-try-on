@@ -12,8 +12,8 @@ import { PricingFeaturesService } from "./pricing-features.service.js";
 import { PricingController } from "./pricing.controller.js";
 import { PricingControlService } from "./pricing-control.service.js";
 import { MobilePlansService } from "./mobile-plans.service.js";
-import { SharedCreditPriceService } from "./shared-credit-price.service.js";
-import { AdminSharedCreditPriceController } from "./admin-shared-credit-price.controller.js";
+import { CustomCreditPlansService } from "./custom-credit-plans.service.js";
+import { AdminCustomCreditPlansController } from "./admin-custom-credit-plans.controller.js";
 import { StoreImpersonationService } from "../stores/store-impersonation.service.js";
 
 @Module({
@@ -21,7 +21,7 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
   controllers: [
     AdminPricingController,
     AdminMobilePlansController,
-    AdminSharedCreditPriceController,
+    AdminCustomCreditPlansController,
     AdminPricingFeaturesController,
     PricingController,
   ],
@@ -30,7 +30,7 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
     PricingFeaturesService,
     PricingControlService,
     MobilePlansService,
-    SharedCreditPriceService,
+    CustomCreditPlansService,
     StoreImpersonationService,
     PlatformAuthorizationService,
     GarmentPreviewSettingsService,
@@ -40,7 +40,7 @@ import { StoreImpersonationService } from "../stores/store-impersonation.service
     PricingFeaturesService,
     PricingControlService,
     MobilePlansService,
-    SharedCreditPriceService,
+    CustomCreditPlansService,
   ],
 })
 export class EntitlementsModule {}

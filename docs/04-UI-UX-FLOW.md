@@ -1,12 +1,16 @@
 ## Document Evolution
 
+### CUSTOM-CREDITS-1 — Custom credit plan UI (2026-10-29)
+
+Plans contains a Store Custom credits plan form; Mobile Plans contains a separate Mobile Custom credits plan form. Each shows its per-credit price and active state. The mobile Plans & credits screen shows the active Mobile custom rate and accepts 1–1,000 credits before the existing PhonePe checkout. The checkout dialog shows the server-snapshotted total. Store Billing can request an authorized quote for 1–1,000 custom credits and states that online purchase is not yet enabled. Normal Store and Mobile Plans keep their own prices.
+
 ### CUSTOMER-MOBILE-17 — Credit buying (2026-10-29)
 
 Platform Mobile Plans shows the shared INR credit price. The mobile Plans & credits screen lets the customer enter 1–1,000 credits, see the server-derived total, and use the existing PhonePe QR/app checkout. Mobile plans show totals derived from the same rate.
 
 ### CUSTOMER-MOBILE-21 — Mobile plan catalog (2026-10-29)
 
-Platform navigation has a separate Mobile Plans item beside Plans. Platform pricing viewers can see it and pricing managers can create or edit mobile plans. Active plans appear in the customer Plans & credits screen with price, billing period and credit amounts. Checkout is available after production PhonePe configuration and shared credit pricing are enabled. The personal free trial and Store QR sponsorship remain unchanged.
+Platform navigation has a separate Mobile Plans item beside Plans. Platform pricing viewers can see it and pricing managers can create or edit mobile plans. Active plans appear in the customer Plans & credits screen with price, billing period and credit amounts. Checkout is available after production PhonePe configuration is enabled. The personal free trial and Store QR sponsorship remain unchanged.
 
 ### CUSTOMER-MOBILE-20 — Product Try-On, progress and garment saves (2026-10-29)
 

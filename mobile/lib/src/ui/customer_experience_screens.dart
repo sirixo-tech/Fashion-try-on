@@ -249,6 +249,10 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (purchase?['amountMinor'] is num)
+              CustomerText(
+                'Total: ${intl.NumberFormat.simpleCurrency(name: purchase?['currency'] as String? ?? 'INR').format((purchase!['amountMinor'] as num) / 100)}',
+              ),
             if (qr != null) ...[
               Image.memory(qr, width: 240, height: 240),
               const SizedBox(height: 8),
@@ -440,7 +444,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                                   purchasing ||
                                       !validQuantity ||
                                       unitPriceCents == null ||
-                                      snapshot.data?['purchasingAvailable'] !=
+                                      snapshot.data?['customPurchasingAvailable'] !=
                                           true
                                   ? null
                                   : () => buy(credits: quantity),

@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOM-CREDITS-1 — Custom credit plans (2026-10-29)
+
+Migration `20261029040000_custom_credit_plans` adds `custom_credit_plans`, unique by STORE or MOBILE channel, with name, status, currency, unit price and optimistic version. `customer_mobile_purchases.custom_credit_plan_id` is nullable and refers to the plan used for custom purchases; the existing amount and quantity columns remain immutable order snapshots. The old `shared_credit_prices` table stays for migration compatibility but is inactive.
+
 ### CUSTOMER-MOBILE-17 — Shared credit price (2026-10-29)
 
 Migration `20261029030000_shared_credit_price` adds `shared_credit_prices` with one INR unit rate and optimistic version, and makes `customer_mobile_purchases.plan_id` nullable for custom quantity purchases. Each purchase still snapshots amount, credits and billing period. Existing Store billing cycles retain their rate snapshots.
