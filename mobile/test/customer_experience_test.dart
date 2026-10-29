@@ -209,6 +209,66 @@ void main() {
     expect(find.text('Choose plan'), findsNothing);
   });
 
+  testWidgets('selects a one-time plan before starting checkout', (
+    tester,
+  ) async {
+    Map<String, dynamic>? purchaseBody;
+    api.handler = (path, method, body) async {
+      if (path == '/mobile-plans') {
+        return {
+          'purchasingAvailable': true,
+          'data': [
+            {
+              'id': 'monthly-20',
+              'name': 'Monthly 20',
+              'currency': 'INR',
+              'priceCents': 19900,
+              'billingPeriod': 'MONTHLY',
+              'includedCredits': 20,
+              'trialCredits': 0,
+            },
+            for (final credits in [5, 15])
+              {
+                'id': 'once-$credits',
+                'name': 'One-time $credits',
+                'currency': 'INR',
+                'priceCents': credits * 5000,
+                'billingPeriod': 'ONE_TIME',
+                'includedCredits': credits,
+                'trialCredits': 0,
+              },
+          ],
+        };
+      }
+      if (path == '/mobile-payments' && method == 'POST') {
+        purchaseBody = body;
+        return {'id': 'pending-purchase'};
+      }
+      return response(path, method, body);
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: CustomerPlansScreen(experience: exp),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Monthly 20'), findsOneWidget);
+    expect(find.text('One-time 15'), findsNothing);
+
+    await tester.tap(find.text('One-time'));
+    await tester.pumpAndSettle();
+    expect(find.text('Monthly 20'), findsNothing);
+    await tester.ensureVisible(find.text('One-time 15'));
+    await tester.tap(find.text('One-time 15'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    expect(purchaseBody?['planId'], 'once-15');
+    expect(purchaseBody?['credits'], isNull);
+  });
+
   testWidgets('custom credits allow 1 through 1000', (tester) async {
     api.handler = (path, method, body) async {
       if (path == '/mobile-plans') {
@@ -221,10 +281,12 @@ void main() {
       }
       return response(path, method, body);
     };
-    await tester.pumpWidget(MaterialApp(
-      theme: customerTheme(),
-      home: CustomerPlansScreen(experience: exp),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: CustomerPlansScreen(experience: exp),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('₹9.00'), findsOneWidget);
     final quantity = find.byType(TextField);
@@ -234,7 +296,14 @@ void main() {
     await tester.enterText(quantity, '1001');
     await tester.pump();
     expect(find.text('₹9,009.00'), findsNothing);
-    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Buy credits')).onPressed, isNull);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Buy credits'),
+          )
+          .onPressed,
+      isNull,
+    );
   });
 
   test(

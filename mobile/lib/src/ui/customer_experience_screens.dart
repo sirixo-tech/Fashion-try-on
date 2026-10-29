@@ -173,6 +173,8 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   bool purchasing = false;
   bool checking = false;
   String? paymentError;
+  String selectedBillingPeriod = 'MONTHLY';
+  String? selectedPlanId;
   final TextEditingController customCredits = TextEditingController(text: '1');
 
   @override
@@ -493,6 +495,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const CustomerText('Plans & credits')),
+    backgroundColor: Colors.white,
     body: ListenableBuilder(
       listenable: widget.experience,
       builder: (context, _) {
@@ -502,48 +505,49 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
         return RefreshIndicator(
           onRefresh: refresh,
           child: ListView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             children: [
-              CustomerText(
-                'A little more possibility.',
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-              const SizedBox(height: 12),
-              const CustomerText(
-                'Your personal allowance stays with your SelfX account.',
-              ),
-              const SizedBox(height: 28),
-              PremiumPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: CustomerColors.ink,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
                   children: [
                     const Icon(
                       Icons.auto_awesome_rounded,
                       color: CustomerColors.orange,
-                      size: 32,
+                      size: 28,
                     ),
-                    const SizedBox(height: 20),
-                    CustomerText(
-                      'Personal credits',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    CustomerText(
-                      '${experience.remaining ?? '—'} Try-Ons left',
-                      style: Theme.of(context).textTheme.headlineLarge,
-                    ),
-                    const SizedBox(height: 16),
-                    CustomerText(
-                      '${trial?['remaining'] ?? 0} trial · ${paid?['remaining'] ?? 0} paid',
-                    ),
-                    const SizedBox(height: 18),
-                    const CustomerText(
-                      'One credit creates one saved look. Failed generations return the reserved credit.',
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const CustomerText(
+                            'Personal credits',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          CustomerText(
+                            '${experience.remaining ?? '—'} Try-Ons left',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          CustomerText(
+                            '${trial?['remaining'] ?? 0} trial · ${paid?['remaining'] ?? 0} paid',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               FutureBuilder<Json>(
                 future: mobilePlans,
                 builder: (context, snapshot) {
@@ -562,10 +566,110 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                   final quantity = int.tryParse(customCredits.text.trim());
                   final validQuantity =
                       quantity != null && quantity >= 1 && quantity <= 1000;
+                  final availablePlans = <Json>[
+                    for (final item in plans)
+                      if (item is Map) Map<String, dynamic>.from(item),
+                  ];
+                  final periodPlans = availablePlans
+                      .where(
+                        (item) =>
+                            item['billingPeriod'] == selectedBillingPeriod,
+                      )
+                      .toList();
+                  final selectedPlan = periodPlans.isEmpty
+                      ? null
+                      : periodPlans.firstWhere(
+                          (item) => item['id'] == selectedPlanId,
+                          orElse: () => periodPlans.first,
+                        );
+                  final canBuyPlan =
+                      snapshot.data?['purchasingAvailable'] == true &&
+                      selectedPlan?['id'] is String &&
+                      selectedPlan?['currency'] == 'INR' &&
+                      (selectedPlan?['priceCents'] as num? ?? 0) >= 100;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      CustomerText(
+                        'Go Premium',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 3),
+                      const CustomerText(
+                        'More Try-Ons. More styles. More you.',
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PlanPeriodTab(
+                              label: 'Monthly',
+                              selected: selectedBillingPeriod == 'MONTHLY',
+                              onTap: () => setState(() {
+                                selectedBillingPeriod = 'MONTHLY';
+                                selectedPlanId = null;
+                              }),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _PlanPeriodTab(
+                              label: 'One-time',
+                              selected: selectedBillingPeriod == 'ONE_TIME',
+                              onTap: () => setState(() {
+                                selectedBillingPeriod = 'ONE_TIME';
+                                selectedPlanId = null;
+                              }),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      if (periodPlans.isEmpty)
+                        CustomerNotice(
+                          availablePlans.isEmpty
+                              ? 'No mobile plans are available yet.'
+                              : 'No plans are available in this category yet.',
+                        ),
+                      for (final item in periodPlans)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _PlanChoiceCard(
+                            plan: item,
+                            selected: identical(item, selectedPlan),
+                            onTap: () => setState(
+                              () => selectedPlanId = item['id'] as String?,
+                            ),
+                          ),
+                        ),
+                      if (periodPlans.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        CustomerText(
+                          selectedBillingPeriod == 'MONTHLY'
+                              ? 'Monthly credits expire after one month. Pay again to renew; no automatic charge.'
+                              : 'One-time credits do not expire.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: purchasing || !canBuyPlan
+                                ? null
+                                : () => buy(
+                                    planId: selectedPlan!['id'] as String,
+                                  ),
+                            child: CustomerText(
+                              purchasing ? 'Opening checkout…' : 'Continue',
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      const Divider(),
+                      const SizedBox(height: 12),
                       PremiumPanel(
+                        padding: const EdgeInsets.all(18),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -573,118 +677,61 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                               'Buy credits',
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 4),
                             const CustomerText(
-                              'Choose any amount from 1 to 1,000. Credits do not expire.',
+                              'Choose 1 to 1,000 credits. They do not expire.',
                             ),
                             const SizedBox(height: 12),
-                            TextField(
-                              controller: customCredits,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Credits',
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (_) => setState(() {}),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: customCredits,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Credits',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                ),
+                                if (unitPriceCents != null &&
+                                    validQuantity) ...[
+                                  const SizedBox(width: 12),
+                                  CustomerText(
+                                    intl.NumberFormat.simpleCurrency(
+                                      name: 'INR',
+                                    ).format(quantity * unitPriceCents / 100),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                ],
+                              ],
                             ),
-                            const SizedBox(height: 10),
-                            if (unitPriceCents != null && validQuantity)
-                              CustomerText(
-                                intl.NumberFormat.simpleCurrency(
-                                  name: 'INR',
-                                ).format(quantity * unitPriceCents / 100),
-                              ),
-                            const SizedBox(height: 10),
-                            FilledButton(
-                              onPressed:
-                                  purchasing ||
-                                      !validQuantity ||
-                                      unitPriceCents == null ||
-                                      snapshot.data?['customPurchasingAvailable'] !=
-                                          true
-                                  ? null
-                                  : () => buy(credits: quantity),
-                              child: CustomerText(
-                                purchasing
-                                    ? 'Opening checkout…'
-                                    : 'Buy credits',
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed:
+                                    purchasing ||
+                                        !validQuantity ||
+                                        unitPriceCents == null ||
+                                        snapshot.data?['customPurchasingAvailable'] !=
+                                            true
+                                    ? null
+                                    : () => buy(credits: quantity),
+                                child: CustomerText(
+                                  purchasing
+                                      ? 'Opening checkout…'
+                                      : 'Buy credits',
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      if (plans.isEmpty)
-                        const CustomerNotice(
-                          'No mobile plans are available yet.',
-                        ),
-                      if (plans.isNotEmpty) ...[
-                        CustomerText(
-                          'Mobile plans',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 10),
-                        for (final item in plans)
-                          if (item is Map)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: PremiumPanel(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    CustomerText(
-                                      item['name'] as String,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleLarge,
-                                    ),
-                                    if ((item['description'] as String? ?? '')
-                                        .isNotEmpty) ...[
-                                      const SizedBox(height: 6),
-                                      CustomerText(
-                                        item['description'] as String,
-                                      ),
-                                    ],
-                                    const SizedBox(height: 10),
-                                    CustomerText(
-                                      '${intl.NumberFormat.simpleCurrency(name: item['currency'] as String).format((item['priceCents'] as num) / 100)} ${item['billingPeriod'] == 'MONTHLY' ? '/ month' : 'one-time'}',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                    CustomerText(
-                                      '${item['includedCredits']} Try-On credits',
-                                    ),
-                                    if (item['billingPeriod'] == 'MONTHLY')
-                                      const CustomerText(
-                                        'Credits expire after one month. Pay again to renew; no automatic charge.',
-                                      ),
-                                    if ((item['trialCredits'] as num? ?? 0) > 0)
-                                      CustomerText(
-                                        '${item['trialCredits']} intro trial credits',
-                                      ),
-                                    const SizedBox(height: 10),
-                                    if (snapshot.data?['purchasingAvailable'] ==
-                                            true &&
-                                        item['currency'] == 'INR' &&
-                                        (item['priceCents'] as num) >= 100)
-                                      FilledButton(
-                                        onPressed: purchasing
-                                            ? null
-                                            : () => buy(
-                                                planId: item['id'] as String,
-                                              ),
-                                        child: CustomerText(
-                                          purchasing
-                                              ? 'Opening checkout…'
-                                              : 'Choose plan',
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                      ],
+                      const SizedBox(height: 12),
                       if (snapshot.data?['purchasingAvailable'] != true)
                         const CustomerNotice(
                           'Purchases are unavailable until SelfX enables mobile payments.',
@@ -738,6 +785,135 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       },
     ),
   );
+}
+
+class _PlanPeriodTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PlanPeriodTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    child: Material(
+      color: selected ? CustomerColors.orange : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? CustomerColors.orange : CustomerColors.line,
+            ),
+          ),
+          child: CustomerText(
+            label,
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _PlanChoiceCard extends StatelessWidget {
+  final Json plan;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PlanChoiceCard({
+    required this.plan,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final price = intl.NumberFormat.simpleCurrency(
+      name: plan['currency'] as String? ?? 'INR',
+    ).format((plan['priceCents'] as num? ?? 0) / 100);
+    final description = plan['description'] as String? ?? '';
+    final trialCredits = plan['trialCredits'] as num? ?? 0;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? CustomerColors.tint : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected ? CustomerColors.orange : CustomerColors.line,
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  color: selected
+                      ? CustomerColors.orange
+                      : CustomerColors.muted,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CustomerText(
+                        plan['name'] as String? ?? 'Mobile plan',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (description.isNotEmpty)
+                        CustomerText(
+                          description,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      CustomerText('${plan['includedCredits']} Try-On credits'),
+                      if (trialCredits > 0)
+                        CustomerText(
+                          '+$trialCredits intro credits on your first purchase',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CustomerText(
+                  price,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class CustomerStudio extends StatefulWidget {

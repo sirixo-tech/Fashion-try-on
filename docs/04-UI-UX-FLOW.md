@@ -1,5 +1,9 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-22 — Compact plan selection (2026-10-29)
+
+The customer Plans & credits screen starts with a compact personal-credit balance. Monthly and One-time tabs show selectable Mobile plan cards with one Continue action for the selected plan. Monthly copy states that credits expire after a month and another payment is required; it must not imply automatic renewal. Custom quantity credit buying remains available below the plans, and pending payment/status controls remain accessible. This changes presentation only; checkout still uses the existing backend-verified purchase flow.
+
 ### CUSTOM-CREDITS-1 — Custom credit plan UI (2026-10-29)
 
 Mobile Plans shows Custom credits as a card alongside regular Mobile plans. New mobile plan first offers regular or Custom credits, then opens a dedicated editor. Mobile Custom credits has pricing and summary sections without feature checkboxes. Store Plans retains its regular creation flow, and Store Billing has no custom-credit quote. Regular Mobile Plans continue to use separate create and edit pages. The mobile Plans & credits screen shows the active Mobile custom rate and accepts 1–1,000 credits before the existing PhonePe checkout. The checkout dialog shows the server-snapshotted total. Normal Store and Mobile Plans keep their own prices.
@@ -3392,3 +3396,5 @@ This document is sufficient to guide detailed Figma/design work and implementati
 CUSTOMER-MOBILE-18 presents installed UPI app icons as the main mobile payment choice. Show QR, Share QR and Share payment link are secondary actions; the link is the expiring UPI URI for that order, not a permanent hosted checkout link. Returning to SelfX or pressing Check payment asks the backend to verify status. Credits appear only after confirmed payment.
 
 Platform Settings has a Mobile Payments page for the SelfX PhonePe account. The customer Plans & credits page shows active plans and a Choose plan action only when production checkout is enabled. PhonePe's hosted checkout offers UPI app and QR modes. Returning to SelfX or pressing Check payment queries the backend; credits appear only after verified confirmation. Pending state is recoverable on reopening Plans & credits. Monthly plans require a new payment after expiry and do not auto-renew.
+
+The Mobile Payments admin page displays the PhonePe connection as a gateway card, consistent with Store payment gateway cards. Setup and replacement open a dialog using shared SelfX controls. The saved card shows configuration and checkout availability without exposing credentials, and a successful save closes the dialog and displays a confirmation message.
