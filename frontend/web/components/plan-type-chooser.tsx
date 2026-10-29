@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRightIcon, CreditCardIcon, Layers3Icon } from "lucide-react";
 import {
