@@ -22,6 +22,7 @@ class CustomerAvatarScreen extends StatefulWidget {
 }
 
 class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
+  static const _availableInterests = {'WOMEN', 'MEN'};
   late final CustomerAvatar avatar;
   late final CustomerPhotoPicker picker;
   late int step;
@@ -33,14 +34,17 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
     super.initState();
     avatar = CustomerAvatar(widget.controller);
     picker = widget.picker ?? NativeCustomerPhotoPicker();
-    selected.addAll(avatar.interests);
-    step = widget.setup && selected.isEmpty ? 0 : 1;
+    selected.addAll(avatar.interests.where(_availableInterests.contains));
+    step = selected.isEmpty ? 0 : 1;
     unawaited(
       avatar.load().then((_) {
         if (mounted) {
           setState(() {
             selected.clear();
-            selected.addAll(avatar.interests);
+            selected.addAll(
+              avatar.interests.where(_availableInterests.contains),
+            );
+            if (selected.isEmpty) step = 0;
           });
         }
       }),
@@ -238,7 +242,6 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                       if (step == 0) ...[
                         LayoutBuilder(
                           builder: (context, constraints) {
-                            final wide = constraints.maxWidth >= 500;
                             return Wrap(
                               spacing: 12,
                               runSpacing: 12,
@@ -246,16 +249,9 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                 for (final entry in const [
                                   ('WOMEN', 'Women', 'demo-model-maya'),
                                   ('MEN', 'Men', 'demo-model-arjun'),
-                                  (
-                                    'JEWELLERY',
-                                    'Jewellery',
-                                    'category-jewellery-v1',
-                                  ),
                                 ])
                                   SizedBox(
-                                    width: wide
-                                        ? (constraints.maxWidth - 24) / 3
-                                        : (constraints.maxWidth - 12) / 2,
+                                    width: (constraints.maxWidth - 12) / 2,
                                     child: _InterestCard(
                                       value: entry.$2,
                                       asset: entry.$3,
@@ -280,7 +276,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                               child: _photo(
                                 'SELFIE',
                                 'Selfie',
-                                'category-jewellery-v1',
+                                'avatar-selfie-example-v1',
                                 true,
                               ),
                             ),

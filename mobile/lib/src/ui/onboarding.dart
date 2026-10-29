@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../auth/customer_controller.dart';
 import '../l10n/customer_copy.dart';
 import '../l10n/customer_language_screen.dart';
@@ -110,121 +111,109 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
     ),
   );
 
-  Widget welcomeScreen(BuildContext context) => Scaffold(
-    key: const ValueKey('customer-welcome'),
-    body: Stack(
-      fit: StackFit.expand,
-      children: [
-        const _EditorialImage(
-          'welcome-tryon-v3',
-          alignment: Alignment.topRight,
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: [0, .35, .68, 1],
-              colors: [
-                Color(0x26000000),
-                Colors.transparent,
-                Color(0x66000000),
-                Color(0xE6201711),
-              ],
+  Widget welcomeScreen(
+    BuildContext context,
+  ) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+    ),
+    child: Scaffold(
+      key: const ValueKey('customer-welcome'),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const _EditorialImage('welcome-tryon-v4'),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0, .42, .72, 1],
+                colors: [
+                  Colors.transparent,
+                  Colors.transparent,
+                  Color(0x38000000),
+                  Color(0x99081018),
+                ],
+              ),
             ),
           ),
-        ),
-        SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 20, 0),
-                child: Row(
-                  children: [
-                    DecoratedBox(
-                      decoration: const BoxDecoration(
-                        gradient: RadialGradient(
-                          center: Alignment(-.2, -.2),
-                          radius: 1.5,
-                          stops: [0, .5, 1],
-                          colors: [
-                            Color(0xF5FFF9F1),
-                            Color(0xDBFFF9F1),
-                            Color(0x00FFF9F1),
-                          ],
-                        ),
-                      ),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                        child: CustomerBrand(compact: true),
-                      ),
-                    ),
-                    const Spacer(),
-                    languageButton(overImage: true),
-                  ],
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 20, 0),
+                  child: Row(
+                    children: [
+                      const CustomerBrand(compact: true),
+                      const Spacer(),
+                      languageButton(overImage: true),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: (constraints.maxHeight - 60).clamp(
-                          0,
-                          double.infinity,
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: (constraints.maxHeight - 60).clamp(
+                            0,
+                            double.infinity,
+                          ),
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          CustomerText(
-                            'See yourself\nin something new.',
-                            style: Theme.of(context).textTheme.displayLarge
-                                ?.copyWith(color: Colors.white),
-                          ),
-                          const SizedBox(height: 16),
-                          const CustomerText(
-                            'Meet your personal fitting room. Explore how an outfit could look on you.',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              height: 1.5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            CustomerText(
+                              'See yourself\nin something new.',
+                              style: Theme.of(context).textTheme.displayLarge
+                                  ?.copyWith(color: Colors.white),
                             ),
-                          ),
-                          const SizedBox(height: 28),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              key: const ValueKey('welcome-start'),
-                              onPressed: () => setState(() {
-                                welcome = false;
-                                index = 0;
-                              }),
-                              child: const Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(child: CustomerText('Get started')),
-                                  Icon(Icons.arrow_forward_rounded, size: 20),
-                                ],
+                            const SizedBox(height: 16),
+                            const CustomerText(
+                              'Meet your personal fitting room. Explore how an outfit could look on you.',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                height: 1.5,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 28),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                key: const ValueKey('welcome-start'),
+                                onPressed: () => setState(() {
+                                  welcome = false;
+                                  index = 0;
+                                }),
+                                child: const Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Flexible(
+                                      child: CustomerText('Get started'),
+                                    ),
+                                    Icon(Icons.arrow_forward_rounded, size: 20),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 
@@ -485,7 +474,7 @@ class _IntroductionArt extends StatelessWidget {
               top: h * .02,
               width: w * .64,
               height: h * .94,
-              child: const _PhotoCard('welcome-tryon-v3', angle: -.035),
+              child: const _PhotoCard('welcome-tryon-v4', angle: -.035),
             ),
             Positioned(
               right: 8,
@@ -564,7 +553,7 @@ class _IntroductionArt extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _PhotoCard(
-                            'welcome-tryon-v3',
+                            'welcome-tryon-v4',
                             badge: badge(Icons.bookmark_rounded),
                           ),
                         ),

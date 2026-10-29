@@ -1,9 +1,10 @@
 # Customer branding
 
 Post-login category/avatar screens follow the supplied PoC with photographic
-selection cards and paired selfie/full-body examples. Jewellery uses built-in
-ImageGen: [prompt and provenance](category-jewellery-v1-prompt.md). Example
-images are never treated as uploaded customer photos.
+Women/Men selection cards and paired selfie/full-body examples. The neutral
+selfie example uses built-in ImageGen:
+[prompt and provenance](avatar-selfie-example-v1-prompt.md). Example images
+are never treated as uploaded customer photos.
 
 Image backgrounds may vary to suit the scene; cream is not a required image
 backdrop. Customer Try-On campaign imagery should make the connection between a

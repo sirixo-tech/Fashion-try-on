@@ -543,7 +543,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const CustomerText(
-                              'Demo outfit',
+                              'Selected outfit',
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 10),
@@ -904,7 +904,7 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                for (final entry in [(false, 'Looks'), (true, 'Garments')])
+                for (final entry in [(false, 'Looks'), (true, 'Wardrobe')])
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -995,70 +995,98 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                     borderRadius: BorderRadius.circular(16),
                     child: Material(
                       color: CustomerColors.canvas,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                image == null
-                                    ? const Icon(Icons.checkroom_outlined)
-                                    : store
-                                    ? Image.network(image, fit: BoxFit.cover)
-                                    : Image.asset(image, fit: BoxFit.cover),
-                                Align(
-                                  alignment: Alignment.topRight,
-                                  child: IconButton.filledTonal(
-                                    tooltip: 'Remove saved garment',
-                                    onPressed: () async {
-                                      try {
-                                        await exp.toggleSavedGarment(
-                                          saved['source'] as String,
-                                          id,
-                                        );
-                                      } catch (caught) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: CustomerText(
-                                                CustomerExperience.message(
-                                                  caught,
+                      child: InkWell(
+                        onTap: product == null
+                            ? null
+                            : () => widget.onTryOnGarment(product, store),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  image == null
+                                      ? const Icon(Icons.checkroom_outlined)
+                                      : store
+                                      ? Image.network(image, fit: BoxFit.cover)
+                                      : Image.asset(image, fit: BoxFit.cover),
+                                  Align(
+                                    alignment: Alignment.topRight,
+                                    child: IconButton.filledTonal(
+                                      tooltip: 'Remove saved garment',
+                                      onPressed: () async {
+                                        try {
+                                          await exp.toggleSavedGarment(
+                                            saved['source'] as String,
+                                            id,
+                                          );
+                                        } catch (caught) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: CustomerText(
+                                                  CustomerExperience.message(
+                                                    caught,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          );
+                                            );
+                                          }
                                         }
-                                      }
-                                    },
-                                    icon: const Icon(Icons.favorite_rounded),
+                                      },
+                                      icon: const Icon(Icons.favorite_rounded),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
-                            child: CustomerText(
-                              product?['name'] as String? ??
-                                  'Unavailable garment',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
+                                ],
                               ),
                             ),
-                          ),
-                          TextButton(
-                            onPressed: product == null
-                                ? null
-                                : () => widget.onTryOnGarment(product, store),
-                            child: const CustomerText('Try on'),
-                          ),
-                        ],
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+                              child: CustomerText(
+                                product?['name'] as String? ??
+                                    'Unavailable garment',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: product == null
+                                      ? null
+                                      : () => widget.onTryOnGarment(
+                                          product,
+                                          store,
+                                        ),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size(0, 42),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const CustomerText('Try on'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );

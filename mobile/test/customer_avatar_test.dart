@@ -160,23 +160,28 @@ void main() {
       expect(find.text('Create your avatar'), findsNothing);
     },
   );
-  testWidgets('small phone can skip photos after selecting an interest', (
-    tester,
-  ) async {
-    await mount(tester, size: const Size(320, 700));
-    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
-    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    await tester.pumpAndSettle();
-    await tap(tester, find.text('Jewellery'));
-    await tap(tester, find.byKey(const ValueKey('avatar-continue')));
-    expect(tester.takeException(), isNull);
-    tester.platformDispatcher.textScaleFactorTestValue = 1;
-    await tester.pumpAndSettle();
-    await tap(tester, find.text('Skip for now'));
-    expect(picker.selections, 0);
-    expect(auth.profile!.avatarSetupComplete, true);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'small phone hides an old Jewellery interest and can skip photos',
+    (tester) async {
+      api.profile['interests'] = <String>['JEWELLERY'];
+      await auth.loadProfile();
+      await mount(tester, size: const Size(320, 700));
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      expect(find.text('Jewellery'), findsNothing);
+      await tap(tester, find.text('Women'));
+      await tap(tester, find.byKey(const ValueKey('avatar-continue')));
+      expect(tester.takeException(), isNull);
+      tester.platformDispatcher.textScaleFactorTestValue = 1;
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Skip for now'));
+      expect(picker.selections, 0);
+      expect(auth.profile!.avatarSetupComplete, true);
+      expect(auth.profile!.interests, ['WOMEN']);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'saved full-body is the default input; changing the Try-On image leaves the saved avatar alone',
     (tester) async {
@@ -284,7 +289,7 @@ void main() {
         for (final asset in [
           'style-muse',
           'style-tailored',
-          'category-jewellery-v1',
+          'avatar-selfie-example-v1',
         ])
           precacheImage(
             AssetImage('assets/editorial/$asset.webp'),

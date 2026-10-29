@@ -12,6 +12,7 @@ import 'package:selfx_customer/src/customer_app.dart';
 import 'package:selfx_customer/src/experience/customer_experience.dart';
 import 'package:selfx_customer/src/experience/customer_media.dart';
 import 'package:selfx_customer/src/ui/customer_demo_catalog.dart';
+import 'package:selfx_customer/src/ui/customer_experience_screens.dart';
 import 'package:selfx_customer/src/ui/customer_generating_look.dart';
 import 'package:selfx_customer/src/ui/customer_quick_tryon.dart';
 import 'package:selfx_customer/src/ui/customer_result_suggestions.dart';
@@ -234,6 +235,64 @@ void main() {
       expect(exp.isGarmentSaved('DEMO', 'terracotta-blazer'), isFalse);
     },
   );
+  testWidgets('saved garment card and button open Try-On; heart only removes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    api.handler = (path, method, body) async {
+      if (path == '/saved-garments' && method == 'GET') {
+        return {
+          'items': [
+            {
+              'source': 'DEMO',
+              'id': 'terracotta-blazer',
+              'product': {
+                'id': 'terracotta-blazer',
+                'name': 'Terracotta Blazer',
+                'category': 'WOMEN',
+                'type': 'TOP',
+              },
+            },
+          ],
+        };
+      }
+      return response(path, method, body);
+    };
+    final opened = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: Scaffold(
+          body: CustomerSavedScreen(
+            experience: exp,
+            onHome: () {},
+            onPlans: () {},
+            onTryOnGarment: (item, store) async {
+              expect(store, isFalse);
+              opened.add(item['id'] as String);
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wardrobe'));
+    await tester.pumpAndSettle();
+    expect(find.byType(FilledButton), findsOneWidget);
+    await tester.tap(find.text('Terracotta Blazer'));
+    await tester.pumpAndSettle();
+    expect(opened, ['terracotta-blazer']);
+    await tester.tap(find.text('Try on'));
+    await tester.pumpAndSettle();
+    expect(opened, ['terracotta-blazer', 'terracotta-blazer']);
+    await tester.tap(find.byTooltip('Remove saved garment'));
+    await tester.pumpAndSettle();
+    expect(opened, hasLength(2));
+    expect(exp.savedGarments, isEmpty);
+  });
 
   testWidgets('generating look shows selected inputs without fake progress', (
     tester,
@@ -462,6 +521,8 @@ void main() {
       await tester.pumpAndSettle();
       await capture('demo-explore');
       expect(find.text('Terracotta Blazer'), findsOneWidget);
+      expect(find.text('SELFX DEMO'), findsNothing);
+      expect(find.text('Search outfits'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'navy');
       await tester.pumpAndSettle();
       expect(find.text('Terracotta Blazer'), findsNothing);

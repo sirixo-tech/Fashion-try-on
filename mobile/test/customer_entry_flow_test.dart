@@ -100,7 +100,10 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(store.complete, isTrue);
-      expect(find.text('Your next look\nstarts here.'), findsOneWidget);
+      expect(
+        find.text('Sign in to your personal fitting room.'),
+        findsOneWidget,
+      );
       expect(find.byType(TextFormField), findsNWidgets(2));
       expect(tester.takeException(), isNull);
     },
@@ -123,7 +126,10 @@ void main() {
       store.fail = false;
       await tester.tap(find.text('Skip'));
       await tester.pumpAndSettle();
-      expect(find.text('Your next look\nstarts here.'), findsOneWidget);
+      expect(
+        find.text('Sign in to your personal fitting room.'),
+        findsOneWidget,
+      );
       expect(store.complete, isTrue);
       expect(tester.takeException(), isNull);
     },

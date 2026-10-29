@@ -514,7 +514,7 @@ void main() {
             'style-muse',
             'style-tailored',
             'style-atelier',
-            'welcome-tryon-v3',
+            'welcome-tryon-v4',
           ])
             precacheImage(
               AssetImage('assets/editorial/$asset.webp'),

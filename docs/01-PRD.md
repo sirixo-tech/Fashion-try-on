@@ -6,7 +6,7 @@ Every signed-in mobile customer can browse sample clothing products and choose a
 
 ### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
 
-After authentication, choose Men/Women/Jewellery interests, then save a private selfie and full-body photo using the supplied PoC. The user explicitly approves persistent saved avatar originals until replacement/removal/account deletion. Ordinary Try-On inputs retain seven-day expiry; default to a temporary copy of the saved full-body photo, with a one-off Change photo. Manage references in Me → My avatar. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+After authentication, choose Men/Women interests, then save a private selfie and full-body photo using the supplied PoC. Jewellery is deferred in the customer mobile app and must not appear in its category selection or other customer-facing flows until implemented. The user explicitly approves persistent saved avatar originals until replacement/removal/account deletion. Ordinary Try-On inputs retain seven-day expiry; default to a temporary copy of the saved full-body photo, with a one-off Change photo. Manage references in Me → My avatar. See `CUSTOMER-MOBILE-14-AVATAR.md`.
 
 ### CUSTOMER-MOBILE-12 — Google linking and editorial welcome (2026-10-28)
 

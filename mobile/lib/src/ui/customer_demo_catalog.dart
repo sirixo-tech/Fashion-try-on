@@ -136,7 +136,7 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
           controller: search,
           onChanged: (_) => setState(() {}),
           decoration: const InputDecoration(
-            hintText: 'Search demo outfits',
+            hintText: 'Search outfits',
             prefixIcon: Icon(Icons.search_rounded),
           ),
         ),
@@ -177,7 +177,7 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
           const LinearProgressIndicator()
         else if (exp.demoError != null && exp.demoProducts.isEmpty) ...[
           CustomerNotice(
-            'Could not load the demo collection. ${exp.demoError}',
+            'Could not load outfits. ${exp.demoError}',
             error: true,
           ),
           TextButton(
@@ -187,113 +187,99 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
         ] else if (products.isEmpty)
           CustomerNotice(
             search.text.trim().isEmpty
-                ? 'No demo outfits in this category yet.'
-                : 'No demo outfits match your search.',
+                ? 'No outfits in this category yet.'
+                : 'No outfits match your search.',
           )
         else
           LayoutBuilder(
             builder: (context, constraints) {
               final cardWidth = (constraints.maxWidth - 6) / 2;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: products.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 6,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: cardWidth / (cardWidth / .75 + 82),
-                ),
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  final path = _productImages[product['id']];
-                  if (path == null) return const SizedBox.shrink();
-                  return Material(
-                    color: Colors.white,
-                    clipBehavior: Clip.antiAlias,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: const BorderSide(color: CustomerColors.line),
-                    ),
-                    child: InkWell(
-                      onTap: () => Navigator.push<void>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CustomerDemoProductScreen(
-                            experience: exp,
-                            product: product,
-                            models: exp.demoModels,
-                            onTryOn: widget.onTryOn,
-                            onUploadPerson: widget.onUploadPerson,
+              return Wrap(
+                spacing: 6,
+                runSpacing: 8,
+                children: [
+                  for (final product in products)
+                    if (_productImages[product['id']] case final String path)
+                      SizedBox(
+                        width: cardWidth,
+                        child: Material(
+                          color: Colors.white,
+                          clipBehavior: Clip.antiAlias,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: const BorderSide(color: CustomerColors.line),
                           ),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AspectRatio(
-                            aspectRatio: .75,
-                            child: Stack(
-                              fit: StackFit.expand,
+                          child: InkWell(
+                            onTap: () => Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CustomerDemoProductScreen(
+                                  experience: exp,
+                                  product: product,
+                                  models: exp.demoModels,
+                                  onTryOn: widget.onTryOn,
+                                  onUploadPerson: widget.onUploadPerson,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Image.asset(path, fit: BoxFit.cover),
-                                Align(
-                                  alignment: Alignment.topRight,
-                                  child: IconButton.filledTonal(
-                                    tooltip:
-                                        exp.isGarmentSaved(
-                                          'DEMO',
-                                          product['id'] as String,
-                                        )
-                                        ? 'Remove from saved garments'
-                                        : 'Save garment',
-                                    onPressed: () =>
-                                        toggleSaved(product['id'] as String),
-                                    icon: Icon(
-                                      exp.isGarmentSaved(
-                                            'DEMO',
+                                AspectRatio(
+                                  aspectRatio: .75,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      Image.asset(path, fit: BoxFit.cover),
+                                      Align(
+                                        alignment: Alignment.topRight,
+                                        child: IconButton.filledTonal(
+                                          tooltip:
+                                              exp.isGarmentSaved(
+                                                'DEMO',
+                                                product['id'] as String,
+                                              )
+                                              ? 'Remove from saved garments'
+                                              : 'Save garment',
+                                          onPressed: () => toggleSaved(
                                             product['id'] as String,
-                                          )
-                                          ? Icons.favorite_rounded
-                                          : Icons.favorite_border_rounded,
+                                          ),
+                                          icon: Icon(
+                                            exp.isGarmentSaved(
+                                                  'DEMO',
+                                                  product['id'] as String,
+                                                )
+                                                ? Icons.favorite_rounded
+                                                : Icons.favorite_border_rounded,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    8,
+                                    6,
+                                    8,
+                                    8,
+                                  ),
+                                  child: CustomerText(
+                                    product['name'] as String,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const CustomerText(
-                                  'SELFX DEMO',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    letterSpacing: 1.5,
-                                    color: CustomerColors.orange,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                CustomerText(
-                                  product['name'] as String,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                ],
               );
             },
           ),
