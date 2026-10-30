@@ -6,6 +6,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -348,6 +350,313 @@ export function MobileDashboardCharts({
           </div>
         )}
       </CapitalioPanel>
+    </div>
+  );
+}
+
+type MobileExperienceDay = {
+  date: string;
+  attempts: number;
+  completed: number;
+  failed: number;
+  personalCompleted: number;
+  storeCompleted: number;
+  storeVisits: number;
+};
+
+export function MobileDashboardStatusChart({
+  verified,
+  pending,
+  suspended,
+}: {
+  verified: number;
+  pending: number;
+  suspended: number;
+}) {
+  const total = verified + pending + suspended;
+  if (total === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">No customer accounts yet.</p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <div
+        className="flex h-3 overflow-hidden rounded-full bg-muted"
+        role="img"
+        aria-label={`${verified} verified, ${pending} awaiting verification, ${suspended} suspended accounts`}
+      >
+        {verified > 0 && (
+          <span
+            style={{
+              width: `${(verified / total) * 100}%`,
+              background: "var(--dashboard-green)",
+            }}
+          />
+        )}
+        {pending > 0 && (
+          <span
+            style={{
+              width: `${(pending / total) * 100}%`,
+              background: "var(--dashboard-blue)",
+            }}
+          />
+        )}
+        {suspended > 0 && (
+          <span
+            style={{
+              width: `${(suspended / total) * 100}%`,
+              background: "var(--dashboard-orange)",
+            }}
+          />
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span>
+          <span style={{ color: "var(--dashboard-green)" }}>●</span> Verified
+        </span>
+        <span>
+          <span style={{ color: "var(--dashboard-blue)" }}>●</span> Awaiting
+          verification
+        </span>
+        <span>
+          <span style={{ color: "var(--dashboard-orange)" }}>●</span> Suspended
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function MobileDashboardActivityCharts({
+  daily,
+  personalCompleted,
+  storeCompleted,
+}: {
+  daily: MobileExperienceDay[] | null;
+  personalCompleted: number;
+  storeCompleted: number;
+}) {
+  const points = daily ?? [];
+  const hasActivity = points.some(
+    (row) => row.attempts > 0 || row.storeVisits > 0,
+  );
+  const totalCompleted = personalCompleted + storeCompleted;
+  return (
+    <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+      <section
+        className="min-w-0 rounded-lg border bg-muted/10 p-4"
+        aria-label="Daily mobile Try-On activity"
+      >
+        <h3 className="font-medium">Try-On activity by day</h3>
+        <p className="text-xs text-muted-foreground">
+          Attempts, completed looks, failures and QR visits · UTC
+        </p>
+        {!daily ? (
+          <p className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+            Daily activity chart will appear after the API is updated.
+          </p>
+        ) : hasActivity ? (
+          <div
+            className="mt-3 h-48 w-full"
+            role="img"
+            aria-label={`${points.reduce((sum, row) => sum + row.attempts, 0)} attempts, ${points.reduce((sum, row) => sum + row.completed, 0)} completed, ${points.reduce((sum, row) => sum + row.failed, 0)} failed and ${points.reduce((sum, row) => sum + row.storeVisits, 0)} Store QR visits in the selected period`}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={points}
+                margin={{ top: 12, right: 12, bottom: 4, left: 0 }}
+              >
+                <CartesianGrid
+                  vertical={false}
+                  strokeDasharray="2 6"
+                  stroke="var(--border)"
+                />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={28}
+                  tickFormatter={(date: string) => date.slice(5)}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  width={32}
+                />
+                <Tooltip content={<CapitalioChartTooltip />} />
+                <Line
+                  dataKey="attempts"
+                  name="Attempts"
+                  stroke="var(--dashboard-blue)"
+                  strokeWidth={2}
+                  dot={points.length <= 7}
+                  isAnimationActive={false}
+                />
+                <Line
+                  dataKey="completed"
+                  name="Completed"
+                  stroke="var(--dashboard-green)"
+                  strokeWidth={2}
+                  dot={points.length <= 7}
+                  isAnimationActive={false}
+                />
+                <Line
+                  dataKey="failed"
+                  name="Failed"
+                  stroke="var(--dashboard-orange)"
+                  strokeWidth={2}
+                  dot={points.length <= 7}
+                  isAnimationActive={false}
+                />
+                <Line
+                  dataKey="storeVisits"
+                  name="Store QR visits"
+                  stroke="var(--dashboard-purple)"
+                  strokeWidth={2}
+                  dot={points.length <= 7}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+            No Try-On or Store QR activity in this period.
+          </p>
+        )}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            <span style={{ color: "var(--dashboard-blue)" }}>●</span> Attempts
+          </span>
+          <span>
+            <span style={{ color: "var(--dashboard-green)" }}>●</span> Completed
+          </span>
+          <span>
+            <span style={{ color: "var(--dashboard-orange)" }}>●</span> Failed
+          </span>
+          <span>
+            <span style={{ color: "var(--dashboard-purple)" }}>●</span> Store QR
+            visits
+          </span>
+        </div>
+      </section>
+      <section
+        className="rounded-lg border bg-muted/10 p-4"
+        aria-label="Completed looks by payer"
+      >
+        <h3 className="font-medium">Completed looks by payer</h3>
+        <p className="text-xs text-muted-foreground">
+          Personal and Store-sponsored Try-Ons
+        </p>
+        {totalCompleted > 0 ? (
+          <div className="mt-10 space-y-5">
+            <div
+              className="flex h-5 overflow-hidden rounded-full bg-muted"
+              role="img"
+              aria-label={`${personalCompleted} personal looks and ${storeCompleted} Store-sponsored looks`}
+            >
+              {personalCompleted > 0 && (
+                <span
+                  style={{
+                    width: `${(personalCompleted / totalCompleted) * 100}%`,
+                    background: "var(--dashboard-green)",
+                  }}
+                />
+              )}
+              {storeCompleted > 0 && (
+                <span
+                  style={{
+                    width: `${(storeCompleted / totalCompleted) * 100}%`,
+                    background: "var(--dashboard-blue)",
+                  }}
+                />
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span
+                  className="inline-block size-2.5 rounded-xs"
+                  style={{ background: "var(--dashboard-green)" }}
+                  aria-hidden="true"
+                />{" "}
+                Personal{" "}
+                <strong className="block text-lg">{personalCompleted}</strong>
+              </div>
+              <div>
+                <span
+                  className="inline-block size-2.5 rounded-xs"
+                  style={{ background: "var(--dashboard-blue)" }}
+                  aria-hidden="true"
+                />{" "}
+                Store-sponsored{" "}
+                <strong className="block text-lg">{storeCompleted}</strong>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+            No completed looks in this period.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+export function MobileDashboardTrialChart({
+  granted,
+  used,
+  reserved,
+}: {
+  granted: number;
+  used: number;
+  reserved: number;
+}) {
+  const remaining = Math.max(0, granted - used - reserved);
+  if (granted === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No trial credits granted yet.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">Lifetime trial-credit usage</p>
+      <div
+        className="flex h-3 overflow-hidden rounded-full bg-muted"
+        role="img"
+        aria-label={`${used} used, ${reserved} reserved and ${remaining} remaining out of ${granted} granted trial credits`}
+      >
+        {used > 0 && (
+          <span
+            style={{
+              width: `${(Math.min(used, granted) / granted) * 100}%`,
+              background: "var(--dashboard-orange)",
+            }}
+          />
+        )}
+        {reserved > 0 && (
+          <span
+            style={{
+              width: `${(Math.min(reserved, Math.max(0, granted - used)) / granted) * 100}%`,
+              background: "var(--dashboard-blue)",
+            }}
+          />
+        )}
+        {remaining > 0 && (
+          <span
+            style={{
+              width: `${(remaining / granted) * 100}%`,
+              background: "var(--dashboard-green)",
+            }}
+          />
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {used} used · {reserved} reserved · {remaining} remaining
+      </p>
     </div>
   );
 }

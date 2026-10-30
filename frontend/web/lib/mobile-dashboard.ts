@@ -14,6 +14,15 @@ export type MobileDashboardSummary = {
     suspended: number;
   };
   daily: Array<{ date: string; accounts: number }>;
+  experienceDaily?: Array<{
+    date: string;
+    attempts: number;
+    completed: number;
+    failed: number;
+    personalCompleted: number;
+    storeCompleted: number;
+    storeVisits: number;
+  }>;
   methods: Array<{ provider: string; accounts: number }>;
   unavailable: string[];
   experience?: null | {
@@ -63,5 +72,15 @@ export function mobileDashboardCsv(summary: MobileDashboardSummary) {
     "",
     '"Date (UTC)","New accounts"',
     ...summary.daily.map((row) => `"${row.date}",${row.accounts}`),
+    ...(summary.experienceDaily?.length
+      ? [
+          "",
+          '"Date (UTC)","Generation attempts","Completed looks","Failed attempts","Personal looks","Store-sponsored looks","Store QR visits"',
+          ...summary.experienceDaily.map(
+            (row) =>
+              `"${row.date}",${row.attempts},${row.completed},${row.failed},${row.personalCompleted},${row.storeCompleted},${row.storeVisits}`,
+          ),
+        ]
+      : []),
   ].join("\r\n");
 }

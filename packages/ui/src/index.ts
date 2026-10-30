@@ -103,6 +103,11 @@ export { DashboardTypeName } from "./selfx/dashboard-type-name";
 export { MobileDashboardCharts } from "./selfx/mobile-dashboard-charts";
 export { MobileDashboardMetrics } from "./selfx/mobile-dashboard-charts";
 export {
+  MobileDashboardStatusChart,
+  MobileDashboardActivityCharts,
+  MobileDashboardTrialChart,
+} from "./selfx/mobile-dashboard-charts";
+export {
   CapitalioPanel,
   CapitalioPanelHeader,
 } from "./selfx/capitalio/dashboard";

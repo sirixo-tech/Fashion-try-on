@@ -10,6 +10,9 @@ import {
   MobileDashboardMetrics,
   DashboardTypeName,
   MobileDashboardCharts,
+  MobileDashboardStatusChart,
+  MobileDashboardActivityCharts,
+  MobileDashboardTrialChart,
   SelectMenu,
   Skeleton,
   StatusBadge,
@@ -153,6 +156,13 @@ export default function MobileDashboardPage() {
             </div>
           ))}
         </div>
+        {totals && (
+          <MobileDashboardStatusChart
+            verified={totals.verified}
+            pending={totals.pending}
+            suspended={totals.suspended}
+          />
+        )}
         <p className="text-xs text-muted-foreground">
           Current account status snapshot. Deleted accounts are excluded.
           Recently active uses the latest known sign-in/refresh timestamp, not a
@@ -179,6 +189,11 @@ export default function MobileDashboardPage() {
               </div>
             ))}
           </div>
+          <MobileDashboardActivityCharts
+            daily={data.experienceDaily ?? null}
+            personalCompleted={data.experience.personalCompleted}
+            storeCompleted={data.experience.storeCompleted}
+          />
           <p className="text-xs text-muted-foreground">
             Selected period. Store-sponsored costs belong to the Store. Personal
             activity is excluded from business dashboards.
@@ -197,6 +212,11 @@ export default function MobileDashboardPage() {
               </div>
             ))}
           </div>
+          <MobileDashboardTrialChart
+            granted={data.experience.trialGranted}
+            used={data.experience.trialUsed}
+            reserved={data.experience.trialReserved}
+          />
           <p className="text-xs text-muted-foreground">
             Lifetime free-trial snapshot. Deleting expired images does not reset
             used credits. Personal paid plans are not connected.

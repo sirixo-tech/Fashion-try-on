@@ -82,6 +82,17 @@ it("renders real mobile trial and Store-sponsored metrics without inventing pers
         trialUsed: 3,
         trialReserved: 0,
       },
+      experienceDaily: [
+        {
+          date: "2026-10-25",
+          attempts: 7,
+          completed: 5,
+          failed: 2,
+          personalCompleted: 3,
+          storeCompleted: 2,
+          storeVisits: 4,
+        },
+      ],
     },
     loading: false,
     error: null,
@@ -89,6 +100,14 @@ it("renders real mobile trial and Store-sponsored metrics without inventing pers
   render(<MobileDashboardPage />);
   expect(screen.getByText("Personal looks")).toBeTruthy();
   expect(screen.getByText("Store-sponsored looks")).toBeTruthy();
+  expect(screen.getByText("Try-On activity by day")).toBeTruthy();
+  expect(screen.getByText("Completed looks by payer")).toBeTruthy();
+  expect(screen.getByText("Lifetime trial-credit usage")).toBeTruthy();
+  expect(
+    screen.getByRole("img", {
+      name: /7 attempts, 5 completed, 2 failed and 4 Store QR visits/,
+    }),
+  ).toBeTruthy();
   expect(
     screen.getByText(/Personal paid plans are not connected/),
   ).toBeTruthy();

@@ -113,6 +113,8 @@ Web controls use centralized shadcn/Base UI tooltips with a dark background, whi
 
 Mobile uses the actual shared Capitalio metric panels, shaded icon badges, spacing, typography and chart-tooltip presentation used by the normal Dashboard. It retains customer-specific counts, signup charts and meaningful proportions; do not invent historical trends or generation/billing/QR data to fill the layout. Current status, empty, unavailable, error and loading semantics remain unchanged.
 
+When mobile Try-On metrics are available, chart the real UTC daily generation attempts, completed and failed looks, and Store QR visits for the selected period. Show current account-status proportions, personal versus Store-sponsored completed looks, and a lifetime trial-credit usage bar alongside their exact counts. Empty and unavailable states remain explicit; no personal paid-revenue chart is implied.
+
 ### Dashboard sidebar switch and mobile metrics (2026-10-25)
 
 Place a compact shadcn toggle at the right of the existing Dashboard sidebar row. OFF is Business Dashboard; ON is Mobile Dashboard. The visible label moves vertically in a fixed-height clipped track (260ms); reduced motion removes the transition. Row-label clicks always navigate to Business independently of the switch. Keep the switch keyboard-accessible and available in collapsed navigation and the mobile drawer. On Mobile, show its name, date filter, refresh/export, account KPI cards, UTC signup growth and sign-in-method charts, current status overview and explicit future-feature states. Business charts, Store filters and resource metrics retain their current behavior. Mobile contains no Store-scope filter or customer PII.

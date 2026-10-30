@@ -151,4 +151,75 @@ describe("Mobile metrics platform boundary", () => {
       vi.unstubAllEnvs();
     }
   });
+  it("fills missing UTC days in the mobile activity series", async () => {
+    vi.stubEnv("SELFX_CUSTOMER_AUTH_ENABLED", "true");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T12:00:00.000Z"));
+    try {
+      const tx = {
+        customer: { count: vi.fn().mockResolvedValue(0) },
+        customerIdentity: { groupBy: vi.fn().mockResolvedValue([]) },
+        kioskTryOnRun: {
+          groupBy: vi.fn().mockResolvedValue([]),
+          count: vi.fn().mockResolvedValue(0),
+        },
+        customerStoreVisit: { count: vi.fn().mockResolvedValue(0) },
+        customerCreditAccount: {
+          aggregate: vi.fn().mockResolvedValue({ _sum: {} }),
+        },
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            {
+              date: "2026-10-27",
+              attempts: 2,
+              completed: 1,
+              failed: 1,
+              personalCompleted: 1,
+              storeCompleted: 0,
+            },
+          ])
+          .mockResolvedValueOnce([{ date: "2026-10-28", storeVisits: 3 }]),
+      };
+      const db = {
+        $transaction: vi.fn((callback: (client: typeof tx) => unknown) =>
+          callback(tx),
+        ),
+      };
+      const result = await new CustomerMetricsService(
+        db as unknown as PrismaService,
+      ).summary({ range: "7d" });
+      expect(result.experienceDaily).toContainEqual({
+        date: "2026-10-27",
+        attempts: 2,
+        completed: 1,
+        failed: 1,
+        personalCompleted: 1,
+        storeCompleted: 0,
+        storeVisits: 0,
+      });
+      expect(result.experienceDaily).toContainEqual({
+        date: "2026-10-28",
+        attempts: 0,
+        completed: 0,
+        failed: 0,
+        personalCompleted: 0,
+        storeCompleted: 0,
+        storeVisits: 3,
+      });
+      expect(result.experienceDaily).toContainEqual({
+        date: "2026-10-26",
+        attempts: 0,
+        completed: 0,
+        failed: 0,
+        personalCompleted: 0,
+        storeCompleted: 0,
+        storeVisits: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+    }
+  });
 });
