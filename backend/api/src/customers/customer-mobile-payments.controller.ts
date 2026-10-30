@@ -87,6 +87,18 @@ export class CustomerMobilePaymentsController {
     );
     return this.payments.status(customer.id, id);
   }
+  @Post(":id/cancel")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  async cancel(
+    @Req() request: FastifyRequest,
+    @Param("id", SelfxUuidParamPipe) id: string,
+  ) {
+    const { customer } = await this.auth.requireCustomer(
+      request.headers.authorization,
+    );
+    return this.payments.cancel(customer.id, id);
+  }
   @Get(":id/qr")
   @Header("Cache-Control", "no-store")
   async qr(

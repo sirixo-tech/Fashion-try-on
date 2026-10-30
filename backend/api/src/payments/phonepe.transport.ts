@@ -122,6 +122,10 @@ function allowedRequest(
     const path = request.url.slice(base.length);
     return (
       (request.method === "POST" && path === "/v3/qr/init") ||
+      (request.method === "POST" &&
+        /^\/v3\/charge\/[A-Za-z0-9_-]{1,100}\/[A-Za-z0-9_-]{1,34}\/cancel$/.test(
+          path,
+        )) ||
       (request.method === "GET" &&
         /^\/v3\/transaction\/[A-Za-z0-9_-]{1,100}\/[A-Za-z0-9_-]{1,34}\/status$/.test(
           path,

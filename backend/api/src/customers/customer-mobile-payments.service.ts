@@ -18,6 +18,7 @@ import { paymentEncryptionKey } from "../payments/payment-settings.service.js";
 import { paymentCallbackOrigin } from "../payments/payment-execution-utils.js";
 import { phonePeProductionBase } from "../payments/phonepe-endpoints.js";
 import { PhonePeDqrAdapter, type PhonePeDqrCredentials } from "../payments/phonepe-dqr.adapter.js";
+import { PaymentProviderError } from "../payments/payment-diagnostics.js";
 import { PhonePeTransport } from "../payments/phonepe.transport.js";
 import {
   createMobileCheckout,
@@ -27,6 +28,7 @@ import {
 
 const connectionId = "PHONEPE";
 const mobilePaymentReconciliationGraceMs = 5 * 60 * 1000;
+const unresolvedStatuses = ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN", "CANCELLING"];
 type MobileDqrCredentials = PhonePeDqrCredentials & { mode: "DQR" };
 type SavedCredentials = MobileDqrCredentials | MobilePhonePeCredentials;
 function isDqr(value: SavedCredentials): value is MobileDqrCredentials {
@@ -227,10 +229,13 @@ export class CustomerMobilePaymentsService
       const open = await tx.customerMobilePurchase.findFirst({
         where: {
           customerId,
-          status: { in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"] },
-          expiresAt: {
-            gt: new Date(Date.now() - mobilePaymentReconciliationGraceMs),
-          },
+          status: { in: unresolvedStatuses },
+          OR: [
+            { status: "CANCELLING" },
+            { expiresAt: {
+              gt: new Date(Date.now() - mobilePaymentReconciliationGraceMs),
+            } },
+          ],
         },
       });
       if (open)
@@ -400,11 +405,14 @@ export class CustomerMobilePaymentsService
     if (!purchase) fail("MOBILE_PAYMENT_NOT_FOUND", "Payment not found.", 404);
     if (
       verify &&
-      ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"].includes(
+      [...unresolvedStatuses, "CANCELLED"].includes(
         purchase.status,
       )
-    )
-      await this.verify(purchase.id);
+    ) {
+      if (purchase.status === "CANCELLED")
+        await this.verify(purchase.id).catch(() => undefined);
+      else await this.verify(purchase.id);
+    }
     const latest = await this.db.customerMobilePurchase.findUniqueOrThrow({
       where: { id },
     });
@@ -415,7 +423,7 @@ export class CustomerMobilePaymentsService
     const purchase = await this.db.customerMobilePurchase.findFirst({
       where: {
         customerId,
-        status: { in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"] },
+        status: { in: unresolvedStatuses },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -439,6 +447,74 @@ export class CustomerMobilePaymentsService
         404,
       );
     return purchase.checkoutUrl;
+  }
+
+  async cancel(customerId: string, id: string) {
+    const owned = await this.db.customerMobilePurchase.findFirst({
+      where: { id, customerId },
+    });
+    if (!owned) fail("MOBILE_PAYMENT_NOT_FOUND", "Payment not found.", 404);
+    if (["PAID", "FAILED", "CANCELLED"].includes(owned.status))
+      return publicPurchase(owned);
+    if (owned.status === "CANCELLING")
+      fail("MOBILE_PAYMENT_CANCELLING", "Payment cancellation is in progress.");
+    if (owned.status !== "PENDING")
+      fail("MOBILE_PAYMENT_NOT_READY", "Check this payment before trying to cancel it.");
+    const credentials = decryptPaymentSnapshot<SavedCredentials>(owned);
+    if (!isDqr(credentials) || credentials.environment !== owned.environment)
+      fail("MOBILE_PAYMENT_CANCEL_UNAVAILABLE", "This older payment cannot be cancelled. Check its status before retrying.");
+
+    // Status is queried first; a completed payment must be fulfilled, never cancelled.
+    await this.verify(id);
+    const current = await this.db.customerMobilePurchase.findUniqueOrThrow({ where: { id } });
+    if (current.status !== "PENDING") return publicPurchase(current);
+    const claimed = await this.db.customerMobilePurchase.updateMany({
+      where: { id, customerId, status: "PENDING" },
+      data: { status: "CANCELLING" },
+    });
+    if (!claimed.count)
+      return this.status(customerId, id);
+    const adapter = new PhonePeDqrAdapter(credentials);
+    const expected = {
+      transactionId: current.merchantOrderId,
+      amountMinor: current.amountMinor,
+      currency: "INR" as const,
+    };
+    try {
+      const response = await this.transport.send(adapter.cancelRequest(expected), {
+        purpose: "MOBILE",
+        environment: "PRODUCTION",
+        productionBase: credentials.apiBaseUrl,
+      });
+      if (adapter.parseCancel(response) === "ALREADY_COMPLETED") {
+        await this.verify(id).catch(() => undefined);
+        return this.status(customerId, id, false);
+      }
+      await this.db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customerId}::uuid FOR UPDATE`;
+        await tx.customerMobilePurchase.updateMany({
+          where: { id, customerId, status: "CANCELLING" },
+          data: { status: "CANCELLED", checkedAt: new Date() },
+        });
+      });
+      return this.status(customerId, id, false);
+    } catch (error) {
+      if (error instanceof PaymentProviderError &&
+          error.providerCode === "PAYMENT_ALREADY_COMPLETED") {
+        await this.verify(id).catch(() => undefined);
+        return this.status(customerId, id, false);
+      }
+      // An uncertain provider response is not proof of cancellation.
+      await this.verify(id).catch(() => undefined);
+      const latest = await this.db.customerMobilePurchase.findUniqueOrThrow({ where: { id } });
+      if (["PAID", "FAILED", "CANCELLED"].includes(latest.status))
+        return publicPurchase(latest);
+      await this.db.customerMobilePurchase.updateMany({
+        where: { id, status: "CANCELLING" },
+        data: { status: "PENDING" },
+      });
+      fail("MOBILE_PAYMENT_CANCEL_UNCONFIRMED", "PhonePe has not confirmed cancellation. Check the payment before retrying.", 503);
+    }
   }
 
   async callback(id: string, encoded: string, signature: string) {
@@ -466,7 +542,7 @@ export class CustomerMobilePaymentsService
     });
     if (
       !purchase ||
-      !["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"].includes(
+      ![...unresolvedStatuses, "CANCELLED"].includes(
         purchase.status,
       )
     )
@@ -491,7 +567,7 @@ export class CustomerMobilePaymentsService
         where: { id },
       });
       if (
-        !["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"].includes(
+        ![...unresolvedStatuses, "CANCELLED"].includes(
           current.status,
         )
       )
@@ -527,11 +603,12 @@ export class CustomerMobilePaymentsService
             expiresAt,
           },
         });
-      } else {
+      } else if (current.status !== "CANCELLED") {
         await tx.customerMobilePurchase.update({
           where: { id },
           data: {
-            status: result.status === "FAILED" ? "FAILED" : "PENDING",
+            status: result.status === "FAILED" ? "FAILED"
+              : current.status === "CANCELLING" ? "CANCELLING" : "PENDING",
             checkedAt: new Date(),
             providerOrderId: result.providerOrderId,
           },
@@ -566,7 +643,7 @@ export class CustomerMobilePaymentsService
   async reconcilePending() {
     const rows = await this.db.customerMobilePurchase.findMany({
       where: {
-        status: { in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"] },
+        status: { in: unresolvedStatuses },
         OR: [
           { checkedAt: null },
           { checkedAt: { lt: new Date(Date.now() - 60000) } },
@@ -582,7 +659,7 @@ export class CustomerMobilePaymentsService
           where: {
             id: row.id,
             status: {
-              in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"],
+              in: unresolvedStatuses,
             },
           },
           data: { checkedAt: new Date() },

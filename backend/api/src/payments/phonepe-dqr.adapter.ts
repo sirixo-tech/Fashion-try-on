@@ -79,6 +79,26 @@ export class PhonePeDqrAdapter implements PaymentAdapter {
       headers: this.headers(path),
     };
   }
+  cancelRequest(expected: PaymentExpectation): ProviderRequest {
+    this.check(expected);
+    const path = `/v3/charge/${this.credentials.merchantId}/${expected.transactionId}/cancel`;
+    return {
+      url: this.base() + path,
+      method: "POST",
+      headers: this.headers(path),
+    };
+  }
+  parseCancel(response: unknown): "CANCELLED" | "ALREADY_COMPLETED" {
+    const root = record(response);
+    if (root.success === true && root.code === "SUCCESS") return "CANCELLED";
+    if (root.success === false && root.code === "PAYMENT_ALREADY_COMPLETED")
+      return "ALREADY_COMPLETED";
+    throw new PaymentProviderError(
+      "PROVIDER_REJECTED",
+      null,
+      safeProviderCode(root.code),
+    );
+  }
   parseQr(response: unknown, expected: PaymentExpectation) {
     this.check(expected);
     const root = record(response);

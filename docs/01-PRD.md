@@ -1,5 +1,13 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-25 — Cancel active mobile Dynamic QR (2026-10-30)
+
+When a customer confirms Leave payment, SelfX asks PhonePe to cancel the active
+Dynamic QR. Only PhonePe-confirmed cancellation ends that attempt and permits
+immediate purchase retry. A payment already completed is credited once instead.
+An unconfirmed cancellation remains pending and cannot grant credits by itself.
+Older Standard Checkout attempts retain their existing status/retry handling.
+
 ### CUSTOMER-MOBILE-18 — SelfX PhonePe dynamic QR payment choice (2026-10-29)
 
 SelfX Superadmin configures a dedicated SelfX-owned PhonePe merchant ID, Salt Index and Salt Key for customer mobile purchases. The mobile purchase screen shows installed UPI apps first, with optional QR display and short-lived QR or UPI URI sharing. Payment credentials stay on the API. A shared QR or URI credits the initiating SelfX customer only after the API verifies the exact payment once. This supersedes the Mobile Standard Checkout credential and hosted-link choice in CUSTOMER-MOBILE-16; pricing, credit expiry and grant rules remain the same.

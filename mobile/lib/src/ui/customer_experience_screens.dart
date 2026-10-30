@@ -173,6 +173,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   bool purchasing = false;
   bool checking = false;
   bool confirmingLeave = false;
+  bool cancellingPayment = false;
   String? paymentError;
   String selectedBillingPeriod = 'MONTHLY';
   String? selectedPlanId;
@@ -190,10 +191,11 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
 
   bool get paymentOpen =>
       purchase != null &&
-      !const ['PAID', 'FAILED'].contains(purchase?['status']);
+      !const ['PAID', 'FAILED', 'CANCELLED'].contains(purchase?['status']);
 
   bool get retryReady =>
       paymentOpen &&
+      purchase?['status'] != 'CANCELLING' &&
       retryAvailableAt != null &&
       !retryAvailableAt!.isAfter(DateTime.now());
 
@@ -279,6 +281,15 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   }
 
   Future<void> showPaymentOptions() async {
+    if (purchase?['status'] == 'CANCELLING') {
+      if (mounted) {
+        setState(
+          () => paymentError =
+              'PhonePe is confirming this payment. Check its status shortly.',
+        );
+      }
+      return;
+    }
     final id = purchase?['id'] as String?;
     final checkout = purchase?['checkoutUrl'] as String?;
     final expiresAt = DateTime.tryParse(
@@ -318,7 +329,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
       builder: (dialogContext) => PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
+          if (didPop || cancellingPayment) return;
           if (paymentOpen) {
             unawaited(confirmLeavePayment(dialogContext));
           } else {
@@ -364,6 +375,11 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                       'Payment failed. You can try again.',
                       textAlign: TextAlign.center,
                     )
+                  else if (purchase?['status'] == 'CANCELLING')
+                    const CustomerText(
+                      'PhonePe is confirming this payment. Check its status shortly.',
+                      textAlign: TextAlign.center,
+                    )
                   else if (expiresAt != null &&
                       !expiresAt.isAfter(DateTime.now()))
                     const CustomerText(
@@ -390,7 +406,8 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                           : 'Payment QR is unavailable. Open PhonePe checkout to continue.',
                       textAlign: TextAlign.center,
                     ),
-                  if (paymentOpen &&
+                  if (purchase?['status'] == 'PENDING' &&
+                      !cancellingPayment &&
                       isUpi &&
                       Platform.isAndroid &&
                       (expiresAt == null ||
@@ -492,7 +509,8 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                     width: double.infinity,
                     child: FilledButton(
                       onPressed:
-                          !paymentOpen ||
+                          purchase?['status'] != 'PENDING' ||
+                              cancellingPayment ||
                               (expiresAt != null &&
                                   !expiresAt.isAfter(DateTime.now()))
                           ? null
@@ -527,10 +545,18 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                   ),
                   const SizedBox(height: 4),
                   TextButton(
-                    onPressed: paymentOpen
+                    onPressed: cancellingPayment
+                        ? null
+                        : paymentOpen
                         ? () => confirmLeavePayment(dialogContext)
                         : () => closePaymentDialog(dialogContext),
-                    child: CustomerText(paymentOpen ? 'Leave payment' : 'Done'),
+                    child: CustomerText(
+                      cancellingPayment
+                          ? 'Cancelling payment…'
+                          : paymentOpen
+                          ? 'Leave payment'
+                          : 'Done',
+                    ),
                   ),
                 ],
               ),
@@ -542,7 +568,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   }
 
   Future<void> confirmLeavePayment(BuildContext dialogContext) async {
-    if (!dialogContext.mounted || confirmingLeave) return;
+    if (!dialogContext.mounted || confirmingLeave || cancellingPayment) return;
     confirmingLeave = true;
     try {
       final leave = await showModalBottomSheet<bool>(
@@ -562,7 +588,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                 ),
                 const SizedBox(height: 12),
                 const CustomerText(
-                  'If you have already paid, your credits will still appear after payment is confirmed. We will check the status before another purchase.',
+                  'We will ask PhonePe to cancel this payment. If it has already been paid, your credits will still be added.',
                   textAlign: TextAlign.center,
                 ),
                 if (paymentExpiry != null &&
@@ -588,8 +614,67 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
         ),
       );
       if (leave != true || !dialogContext.mounted) return;
-      await checkPayment();
-      if (dialogContext.mounted) closePaymentDialog(dialogContext);
+      final id = purchase?['id'] as String?;
+      if (id == null) return;
+      cancellingPayment = true;
+      paymentNow.value = DateTime.now();
+      try {
+        final next = await widget.experience.auth.authorized(
+          '/mobile-payments/$id/cancel',
+          method: 'POST',
+        );
+        if (!mounted || !dialogContext.mounted) return;
+        setState(() => purchase = next);
+        if (next['status'] == 'PAID') {
+          try {
+            await refresh();
+          } catch (_) {
+            // Payment remains confirmed; the balance can refresh later.
+          }
+        }
+        if (!dialogContext.mounted) return;
+        if ([
+          'CANCELLED',
+          'PAID',
+          'FAILED',
+          'CANCELLING',
+        ].contains(next['status'])) {
+          if (dialogContext.mounted) closePaymentDialog(dialogContext);
+        } else {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(
+              content: CustomerText(
+                'Payment is still being confirmed. Please check its status before retrying.',
+              ),
+            ),
+          );
+        }
+      } catch (_) {
+        final next = await checkPayment();
+        if (!dialogContext.mounted) return;
+        if (next != null &&
+            ['PAID', 'FAILED', 'CANCELLED'].contains(next['status'])) {
+          closePaymentDialog(dialogContext);
+        } else if (purchase?['checkoutUrl'] is String &&
+            !((purchase!['checkoutUrl'] as String).startsWith('upi:'))) {
+          setState(
+            () => paymentError =
+                'This older payment could not be cancelled. Check its status before retrying.',
+          );
+          closePaymentDialog(dialogContext);
+        } else {
+          ScaffoldMessenger.of(dialogContext).showSnackBar(
+            const SnackBar(
+              content: CustomerText(
+                'Cancellation was not confirmed. This payment remains pending.',
+              ),
+            ),
+          );
+        }
+      } finally {
+        cancellingPayment = false;
+        if (mounted) paymentNow.value = DateTime.now();
+      }
     } finally {
       confirmingLeave = false;
     }
@@ -899,6 +984,10 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                         CustomerNotice(
                           purchase!['status'] == 'PAID'
                               ? 'Payment confirmed. Credits are ready.'
+                              : purchase!['status'] == 'CANCELLED'
+                              ? 'Payment cancelled. No credits were added. You can start a new purchase.'
+                              : purchase!['status'] == 'CANCELLING'
+                              ? 'PhonePe is confirming this payment. Check its status before retrying.'
                               : purchase!['status'] == 'FAILED'
                               ? 'Payment failed. No credits were charged.'
                               : paymentExpiry != null &&
@@ -908,7 +997,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                                     : 'Payment time ended. Checking for a late confirmation. Retry in ${remainingTime(retryAvailableAt!)}.'
                               : 'Payment pending. Complete it before the timer ends. Credits appear after PhonePe confirms payment.',
                         ),
-                        if (paymentOpen &&
+                        if (purchase!['status'] == 'PENDING' &&
                             paymentExpiry?.isAfter(DateTime.now()) == true)
                           TextButton(
                             onPressed: showPaymentOptions,

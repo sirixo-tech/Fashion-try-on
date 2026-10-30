@@ -1,12 +1,21 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-25 — Leave payment cancellation (2026-10-30)
+
+The existing Leave payment confirmation calls the customer-scoped cancellation
+endpoint. A confirmed Dynamic QR cancellation closes the payment sheet, shows
+Cancelled on Plans & credits and immediately re-enables buying. If PhonePe has
+already completed payment, show the paid balance instead. If cancellation is
+unconfirmed, keep the payment pending and explain why retry is not yet available.
+No separate cancel button is added.
+
 ### CUSTOMER-MOBILE-24 — Payment countdown and safe leave (2026-10-30)
 
 The UPI payment sheet shows a live countdown from the server's checkout expiry.
 When time ends, the QR, share actions and payment launch stop. Back and Leave
 payment open a confirmation sheet with Continue payment and Leave payment.
-Leaving checks provider status and returns to Plans & credits; it does not
-claim to cancel a provider payment. A late confirmed payment still grants
+Before CUSTOMER-MOBILE-25, leaving checked provider status and returned to
+Plans & credits without cancelling the provider payment. A late confirmed payment still grants
 credits. A new attempt checks status first and becomes available after the
 server's reconciliation grace period, while a provider-confirmed failure can
 be retried immediately.

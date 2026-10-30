@@ -1,5 +1,15 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-25 — Leave payment (2026-10-30)
+
+The customer chooses Leave payment and confirms. SelfX checks PhonePe, requests
+Dynamic QR cancellation for an unpaid attempt, and closes the payment sheet only
+after cancellation or a terminal payment result. A cancelled attempt permits a
+new purchase immediately. A payment already completed grants credits once.
+When cancellation is uncertain, the current attempt stays pending and the app
+explains why retry is still blocked. Older Standard Checkout attempts can be
+left visually but cannot be presented as cancelled.
+
 ### CUSTOMER-MOBILE-18 — Demo selection and saved results (2026-10-28)
 
 The customer opens a full-width demo product image, then chooses a relevant demo model or Upload my photo. Without an explicit model or upload, the saved full-body photo is used automatically when available. Photo upload occurs only after Try-On consent. The customer can View or Download each result from My Looks; a low personal-credit balance links to Plans & credits without promising a paid purchase flow.

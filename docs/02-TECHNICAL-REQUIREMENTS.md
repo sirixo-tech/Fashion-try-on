@@ -3223,6 +3223,16 @@ Protected route coverage:
     Application implementation should not begin until the database schema and implementation plan have been completed and approved.
 # Mobile checkout extension (2026-10-29)
 
+Customer Mobile Dynamic QR cancellation (2026-10-30): an authenticated customer
+may cancel only their own pending DQR purchase. The API verifies status first,
+then calls PhonePe's documented `/v3/charge/{merchantId}/{transactionId}/cancel`
+using the encrypted, pinned account snapshot and the approved transport. Only
+provider `SUCCESS` records `CANCELLED` and releases new-purchase admission.
+Provider-completed payments retain exactly-once credit settlement; ambiguous
+responses keep the payment unresolved. Concurrent callbacks and cancellation
+serialize purchase state through the customer lock. Legacy Standard Checkout
+snapshots are not sent to the DQR cancel endpoint.
+
 The approved CUSTOMER-MOBILE-18 update uses the existing server-side PhonePe v3 Dynamic QR adapter for new mobile purchases, with a separate encrypted platform account and `SELFX_MOBILE_PHONEPE_ENABLED` execution gate. Its merchant ID, Salt Index, Salt Key, optional provider/store reference and confirmed production endpoint stay on the API. The API creates a short-lived order-specific UPI URI, validates transaction and exact amount, verifies signed callbacks by querying PhonePe status, and grants credits once. The customer client may show installed UPI apps and share the short-lived URI/QR, but cannot claim payment success. Existing in-flight OAuth checkout snapshots remain verifiable during migration.
 
 Customer Mobile Plans use a separate encrypted platform PhonePe OAuth connection and PhonePe Standard Checkout. The API creates orders and snapshots plan price, credits, billing period and encrypted connection; the customer client receives only the hosted checkout URL and purchase status. The client cannot assert payment success. The backend queries PhonePe order status, checks amount and provider order identity, and grants credits atomically once. Pending orders are reconciled by the API. Production checkout requires `SELFX_MOBILE_PHONEPE_ENABLED=true`, a production account and an enabled Mobile Payments setting; sandbox payments cannot grant customer credits. Paid grants are reserved per Try-On and settled on saved results or released on failure. Store-sponsored runs never spend personal credits.

@@ -75,6 +75,19 @@ describe("PhonePe in-store DQR protocol (no network)", () => {
         .digest("hex") + "###1",
     );
   });
+  it("signs cancellation using PhonePe's Dynamic QR cancel path", () => {
+    const request = adapter.cancelRequest(expected);
+    const path = "/v3/charge/fixture_merchant/fixture_tx/cancel";
+    expect(request.url).toBe(`https://mercury-uat.phonepe.com/enterprise-sandbox${path}`);
+    expect(request.method).toBe("POST");
+    expect(request.body).toBeUndefined();
+    expect(request.headers["X-VERIFY"]).toBe(
+      createHash("sha256").update(path + credentials.saltKey).digest("hex") + "###1",
+    );
+    expect(adapter.parseCancel({ success: true, code: "SUCCESS" })).toBe("CANCELLED");
+    expect(adapter.parseCancel({ success: false, code: "PAYMENT_ALREADY_COMPLETED" })).toBe("ALREADY_COMPLETED");
+    expect(() => adapter.parseCancel({ success: false, code: "INTERNAL_SERVER_ERROR" })).toThrow();
+  });
   it.each(["UNCONFIRMED", "PRODUCTION"] as const)(
     "rejects %s configuration before request creation",
     (environment) => {
