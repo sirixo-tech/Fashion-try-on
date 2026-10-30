@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:selfx_customer/src/auth/customer_api.dart';
 import 'package:selfx_customer/src/auth/customer_controller.dart';
 import 'package:selfx_customer/src/customer_app.dart';
@@ -256,7 +257,7 @@ void main() {
     expect(find.text('Monthly 20'), findsOneWidget);
     expect(find.text('One-time 15'), findsNothing);
 
-    await tester.tap(find.text('One-time'));
+    await tester.tap(find.text('Custom'));
     await tester.pumpAndSettle();
     expect(find.text('Monthly 20'), findsNothing);
     await tester.ensureVisible(find.text('One-time 15'));
@@ -288,6 +289,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Buy credits'), findsNothing);
+    await tester.tap(find.text('Custom'));
+    await tester.pumpAndSettle();
+    expect(find.text('₹9.00'), findsOneWidget);
+    await tester.tap(find.byTooltip('Add one credit'));
+    await tester.pump();
+    expect(find.text('₹18.00'), findsOneWidget);
+    await tester.tap(find.byTooltip('Remove one credit'));
+    await tester.pump();
     expect(find.text('₹9.00'), findsOneWidget);
     final quantity = find.byType(TextField);
     await tester.enterText(quantity, '1000');
@@ -424,6 +434,73 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, hasLength(2));
     expect(exp.savedGarments, isEmpty);
+  });
+
+  testWidgets('saved look shares its generated image beside View look', (
+    tester,
+  ) async {
+    await initializeDateFormatting('en');
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final channel = const MethodChannel('com.selfx.customer/sharing');
+    MethodCall? shared;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          shared = call;
+          return true;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null),
+    );
+    api.handler = (path, method, body) async {
+      if (path.startsWith('/looks')) {
+        return {
+          'data': [
+            {
+              'id': 'look-one',
+              'runId': 'run-one',
+              'payer': 'PERSONAL',
+              'expiresAt': DateTime.now()
+                  .add(const Duration(days: 2))
+                  .toIso8601String(),
+              'result': {
+                'id': 'generated-result',
+                'url': 'https://private.invalid/result',
+                'expiresAt': DateTime.now()
+                    .add(const Duration(days: 2))
+                    .toIso8601String(),
+              },
+            },
+          ],
+          'pagination': {'hasMore': false},
+        };
+      }
+      return response(path, method, body);
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: customerTheme(),
+        home: Scaffold(
+          body: CustomerSavedScreen(
+            experience: exp,
+            onHome: () {},
+            onPlans: () {},
+            onTryOnGarment: (_, _) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('View look'), findsOneWidget);
+    await tester.ensureVisible(find.byTooltip('Share look'));
+    await tester.tap(find.byTooltip('Share look'));
+    await tester.pumpAndSettle();
+    expect(shared?.method, 'shareLook');
+    expect((shared?.arguments as Map)['image'], syntheticPhoto);
+    expect((shared?.arguments as Map)['mimeType'], 'image/png');
   });
 
   testWidgets('generating look shows selected inputs without fake progress', (

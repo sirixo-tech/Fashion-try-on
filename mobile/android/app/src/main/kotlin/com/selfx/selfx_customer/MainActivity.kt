@@ -4,6 +4,8 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.pm.PackageManager
@@ -25,6 +27,9 @@ class MainActivity : FlutterActivity() {
                 NotificationChannel("selfx_updates", "SelfX Try-On updates", NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
+        File(cacheDir, "shared_looks").listFiles()
+            ?.filter { System.currentTimeMillis() - it.lastModified() > 60 * 60 * 1000 }
+            ?.forEach { it.delete() }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.selfx.customer/services").setMethodCallHandler { call, result ->
             if (call.method != "appInfo") { result.notImplemented(); return@setMethodCallHandler }
             try {
@@ -112,6 +117,33 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.selfx.customer/sharing").setMethodCallHandler { call, result ->
+            if (call.method != "shareLook") { result.notImplemented(); return@setMethodCallHandler }
+            val bytes = call.argument<ByteArray>("image")
+            val mime = call.argument<String>("mimeType")
+            val extension = when (mime) { "image/png" -> "png"; "image/jpeg" -> "jpg"; "image/webp" -> "webp"; else -> null }
+            if (bytes == null || bytes.isEmpty() || bytes.size > 20 * 1024 * 1024 || extension == null) {
+                result.error("LOOK_SHARE_INVALID", "This look cannot be shared.", null)
+                return@setMethodCallHandler
+            }
+            try {
+                val directory = File(cacheDir, "shared_looks").apply { mkdirs() }
+                directory.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 60 * 60 * 1000 }?.forEach { it.delete() }
+                val file = File.createTempFile("selfx-look-", ".$extension", directory)
+                file.writeBytes(bytes)
+                val content = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+                val share = Intent(Intent.ACTION_SEND).apply {
+                    type = mime
+                    putExtra(Intent.EXTRA_STREAM, content)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(share, "Share SelfX look"))
+                Handler(Looper.getMainLooper()).postDelayed({ file.delete() }, 60 * 60 * 1000L)
+                result.success(true)
+            } catch (_: Exception) {
+                result.error("LOOK_SHARE_FAILED", "This look could not be shared.", null)
             }
         }
     }

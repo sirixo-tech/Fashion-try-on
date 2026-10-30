@@ -205,6 +205,18 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
     return '${(safe ~/ 60).toString().padLeft(2, '0')}:${(safe % 60).toString().padLeft(2, '0')}';
   }
 
+  void adjustCustomCredits(int change) {
+    final current = int.tryParse(customCredits.text.trim());
+    if (current == null || current < 1 || current > 1000) return;
+    final next = current + change;
+    if (next < 1 || next > 1000) return;
+    customCredits.text = next.toString();
+    customCredits.selection = TextSelection.collapsed(
+      offset: customCredits.text.length,
+    );
+    setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -605,6 +617,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                   onPressed: () => Navigator.pop(sheetContext, false),
                   child: const CustomerText('Continue payment'),
                 ),
+                const SizedBox(height: 14),
                 OutlinedButton(
                   onPressed: () => Navigator.pop(sheetContext, true),
                   child: const CustomerText('Leave payment'),
@@ -844,7 +857,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                           const SizedBox(width: 8),
                           Expanded(
                             child: _PlanPeriodTab(
-                              label: 'One-time',
+                              label: 'Custom',
                               selected: selectedBillingPeriod == 'ONE_TIME',
                               onTap: () => setState(() {
                                 selectedBillingPeriod = 'ONE_TIME';
@@ -855,7 +868,10 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                         ],
                       ),
                       const SizedBox(height: 14),
-                      if (periodPlans.isEmpty)
+                      if (periodPlans.isEmpty &&
+                          (selectedBillingPeriod == 'MONTHLY' ||
+                              snapshot.data?['customPurchasingAvailable'] !=
+                                  true))
                         CustomerNotice(
                           availablePlans.isEmpty
                               ? 'No mobile plans are available yet.'
@@ -898,73 +914,98 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                           ),
                         ),
                       ],
-                      const SizedBox(height: 24),
-                      const Divider(),
-                      const SizedBox(height: 12),
-                      PremiumPanel(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CustomerText(
-                              'Buy credits',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 4),
-                            const CustomerText(
-                              'Choose 1 to 1,000 credits. They do not expire.',
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: customCredits,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Credits',
-                                      border: OutlineInputBorder(),
+                      if (selectedBillingPeriod == 'ONE_TIME') ...[
+                        if (periodPlans.isNotEmpty) ...[
+                          const SizedBox(height: 24),
+                          const Divider(),
+                        ],
+                        const SizedBox(height: 12),
+                        PremiumPanel(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CustomerText(
+                                'Buy credits',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 4),
+                              const CustomerText(
+                                'Choose 1 to 1,000 credits. They do not expire.',
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: customCredits,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.center,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                        LengthLimitingTextInputFormatter(4),
+                                      ],
+                                      decoration: InputDecoration(
+                                        labelText: 'Credits',
+                                        border: const OutlineInputBorder(),
+                                        prefixIcon: IconButton(
+                                          tooltip: 'Remove one credit',
+                                          onPressed:
+                                              validQuantity && quantity > 1
+                                              ? () => adjustCustomCredits(-1)
+                                              : null,
+                                          icon: const Icon(Icons.remove),
+                                        ),
+                                        suffixIcon: IconButton(
+                                          tooltip: 'Add one credit',
+                                          onPressed:
+                                              validQuantity && quantity < 1000
+                                              ? () => adjustCustomCredits(1)
+                                              : null,
+                                          icon: const Icon(Icons.add),
+                                        ),
+                                      ),
+                                      onChanged: (_) => setState(() {}),
                                     ),
-                                    onChanged: (_) => setState(() {}),
                                   ),
-                                ),
-                                if (unitPriceCents != null &&
-                                    validQuantity) ...[
-                                  const SizedBox(width: 12),
-                                  CustomerText(
-                                    intl.NumberFormat.simpleCurrency(
-                                      name: 'INR',
-                                    ).format(quantity * unitPriceCents / 100),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
+                                  if (unitPriceCents != null &&
+                                      validQuantity) ...[
+                                    const SizedBox(width: 12),
+                                    CustomerText(
+                                      intl.NumberFormat.simpleCurrency(
+                                        name: 'INR',
+                                      ).format(quantity * unitPriceCents / 100),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                onPressed:
-                                    purchasing ||
-                                        (paymentOpen && !retryReady) ||
-                                        !validQuantity ||
-                                        unitPriceCents == null ||
-                                        snapshot.data?['customPurchasingAvailable'] !=
-                                            true
-                                    ? null
-                                    : () => buy(credits: quantity),
-                                child: CustomerText(
-                                  purchasing
-                                      ? 'Opening checkout…'
-                                      : 'Buy credits',
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  onPressed:
+                                      purchasing ||
+                                          (paymentOpen && !retryReady) ||
+                                          !validQuantity ||
+                                          unitPriceCents == null ||
+                                          snapshot.data?['customPurchasingAvailable'] !=
+                                              true
+                                      ? null
+                                      : () => buy(credits: quantity),
+                                  child: CustomerText(
+                                    purchasing
+                                        ? 'Opening checkout…'
+                                        : 'Buy credits',
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                       const SizedBox(height: 12),
                       if (snapshot.data?['purchasingAvailable'] != true)
                         const CustomerNotice(
@@ -1021,15 +1062,6 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                     ],
                   );
                 },
-              ),
-              const SizedBox(height: 24),
-              const CustomerText(
-                'Visiting a participating Store?',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              const CustomerText(
-                'Scan its QR from Home to explore its products. The Store pays for eligible Try-Ons in that session; your own credits stay separate.',
               ),
               if (experience.error != null) ...[
                 const SizedBox(height: 18),
@@ -1661,6 +1693,53 @@ Future<void> downloadCustomerResult(
   await exportResult(bytes, 'SelfX-${photo.id}');
 }
 
+Future<void> shareCustomerResult(
+  CustomerExperience exp,
+  CustomerPhoto photo,
+) async {
+  final bytes = await exp.auth.authorizedDownload(
+    '/try-on/assets/${photo.id}/download',
+  );
+  final isPng =
+      bytes.length >= 8 &&
+      bytes[0] == 0x89 &&
+      bytes[1] == 0x50 &&
+      bytes[2] == 0x4e &&
+      bytes[3] == 0x47 &&
+      bytes[4] == 0x0d &&
+      bytes[5] == 0x0a &&
+      bytes[6] == 0x1a &&
+      bytes[7] == 0x0a;
+  final isJpeg =
+      bytes.length >= 3 &&
+      bytes[0] == 0xff &&
+      bytes[1] == 0xd8 &&
+      bytes[2] == 0xff;
+  final isWebp =
+      bytes.length >= 12 &&
+      bytes[0] == 0x52 &&
+      bytes[1] == 0x49 &&
+      bytes[2] == 0x46 &&
+      bytes[3] == 0x46 &&
+      bytes[8] == 0x57 &&
+      bytes[9] == 0x45 &&
+      bytes[10] == 0x42 &&
+      bytes[11] == 0x50;
+  if (!isPng && !isJpeg && !isWebp) {
+    throw StateError('This look cannot be shared.');
+  }
+  await const MethodChannel(
+    'com.selfx.customer/sharing',
+  ).invokeMethod<void>('shareLook', {
+    'image': bytes,
+    'mimeType': isPng
+        ? 'image/png'
+        : isJpeg
+        ? 'image/jpeg'
+        : 'image/webp',
+  });
+}
+
 class CustomerAssetImage extends StatefulWidget {
   final CustomerExperience experience;
   final CustomerPhoto photo;
@@ -1811,6 +1890,22 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
           const SnackBar(content: CustomerText('Look downloaded.')),
         );
       }
+    } catch (caught) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: CustomerText(CustomerExperience.message(caught))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => downloadingId = null);
+    }
+  }
+
+  Future<void> share(CustomerLook look) async {
+    if (downloadingId != null) return;
+    setState(() => downloadingId = look.id);
+    try {
+      await shareCustomerResult(widget.experience, look.result);
     } catch (caught) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2122,6 +2217,14 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 10),
+                                  IconButton.filledTonal(
+                                    tooltip: tr(context, 'Share look'),
+                                    onPressed: downloadingId == null
+                                        ? () => share(look)
+                                        : null,
+                                    icon: const Icon(Icons.share_outlined),
+                                  ),
+                                  const SizedBox(width: 6),
                                   IconButton.filledTonal(
                                     tooltip: tr(context, 'Download look'),
                                     onPressed: downloadingId == null
