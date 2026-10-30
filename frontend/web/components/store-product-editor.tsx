@@ -5,7 +5,6 @@ import Image from "next/image";
 import {
   Button,
   PageContainer,
-  Card,
   CardContent,
   FormSection,
   FormActions,
@@ -423,8 +422,8 @@ export function StoreProductEditor({
             </Button>
           }
         />
-        <Card>
-          <CardContent className="space-y-4 p-6">
+        <section>
+          <CardContent className="space-y-4 p-0">
             <p>{product.description}</p>
             <p>
               Use the Products list to manage SelfX Try-On availability. Product
@@ -442,7 +441,7 @@ export function StoreProductEditor({
               </a>
             ) : null}
           </CardContent>
-        </Card>
+        </section>
       </PageContainer>
     );
   if (!storeId)
@@ -473,8 +472,8 @@ export function StoreProductEditor({
         </p>
       )}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <Card>
-          <CardContent className="p-6">
+        <section>
+          <CardContent className="p-0">
             <FormSection title="Basic information">
               {!canEdit ? (
                 <dl className="grid gap-3">
@@ -606,9 +605,9 @@ export function StoreProductEditor({
               )}
             </FormSection>
           </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
+        </section>
+        <section>
+          <CardContent className="p-0">
             <FormSection
               title="Product image"
               description="Main catalog and Try-On image. Colour images below are optional purchase previews."
@@ -652,11 +651,11 @@ export function StoreProductEditor({
               )}
             </FormSection>
           </CardContent>
-        </Card>
+        </section>
       </div>
       <div id="pricing" />
-      <Card>
-        <CardContent className="p-6">
+      <section className="border-t pt-6">
+        <CardContent className="p-0">
           <FormSection
             title="Pricing & variants"
             description="One product in the kiosk catalog. Customers select available options when buying."
@@ -954,7 +953,7 @@ export function StoreProductEditor({
             </fieldset>
           </FormSection>
         </CardContent>
-      </Card>
+      </section>
       <div className="sticky bottom-0 z-10 border-t bg-background p-4">
         <FormActions>
           <Button variant="outline" disabled={saving} onClick={leave}>

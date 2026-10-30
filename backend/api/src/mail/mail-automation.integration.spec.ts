@@ -272,9 +272,13 @@ describe.skipIf(!url)(
         { deleteObject: vi.fn().mockResolvedValue(undefined) } as never,
         mail,
       );
+      const archived = await db.organization.update({
+        where: { id: s.id },
+        data: { status: "ARCHIVED" },
+      });
       await purge.purge(actor, s.id, {
         confirmName: s.name,
-        updatedAt: s.updatedAt,
+        updatedAt: archived.updatedAt.toISOString(),
       });
       expect(
         await db.organization.findUnique({ where: { id: s.id } }),

@@ -479,7 +479,7 @@ export function PricingPlanEditor({
             </aside>
 
             <div className="grid gap-6">
-              <Card id="name">
+              <Card id="name" appearance="plain">
                 <CardHeader>
                   <div className="flex items-start gap-3">
                     <SectionIcon icon={<CreditCardIcon aria-hidden="true" />} />
@@ -531,7 +531,7 @@ export function PricingPlanEditor({
                 </CardContent>
               </Card>
 
-              <Card id="pricing">
+              <Card id="pricing" appearance="plain">
                 <CardHeader>
                   <div className="flex items-start gap-3">
                     <SectionIcon icon={<CreditCardIcon aria-hidden="true" />} />
@@ -626,7 +626,7 @@ export function PricingPlanEditor({
                 </CardContent>
               </Card>
 
-              <Card id="credits">
+              <Card id="credits" appearance="plain">
                 <CardHeader>
                   <div className="flex items-start gap-3">
                     <SectionIcon icon={<SparklesIcon aria-hidden="true" />} />
@@ -686,7 +686,7 @@ export function PricingPlanEditor({
                 </CardContent>
               </Card>
 
-              <Card id="channels">
+              <Card id="channels" appearance="plain">
                 <CardHeader>
                   <div className="flex items-start gap-3">
                     <SectionIcon icon={<SettingsIcon aria-hidden="true" />} />
@@ -710,7 +710,7 @@ export function PricingPlanEditor({
                 </CardContent>
               </Card>
 
-              <Card id="features">
+              <Card id="features" appearance="plain">
                 <CardHeader>
                   <div className="flex items-start gap-3">
                     <SectionIcon icon={<SparklesIcon aria-hidden="true" />} />
@@ -736,7 +736,7 @@ export function PricingPlanEditor({
                 </CardContent>
               </Card>
 
-              <Card id="kiosks">
+              <Card id="kiosks" appearance="plain">
                 <CardHeader>
                   <div className="flex items-start gap-3">
                     <SectionIcon icon={<MonitorIcon aria-hidden="true" />} />

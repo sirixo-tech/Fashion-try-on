@@ -194,7 +194,7 @@ Both Store role editors offer the full Store permission registry to authorized P
 
 ### PRODUCTS-EDITOR-1 / SHOPPING-3 — Product options and kiosk purchasing (2026-10-21)
 
-Replace Add/Edit Product popups with responsive pages for garments/jewellery and explicit Platform Store product routes. Product management and Stock & Pricing links open the same page; authorized view-only stock browsing remains available. Group basic information, product image and pricing/variants in shared @selfx/ui cards. Include optional colour upload previews, main-image fallback guidance, validation, explicit partial-save errors, leave confirmation and sticky Save/Cancel actions. Kiosk Buy This Look shows image, option chips, quantity, availability, cart and total. Disable unavailable choices; wholly sold-out products show the Store-named toast. Payment UI distinguishes test mode, pending, failure, confirmed success, staff review and expiry. Do not display an expired QR or call a timeout a failed payment.
+Replace Add/Edit Product popups with responsive pages for garments/jewellery and explicit Platform Store product routes. Product management and Stock & Pricing links open the same page; authorized view-only stock browsing remains available. Group basic information, product image and pricing/variants as normal page sections. Include optional colour upload previews, main-image fallback guidance, validation, explicit partial-save errors, leave confirmation and sticky Save/Cancel actions. Kiosk Buy This Look shows image, option chips, quantity, availability, cart and total. Disable unavailable choices; wholly sold-out products show the Store-named toast. Payment UI distinguishes test mode, pending, failure, confirmed success, staff review and expiry. Do not display an expired QR or call a timeout a failed payment.
 
 
 ### PRODUCTS-RBAC-1 — Hide unauthorized product controls (2026-10-21)
@@ -511,10 +511,15 @@ Store role selectors expose Store Admin and Staff only; ordinary Platform role
 selectors expose Platform Admin and Platform Staff. Superadmin stays protected.
 The explicit first-admin repair action retains the existing controlled API.
 
-Stores distinguish Archive from Delete permanently. Only Superadmin sees the
-permanent-delete action; its dialog requires exact Store-name confirmation and
-describes permanent business-data removal, exclusive-user removal, retained audit
-snapshots and revoked/unassigned physical kiosks. Archived Stores can be filtered.
+Stores distinguish Archive from Delete permanently. All Stores includes archived
+records, and the status filter can isolate Archived. Active and suspended cards
+offer Archive; archived cards offer Reactivate and, for Superadmin only, Delete
+permanently. The permanent-delete API also requires an archived Store. Its
+dialog requires exact Store-name confirmation and describes permanent business-data
+removal, exclusive-user removal, retained audit snapshots and revoked/unassigned
+physical kiosks. Store and Mobile plan pages show All, Active, Inactive and
+Archived filters; archived plan cards offer Reactivate while retaining purchase
+and subscription history.
 
 
 ### USERS-1 — `/app/users`
@@ -705,7 +710,7 @@ SelfX Platform
 
 ### `/app/stores/create` - Create Store
 
-- Use a medium-width workspace with three compact bordered form cards: Store
+- Use a medium-width workspace with three compact form sections: Store
   name, Plan and Owner account. A read-only onboarding summary sits beside
   them on desktop and below them on narrow screens. It reflects the Store
   name, selected plan, owner and login email live, but never shows passwords.
@@ -1342,6 +1347,12 @@ PageContainer
 → PageSection / SectionHeader
 → approved content card or workflow surface
 ```
+
+Use cards for individual plans, payment methods, Stores and concise metrics or
+information. Page-level filters, product and user tables, connection lists and
+forms sit in normal page sections without a full-card wrapper. Keep row borders,
+section spacing and responsive mobile rows where they aid scanning; avoid a
+second outer card around content already presented as cards or a table.
 
 Page width modes:
 

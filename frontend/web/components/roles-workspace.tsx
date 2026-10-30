@@ -324,7 +324,11 @@ function RolePermissionsEditor({
     );
   }
   return (
-    <Card id="role-permissions" aria-labelledby="role-permissions-title">
+    <Card
+      id="role-permissions"
+      appearance="plain"
+      aria-labelledby="role-permissions-title"
+    >
       <CardHeader>
         <CardTitle id="role-permissions-title" role="heading" aria-level={2}>
           {role.name} permissions

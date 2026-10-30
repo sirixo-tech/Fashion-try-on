@@ -327,7 +327,7 @@ export function listStores(
   if (query.search) {
     params.set("search", query.search);
   }
-  if (query.status && query.status !== "ALL") {
+  if (query.status) {
     params.set("status", query.status);
   }
   if (query.sort) {

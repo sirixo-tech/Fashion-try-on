@@ -151,7 +151,7 @@ export function CustomCreditPlanEditor() {
           className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]"
         >
           <div className="space-y-5">
-            <Card>
+            <Card appearance="plain">
               <CardHeader>
                 <CardTitle>Name & visibility</CardTitle>
               </CardHeader>
@@ -184,7 +184,7 @@ export function CustomCreditPlanEditor() {
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card appearance="plain">
               <CardHeader>
                 <CardTitle>Pricing</CardTitle>
               </CardHeader>

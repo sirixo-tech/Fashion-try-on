@@ -223,7 +223,7 @@ export function MobilePlanEditor({ planId }: { planId?: string }) {
             className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]"
           >
             <div className="space-y-5">
-              <Card>
+              <Card appearance="plain">
                 <CardHeader>
                   <CardTitle>Name & visibility</CardTitle>
                 </CardHeader>
@@ -282,7 +282,7 @@ export function MobilePlanEditor({ planId }: { planId?: string }) {
                   </Field>
                 </CardContent>
               </Card>
-              <Card>
+              <Card appearance="plain">
                 <CardHeader>
                   <CardTitle>Pricing</CardTitle>
                 </CardHeader>
@@ -330,7 +330,7 @@ export function MobilePlanEditor({ planId }: { planId?: string }) {
                   </Field>
                 </CardContent>
               </Card>
-              <Card>
+              <Card appearance="plain">
                 <CardHeader>
                   <CardTitle>Credits</CardTitle>
                 </CardHeader>

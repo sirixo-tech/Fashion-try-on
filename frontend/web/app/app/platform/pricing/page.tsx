@@ -7,7 +7,6 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ArchiveIcon,
   CheckCircle2Icon,
   CreditCardIcon,
   PencilIcon,
@@ -40,6 +39,7 @@ import {
   PageContainer,
   PageHeader,
   PageSection,
+  SelectMenu,
   buttonVariants,
   useToast,
   ControlTooltip,
@@ -56,6 +56,7 @@ import {
   updatePricingPlan,
   type PlanFeature,
   type PricingPlan,
+  type PricingPlanStatus,
 } from "@/lib/pricing";
 import { useSession } from "@/lib/session";
 
@@ -64,9 +65,12 @@ export default function PricingControlPage() {
   const accessToken =
     session.status === "authenticated" ? session.accessToken : null;
   const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [statusFilter, setStatusFilter] = useState<PricingPlanStatus | "ALL">(
+    "ALL",
+  );
   const [features, setFeatures] = useState<PlanFeature[]>([]);
   const [loading, setLoading] = useState(true);
-  const [archivingPlanId, setArchivingPlanId] = useState<string | null>(null);
+  const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [platformAccess, setPlatformAccess] =
     useState<CurrentPlatformAccess | null>(null);
@@ -138,28 +142,31 @@ export default function PricingControlPage() {
     };
   }, [accessToken]);
 
-  async function archivePlan(plan: PricingPlan) {
-    if (!accessToken || !canManagePricing || plan.status === "ARCHIVED") {
+  async function changePlanStatus(
+    plan: PricingPlan,
+    status: PricingPlanStatus,
+  ) {
+    if (!accessToken || !canManagePricing || plan.status === status) {
       return;
     }
-    setArchivingPlanId(plan.id);
+    setChangingPlanId(plan.id);
     setError(null);
     try {
       const archived = await updatePricingPlan(accessToken, plan.id, {
-        status: "ARCHIVED",
+        status,
       });
       setPlans((current) =>
         current.map((item) => (item.id === archived.id ? archived : item)),
       );
       showToast({
         variant: "success",
-        title: "Plan archived",
-        description: `${archived.name} archived successfully.`,
+        title: status === "ARCHIVED" ? "Plan archived" : "Plan reactivated",
+        description: `${archived.name} ${status === "ARCHIVED" ? "archived" : "reactivated"} successfully.`,
       });
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
-      setArchivingPlanId(null);
+      setChangingPlanId(null);
     }
   }
 
@@ -225,12 +232,36 @@ export default function PricingControlPage() {
       ) : null}
 
       <PageSection>
+        <div className="mb-4 flex justify-end">
+          <SelectMenu
+            ariaLabel="Plan status"
+            value={statusFilter}
+            options={[
+              { value: "ALL", label: "All plans" },
+              { value: "ACTIVE", label: "Active" },
+              { value: "INACTIVE", label: "Inactive" },
+              { value: "ARCHIVED", label: "Archived" },
+            ]}
+            className="min-w-40"
+            onChange={setStatusFilter}
+          />
+        </div>
         {loading ? (
           <LoadingState label="Loading pricing plans" />
-        ) : plans.length === 0 ? (
+        ) : plans.filter(
+            (plan) => statusFilter === "ALL" || plan.status === statusFilter,
+          ).length === 0 ? (
           <EmptyState
-            title="No pricing plans yet"
-            description="Create the first plan to control Try-On credits, trial credits, supported channels and kiosk rental limits."
+            title={
+              plans.length === 0
+                ? "No pricing plans yet"
+                : "No plans with this status"
+            }
+            description={
+              plans.length === 0
+                ? "Create the first plan to control Try-On credits, trial credits, supported channels and kiosk rental limits."
+                : "Choose another status to view existing plans."
+            }
             action={
               canManagePricing
                 ? {
@@ -242,16 +273,22 @@ export default function PricingControlPage() {
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {plans.map((plan) => (
-              <PricingPlanCard
-                key={plan.id}
-                plan={plan}
-                features={features}
-                canManage={canManagePricing}
-                archiving={archivingPlanId === plan.id}
-                onArchive={() => void archivePlan(plan)}
-              />
-            ))}
+            {plans
+              .filter(
+                (plan) =>
+                  statusFilter === "ALL" || plan.status === statusFilter,
+              )
+              .map((plan) => (
+                <PricingPlanCard
+                  key={plan.id}
+                  plan={plan}
+                  features={features}
+                  canManage={canManagePricing}
+                  archiving={changingPlanId === plan.id}
+                  onArchive={() => void changePlanStatus(plan, "ARCHIVED")}
+                  onReactivate={() => void changePlanStatus(plan, "ACTIVE")}
+                />
+              ))}
           </div>
         )}
       </PageSection>
@@ -265,12 +302,14 @@ function PricingPlanCard({
   canManage,
   archiving,
   onArchive,
+  onReactivate,
 }: {
   plan: PricingPlan;
   features: PlanFeature[];
   canManage: boolean;
   archiving: boolean;
   onArchive: () => void;
+  onReactivate: () => void;
 }) {
   const archived = plan.status === "ARCHIVED";
   const featureItems = featureItemsForKeys(plan.featureKeys, features);
@@ -409,29 +448,44 @@ function PricingPlanCard({
                 <PencilIcon aria-hidden="true" />
               </Link>
             </ControlTooltip>
-            <ConfirmDialog
-              title="Archive plan?"
-              description={`${plan.name} will be hidden from available plan lists, but kept for reporting and historical subscriptions.`}
-              confirmLabel="Archive"
-              destructive
-              onConfirm={onArchive}
-              trigger={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label={`Archive ${plan.name}`}
-                  title={archived ? "Already archived" : "Archive plan"}
-                  disabled={!canManage || archived || archiving}
-                >
-                  {archived ? (
-                    <ArchiveIcon aria-hidden="true" />
-                  ) : (
+            {archived ? (
+              <ConfirmDialog
+                title="Reactivate plan?"
+                description={`${plan.name} will become available for new Store assignments again.`}
+                confirmLabel="Reactivate"
+                onConfirm={onReactivate}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!canManage || archiving}
+                  >
+                    <RefreshCwIcon aria-hidden="true" /> Reactivate
+                  </Button>
+                }
+              />
+            ) : (
+              <ConfirmDialog
+                title="Archive plan?"
+                description={`${plan.name} will be hidden from available plan lists, but kept for reporting and historical subscriptions.`}
+                confirmLabel="Archive"
+                destructive
+                onConfirm={onArchive}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label={`Archive ${plan.name}`}
+                    title="Archive plan"
+                    disabled={!canManage || archiving}
+                  >
                     <Trash2Icon aria-hidden="true" />
-                  )}
-                </Button>
-              }
-            />
+                  </Button>
+                }
+              />
+            )}
           </div>
         </CardFooter>
       </Card>

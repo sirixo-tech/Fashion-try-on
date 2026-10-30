@@ -149,13 +149,24 @@ export class StorePurgeService implements OnModuleInit, OnModuleDestroy {
             );
           const store = await tx.organization.findUnique({
             where: { id: storeId },
-            select: { id: true, name: true, slug: true, updatedAt: true },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              status: true,
+              updatedAt: true,
+            },
           });
           if (!store)
             deletionError(
               "STORE_NOT_FOUND",
               "Store was not found.",
               HttpStatus.NOT_FOUND,
+            );
+          if (store!.status !== "ARCHIVED")
+            deletionError(
+              "STORE_ARCHIVE_REQUIRED",
+              "Archive this Store before permanently deleting it.",
             );
           if (input.confirmName !== store!.name)
             deletionError(

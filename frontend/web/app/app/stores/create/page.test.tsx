@@ -130,6 +130,12 @@ describe("Create Store page", () => {
     const summary = await screen.findByRole("complementary", {
       name: "Onboarding summary",
     });
+    expect(
+      screen
+        .getByRole("heading", { name: "Store name" })
+        .closest('[data-slot="card"]'),
+    ).toBeNull();
+    expect(summary.querySelector('[data-slot="card"]')).toBeTruthy();
     expect(within(summary).getAllByText("Not set")).toHaveLength(3);
     await fill();
     expect(screen.queryByText("Disabled")).toBeNull();

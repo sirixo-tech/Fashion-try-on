@@ -434,6 +434,10 @@ describe.skipIf(!url)(
       await db.storeTaxSettings.create({
         data: { organizationId: storeId, mode: "OFF", rateBasisPoints: 0 },
       });
+      await db.organization.update({
+        where: { id: storeId },
+        data: { status: "ARCHIVED" },
+      });
       const result = await purge.purge(superId, storeId, await purgeInput());
       expect(result.deletedUsers).toBe(2);
       expect(
@@ -596,6 +600,10 @@ describe.skipIf(!url)(
           completedAt: new Date(),
         },
       });
+      await db.organization.update({
+        where: { id: storeId },
+        data: { status: "ARCHIVED" },
+      });
       await purge.purge(superId, storeId, await purgeInput());
       expect(await db.product.count({ where: { id: productId } })).toBe(0);
       expect(await db.shoppingOrder.count({ where: { id: orderId } })).toBe(0);
@@ -673,6 +681,10 @@ describe.skipIf(!url)(
           reportedStatus: "PENDING",
         })),
       });
+      await db.organization.update({
+        where: { id: storeId },
+        data: { status: "ARCHIVED" },
+      });
       await purge.purge(superId, storeId, await purgeInput());
       expect(
         await db.platformPaymentTest.count({ where: { id: tests[0]!.id } }),
@@ -706,6 +718,13 @@ describe.skipIf(!url)(
       );
     }, 30000);
     it("requires Superadmin permission and correct Store confirmation before purge", async () => {
+      await expect(
+        purge.purge(superId, storeId, await purgeInput()),
+      ).rejects.toMatchObject(code("STORE_ARCHIVE_REQUIRED"));
+      await db.organization.update({
+        where: { id: storeId },
+        data: { status: "ARCHIVED" },
+      });
       const input = await purgeInput();
       await expect(purge.purge(adminId, storeId, input)).rejects.toMatchObject(
         code("PLATFORM_PERMISSION_DENIED"),

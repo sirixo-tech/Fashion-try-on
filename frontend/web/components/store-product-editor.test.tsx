@@ -98,6 +98,11 @@ afterEach(cleanup);
 it("edits product and option prices with one optional image per colour", async () => {
   render(<StoreProductEditor storeId="store" productId="test" />);
   await screen.findByRole("heading", { name: "Edit Shirt" });
+  expect(
+    screen
+      .getByRole("heading", { name: "Basic information" })
+      .closest('[data-slot="card"]'),
+  ).toBeNull();
   expect(screen.getAllByLabelText("Image for Blue")).toHaveLength(1);
   fireEvent.change(screen.getByLabelText("Stock 1"), {
     target: { value: "7" },

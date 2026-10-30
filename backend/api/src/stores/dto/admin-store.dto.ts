@@ -78,8 +78,8 @@ export class AdminStoreListQueryDto {
   search?: string;
 
   @IsOptional()
-  @IsEnum(AdminStoreStatus)
-  status?: AdminStoreStatus;
+  @IsIn(["ALL", ...Object.values(AdminStoreStatus)])
+  status?: AdminStoreStatus | "ALL";
 
   @IsOptional()
   @IsIn(["createdDesc", "createdAsc", "nameAsc", "nameDesc"])

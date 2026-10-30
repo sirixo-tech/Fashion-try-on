@@ -16,14 +16,11 @@ import {
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   EmptyState,
   Input,
   PageContainer,
   PageHeader,
+  SectionHeader,
   SelectMenu,
   StatCard,
   MetricValue,
@@ -322,16 +319,16 @@ function CommerceOverview({
           icon={<WandSparklesIcon size={19} />}
         />
       </div>
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>Store connections</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {type === "SHOPIFY"
+      <section className="min-w-0 space-y-5">
+        <SectionHeader
+          title="Store connections"
+          description={
+            type === "SHOPIFY"
               ? "Open a Store to review its connection and Shopify setup."
-              : "Open a Store to review its connection and plugin setup."}
-          </p>
-        </CardHeader>
-        <CardContent className="min-w-0 space-y-5">
+              : "Open a Store to review its connection and plugin setup."
+          }
+        />
+        <div className="min-w-0 space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <form
               className="flex w-full max-w-lg gap-2"
@@ -549,8 +546,8 @@ function CommerceOverview({
               }
             />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
       <p className="text-xs leading-5 text-muted-foreground">
         {type === "SHOPIFY"
           ? "Connection health checks the SelfX Store, connection and app token. Full sync dates reflect completed catalog syncs. Manage product Try-On controls in the SelfX app inside Shopify."

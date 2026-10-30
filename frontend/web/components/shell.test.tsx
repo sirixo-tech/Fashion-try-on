@@ -250,6 +250,12 @@ describe("SelfX shared shell", () => {
     expect(actionLayout?.className).toContain("sm:justify-end");
     expect(screen.getByText("Reusable section content")).toBeTruthy();
     expect(screen.getByText("Rows belong here")).toBeTruthy();
+    expect(
+      screen.getByText("Rows belong here").closest('[data-slot="card"]'),
+    ).toBeNull();
+    expect(
+      screen.getByLabelText("Search").closest('[data-slot="card"]'),
+    ).toBeNull();
     expect(screen.getByLabelText("Field")).toBeTruthy();
   });
 

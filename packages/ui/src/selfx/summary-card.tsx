@@ -6,7 +6,6 @@ import {
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@selfx/ui/components/card";
@@ -154,21 +153,25 @@ export function TableContainer({
   footer?: ReactNode;
 }) {
   return (
-    <Card>
+    <div className="min-w-0 space-y-4">
       {title || description || actions ? (
-        <CardHeader>
-          {title ? <CardTitle>{title}</CardTitle> : null}
-          {description ? (
-            <CardDescription>{description}</CardDescription>
-          ) : null}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            {title ? (
+              <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+            ) : null}
+            {description ? (
+              <div className="text-sm text-muted-foreground">{description}</div>
+            ) : null}
+          </div>
           {actions ? (
-            <CardAction className="flex gap-2">{actions}</CardAction>
+            <div className="flex flex-wrap gap-2">{actions}</div>
           ) : null}
-        </CardHeader>
+        </div>
       ) : null}
-      <CardContent className="overflow-x-auto p-5 pt-0">{children}</CardContent>
-      {footer ? <CardFooter>{footer}</CardFooter> : null}
-    </Card>
+      <div className="min-w-0 overflow-x-auto">{children}</div>
+      {footer ? <div className="border-t pt-3">{footer}</div> : null}
+    </div>
   );
 }
 

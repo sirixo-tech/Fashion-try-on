@@ -189,8 +189,8 @@ export default function CreateStorePage() {
         <div className={styles.layout}>
           <div className="min-w-0 space-y-4">
             <fieldset disabled={saving} className="min-w-0 space-y-3">
-              <Card size="sm" className={styles.card}>
-                <CardHeader className="border-b">
+              <section className="space-y-3 border-b pb-5">
+                <CardHeader className="px-0">
                   <CardTitle>
                     <h2 className="flex items-center gap-2 text-base font-semibold">
                       <StoreIcon
@@ -202,7 +202,7 @@ export default function CreateStorePage() {
                     </h2>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-0">
                   <Label htmlFor="store-name" className="sr-only">
                     Store name
                   </Label>
@@ -215,9 +215,9 @@ export default function CreateStorePage() {
                     onChange={(event) => update("name", event.target.value)}
                   />
                 </CardContent>
-              </Card>
-              <Card size="sm" className={styles.card}>
-                <CardHeader className="border-b">
+              </section>
+              <section className="space-y-3 border-b pb-5">
+                <CardHeader className="px-0">
                   <CardTitle>
                     <h2 className="flex items-center gap-2 text-base font-semibold">
                       <CreditCardIcon
@@ -229,7 +229,7 @@ export default function CreateStorePage() {
                     </h2>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-0">
                   {plans.length ? (
                     <Tabs
                       value={planId}
@@ -289,9 +289,9 @@ export default function CreateStorePage() {
                     </div>
                   )}
                 </CardContent>
-              </Card>
-              <Card size="sm" className={styles.card}>
-                <CardHeader className="border-b">
+              </section>
+              <section className="space-y-3">
+                <CardHeader className="px-0">
                   <CardTitle>
                     <h2 className="flex items-center gap-2 text-base font-semibold">
                       <UserIcon
@@ -303,7 +303,7 @@ export default function CreateStorePage() {
                     </h2>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className={styles.fields}>
+                <CardContent className={`${styles.fields} px-0`}>
                   <div className="space-y-2">
                     <Label htmlFor="owner-name">Owner full name</Label>
                     <Input
@@ -383,7 +383,7 @@ export default function CreateStorePage() {
                     />
                   </div>
                 </CardContent>
-              </Card>
+              </section>
             </fieldset>
             <FormActions>
               <Button

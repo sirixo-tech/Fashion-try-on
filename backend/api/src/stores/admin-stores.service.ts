@@ -540,7 +540,16 @@ export class AdminStoresService {
   }
 
   async activateStore(storeId: string): Promise<AdminStoreResponseDto> {
-    await this.findStoreOrThrow(storeId);
+    const existing = await this.prisma.organization.findUnique({
+      where: { id: storeId },
+    });
+    if (!existing) {
+      throw new ApiErrorException(
+        HttpStatus.NOT_FOUND,
+        STORE_ERROR_CODES.storeNotFound,
+        "Store was not found.",
+      );
+    }
     const store = await this.updateWithMail(storeId, {
       status: OrganizationStatus.ACTIVE,
     });
@@ -1606,8 +1615,9 @@ function storeProductSelect(): Prisma.Sql {
 }
 
 function organizationStatusFilter(
-  status: AdminStoreStatus | undefined,
-): Prisma.EnumOrganizationStatusFilter | OrganizationStatus {
+  status: AdminStoreStatus | "ALL" | undefined,
+): Prisma.EnumOrganizationStatusFilter | OrganizationStatus | undefined {
+  if (status === "ALL") return undefined;
   if (status === AdminStoreStatus.ARCHIVED) return OrganizationStatus.ARCHIVED;
   if (status === AdminStoreStatus.ACTIVE) {
     return OrganizationStatus.ACTIVE;

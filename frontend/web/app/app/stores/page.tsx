@@ -174,11 +174,8 @@ export default function StoresPage() {
     setDeletingStoreId(storeId);
     setError(null);
     try {
-      const archived = await deleteStore(accessToken, storeId);
-      setStores((current) =>
-        current.filter((store) => store.id !== archived.id),
-      );
-      setTotal((current) => Math.max(0, current - 1));
+      await deleteStore(accessToken, storeId);
+      await load();
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -198,15 +195,7 @@ export default function StoresPage() {
         nextStatus === "ACTIVE"
           ? await activateStore(accessToken, store.id)
           : await deactivateStore(accessToken, store.id);
-      const keepInCurrentView = shouldShowStoreForStatus(updated, status);
-      setStores((current) =>
-        keepInCurrentView
-          ? current.map((item) => (item.id === updated.id ? updated : item))
-          : current.filter((item) => item.id !== updated.id),
-      );
-      if (!keepInCurrentView) {
-        setTotal((current) => Math.max(0, current - 1));
-      }
+      if (updated) await load();
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -352,7 +341,9 @@ export default function StoresPage() {
           ) : stores.length === 0 ? (
             <div className="flex items-center gap-3 rounded-lg border border-dashed bg-background p-8 text-muted-foreground">
               <StoreIcon size={20} aria-hidden="true" />
-              No Stores yet. Create your first merchant Store account.
+              {total === 0 && status === "ALL" && !search
+                ? "No Stores yet. Create your first merchant Store account."
+                : "No Stores match this search or status."}
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -365,7 +356,9 @@ export default function StoresPage() {
                   impersonating={impersonatingStoreId === store.id}
                   onDelete={() => void removeStore(store.id)}
                   onPermanentDelete={
-                    canPurge ? () => setPurgingStore(store) : undefined
+                    canPurge && store.status === "ARCHIVED"
+                      ? () => setPurgingStore(store)
+                      : undefined
                   }
                   onChangeStatus={() => void changeStoreStatus(store)}
                   onImpersonate={() => void impersonateStore(store)}
@@ -452,6 +445,7 @@ function StoreDirectoryCard({
   onManagePlan: () => void;
 }) {
   const active = store.status === "ACTIVE";
+  const archived = store.status === "ARCHIVED";
   const location = storeLocation(store);
   const ownerEmail = store.contactEmail ?? "No owner/contact email";
   const subscription = store.subscription;
@@ -535,96 +529,123 @@ function StoreDirectoryCard({
 
       <CardFooter className="justify-between gap-3">
         <span className="text-xs text-muted-foreground">Store account</span>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label={`Change plan for ${store.name}`}
-            title="Change plan"
-            onClick={onManagePlan}
-          >
-            <CreditCardIcon aria-hidden="true" />
-          </Button>
-
-          <ControlTooltip content="View Store">
-            <Link
-              href={`/app/stores/${store.id}`}
-              aria-label={`View ${store.name}`}
-              className={buttonVariants({
-                variant: "outline",
-                size: "icon-sm",
-              })}
-            >
-              <EyeIcon aria-hidden="true" />
-            </Link>
-          </ControlTooltip>
-
-          <ConfirmDialog
-            title={active ? "Suspend Store?" : "Reactivate Store?"}
-            description={
-              active
-                ? "The Store will remain in SelfX, but suspended Stores cannot receive new kiosk assignments."
-                : "The Store will become active again and can receive kiosk assignments."
-            }
-            confirmLabel={active ? "Suspend" : "Reactivate"}
-            destructive={active}
-            onConfirm={onChangeStatus}
-            trigger={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {archived ? (
+            <>
+              <ConfirmDialog
+                title="Reactivate Store?"
+                description="The Store will become active again. Archived integration connections stay disconnected and must be authorized again."
+                confirmLabel="Reactivate"
+                onConfirm={onChangeStatus}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={statusChanging}
+                  >
+                    <RefreshCwIcon aria-hidden="true" /> Reactivate
+                  </Button>
+                }
+              />
+              {onPermanentDelete ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={onPermanentDelete}
+                >
+                  Delete permanently
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <>
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                aria-label={active ? "Suspend Store" : "Reactivate Store"}
-                title={active ? "Suspend Store" : "Reactivate Store"}
-                disabled={statusChanging || store.status === "ARCHIVED"}
+                aria-label={`Change plan for ${store.name}`}
+                title="Change plan"
+                onClick={onManagePlan}
               >
-                {active ? (
-                  <BanIcon aria-hidden="true" />
-                ) : (
-                  <RefreshCwIcon aria-hidden="true" />
-                )}
+                <CreditCardIcon aria-hidden="true" />
               </Button>
-            }
-          />
 
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label="Impersonate Store owner"
-            title="Impersonate Store owner"
-            disabled={impersonating || store.status === "ARCHIVED"}
-            onClick={onImpersonate}
-          >
-            <UserCircleIcon aria-hidden="true" />
-          </Button>
+              <ControlTooltip content="View Store">
+                <Link
+                  href={`/app/stores/${store.id}`}
+                  aria-label={`View ${store.name}`}
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "icon-sm",
+                  })}
+                >
+                  <EyeIcon aria-hidden="true" />
+                </Link>
+              </ControlTooltip>
 
-          <ConfirmDialog
-            title="Archive Store?"
-            description="This removes the Store from normal Store management. Kiosk records, settings, products and audit history are retained for later review."
-            confirmLabel="Archive"
-            destructive
-            confirmVariant="default"
-            onConfirm={onDelete}
-            trigger={
+              <ConfirmDialog
+                title={active ? "Suspend Store?" : "Reactivate Store?"}
+                description={
+                  active
+                    ? "The Store will remain in SelfX, but suspended Stores cannot receive new kiosk assignments."
+                    : "The Store will become active again and can receive kiosk assignments."
+                }
+                confirmLabel={active ? "Suspend" : "Reactivate"}
+                destructive={active}
+                onConfirm={onChangeStatus}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label={active ? "Suspend Store" : "Reactivate Store"}
+                    title={active ? "Suspend Store" : "Reactivate Store"}
+                    disabled={statusChanging || store.status === "ARCHIVED"}
+                  >
+                    {active ? (
+                      <BanIcon aria-hidden="true" />
+                    ) : (
+                      <RefreshCwIcon aria-hidden="true" />
+                    )}
+                  </Button>
+                }
+              />
+
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                aria-label="Archive Store"
-                title="Archive Store"
-                disabled={deleting || store.status === "ARCHIVED"}
+                aria-label="Impersonate Store owner"
+                title="Impersonate Store owner"
+                disabled={impersonating || store.status === "ARCHIVED"}
+                onClick={onImpersonate}
               >
-                <Trash2Icon aria-hidden="true" />
+                <UserCircleIcon aria-hidden="true" />
               </Button>
-            }
-          />
-          {onPermanentDelete ? (
-            <Button variant="destructive" size="sm" onClick={onPermanentDelete}>
-              Delete permanently
-            </Button>
-          ) : null}
+
+              <ConfirmDialog
+                title="Archive Store?"
+                description="This removes the Store from normal Store management. Kiosk records, settings, products and audit history are retained for later review."
+                confirmLabel="Archive"
+                destructive
+                confirmVariant="default"
+                onConfirm={onDelete}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    aria-label="Archive Store"
+                    title="Archive Store"
+                    disabled={deleting || store.status === "ARCHIVED"}
+                  >
+                    <Trash2Icon aria-hidden="true" />
+                  </Button>
+                }
+              />
+            </>
+          )}
         </div>
       </CardFooter>
     </Card>
@@ -965,13 +986,6 @@ function storeLocation(store: AdminStore): string {
     [store.city, store.stateRegion, store.country].filter(Boolean).join(", ") ||
     "-"
   );
-}
-
-function shouldShowStoreForStatus(
-  store: AdminStore,
-  selectedStatus: StoreStatus | "ALL",
-): boolean {
-  return selectedStatus === "ALL" || store.status === selectedStatus;
 }
 
 function messageFor(caught: unknown): string {

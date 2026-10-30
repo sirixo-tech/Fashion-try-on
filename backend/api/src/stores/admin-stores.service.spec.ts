@@ -278,6 +278,7 @@ describe("STORE-1 admin Stores", () => {
 
     await service.listStores({});
     await service.listStores({ status: AdminStoreStatus.INACTIVE });
+    await service.listStores({ status: "ALL" });
 
     expect(prisma.organization.count).toHaveBeenNthCalledWith(1, {
       where: { status: { not: OrganizationStatus.ARCHIVED } },
@@ -289,6 +290,34 @@ describe("STORE-1 admin Stores", () => {
         },
       },
     });
+    expect(prisma.organization.count).toHaveBeenNthCalledWith(3, {
+      where: { status: undefined },
+    });
+  });
+
+  it("reactivates an archived Store without restoring its disconnected integrations", async () => {
+    const prisma = createPrismaMock();
+    const service = new AdminStoresService(
+      prisma as never,
+      createKioskMock() as never,
+      createRbacMock() as never,
+      createGarmentPreviewSettingsMock() as never,
+    );
+    prisma.organization.findUnique.mockResolvedValue(
+      organizationRecord({ status: OrganizationStatus.ARCHIVED }),
+    );
+    prisma.organization.update.mockResolvedValue(
+      organizationRecord({ status: OrganizationStatus.ACTIVE }),
+    );
+
+    const restored = await service.activateStore("store-1");
+
+    expect(restored.status).toBe(AdminStoreStatus.ACTIVE);
+    expect(prisma.organization.update).toHaveBeenCalledWith({
+      where: { id: "store-1" },
+      data: { status: OrganizationStatus.ACTIVE },
+    });
+    expect(prisma.integration.updateMany).not.toHaveBeenCalled();
   });
 
   it("rejects nested kiosk reads when the kiosk belongs to another Store", async () => {
