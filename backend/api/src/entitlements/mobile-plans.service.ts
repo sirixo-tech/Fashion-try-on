@@ -3,6 +3,7 @@ import { Prisma, PricingPlanStatus, type MobilePlan } from "@prisma/client";
 import { createSelfxId } from "@selfx/database";
 import { ApiErrorException } from "../common/api-error.exception.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { CUSTOMER_LANGUAGES } from "../customers/customer-languages.js";
 import {
   type CreateMobilePlanDto,
   type MobilePlanResponseDto,
@@ -42,6 +43,9 @@ export class MobilePlansService {
             code: input.code,
             name: input.name.trim(),
             description: input.description?.trim() ?? "",
+            descriptionTranslations: normalizeDescriptionTranslations(
+              input.descriptionTranslations,
+            ),
             status: input.status ?? PricingPlanStatus.INACTIVE,
             currency: input.currency,
             priceCents: effectivePrice,
@@ -107,6 +111,13 @@ export class MobilePlansService {
           ...(changes.description !== undefined
             ? { description: changes.description.trim() }
             : {}),
+          ...(changes.descriptionTranslations !== undefined
+            ? {
+                descriptionTranslations: normalizeDescriptionTranslations(
+                  changes.descriptionTranslations,
+                ),
+              }
+            : {}),
         },
       });
       await tx.auditLog.create({
@@ -131,6 +142,9 @@ function toDto(plan: MobilePlan): MobilePlanResponseDto {
     code: plan.code,
     name: plan.name,
     description: plan.description,
+    descriptionTranslations: readDescriptionTranslations(
+      plan.descriptionTranslations,
+    ),
     status: plan.status,
     currency: plan.currency,
     priceCents: plan.priceCents,
@@ -157,4 +171,45 @@ function assertPlanName(name: string): void {
       "Plan name must have at least two characters.",
     );
   }
+}
+
+function normalizeDescriptionTranslations(
+  value: unknown,
+): Record<string, string> {
+  if (value === undefined) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw invalidTranslations();
+  }
+  const result: Record<string, string> = {};
+  for (const [language, text] of Object.entries(value)) {
+    if (
+      language === "en" ||
+      !CUSTOMER_LANGUAGES.some((code) => code === language) ||
+      typeof text !== "string" ||
+      text.trim().length > 500
+    ) {
+      throw invalidTranslations();
+    }
+    if (text.trim()) result[language] = text.trim();
+  }
+  return result;
+}
+
+function readDescriptionTranslations(
+  value: Prisma.JsonValue,
+): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
+
+function invalidTranslations(): ApiErrorException {
+  return new ApiErrorException(
+    HttpStatus.BAD_REQUEST,
+    "MOBILE_PLAN_DESCRIPTION_TRANSLATIONS_INVALID",
+    "Plan descriptions must use supported languages and contain at most 500 characters each.",
+  );
 }

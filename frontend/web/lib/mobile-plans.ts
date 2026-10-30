@@ -8,6 +8,7 @@ export interface MobilePlan {
   code: string;
   name: string;
   description: string;
+  descriptionTranslations: Record<string, string>;
   status: MobilePlanStatus;
   currency: string;
   priceCents: number;

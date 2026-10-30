@@ -167,8 +167,8 @@ class CustomerResultSuggestions extends StatelessWidget {
                         padding: EdgeInsets.symmetric(
                           vertical: compact ? 3 : 6,
                         ),
-                        child: CustomerText(
-                          item['name'] as String? ?? 'Outfit',
+                        child: Text(
+                          item['name'] as String? ?? tr(context, 'Outfit'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,

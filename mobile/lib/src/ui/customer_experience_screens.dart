@@ -405,7 +405,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                       width: 210,
                       height: 210,
                       fit: BoxFit.contain,
-                      semanticLabel: 'Payment QR code',
+                      semanticLabel: tr(context, 'Payment QR code'),
                     ),
                     const SizedBox(height: 8),
                     const CustomerText(
@@ -946,10 +946,13 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                                         LengthLimitingTextInputFormatter(4),
                                       ],
                                       decoration: InputDecoration(
-                                        labelText: 'Credits',
+                                        labelText: tr(context, 'Credits'),
                                         border: const OutlineInputBorder(),
                                         prefixIcon: IconButton(
-                                          tooltip: 'Remove one credit',
+                                          tooltip: tr(
+                                            context,
+                                            'Remove one credit',
+                                          ),
                                           onPressed:
                                               validQuantity && quantity > 1
                                               ? () => adjustCustomCredits(-1)
@@ -957,7 +960,10 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                                           icon: const Icon(Icons.remove),
                                         ),
                                         suffixIcon: IconButton(
-                                          tooltip: 'Add one credit',
+                                          tooltip: tr(
+                                            context,
+                                            'Add one credit',
+                                          ),
                                           onPressed:
                                               validQuantity && quantity < 1000
                                               ? () => adjustCustomCredits(1)
@@ -1133,7 +1139,16 @@ class _PlanChoiceCard extends StatelessWidget {
     final price = intl.NumberFormat.simpleCurrency(
       name: plan['currency'] as String? ?? 'INR',
     ).format((plan['priceCents'] as num? ?? 0) / 100);
-    final description = plan['description'] as String? ?? '';
+    final language = CustomerCopy.of(context).language;
+    final translations = plan['descriptionTranslations'];
+    final translatedDescription = translations is Map
+        ? translations[language]
+        : null;
+    final description =
+        translatedDescription is String &&
+            translatedDescription.trim().isNotEmpty
+        ? translatedDescription
+        : plan['description'] as String? ?? '';
     final trialCredits = plan['trialCredits'] as num? ?? 0;
     return Semantics(
       button: true,
@@ -1170,12 +1185,12 @@ class _PlanChoiceCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CustomerText(
-                        plan['name'] as String? ?? 'Mobile plan',
+                      Text(
+                        plan['name'] as String? ?? tr(context, 'Mobile plan'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       if (description.isNotEmpty)
-                        CustomerText(
+                        Text(
                           description,
                           style: Theme.of(context).textTheme.bodySmall,
                           maxLines: 2,
@@ -1297,7 +1312,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                         fit: BoxFit.cover,
                       ),
                     ),
-                    title: CustomerText(item['name'] as String),
+                    title: Text(item['name'] as String),
                     onTap: () => Navigator.pop(context, item),
                   ),
           ],
@@ -1501,9 +1516,9 @@ class _CustomerStudioState extends State<CustomerStudio> {
                             const Icon(Icons.storefront_outlined),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: CustomerText(
+                              child: Text(
                                 exp.product?['name'] as String? ??
-                                    'Store product',
+                                    tr(context, 'Store product'),
                               ),
                             ),
                           ],
@@ -1536,7 +1551,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                                   ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: CustomerText(
+                                  child: Text(
                                     exp.demoProduct!['name'] as String,
                                     style: Theme.of(
                                       context,
@@ -2048,7 +2063,10 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                                   Align(
                                     alignment: Alignment.topRight,
                                     child: IconButton.filledTonal(
-                                      tooltip: 'Remove saved garment',
+                                      tooltip: tr(
+                                        context,
+                                        'Remove saved garment',
+                                      ),
                                       onPressed: () async {
                                         try {
                                           await exp.toggleSavedGarment(
@@ -2079,9 +2097,9 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                             ),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
-                              child: CustomerText(
+                              child: Text(
                                 product?['name'] as String? ??
-                                    'Unavailable garment',
+                                    tr(context, 'Unavailable garment'),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.center,

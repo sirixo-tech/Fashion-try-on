@@ -9,6 +9,7 @@ const plan = {
   code: "style-20",
   name: "Style 20",
   description: "Twenty personal looks",
+  descriptionTranslations: { te: "ఇరవై వ్యక్తిగత లుక్స్" },
   status: PricingPlanStatus.ACTIVE,
   currency: "INR",
   priceCents: 19900,
@@ -35,7 +36,9 @@ describe("mobile plan catalog", () => {
       mobilePlan: { findMany: vi.fn().mockResolvedValue([plan]) },
     };
     const service = new MobilePlansService(prisma as never);
-    expect((await service.listActive())[0]?.priceCents).toBe(19900);
+    const [active] = await service.listActive();
+    expect(active?.priceCents).toBe(19900);
+    expect(active?.descriptionTranslations.te).toBe("ఇరవై వ్యక్తిగత లుక్స్");
   });
   it("returns only active plans to customers without touching credit accounts", async () => {
     const prisma = {

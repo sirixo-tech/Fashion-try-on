@@ -2321,6 +2321,7 @@ model MobilePlan {
   code             String                  @unique @db.VarChar(80)
   name             String                  @db.VarChar(160)
   description      String                  @default("") @db.VarChar(500)
+  descriptionTranslations Json            @default("{}") @map("description_translations")
   status           PricingPlanStatus       @default(INACTIVE)
   currency         String                  @db.Char(3)
   priceCents       Int                     @map("price_cents")

@@ -40,10 +40,37 @@ import {
 } from "@/lib/mobile-plans";
 import { useSession } from "@/lib/session";
 
+const DESCRIPTION_LANGUAGES = [
+  "hi",
+  "ta",
+  "te",
+  "es",
+  "ar",
+  "kn",
+  "bn",
+  "mr",
+  "ml",
+  "gu",
+  "ur",
+  "fr",
+  "pt",
+  "de",
+  "zh",
+  "ja",
+  "ko",
+  "ru",
+  "id",
+].map((value) => ({
+  value,
+  label:
+    new Intl.DisplayNames([value], { type: "language" }).of(value) ?? value,
+}));
+
 type Draft = {
   code: string;
   name: string;
   description: string;
+  descriptionTranslations: Record<string, string>;
   status: MobilePlanStatus;
   currency: string;
   price: string;
@@ -55,6 +82,7 @@ const blank: Draft = {
   code: "",
   name: "",
   description: "",
+  descriptionTranslations: {},
   status: "INACTIVE",
   currency: "INR",
   price: "",
@@ -67,6 +95,7 @@ function fromPlan(plan: MobilePlan): Draft {
     code: plan.code,
     name: plan.name,
     description: plan.description,
+    descriptionTranslations: plan.descriptionTranslations ?? {},
     status: plan.status,
     currency: plan.currency,
     price: (plan.priceCents / 100).toFixed(2),
@@ -92,6 +121,11 @@ function toInput(draft: Draft): MobilePlanInput {
     code: draft.code.trim(),
     name: draft.name.trim(),
     description: draft.description.trim(),
+    descriptionTranslations: Object.fromEntries(
+      Object.entries(draft.descriptionTranslations)
+        .map(([language, text]) => [language, text.trim()] as const)
+        .filter((entry) => entry[1].length > 0),
+    ),
     status: draft.status,
     currency: draft.currency.trim(),
     priceCents: Math.round(Number(price) * 100),
@@ -106,6 +140,7 @@ export function MobilePlanEditor({ planId }: { planId?: string }) {
   const session = useSession();
   const token = session.status === "authenticated" ? session.accessToken : null;
   const [draft, setDraft] = useState<Draft>(blank);
+  const [translationLanguage, setTranslationLanguage] = useState("hi");
   const [loaded, setLoaded] = useState(false);
   const [canView, setCanView] = useState(false);
   const [canManage, setCanManage] = useState(false);
@@ -267,6 +302,55 @@ export function MobilePlanEditor({ planId }: { planId?: string }) {
                       }
                     />
                   </Field>
+                  <div className="sm:col-span-2">
+                    <details className="rounded-lg border p-4">
+                      <summary className="cursor-pointer font-medium">
+                        Translated descriptions
+                      </summary>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Add descriptions for languages used in the mobile app.
+                        The original description is shown when a translation is
+                        empty.
+                      </p>
+                      <div className="mt-4 grid gap-4">
+                        <Field
+                          id="mobile-plan-translation-language"
+                          label="Language"
+                        >
+                          <SelectMenu
+                            id="mobile-plan-translation-language"
+                            ariaLabel="Description language"
+                            value={translationLanguage}
+                            options={DESCRIPTION_LANGUAGES}
+                            onChange={setTranslationLanguage}
+                          />
+                        </Field>
+                        <Field
+                          id="mobile-plan-translation-description"
+                          label="Translated description"
+                        >
+                          <Textarea
+                            id="mobile-plan-translation-description"
+                            maxLength={500}
+                            value={
+                              draft.descriptionTranslations[
+                                translationLanguage
+                              ] ?? ""
+                            }
+                            onChange={(event) =>
+                              setDraft((current) => ({
+                                ...current,
+                                descriptionTranslations: {
+                                  ...current.descriptionTranslations,
+                                  [translationLanguage]: event.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </Field>
+                      </div>
+                    </details>
+                  </div>
                   <Field id="mobile-plan-status" label="Status">
                     <SelectMenu
                       id="mobile-plan-status"

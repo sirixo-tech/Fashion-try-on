@@ -4,6 +4,7 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsObject,
   IsString,
   Length,
   Matches,
@@ -29,6 +30,14 @@ export class CreateMobilePlanDto {
   @IsString()
   @Length(0, 500)
   description?: string;
+
+  @ApiPropertyOptional({
+    type: "object",
+    additionalProperties: { type: "string" },
+  })
+  @IsOptional()
+  @IsObject()
+  descriptionTranslations?: Record<string, string>;
 
   @ApiPropertyOptional({
     enum: PricingPlanStatus,
@@ -74,6 +83,8 @@ export class MobilePlanResponseDto {
   @ApiProperty() code!: string;
   @ApiProperty() name!: string;
   @ApiProperty() description!: string;
+  @ApiProperty({ type: "object", additionalProperties: { type: "string" } })
+  descriptionTranslations!: Record<string, string>;
   @ApiProperty({ enum: PricingPlanStatus }) status!: PricingPlanStatus;
   @ApiProperty() currency!: string;
   @ApiProperty() priceCents!: number;

@@ -151,7 +151,7 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                               horizontal: 3,
                               vertical: 4,
                             ),
-                            child: CustomerText(
+                            child: Text(
                               item['name'] as String,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -612,7 +612,7 @@ class _PreviewCard extends StatelessWidget {
                     alignment: Alignment.topRight,
                     child: IconButton.filledTonal(
                       onPressed: onRemove,
-                      tooltip: 'Remove from this Try-On',
+                      tooltip: tr(context, 'Remove from this Try-On'),
                       icon: const Icon(Icons.close_rounded, size: 18),
                       style: IconButton.styleFrom(
                         minimumSize: const Size(30, 30),

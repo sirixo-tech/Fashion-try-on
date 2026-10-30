@@ -135,9 +135,9 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
         TextField(
           controller: search,
           onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            hintText: 'Search outfits',
-            prefixIcon: Icon(Icons.search_rounded),
+          decoration: InputDecoration(
+            hintText: tr(context, 'Search outfits'),
+            prefixIcon: const Icon(Icons.search_rounded),
           ),
         ),
         const SizedBox(height: 12),
@@ -234,13 +234,15 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                                       Align(
                                         alignment: Alignment.topRight,
                                         child: IconButton.filledTonal(
-                                          tooltip:
-                                              exp.isGarmentSaved(
-                                                'DEMO',
-                                                product['id'] as String,
-                                              )
-                                              ? 'Remove from saved garments'
-                                              : 'Save garment',
+                                          tooltip: tr(
+                                            context,
+                                            exp.isGarmentSaved(
+                                                  'DEMO',
+                                                  product['id'] as String,
+                                                )
+                                                ? 'Remove from saved garments'
+                                                : 'Save garment',
+                                          ),
                                           onPressed: () => toggleSaved(
                                             product['id'] as String,
                                           ),
@@ -264,7 +266,7 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                                     8,
                                     8,
                                   ),
-                                  child: CustomerText(
+                                  child: Text(
                                     product['name'] as String,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
@@ -345,13 +347,15 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
           ListenableBuilder(
             listenable: widget.experience,
             builder: (context, _) => IconButton(
-              tooltip:
-                  widget.experience.isGarmentSaved(
-                    'DEMO',
-                    widget.product['id'] as String,
-                  )
-                  ? 'Remove from saved garments'
-                  : 'Save garment',
+              tooltip: tr(
+                context,
+                widget.experience.isGarmentSaved(
+                      'DEMO',
+                      widget.product['id'] as String,
+                    )
+                    ? 'Remove from saved garments'
+                    : 'Save garment',
+              ),
               onPressed: () async {
                 try {
                   await widget.experience.toggleSavedGarment(
@@ -394,7 +398,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
               ),
             ),
           const SizedBox(height: 10),
-          CustomerText(
+          Text(
             widget.product['name'] as String,
             style: Theme.of(context).textTheme.titleLarge,
           ),
@@ -456,7 +460,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
                         ),
                         Padding(
                           padding: const EdgeInsets.all(7),
-                          child: CustomerText(
+                          child: Text(
                             model['name'] as String,
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,

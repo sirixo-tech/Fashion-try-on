@@ -86,6 +86,28 @@ void main() {
       }
     }
   });
+  test(
+    'new Home, Try-On and payment copy changes with the selected language',
+    () {
+      final telugu = CustomerCopy('te', catalog('te'));
+      for (final source in [
+        'Explore outfits',
+        'A starter collection for your first Try-On.',
+        'Search outfits',
+        'All',
+        'Try-On',
+        'Choose a model',
+        'Go Premium',
+        'Payment options',
+      ]) {
+        expect(telugu.text(source), catalog('te')[source]);
+        expect(telugu.text(source), isNot(source));
+      }
+      expect(telugu.text('Time left  04:52'), contains('04:52'));
+      expect(telugu.text('4 trial · 10 paid'), contains('10'));
+      expect(telugu.text('4 trial · 10 paid'), isNot('4 trial · 10 paid'));
+    },
+  );
   test('localized keyboard digits normalize to API-safe codes', () {
     const formatter = CustomerCodeFormatter();
     for (final value in [
