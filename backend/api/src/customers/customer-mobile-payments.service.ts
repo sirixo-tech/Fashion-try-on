@@ -26,6 +26,7 @@ import {
 } from "../payments/phonepe-mobile-checkout.js";
 
 const connectionId = "PHONEPE";
+const mobilePaymentReconciliationGraceMs = 5 * 60 * 1000;
 type MobileDqrCredentials = PhonePeDqrCredentials & { mode: "DQR" };
 type SavedCredentials = MobileDqrCredentials | MobilePhonePeCredentials;
 function isDqr(value: SavedCredentials): value is MobileDqrCredentials {
@@ -55,6 +56,9 @@ function publicPurchase(row: {
     billingPeriod: row.billingPeriod,
     checkoutUrl: row.checkoutUrl,
     expiresAt: row.expiresAt.toISOString(),
+    retryAvailableAt: new Date(
+      row.expiresAt.getTime() + mobilePaymentReconciliationGraceMs,
+    ).toISOString(),
   };
 }
 
@@ -224,7 +228,9 @@ export class CustomerMobilePaymentsService
         where: {
           customerId,
           status: { in: ["INITIALIZING", "INITIATING", "PENDING", "UNKNOWN"] },
-          expiresAt: { gt: new Date(Date.now() - 5 * 60000) },
+          expiresAt: {
+            gt: new Date(Date.now() - mobilePaymentReconciliationGraceMs),
+          },
         },
       });
       if (open)

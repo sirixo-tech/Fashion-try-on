@@ -1,5 +1,25 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-24 — Payment countdown and safe leave (2026-10-30)
+
+The UPI payment sheet shows a live countdown from the server's checkout expiry.
+When time ends, the QR, share actions and payment launch stop. Back and Leave
+payment open a confirmation sheet with Continue payment and Leave payment.
+Leaving checks provider status and returns to Plans & credits; it does not
+claim to cancel a provider payment. A late confirmed payment still grants
+credits. A new attempt checks status first and becomes available after the
+server's reconciliation grace period, while a provider-confirmed failure can
+be retried immediately.
+
+### CUSTOMER-MOBILE-23 — UPI payment sheet (2026-10-30)
+
+The mobile purchase dialog titles UPI checkouts "UPI payment" and shows the
+server-generated amount and QR immediately. On Android, Share QR and Share
+payment link sit side by side below the QR, followed by the primary Pay through
+UPI action and a secondary Later action. If QR retrieval fails, UPI app payment
+remains available. The existing provider-confirmed credit grant and pending
+payment checks remain unchanged.
+
 ### CUSTOMER-MOBILE-22 — Compact plan selection (2026-10-29)
 
 The customer Plans & credits screen starts with a compact personal-credit balance. Monthly and One-time tabs show selectable Mobile plan cards with one Continue action for the selected plan. Monthly copy states that credits expire after a month and another payment is required; it must not imply automatic renewal. Custom quantity credit buying remains available below the plans, and pending payment/status controls remain accessible. This changes presentation only; checkout still uses the existing backend-verified purchase flow.
