@@ -66,6 +66,39 @@ void main() {
   });
 
   test(
+    'sends bodyless payment cancellation without JSON content type',
+    () async {
+      final client = MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/v1/customer/mobile-payments/id/cancel');
+        expect(request.bodyBytes, isEmpty);
+        expect(request.headers.containsKey('content-type'), isFalse);
+        return http.Response('{"status":"CANCELLED"}', 200);
+      });
+      addTearDown(client.close);
+      final api = HttpCustomerApi('https://selfx.invalid', client: client);
+      expect(await api.request('/mobile-payments/id/cancel', method: 'POST'), {
+        'status': 'CANCELLED',
+      });
+    },
+  );
+
+  test('keeps JSON content type for requests with a body', () async {
+    final client = MockClient((request) async {
+      expect(request.headers['content-type'], 'application/json');
+      expect(request.body, '{"requestId":"retry"}');
+      return http.Response('{}', 200);
+    });
+    addTearDown(client.close);
+    final api = HttpCustomerApi('https://selfx.invalid', client: client);
+    await api.request(
+      '/mobile-payments',
+      method: 'POST',
+      body: {'requestId': 'retry'},
+    );
+  });
+
+  test(
     'prefers an explicit override without reading the bundled asset',
     () async {
       final bundle = _ConfigBundle('not JSON');

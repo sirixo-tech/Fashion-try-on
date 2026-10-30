@@ -241,7 +241,7 @@ class HttpCustomerApi implements CustomerApi, CustomerMediaApi {
       request.followRedirects = false;
       request.headers.addAll({
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        if (body != null) 'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
       });
       if (body != null) request.body = jsonEncode(body);

@@ -253,6 +253,7 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
         if (!mounted || current == null) return;
         if (current['status'] != 'FAILED' &&
             current['status'] != 'PAID' &&
+            current['status'] != 'CANCELLED' &&
             !retryReady) {
           setState(
             () => paymentError =
@@ -641,36 +642,26 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
         ].contains(next['status'])) {
           if (dialogContext.mounted) closePaymentDialog(dialogContext);
         } else {
-          ScaffoldMessenger.of(dialogContext).showSnackBar(
-            const SnackBar(
-              content: CustomerText(
-                'Payment is still being confirmed. Please check its status before retrying.',
-              ),
-            ),
+          setState(
+            () => paymentError =
+                'Payment is still being confirmed. Check its status before retrying.',
           );
+          closePaymentDialog(dialogContext);
         }
       } catch (_) {
         final next = await checkPayment();
         if (!dialogContext.mounted) return;
-        if (next != null &&
-            ['PAID', 'FAILED', 'CANCELLED'].contains(next['status'])) {
-          closePaymentDialog(dialogContext);
-        } else if (purchase?['checkoutUrl'] is String &&
-            !((purchase!['checkoutUrl'] as String).startsWith('upi:'))) {
+        if (next == null ||
+            !['PAID', 'FAILED', 'CANCELLED'].contains(next['status'])) {
           setState(
             () => paymentError =
-                'This older payment could not be cancelled. Check its status before retrying.',
-          );
-          closePaymentDialog(dialogContext);
-        } else {
-          ScaffoldMessenger.of(dialogContext).showSnackBar(
-            const SnackBar(
-              content: CustomerText(
-                'Cancellation was not confirmed. This payment remains pending.',
-              ),
-            ),
+                purchase?['checkoutUrl'] is String &&
+                    !((purchase!['checkoutUrl'] as String).startsWith('upi:'))
+                ? 'This older payment could not be cancelled. Check its status before retrying.'
+                : 'Cancellation was not confirmed. This payment remains pending. Check its status before retrying.',
           );
         }
+        closePaymentDialog(dialogContext);
       } finally {
         cancellingPayment = false;
         if (mounted) paymentNow.value = DateTime.now();
