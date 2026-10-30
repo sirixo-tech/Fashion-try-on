@@ -280,7 +280,7 @@ export default function BillingPage() {
               ariaLabel="Date range"
               value={range}
               options={ranges}
-              className="h-11"
+              className="h-10"
               onChange={setRange}
             />
           </label>
@@ -300,14 +300,14 @@ export default function BillingPage() {
                     label: store.name,
                   })),
                 ]}
-                className="h-11"
+                className="h-10"
                 onChange={setStoreId}
               />
             </label>
           ) : (
             <div className="grid gap-2 text-sm font-medium">
               SelfX account
-              <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
+              <div className="flex h-10 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
                 {billingStore?.name ?? currentStore?.name ?? "Your Store"}
               </div>
             </div>

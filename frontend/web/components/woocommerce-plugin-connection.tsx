@@ -220,7 +220,7 @@ export function WooCommercePluginConnection({
               ) : null}
               {canManage && integration.status === "ACTIVE" ? (
                 <div className="my-4 flex flex-wrap items-end gap-3">
-                  <label className="space-y-2 text-sm">
+                  <label className="flex flex-col gap-2 text-sm">
                     <span>Token name</span>
                     <Input
                       value={name}
@@ -243,7 +243,7 @@ export function WooCommercePluginConnection({
                     Copy this token into WordPress now. It is shown only once;
                     after closing it, generate a replacement if needed.
                   </p>
-                  <label className="block space-y-2 text-sm">
+                  <label className="flex flex-col gap-2 text-sm">
                     <span>New WooCommerce token</span>
                     <Textarea
                       readOnly

@@ -334,7 +334,7 @@ export default function SettingsPage() {
           ) : loginSettings ? (
             <div className="space-y-5">
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
-                <label className="space-y-2 text-sm">
+                <label className="flex flex-col gap-2 text-sm">
                   <span>Media URL</span>
                   <Input
                     value={loginSettings.mediaUrl}
@@ -345,7 +345,7 @@ export default function SettingsPage() {
                     }
                   />
                 </label>
-                <div className="space-y-2 text-sm">
+                <div className="flex flex-col gap-2 text-sm">
                   <Label>Media Type</Label>
                   <ProductSelectMenu
                     ariaLabel="Select login page media type"
@@ -355,7 +355,7 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              <label className="space-y-2 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span>Video Poster URL</span>
                 <Input
                   value={loginSettings.mediaPosterUrl ?? ""}
@@ -385,7 +385,7 @@ export default function SettingsPage() {
                 </span>
               </label>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
-                <label className="space-y-2 text-sm">
+                <label className="flex flex-col gap-2 text-sm">
                   <span>Eyebrow</span>
                   <Input
                     value={loginSettings.eyebrow}
@@ -395,7 +395,7 @@ export default function SettingsPage() {
                     }
                   />
                 </label>
-                <label className="space-y-2 text-sm">
+                <label className="flex flex-col gap-2 text-sm">
                   <span>Headline</span>
                   <Input
                     value={loginSettings.headline}
@@ -406,7 +406,7 @@ export default function SettingsPage() {
                   />
                 </label>
               </div>
-              <label className="space-y-2 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span>Body</span>
                 <Textarea
                   value={loginSettings.body}
@@ -456,7 +456,7 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </div>
-              <label className="space-y-2 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span>Bullets</span>
                 <Textarea
                   value={loginSettings.bullets.join("\n")}

@@ -401,7 +401,14 @@ export default function StoreDashboardPage() {
       </PageSection>
 
       {store?.id === storeId && accessToken && can("integrations.view") ? (
-        <PageSection><StoreMobileQr key={storeId} accessToken={accessToken} storeId={storeId} canManage={can("integrations.manage")} /></PageSection>
+        <PageSection>
+          <StoreMobileQr
+            key={storeId}
+            accessToken={accessToken}
+            storeId={storeId}
+            canManage={can("integrations.manage")}
+          />
+        </PageSection>
       ) : null}
       {store?.id === storeId && accessToken && canViewUsage ? (
         <StoreTryOnUsage
@@ -1019,7 +1026,7 @@ function StoreKioskConfigurationDialog({
               label="Presentation Assets"
               value={String(configuration.display.assets.length)}
             />
-            <label className="space-y-2 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span>Display Title</span>
               <Input
                 value={title}
@@ -1027,7 +1034,7 @@ function StoreKioskConfigurationDialog({
                 onChange={(event) => setTitle(event.target.value)}
               />
             </label>
-            <label className="space-y-2 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span>CTA Label</span>
               <Input
                 value={ctaLabel}
@@ -1406,7 +1413,7 @@ function PairStoreKioskDialog({
           </div>
         ) : null}
         <div className="space-y-4">
-          <label className="space-y-2 text-sm">
+          <label className="flex flex-col gap-2 text-sm">
             <span>Pairing Code</span>
             <Input
               value={pairingCode}
@@ -1416,7 +1423,7 @@ function PairStoreKioskDialog({
               onChange={(event) => setPairingCode(event.target.value)}
             />
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="flex flex-col gap-2 text-sm">
             <span>Device Name</span>
             <Input
               value={displayName}
@@ -1506,7 +1513,7 @@ function EditStoreDialog({
           </div>
         ) : null}
         <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-          <label className="space-y-2 text-sm">
+          <label className="flex flex-col gap-2 text-sm">
             <span>Store Name *</span>
             <Input
               value={name}
@@ -1515,7 +1522,7 @@ function EditStoreDialog({
               onChange={(event) => setName(event.target.value)}
             />
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="flex flex-col gap-2 text-sm">
             <span>Contact Email</span>
             <Input
               value={contactEmail}
@@ -1524,7 +1531,7 @@ function EditStoreDialog({
               onChange={(event) => setContactEmail(event.target.value)}
             />
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="flex flex-col gap-2 text-sm">
             <span>Contact Phone</span>
             <Input
               value={contactPhone}
@@ -1533,7 +1540,7 @@ function EditStoreDialog({
               onChange={(event) => setContactPhone(event.target.value)}
             />
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="flex flex-col gap-2 text-sm">
             <span>Website</span>
             <Input
               value={website}

@@ -556,7 +556,7 @@ export default function DeveloperPage() {
           >
             <div className="space-y-4">
               {hasPlatformDeveloperAccess ? (
-                <label className="space-y-2 text-sm">
+                <label className="flex flex-col gap-2 text-sm">
                   <span className="font-medium">Store</span>
                   <SelectMenu
                     ariaLabel="Store"
@@ -572,14 +572,14 @@ export default function DeveloperPage() {
                   />
                 </label>
               ) : (
-                <div className="space-y-2 text-sm">
+                <div className="flex flex-col gap-2 text-sm">
                   <span className="font-medium">SelfX account</span>
                   <div className="flex h-10 items-center rounded-md border bg-muted/25 px-3">
                     {selectedStoreName || "Your Store"}
                   </div>
                 </div>
               )}
-              <label className="space-y-2 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span className="font-medium">Usage range</span>
                 <SelectMenu
                   ariaLabel="Usage range"
@@ -593,7 +593,7 @@ export default function DeveloperPage() {
                   onChange={setUsageRange}
                 />
               </label>
-              <label className="space-y-2 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span className="font-medium">Catalog source</span>
                 <SelectMenu
                   ariaLabel="Catalog source"
@@ -605,7 +605,7 @@ export default function DeveloperPage() {
                   onChange={setUsageCatalogSource}
                 />
               </label>
-              <label className="space-y-2 text-sm">
+              <label className="flex flex-col gap-2 text-sm">
                 <span className="font-medium">Product search</span>
                 <Input
                   value={usageProductQuery}
@@ -1040,7 +1040,7 @@ export default function DeveloperPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <label className="space-y-2 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span>Name</span>
               <Input
                 value={draft.name}
@@ -1054,7 +1054,7 @@ export default function DeveloperPage() {
                 }
               />
             </label>
-            <div className="space-y-2 text-sm">
+            <div className="flex flex-col gap-2 text-sm">
               <Label>Environment</Label>
               <div className="grid grid-cols-2 gap-2">
                 {(["TEST", "LIVE"] as const).map((environment) => (
@@ -1073,7 +1073,7 @@ export default function DeveloperPage() {
                 ))}
               </div>
             </div>
-            <div className="space-y-2 text-sm">
+            <div className="flex flex-col gap-2 text-sm">
               <Label>Scopes</Label>
               <div className="grid gap-2">
                 {apiKeyScopes.map((scope) => (
@@ -1125,7 +1125,7 @@ export default function DeveloperPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <label className="space-y-2 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span>Endpoint URL</span>
               <Input
                 value={webhookDraft.url}
@@ -1139,7 +1139,7 @@ export default function DeveloperPage() {
                 }
               />
             </label>
-            <div className="space-y-2 text-sm">
+            <div className="flex flex-col gap-2 text-sm">
               <Label>Events</Label>
               <div className="grid gap-2">
                 {webhookEvents.map((event) => (

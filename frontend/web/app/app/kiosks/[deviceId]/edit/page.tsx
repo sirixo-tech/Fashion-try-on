@@ -371,7 +371,7 @@ export default function KioskEditPage() {
                     Kiosk Details
                   </legend>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2 text-sm">
+                    <div className="flex flex-col gap-2 text-sm">
                       <Label htmlFor="configure-kiosk-name">Kiosk Name</Label>
                       <Input
                         id="configure-kiosk-name"
@@ -381,7 +381,7 @@ export default function KioskEditPage() {
                         onChange={(event) => setDisplayName(event.target.value)}
                       />
                     </div>
-                    <div className="space-y-2 text-sm">
+                    <div className="flex flex-col gap-2 text-sm">
                       <Label>Store</Label>
                       <p className="text-sm">
                         {currentStoreName ?? "Current Store"}
@@ -395,7 +395,7 @@ export default function KioskEditPage() {
                     Display
                   </legend>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2 text-sm">
+                    <div className="flex flex-col gap-2 text-sm">
                       <Label>Idle Mode</Label>
                       <SelectMenu
                         ariaLabel="Idle mode"
@@ -412,7 +412,7 @@ export default function KioskEditPage() {
                         }
                       />
                     </div>
-                    <label className="space-y-2 text-sm">
+                    <label className="flex flex-col gap-2 text-sm">
                       <span>Slide Duration</span>
                       <Input
                         type="number"
@@ -429,7 +429,7 @@ export default function KioskEditPage() {
                     </label>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="space-y-2 text-sm">
+                    <label className="flex flex-col gap-2 text-sm">
                       <span>Title</span>
                       <Input
                         value={form.title}
@@ -442,7 +442,7 @@ export default function KioskEditPage() {
                         }
                       />
                     </label>
-                    <label className="space-y-2 text-sm">
+                    <label className="flex flex-col gap-2 text-sm">
                       <span>CTA Label</span>
                       <Input
                         value={form.ctaLabel}
@@ -456,7 +456,7 @@ export default function KioskEditPage() {
                       />
                     </label>
                   </div>
-                  <label className="space-y-2 text-sm">
+                  <label className="flex flex-col gap-2 text-sm">
                     <span>Subtitle</span>
                     <Input
                       value={form.subtitle}
@@ -476,7 +476,7 @@ export default function KioskEditPage() {
                     Capture
                   </legend>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2 text-sm">
+                    <div className="flex flex-col gap-2 text-sm">
                       <Label>Countdown</Label>
                       <SelectMenu
                         ariaLabel="Countdown"
@@ -494,7 +494,7 @@ export default function KioskEditPage() {
                         }
                       />
                     </div>
-                    <div className="space-y-2 text-sm">
+                    <div className="flex flex-col gap-2 text-sm">
                       <Label>Sound Profile</Label>
                       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                         <SelectMenu
@@ -598,7 +598,7 @@ export default function KioskEditPage() {
                       </span>
                     </span>
                   </label>
-                  <label className="space-y-2 text-sm">
+                  <label className="flex flex-col gap-2 text-sm">
                     <span>Max Try-On Picks</span>
                     <Input
                       type="number"
@@ -616,7 +616,7 @@ export default function KioskEditPage() {
                       Limits how many garments customers can keep in My Picks.
                     </span>
                   </label>
-                  <label className="space-y-2 text-sm">
+                  <label className="flex flex-col gap-2 text-sm">
                     <span>Session Idle Timeout</span>
                     <Input
                       type="number"

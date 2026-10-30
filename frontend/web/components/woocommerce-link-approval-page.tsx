@@ -100,7 +100,7 @@ export function WooCommerceLinkApprovalPage({ linkToken }: { linkToken: string }
             <div className="space-y-3 text-sm"><p>Approved for {details.storeName}.</p><Button onClick={() => { window.location.href = details.adminUrl; }}>Return to WooCommerce</Button></div>
           ) : stores.length ? (
             <>
-              <label className="block space-y-2 text-sm">SelfX Store
+              <label className="flex flex-col gap-2 text-sm">SelfX Store
                 <SelectMenu ariaLabel="SelfX Store" value={storeId} options={stores.map((store) => ({ value: store.id, label: store.name }))} onChange={setStoreId} />
               </label>
               <p className="text-sm text-muted-foreground">WooCommerce keeps control of products, prices, inventory, cart and checkout. SelfX imports products for Try-On.</p>

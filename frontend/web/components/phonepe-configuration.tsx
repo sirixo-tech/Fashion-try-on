@@ -177,7 +177,7 @@ export function PhonePeConfigurationForm({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <div className="space-y-5 [&_input]:h-11">
+          <div className="space-y-5">
             <div className="min-w-0 space-y-2">
               <Label htmlFor="phonepe-environment">Account environment</Label>
               <SelectMenu

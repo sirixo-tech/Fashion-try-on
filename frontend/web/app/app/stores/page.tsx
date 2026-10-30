@@ -285,7 +285,7 @@ export default function StoresPage() {
           </div>
 
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end">
-            <label className="flex-1 space-y-2 text-sm">
+            <label className="flex flex-1 flex-col gap-2 text-sm">
               <span className="font-medium">Search</span>
               <div className="relative">
                 <SearchIcon
@@ -304,7 +304,7 @@ export default function StoresPage() {
                 />
               </div>
             </label>
-            <label className="space-y-2 text-sm">
+            <label className="flex flex-col gap-2 text-sm">
               <span className="font-medium">Status</span>
               <SelectMenu
                 ariaLabel="Status"
@@ -700,7 +700,7 @@ function PermanentStoreDialog({
             {error}
           </p>
         ) : null}
-        <label className="space-y-2">
+        <label className="flex flex-col gap-2">
           Type {store.name} to confirm
           <Input
             aria-label="Confirm Store name"
@@ -841,7 +841,7 @@ function StorePlanDialog({
             />
           </div>
 
-          <label className="space-y-2 text-sm">
+          <label className="flex flex-col gap-2 text-sm">
             <span className="font-medium">Plan</span>
             <SelectMenu
               ariaLabel="Plan"

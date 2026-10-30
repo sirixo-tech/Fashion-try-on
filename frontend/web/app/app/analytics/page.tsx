@@ -182,7 +182,7 @@ export default function AnalyticsPage() {
               ariaLabel="Date range"
               value={range}
               options={ranges}
-              className="h-11"
+              className="h-10"
               onChange={setRange}
             />
           </label>
@@ -192,13 +192,13 @@ export default function AnalyticsPage() {
               ariaLabel="Channel"
               value={channel}
               options={channels}
-              className="h-11"
+              className="h-10"
               onChange={setChannel}
             />
           </label>
           <div className="grid gap-2 text-sm font-medium">
             SelfX account
-            <div className="flex h-11 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
+            <div className="flex h-10 items-center rounded-md border bg-muted/25 px-3 text-sm font-normal">
               {selectedStoreName ?? "Your Store"}
             </div>
           </div>
@@ -483,7 +483,11 @@ function sourceLabel(value: string): string {
 }
 
 function channelName(value: UsageChannelFilter): string {
-  return value === "MOBILE" ? "Mobile Store QR" : value === "PUBLIC_API" ? "Public API" : "Kiosk";
+  return value === "MOBILE"
+    ? "Mobile Store QR"
+    : value === "PUBLIC_API"
+      ? "Public API"
+      : "Kiosk";
 }
 
 function displayNumber(value: number | null | undefined): string {

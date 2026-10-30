@@ -116,7 +116,7 @@ export function StoreTryOnUsage({
                   ]
                 : []),
             ]}
-            className="h-9 w-[190px]"
+            className="w-[190px]"
           />
           <Button
             variant="outline"

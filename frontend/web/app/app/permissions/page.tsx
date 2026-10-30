@@ -144,7 +144,7 @@ export default function PermissionsPage() {
               <SelectMenu
                 ariaLabel="Permission module filter"
                 value={moduleFilter}
-                className="h-8 min-w-36 rounded-lg px-2.5 py-1 text-sm"
+                className="min-w-36"
                 options={[
                   { value: "all", label: "All modules" },
                   ...modules.map((module) => ({
@@ -157,7 +157,7 @@ export default function PermissionsPage() {
               <SelectMenu
                 ariaLabel="Permission action filter"
                 value={actionFilter}
-                className="h-8 min-w-36 rounded-lg px-2.5 py-1 text-sm"
+                className="min-w-36"
                 options={[
                   { value: "all", label: "All actions" },
                   ...actions.map((action) => ({

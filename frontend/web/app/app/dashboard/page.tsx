@@ -104,7 +104,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <div className="flex max-w-full items-center rounded-md border bg-card">
+          <div className="flex max-w-full items-center rounded-lg border border-input bg-background">
             <CalendarDaysIcon
               className="ml-3 size-4 shrink-0 text-muted-foreground"
               aria-hidden="true"

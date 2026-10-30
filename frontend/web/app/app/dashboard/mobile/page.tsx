@@ -68,7 +68,7 @@ export default function MobileDashboardPage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <div className="flex items-center rounded-md border bg-card">
+          <div className="flex items-center rounded-lg border border-input bg-background">
             <CalendarDaysIcon
               className="ml-3 size-4 text-muted-foreground"
               aria-hidden="true"

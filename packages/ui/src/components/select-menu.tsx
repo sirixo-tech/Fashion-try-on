@@ -57,7 +57,7 @@ export function SelectMenu<T extends string>({
         aria-label={ariaLabel}
         className={cn(
           buttonVariants({ variant: "outline" }),
-          "w-full justify-between bg-background font-normal",
+          "h-10 w-full justify-between rounded-lg border-input bg-background px-3 font-normal text-base md:text-sm",
           className,
         )}
       >
