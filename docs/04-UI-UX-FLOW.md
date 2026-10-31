@@ -1,5 +1,21 @@
 ## Document Evolution
 
+### Customer mobile Plans editorial gallery (2026-10-31)
+
+Plans & credits begins with three bundled, rotating fashion images that
+suggest browsing garments and exploring new looks. A short SelfX style caption
+sits beneath each image. These are editorial visuals, not customer Try-On
+results or testimonials. The personal balance and existing plan, custom credit,
+payment and cancellation controls follow unchanged. Monthly plans remain manual
+renewals; the page must not imply an automatic subscription.
+
+### Customer mobile Back navigation and app name (2026-10-31)
+
+The Android launcher and task title use SelfX Tryon. Back from a non-Home tab
+or signed-in page returns to Home; Back from Home can exit the app. An open
+dialog or sheet handles Back first, including the payment cancellation
+confirmation. Account setup and authentication retain their own Back flows.
+
 ### CUSTOMER-MOBILE-25 — Leave payment cancellation (2026-10-30)
 
 The existing Leave payment confirmation calls the customer-scoped cancellation

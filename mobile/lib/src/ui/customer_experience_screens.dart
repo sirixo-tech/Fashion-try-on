@@ -15,6 +15,7 @@ import 'customer_skeleton.dart';
 import 'customer_demo_catalog.dart';
 import 'customer_generating_look.dart';
 import 'customer_result_suggestions.dart';
+import 'customer_home_back.dart';
 
 Future<void> openCustomerStudio(
   BuildContext context,
@@ -737,7 +738,10 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('Plans & credits')),
+    appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
+      title: const CustomerText('Plans & credits'),
+    ),
     backgroundColor: Colors.white,
     body: ListenableBuilder(
       listenable: Listenable.merge([widget.experience, paymentNow]),
@@ -750,6 +754,8 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             children: [
+              const _PlansEditorialGallery(),
+              const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -1081,6 +1087,129 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
   );
 }
 
+class _PlansEditorialGallery extends StatefulWidget {
+  const _PlansEditorialGallery();
+
+  @override
+  State<_PlansEditorialGallery> createState() => _PlansEditorialGalleryState();
+}
+
+class _PlansEditorialGalleryState extends State<_PlansEditorialGallery> {
+  static const _images = [
+    'assets/editorial/plans-editorial-women-v1.webp',
+    'assets/editorial/plans-editorial-men-v1.webp',
+    'assets/editorial/plans-editorial-style-v1.webp',
+  ];
+  static const _captions = [
+    'A little more possibility.',
+    'Your style. Your space.',
+    'Explore outfits',
+  ];
+  static const _descriptions = [
+    'More Try-Ons. More styles. More you.',
+    'Create your own space to explore, try and save.',
+    'A starter collection for your first Try-On.',
+  ];
+
+  final PageController _controller = PageController();
+  Timer? _rotation;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotation = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted ||
+          !_controller.hasClients ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      _controller.animateToPage(
+        (_index + 1) % _images.length,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _rotation?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: SizedBox(
+          height: 220,
+          width: double.infinity,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: _images.length,
+            onPageChanged: (index) => setState(() => _index = index),
+            itemBuilder: (context, index) => Image.asset(
+              _images[index],
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              excludeFromSemantics: true,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.format_quote_rounded,
+            color: CustomerColors.orange,
+            size: 30,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CustomerText(
+                  _captions[_index],
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                CustomerText(
+                  _descriptions[_index],
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(
+          _images.length,
+          (index) => AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: index == _index ? 20 : 7,
+            height: 7,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: index == _index
+                  ? CustomerColors.orange
+                  : CustomerColors.line,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
 class _PlanPeriodTab extends StatelessWidget {
   final String label;
   final bool selected;
@@ -1330,7 +1459,10 @@ class _CustomerStudioState extends State<CustomerStudio> {
     builder: (context, _) {
       final result = exp.run?['result'];
       return Scaffold(
-        appBar: AppBar(title: const CustomerText('Your fitting room')),
+        appBar: AppBar(
+          leading: const CustomerHomeBackButton(),
+          title: const CustomerText('Your fitting room'),
+        ),
         body: exp.generating
             ? Padding(
                 padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
@@ -2314,6 +2446,7 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
       title: Text(
         widget.look.nameIsDefault ? tr(context, 'Your look') : widget.look.name,
       ),
@@ -2656,7 +2789,10 @@ class _CustomerStoreScannerState extends State<CustomerStoreScanner>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('Visit a Store')),
+    appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
+      title: const CustomerText('Visit a Store'),
+    ),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [

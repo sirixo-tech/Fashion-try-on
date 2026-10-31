@@ -10,6 +10,7 @@ import 'customer_quick_tryon.dart';
 import 'customer_language_menu.dart';
 import '../services/customer_profile_photo.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
@@ -20,11 +21,18 @@ import 'customer_theme.dart';
 import 'customer_skeleton.dart';
 import '../l10n/customer_language.dart';
 import '../l10n/customer_language_screen.dart';
+import 'customer_home_back.dart';
 
 class CustomerShell extends StatefulWidget {
   final CustomerController controller;
   final CustomerPhotoPicker? picker;
-  const CustomerShell({super.key, required this.controller, this.picker});
+  final ValueListenable<int> homeRequests;
+  const CustomerShell({
+    super.key,
+    required this.controller,
+    required this.homeRequests,
+    this.picker,
+  });
   @override
   State<CustomerShell> createState() => _CustomerShellState();
 }
@@ -58,6 +66,11 @@ class _CustomerShellState extends State<CustomerShell>
     unawaited(experience.loadSavedGarments().catchError((Object _) {}));
     unawaited(picker.discardLost());
     WidgetsBinding.instance.addObserver(this);
+    widget.homeRequests.addListener(showHome);
+  }
+
+  void showHome() {
+    if (mounted && tab != 0) setState(() => tab = 0);
   }
 
   @override
@@ -72,6 +85,7 @@ class _CustomerShellState extends State<CustomerShell>
 
   @override
   void dispose() {
+    widget.homeRequests.removeListener(showHome);
     WidgetsBinding.instance.removeObserver(this);
     experience.dispose();
     profilePhoto.dispose();
@@ -229,7 +243,15 @@ class _CustomerShellState extends State<CustomerShell>
     }
   });
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => PopScope(
+    canPop: tab == 0,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) showHome();
+    },
+    child: buildShell(context),
+  );
+
+  Widget buildShell(BuildContext context) => ListenableBuilder(
     listenable: experience,
     builder: (context, _) => Scaffold(
       body: SafeArea(
@@ -794,7 +816,10 @@ class _CustomerDeleteScreenState extends State<CustomerDeleteScreen> {
   Widget build(BuildContext context) {
     final auth = widget.controller;
     return Scaffold(
-      appBar: AppBar(title: const CustomerText('Delete account')),
+      appBar: AppBar(
+        leading: const CustomerHomeBackButton(),
+        title: const CustomerText('Delete account'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(

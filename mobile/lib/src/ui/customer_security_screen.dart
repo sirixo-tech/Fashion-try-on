@@ -4,6 +4,7 @@ import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
 import '../l10n/customer_copy.dart';
 import 'customer_theme.dart';
+import 'customer_home_back.dart';
 
 class CustomerPasswordScreen extends StatefulWidget {
   final CustomerController controller;
@@ -94,7 +95,10 @@ class _CustomerPasswordScreenState extends State<CustomerPasswordScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('Account security')),
+    appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
+      title: const CustomerText('Account security'),
+    ),
     body: SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(

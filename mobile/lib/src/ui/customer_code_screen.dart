@@ -6,6 +6,7 @@ import '../auth/customer_phone.dart';
 import '../l10n/customer_copy.dart';
 import 'customer_theme.dart';
 import 'customer_phone_field.dart';
+import 'customer_home_back.dart';
 
 class CustomerCodeScreen extends StatefulWidget {
   final CustomerController auth;
@@ -209,6 +210,9 @@ class _CustomerCodeScreenState extends State<CustomerCodeScreen> {
     canPop: !busy,
     child: Scaffold(
       appBar: AppBar(
+        leading: widget.linkPhone
+            ? (busy ? const SizedBox.shrink() : const CustomerHomeBackButton())
+            : null,
         title: CustomerText(
           widget.linkPhone ? 'Phone number' : 'Sign in with a code',
         ),

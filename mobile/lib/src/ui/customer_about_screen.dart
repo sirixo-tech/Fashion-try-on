@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/customer_copy.dart';
 import '../services/customer_app_info.dart';
 import 'customer_theme.dart';
+import 'customer_home_back.dart';
 
 class CustomerAboutScreen extends StatefulWidget {
   const CustomerAboutScreen({super.key});
@@ -13,7 +14,10 @@ class _CustomerAboutScreenState extends State<CustomerAboutScreen> {
   late Future<CustomerInstalledApp> info = CustomerInstalledApp.load();
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('About SelfX')),
+    appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
+      title: const CustomerText('About SelfX'),
+    ),
     body: SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(24),

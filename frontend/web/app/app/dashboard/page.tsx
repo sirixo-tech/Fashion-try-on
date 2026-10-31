@@ -104,7 +104,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <div className="flex max-w-full items-center rounded-lg border border-input bg-background">
+          <div className="flex h-10 w-full min-w-0 items-center rounded-lg border border-input bg-background sm:w-48">
             <CalendarDaysIcon
               className="ml-3 size-4 shrink-0 text-muted-foreground"
               aria-hidden="true"
@@ -114,7 +114,7 @@ export default function DashboardPage() {
               value={range}
               options={ranges}
               onChange={setRange}
-              className="min-w-40 border-0 bg-transparent"
+              className="w-0 min-w-0 flex-1 border-0 bg-transparent"
             />
           </div>
           {dashboard.canChooseStore ? (

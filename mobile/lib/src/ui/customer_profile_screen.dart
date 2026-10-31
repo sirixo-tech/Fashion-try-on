@@ -9,6 +9,7 @@ import 'customer_security_screen.dart';
 import 'customer_profile_sheet.dart';
 import 'customer_sheet.dart';
 import 'customer_theme.dart';
+import 'customer_home_back.dart';
 
 class CustomerAvatar extends StatelessWidget {
   final CustomerProfilePhoto photo;
@@ -218,7 +219,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     builder: (context, _) {
       final profile = widget.auth.profile;
       return Scaffold(
-        appBar: AppBar(title: const CustomerText('Profile')),
+        appBar: AppBar(
+          leading: const CustomerHomeBackButton(),
+          title: const CustomerText('Profile'),
+        ),
         body: SafeArea(
           child: ListView(
             padding: const EdgeInsets.all(24),

@@ -6,6 +6,7 @@ import '../l10n/customer_copy.dart';
 import '../services/customer_avatar.dart';
 import 'customer_entry_theme.dart';
 import 'customer_theme.dart';
+import 'customer_home_back.dart';
 
 class CustomerAvatarScreen extends StatefulWidget {
   final CustomerController controller;
@@ -177,10 +178,19 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                       onPressed: busy
                           ? null
                           : () {
+                              if (!widget.setup) {
+                                final goHome = CustomerHomeScope.maybeOf(
+                                  context,
+                                );
+                                if (goHome != null) {
+                                  goHome();
+                                } else {
+                                  Navigator.pop(context);
+                                }
+                                return;
+                              }
                               if (step == 1) {
                                 setState(() => step = 0);
-                              } else if (!widget.setup) {
-                                Navigator.pop(context);
                               } else {
                                 unawaited(widget.controller.signOut());
                               }

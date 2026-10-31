@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../experience/customer_experience.dart';
 import '../l10n/customer_copy.dart';
 import 'customer_theme.dart';
+import 'customer_home_back.dart';
 
 const _productImages = {
   'terracotta-blazer': 'assets/editorial/terracotta-blazer.webp',
@@ -342,6 +343,7 @@ class _CustomerDemoProductScreenState extends State<CustomerDemoProductScreen> {
         .toList();
     return Scaffold(
       appBar: AppBar(
+        leading: const CustomerHomeBackButton(),
         title: const CustomerText('Try it on'),
         actions: [
           ListenableBuilder(

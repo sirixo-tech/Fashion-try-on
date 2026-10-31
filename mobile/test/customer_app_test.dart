@@ -87,6 +87,10 @@ void main() {
   }
 
   Future<void> login(WidgetTester tester) async {
+    final policy = find.byType(Checkbox);
+    if (tester.widget<Checkbox>(policy).value != true) {
+      await tap(tester, policy);
+    }
     await tester.enterText(
       find.byType(TextFormField).at(0),
       'customer@example.test',
@@ -389,6 +393,71 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('Back returns tabs and pushed pages to Home', (tester) async {
+    await mount(tester);
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
+      'SelfX Tryon',
+    );
+    await login(tester);
+    await tap(tester, find.text('Saved'));
+    expect(find.text('Your first look\nis yet to come.'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Scan Store QR'), findsOneWidget);
+    expect(find.text('Your first look\nis yet to come.'), findsNothing);
+
+    await tap(tester, find.text('Me'));
+    await tap(tester, find.text('Profile'));
+    expect(find.text('Profile'), findsOneWidget);
+    await tap(tester, find.byType(BackButton));
+    expect(find.byTooltip('Scan Store QR'), findsOneWidget);
+    expect(find.text('Profile'), findsNothing);
+
+    await tap(tester, find.text('Me'));
+    await tap(tester, find.text('Profile'));
+    await tap(tester, find.text('Phone number'));
+    expect(find.text('Verify your phone'), findsOneWidget);
+    await tap(tester, find.byType(BackButton));
+    expect(find.byTooltip('Scan Store QR'), findsOneWidget);
+
+    await tap(tester, find.byKey(const ValueKey('header-credits')));
+    expect(find.byType(CustomerPlansScreen), findsOneWidget);
+    unawaited(
+      showDialog<void>(
+        context: tester.element(find.byType(CustomerPlansScreen)),
+        builder: (_) => const AlertDialog(title: Text('Open dialog')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Open dialog'), findsNothing);
+    expect(find.byType(CustomerPlansScreen), findsOneWidget);
+
+    unawaited(
+      Navigator.of(tester.element(find.byType(CustomerPlansScreen))).push<void>(
+        MaterialPageRoute(
+          builder: (_) => const PopScope(
+            canPop: false,
+            child: Scaffold(body: Text('Protected page')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Protected page'), findsOneWidget);
+    Navigator.of(tester.element(find.text('Protected page'))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Scan Store QR'), findsOneWidget);
+    expect(find.byType(CustomerPlansScreen), findsNothing);
+  });
   testWidgets('clears account routes and local credentials on logout', (
     tester,
   ) async {

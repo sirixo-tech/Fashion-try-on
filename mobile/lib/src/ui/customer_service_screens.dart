@@ -9,6 +9,7 @@ import '../services/customer_push.dart';
 import '../experience/customer_experience.dart';
 import 'customer_experience_screens.dart';
 import 'customer_theme.dart';
+import 'customer_home_back.dart';
 import '../services/customer_app_info.dart';
 
 const customerDeviceChannel = MethodChannel('com.selfx.customer/services');
@@ -78,7 +79,10 @@ class _CustomerSupportScreenState extends State<CustomerSupportScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('Contact SelfX')),
+    appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
+      title: const CustomerText('Contact SelfX'),
+    ),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -236,6 +240,7 @@ class _CustomerNotificationsScreenState
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
       title: const CustomerText('Notifications'),
       actions: [
         IconButton(
@@ -377,7 +382,10 @@ class CustomerNotificationResult extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('Your look')),
+    appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
+      title: const CustomerText('Your look'),
+    ),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -494,7 +502,10 @@ class _CustomerUpdatesScreenState extends State<CustomerUpdatesScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const CustomerText('App updates')),
+    appBar: AppBar(
+      leading: const CustomerHomeBackButton(),
+      title: const CustomerText('App updates'),
+    ),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [

@@ -11,6 +11,7 @@ import 'ui/onboarding.dart';
 import 'ui/customer_skeleton.dart';
 import 'experience/customer_media.dart';
 import 'ui/customer_avatar_screen.dart';
+import 'ui/customer_home_back.dart';
 
 class CustomerApp extends StatefulWidget {
   final CustomerController controller;
@@ -22,6 +23,8 @@ class CustomerApp extends StatefulWidget {
 
 class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
   final navigator = GlobalKey<NavigatorState>();
+  final homeRequests = ValueNotifier<int>(0);
+  final routes = _CustomerRouteObserver();
   CustomerController get controller => widget.controller;
   bool wasReady = false;
   @override
@@ -41,6 +44,24 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
     wasReady = controller.stage == CustomerStage.ready;
   }
 
+  void goHome() {
+    navigator.currentState?.popUntil((route) => route.isFirst);
+    homeRequests.value++;
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (controller.stage != CustomerStage.ready ||
+        controller.profile?.avatarSetupComplete != true ||
+        routes.current is PopupRoute ||
+        routes.current?.popDisposition == RoutePopDisposition.doNotPop) {
+      return false;
+    }
+    if (navigator.currentState?.canPop() != true) return false;
+    goHome();
+    return true;
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
@@ -53,15 +74,20 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
   void dispose() {
     controller.removeListener(syncRoutes);
     WidgetsBinding.instance.removeObserver(this);
+    homeRequests.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) =>
+      CustomerHomeScope(goHome: goHome, child: buildApp(context));
+
+  Widget buildApp(BuildContext context) => ListenableBuilder(
     listenable: controller,
     builder: (context, _) => MaterialApp(
       navigatorKey: navigator,
-      title: 'SelfX',
+      title: 'SelfX Tryon',
+      navigatorObservers: [routes],
       debugShowCheckedModeBanner: false,
       theme: customerTheme(controller.language),
       locale: Locale(controller.language),
@@ -105,6 +131,7 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
           CustomerStage.ready => CustomerShell(
             controller: controller,
             picker: widget.picker,
+            homeRequests: homeRequests,
           ),
           CustomerStage.recovery => Scaffold(
             body: SafeArea(
@@ -141,6 +168,30 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
       ),
     ),
   );
+}
+
+class _CustomerRouteObserver extends NavigatorObserver {
+  Route<dynamic>? current;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    current = route;
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    current = previousRoute;
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (current == route) current = previousRoute;
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (current == oldRoute) current = newRoute;
+  }
 }
 
 // Keep app copy in the chosen language when the country-name dataset has no
