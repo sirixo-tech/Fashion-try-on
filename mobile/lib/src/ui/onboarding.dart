@@ -124,7 +124,7 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          const _EditorialImage('welcome-tryon-v4'),
+          const _EditorialImage('welcome-tryon-v6'),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -389,13 +389,12 @@ class _CustomerOnboardingState extends State<CustomerOnboarding> {
 
 class _EditorialImage extends StatelessWidget {
   final String name;
-  final AlignmentGeometry alignment;
-  const _EditorialImage(this.name, {this.alignment = Alignment.topCenter});
+  const _EditorialImage(this.name);
   @override
   Widget build(BuildContext context) => Image.asset(
     'assets/editorial/$name.webp',
     fit: BoxFit.cover,
-    alignment: alignment,
+    alignment: Alignment.topCenter,
     excludeFromSemantics: true,
   );
 }

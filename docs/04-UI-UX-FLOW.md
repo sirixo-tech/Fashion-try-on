@@ -49,6 +49,8 @@ Platform navigation has a separate Mobile Plans item beside Plans. Platform pric
 
 The welcome screen keeps the approved transparent SelfX mark over the photographic backdrop without an opaque logo tile. Product Try-On opens the main Try-On tab with that garment selected; the person can use a photo or a relevant demo model there. The queued/processing state centers the input-photo animation and shows an indeterminate progress bar without a fabricated percentage. Completed results show the full output image, omit the 30-day notice, and show edge-to-edge suggested garment images. A heart saves or removes a demo or Store garment without using credits. Saved has Looks and Wardrobe tabs; a saved garment card and its prominent Try on button open the Try-On flow with that garment selected, while the heart only removes the save. Garment saves belong to the signed-in customer, and Store garment details remain visible only during a valid Store visit while the product is eligible.
 
+The newly generated welcome background is an editorial collage of garment-only catalog tiles paired with styled Try-On looks. It keeps a light upper-left area for the overlaid logo and a quiet dark lower area for the headline and start action. The current welcome-only asset is `mobile/assets/editorial/welcome-tryon-v6.webp`; introduction cards continue using their existing imagery.
+
 Home outfit cards show only the garment image and product name, without a SelfX Demo label or unused space beneath the name. Search and empty states use outfit wording. Wardrobe is the display name for the existing saved garments; this change does not add outfit planning.
 
 Keep the entire approved welcome logo readable with a soft light wash that fades into the photo. A completed mobile Try-On uses the generated image as a full-height backdrop with compact suggested garments, Download, View in Saved and New Try-On actions overlaid near the bottom. Avoid a separate white result card and avoid a redundant Save Look action because completed looks are saved automatically.
@@ -75,7 +77,7 @@ Home has a SelfX Demo outfit grid with search and All/Women/Men filters. Each ca
 
 ### CUSTOMER-MOBILE-14 — Interests and saved avatar (2026-10-28)
 
-Follow the supplied PoC with photographic interest cards, selection ticks, a two-step indicator, side-by-side selfie/full-body cards, explicit examples, guidance and Continue/Skip. Camera/gallery opens after the saved-photo consent notice. Support small screens, accessibility text, 20 languages and RTL. Add Me → My avatar and per-Try-On Change photo. See `CUSTOMER-MOBILE-14-AVATAR.md`.
+Follow the supplied PoC with photographic interest cards, selection ticks, a two-step indicator, side-by-side selfie/full-body cards, explicit examples, guidance and Continue/Skip. Women and Men are mutually exclusive, and the example selfie/full-body photos match the selected category. Camera/gallery opens after the saved-photo consent notice. Support small screens, accessibility text, 20 languages and RTL. Add Me → My avatar and per-Try-On Change photo. See `CUSTOMER-MOBILE-14-AVATAR.md`.
 
 ### CUSTOMER-MOBILE-13 — Try-On image direction (2026-10-28)
 

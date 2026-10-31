@@ -5,7 +5,7 @@ Approved 28 October 2026. Source version: **0.12.0+14**.
 ## Customer experience
 
 After successful login/signup and required account verification, customers who
-have not completed setup choose one or more interests: Women or Men. Jewellery
+have not completed setup choose either Women or Men. The selection is exclusive. Jewellery
 is deferred for the customer mobile app; older saved Jewellery interests are
 hidden from selection and dropped when interests are updated.
 Next is Create your avatar, with side-by-side selfie/full-body photo cards,

@@ -34,16 +34,13 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
     super.initState();
     avatar = CustomerAvatar(widget.controller);
     picker = widget.picker ?? NativeCustomerPhotoPicker();
-    selected.addAll(avatar.interests.where(_availableInterests.contains));
+    _restoreInterest();
     step = selected.isEmpty ? 0 : 1;
     unawaited(
       avatar.load().then((_) {
         if (mounted) {
           setState(() {
-            selected.clear();
-            selected.addAll(
-              avatar.interests.where(_availableInterests.contains),
-            );
+            _restoreInterest();
             if (selected.isEmpty) step = 0;
           });
         }
@@ -56,6 +53,16 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
   void dispose() {
     avatar.dispose();
     super.dispose();
+  }
+
+  void _restoreInterest() {
+    selected.clear();
+    for (final interest in avatar.interests) {
+      if (_availableInterests.contains(interest)) {
+        selected.add(interest);
+        break;
+      }
+    }
   }
 
   Future<void> next() async {
@@ -259,9 +266,9 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                       onTap: busy
                                           ? null
                                           : () => setState(() {
-                                              selected.contains(entry.$1)
-                                                  ? selected.remove(entry.$1)
-                                                  : selected.add(entry.$1);
+                                              selected
+                                                ..clear()
+                                                ..add(entry.$1);
                                             }),
                                     ),
                                   ),
@@ -276,7 +283,9 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                               child: _photo(
                                 'SELFIE',
                                 'Selfie',
-                                'avatar-selfie-example-v1',
+                                selected.contains('MEN')
+                                    ? 'avatar-selfie-example-man-v1'
+                                    : 'avatar-selfie-example-v1',
                                 true,
                               ),
                             ),
@@ -285,7 +294,9 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                               child: _photo(
                                 'FULL_BODY',
                                 'Full body',
-                                'demo-model-maya',
+                                selected.contains('MEN')
+                                    ? 'demo-model-arjun'
+                                    : 'demo-model-maya',
                                 false,
                               ),
                             ),
@@ -461,6 +472,7 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                     else
                       Image.asset(
                         'assets/editorial/$asset.webp',
+                        key: ValueKey('avatar-example-$kind'),
                         fit: BoxFit.cover,
                         alignment: selfie
                             ? const Alignment(0, -.65)

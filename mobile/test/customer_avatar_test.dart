@@ -129,6 +129,11 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  String exampleAsset(WidgetTester tester, String kind) =>
+      (tester.widget<Image>(find.byKey(ValueKey('avatar-example-$kind'))).image
+              as AssetImage)
+          .assetName;
+
   testWidgets(
     'sign-in opens interests, then consented avatar capture, then Home; setup stays complete',
     (tester) async {
@@ -138,6 +143,15 @@ void main() {
       await tap(tester, find.text('Men'));
       await tap(tester, find.byKey(const ValueKey('avatar-continue')));
       expect(find.text('Create your avatar'), findsOneWidget);
+      expect(api.profile['interests'], ['MEN']);
+      expect(
+        exampleAsset(tester, 'SELFIE'),
+        'assets/editorial/avatar-selfie-example-man-v1.webp',
+      );
+      expect(
+        exampleAsset(tester, 'FULL_BODY'),
+        'assets/editorial/demo-model-arjun.webp',
+      );
       expect(picker.selections, 0);
       for (final kind in ['FULL_BODY', 'SELFIE']) {
         await tap(tester, find.byKey(ValueKey('avatar-$kind')));
@@ -148,7 +162,7 @@ void main() {
       await tap(tester, find.byKey(const ValueKey('avatar-continue')));
       expect(find.text('I want to try on'), findsNothing);
       expect(auth.profile!.avatarSetupComplete, true);
-      expect(auth.profile!.interests.toSet(), {'WOMEN', 'MEN'});
+      expect(auth.profile!.interests, ['MEN']);
       expect(
         api.uploads.every(
           (path) => path.contains('consentVersion=2026-10-28-avatar-v1'),
@@ -172,6 +186,14 @@ void main() {
       expect(find.text('Jewellery'), findsNothing);
       await tap(tester, find.text('Women'));
       await tap(tester, find.byKey(const ValueKey('avatar-continue')));
+      expect(
+        exampleAsset(tester, 'SELFIE'),
+        'assets/editorial/avatar-selfie-example-v1.webp',
+      );
+      expect(
+        exampleAsset(tester, 'FULL_BODY'),
+        'assets/editorial/demo-model-maya.webp',
+      );
       expect(tester.takeException(), isNull);
       tester.platformDispatcher.textScaleFactorTestValue = 1;
       await tester.pumpAndSettle();
