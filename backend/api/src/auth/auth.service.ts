@@ -36,6 +36,7 @@ import { RefreshTokenService } from "./refresh-token.service.js";
 interface AccessTokenPayload {
   sub: string;
   typ: "access";
+  sid?: string;
   ver?: number;
 }
 
@@ -238,6 +239,7 @@ export class AuthService {
       session.user,
       nextRefreshToken,
       session.expiresAt,
+      session.id,
     );
   }
 
@@ -340,7 +342,7 @@ export class AuthService {
       );
     }
 
-    return user;
+    return { ...user, authSessionId: payload.sid ?? null };
   }
 
   async loginWithGoogle(
@@ -387,18 +389,25 @@ export class AuthService {
       userAgentJson: safeRequestMetadata(metadata),
     });
 
-    return this.createAccessResult(user, refreshToken, refreshTokenExpiresAt);
+    return this.createAccessResult(
+      user,
+      refreshToken,
+      refreshTokenExpiresAt,
+      sessionId,
+    );
   }
 
   private async createAccessResult(
     user: AuthUserRecord,
     refreshToken: string,
     refreshTokenExpiresAt: Date,
+    sessionId: string,
   ): Promise<AuthResult> {
     const accessToken = await this.jwt.signAsync(
       {
         sub: user.id,
         typ: "access",
+        sid: sessionId,
         ver: user.credentialsVersion ?? 0,
       } satisfies AccessTokenPayload,
       {

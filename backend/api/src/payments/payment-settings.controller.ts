@@ -78,7 +78,10 @@ export class PlatformPaymentGatewaysController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    if ((await this.impersonation.currentSession(user.id)).session)
+    if (
+      (await this.impersonation.currentSession(user.id, user.authSessionId))
+        .session
+    )
       throw new ApiErrorException(
         HttpStatus.FORBIDDEN,
         "PAYMENT_IMPERSONATION_RESTRICTED",
@@ -198,6 +201,7 @@ export class StorePaymentSettingsController {
     const context = await this.impersonation.resolveStoreContext(
       user.id,
       storeId,
+      user.authSessionId,
     );
     if (writing && context.impersonationSession)
       throw new ApiErrorException(

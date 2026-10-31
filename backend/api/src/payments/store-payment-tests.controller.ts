@@ -45,6 +45,7 @@ export class StorePaymentTestsController {
     const context = await this.impersonation.resolveStoreContext(
       user.id,
       storeId,
+      user.authSessionId,
     );
     if (managing && context.impersonationSession)
       throw new ApiErrorException(

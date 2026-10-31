@@ -225,13 +225,20 @@ export class CustomerExperienceController {
   @Get("saved-garments")
   @Header("Cache-Control", "no-store")
   async savedGarments(@Req() request: FastifyRequest) {
-    const { customer } = await this.auth.requireCustomer(request.headers.authorization);
+    const { customer } = await this.auth.requireCustomer(
+      request.headers.authorization,
+    );
     return this.experience.savedGarments(customer.id);
   }
   @Post("saved-garments")
   @Header("Cache-Control", "no-store")
-  async saveGarment(@Req() request: FastifyRequest, @Body() input: CustomerSavedGarmentDto) {
-    const { customer } = await this.auth.requireCustomer(request.headers.authorization);
+  async saveGarment(
+    @Req() request: FastifyRequest,
+    @Body() input: CustomerSavedGarmentDto,
+  ) {
+    const { customer } = await this.auth.requireCustomer(
+      request.headers.authorization,
+    );
     return this.experience.saveGarment(customer.id, input);
   }
   @Delete("saved-garments/:source/:id")
@@ -241,7 +248,9 @@ export class CustomerExperienceController {
     @Param("source") source: string,
     @Param("id") id: string,
   ) {
-    const { customer } = await this.auth.requireCustomer(request.headers.authorization);
+    const { customer } = await this.auth.requireCustomer(
+      request.headers.authorization,
+    );
     return this.experience.removeGarment(customer.id, source, id);
   }
   @Delete("looks/:id")
@@ -317,7 +326,11 @@ export class CustomerStoreQrController {
     const actor = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.impersonation.resolveStoreContext(actor.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      actor.id,
+      storeId,
+      actor.authSessionId,
+    );
     await this.rbac.requireStoreResourcePermission(
       actor.id,
       storeId,

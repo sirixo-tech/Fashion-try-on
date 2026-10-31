@@ -95,13 +95,16 @@ export class TenantManagementService {
 
   async getCurrentStore(
     userId: string,
+    authSessionId?: string | null,
   ): Promise<
     Pick<
       CurrentTenantStoreResponseDto,
       "store" | "hasMultipleStores" | "impersonation"
     >
   > {
-    const impersonation = await this.currentImpersonationSession(userId);
+    const impersonation = authSessionId
+      ? await this.currentImpersonationSession(userId, authSessionId)
+      : null;
     if (impersonation) {
       return {
         store: mapOrganization(impersonation.targetStore),
@@ -128,14 +131,22 @@ export class TenantManagementService {
     };
   }
 
-  private async currentImpersonationSession(userId: string) {
+  private async currentImpersonationSession(
+    userId: string,
+    authSessionId: string,
+  ) {
     const now = new Date();
     await this.prisma.impersonationSession.updateMany({
       where: {
         actorUserId: userId,
         status: ImpersonationSessionStatus.ACTIVE,
         endedAt: null,
-        expiresAt: { lte: now },
+        OR: [
+          { expiresAt: { lte: now } },
+          { actorUserSessionId: null },
+          { actorUserSession: { is: { revokedAt: { not: null } } } },
+          { actorUserSession: { is: { expiresAt: { lte: now } } } },
+        ],
       },
       data: {
         status: ImpersonationSessionStatus.EXPIRED,
@@ -145,6 +156,7 @@ export class TenantManagementService {
     return this.prisma.impersonationSession.findFirst({
       where: {
         actorUserId: userId,
+        actorUserSessionId: authSessionId,
         status: ImpersonationSessionStatus.ACTIVE,
         endedAt: null,
         expiresAt: { gt: now },

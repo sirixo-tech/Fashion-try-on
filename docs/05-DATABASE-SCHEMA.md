@@ -2616,19 +2616,24 @@ Important fields:
 
 - `id`
 - `actor_user_id`
-- `organization_id`
-- `store_id` nullable
-- `effective_role`
-- `reason`
+- `actor_user_session_id` nullable FK to `user_sessions.id`; binds the support
+  session to the administrator's authenticated session
+- `target_store_id` FK to the Store tenant
+- `effective_role_code`
 - `started_at`
-- `expires_at`
+- `expires_at`, set to the administrator auth session expiry as a maximum
 - `ended_at`
 - `status`
+
+An administrator explicitly ends impersonation. Logout/revocation or expiry of
+the linked auth session also ends it. There is no separate fixed impersonation
+timeout and no support-reason field.
 
 Indexes:
 
 - `actor_user_id`
-- `organization_id`
+- `actor_user_session_id`
+- `target_store_id`
 - `expires_at`
 
 ---

@@ -49,7 +49,10 @@ export class AdminCustomCreditPlansController {
     const actor = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    if ((await this.impersonation.currentSession(actor.id)).session)
+    if (
+      (await this.impersonation.currentSession(actor.id, actor.authSessionId))
+        .session
+    )
       throw new ApiErrorException(
         403,
         "PRICING_IMPERSONATION_RESTRICTED",

@@ -3036,7 +3036,7 @@ Implement/refine:
 
 - permission checks
 - audit actor/effective context
-- impersonation expiry
+- auth-session binding, logout termination and expiry handling
 - secret hiding
 - tenant isolation
 

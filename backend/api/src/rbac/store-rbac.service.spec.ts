@@ -144,9 +144,11 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
       expectedUpdatedAt: role.updatedAt.toISOString(),
     });
   }
-  function controller(actor: string) {
+  function controller(actor: string, authSessionId?: string) {
     return new RolesWorkspaceController(
-      { requireAccessUser: async () => ({ id: actor }) } as never,
+      {
+        requireAccessUser: async () => ({ id: actor, authSessionId }),
+      } as never,
       db as PrismaService,
       access,
       rbac,
@@ -530,17 +532,29 @@ describe.skipIf(!url)("Application-wide Store roles", () => {
     const actor = await user(true),
       tenant = await store(),
       other = await store();
-    await impersonation.startSession(actor, tenant);
-    await expect(controller(actor).context(request)).rejects.toMatchObject(
-      denied,
-    );
+    const authSessionId = createSelfxId();
+    await db.userSession.create({
+      data: {
+        id: authSessionId,
+        userId: actor,
+        refreshTokenHash: "test-refresh-token-hash",
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    await impersonation.startSession(actor, authSessionId, tenant);
+    await expect(
+      controller(actor, authSessionId).context(request),
+    ).rejects.toMatchObject(denied);
     await expect(save(actor, "staff", [])).rejects.toMatchObject(denied);
     expect(
-      (await controller(actor).store(request, tenant)).policy.canEditStaff,
+      (await controller(actor, authSessionId).store(request, tenant)).policy
+        .canEditStaff,
     ).toBe(false);
-    await expect(controller(actor).store(request, other)).rejects.toMatchObject(
-      { response: { error: { code: "IMPERSONATION_STORE_MISMATCH" } } },
-    );
+    await expect(
+      controller(actor, authSessionId).store(request, other),
+    ).rejects.toMatchObject({
+      response: { error: { code: "IMPERSONATION_STORE_MISMATCH" } },
+    });
   });
 
   it("preserves cross-Store isolation and rejects assigning another Store's role IDs", async () => {

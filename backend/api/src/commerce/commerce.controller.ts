@@ -132,7 +132,11 @@ export class StoreCommerceController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.impersonation.resolveStoreContext(user.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      user.id,
+      storeId,
+      user.authSessionId,
+    );
     if (
       !(await this.platform.hasPermission(
         user.id,

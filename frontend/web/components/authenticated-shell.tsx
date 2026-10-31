@@ -1,6 +1,4 @@
 "use client";
-import { RegionalDateTime } from "@/lib/regional-settings";
-
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -266,18 +264,6 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!impersonation) return;
-    const remaining = new Date(impersonation.expiresAt).getTime() - Date.now();
-    const timer = window.setTimeout(
-      () => {
-        window.dispatchEvent(new Event("selfx:impersonation-changed"));
-      },
-      Math.max(0, remaining),
-    );
-    return () => window.clearTimeout(timer);
-  }, [impersonation]);
-
-  useEffect(() => {
     if (session.status !== "authenticated") {
       return;
     }
@@ -393,24 +379,8 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       {impersonation ? (
         <div className="border-b border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-950">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <span className="font-semibold">Store view:</span>{" "}
-              {impersonation.targetStoreName} ·{" "}
-              {impersonation.effectiveRoleCode === "store-admin"
-                ? "Store Admin"
-                : "Store Staff"}
-              <span className="ml-2 text-orange-800">
-                Viewed by {session.user?.displayName || session.user?.email}
-              </span>
-              <span className="ml-2 text-orange-800">
-                Ends{" "}
-                {
-                  <RegionalDateTime
-                    value={impersonation.expiresAt}
-                    kind="time"
-                  />
-                }
-              </span>
+            <div className="font-semibold">
+              You are impersonating · {impersonation.targetStoreName}
             </div>
             <Button
               type="button"

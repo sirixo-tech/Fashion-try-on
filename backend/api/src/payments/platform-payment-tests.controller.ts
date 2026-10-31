@@ -122,7 +122,10 @@ export class PlatformPaymentTestsController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    if ((await this.impersonation.currentSession(user.id)).session)
+    if (
+      (await this.impersonation.currentSession(user.id, user.authSessionId))
+        .session
+    )
       throw new ApiErrorException(
         HttpStatus.FORBIDDEN,
         "PAYMENT_IMPERSONATION_RESTRICTED",

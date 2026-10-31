@@ -1092,20 +1092,20 @@ class _PlansEditorialGallery extends StatefulWidget {
 
 class _PlansEditorialGalleryState extends State<_PlansEditorialGallery> {
   static const _images = [
-    'assets/editorial/plans-editorial-01-v2.webp',
-    'assets/editorial/plans-editorial-02-v2.webp',
-    'assets/editorial/plans-editorial-03-v2.webp',
-    'assets/editorial/plans-editorial-04-v2.webp',
-    'assets/editorial/plans-editorial-05-v2.webp',
-    'assets/editorial/plans-editorial-06-v2.webp',
+    'assets/editorial/plans-editorial-01-v3.jpg',
+    'assets/editorial/plans-editorial-02-v3.jpg',
+    'assets/editorial/plans-editorial-03-v3.jpg',
+    'assets/editorial/plans-editorial-04-v3.jpg',
+    'assets/editorial/plans-editorial-05-v3.jpg',
+    'assets/editorial/plans-editorial-06-v3.jpg',
   ];
   static const _comments = [
-    'Make it your own.',
     'From a photo\nto your next look.',
-    'Something new.\nStill entirely you.',
     'Your personal space to discover a different look.',
-    'Keep the looks\nyou love.',
     'Your style. Your space.',
+    'Make it your own.',
+    'Keep the looks\nyou love.',
+    'Something new.\nStill entirely you.',
   ];
 
   final PageController _controller = PageController();

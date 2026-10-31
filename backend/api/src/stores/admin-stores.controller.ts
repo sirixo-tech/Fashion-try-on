@@ -593,7 +593,11 @@ export class AdminStoresController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.impersonation.resolveStoreContext(user.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      user.id,
+      storeId,
+      user.authSessionId,
+    );
     await this.rbac.requireStoreResourcePermission(
       user.id,
       storeId,
@@ -619,7 +623,11 @@ export class AdminStoresController {
     storeId: string,
   ) {
     const user = await this.requirePermission(request, permission);
-    await this.impersonation.resolveStoreContext(user.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      user.id,
+      storeId,
+      user.authSessionId,
+    );
     return user;
   }
 
@@ -632,7 +640,11 @@ export class AdminStoresController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.impersonation.resolveStoreContext(user.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      user.id,
+      storeId,
+      user.authSessionId,
+    );
     if (
       await this.platformAuthorization.hasPermission(
         user.id,

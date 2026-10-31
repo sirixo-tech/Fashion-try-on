@@ -15,13 +15,13 @@ export const STORE_IMPERSONATION_ERROR_CODES = {
   storeNotFound: "STORE_NOT_FOUND",
   sessionNotFound: "IMPERSONATION_SESSION_NOT_FOUND",
   storeMismatch: "IMPERSONATION_STORE_MISMATCH",
+  authSessionInvalid: "IMPERSONATION_AUTH_SESSION_INVALID",
 } as const;
-
-const impersonationTtlMs = 30 * 60 * 1000;
 
 type SessionWithStore = {
   id: string;
   actorUserId: string | null;
+  actorUserSessionId: string | null;
   targetStoreId: string;
   effectiveRoleCode: string;
   status: ImpersonationSessionStatus;
@@ -47,6 +47,7 @@ export class StoreImpersonationService {
 
   async startSession(
     actorUserId: string,
+    actorUserSessionId: string | null | undefined,
     targetStoreId: string,
     effectiveRoleCode: "store-admin" | "staff" = "store-admin",
   ): Promise<StoreImpersonationSessionResponseDto> {
@@ -66,7 +67,24 @@ export class StoreImpersonationService {
     }
 
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + impersonationTtlMs);
+    const actorSession = actorUserSessionId
+      ? await this.prisma.userSession.findFirst({
+          where: {
+            id: actorUserSessionId,
+            userId: actorUserId,
+            revokedAt: null,
+            expiresAt: { gt: now },
+          },
+          select: { id: true, expiresAt: true },
+        })
+      : null;
+    if (!actorSession) {
+      throw new ApiErrorException(
+        HttpStatus.UNAUTHORIZED,
+        STORE_IMPERSONATION_ERROR_CODES.authSessionInvalid,
+        "Sign in again before starting Store impersonation.",
+      );
+    }
     const sessionId = createSelfxId();
     const session = await this.prisma.$transaction(async (tx) => {
       const previous = await tx.impersonationSession.findMany({
@@ -101,10 +119,11 @@ export class StoreImpersonationService {
         data: {
           id: sessionId,
           actorUserId,
+          actorUserSessionId: actorSession.id,
           targetStoreId,
           effectiveRoleCode,
           startedAt: now,
-          expiresAt,
+          expiresAt: actorSession.expiresAt,
         },
         include: sessionInclude(),
       });
@@ -129,9 +148,12 @@ export class StoreImpersonationService {
 
   async currentSession(
     actorUserId: string,
+    actorUserSessionId: string | null | undefined,
     sessionId?: string,
   ): Promise<CurrentStoreImpersonationSessionResponseDto> {
-    const session = await this.findActiveSession(actorUserId, sessionId);
+    const session = actorUserSessionId
+      ? await this.findActiveSession(actorUserId, actorUserSessionId, sessionId)
+      : null;
 
     return { session: session ? mapSession(session) : null };
   }
@@ -139,8 +161,11 @@ export class StoreImpersonationService {
   async resolveStoreContext(
     actorUserId: string,
     requestedStoreId: string,
+    actorUserSessionId?: string | null,
   ): Promise<StoreImpersonationContext> {
-    const session = await this.findActiveSession(actorUserId);
+    const session = actorUserSessionId
+      ? await this.findActiveSession(actorUserId, actorUserSessionId)
+      : null;
     if (!session) {
       return {
         actorUserId,
@@ -166,11 +191,19 @@ export class StoreImpersonationService {
 
   async endSession(
     actorUserId: string,
+    actorUserSessionId: string | null | undefined,
     sessionId: string,
   ): Promise<StoreImpersonationSessionResponseDto> {
     await this.expireStaleSessions();
+    if (!actorUserSessionId) {
+      throw new ApiErrorException(
+        HttpStatus.UNAUTHORIZED,
+        STORE_IMPERSONATION_ERROR_CODES.authSessionInvalid,
+        "Sign in again before ending Store impersonation.",
+      );
+    }
     const existing = await this.prisma.impersonationSession.findFirst({
-      where: { id: sessionId, actorUserId },
+      where: { id: sessionId, actorUserId, actorUserSessionId },
       include: sessionInclude(),
     });
     if (!existing) {
@@ -217,7 +250,12 @@ export class StoreImpersonationService {
       where: {
         status: ImpersonationSessionStatus.ACTIVE,
         endedAt: null,
-        expiresAt: { lte: new Date() },
+        OR: [
+          { expiresAt: { lte: new Date() } },
+          { actorUserSessionId: null },
+          { actorUserSession: { is: { revokedAt: { not: null } } } },
+          { actorUserSession: { is: { expiresAt: { lte: new Date() } } } },
+        ],
       },
       data: { status: ImpersonationSessionStatus.EXPIRED },
     });
@@ -225,12 +263,14 @@ export class StoreImpersonationService {
 
   private async findActiveSession(
     actorUserId: string,
+    actorUserSessionId: string,
     sessionId?: string,
   ): Promise<SessionWithStore | null> {
     await this.expireStaleSessions();
     return this.prisma.impersonationSession.findFirst({
       where: {
         actorUserId,
+        actorUserSessionId,
         ...(sessionId ? { id: sessionId } : {}),
         status: ImpersonationSessionStatus.ACTIVE,
         endedAt: null,

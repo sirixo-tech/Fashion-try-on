@@ -5,6 +5,7 @@ import {
 
 export interface AuthUserRecord {
   id: string;
+  authSessionId?: string | null;
   email: string;
   passwordHash: string | null;
   credentialsVersion?: number;

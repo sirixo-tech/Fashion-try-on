@@ -192,22 +192,38 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
   }
 
   async revokeSession(sessionId: string, revokedAt: Date): Promise<boolean> {
-    const result = await this.prisma.userSession.updateMany({
-      where: { id: sessionId, revokedAt: null },
-      data: { revokedAt },
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.userSession.updateMany({
+        where: { id: sessionId, revokedAt: null },
+        data: { revokedAt },
+      });
+      if (!result.count) return false;
+      await endImpersonationSessions(tx, [sessionId], revokedAt);
+      return true;
     });
-    return result.count === 1;
   }
 
   async revokeAllUserSessions(
     userId: string,
     revokedAt: Date,
   ): Promise<number> {
-    const result = await this.prisma.userSession.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt },
+    return this.prisma.$transaction(async (tx) => {
+      const sessions = await tx.userSession.findMany({
+        where: { userId, revokedAt: null },
+        select: { id: true },
+      });
+      if (!sessions.length) return 0;
+      const result = await tx.userSession.updateMany({
+        where: { id: { in: sessions.map((session) => session.id) } },
+        data: { revokedAt },
+      });
+      await endImpersonationSessions(
+        tx,
+        sessions.map((session) => session.id),
+        revokedAt,
+      );
+      return result.count;
     });
-    return result.count;
   }
 
   async createAuditLog(input: {
@@ -231,6 +247,44 @@ export class PrismaAuthRepository implements AuthRepositoryPort {
       },
     });
   }
+}
+
+async function endImpersonationSessions(
+  tx: Prisma.TransactionClient,
+  authSessionIds: string[],
+  endedAt: Date,
+): Promise<void> {
+  if (!authSessionIds.length) return;
+  const sessions = await tx.impersonationSession.findMany({
+    where: {
+      actorUserSessionId: { in: authSessionIds },
+      status: "ACTIVE",
+      endedAt: null,
+    },
+    select: { id: true, actorUserId: true, targetStoreId: true },
+  });
+  if (!sessions.length) return;
+  await tx.impersonationSession.updateMany({
+    where: { id: { in: sessions.map((session) => session.id) } },
+    data: { status: "ENDED", endedAt },
+  });
+  await Promise.all(
+    sessions.map((session) =>
+      tx.auditLog.create({
+        data: {
+          id: createSelfxId(),
+          actorUserId: session.actorUserId,
+          action: "IMPERSONATION_SESSION_ENDED",
+          resourceType: "impersonation_session",
+          resourceId: session.id,
+          metadata: {
+            target_store_id: session.targetStoreId,
+            end_reason: "AUTH_SESSION_REVOKED",
+          },
+        },
+      }),
+    ),
+  );
 }
 
 const activePlatformAccessInclude = {

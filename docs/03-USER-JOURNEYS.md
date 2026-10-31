@@ -2372,18 +2372,18 @@ Authorized SelfX Admin
 ### Preconditions
 
 - User has impersonation permission.
-- A support/business reason exists.
 
 ### Main Flow
 
 1. Admin selects organization/store context.
 2. Admin requests impersonation.
-3. SelfX records real actor, effective context, reason, and expiry.
-4. Short-lived impersonation session begins.
+3. SelfX records the real actor, effective context, and administrator auth session.
+4. Impersonation remains active until explicitly ended or the administrator auth
+   session is revoked or expires.
 5. UI visibly indicates impersonation.
 6. Admin performs allowed actions under the effective context.
 7. Audit events preserve the real actor.
-8. Admin exits or session expires.
+8. Admin explicitly exits, logs out, or the auth session expires.
 9. Impersonation session is revoked/closed.
 
 ### Security Rules

@@ -1577,7 +1577,10 @@ Protected route coverage:
 ---
 
 17. Impersonation
-    SelfX support impersonation must use a dedicated short-lived impersonation session.
+    SelfX support impersonation must use a dedicated session bound to the exact
+    authenticated SelfX administrator session. It remains active until explicitly
+    ended, the administrator logs out, or that authentication session expires;
+    do not impose a separate fixed impersonation timeout.
     The system must preserve:
     real SelfX actor
     assumed organization
@@ -1590,7 +1593,7 @@ Protected route coverage:
     permission-controlled
     clearly visible
     revocable
-    time-limited
+    ended on authentication-session revocation/expiry
     fully audited
     Impersonation must never expose passwords, provider credentials, or integration secrets.
 

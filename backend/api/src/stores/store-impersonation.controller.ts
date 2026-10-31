@@ -33,7 +33,7 @@ export class StoreImpersonationController {
 
   @Post("stores/:storeId/impersonation/start")
   @ApiOperation({
-    summary: "Start a short-lived internal Store impersonation session",
+    summary: "Start an internal Store impersonation session",
   })
   @ApiOkResponse({ type: StoreImpersonationSessionResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
@@ -46,6 +46,7 @@ export class StoreImpersonationController {
     const user = await this.requireImpersonationPermission(request);
     return this.impersonation.startSession(
       user.id,
+      user.authSessionId,
       storeId,
       input.effectiveRoleCode,
     );
@@ -63,7 +64,11 @@ export class StoreImpersonationController {
     @Query() query: CurrentStoreImpersonationQueryDto,
   ): Promise<CurrentStoreImpersonationSessionResponseDto> {
     const user = await this.requireImpersonationPermission(request);
-    return this.impersonation.currentSession(user.id, query.sessionId);
+    return this.impersonation.currentSession(
+      user.id,
+      user.authSessionId,
+      query.sessionId,
+    );
   }
 
   @Post("impersonation/:sessionId/end")
@@ -77,7 +82,11 @@ export class StoreImpersonationController {
     @Param("sessionId", SelfxUuidParamPipe) sessionId: string,
   ): Promise<StoreImpersonationSessionResponseDto> {
     const user = await this.requireImpersonationPermission(request);
-    return this.impersonation.endSession(user.id, sessionId);
+    return this.impersonation.endSession(
+      user.id,
+      user.authSessionId,
+      sessionId,
+    );
   }
 
   private async requireImpersonationPermission(request: FastifyRequest) {

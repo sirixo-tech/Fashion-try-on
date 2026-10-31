@@ -95,7 +95,11 @@ export class StoreRbacController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.impersonation.resolveStoreContext(user.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      user.id,
+      storeId,
+      user.authSessionId,
+    );
     const permissions = await this.rbac.effectivePermissions(user.id, storeId);
     const creditSummary =
       await this.entitlements?.getStoreCreditSummary(storeId);
@@ -176,7 +180,11 @@ export class StoreRbacController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.impersonation.resolveStoreContext(user.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      user.id,
+      storeId,
+      user.authSessionId,
+    );
     return this.rbac.replaceRolePermissions(user.id, storeId, roleId, dto);
   }
 
@@ -309,7 +317,11 @@ export class StoreRbacController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    await this.impersonation.resolveStoreContext(user.id, storeId);
+    await this.impersonation.resolveStoreContext(
+      user.id,
+      storeId,
+      user.authSessionId,
+    );
     if (
       await this.platformAuthorization.hasPermission(
         user.id,

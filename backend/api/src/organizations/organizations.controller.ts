@@ -67,7 +67,10 @@ export class OrganizationsController {
     const user = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    const current = await this.tenants.getCurrentStore(user.id);
+    const current = await this.tenants.getCurrentStore(
+      user.id,
+      user.authSessionId,
+    );
     const permissions = current.store
       ? await this.rbac.effectivePermissions(user.id, current.store.id)
       : null;

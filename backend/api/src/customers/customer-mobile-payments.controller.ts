@@ -74,7 +74,11 @@ export class CustomerMobilePaymentsController {
     const { customer } = await this.auth.requireCustomer(
       request.headers.authorization,
     );
-    return this.payments.start(customer.id, { planId: input.planId, credits: input.credits }, input.requestId);
+    return this.payments.start(
+      customer.id,
+      { planId: input.planId, credits: input.credits },
+      input.requestId,
+    );
   }
   @Get(":id")
   @Header("Cache-Control", "no-store")
@@ -125,7 +129,11 @@ export class CustomerMobilePaymentsController {
     @Body() input: MobilePhonePeCallbackDto,
   ) {
     const signature = request.headers["x-verify"];
-    return this.payments.callback(id, input.response, typeof signature === "string" ? signature : "");
+    return this.payments.callback(
+      id,
+      input.response,
+      typeof signature === "string" ? signature : "",
+    );
   }
 }
 
@@ -141,7 +149,10 @@ export class AdminMobilePaymentsController {
     const actor = await this.auth.requireAccessUser(
       request.headers.authorization,
     );
-    if ((await this.impersonation.currentSession(actor.id)).session)
+    if (
+      (await this.impersonation.currentSession(actor.id, actor.authSessionId))
+        .session
+    )
       throw new ApiErrorException(
         403,
         "PAYMENT_IMPERSONATION_RESTRICTED",
