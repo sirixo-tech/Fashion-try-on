@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import {
+  ImpersonationSessionStatus,
   MembershipStatus,
   OrganizationMembershipRole,
   OrganizationStatus,
@@ -544,6 +545,46 @@ export class StoreRbacService {
       return {
         storeId,
         permissions: [],
+        platformBypass: false,
+        featureKeys: [],
+        membershipId: null,
+      };
+    }
+    const impersonation = await this.prisma.impersonationSession.findFirst({
+      where: {
+        actorUserId: userId,
+        status: ImpersonationSessionStatus.ACTIVE,
+        endedAt: null,
+        expiresAt: { gt: new Date() },
+        targetStore: { status: { not: OrganizationStatus.ARCHIVED } },
+      },
+      select: { targetStoreId: true, effectiveRoleCode: true },
+      orderBy: { startedAt: "desc" },
+    });
+    if (impersonation) {
+      if (impersonation.targetStoreId !== storeId) {
+        throw new ApiErrorException(
+          HttpStatus.FORBIDDEN,
+          "IMPERSONATION_STORE_MISMATCH",
+          "This impersonation session can only access its target Store.",
+        );
+      }
+      const store = await this.prisma.organization.findUnique({
+        where: { id: storeId },
+        select: { status: true },
+      });
+      const role = (await readGlobalStoreRoles(this.prisma)).find(
+        (entry) => entry.systemCode === impersonation.effectiveRoleCode,
+      );
+      const permissions =
+        store?.status === OrganizationStatus.ACTIVE && role
+          ? role.permissions.map((entry) => entry.permission.code).sort()
+          : [];
+      return {
+        storeId,
+        permissions,
+        resourcePermissions: permissions,
+        paymentAccess: { view: false, manage: false },
         platformBypass: false,
         featureKeys: [],
         membershipId: null,

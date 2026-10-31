@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -16,6 +16,7 @@ import { PLATFORM_PERMISSIONS } from "../platform/platform-permissions.js";
 import {
   CurrentStoreImpersonationQueryDto,
   CurrentStoreImpersonationSessionResponseDto,
+  StartStoreImpersonationDto,
   StoreImpersonationSessionResponseDto,
 } from "./dto/store-impersonation.dto.js";
 import { StoreImpersonationService } from "./store-impersonation.service.js";
@@ -31,20 +32,29 @@ export class StoreImpersonationController {
   ) {}
 
   @Post("stores/:storeId/impersonation/start")
-  @ApiOperation({ summary: "Start a short-lived internal Store impersonation session" })
+  @ApiOperation({
+    summary: "Start a short-lived internal Store impersonation session",
+  })
   @ApiOkResponse({ type: StoreImpersonationSessionResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })
   async start(
     @Req() request: FastifyRequest,
     @Param("storeId", SelfxUuidParamPipe) storeId: string,
+    @Body() input: StartStoreImpersonationDto,
   ): Promise<StoreImpersonationSessionResponseDto> {
     const user = await this.requireImpersonationPermission(request);
-    return this.impersonation.startSession(user.id, storeId);
+    return this.impersonation.startSession(
+      user.id,
+      storeId,
+      input.effectiveRoleCode,
+    );
   }
 
   @Get("impersonation/current")
-  @ApiOperation({ summary: "Read the current internal Store impersonation session" })
+  @ApiOperation({
+    summary: "Read the current internal Store impersonation session",
+  })
   @ApiOkResponse({ type: CurrentStoreImpersonationSessionResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, type: ApiErrorResponseDto })

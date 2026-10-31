@@ -1583,8 +1583,9 @@ Protected route coverage:
     assumed organization
     assumed store when relevant
     effective role/context
-    reason
     start/end time
+    selected application-wide Store role
+    only one active session per actor
     Impersonation must be:
     permission-controlled
     clearly visible

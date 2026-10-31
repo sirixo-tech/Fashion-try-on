@@ -2,10 +2,10 @@
 
 ### Customer mobile Plans editorial gallery (2026-10-31)
 
-Plans & credits begins with three bundled, rotating fashion images that
-suggest browsing garments and exploring new looks. A short SelfX style caption
-sits beneath each image. These are editorial visuals, not customer Try-On
-results or testimonials. The personal balance and existing plan, custom credit,
+Plans & credits begins with six bundled, rotating landscape fashion images
+that keep faces and garments visible in the mobile card. A distinct SelfX
+comment sits beneath each image. These are editorial visuals and brand comments,
+not customer Try-On results or testimonials. The personal balance and existing plan, custom credit,
 payment and cancellation controls follow unchanged. Monthly plans remain manual
 renewals; the page must not imply an automatic subscription.
 
@@ -2287,11 +2287,10 @@ Allow authorized SelfX Support staff to inspect organization/store operational s
 
 ### Start Impersonation
 
-1. Select organization.
-2. Select store/context where applicable.
-3. Select approved effective role/context.
-4. Enter support reason.
-5. Confirm.
+1. Select a Store.
+2. Select Store Admin or Store Staff context.
+3. Confirm and enter the Store view.
+4. Starting another Store view ends the actor's previous active session.
 
 ### During Impersonation
 
@@ -2300,7 +2299,13 @@ Persistent banner must show:
 - impersonation active
 - target organization/store
 - effective context
+- acting SelfX administrator
+- session expiry
 - exit action
+
+The UI must refresh the active context when the session expires. Ending the
+session returns to the SelfX platform Store directory. Do not prompt for a
+support reason.
 
 The UI must never make impersonation visually indistinguishable from a normal login session.
 

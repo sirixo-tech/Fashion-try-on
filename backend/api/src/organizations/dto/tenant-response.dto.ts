@@ -78,6 +78,9 @@ export class CurrentTenantStoreImpersonationDto {
   @ApiProperty()
   targetStoreSlug!: string;
 
+  @ApiProperty({ enum: ["store-admin", "staff"] })
+  effectiveRoleCode!: string;
+
   @ApiProperty({ enum: ImpersonationSessionStatus })
   status!: ImpersonationSessionStatus;
 

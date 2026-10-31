@@ -251,6 +251,7 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
       "selfx:permissions-changed",
       refreshImpersonationContext,
     );
+    window.addEventListener("focus", refreshImpersonationContext);
     return () => {
       window.removeEventListener(
         "selfx:impersonation-changed",
@@ -260,8 +261,21 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         "selfx:permissions-changed",
         refreshImpersonationContext,
       );
+      window.removeEventListener("focus", refreshImpersonationContext);
     };
   }, []);
+
+  useEffect(() => {
+    if (!impersonation) return;
+    const remaining = new Date(impersonation.expiresAt).getTime() - Date.now();
+    const timer = window.setTimeout(
+      () => {
+        window.dispatchEvent(new Event("selfx:impersonation-changed"));
+      },
+      Math.max(0, remaining),
+    );
+    return () => window.clearTimeout(timer);
+  }, [impersonation]);
 
   useEffect(() => {
     if (session.status !== "authenticated") {
@@ -339,8 +353,8 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
     try {
       await endStoreImpersonation(session.accessToken, impersonation.id);
       setImpersonation(null);
-      setContextReloadKey((current) => current + 1);
-      router.push("/app/stores");
+      window.dispatchEvent(new Event("selfx:impersonation-changed"));
+      router.replace("/app/stores");
     } catch {
       setStoreAccessError(true);
     } finally {
@@ -380,8 +394,14 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
         <div className="border-b border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-950">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <span className="font-semibold">Impersonating Store:</span>{" "}
-              {impersonation.targetStoreName}
+              <span className="font-semibold">Store view:</span>{" "}
+              {impersonation.targetStoreName} ·{" "}
+              {impersonation.effectiveRoleCode === "store-admin"
+                ? "Store Admin"
+                : "Store Staff"}
+              <span className="ml-2 text-orange-800">
+                Viewed by {session.user?.displayName || session.user?.email}
+              </span>
               <span className="ml-2 text-orange-800">
                 Ends{" "}
                 {

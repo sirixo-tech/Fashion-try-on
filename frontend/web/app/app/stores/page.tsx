@@ -97,6 +97,11 @@ export default function StoresPage() {
   const [impersonatingStoreId, setImpersonatingStoreId] = useState<
     string | null
   >(null);
+  const [impersonationStore, setImpersonationStore] =
+    useState<AdminStore | null>(null);
+  const [impersonationRole, setImpersonationRole] = useState<
+    "store-admin" | "staff"
+  >("store-admin");
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
   const [pricingPlansLoading, setPricingPlansLoading] = useState(false);
   const [planDialogStore, setPlanDialogStore] = useState<AdminStore | null>(
@@ -104,16 +109,26 @@ export default function StoresPage() {
   );
   const [planStoreId, setPlanStoreId] = useState<string | null>(null);
   const [canPurge, setCanPurge] = useState(false);
+  const [canImpersonate, setCanImpersonate] = useState(false);
   const [purgingStore, setPurgingStore] = useState<AdminStore | null>(null);
   useEffect(() => {
     if (!accessToken) return;
     let active = true;
     getCurrentPlatformAccess(accessToken)
       .then((access) => {
-        if (active) setCanPurge(access.isSuperadmin);
+        if (active) {
+          setCanPurge(access.isSuperadmin);
+          setCanImpersonate(
+            access.isSuperadmin ||
+              access.permissions.includes("STORE_IMPERSONATION"),
+          );
+        }
       })
       .catch(() => {
-        if (active) setCanPurge(false);
+        if (active) {
+          setCanPurge(false);
+          setCanImpersonate(false);
+        }
       });
     return () => {
       active = false;
@@ -210,7 +225,8 @@ export default function StoresPage() {
     setImpersonatingStoreId(store.id);
     setError(null);
     try {
-      await startStoreImpersonation(accessToken, store.id);
+      await startStoreImpersonation(accessToken, store.id, impersonationRole);
+      setImpersonationStore(null);
       window.dispatchEvent(new Event("selfx:impersonation-changed"));
       router.push("/app/dashboard");
     } catch (caught) {
@@ -354,6 +370,7 @@ export default function StoresPage() {
                   deleting={deletingStoreId === store.id}
                   statusChanging={statusStoreId === store.id}
                   impersonating={impersonatingStoreId === store.id}
+                  canImpersonate={canImpersonate}
                   onDelete={() => void removeStore(store.id)}
                   onPermanentDelete={
                     canPurge && store.status === "ARCHIVED"
@@ -361,7 +378,10 @@ export default function StoresPage() {
                       : undefined
                   }
                   onChangeStatus={() => void changeStoreStatus(store)}
-                  onImpersonate={() => void impersonateStore(store)}
+                  onImpersonate={() => {
+                    setImpersonationRole("store-admin");
+                    setImpersonationStore(store);
+                  }}
                   onManagePlan={() => openPlanDialog(store)}
                 />
               ))}
@@ -419,6 +439,51 @@ export default function StoresPage() {
         onReloadPlans={loadPricingPlanOptions}
         onAssign={assignPlan}
       />
+      <Dialog
+        open={Boolean(impersonationStore)}
+        onOpenChange={(open) => {
+          if (!open) setImpersonationStore(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>View as Store</DialogTitle>
+            <DialogDescription>
+              Open {impersonationStore?.name} with one of its application-wide
+              Store roles for up to 30 minutes.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="font-medium">Store role</span>
+            <SelectMenu
+              ariaLabel="Store role"
+              value={impersonationRole}
+              options={[
+                { value: "store-admin", label: "Store Admin" },
+                { value: "staff", label: "Store Staff" },
+              ]}
+              onChange={setImpersonationRole}
+            />
+          </label>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setImpersonationStore(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={Boolean(impersonatingStoreId)}
+              onClick={() => {
+                if (impersonationStore)
+                  void impersonateStore(impersonationStore);
+              }}
+            >
+              Enter Store view
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }
@@ -428,6 +493,7 @@ function StoreDirectoryCard({
   deleting,
   statusChanging,
   impersonating,
+  canImpersonate,
   onDelete,
   onPermanentDelete,
   onChangeStatus,
@@ -438,6 +504,7 @@ function StoreDirectoryCard({
   deleting: boolean;
   statusChanging: boolean;
   impersonating: boolean;
+  canImpersonate: boolean;
   onDelete: () => void;
   onPermanentDelete?: () => void;
   onChangeStatus: () => void;
@@ -612,17 +679,19 @@ function StoreDirectoryCard({
                 }
               />
 
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                aria-label="Impersonate Store owner"
-                title="Impersonate Store owner"
-                disabled={impersonating || store.status === "ARCHIVED"}
-                onClick={onImpersonate}
-              >
-                <UserCircleIcon aria-hidden="true" />
-              </Button>
+              {canImpersonate ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="View as Store"
+                  title="View as Store"
+                  disabled={impersonating || store.status === "ARCHIVED"}
+                  onClick={onImpersonate}
+                >
+                  <UserCircleIcon aria-hidden="true" />
+                </Button>
+              ) : null}
 
               <ConfirmDialog
                 title="Archive Store?"

@@ -23,6 +23,7 @@ type SessionWithStore = {
   id: string;
   actorUserId: string | null;
   targetStoreId: string;
+  effectiveRoleCode: string;
   status: ImpersonationSessionStatus;
   startedAt: Date;
   expiresAt: Date;
@@ -47,6 +48,7 @@ export class StoreImpersonationService {
   async startSession(
     actorUserId: string,
     targetStoreId: string,
+    effectiveRoleCode: "store-admin" | "staff" = "store-admin",
   ): Promise<StoreImpersonationSessionResponseDto> {
     const store = await this.prisma.organization.findFirst({
       where: {
@@ -67,11 +69,40 @@ export class StoreImpersonationService {
     const expiresAt = new Date(now.getTime() + impersonationTtlMs);
     const sessionId = createSelfxId();
     const session = await this.prisma.$transaction(async (tx) => {
+      const previous = await tx.impersonationSession.findMany({
+        where: {
+          actorUserId,
+          status: ImpersonationSessionStatus.ACTIVE,
+          endedAt: null,
+        },
+        select: { id: true, targetStoreId: true },
+      });
+      if (previous.length) {
+        await tx.impersonationSession.updateMany({
+          where: { id: { in: previous.map((entry) => entry.id) } },
+          data: { status: ImpersonationSessionStatus.ENDED, endedAt: now },
+        });
+        await Promise.all(
+          previous.map((entry) =>
+            tx.auditLog.create({
+              data: {
+                id: createSelfxId(),
+                actorUserId,
+                action: "IMPERSONATION_SESSION_ENDED",
+                resourceType: "impersonation_session",
+                resourceId: entry.id,
+                metadata: { target_store_id: entry.targetStoreId },
+              },
+            }),
+          ),
+        );
+      }
       const created = await tx.impersonationSession.create({
         data: {
           id: sessionId,
           actorUserId,
           targetStoreId,
+          effectiveRoleCode,
           startedAt: now,
           expiresAt,
         },
@@ -86,6 +117,7 @@ export class StoreImpersonationService {
           resourceId: sessionId,
           metadata: {
             target_store_id: targetStoreId,
+            effective_role_code: effectiveRoleCode,
           },
         },
       });
@@ -226,6 +258,7 @@ function mapSession(session: SessionWithStore): StoreImpersonationSessionDto {
     targetStoreId: session.targetStoreId,
     targetStoreName: session.targetStore.name,
     targetStoreSlug: session.targetStore.slug,
+    effectiveRoleCode: session.effectiveRoleCode,
     status: session.status,
     startedAt: session.startedAt.toISOString(),
     expiresAt: session.expiresAt.toISOString(),

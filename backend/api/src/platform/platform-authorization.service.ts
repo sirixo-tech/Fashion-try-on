@@ -1,5 +1,7 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import {
+  ImpersonationSessionStatus,
+  OrganizationStatus,
   PermissionApplicability,
   PlatformRoleAssignmentStatus,
 } from "@prisma/client";
@@ -31,6 +33,11 @@ export class PlatformAuthorizationService {
   ): Promise<boolean> {
     if (!(Object.values(PLATFORM_PERMISSIONS) as string[]).includes(permission))
       return false;
+    if (
+      permission !== PLATFORM_PERMISSIONS.storeImpersonation &&
+      (await this.isImpersonating(userId))
+    )
+      return false;
     await this.ensurePlatformPermissionCatalog();
     if ((await this.staticPermissionsForUser(userId)).includes(permission)) {
       return true;
@@ -53,6 +60,7 @@ export class PlatformAuthorizationService {
   }
 
   async isSuperadmin(userId: string): Promise<boolean> {
+    if (await this.isImpersonating(userId)) return false;
     const assignment = await this.prisma.platformRoleAssignment.findFirst({
       where: {
         userId,
@@ -149,6 +157,7 @@ export class PlatformAuthorizationService {
   async allPlatformPermissionsForUser(
     userId: string,
   ): Promise<PlatformPermission[]> {
+    if (await this.isImpersonating(userId)) return [];
     await this.ensurePlatformPermissionCatalog();
     const dynamicAssignments =
       await this.prisma.platformUserAccessRole.findMany({
@@ -192,5 +201,19 @@ export class PlatformAuthorizationService {
       PLATFORM_ERROR_CODES.permissionDenied,
       "Platform permission denied.",
     );
+  }
+
+  private async isImpersonating(userId: string): Promise<boolean> {
+    const session = await this.prisma.impersonationSession.findFirst({
+      where: {
+        actorUserId: userId,
+        status: ImpersonationSessionStatus.ACTIVE,
+        endedAt: null,
+        expiresAt: { gt: new Date() },
+        targetStore: { status: { not: OrganizationStatus.ARCHIVED } },
+      },
+      select: { id: true },
+    });
+    return Boolean(session);
   }
 }

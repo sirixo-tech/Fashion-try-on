@@ -687,6 +687,7 @@ model ImpersonationSession {
   actorUserId   String?                    @map("actor_user_id") @db.Uuid
   actorSnapshot Json?                      @map("actor_snapshot")
   targetStoreId String                     @map("target_store_id") @db.Uuid
+  effectiveRoleCode String                  @default("store-admin") @map("effective_role_code") @db.VarChar(80)
   status        ImpersonationSessionStatus @default(ACTIVE)
   startedAt     DateTime                   @default(now()) @map("started_at") @db.Timestamptz(3)
   expiresAt     DateTime                   @map("expires_at") @db.Timestamptz(3)

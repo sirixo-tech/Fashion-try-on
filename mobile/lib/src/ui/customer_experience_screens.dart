@@ -843,10 +843,6 @@ class _CustomerPlansScreenState extends State<CustomerPlansScreen>
                         'Go Premium',
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
-                      const SizedBox(height: 3),
-                      const CustomerText(
-                        'More Try-Ons. More styles. More you.',
-                      ),
                       const SizedBox(height: 16),
                       Row(
                         children: [
@@ -1096,19 +1092,20 @@ class _PlansEditorialGallery extends StatefulWidget {
 
 class _PlansEditorialGalleryState extends State<_PlansEditorialGallery> {
   static const _images = [
-    'assets/editorial/plans-editorial-women-v1.webp',
-    'assets/editorial/plans-editorial-men-v1.webp',
-    'assets/editorial/plans-editorial-style-v1.webp',
+    'assets/editorial/plans-editorial-01-v2.webp',
+    'assets/editorial/plans-editorial-02-v2.webp',
+    'assets/editorial/plans-editorial-03-v2.webp',
+    'assets/editorial/plans-editorial-04-v2.webp',
+    'assets/editorial/plans-editorial-05-v2.webp',
+    'assets/editorial/plans-editorial-06-v2.webp',
   ];
-  static const _captions = [
-    'A little more possibility.',
+  static const _comments = [
+    'Make it your own.',
+    'From a photo\nto your next look.',
+    'Something new.\nStill entirely you.',
+    'Your personal space to discover a different look.',
+    'Keep the looks\nyou love.',
     'Your style. Your space.',
-    'Explore outfits',
-  ];
-  static const _descriptions = [
-    'More Try-Ons. More styles. More you.',
-    'Create your own space to explore, try and save.',
-    'A starter collection for your first Try-On.',
   ];
 
   final PageController _controller = PageController();
@@ -1161,31 +1158,35 @@ class _PlansEditorialGalleryState extends State<_PlansEditorialGallery> {
         ),
       ),
       const SizedBox(height: 12),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.format_quote_rounded,
-            color: CustomerColors.orange,
-            size: 30,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CustomerText(
-                  _captions[_index],
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                CustomerText(
-                  _descriptions[_index],
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
+      ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 72),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.format_quote_rounded,
+              color: CustomerColors.orange,
+              size: 30,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CustomerText(
+                    _comments[_index],
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  CustomerText(
+                    'SelfX',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 10),
       Row(

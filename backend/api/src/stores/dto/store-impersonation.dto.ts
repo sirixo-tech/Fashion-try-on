@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { ImpersonationSessionStatus } from "@prisma/client";
-import { IsOptional, IsUUID } from "class-validator";
+import { IsIn, IsOptional, IsUUID } from "class-validator";
+
+export class StartStoreImpersonationDto {
+  @ApiProperty({ enum: ["store-admin", "staff"] })
+  @IsIn(["store-admin", "staff"])
+  effectiveRoleCode!: "store-admin" | "staff";
+}
 
 export class StoreImpersonationSessionDto {
   @ApiProperty()
@@ -17,6 +23,9 @@ export class StoreImpersonationSessionDto {
 
   @ApiProperty()
   targetStoreSlug!: string;
+
+  @ApiProperty({ enum: ["store-admin", "staff"] })
+  effectiveRoleCode!: string;
 
   @ApiProperty({ enum: ImpersonationSessionStatus })
   status!: ImpersonationSessionStatus;

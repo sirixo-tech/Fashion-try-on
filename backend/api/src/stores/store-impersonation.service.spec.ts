@@ -21,10 +21,11 @@ describe("StoreImpersonationService", () => {
         id: "session-1",
         actorUserId: "admin-1",
         targetStoreId: "store-1",
+        effectiveRoleCode: "staff",
       }),
     );
 
-    const result = await service.startSession("admin-1", "store-1");
+    const result = await service.startSession("admin-1", "store-1", "staff");
 
     expect(prisma.organization.findFirst).toHaveBeenCalledWith({
       where: {
@@ -37,6 +38,7 @@ describe("StoreImpersonationService", () => {
       data: expect.objectContaining({
         actorUserId: "admin-1",
         targetStoreId: "store-1",
+        effectiveRoleCode: "staff",
       }),
       include: expect.any(Object),
     });
@@ -45,7 +47,7 @@ describe("StoreImpersonationService", () => {
         actorUserId: "admin-1",
         action: "IMPERSONATION_SESSION_STARTED",
         resourceType: "impersonation_session",
-        metadata: { target_store_id: "store-1" },
+        metadata: { target_store_id: "store-1", effective_role_code: "staff" },
       }),
     });
     const auditData = prisma.auditLog.create.mock.calls[0]?.[0]?.data;
@@ -56,6 +58,7 @@ describe("StoreImpersonationService", () => {
       actorUserId: "admin-1",
       targetStoreId: "store-1",
       targetStoreName: "Retail Store",
+      effectiveRoleCode: "staff",
       status: ImpersonationSessionStatus.ACTIVE,
       endedAt: null,
     });
@@ -71,6 +74,39 @@ describe("StoreImpersonationService", () => {
       STORE_IMPERSONATION_ERROR_CODES.storeNotFound,
     );
     expect(prisma.impersonationSession.create).not.toHaveBeenCalled();
+  });
+
+  it("ends the previous session before entering another Store", async () => {
+    const prisma = createPrismaMock();
+    const service = new StoreImpersonationService(prisma as never);
+    prisma.organization.findFirst.mockResolvedValue({
+      id: "store-2",
+      name: "Next",
+      slug: "next",
+    });
+    prisma.impersonationSession.findMany.mockResolvedValue([
+      { id: "old-session", targetStoreId: "store-1" },
+    ]);
+    prisma.impersonationSession.create.mockResolvedValue(
+      sessionRecord({ targetStoreId: "store-2" }),
+    );
+
+    await service.startSession("admin-1", "store-2", "staff");
+
+    expect(prisma.impersonationSession.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["old-session"] } },
+      data: {
+        status: ImpersonationSessionStatus.ENDED,
+        endedAt: expect.any(Date),
+      },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "IMPERSONATION_SESSION_ENDED",
+        resourceId: "old-session",
+        actorUserId: "admin-1",
+      }),
+    });
   });
 
   it("reads only active unexpired sessions for the actor", async () => {
@@ -213,6 +249,7 @@ function createPrismaMock() {
     },
     impersonationSession: {
       create: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -232,6 +269,7 @@ function sessionRecord(
     id: string;
     actorUserId: string;
     targetStoreId: string;
+    effectiveRoleCode: string;
     status: ImpersonationSessionStatus;
     startedAt: Date;
     expiresAt: Date;
@@ -242,11 +280,10 @@ function sessionRecord(
     id: overrides.id ?? "session-1",
     actorUserId: overrides.actorUserId ?? "admin-1",
     targetStoreId: overrides.targetStoreId ?? "store-1",
+    effectiveRoleCode: overrides.effectiveRoleCode ?? "store-admin",
     status: overrides.status ?? ImpersonationSessionStatus.ACTIVE,
-    startedAt:
-      overrides.startedAt ?? new Date("2026-09-13T10:00:00.000Z"),
-    expiresAt:
-      overrides.expiresAt ?? new Date("2026-09-13T10:30:00.000Z"),
+    startedAt: overrides.startedAt ?? new Date("2026-09-13T10:00:00.000Z"),
+    expiresAt: overrides.expiresAt ?? new Date("2026-09-13T10:30:00.000Z"),
     endedAt: overrides.endedAt ?? null,
     targetStore: {
       id: overrides.targetStoreId ?? "store-1",

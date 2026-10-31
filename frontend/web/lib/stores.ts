@@ -305,6 +305,7 @@ export type StoreImpersonationSession = {
   targetStoreId: string;
   targetStoreName: string;
   targetStoreSlug: string;
+  effectiveRoleCode: "store-admin" | "staff";
   status: "ACTIVE" | "ENDED" | "EXPIRED";
   startedAt: string;
   expiresAt: string;
@@ -370,12 +371,14 @@ export function onboardStore(
 export function startStoreImpersonation(
   accessToken: string,
   storeId: string,
+  effectiveRoleCode: "store-admin" | "staff",
 ): Promise<{ session: StoreImpersonationSession }> {
   return selfxApi<{ session: StoreImpersonationSession }>(
     `/api/v1/admin/stores/${storeId}/impersonation/start`,
     {
       method: "POST",
       accessToken,
+      body: JSON.stringify({ effectiveRoleCode }),
     },
   );
 }

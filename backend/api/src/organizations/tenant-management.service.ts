@@ -925,6 +925,7 @@ function mapCurrentStoreImpersonation(
     targetStoreId: session.targetStoreId,
     targetStoreName: session.targetStore.name,
     targetStoreSlug: session.targetStore.slug,
+    effectiveRoleCode: session.effectiveRoleCode,
     status: session.status,
     startedAt: session.startedAt.toISOString(),
     expiresAt: session.expiresAt.toISOString(),
