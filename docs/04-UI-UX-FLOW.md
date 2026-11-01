@@ -62,7 +62,7 @@ Platform Mobile Plans shows the shared INR credit price. The mobile Plans & cred
 
 Platform navigation has a separate Mobile Plans item beside Plans. Platform pricing viewers can see it and pricing managers can create or edit mobile plans. Active plans appear in the customer Plans & credits screen with price, billing period and credit amounts. Checkout is available after production PhonePe configuration is enabled. The personal free trial and Store QR sponsorship remain unchanged.
 
-Store administrators manage mobile Try-On QR codes from Integrations > Store QR. The page uses the active Store context; viewing requires `integrations.view`, while creating and revoking codes requires `integrations.manage`. Store overview remains focused on Store status and usage.
+Store administrators manage mobile Try-On QR codes from Integrations > Store QR. The page uses the active Store context; viewing requires `integrations.view`, while creating and revoking codes requires `integrations.manage`. Only the current QR is listed. Creating a replacement revokes the prior code and opens the new QR in a centered dialog with Share and Download actions. Store overview remains focused on Store status and usage.
 
 ### CUSTOMER-MOBILE-20 — Product Try-On, progress and garment saves (2026-10-29)
 

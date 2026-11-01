@@ -2,15 +2,25 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toDataURL } from "qrcode";
-import { QrCodeIcon, DownloadIcon, RefreshCwIcon } from "lucide-react";
 import {
+  DownloadIcon,
+  QrCodeIcon,
+  Share2Icon,
+  XIcon,
+} from "lucide-react";
+import {
+  Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   Input,
-  Badge,
 } from "@selfx/ui";
 import { selfxApi, SafeApiError } from "@/lib/api";
 import { RegionalDateTime } from "@/lib/regional-settings";
@@ -33,57 +43,93 @@ export function StoreMobileQr({
   storeId: string;
   canManage: boolean;
 }) {
-  const [rows, setRows] = useState<StoreQr[]>([]);
+  const [current, setCurrent] = useState<StoreQr | null>(null);
   const [label, setLabel] = useState("In-store Try-On");
   const [limit, setLimit] = useState("5");
   const [qr, setQr] = useState<{ id: string; image: string } | null>(null);
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const key = `${accessToken}:${storeId}`;
   const active = useRef(key);
   active.current = key;
   const path = `/api/v1/admin/stores/${storeId}/mobile-qrs`;
+
   const load = useCallback(async () => {
     const data = await selfxApi<{ data: StoreQr[] }>(path, { accessToken });
-    if (active.current === key) setRows(data.data);
+    if (active.current === key) setCurrent(data.data[0] ?? null);
   }, [path, accessToken, key]);
+
   useEffect(() => {
     let live = true;
     active.current = key;
     setBusy(false);
-    setRows([]);
+    setCurrent(null);
     setQr(null);
+    setDialogOpen(false);
     setError(null);
-    void load().catch((e) => {
+    setNotice(null);
+    void load().catch((caught: unknown) => {
       if (live)
         setError(
-          e instanceof SafeApiError
-            ? e.message
-            : "Store QR codes could not be loaded.",
+          caught instanceof SafeApiError
+            ? caught.message
+            : "Store QR could not be loaded.",
         );
     });
     return () => {
       live = false;
       active.current = "";
     };
-  }, [load]);
+  }, [load, key]);
+
   async function perform(action: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await action();
-    } catch (e) {
+    } catch (caught) {
       if (active.current === key)
         setError(
-          e instanceof SafeApiError
-            ? e.message
-            : "The QR action could not be completed.",
+          caught instanceof SafeApiError
+            ? caught.message
+            : "The Store QR action could not be completed.",
         );
     } finally {
       if (active.current === key) setBusy(false);
     }
   }
+
+  async function shareQr() {
+    if (!qr) return;
+    try {
+      const blob = await (await fetch(qr.image)).blob();
+      const file = new File([blob], `SelfX-Store-QR-${qr.id}.png`, {
+        type: "image/png",
+      });
+      if (
+        !navigator.share ||
+        !navigator.canShare?.({ files: [file] })
+      ) {
+        setNotice(
+          "Sharing QR images is not available in this browser. Download the QR to share it.",
+        );
+        return;
+      }
+      await navigator.share({
+        title: "SelfX Store Try-On QR",
+        text: "Scan this QR in the SelfX app to explore this Store’s eligible products.",
+        files: [file],
+      });
+    } catch (caught) {
+      if (caught instanceof Error && caught.name === "AbortError") return;
+      setError("The QR could not be shared. Download it to share manually.");
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -95,23 +141,85 @@ export function StoreMobileQr({
         <p className="text-sm text-muted-foreground">
           Customers scan this code in the SelfX mobile app to see this Store’s
           eligible products. Successful Try-Ons use this Store’s allowance or
-          pay-as-you-go billing. Their personal credits are kept separate.
+          pay-as-you-go billing; personal credits stay separate.
         </p>
         <p className="text-sm text-muted-foreground">
           The Store plan must include Mobile Store QR. Sessions last 2 hours.
-          Daily limits apply per signed-in customer across all this Store’s
-          codes.
+          One active QR is allowed per Store; creating a replacement disables
+          the previous code.
         </p>
-        {error && (
+
+        {error ? (
           <p role="alert" className="text-sm text-destructive">
             {error}
           </p>
+        ) : null}
+        {notice ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {notice}
+          </p>
+        ) : null}
+
+        {current ? (
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-muted/20 p-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{current.label}</span>
+                <Badge variant="outline">Active</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {current.dailyCustomerLimit} Try-Ons per customer / day · Expires{" "}
+                <RegionalDateTime value={current.expiresAt} />
+              </p>
+              <p className="text-xs text-muted-foreground">
+                The QR is shown once when created. Replace it to generate and
+                share a fresh code.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {qr?.id === current.id ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setDialogOpen(true)}
+                  disabled={busy}
+                >
+                  <QrCodeIcon size={16} /> View QR
+                </Button>
+              ) : null}
+              {canManage ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void perform(async () => {
+                      await selfxApi(path + `/${current.id}`, {
+                        accessToken,
+                        method: "DELETE",
+                      });
+                      if (active.current !== key) return;
+                      setQr(null);
+                      setDialogOpen(false);
+                      await load();
+                    })
+                  }
+                >
+                  <XIcon size={16} /> Revoke QR
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            No active Store QR. Create one to display it and share or download
+            the image.
+          </p>
         )}
-        {canManage && (
+
+        {canManage ? (
           <form
-            className="grid items-end gap-3 sm:grid-cols-[1fr_12rem_auto]"
-            onSubmit={(e) => {
-              e.preventDefault();
+            className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
               void perform(async () => {
                 const result = await selfxApi<StoreQr & { payload: string }>(
                   path,
@@ -131,6 +239,7 @@ export function StoreMobileQr({
                 });
                 if (active.current !== key) return;
                 setQr({ id: result.id, image });
+                setDialogOpen(true);
                 await load();
               });
             }}
@@ -139,7 +248,7 @@ export function StoreMobileQr({
               Code name
               <Input
                 value={label}
-                onChange={(e) => setLabel(e.target.value)}
+                onChange={(event) => setLabel(event.target.value)}
                 maxLength={100}
                 required
                 disabled={busy}
@@ -152,101 +261,60 @@ export function StoreMobileQr({
                 min={1}
                 max={100}
                 value={limit}
-                onChange={(e) => setLimit(e.target.value)}
+                onChange={(event) => setLimit(event.target.value)}
                 required
                 disabled={busy}
               />
             </label>
             <Button type="submit" disabled={busy || !label.trim()}>
-              Create Store QR
+              {busy
+                ? "Creating…"
+                : current
+                  ? "Replace active QR"
+                  : "Create Store QR"}
             </Button>
           </form>
-        )}
-        {qr && (
-          <div className="grid gap-3 rounded-xl border bg-muted/20 p-4 sm:grid-cols-[12rem_1fr]">
-            {/* Locally generated QR data URL, never a customer photograph. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={qr.image}
-              width={192}
-              height={192}
-              alt="SelfX Store Try-On QR code"
-            />
-            <div className="space-y-3">
-              <p className="text-sm">
-                Download this code now. The access token is shown only when
-                created. You can revoke the code and create another if you lose
-                it.
-              </p>
-              <a
-                href={qr.image}
-                download={`SelfX-Store-QR-${qr.id}.png`}
-                className="inline-flex items-center gap-2 text-sm font-medium underline underline-offset-4"
-              >
-                <DownloadIcon size={16} /> Download QR
-              </a>
-            </div>
-          </div>
-        )}
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Store codes</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => void perform(load)}
-          >
-            <RefreshCwIcon size={15} /> Refresh
-          </Button>
-        </div>
-        {!rows.length && (
-          <p className="text-sm text-muted-foreground">No Store codes yet.</p>
-        )}
-        <ul className="divide-y">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="flex flex-wrap items-center justify-between gap-3 py-3"
-            >
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{row.label}</span>
-                  <Badge variant="outline">
-                    {row.revokedAt
-                      ? "Revoked"
-                      : new Date(row.expiresAt) <= new Date()
-                        ? "Expired"
-                        : "Active"}
-                  </Badge>
+        ) : null}
+
+        <Dialog
+          open={dialogOpen && Boolean(qr)}
+          onOpenChange={setDialogOpen}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Store QR ready</DialogTitle>
+              <DialogDescription>
+                Share or download this code. Replacing it will deactivate this
+                QR.
+              </DialogDescription>
+            </DialogHeader>
+            {qr ? (
+              <div className="space-y-5 text-center">
+                {/* Locally generated QR image; only its hashed token is stored. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={qr.image}
+                  width={288}
+                  height={288}
+                  alt="SelfX Store Try-On QR code"
+                  className="mx-auto size-72 max-w-full rounded-lg border bg-white p-3"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <a
+                    href={qr.image}
+                    download={`SelfX-Store-QR-${qr.id}.png`}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <DownloadIcon size={16} /> Download
+                  </a>
+                  <Button onClick={() => void shareQr()}>
+                    <Share2Icon size={16} /> Share
+                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {row.dailyCustomerLimit} per customer / day · Expires{" "}
-                  <RegionalDateTime value={row.expiresAt} />
-                </p>
               </div>
-              {canManage && !row.revokedAt && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() =>
-                    void perform(async () => {
-                      await selfxApi(path + `/${row.id}`, {
-                        accessToken,
-                        method: "DELETE",
-                      });
-                      if (active.current !== key) return;
-                      if (qr?.id === row.id) setQr(null);
-                      await load();
-                    })
-                  }
-                >
-                  Revoke code
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+            ) : null}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

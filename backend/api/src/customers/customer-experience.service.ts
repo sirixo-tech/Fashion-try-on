@@ -1264,16 +1264,26 @@ export class CustomerExperienceService
   ) {
     await this.requireStore(organizationId);
     const token = randomBytes(32).toString("base64url");
-    const row = await this.db.customerStoreQr.create({
-      data: {
-        id: createSelfxId(),
-        organizationId,
-        createdByUserId,
-        tokenHash: digest(token),
-        label,
-        dailyCustomerLimit,
-        expiresAt: new Date(Date.now() + 365 * DAY),
-      },
+    const row = await this.db.$transaction(async (tx) => {
+      // Serialize QR replacement per Store so concurrent creates cannot leave
+      // multiple unrevoked codes behind.
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${organizationId}::uuid FOR UPDATE`;
+      const now = new Date();
+      await tx.customerStoreQr.updateMany({
+        where: { organizationId, revokedAt: null },
+        data: { revokedAt: now, revokedByUserId: createdByUserId },
+      });
+      return tx.customerStoreQr.create({
+        data: {
+          id: createSelfxId(),
+          organizationId,
+          createdByUserId,
+          tokenHash: digest(token),
+          label,
+          dailyCustomerLimit,
+          expiresAt: new Date(Date.now() + 365 * DAY),
+        },
+      });
     });
     return { ...this.qrDto(row), payload: `selfx://store?token=${token}` };
   }
@@ -1298,9 +1308,13 @@ export class CustomerExperienceService
     return {
       data: (
         await this.db.customerStoreQr.findMany({
-          where: { organizationId },
+          where: {
+            organizationId,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
           orderBy: { createdAt: "desc" },
-          take: 50,
+          take: 1,
         })
       ).map((row) => this.qrDto(row)),
     };

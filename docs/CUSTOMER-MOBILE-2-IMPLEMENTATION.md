@@ -76,8 +76,12 @@ the new mobile result prefix. No bucket policy/lifecycle was changed by this wor
 Integrations > Store QR exposes Mobile Store QR to callers with
 `integrations.view` and creation/revocation to `integrations.manage`. Both checks run server-side against
 the explicit Store resource; impersonation is resolved and the actual staff
-actor is recorded. A new random token is returned once as a downloadable QR;
-only its SHA-256 hash is stored. QR codes expire after one year and can be revoked.
+actor is recorded. Each Store has at most one unrevoked, unexpired QR. Creating
+a replacement revokes the previous QR in the same Store-locked transaction. The
+new random token is returned once and rendered in a centered dialog for sharing
+or download; only its SHA-256 hash is stored. Revoked records are omitted from
+the management list but retained because Store visits reference them and depend
+on their revocation state. QR codes expire after one year and can be revoked.
 
 Scanning in the mobile header opens a two-hour customer-owned Store visit. The
 app shows the Store name, Store payer and eligible Store garment catalog.
