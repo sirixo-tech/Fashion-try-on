@@ -102,6 +102,7 @@ const storePermissionsByHref: Record<string, string[]> = {
   "/app/billing": ["analytics.view"],
   "/app/integrations/shopify": ["integrations.view"],
   "/app/integrations/woocommerce": ["integrations.view"],
+  "/app/integrations/store-qr": ["integrations.view"],
 };
 
 const storeFeaturesByHref: Record<string, string[]> = {

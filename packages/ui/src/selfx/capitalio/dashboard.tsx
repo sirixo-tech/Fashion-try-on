@@ -340,6 +340,7 @@ export function CapitalioDashboard({
         ...row,
         key: row.id ?? `platform-${index}`,
         category: row.id ? "SelfX Store" : "Platform fleet",
+        thumbnailUrl: null,
         successRate: row.successRate,
       }))
     : (m?.products ?? []).map((row) => ({
@@ -754,11 +755,22 @@ export function CapitalioDashboard({
                       </TableCell>
                       <TableCell>
                         <div className="flex min-w-40 items-center gap-3">
-                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
                             <PerformanceIcon
                               className="size-4 text-muted-foreground"
                               aria-hidden="true"
                             />
+                            {!platform && product.thumbnailUrl ? (
+                              <img
+                                src={product.thumbnailUrl}
+                                alt=""
+                                loading="lazy"
+                                className="absolute inset-0 size-full object-cover"
+                                onError={(event) =>
+                                  event.currentTarget.remove()
+                                }
+                              />
+                            ) : null}
                           </span>
                           <div>
                             <div className="max-w-64 truncate font-medium">
@@ -822,10 +834,29 @@ export function CapitalioDashboard({
               performanceRows.map((product, index) => (
                 <div key={product.key} className="rounded-lg border p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{product.name}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {product.category}
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                        <PerformanceIcon
+                          className="size-4 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        {!platform && product.thumbnailUrl ? (
+                          <img
+                            src={product.thumbnailUrl}
+                            alt=""
+                            loading="lazy"
+                            className="absolute inset-0 size-full object-cover"
+                            onError={(event) => event.currentTarget.remove()}
+                          />
+                        ) : null}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">
+                          {product.name}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {product.category}
+                        </div>
                       </div>
                     </div>
                     <span className="text-xs text-muted-foreground">

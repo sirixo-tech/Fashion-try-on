@@ -11,6 +11,7 @@ export type DashboardProduct = {
   id: string;
   name: string;
   category: string;
+  thumbnailUrl?: string | null;
   generated: number;
   attempts: number;
   downloads: number;

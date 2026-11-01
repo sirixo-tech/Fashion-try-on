@@ -62,6 +62,8 @@ Platform Mobile Plans shows the shared INR credit price. The mobile Plans & cred
 
 Platform navigation has a separate Mobile Plans item beside Plans. Platform pricing viewers can see it and pricing managers can create or edit mobile plans. Active plans appear in the customer Plans & credits screen with price, billing period and credit amounts. Checkout is available after production PhonePe configuration is enabled. The personal free trial and Store QR sponsorship remain unchanged.
 
+Store administrators manage mobile Try-On QR codes from Integrations > Store QR. The page uses the active Store context; viewing requires `integrations.view`, while creating and revoking codes requires `integrations.manage`. Store overview remains focused on Store status and usage.
+
 ### CUSTOMER-MOBILE-20 — Product Try-On, progress and garment saves (2026-10-29)
 
 The welcome screen keeps the approved transparent SelfX mark over the photographic backdrop without an opaque logo tile. Product Try-On opens the main Try-On tab with that garment selected; the person can use a photo or a relevant demo model there. The queued/processing state centers the input-photo animation and shows an indeterminate progress bar without a fabricated percentage. Completed results show the full output image, omit the 30-day notice, and show edge-to-edge suggested garment images. A heart saves or removes a demo or Store garment without using credits. Saved has Looks and Wardrobe tabs; a saved garment card and its prominent Try on button open the Try-On flow with that garment selected, while the heart only removes the save. Garment saves belong to the signed-in customer, and Store garment details remain visible only during a valid Store visit while the product is eligible.
@@ -193,7 +195,7 @@ In the WordPress Single Product template editor, selecting SelfX Try-On exposes 
 
 On the all-Stores dashboard, replace Product performance with Store performance: Store name, generated Try-Ons, success rate, downloads, failed attempts and View Store. Rank by generated Try-Ons, then attempts. View Store switches the dashboard to that authorized Store's product metrics and keeps the current date range. Offer navigation only for Stores already selectable under the user's Store access; unassigned Platform fleet and unselectable Stores have no action. Platform usage viewers can read Store aggregates without receiving Store-management rights.
 
-Selecting one Store or opening a merchant/staff dashboard retains Product performance with the existing product share metric. Choosing All Stores restores Store metrics. Loading/error/empty states and CSV exports follow the resolved scope, and mobile uses the same metric semantics in cards. Existing charts, insights, resource counts, date controls and account/navigation remain intact.
+Selecting one Store or opening a merchant/staff dashboard retains Product performance with the existing product share metric and catalog thumbnails where available; products without an image keep the generic icon. Choosing All Stores restores Store metrics and Store icons. Loading/error/empty states and CSV exports follow the resolved scope, and mobile uses the same metric semantics in cards. Existing charts, insights, resource counts, date controls and account/navigation remain intact.
 
 ### Shopify overview and detail alignment (2026-10-25)
 

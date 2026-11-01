@@ -17,6 +17,7 @@ import {
   MonitorIcon,
   MailIcon,
   PackageIcon,
+  QrCodeIcon,
   SettingsIcon,
   ShieldIcon,
   StoreIcon,
@@ -100,6 +101,7 @@ const navItems: SelfxNavItem[] = [
         label: "WooCommerce",
         icon: BlocksIcon,
       },
+      { href: "/app/integrations/store-qr", label: "Store QR", icon: QrCodeIcon },
     ],
   },
   {

@@ -55,7 +55,6 @@ import {
 
 import { SafeApiError } from "@/lib/api";
 import { StoreTryOnUsage } from "@/components/store-try-on-usage";
-import { StoreMobileQr } from "@/components/store-mobile-qr";
 import { StoreAdminAccounts } from "@/components/store-admin-accounts";
 import { PostpaidBillingSummary } from "@/components/postpaid-billing-summary";
 import {
@@ -400,16 +399,6 @@ export default function StoreDashboardPage() {
         )}
       </PageSection>
 
-      {store?.id === storeId && accessToken && can("integrations.view") ? (
-        <PageSection>
-          <StoreMobileQr
-            key={storeId}
-            accessToken={accessToken}
-            storeId={storeId}
-            canManage={can("integrations.manage")}
-          />
-        </PageSection>
-      ) : null}
       {store?.id === storeId && accessToken && canViewUsage ? (
         <StoreTryOnUsage
           key={storeId}

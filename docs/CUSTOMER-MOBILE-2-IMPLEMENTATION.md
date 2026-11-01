@@ -73,8 +73,8 @@ the new mobile result prefix. No bucket policy/lifecycle was changed by this wor
 
 ## Store QR sponsorship
 
-Store details exposes Mobile Store QR to callers with `integrations.view` and
-creation/revocation to `integrations.manage`. Both checks run server-side against
+Integrations > Store QR exposes Mobile Store QR to callers with
+`integrations.view` and creation/revocation to `integrations.manage`. Both checks run server-side against
 the explicit Store resource; impersonation is resolved and the actual staff
 actor is recorded. A new random token is returned once as a downloadable QR;
 only its SHA-256 hash is stored. QR codes expire after one year and can be revoked.

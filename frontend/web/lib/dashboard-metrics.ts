@@ -36,6 +36,7 @@ export function dashboardMetrics(
             id: row.productId ?? `unmapped-${index}`,
             name: row.name,
             category: row.category ?? row.catalogSource ?? "Product reference",
+            thumbnailUrl: row.thumbnailUrl ?? null,
             generated: row.tryOnsGenerated,
             attempts: row.runsCreated,
             downloads: row.downloadsCompleted,
