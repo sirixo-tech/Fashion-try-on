@@ -19,6 +19,10 @@ import { MailCrypto, type MailEnvelope } from "../mail/mail-crypto.js";
 import { MailOutboxService } from "../mail/mail-outbox.service.js";
 import { MailSettingsService } from "../mail/mail-settings.service.js";
 import {
+  customerCodeEmail,
+  passwordChangedEmail,
+} from "../mail/selfx-email-template.js";
+import {
   customerConfig,
   customerError,
   CUSTOMER_TERMS_VERSION,
@@ -332,6 +336,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
         to: input.email,
         subject: `${action} · SelfX`,
         text: `Your SelfX code is ${code}.\n\nEnter it in the SelfX customer app to ${input.purpose === "VERIFY_EMAIL" ? "verify your email" : input.purpose === "EMAIL_LOGIN" ? "sign in" : "reset your password"}. It expires 10 minutes after the request and can be used once.\n\nIf you did not request this, ignore this email. Never share your code.`,
+        html: customerCodeEmail(input.purpose, code),
         customerTokenId: token.id,
       };
       const updated = await tx.mailJob.updateMany({
@@ -729,6 +734,7 @@ export class CustomerAuthService implements OnModuleInit, OnModuleDestroy {
             to: customer.email!,
             subject: "Your SelfX password was changed",
             text: "Your SelfX password was changed successfully. All existing customer sessions have been signed out.\n\nIf you did not make this change, use Forgot password in the SelfX customer app to secure your account and contact SelfX support.\n\nNever share your password or verification codes.",
+            html: passwordChangedEmail(),
           },
           new Date(Date.now() + 24 * 60 * 60_000),
           tx,

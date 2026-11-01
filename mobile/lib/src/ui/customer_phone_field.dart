@@ -33,6 +33,12 @@ class CustomerPhoneFieldState extends State<CustomerPhoneField> {
   String? get canonical =>
       parseCustomerPhone(widget.controller.text, country)?.international;
   @override
+  void didUpdateWidget(covariant CustomerPhoneField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.allowEmail) phoneKeyboard = true;
+  }
+
+  @override
   void initState() {
     super.initState();
     phoneKeyboard =

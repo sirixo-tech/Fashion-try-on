@@ -11,6 +11,10 @@ import { PrismaService } from "../database/prisma.service.js";
 import { MailCrypto, type MailEnvelope } from "../mail/mail-crypto.js";
 import { MailOutboxService } from "../mail/mail-outbox.service.js";
 import {
+  passwordChangedEmail,
+  passwordResetLinkEmail,
+} from "../mail/selfx-email-template.js";
+import {
   MailSettingsService,
   mailError,
 } from "../mail/mail-settings.service.js";
@@ -136,6 +140,7 @@ export class PasswordRecoveryService implements OnModuleInit {
         to: user.email,
         subject: "Reset your SelfX password",
         text: `A password reset was requested for your SelfX account.\n\nOpen this link to choose a new password:\n${link}\n\nThis link expires 15 minutes after the request and can be used once. If you did not request this, ignore this email. Your password has not changed.`,
+        html: passwordResetLinkEmail(link),
         resetTokenId: id,
       });
       const updated = await tx.mailJob.updateMany({
@@ -223,6 +228,7 @@ export class PasswordRecoveryService implements OnModuleInit {
           to: user!.email,
           subject: "Your SelfX password was changed",
           text: "Your SelfX password was reset successfully. Existing login sessions have been invalidated. If you did not make this change, contact SelfX support immediately.",
+          html: passwordChangedEmail(),
         },
         new Date(Date.now() + 24 * 60 * 60_000),
         tx,

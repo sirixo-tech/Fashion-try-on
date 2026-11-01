@@ -1,5 +1,21 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-27 — Browse by saved interest and start Try-On from a card (2026-11-01)
+
+Home initially selects the customer's saved Men or Women interest. Customers can
+switch to All or another category at any time. Search and sort the sample
+collection, then choose Try it on directly from a product card to continue
+through the existing consented flow with that product selected.
+
+### CUSTOMER-MOBILE-26 — Sign in and update avatar (2026-11-01)
+
+Returning customers can choose password sign-in or Mobile OTP. OTP sign-in
+requires a verified phone already linked to the customer account; Firebase
+verification completes before SelfX issues its own session. Customers can
+replace either saved avatar photo from Me → My avatar. New Try-Ons use the
+current saved full-body reference; changing a photo within one Try-On affects
+only that session.
+
 ### CUSTOMER-MOBILE-25 — Leave payment (2026-10-30)
 
 The customer chooses Leave payment and confirms. SelfX checks PhonePe, requests

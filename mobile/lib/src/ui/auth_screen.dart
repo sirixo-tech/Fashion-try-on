@@ -7,6 +7,7 @@ import 'customer_theme.dart';
 import 'customer_entry_theme.dart';
 import 'customer_phone_field.dart';
 import 'customer_policy_notice.dart';
+import 'customer_code_screen.dart';
 import '../l10n/customer_language_screen.dart';
 
 enum CustomerAuthView { signIn, signUp, verify, forgot, reset }
@@ -46,6 +47,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
 
   CustomerAuthView view = CustomerAuthView.signIn;
   bool obscure = true, busy = false, acceptedPolicy = false;
+  bool mobileOtp = false;
   String? error, notice, signupProof;
   CustomerController get auth => widget.controller;
   bool get signup => view == CustomerAuthView.signUp;
@@ -61,6 +63,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     resendWait = 0;
     setState(() {
       view = next;
+      mobileOtp = false;
       error = null;
       notice = null;
       password.clear();
@@ -74,6 +77,170 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
         scroll.jumpTo(0);
       }
     });
+  }
+
+  void setMobileOtp(bool value) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      mobileOtp = value;
+      error = null;
+      notice = null;
+      password.clear();
+      form.currentState?.reset();
+    });
+  }
+
+  Widget _authMethodSelector() => Container(
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF3F1EF),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: CustomerColors.line),
+    ),
+    child: Row(
+      children: [
+        _authMethodButton(
+          'Password',
+          selected: !mobileOtp,
+          onTap: () => setMobileOtp(false),
+        ),
+        _authMethodButton(
+          'Sign in with a code',
+          selected: mobileOtp,
+          onTap: () => setMobileOtp(true),
+        ),
+      ],
+    ),
+  );
+
+  Widget _authMethodButton(
+    String label, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) => Expanded(
+    child: Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? CustomerColors.orange : Colors.transparent,
+        borderRadius: BorderRadius.circular(11),
+        child: InkWell(
+          onTap: busy ? null : onTap,
+          borderRadius: BorderRadius.circular(11),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
+            child: CustomerText(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : CustomerColors.ink,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _signInHero(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(20),
+    child: SizedBox(
+      height: 218,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Color(0xFFFFF5EF)),
+          Image.asset(
+            'assets/editorial/welcome-tryon-v6.webp',
+            fit: BoxFit.cover,
+            alignment: const Alignment(.72, -.82),
+            filterQuality: FilterQuality.medium,
+            excludeFromSemantics: true,
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xFFFFF6F0),
+                  Color(0xEFFFF6F0),
+                  Color(0x22FFF6F0),
+                ],
+                stops: [0, .55, 1],
+              ),
+            ),
+          ),
+          PositionedDirectional(top: 8, start: 8, child: const CustomerBrand()),
+          PositionedDirectional(
+            top: 4,
+            end: 4,
+            child: IconButton(
+              tooltip: tr(context, 'Language'),
+              onPressed: busy
+                  ? null
+                  : () => Navigator.push<void>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomerLanguageScreen(
+                          controller: widget.controller,
+                        ),
+                      ),
+                    ),
+              icon: const Icon(Icons.language),
+            ),
+          ),
+          PositionedDirectional(
+            start: 8,
+            bottom: 17,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 255),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CustomerText(
+                    'Sign in',
+                    style: TextStyle(
+                      fontSize: 34,
+                      height: 1.05,
+                      fontWeight: FontWeight.w700,
+                      color: CustomerColors.ink,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  CustomerText(
+                    'Welcome to your personal fitting room.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      height: 1.25,
+                      color: CustomerColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Future<void> continueWithMobileOtp() async {
+    if (!ensurePolicy()) return;
+    if (!(form.currentState?.validate() ?? false)) return;
+    final phone = identifierField.currentState?.canonical;
+    if (phone == null) return;
+    FocusScope.of(context).unfocus();
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomerCodeScreen(auth: auth, initialContact: phone),
+      ),
+    );
   }
 
   Future<void> run(Future<void> Function() action) async {
@@ -260,7 +427,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
         'Enter your email code and choose a new password.',
     };
     final button = switch (view) {
-      CustomerAuthView.signIn => 'Sign in',
+      CustomerAuthView.signIn => mobileOtp ? 'Send code' : 'Sign in',
       CustomerAuthView.signUp => 'Create account',
       CustomerAuthView.verify => 'Verify email',
       CustomerAuthView.forgot => 'Send reset code',
@@ -293,72 +460,63 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               ? MainAxisAlignment.center
                               : MainAxisAlignment.start,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (!credentialForm)
+                            if (compact)
+                              _signInHero(context)
+                            else
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  if (!credentialForm)
+                                    IconButton(
+                                      tooltip: tr(context, 'Back to sign in'),
+                                      onPressed: busy
+                                          ? null
+                                          : () =>
+                                                change(CustomerAuthView.signIn),
+                                      icon: const Icon(
+                                        Icons.arrow_back_rounded,
+                                      ),
+                                    )
+                                  else
+                                    const SizedBox(width: 48),
+                                  Expanded(
+                                    child: Center(
+                                      child: CustomerBrand(compact: compact),
+                                    ),
+                                  ),
                                   IconButton(
-                                    tooltip: tr(context, 'Back to sign in'),
+                                    tooltip: tr(context, 'Language'),
                                     onPressed: busy
                                         ? null
-                                        : () => change(CustomerAuthView.signIn),
-                                    icon: const Icon(Icons.arrow_back_rounded),
-                                  )
-                                else
-                                  const SizedBox(width: 48),
-                                Expanded(
-                                  child: Center(
-                                    child: CustomerBrand(compact: compact),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: tr(context, 'Language'),
-                                  onPressed: busy
-                                      ? null
-                                      : () => Navigator.push<void>(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                CustomerLanguageScreen(
-                                                  controller: widget.controller,
-                                                ),
+                                        : () => Navigator.push<void>(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  CustomerLanguageScreen(
+                                                    controller:
+                                                        widget.controller,
+                                                  ),
+                                            ),
                                           ),
-                                        ),
-                                  icon: const Icon(Icons.language),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: compact ? 12 : 32),
-                            Align(
-                              alignment: compact
-                                  ? Alignment.center
-                                  : AlignmentDirectional.centerStart,
-                              child: CustomerText(
+                                    icon: const Icon(Icons.language),
+                                  ),
+                                ],
+                              ),
+                            if (!compact) ...[
+                              const SizedBox(height: 32),
+                              CustomerText(
                                 title,
-                                textAlign: compact ? TextAlign.center : null,
-                                style: compact
-                                    ? entryTheme.textTheme.headlineMedium
-                                          ?.copyWith(fontSize: 25, height: 1.1)
-                                    : entryTheme.textTheme.headlineLarge,
+                                style: entryTheme.textTheme.headlineLarge,
                               ),
-                            ),
-                            SizedBox(height: compact ? 5 : 12),
-                            Align(
-                              alignment: compact
-                                  ? Alignment.center
-                                  : AlignmentDirectional.centerStart,
-                              child: CustomerText(
+                              const SizedBox(height: 12),
+                              CustomerText(
                                 subtitle,
-                                textAlign: compact ? TextAlign.center : null,
                                 style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      color: CustomerColors.muted,
-                                      fontSize: compact ? 14 : null,
-                                      height: compact ? 1.3 : null,
-                                    ),
+                                    ?.copyWith(color: CustomerColors.muted),
                               ),
-                            ),
-                            SizedBox(height: compact ? 16 : 24),
+                            ],
+                            SizedBox(height: compact ? 18 : 24),
                             if (error != null) ...[
                               CustomerNotice(error!, error: true),
                               const SizedBox(height: 16),
@@ -466,13 +624,20 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               ),
                               const SizedBox(height: 14),
                             ],
+                            if (view == CustomerAuthView.signIn) ...[
+                              _authMethodSelector(),
+                              const SizedBox(height: 14),
+                            ],
                             if (credentialForm)
                               CustomerPhoneField(
                                 key: identifierField,
                                 controller: email,
                                 countries: auth.countries,
-                                label: 'Email or mobile number',
-                                allowEmail: true,
+                                label:
+                                    mobileOtp && view == CustomerAuthView.signIn
+                                    ? 'Phone number'
+                                    : 'Email or mobile number',
+                                allowEmail: signup || !mobileOtp,
                                 compact: compact,
                                 enabled: !busy,
                                 onChanged: () => setState(() {}),
@@ -522,7 +687,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                     : null,
                               ),
                             ],
-                            if (credentialForm ||
+                            if ((credentialForm && !mobileOtp) ||
                                 view == CustomerAuthView.reset) ...[
                               SizedBox(height: compact ? 6 : 14),
                               TextFormField(
@@ -572,7 +737,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 },
                               ),
                             ],
-                            if (view == CustomerAuthView.signIn)
+                            if (view == CustomerAuthView.signIn && !mobileOtp)
                               Align(
                                 alignment: AlignmentDirectional.centerEnd,
                                 child: TextButton(
@@ -630,6 +795,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                               child: FilledButton(
                                 onPressed: busy || !auth.capabilities.enabled
                                     ? null
+                                    : mobileOtp &&
+                                          view == CustomerAuthView.signIn
+                                    ? continueWithMobileOtp
                                     : submit,
                                 child: busy
                                     ? const SizedBox(

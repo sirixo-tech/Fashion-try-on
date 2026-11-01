@@ -77,8 +77,43 @@ class CustomerDemoCatalog extends StatefulWidget {
 }
 
 class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
-  String category = 'ALL';
+  late String category;
+  late String _lastPreferredCategory;
+  String sortOrder = 'RECOMMENDED';
   final search = TextEditingController();
+
+  String preferredCategory() {
+    final interests = widget.experience.auth.profile?.interests ?? const [];
+    if (interests.contains('MEN')) return 'MEN';
+    if (interests.contains('WOMEN')) return 'WOMEN';
+    return 'ALL';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _lastPreferredCategory = preferredCategory();
+    category = _lastPreferredCategory;
+    widget.experience.auth.addListener(_preferencesChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomerDemoCatalog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.experience.auth != widget.experience.auth) {
+      oldWidget.experience.auth.removeListener(_preferencesChanged);
+      _lastPreferredCategory = preferredCategory();
+      category = _lastPreferredCategory;
+      widget.experience.auth.addListener(_preferencesChanged);
+    }
+  }
+
+  void _preferencesChanged() {
+    final next = preferredCategory();
+    if (next == _lastPreferredCategory) return;
+    _lastPreferredCategory = next;
+    if (mounted) setState(() => category = next);
+  }
 
   Future<void> toggleSaved(String id) async {
     try {
@@ -94,6 +129,7 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
 
   @override
   void dispose() {
+    widget.experience.auth.removeListener(_preferencesChanged);
     search.dispose();
     super.dispose();
   }
@@ -110,6 +146,15 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
               ),
         )
         .toList();
+    if (sortOrder == 'NAME_ASC') {
+      products.sort(
+        (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+      );
+    } else if (sortOrder == 'NAME_DESC') {
+      products.sort(
+        (a, b) => (b['name'] as String).compareTo(a['name'] as String),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -133,13 +178,55 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
           style: TextStyle(color: CustomerColors.muted),
         ),
         const SizedBox(height: 16),
-        TextField(
-          controller: search,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: tr(context, 'Search outfits'),
-            prefixIcon: const Icon(Icons.search_rounded),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: search,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: tr(context, 'Search outfits'),
+                  prefixIcon: const Icon(Icons.search_rounded),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            PopupMenuButton<String>(
+              tooltip: tr(context, 'Sort products'),
+              initialValue: sortOrder,
+              onSelected: (value) => setState(() => sortOrder = value),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'RECOMMENDED',
+                  child: CustomerText('Recommended'),
+                ),
+                PopupMenuItem(
+                  value: 'NAME_ASC',
+                  child: CustomerText('Name, A to Z'),
+                ),
+                PopupMenuItem(
+                  value: 'NAME_DESC',
+                  child: CustomerText('Name, Z to A'),
+                ),
+              ],
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: CustomerColors.line),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(15),
+                  child: Icon(
+                    Icons.tune_rounded,
+                    semanticLabel: tr(context, 'Sort products'),
+                    color: CustomerColors.ink,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Row(
@@ -151,16 +238,27 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                   child: SizedBox(
                     width: double.infinity,
                     child: ChoiceChip(
-                      label: Center(
-                        child: CustomerText(switch (value) {
-                          'ALL' => 'All',
-                          'WOMEN' => 'Women',
-                          _ => 'Men',
-                        }, textAlign: TextAlign.center),
+                      label: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(switch (value) {
+                            'ALL' => Icons.grid_view_rounded,
+                            _ => Icons.person_outline_rounded,
+                          }, size: 16),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: CustomerText(switch (value) {
+                              'ALL' => 'All',
+                              'WOMEN' => 'Women',
+                              _ => 'Men',
+                            }, textAlign: TextAlign.center),
+                          ),
+                        ],
                       ),
                       selected: category == value,
                       onSelected: (_) => setState(() => category = value),
-                      selectedColor: CustomerColors.ink,
+                      selectedColor: CustomerColors.orange,
                       labelStyle: TextStyle(
                         color: category == value
                             ? Colors.white
@@ -210,75 +308,110 @@ class _CustomerDemoCatalogState extends State<CustomerDemoCatalog> {
                             borderRadius: BorderRadius.circular(20),
                             side: const BorderSide(color: CustomerColors.line),
                           ),
-                          child: InkWell(
-                            onTap: () => Navigator.push<void>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => CustomerDemoProductScreen(
-                                  experience: exp,
-                                  product: product,
-                                  models: exp.demoModels,
-                                  onTryOn: widget.onTryOn,
-                                  onUploadPerson: widget.onUploadPerson,
-                                ),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AspectRatio(
-                                  aspectRatio: .75,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      Image.asset(path, fit: BoxFit.cover),
-                                      Align(
-                                        alignment: Alignment.topRight,
-                                        child: IconButton.filledTonal(
-                                          tooltip: tr(
-                                            context,
-                                            exp.isGarmentSaved(
-                                                  'DEMO',
-                                                  product['id'] as String,
-                                                )
-                                                ? 'Remove from saved garments'
-                                                : 'Save garment',
-                                          ),
-                                          onPressed: () => toggleSaved(
-                                            product['id'] as String,
-                                          ),
-                                          icon: Icon(
-                                            exp.isGarmentSaved(
-                                                  'DEMO',
-                                                  product['id'] as String,
-                                                )
-                                                ? Icons.favorite_rounded
-                                                : Icons.favorite_border_rounded,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    8,
-                                    6,
-                                    8,
-                                    8,
-                                  ),
-                                  child: Text(
-                                    product['name'] as String,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              InkWell(
+                                onTap: () => Navigator.push<void>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => CustomerDemoProductScreen(
+                                      experience: exp,
+                                      product: product,
+                                      models: exp.demoModels,
+                                      onTryOn: widget.onTryOn,
+                                      onUploadPerson: widget.onUploadPerson,
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    AspectRatio(
+                                      aspectRatio: .75,
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Image.asset(path, fit: BoxFit.cover),
+                                          Align(
+                                            alignment: Alignment.topRight,
+                                            child: IconButton.filledTonal(
+                                              tooltip: tr(
+                                                context,
+                                                exp.isGarmentSaved(
+                                                      'DEMO',
+                                                      product['id'] as String,
+                                                    )
+                                                    ? 'Remove from saved garments'
+                                                    : 'Save garment',
+                                              ),
+                                              onPressed: () => toggleSaved(
+                                                product['id'] as String,
+                                              ),
+                                              icon: Icon(
+                                                exp.isGarmentSaved(
+                                                      'DEMO',
+                                                      product['id'] as String,
+                                                    )
+                                                    ? Icons.favorite_rounded
+                                                    : Icons
+                                                          .favorite_border_rounded,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        8,
+                                        6,
+                                        8,
+                                        8,
+                                      ),
+                                      child: Text(
+                                        product['name'] as String,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 36,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () =>
+                                        widget.onTryOn(product, null),
+                                    icon: const Icon(
+                                      Icons.checkroom_outlined,
+                                      size: 17,
+                                    ),
+                                    label: const CustomerText('Try it on'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: CustomerColors.orange,
+                                      side: const BorderSide(
+                                        color: CustomerColors.orange,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                      ),
+                                      textStyle: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

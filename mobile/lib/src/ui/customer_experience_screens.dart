@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
@@ -1501,6 +1502,7 @@ class _CustomerStudioState extends State<CustomerStudio> {
                           experience: exp,
                           photo: CustomerPhoto.fromJson(result),
                           fit: BoxFit.contain,
+                          cacheInMemory: true,
                         ),
                       ),
                     ),
@@ -1893,20 +1895,23 @@ class CustomerAssetImage extends StatefulWidget {
   final CustomerPhoto photo;
   final BoxFit fit;
   final Color backgroundColor;
+  final bool cacheInMemory;
   const CustomerAssetImage({
     super.key,
     required this.experience,
     required this.photo,
     this.fit = BoxFit.cover,
     this.backgroundColor = const Color(0xFFF0E7DA),
+    this.cacheInMemory = false,
   });
   @override
   State<CustomerAssetImage> createState() => _CustomerAssetImageState();
 }
 
 class _CustomerAssetImageState extends State<CustomerAssetImage> {
-  String? url;
-  bool failed = false;
+  Uint8List? bytes;
+  bool failed = false, loading = true, retrying = false, retryScheduled = false;
+  int automaticRetries = 0;
   int request = 0;
   @override
   void initState() {
@@ -1919,69 +1924,162 @@ class _CustomerAssetImageState extends State<CustomerAssetImage> {
   @override
   void didUpdateWidget(CustomerAssetImage old) {
     super.didUpdateWidget(old);
-    if (old.photo.id != widget.photo.id) {
-      url = null;
+    if (old.photo.id != widget.photo.id ||
+        old.experience != widget.experience ||
+        old.cacheInMemory != widget.cacheInMemory) {
       unawaited(load());
     }
   }
 
   Future<void> load() async {
     final id = ++request;
+    automaticRetries = 0;
+    retrying = false;
+    retryScheduled = false;
+    failed = false;
+    final cached = widget.cacheInMemory
+        ? widget.experience.cachedAssetImage(widget.photo)
+        : null;
+    if (cached != null) {
+      setState(() {
+        bytes = cached;
+        loading = false;
+      });
+      return;
+    }
+    setState(() {
+      bytes = null;
+      failed = false;
+      loading = true;
+    });
+    await _fetch(id, allowAutomaticRetry: true);
+  }
+
+  Future<void> _fetch(int id, {required bool allowAutomaticRetry}) async {
     try {
       final data = await widget.experience.auth.authorized(
         '/try-on/assets/${widget.photo.id}',
       );
+      if (!mounted || id != request) return;
+      final url = data['url'] as String;
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw StateError('Customer image request failed.');
+      }
+      final imageBytes = response.bodyBytes;
+      if (imageBytes.isEmpty) throw StateError('Customer image was empty.');
       if (mounted && id == request) {
+        if (widget.cacheInMemory) {
+          widget.experience.cacheAssetImage(widget.photo, imageBytes);
+        }
         setState(() {
-          url = data['url'] as String;
+          bytes = imageBytes;
+          loading = false;
           failed = false;
         });
       }
     } catch (_) {
-      if (mounted && id == request) setState(() => failed = true);
+      if (!mounted || id != request) return;
+      if (allowAutomaticRetry) {
+        await _retryWithFreshUrl(id);
+      } else {
+        setState(() {
+          bytes = null;
+          loading = false;
+          failed = true;
+        });
+      }
     }
+  }
+
+  Future<void> _retryWithFreshUrl(int id) async {
+    if (!mounted || id != request || retrying) return;
+    if (automaticRetries >= 1) {
+      setState(() {
+        loading = false;
+        failed = true;
+      });
+      return;
+    }
+    automaticRetries++;
+    retrying = true;
+    if (widget.cacheInMemory) {
+      widget.experience.removeCachedAssetImage(widget.photo.id);
+    }
+    setState(() {
+      bytes = null;
+      loading = true;
+      failed = false;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (mounted && id == request) {
+      await _fetch(id, allowAutomaticRetry: false);
+    }
+    retrying = false;
+  }
+
+  void _scheduleDecodeRetry() {
+    if (retryScheduled) return;
+    retryScheduled = true;
+    final id = request;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      retryScheduled = false;
+      if (mounted) unawaited(_retryWithFreshUrl(id));
+    });
+  }
+
+  void _scheduleDecodeFailure() {
+    if (retryScheduled) return;
+    retryScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      retryScheduled = false;
+      if (mounted) {
+        setState(() {
+          bytes = null;
+          loading = false;
+          failed = true;
+        });
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) => ColoredBox(
     color: widget.backgroundColor,
-    child: failed
+    child: loading
+        ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+        : failed || bytes == null
         ? Center(
             child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  failed = false;
-                  url = null;
-                });
-                unawaited(load());
-              },
+              onPressed: () => unawaited(load()),
               icon: const Icon(Icons.refresh),
               label: const CustomerText('Reload photo'),
             ),
           )
-        : url == null
-        ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-        : Image.network(
-            url!,
+        : Image.memory(
+            bytes!,
             fit: widget.fit,
             gaplessPlayback: true,
-            loadingBuilder: (context, child, progress) => progress == null
-                ? child
-                : const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-            errorBuilder: (_, e, stack) => Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  setState(() => url = null);
-                  unawaited(load());
-                },
-                icon: const Icon(Icons.refresh),
-                label: const CustomerText('Reload photo'),
-              ),
-            ),
+            errorBuilder: (_, _, _) {
+              if (automaticRetries == 0) {
+                _scheduleDecodeRetry();
+              } else {
+                _scheduleDecodeFailure();
+              }
+              return const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              );
+            },
           ),
   );
+
+  @override
+  void dispose() {
+    ++request;
+    super.dispose();
+  }
 }
 
 class CustomerSavedScreen extends StatefulWidget {
@@ -2003,6 +2101,7 @@ class CustomerSavedScreen extends StatefulWidget {
 class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
   String? error;
   String? downloadingId;
+  String? activeAction;
   bool showGarments = false;
   @override
   void initState() {
@@ -2030,7 +2129,10 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
 
   Future<void> download(CustomerLook look) async {
     if (downloadingId != null) return;
-    setState(() => downloadingId = look.id);
+    setState(() {
+      downloadingId = look.id;
+      activeAction = 'download';
+    });
     try {
       await downloadCustomerResult(widget.experience, look.result);
       if (mounted) {
@@ -2045,13 +2147,21 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => downloadingId = null);
+      if (mounted) {
+        setState(() {
+          downloadingId = null;
+          activeAction = null;
+        });
+      }
     }
   }
 
   Future<void> share(CustomerLook look) async {
     if (downloadingId != null) return;
-    setState(() => downloadingId = look.id);
+    setState(() {
+      downloadingId = look.id;
+      activeAction = 'share';
+    });
     try {
       await shareCustomerResult(widget.experience, look.result);
     } catch (caught) {
@@ -2061,7 +2171,12 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => downloadingId = null);
+      if (mounted) {
+        setState(() {
+          downloadingId = null;
+          activeAction = null;
+        });
+      }
     }
   }
 
@@ -2087,12 +2202,22 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                for (final entry in [(false, 'Looks'), (true, 'Wardrobe')])
+                for (final entry in [
+                  (false, 'Looks', Icons.auto_awesome_rounded),
+                  (true, 'Wardrobe', Icons.checkroom_rounded),
+                ])
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: ChoiceChip(
-                        label: Center(child: CustomerText(entry.$2)),
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(entry.$3, size: 18),
+                            const SizedBox(width: 7),
+                            CustomerText(entry.$2),
+                          ],
+                        ),
                         selected: showGarments == entry.$1,
                         onSelected: (_) =>
                             setState(() => showGarments = entry.$1),
@@ -2105,33 +2230,68 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
             const SizedBox(height: 14),
             if (exp.remaining case final int credits when credits < 10) ...[
               Material(
-                color: const Color(0xFF292E34),
-                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: CustomerText(
-                          '$credits credits left',
-                          style: const TextStyle(
+                  padding: EdgeInsets.zero,
+                  child: Ink(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF9E3F08), Color(0xFFF06A08)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.toll_rounded,
                             color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                            size: 30,
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: CustomerText(
+                              '$credits credits left',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 30,
+                            color: Colors.white.withValues(alpha: .35),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: widget.onPlans,
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 10,
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            iconAlignment: IconAlignment.end,
+                            icon: const Icon(Icons.arrow_forward_rounded),
+                            label: const CustomerText('Plans & credits'),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: widget.onPlans,
-                        child: const CustomerText(
-                          'Plans & credits',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -2313,83 +2473,103 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: AspectRatio(
-                              aspectRatio: .9,
-                              child: CustomerAssetImage(
-                                experience: exp,
-                                photo: look.result,
-                                fit: BoxFit.contain,
-                              ),
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                          child: AspectRatio(
+                            aspectRatio: .72,
+                            child: CustomerAssetImage(
+                              experience: exp,
+                              photo: look.result,
+                              fit: BoxFit.contain,
+                              cacheInMemory: true,
                             ),
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.all(18),
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                look.nameIsDefault
-                                    ? tr(context, 'Your look')
-                                    : look.name,
-                                style: Theme.of(context).textTheme.titleLarge,
+                              Wrap(
+                                spacing: 16,
+                                runSpacing: 8,
+                                children: [
+                                  _SavedLookMeta(
+                                    icon: Icons.calendar_today_rounded,
+                                    label:
+                                        'Expires ${_date(context, look.expiresAt)}',
+                                  ),
+                                  _SavedLookMeta(
+                                    icon: Icons.sell_outlined,
+                                    label: look.payer == 'STORE'
+                                        ? 'Store sponsored'
+                                        : 'Personal',
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 6),
-                              CustomerText(
-                                'Expires ${_date(context, look.expiresAt)} · ${look.payer == 'STORE' ? 'Store sponsored' : 'Personal'}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: CustomerColors.muted,
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: () async {
+                                    await Navigator.push<void>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => CustomerSavedLookScreen(
+                                          experience: exp,
+                                          look: look,
+                                        ),
+                                      ),
+                                    );
+                                    await load();
+                                  },
+                                  icon: const Icon(Icons.visibility_outlined),
+                                  label: const CustomerText('View look'),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () async {
-                                        await Navigator.push<void>(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                CustomerSavedLookScreen(
-                                                  experience: exp,
-                                                  look: look,
-                                                ),
-                                          ),
-                                        );
-                                        await load();
-                                      },
-                                      child: const CustomerText('View look'),
+                                    child: OutlinedButton.icon(
+                                      onPressed: downloadingId == null
+                                          ? () => share(look)
+                                          : null,
+                                      icon:
+                                          downloadingId == look.id &&
+                                              activeAction == 'share'
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(Icons.share_outlined),
+                                      label: const CustomerText('Share'),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
-                                  IconButton.filledTonal(
-                                    tooltip: tr(context, 'Share look'),
-                                    onPressed: downloadingId == null
-                                        ? () => share(look)
-                                        : null,
-                                    icon: const Icon(Icons.share_outlined),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  IconButton.filledTonal(
-                                    tooltip: tr(context, 'Download look'),
-                                    onPressed: downloadingId == null
-                                        ? () => download(look)
-                                        : null,
-                                    icon: downloadingId == look.id
-                                        ? const SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Icon(Icons.download_rounded),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: downloadingId == null
+                                          ? () => download(look)
+                                          : null,
+                                      icon:
+                                          downloadingId == look.id &&
+                                              activeAction == 'download'
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(Icons.download_rounded),
+                                      label: const CustomerText('Download'),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -2411,6 +2591,22 @@ class _CustomerSavedScreenState extends State<CustomerSavedScreen> {
         ),
       );
     },
+  );
+}
+
+class _SavedLookMeta extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _SavedLookMeta({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 17, color: CustomerColors.orange),
+      const SizedBox(width: 6),
+      CustomerText(label, style: const TextStyle(fontSize: 13)),
+    ],
   );
 }
 
@@ -2463,6 +2659,7 @@ class _CustomerSavedLookScreenState extends State<CustomerSavedLookScreen> {
               experience: widget.experience,
               photo: widget.look.result,
               fit: BoxFit.contain,
+              cacheInMemory: true,
             ),
           ),
         ),

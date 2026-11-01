@@ -1,5 +1,62 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-30 — My Looks card actions and styling (2026-11-01)
+
+On Saved → Looks, show each full try-on image uncropped across the card width.
+Below it, show expiry and Personal/Store-sponsored metadata without a “Your
+Look” title. Put a full-width icon-labeled View look button above side-by-side
+icon-labeled Share and Download buttons. Add matching icons to Looks/Wardrobe
+tabs. Style the existing low-credit banner with a warm orange gradient, credit
+icon, real remaining balance and a Plans & credits arrow/action. Preserve the
+existing low-credit threshold, payment availability, and action behavior.
+
+### CUSTOMER-MOBILE-29 — Branded customer account emails (2026-11-01)
+
+Customer verification, email-code sign-in, password reset and password-change
+emails use the SelfX email layout: centered logo, clear purpose-specific
+heading, short explanation, prominent code or reset action, accurate expiry
+and a security notice. The layout uses email-safe responsive HTML with a
+readable plain-text fallback. A blocked or unavailable remote logo leaves the
+SelfX wordmark/text branding in place. Keep all existing codes, links, expiry,
+single-use, account-enumeration and mail delivery behavior unchanged.
+
+### CUSTOMER-MOBILE-28 — Reliable saved Try-On image loading (2026-11-01)
+
+Try-On results and Saved look images refresh their private asset URL and retry
+once automatically after a load or decode failure. Show Reload photo only when
+the automatic retry also fails. Keep recently viewed generated results in a
+bounded session-memory cache only (up to 16 MB and 10 minutes, capped by asset
+expiry); clear it on sign-out/account change, photo erasure or look deletion.
+Do not add thumbnails or disk caching. The current cards, image sizes and
+navigation stay unchanged.
+
+### CUSTOMER-MOBILE-27 — Personalized catalog filters and card actions (2026-11-01)
+
+Initialize the Home demo catalog filter from the saved MEN/WOMEN customer
+interest, while keeping All and both categories selectable. Show distinct
+category icons and a labeled sort control with Recommended, Name (A-Z) and Name
+(Z-A). Each sample product card includes a Try it on action beside its name;
+the action starts the existing consented Try-On flow with that product
+selected. Keep the card's product-detail action and saved-garment control.
+Demo cards do not show prices or purchase actions. Support the 20 languages,
+RTL layouts and narrow screens.
+
+### CUSTOMER-MOBILE-26 — Fashion-led sign-in and My avatar (2026-11-01)
+
+Customer sign-in uses a warm editorial header with SelfX branding and a
+scrollable form. Keep password sign-in and supported Google/Apple actions.
+Offer Mobile OTP as a separate method, retain the existing country-aware phone
+entry, SMS consent, retry/cooldown and safe diagnostics, and continue only
+through verified Firebase proof plus the SelfX phone-login API. Do not show a
+phone-code signup or imply that unlinked/unverified numbers can log in.
+
+My avatar centers the SelfX logo and displays saved selfie/full-body photos as
+large tappable cards. Tapping a card opens the existing consent-led camera or
+gallery chooser; Edit interests remains separate. Replacements update the
+saved references used by future Try-Ons. A per-session Try-On photo change does
+not replace a saved avatar. Keep private avatar retention and seven-day
+temporary Try-On copies unchanged.
+
 ### Customer mobile Plans editorial gallery (2026-10-31)
 
 Plans & credits begins with six bundled, rotating landscape images that cover

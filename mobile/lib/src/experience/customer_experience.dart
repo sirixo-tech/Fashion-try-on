@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:uuid/uuid.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
@@ -37,10 +38,24 @@ class CustomerLook {
           : null;
 }
 
+class _CachedCustomerAssetImage {
+  final Uint8List bytes;
+  final DateTime expiresAt, cachedAt;
+  const _CachedCustomerAssetImage({
+    required this.bytes,
+    required this.expiresAt,
+    required this.cachedAt,
+  });
+}
+
 /// This controller holds only the current signed-in customer's ephemeral state.
 /// The API owns credit admission, payer selection, consent and image retention.
 class CustomerExperience extends ChangeNotifier {
+  static const _assetImageCacheLimit = 16 * 1024 * 1024;
+  static const _assetImageCacheMaxAge = Duration(minutes: 10);
   final CustomerController auth;
+  final _assetImageCache = <String, _CachedCustomerAssetImage>{};
+  int _assetImageCacheBytes = 0;
   Json? summary, session, run, storeVisit;
   CustomerPhoto? person, outfit;
   Uint8List? personPreview, outfitPreview;
@@ -86,6 +101,56 @@ class CustomerExperience extends ChangeNotifier {
       !generating &&
       person != null &&
       (storeMode ? product != null : outfit != null && (remaining ?? 0) > 0);
+
+  Uint8List? cachedAssetImage(CustomerPhoto photo) {
+    final entry = _assetImageCache.remove(photo.id);
+    if (entry == null) return null;
+    if (!entry.expiresAt.isAfter(DateTime.now()) ||
+        DateTime.now().difference(entry.cachedAt) > _assetImageCacheMaxAge) {
+      _assetImageCacheBytes -= entry.bytes.lengthInBytes;
+      PaintingBinding.instance.imageCache.evict(MemoryImage(entry.bytes));
+      return null;
+    }
+    _assetImageCache[photo.id] = entry;
+    return entry.bytes;
+  }
+
+  void cacheAssetImage(CustomerPhoto photo, Uint8List bytes) {
+    removeCachedAssetImage(photo.id);
+    if (bytes.isEmpty ||
+        bytes.lengthInBytes > _assetImageCacheLimit ||
+        !photo.expiresAt.isAfter(DateTime.now())) {
+      return;
+    }
+    while (_assetImageCache.isNotEmpty &&
+        _assetImageCacheBytes + bytes.lengthInBytes > _assetImageCacheLimit) {
+      _removeCachedAssetImage(_assetImageCache.keys.first);
+    }
+    _assetImageCache[photo.id] = _CachedCustomerAssetImage(
+      bytes: bytes,
+      expiresAt: photo.expiresAt,
+      cachedAt: DateTime.now(),
+    );
+    _assetImageCacheBytes += bytes.lengthInBytes;
+  }
+
+  void removeCachedAssetImage(String id) => _removeCachedAssetImage(id);
+
+  void _removeCachedAssetImage(String id) {
+    final entry = _assetImageCache.remove(id);
+    if (entry == null) return;
+    _assetImageCacheBytes -= entry.bytes.lengthInBytes;
+    PaintingBinding.instance.imageCache.evict(MemoryImage(entry.bytes));
+  }
+
+  void _clearAssetImageCache() {
+    for (final entry in _assetImageCache.values) {
+      PaintingBinding.instance.imageCache.evict(MemoryImage(entry.bytes));
+    }
+    _assetImageCache.clear();
+    _assetImageCacheBytes = 0;
+  }
+
   bool _valid(int epoch) =>
       !_disposed &&
       epoch == _epoch &&
@@ -98,6 +163,7 @@ class CustomerExperience extends ChangeNotifier {
   void _authChanged() {
     if (auth.stage != CustomerStage.ready || auth.profile?.id != _owner) {
       ++_epoch;
+      _clearAssetImageCache();
       _poll?.cancel();
       _owner = auth.profile?.id;
       summary = session = run = storeVisit = product = null;
@@ -589,6 +655,7 @@ class CustomerExperience extends ChangeNotifier {
     final epoch = _epoch;
     await auth.authorized('/looks/${look.id}', method: 'DELETE');
     if (_valid(epoch)) {
+      removeCachedAssetImage(look.result.id);
       looks.removeWhere((item) => item.id == look.id);
       _notify();
       await refresh();
@@ -600,6 +667,7 @@ class CustomerExperience extends ChangeNotifier {
     await auth.authorized('/photos', method: 'DELETE');
     if (!_valid(epoch)) return;
     ++_epoch;
+    _clearAssetImageCache();
     savedLoading = productsLoading = busy = false;
     _poll?.cancel();
     run = session = product = storeVisit = null;
@@ -704,6 +772,7 @@ class CustomerExperience extends ChangeNotifier {
     ++_epoch;
     _poll?.cancel();
     auth.removeListener(_authChanged);
+    _clearAssetImageCache();
     personPreview = outfitPreview = null;
     super.dispose();
   }

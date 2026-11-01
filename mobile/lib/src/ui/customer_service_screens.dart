@@ -391,7 +391,11 @@ class CustomerNotificationResult extends StatelessWidget {
       children: [
         AspectRatio(
           aspectRatio: .72,
-          child: CustomerAssetImage(experience: experience, photo: look.result),
+          child: CustomerAssetImage(
+            experience: experience,
+            photo: look.result,
+            cacheInMemory: true,
+          ),
         ),
         const SizedBox(height: 18),
         const CustomerText(

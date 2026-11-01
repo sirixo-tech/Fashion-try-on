@@ -632,5 +632,9 @@
   "Your look is queued": "あなたのルックはキューに登録されています",
   "Your result will appear in Saved when it is ready.": "準備が完了すると、結果が「保存済み」に表示されます。",
   "Your saved garments will appear here.": "保存した衣服がここに表示されます。",
-  "Your SelfX account is personal. Use only images you own or have permission to use.": "あなたの SelfX アカウントは個人的なものです。あなたが所有している画像、または使用許可を得ている画像のみを使用してください。"
+  "Your SelfX account is personal. Use only images you own or have permission to use.": "あなたの SelfX アカウントは個人的なものです。あなたが所有している画像、または使用許可を得ている画像のみを使用してください。",
+  "Sort products": "商品を並べ替え",
+  "Recommended": "おすすめ",
+  "Name (A-Z)": "名前 (A-Z)",
+  "Name (Z-A)": "名前 (Z-A)"
 }

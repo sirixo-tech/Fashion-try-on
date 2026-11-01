@@ -632,5 +632,9 @@
   "Your look is queued": "당신의 모습이 대기 중입니다",
   "Your result will appear in Saved when it is ready.": "결과가 준비되면 저장됨에 표시됩니다.",
   "Your saved garments will appear here.": "저장된 의류가 여기에 표시됩니다.",
-  "Your SelfX account is personal. Use only images you own or have permission to use.": "귀하의 SelfX 계정은 개인용입니다. 귀하가 소유하거나 사용 권한이 있는 이미지만 사용하세요."
+  "Your SelfX account is personal. Use only images you own or have permission to use.": "귀하의 SelfX 계정은 개인용입니다. 귀하가 소유하거나 사용 권한이 있는 이미지만 사용하세요.",
+  "Sort products": "상품 정렬",
+  "Recommended": "추천순",
+  "Name (A-Z)": "이름 (A-Z)",
+  "Name (Z-A)": "이름 (Z-A)"
 }

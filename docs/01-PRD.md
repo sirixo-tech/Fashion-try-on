@@ -1,5 +1,62 @@
 ## Document Evolution
 
+### CUSTOMER-MOBILE-30 — My Looks card actions and styling (2026-11-01)
+
+My Looks shows each generated result as a full-width uncropped image with
+expiry and payer details beneath it. Omit the default “Your Look” title. Place
+View look, Share and Download actions below the image/details, each with an
+icon and visible label, reusing the existing result, share and download
+behavior. Add icons to the Looks/Wardrobe filters and style the low-credit
+banner with a credit icon, live personal balance and Plans & credits action.
+Keep current credit thresholds, billing availability, expiry and payer values.
+
+### CUSTOMER-MOBILE-29 — Branded customer account emails (2026-11-01)
+
+Customer email verification, email sign-in, password-reset codes, reset links
+and password-change notices use a responsive SelfX-branded HTML template with
+the official logo when the configured public web origin is available. Code
+emails prominently show the existing six-digit code, actual ten-minute
+expiration and one-time-use/security guidance. Reset links retain their
+existing 15-minute single-use behavior. Every message keeps a readable plain
+text alternative; auth, rate limits, token contents and mail delivery behavior
+remain unchanged. Existing other SelfX emails receive the shared branded shell
+while preserving their configured text content.
+
+### CUSTOMER-MOBILE-28 — Reliable saved Try-On image loading (2026-11-01)
+
+On the Try-On result and Saved screens, automatically request fresh private
+asset access and retry an image once when its short-lived URL, transfer or
+decode fails. Show the manual Reload photo action only if that retry fails.
+Recently viewed generated-result images may be retained in a bounded,
+session-memory-only cache (up to 16 MB and 10 minutes, never beyond asset
+expiry). Clear the cache on sign-out/account change, photo erasure and look
+deletion. Do not create thumbnails or persist this cache to disk. Existing
+asset ownership, private access and retention rules remain unchanged.
+
+### CUSTOMER-MOBILE-27 — Personalized product browse and card Try-On (2026-11-01)
+
+Use the customer's saved MEN or WOMEN interest as the initial Home catalog
+filter. Keep All and the other category available for explicit browsing; this
+preference never restricts product access. Product cards include a direct
+Try-On action that opens the existing consented flow with that product
+selected. Add clear icons for category filters and an accessible product sort
+menu with recommended, A-Z and Z-A ordering. Demo products remain samples with
+no price or purchase action.
+
+### CUSTOMER-MOBILE-26 — Fashion-led login, phone-code access and avatar refresh (2026-11-01)
+
+Refresh customer sign-in with the supplied fashion-led cream/orange treatment.
+Keep existing password, Google and Apple access and add a Mobile OTP entry for
+customers whose phone is already verified and linked to their SelfX account.
+Use Firebase phone proof and the existing SelfX phone-login endpoint; no
+phone-only signup, automatic account merging or unverified-phone access is
+introduced. Firebase delivery remains fail-closed until native/provider and
+server capabilities are configured. Refresh Me → My avatar with a centered
+SelfX logo, direct photo-card replacement and a clear Edit interests action.
+Replacing a saved full-body photo updates the default reference for future
+Try-Ons. A one-off Try-On photo remains session-only. Existing avatar consent,
+private storage and temporary Try-On retention remain unchanged.
+
 ### CUSTOMER-MOBILE-25 — Cancel active mobile Dynamic QR (2026-10-30)
 
 When a customer confirms Leave payment, SelfX asks PhonePe to cancel the active

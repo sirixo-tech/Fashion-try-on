@@ -632,5 +632,9 @@
   "Your look is queued": "നിങ്ങളുടെ രൂപം ക്യൂവിലാണ്",
   "Your result will appear in Saved when it is ready.": "നിങ്ങളുടെ ഫലം തയ്യാറാകുമ്പോൾ സംരക്ഷിച്ചതിൽ ദൃശ്യമാകും.",
   "Your saved garments will appear here.": "നിങ്ങളുടെ സംരക്ഷിച്ച വസ്ത്രങ്ങൾ ഇവിടെ ദൃശ്യമാകും.",
-  "Your SelfX account is personal. Use only images you own or have permission to use.": "നിങ്ങളുടെ SelfX അക്കൗണ്ട് വ്യക്തിഗതമാണ്. നിങ്ങളുടെ ഉടമസ്ഥതയിലുള്ളതോ ഉപയോഗിക്കാൻ അനുമതിയുള്ളതോ ആയ ചിത്രങ്ങൾ മാത്രം ഉപയോഗിക്കുക."
+  "Your SelfX account is personal. Use only images you own or have permission to use.": "നിങ്ങളുടെ SelfX അക്കൗണ്ട് വ്യക്തിഗതമാണ്. നിങ്ങളുടെ ഉടമസ്ഥതയിലുള്ളതോ ഉപയോഗിക്കാൻ അനുമതിയുള്ളതോ ആയ ചിത്രങ്ങൾ മാത്രം ഉപയോഗിക്കുക.",
+  "Sort products": "ഉൽപ്പന്നങ്ങൾ ക്രമീകരിക്കുക",
+  "Recommended": "ശുപാർശ ചെയ്തത്",
+  "Name (A-Z)": "പേര് (A-Z)",
+  "Name (Z-A)": "പേര് (Z-A)"
 }

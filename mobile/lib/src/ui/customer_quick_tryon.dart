@@ -243,6 +243,7 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                                   photo: CustomerPhoto.fromJson(result),
                                   fit: BoxFit.contain,
                                   backgroundColor: const Color(0xFF202329),
+                                  cacheInMemory: true,
                                 ),
                               ),
                             ),
@@ -289,54 +290,6 @@ class _CustomerQuickTryOnState extends State<CustomerQuickTryOn> {
                                     onSelect: trySuggested,
                                     disabled: blocked,
                                     compact: true,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: FilledButton.tonalIcon(
-                                          onPressed: blocked
-                                              ? null
-                                              : () => run(() async {
-                                                  await downloadCustomerResult(
-                                                    exp,
-                                                    CustomerPhoto.fromJson(
-                                                      result,
-                                                    ),
-                                                  );
-                                                  if (context.mounted) {
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      const SnackBar(
-                                                        content: CustomerText(
-                                                          'Look downloaded.',
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }
-                                                }),
-                                          icon: const Icon(
-                                            Icons.download_rounded,
-                                            size: 18,
-                                          ),
-                                          label: const CustomerText('Download'),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: FilledButton.tonalIcon(
-                                          onPressed: widget.onViewSaved,
-                                          icon: const Icon(
-                                            Icons.bookmark_outline_rounded,
-                                            size: 18,
-                                          ),
-                                          label: const CustomerText(
-                                            'View in Saved',
-                                          ),
-                                        ),
-                                      ),
-                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                   SizedBox(

@@ -632,5 +632,9 @@
   "Your look is queued": "మీ లుక్ క్యూలో ఉంది",
   "Your result will appear in Saved when it is ready.": "మీ ఫలితం సిద్ధంగా ఉన్నప్పుడు సేవ్ చేయబడిన వాటిలో కనిపిస్తుంది.",
   "Your saved garments will appear here.": "మీరు సేవ్ చేసిన వస్త్రాలు ఇక్కడ కనిపిస్తాయి.",
-  "Your SelfX account is personal. Use only images you own or have permission to use.": "మీ SelfX ఖాతా వ్యక్తిగతమైనది. మీకు స్వంతమైన లేదా ఉపయోగించడానికి అనుమతి ఉన్న చిత్రాలను మాత్రమే ఉపయోగించండి."
+  "Your SelfX account is personal. Use only images you own or have permission to use.": "మీ SelfX ఖాతా వ్యక్తిగతమైనది. మీకు స్వంతమైన లేదా ఉపయోగించడానికి అనుమతి ఉన్న చిత్రాలను మాత్రమే ఉపయోగించండి.",
+  "Sort products": "ఉత్పత్తులను క్రమబద్ధీకరించండి",
+  "Recommended": "సిఫార్సు చేయబడినవి",
+  "Name (A-Z)": "పేరు (A-Z)",
+  "Name (Z-A)": "పేరు (Z-A)"
 }

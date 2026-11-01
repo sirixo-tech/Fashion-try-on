@@ -1,5 +1,17 @@
 ## Document Evolution
 
+### MAIL-2 — Branded responsive email rendering (2026-11-01)
+
+Send HTML and plain-text alternatives through the existing SMTP sender and
+encrypted MailJob outbox. Use a shared email-safe SelfX layout for outgoing
+SelfX messages, escaping subject/body content before rendering. Customer
+verification, email sign-in, password reset and password-change messages add
+purpose-specific content; codes/links, expiry, account enumeration, token
+validation and retries keep their existing contracts. Load the official logo
+from `/brand/selfx-logo.png` under the validated configured public web origin;
+fall back to a text wordmark when no safe origin is configured. Do not add a
+schema, provider or separate mail service.
+
 ### CUSTOM-CREDITS-1 — Mobile custom credit price (2026-10-29)
 
 `custom_credit_plans` uses the MOBILE row with a currency, fixed unit price and active state. Admin plan writes use optimistic version checks and transaction locks. A mobile custom purchase resolves the active MOBILE plan in the order transaction, computes quantity × unit price server-side, and snapshots the plan ID, quantity and amount. Regular Mobile Plan checkout uses that plan's stored total. The earlier STORE enum value is retained only for data compatibility; the API rejects Store custom-plan reads, writes and quotes. The earlier `shared_credit_prices` table is retained only for migration compatibility and is no longer read or written by the application.

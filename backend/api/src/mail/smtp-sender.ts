@@ -3,6 +3,7 @@ import { BlockList, isIP, connect, type Socket } from "node:net";
 import { connect as connectTls } from "node:tls";
 import { Injectable } from "@nestjs/common";
 import nodemailer from "nodemailer";
+import { renderBrandedEmail } from "./selfx-email-template.js";
 
 export interface SmtpAccount {
   host: string;
@@ -19,6 +20,7 @@ export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 }
 export class MailDeliveryError extends Error {
   constructor(public readonly code: string) {
@@ -141,6 +143,8 @@ export class SmtpSender {
           to: { address: message.to, name: "" },
           subject: message.subject,
           text: message.text,
+          html:
+            message.html ?? renderBrandedEmail(message.subject, message.text),
         });
         if (!result.accepted?.length || result.rejected?.length)
           throw new MailDeliveryError("SMTP_RECIPIENT_REJECTED");

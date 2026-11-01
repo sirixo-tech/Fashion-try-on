@@ -219,28 +219,29 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Center(child: CustomerBrand(compact: true)),
+                      const Center(child: CustomerBrand()),
                       const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          for (var i = 0; i < 2; i++)
-                            Expanded(
-                              child: Container(
-                                margin: EdgeInsetsDirectional.only(
-                                  end: i == 0 ? 6 : 0,
-                                ),
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  color: i <= step
-                                      ? CustomerColors.orange
-                                      : CustomerColors.line,
-                                  borderRadius: BorderRadius.circular(4),
+                      if (widget.setup)
+                        Row(
+                          children: [
+                            for (var i = 0; i < 2; i++)
+                              Expanded(
+                                child: Container(
+                                  margin: EdgeInsetsDirectional.only(
+                                    end: i == 0 ? 6 : 0,
+                                  ),
+                                  height: 3,
+                                  decoration: BoxDecoration(
+                                    color: i <= step
+                                        ? CustomerColors.orange
+                                        : CustomerColors.line,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
+                          ],
+                        ),
+                      SizedBox(height: widget.setup ? 24 : 10),
                       CustomerText(
                         step == 0 ? 'I want to try on' : 'Create your avatar',
                         style: Theme.of(context).textTheme.headlineLarge,
@@ -313,15 +314,35 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                           ],
                         ),
                         const SizedBox(height: 18),
-                        const Center(
-                          child: CustomerText(
-                            'Clear photos. Good light. Plain background.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: CustomerColors.muted,
-                              height: 1.5,
-                            ),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 13,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF0E4),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.lightbulb_outline_rounded,
+                                color: CustomerColors.orange,
+                                size: 20,
+                              ),
+                              SizedBox(width: 9),
+                              Expanded(
+                                child: CustomerText(
+                                  'Clear photos. Good light. Plain background.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: CustomerColors.ink,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -351,6 +372,11 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                                       ),
                                     ),
                                   ),
+                                  Icon(
+                                    Icons.verified_user_rounded,
+                                    color: CustomerColors.orange,
+                                    size: 24,
+                                  ),
                                 ],
                               ),
                               SizedBox(height: 8),
@@ -372,11 +398,18 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
                         ),
                         if (!widget.setup)
                           Center(
-                            child: TextButton(
+                            child: TextButton.icon(
                               onPressed: busy
                                   ? null
                                   : () => setState(() => step = 0),
-                              child: const CustomerText('Edit interests'),
+                              icon: const Icon(Icons.tune_rounded, size: 20),
+                              label: const CustomerText('Edit interests'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFFE35D16),
+                                textStyle: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -430,129 +463,159 @@ class _CustomerAvatarScreenState extends State<CustomerAvatarScreen> {
   Widget _photo(String kind, String label, String asset, bool selfie) {
     final bytes = avatar.photos[kind];
     final ready = bytes != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              selfie ? Icons.face_outlined : Icons.accessibility_new_rounded,
-              size: 18,
-              color: CustomerColors.orange,
-            ),
-            const SizedBox(width: 5),
-            Expanded(
-              child: CustomerText(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFF0ECE8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D3A2A20),
+            blurRadius: 18,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                selfie ? Icons.face_outlined : Icons.accessibility_new_rounded,
+                size: 18,
+                color: CustomerColors.orange,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: CustomerText(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-            if (ready)
-              const Icon(
-                Icons.check_circle,
-                color: Color(0xFF47815E),
-                size: 18,
-              ),
-          ],
-        ),
-        const SizedBox(height: 9),
-        Semantics(
-          button: true,
-          label: tr(context, ready ? 'Change $label' : 'Add $label'),
-          child: InkWell(
-            key: ValueKey('avatar-$kind'),
-            onTap: busy ? null : () => choose(kind),
-            borderRadius: BorderRadius.circular(14),
-            child: ClipRRect(
+              if (ready)
+                const Icon(
+                  Icons.check_circle,
+                  color: Color(0xFF47815E),
+                  size: 18,
+                ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Semantics(
+            button: true,
+            label: tr(context, ready ? 'Change $label' : 'Add $label'),
+            child: InkWell(
+              key: ValueKey('avatar-$kind'),
+              onTap: busy ? null : () => choose(kind),
               borderRadius: BorderRadius.circular(14),
-              child: AspectRatio(
-                aspectRatio: .64,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (ready)
-                      Image.memory(
-                        bytes,
-                        fit: selfie ? BoxFit.cover : BoxFit.contain,
-                        gaplessPlayback: false,
-                      )
-                    else
-                      Image.asset(
-                        'assets/editorial/$asset.webp',
-                        key: ValueKey('avatar-example-$kind'),
-                        fit: BoxFit.cover,
-                        alignment: selfie
-                            ? const Alignment(0, -.65)
-                            : Alignment.center,
-                        excludeFromSemantics: true,
-                        errorBuilder: (_, _, _) => Icon(
-                          selfie ? Icons.face : Icons.accessibility_new,
-                          size: 64,
-                          color: CustomerColors.muted,
-                        ),
-                      ),
-                    if (!ready)
-                      const Positioned(
-                        top: 10,
-                        left: 8,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.white70,
-                            borderRadius: BorderRadius.all(Radius.circular(6)),
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.all(5),
-                            child: CustomerText(
-                              'Example',
-                              style: TextStyle(fontSize: 10),
-                            ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: AspectRatio(
+                  aspectRatio: .64,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (ready)
+                        Image.memory(
+                          bytes,
+                          fit: selfie ? BoxFit.cover : BoxFit.contain,
+                          gaplessPlayback: false,
+                        )
+                      else
+                        Image.asset(
+                          'assets/editorial/$asset.webp',
+                          key: ValueKey('avatar-example-$kind'),
+                          fit: BoxFit.cover,
+                          alignment: selfie
+                              ? const Alignment(0, -.65)
+                              : Alignment.center,
+                          excludeFromSemantics: true,
+                          errorBuilder: (_, _, _) => Icon(
+                            selfie ? Icons.face : Icons.accessibility_new,
+                            size: 64,
+                            color: CustomerColors.muted,
                           ),
                         ),
-                      ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.black87],
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CustomerText(
-                              label,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                      if (!ready)
+                        const Positioned(
+                          top: 10,
+                          left: 8,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.white70,
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(6),
                               ),
                             ),
-                            CustomerText(
-                              ready ? 'Change photo' : 'Tap to upload',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
+                            child: Padding(
+                              padding: EdgeInsets.all(5),
+                              child: CustomerText(
+                                'Example',
+                                style: TextStyle(fontSize: 10),
                               ),
                             ),
-                          ],
+                          ),
+                        ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Colors.black87],
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.camera_alt_outlined,
+                                color: Colors.white,
+                                size: 19,
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CustomerText(
+                                      label,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    CustomerText(
+                                      ready ? 'Change photo' : 'Tap to upload',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
