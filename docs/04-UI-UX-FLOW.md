@@ -8,12 +8,16 @@ Looks and Wardrobe sections and behavior unchanged.
 ### CUSTOMER-MOBILE-33 — Clean login header and inline phone OTP (2026-11-02)
 
 Remove editorial photography from the login brand header. In Mobile (OTP),
-retain the phone field and reveal the six-digit code field directly beneath it
-after Firebase sends the SMS, without navigating to a separate login screen.
-Keep SMS consent before the request, add comfortable spacing before Terms and
-Privacy, and place a larger consent-required error immediately above that
-checkbox when an action is blocked. Preserve the existing Firebase proof,
-cooldown, attempt limits, phone-link flow and translations.
+keep the phone and six-digit code fields visible in fixed positions; keep the
+code field disabled until Firebase sends the SMS, then enable it without
+revealing or inserting a new row. Keep a fixed resend row beneath the code in
+the place corresponding to Email's Forgot password action. Preserve its height
+before and after the first request so Terms, the primary button and the footer
+do not shift. Keep SMS consent visible before and after the request, add
+comfortable spacing before Terms and Privacy, and place a larger
+consent-required error immediately above that checkbox when an action is
+blocked. Preserve the existing Firebase proof, cooldown, attempt limits,
+phone-link flow and translations.
 
 ### CUSTOMER-MOBILE-32 — Flush image cards and full-width tabs (2026-11-01)
 
@@ -28,13 +32,16 @@ labels as compact intrinsic-width chips.
 
 Sign-in uses two icon-labeled methods: Email and Mobile (OTP). Email displays
 an email-only field, password and Forgot password. Mobile (OTP) displays the
-country selector and phone-only field; after Send code, reveal OTP entry on the
-same screen. Never show the email/phone switch or password under Mobile, and
-never show the country picker under Email. Keep Google/Apple capability
-controls, linked Terms/Privacy notice, signup flow, rate limits and backend
-behavior. Keep the SelfX logo and language control on a clear, photo-free header.
-Translate the method labels in all 20 catalogs and preserve RTL, keyboard and
-narrow-screen behavior.
+country selector and phone-only field with a six-digit OTP field directly below
+it at all times. Keep OTP disabled until Send code succeeds; then enable it and
+change the primary action to Verify. Keep the resend action in a fixed row
+corresponding to Forgot password, reserving its height before the first send so
+the form does not shift. Never show the email/phone switch or password under
+Mobile, and never show the country picker under Email. Keep Google/Apple
+capability controls, linked Terms/Privacy notice, signup flow, rate limits and
+backend behavior. Keep the SelfX logo and language control on a clear,
+photo-free header. Translate the method labels in all 20 catalogs and preserve
+RTL, keyboard and narrow-screen behavior.
 
 ### CUSTOMER-MOBILE-30 — My Looks card actions and styling (2026-11-01)
 
@@ -106,9 +113,10 @@ renewals; the page must not imply an automatic subscription.
 ### Customer mobile Back navigation and app name (2026-10-31)
 
 The Android launcher and task title use SelfX Tryon. Back from a non-Home tab
-or signed-in page returns to Home; Back from Home can exit the app. An open
-dialog or sheet handles Back first, including the payment cancellation
-confirmation. Account setup and authentication retain their own Back flows.
+returns to Home; Back from a pushed screen returns to the screen that opened it
+and preserves the active tab. Back from Home can exit the app. An open dialog
+or sheet handles Back first, including the payment cancellation confirmation.
+Account setup and authentication retain their own Back flows.
 
 ### CUSTOMER-MOBILE-25 — Leave payment cancellation (2026-10-30)
 

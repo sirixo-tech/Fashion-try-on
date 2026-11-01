@@ -10,7 +10,6 @@ import 'customer_quick_tryon.dart';
 import 'customer_language_menu.dart';
 import '../services/customer_profile_photo.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../auth/customer_api.dart';
 import '../auth/customer_controller.dart';
@@ -26,13 +25,7 @@ import 'customer_home_back.dart';
 class CustomerShell extends StatefulWidget {
   final CustomerController controller;
   final CustomerPhotoPicker? picker;
-  final ValueListenable<int> homeRequests;
-  const CustomerShell({
-    super.key,
-    required this.controller,
-    required this.homeRequests,
-    this.picker,
-  });
+  const CustomerShell({super.key, required this.controller, this.picker});
   @override
   State<CustomerShell> createState() => _CustomerShellState();
 }
@@ -66,7 +59,6 @@ class _CustomerShellState extends State<CustomerShell>
     unawaited(experience.loadSavedGarments().catchError((Object _) {}));
     unawaited(picker.discardLost());
     WidgetsBinding.instance.addObserver(this);
-    widget.homeRequests.addListener(showHome);
   }
 
   void showHome() {
@@ -85,7 +77,6 @@ class _CustomerShellState extends State<CustomerShell>
 
   @override
   void dispose() {
-    widget.homeRequests.removeListener(showHome);
     WidgetsBinding.instance.removeObserver(this);
     experience.dispose();
     profilePhoto.dispose();

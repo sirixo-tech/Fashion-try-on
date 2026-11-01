@@ -14,16 +14,20 @@ email/optional-phone flow.
 
 ## Inline phone OTP refinement (2026-11-02)
 
-The Mobile (OTP) sign-in keeps the phone field and shows the six-digit code
-entry directly beneath it after Firebase sends the SMS. Keep SMS consent before
-the request and the existing Firebase proof, cooldown and attempt protections.
-Use a photo-free SelfX login header. Place consent-validation errors directly
-above the Terms and Privacy checkbox in larger text, with clear spacing between
-the mobile fields and consent controls.
+The Mobile (OTP) sign-in always shows the phone and six-digit code fields in
+fixed positions. Keep the code field visible but disabled until Firebase sends
+the SMS; sending the code only enables it and changes the primary action to
+Verify. Keep a reserved resend row below the code field, corresponding to Email's
+Forgot password action, so resend availability never shifts Terms or the primary
+button. Keep SMS consent visible before and after the request and preserve the
+existing Firebase proof, cooldown and attempt protections. Use a photo-free
+SelfX login header. Place consent-validation errors directly above the Terms
+and Privacy checkbox in larger text, with clear spacing between the mobile
+fields and consent controls.
 
 ## Customer behavior
 
-- Sign in has separate Email/password and Mobile (OTP) methods. Phone numbers use their international country code, such as `+91`; SMS is requested only after explicit consent. Firebase Authentication verifies the code, then exchanges the verified Firebase ID token for the normal SelfX customer session. The six-digit code entry appears directly beneath the phone number after SMS is sent. Email verification/reset codes continue through the existing SelfX mail outbox.
+- Sign in has separate Email/password and Mobile (OTP) methods. Phone numbers use their international country code, such as `+91`; SMS is requested only after explicit consent. Firebase Authentication verifies the code, then exchanges the verified Firebase ID token for the normal SelfX customer session. The six-digit code field is always visible beneath the phone number and is enabled after SMS is sent. The resend action occupies a fixed row beneath it. Email verification/reset codes continue through the existing SelfX mail outbox.
 - Both Forgot password and the separate Me → Account security screen accept six-digit reset codes and passwords of 8–128 characters, with resend countdowns.
 - Signup still requires name, email, password and terms acceptance. Country code/phone are optional. A supplied phone is stored only as pending contact information; it does not reserve ownership or allow phone login. Verify email, sign in, then open **Me → Phone number** to verify/link it. Phone-only automatic account creation is intentionally excluded: an unknown verified phone directs the user to email signup or their existing account method.
 - Existing customers keep the same customer ID, credits, Saved history and Store visit context. No automatic account merging by matching email or phone. A number already linked to another customer cannot be claimed. Suspended/deleted customers cannot sign in through a new method.

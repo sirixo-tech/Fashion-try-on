@@ -882,9 +882,63 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                 validator: validateEmail,
                               ),
                             if (view == CustomerAuthView.signIn &&
-                                mobileOtp &&
-                                mobile.text.trim().isNotEmpty &&
-                                !mobileCodeSent) ...[
+                                mobileOtp) ...[
+                              SizedBox(height: compact ? 8 : 14),
+                              TextFormField(
+                                key: const ValueKey('mobile-otp-code'),
+                                controller: code,
+                                enabled:
+                                    !busy &&
+                                    mobileCodeSent &&
+                                    mobileGuesses < 5,
+                                textDirection: TextDirection.ltr,
+                                maxLength: 6,
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.done,
+                                inputFormatters: const [
+                                  CustomerCodeFormatter(),
+                                ],
+                                autofillHints: const [
+                                  AutofillHints.oneTimeCode,
+                                ],
+                                decoration: InputDecoration(
+                                  counterText: '',
+                                  labelText: tr(context, '6-digit code'),
+                                ),
+                                validator: (value) => !mobileCodeSent
+                                    ? null
+                                    : value == null ||
+                                          !RegExp(
+                                            r'^\d{6}$',
+                                          ).hasMatch(value.trim())
+                                    ? tr(context, 'Enter the 6-digit code.')
+                                    : null,
+                                onFieldSubmitted: (_) {
+                                  if (mobileCodeSent && !busy) {
+                                    verifyMobileCode();
+                                  }
+                                },
+                              ),
+                              SizedBox(
+                                height: 48,
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: mobileCodeSent
+                                      ? TextButton(
+                                          onPressed: busy || mobileCooldown > 0
+                                              ? null
+                                              : () => requestMobileCode(
+                                                  resend: true,
+                                                ),
+                                          child: CustomerText(
+                                            mobileCooldown > 0
+                                                ? 'Resend in ${mobileCooldown}s'
+                                                : 'Send a new code',
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               if (smsConsentError != null) ...[
                                 _inlineAuthError(smsConsentError!),
@@ -903,49 +957,6 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                                   'I agree to receive a verification SMS. Google processes my number for authentication and abuse prevention. SMS charges may apply.',
                                   style: TextStyle(fontSize: 12, height: 1.3),
                                 ),
-                              ),
-                            ],
-                            if (view == CustomerAuthView.signIn &&
-                                mobileOtp &&
-                                phoneDiagnostic != null &&
-                                !mobileCodeSent) ...[
-                              const SizedBox(height: 4),
-                              CustomerText(
-                                'Verification error: $phoneDiagnostic',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: CustomerColors.muted,
-                                ),
-                              ),
-                            ],
-                            if (view == CustomerAuthView.signIn &&
-                                mobileOtp &&
-                                mobileCodeSent) ...[
-                              SizedBox(height: compact ? 8 : 14),
-                              TextFormField(
-                                key: const ValueKey('mobile-otp-code'),
-                                controller: code,
-                                enabled: !busy && mobileGuesses < 5,
-                                textDirection: TextDirection.ltr,
-                                maxLength: 6,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: const [
-                                  CustomerCodeFormatter(),
-                                ],
-                                autofillHints: const [
-                                  AutofillHints.oneTimeCode,
-                                ],
-                                decoration: InputDecoration(
-                                  counterText: '',
-                                  labelText: tr(context, '6-digit code'),
-                                ),
-                                validator: (value) =>
-                                    value == null ||
-                                        !RegExp(
-                                          r'^\d{6}$',
-                                        ).hasMatch(value.trim())
-                                    ? tr(context, 'Enter the 6-digit code.')
-                                    : null,
                               ),
                               if (phoneDiagnostic != null) ...[
                                 const SizedBox(height: 4),

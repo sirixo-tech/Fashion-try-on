@@ -11,7 +11,6 @@ import 'ui/onboarding.dart';
 import 'ui/customer_skeleton.dart';
 import 'experience/customer_media.dart';
 import 'ui/customer_avatar_screen.dart';
-import 'ui/customer_home_back.dart';
 
 class CustomerApp extends StatefulWidget {
   final CustomerController controller;
@@ -23,7 +22,6 @@ class CustomerApp extends StatefulWidget {
 
 class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
   final navigator = GlobalKey<NavigatorState>();
-  final homeRequests = ValueNotifier<int>(0);
   final routes = _CustomerRouteObserver();
   CustomerController get controller => widget.controller;
   bool wasReady = false;
@@ -44,11 +42,6 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
     wasReady = controller.stage == CustomerStage.ready;
   }
 
-  void goHome() {
-    navigator.currentState?.popUntil((route) => route.isFirst);
-    homeRequests.value++;
-  }
-
   @override
   Future<bool> didPopRoute() async {
     if (controller.stage != CustomerStage.ready ||
@@ -58,8 +51,7 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
       return false;
     }
     if (navigator.currentState?.canPop() != true) return false;
-    goHome();
-    return true;
+    return await navigator.currentState?.maybePop() ?? false;
   }
 
   @override
@@ -74,13 +66,11 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
   void dispose() {
     controller.removeListener(syncRoutes);
     WidgetsBinding.instance.removeObserver(this);
-    homeRequests.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) =>
-      CustomerHomeScope(goHome: goHome, child: buildApp(context));
+  Widget build(BuildContext context) => buildApp(context);
 
   Widget buildApp(BuildContext context) => ListenableBuilder(
     listenable: controller,
@@ -131,7 +121,6 @@ class _CustomerAppState extends State<CustomerApp> with WidgetsBindingObserver {
           CustomerStage.ready => CustomerShell(
             controller: controller,
             picker: widget.picker,
-            homeRequests: homeRequests,
           ),
           CustomerStage.recovery => Scaffold(
             body: SafeArea(
